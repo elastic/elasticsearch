@@ -70,11 +70,13 @@ public class MatchOperator extends Match {
         @Param(
             name = "field",
             type = { "keyword", "text", "boolean", "date", "date_nanos", "double", "integer", "ip", "long", "unsigned_long", "version" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.ENTITY),
             description = "Field or expression that the query will target."
         ) Expression field,
         @Param(
             name = "query",
             type = { "keyword", "boolean", "date", "date_nanos", "double", "integer", "ip", "long", "unsigned_long", "version" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             description = "Value to find in the provided field or expression."
         ) Expression matchQuery
     ) {

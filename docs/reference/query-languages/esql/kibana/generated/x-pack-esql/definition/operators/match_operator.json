@@ -11,13 +11,19 @@
           "name" : "field",
           "type" : "boolean",
           "optional" : false,
-          "description" : "Field or expression that the query will target."
+          "description" : "Field or expression that the query will target.",
+          "hint" : {
+            "kind" : "entity"
+          }
         },
         {
           "name" : "query",
           "type" : "boolean",
           "optional" : false,
-          "description" : "Value to find in the provided field or expression."
+          "description" : "Value to find in the provided field or expression.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -29,13 +35,19 @@
           "name" : "field",
           "type" : "boolean",
           "optional" : false,
-          "description" : "Field or expression that the query will target."
+          "description" : "Field or expression that the query will target.",
+          "hint" : {
+            "kind" : "entity"
+          }
         },
         {
           "name" : "query",
           "type" : "keyword",
           "optional" : false,
-          "description" : "Value to find in the provided field or expression."
+          "description" : "Value to find in the provided field or expression.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -47,13 +59,19 @@
           "name" : "field",
           "type" : "date",
           "optional" : false,
-          "description" : "Field or expression that the query will target."
+          "description" : "Field or expression that the query will target.",
+          "hint" : {
+            "kind" : "entity"
+          }
         },
         {
           "name" : "query",
           "type" : "date",
           "optional" : false,
-          "description" : "Value to find in the provided field or expression."
+          "description" : "Value to find in the provided field or expression.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -65,13 +83,19 @@
           "name" : "field",
           "type" : "date",
           "optional" : false,
-          "description" : "Field or expression that the query will target."
+          "description" : "Field or expression that the query will target.",
+          "hint" : {
+            "kind" : "entity"
+          }
         },
         {
           "name" : "query",
           "type" : "keyword",
           "optional" : false,
-          "description" : "Value to find in the provided field or expression."
+          "description" : "Value to find in the provided field or expression.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -83,13 +107,19 @@
           "name" : "field",
           "type" : "date_nanos",
           "optional" : false,
-          "description" : "Field or expression that the query will target."
+          "description" : "Field or expression that the query will target.",
+          "hint" : {
+            "kind" : "entity"
+          }
         },
         {
           "name" : "query",
           "type" : "date_nanos",
           "optional" : false,
-          "description" : "Value to find in the provided field or expression."
+          "description" : "Value to find in the provided field or expression.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -101,13 +131,19 @@
           "name" : "field",
           "type" : "date_nanos",
           "optional" : false,
-          "description" : "Field or expression that the query will target."
+          "description" : "Field or expression that the query will target.",
+          "hint" : {
+            "kind" : "entity"
+          }
         },
         {
           "name" : "query",
           "type" : "keyword",
           "optional" : false,
-          "description" : "Value to find in the provided field or expression."
+          "description" : "Value to find in the provided field or expression.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -119,13 +155,19 @@
           "name" : "field",
           "type" : "double",
           "optional" : false,
-          "description" : "Field or expression that the query will target."
+          "description" : "Field or expression that the query will target.",
+          "hint" : {
+            "kind" : "entity"
+          }
         },
         {
           "name" : "query",
           "type" : "double",
           "optional" : false,
-          "description" : "Value to find in the provided field or expression."
+          "description" : "Value to find in the provided field or expression.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -137,13 +179,19 @@
           "name" : "field",
           "type" : "double",
           "optional" : false,
-          "description" : "Field or expression that the query will target."
+          "description" : "Field or expression that the query will target.",
+          "hint" : {
+            "kind" : "entity"
+          }
         },
         {
           "name" : "query",
           "type" : "integer",
           "optional" : false,
-          "description" : "Value to find in the provided field or expression."
+          "description" : "Value to find in the provided field or expression.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -155,13 +203,19 @@
           "name" : "field",
           "type" : "double",
           "optional" : false,
-          "description" : "Field or expression that the query will target."
+          "description" : "Field or expression that the query will target.",
+          "hint" : {
+            "kind" : "entity"
+          }
         },
         {
           "name" : "query",
           "type" : "keyword",
           "optional" : false,
-          "description" : "Value to find in the provided field or expression."
+          "description" : "Value to find in the provided field or expression.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -173,13 +227,19 @@
           "name" : "field",
           "type" : "double",
           "optional" : false,
-          "description" : "Field or expression that the query will target."
+          "description" : "Field or expression that the query will target.",
+          "hint" : {
+            "kind" : "entity"
+          }
         },
         {
           "name" : "query",
           "type" : "long",
           "optional" : false,
-          "description" : "Value to find in the provided field or expression."
+          "description" : "Value to find in the provided field or expression.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -191,13 +251,19 @@
           "name" : "field",
           "type" : "integer",
           "optional" : false,
-          "description" : "Field or expression that the query will target."
+          "description" : "Field or expression that the query will target.",
+          "hint" : {
+            "kind" : "entity"
+          }
         },
         {
           "name" : "query",
           "type" : "double",
           "optional" : false,
-          "description" : "Value to find in the provided field or expression."
+          "description" : "Value to find in the provided field or expression.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -209,13 +275,19 @@
           "name" : "field",
           "type" : "integer",
           "optional" : false,
-          "description" : "Field or expression that the query will target."
+          "description" : "Field or expression that the query will target.",
+          "hint" : {
+            "kind" : "entity"
+          }
         },
         {
           "name" : "query",
           "type" : "integer",
           "optional" : false,
-          "description" : "Value to find in the provided field or expression."
+          "description" : "Value to find in the provided field or expression.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -227,13 +299,19 @@
           "name" : "field",
           "type" : "integer",
           "optional" : false,
-          "description" : "Field or expression that the query will target."
+          "description" : "Field or expression that the query will target.",
+          "hint" : {
+            "kind" : "entity"
+          }
         },
         {
           "name" : "query",
           "type" : "keyword",
           "optional" : false,
-          "description" : "Value to find in the provided field or expression."
+          "description" : "Value to find in the provided field or expression.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -245,13 +323,19 @@
           "name" : "field",
           "type" : "integer",
           "optional" : false,
-          "description" : "Field or expression that the query will target."
+          "description" : "Field or expression that the query will target.",
+          "hint" : {
+            "kind" : "entity"
+          }
         },
         {
           "name" : "query",
           "type" : "long",
           "optional" : false,
-          "description" : "Value to find in the provided field or expression."
+          "description" : "Value to find in the provided field or expression.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -263,13 +347,19 @@
           "name" : "field",
           "type" : "ip",
           "optional" : false,
-          "description" : "Field or expression that the query will target."
+          "description" : "Field or expression that the query will target.",
+          "hint" : {
+            "kind" : "entity"
+          }
         },
         {
           "name" : "query",
           "type" : "ip",
           "optional" : false,
-          "description" : "Value to find in the provided field or expression."
+          "description" : "Value to find in the provided field or expression.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -281,13 +371,19 @@
           "name" : "field",
           "type" : "ip",
           "optional" : false,
-          "description" : "Field or expression that the query will target."
+          "description" : "Field or expression that the query will target.",
+          "hint" : {
+            "kind" : "entity"
+          }
         },
         {
           "name" : "query",
           "type" : "keyword",
           "optional" : false,
-          "description" : "Value to find in the provided field or expression."
+          "description" : "Value to find in the provided field or expression.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -299,13 +395,19 @@
           "name" : "field",
           "type" : "keyword",
           "optional" : false,
-          "description" : "Field or expression that the query will target."
+          "description" : "Field or expression that the query will target.",
+          "hint" : {
+            "kind" : "entity"
+          }
         },
         {
           "name" : "query",
           "type" : "keyword",
           "optional" : false,
-          "description" : "Value to find in the provided field or expression."
+          "description" : "Value to find in the provided field or expression.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -317,13 +419,19 @@
           "name" : "field",
           "type" : "long",
           "optional" : false,
-          "description" : "Field or expression that the query will target."
+          "description" : "Field or expression that the query will target.",
+          "hint" : {
+            "kind" : "entity"
+          }
         },
         {
           "name" : "query",
           "type" : "double",
           "optional" : false,
-          "description" : "Value to find in the provided field or expression."
+          "description" : "Value to find in the provided field or expression.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -335,13 +443,19 @@
           "name" : "field",
           "type" : "long",
           "optional" : false,
-          "description" : "Field or expression that the query will target."
+          "description" : "Field or expression that the query will target.",
+          "hint" : {
+            "kind" : "entity"
+          }
         },
         {
           "name" : "query",
           "type" : "integer",
           "optional" : false,
-          "description" : "Value to find in the provided field or expression."
+          "description" : "Value to find in the provided field or expression.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -353,13 +467,19 @@
           "name" : "field",
           "type" : "long",
           "optional" : false,
-          "description" : "Field or expression that the query will target."
+          "description" : "Field or expression that the query will target.",
+          "hint" : {
+            "kind" : "entity"
+          }
         },
         {
           "name" : "query",
           "type" : "keyword",
           "optional" : false,
-          "description" : "Value to find in the provided field or expression."
+          "description" : "Value to find in the provided field or expression.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -371,13 +491,19 @@
           "name" : "field",
           "type" : "long",
           "optional" : false,
-          "description" : "Field or expression that the query will target."
+          "description" : "Field or expression that the query will target.",
+          "hint" : {
+            "kind" : "entity"
+          }
         },
         {
           "name" : "query",
           "type" : "long",
           "optional" : false,
-          "description" : "Value to find in the provided field or expression."
+          "description" : "Value to find in the provided field or expression.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -389,13 +515,19 @@
           "name" : "field",
           "type" : "text",
           "optional" : false,
-          "description" : "Field or expression that the query will target."
+          "description" : "Field or expression that the query will target.",
+          "hint" : {
+            "kind" : "entity"
+          }
         },
         {
           "name" : "query",
           "type" : "keyword",
           "optional" : false,
-          "description" : "Value to find in the provided field or expression."
+          "description" : "Value to find in the provided field or expression.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -407,13 +539,19 @@
           "name" : "field",
           "type" : "unsigned_long",
           "optional" : false,
-          "description" : "Field or expression that the query will target."
+          "description" : "Field or expression that the query will target.",
+          "hint" : {
+            "kind" : "entity"
+          }
         },
         {
           "name" : "query",
           "type" : "double",
           "optional" : false,
-          "description" : "Value to find in the provided field or expression."
+          "description" : "Value to find in the provided field or expression.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -425,13 +563,19 @@
           "name" : "field",
           "type" : "unsigned_long",
           "optional" : false,
-          "description" : "Field or expression that the query will target."
+          "description" : "Field or expression that the query will target.",
+          "hint" : {
+            "kind" : "entity"
+          }
         },
         {
           "name" : "query",
           "type" : "integer",
           "optional" : false,
-          "description" : "Value to find in the provided field or expression."
+          "description" : "Value to find in the provided field or expression.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -443,13 +587,19 @@
           "name" : "field",
           "type" : "unsigned_long",
           "optional" : false,
-          "description" : "Field or expression that the query will target."
+          "description" : "Field or expression that the query will target.",
+          "hint" : {
+            "kind" : "entity"
+          }
         },
         {
           "name" : "query",
           "type" : "keyword",
           "optional" : false,
-          "description" : "Value to find in the provided field or expression."
+          "description" : "Value to find in the provided field or expression.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -461,13 +611,19 @@
           "name" : "field",
           "type" : "unsigned_long",
           "optional" : false,
-          "description" : "Field or expression that the query will target."
+          "description" : "Field or expression that the query will target.",
+          "hint" : {
+            "kind" : "entity"
+          }
         },
         {
           "name" : "query",
           "type" : "long",
           "optional" : false,
-          "description" : "Value to find in the provided field or expression."
+          "description" : "Value to find in the provided field or expression.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -479,13 +635,19 @@
           "name" : "field",
           "type" : "unsigned_long",
           "optional" : false,
-          "description" : "Field or expression that the query will target."
+          "description" : "Field or expression that the query will target.",
+          "hint" : {
+            "kind" : "entity"
+          }
         },
         {
           "name" : "query",
           "type" : "unsigned_long",
           "optional" : false,
-          "description" : "Value to find in the provided field or expression."
+          "description" : "Value to find in the provided field or expression.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -497,13 +659,19 @@
           "name" : "field",
           "type" : "version",
           "optional" : false,
-          "description" : "Field or expression that the query will target."
+          "description" : "Field or expression that the query will target.",
+          "hint" : {
+            "kind" : "entity"
+          }
         },
         {
           "name" : "query",
           "type" : "keyword",
           "optional" : false,
-          "description" : "Value to find in the provided field or expression."
+          "description" : "Value to find in the provided field or expression.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -515,13 +683,19 @@
           "name" : "field",
           "type" : "version",
           "optional" : false,
-          "description" : "Field or expression that the query will target."
+          "description" : "Field or expression that the query will target.",
+          "hint" : {
+            "kind" : "entity"
+          }
         },
         {
           "name" : "query",
           "type" : "version",
           "optional" : false,
-          "description" : "Value to find in the provided field or expression."
+          "description" : "Value to find in the provided field or expression.",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,

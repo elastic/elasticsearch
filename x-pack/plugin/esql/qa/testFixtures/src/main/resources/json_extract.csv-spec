@@ -523,25 +523,21 @@ str:keyword              | result:keyword
 "{""name"":""Alice""}"  | null
 ;
 
-// Exercises JSON_EXTRACT:string with a keyword field reference (level from json_logs)
+// Exercises JSON_EXTRACT:string with a keyword field containing valid JSON
 // so that field_extract coverage is recorded for the string parameter slot.
-// level values ("INFO", "WARN", "ERROR") are not valid JSON, so the function returns
-// null with a warning on every row.
 jsonExtractKeywordStringField
 required_capability: fn_json_extract
 
 FROM json_logs
-| EVAL v = JSON_EXTRACT(level, "x")
+| EVAL v = JSON_EXTRACT(json_kwd, "x")
 | SORT @timestamp
 | LIMIT 3
-| KEEP level, v;
-warningRegex: evaluation of \[JSON_EXTRACT\(.*level.*\)\] failed, treating result as null\. Only first 20 failures recorded\.
-warningRegex: java\.lang\.IllegalArgumentException: invalid JSON input
+| KEEP json_kwd, v;
 
-level:keyword | v:keyword
-INFO          | null
-INFO          | null
-INFO          | null
+json_kwd:keyword              | v:keyword
+"{""x"":""alpha""}"    | alpha
+"{""x"":""beta""}"     | beta
+"{""x"":""gamma""}"    | gamma
 ;
 
 // Both arguments are multi-value (the original issue reproduction).

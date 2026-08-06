@@ -22,6 +22,8 @@ public class GrpcThreadsFilter implements ThreadFilter {
     @Override
     public boolean reject(Thread t) {
         String name = t.getName();
-        return name.startsWith("grpc-default-executor-") || name.startsWith("grpc-shared-destroyer-");
+        return name.startsWith("grpc-default-executor-")
+            || name.startsWith("grpc-shared-destroyer-")
+            || name.startsWith("grpc-nio-");
     }
 }

@@ -417,7 +417,7 @@ public class VerifierMetricsTests extends ESTestCase {
         // Mirror EsqlSession.execute: increment IN_SUBQUERY on the pre-resolution plan (once),
         // then resolve InSubquery into SemiJoin/AntiJoin/MarkJoin, then analyze.
         // WHERE is counted by the analyzer/verifier plan walk via FeatureMetric.WHERE matching
-        // SemiJoin/AntiJoin/MarkJoin in the post-resolution plan.
+        // SemiJoin/AntiJoin in the post-resolution plan.
         var parsed = TEST_PARSER.parseQuery(esql);
         if (metrics != null && InSubqueryResolver.hasInSubquery(parsed)) {
             metrics.inc(IN_SUBQUERY);

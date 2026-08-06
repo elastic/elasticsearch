@@ -84,7 +84,7 @@ public class InSubqueryFailureIT extends AbstractEsqlIntegTestCase {
         );
         assertThat(
             e.getMessage(),
-            containsString("IN subquery is not supported within other expressions [MV_CONTAINS(x IN (FROM main_index), [true, false])]")
+            containsString("IN subquery is not supported within expression [MV_CONTAINS(x IN (FROM main_index), [true, false])]")
         );
     }
 

@@ -1101,7 +1101,7 @@ public class InSubqueryResolverTests extends ESTestCase {
     }
 
     /**
-     * {@code EVAL z = TO_STRING(x IN (FROM sub))}: non-allowlisted wrapper — "not supported within other expressions" error.
+     * {@code EVAL z = TO_STRING(x IN (FROM sub))}: non-allowlisted wrapper — "not supported within expression" error.
      */
     public void testRejectsInSubqueryInsideNonAllowlistedFunctionInEval() {
         var e = expectThrows(VerificationException.class, () -> resolve("FROM main | EVAL z = TO_STRING(x IN (FROM sub))"));

@@ -853,7 +853,7 @@ public class StatelessPlugin extends Plugin
                 cacheWarmingService,
                 services.telemetryProvider()
             );
-            // crateStatelessCommitService may return a subclass, so we bind the component explicitly
+            // createStatelessCommitService may return a subclass, so we bind the component explicitly
             components.add(new PluginComponentBinding<>(StatelessCommitService.class, commitService));
         }
         components.add(new StatelessCommitServiceProvider(commitService));

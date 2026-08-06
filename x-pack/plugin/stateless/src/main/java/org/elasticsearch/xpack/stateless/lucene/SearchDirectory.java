@@ -146,13 +146,15 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
             }
             return clearOrphans ? SharedBlobCacheService.MINIMAL_CACHE_TIMESTAMP : null;
         });
-        logger.debug(
-            "{} backfilled [{}] timestamps (clearOrphans=[]) in [{}]",
-            shardId,
-            timestampByCacheKey.size(),
-            clearOrphans,
-            TimeValue.timeValueNanos(System.nanoTime() - startTime)
-        );
+        if (logger.isDebugEnabled()) {
+            logger.debug(
+                "{} backfilled [{}] timestamps (clearOrphans=[{}]) in [{}]",
+                shardId,
+                timestampByCacheKey.size(),
+                clearOrphans,
+                TimeValue.timeValueNanos(System.nanoTime() - startTime)
+            );
+        }
     }
 
     /**

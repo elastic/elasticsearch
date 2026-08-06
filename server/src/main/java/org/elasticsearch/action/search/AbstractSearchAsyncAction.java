@@ -43,7 +43,6 @@ import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
-import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.transport.Transport;
 
 import java.util.ArrayList;
@@ -53,7 +52,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executor;
@@ -370,7 +368,7 @@ public abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult
                     }
                     onPhaseFailure(currentPhase, "Partial shards failure", null);
                 } else {
-                    if (internalCancelledShardCount.get() == getNumShards()) {
+                    if (internalCancelledShardCount.get() == results.getNumShards()) {
                         // All shards encountered internal TaskCancelledException, which is not included in shard failures. To prevent a
                         // spurious SERVICE_UNAVAILABLE response due to no shard failures being present, provide a placeholder cause to
                         // onPhaseFailure() which can be filtered out later
@@ -546,13 +544,11 @@ public abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult
     }
 
     private boolean isInternalCancel(Exception e) {
-        Optional<Throwable> maybeInternalCancel = ExceptionsHelper.unwrapCausesAndSuppressed(e, ex -> ex instanceof TaskCancelledException);
-        // It's possible for a TaskCancelledException due to the internal cancel to reach here before requestCancelled has been set to true
-        // if the search is cancelled from another cluster, so also check the task cancellation reason
-        return (maybeInternalCancel.isPresent()
+        // It's possible for a TaskCancelledException due to the internal cancel to reach here before internalCancelTriggered has been set
+        // to true if the search is cancelled from another cluster, so also check the task cancellation reason
+        return (ExceptionsHelper.isTaskCancelledException(e)
             && (internalCancelTriggered.get()
-                || (maybeInternalCancel.get().getMessage() != null
-                    && maybeInternalCancel.get().getMessage().contains(INTERNAL_PARTIAL_RESULTS_CANCEL_REASON))));
+                || task.getReasonCancelled() != null && task.getReasonCancelled().contains(INTERNAL_PARTIAL_RESULTS_CANCEL_REASON)));
     }
 
     /**
@@ -697,7 +693,7 @@ public abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult
         ShardSearchFailure[] failures = buildShardFailures();
         Boolean allowPartialResults = request.allowPartialSearchResults();
         assert allowPartialResults != null : "SearchRequest missing setting for allowPartialSearchResults";
-        if (allowPartialResults == false && (failures.length > 0 || internalCancelledShardCount.get() > 0)) {
+        if (allowPartialResults == false && failures.length > 0) {
             raisePhaseFailure(new SearchPhaseExecutionException("", "Shard failures", null, failures));
         } else {
             SearchResponse searchResponse = buildSearchResponse(

@@ -48,6 +48,7 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.SearchTimeoutException;
+import org.elasticsearch.tasks.TaskCancelHelper;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.telemetry.InstrumentType;
@@ -131,6 +132,14 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             onGroupFailure,
             Collections.singletonList(
                 new SearchShardIterator(null, new ShardId("index", "_na", 0), Collections.emptyList(), null, SplitShardCountSummary.UNSET)
+            ),
+            new SearchTask(
+                randomLong(),
+                randomAlphaOfLength(6),
+                randomAlphaOfLength(6),
+                () -> randomAlphaOfLength(6),
+                TaskId.EMPTY_TASK_ID,
+                Map.of()
             )
         );
     }
@@ -144,6 +153,37 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         Runnable onExecutePhase,
         Runnable onGroupFailure,
         final List<SearchShardIterator> shardsIterators
+    ) {
+        return createAction(
+            request,
+            results,
+            listener,
+            controlled,
+            expected,
+            onExecutePhase,
+            onGroupFailure,
+            shardsIterators,
+            new SearchTask(
+                randomLong(),
+                randomAlphaOfLength(6),
+                randomAlphaOfLength(6),
+                () -> randomAlphaOfLength(6),
+                TaskId.EMPTY_TASK_ID,
+                Map.of()
+            )
+        );
+    }
+
+    private AbstractSearchAsyncAction<SearchPhaseResult> createAction(
+        SearchRequest request,
+        ArraySearchPhaseResults<SearchPhaseResult> results,
+        ActionListener<SearchResponse> listener,
+        final boolean controlled,
+        final AtomicLong expected,
+        Runnable onExecutePhase,
+        Runnable onGroupFailure,
+        final List<SearchShardIterator> shardsIterators,
+        final SearchTask task
     ) {
         final Runnable runnable;
         final TransportSearchAction.SearchTimeProvider timeProvider;
@@ -192,14 +232,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             Collections.emptyMap(),
             timeProvider,
             ClusterState.EMPTY_STATE,
-            new SearchTask(
-                randomLong(),
-                randomAlphaOfLength(6),
-                randomAlphaOfLength(6),
-                () -> randomAlphaOfLength(6),
-                TaskId.EMPTY_TASK_ID,
-                Map.of()
-            ),
+            task,
             results,
             request.getMaxConcurrentShardRequests(),
             SearchResponse.Clusters.EMPTY,
@@ -635,23 +668,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         List<Tuple<String, String>> nodeLookups = new ArrayList<>();
         int numFailures = randomIntBetween(2, 5);
         ArraySearchPhaseResults<SearchPhaseResult> phaseResults = phaseResults(requestIds, nodeLookups, numFailures);
-        var shardIterators = new ArrayList<SearchShardIterator>();
-        for (int i = 0; i < numFailures; i++) {
-            ShardId shardId = new ShardId("index", "index-uuid", i);
-            String clusterAlias = randomBoolean() ? null : randomAlphaOfLengthBetween(5, 10);
-            SearchShardIterator shardIterator = new SearchShardIterator(
-                clusterAlias,
-                shardId,
-                List.of("node"),
-                null,
-                null,
-                null,
-                false,
-                false,
-                SplitShardCountSummary.UNSET
-            );
-            shardIterators.add(shardIterator);
-        }
+        var shardIterators = createShardIterators(numFailures);
 
         AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(
             searchRequest,
@@ -664,8 +681,13 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             shardIterators
         );
 
-        // Add failures due to internal TaskCancelledException to confirm we ignore them
-        for (int i = 0; i < numFailures - 1; i++) {
+        // Add a non-TaskCancelledException to confirm that it is not ignored
+        SearchShardIterator firstShardIterator = shardIterators.getFirst();
+        var nonInternalException = new IllegalArgumentException("not cancel exception");
+        action.onShardFailure(firstShardIterator.shardId().id(), firstShardIterator.nextOrNull(), firstShardIterator, nonInternalException);
+
+        // Add failures due to internal TaskCancelledException for the rest of the shards to confirm we ignore them
+        for (int i = 1; i < numFailures; i++) {
             SearchShardIterator shardIterator = shardIterators.get(i);
             action.onShardFailure(
                 shardIterator.shardId().id(),
@@ -674,11 +696,6 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
                 new TaskCancelledException(INTERNAL_PARTIAL_RESULTS_CANCEL_REASON)
             );
         }
-
-        // Add a final non-TaskCancelledException to confirm that it is not ignored
-        SearchShardIterator shardIterator = shardIterators.getLast();
-        var nonInternalException = new IllegalArgumentException("not cancel exception");
-        action.onShardFailure(shardIterator.shardId().id(), shardIterator.nextOrNull(), shardIterator, nonInternalException);
 
         assertThat(exception.get(), instanceOf(SearchPhaseExecutionException.class));
         SearchPhaseExecutionException searchPhaseExecutionException = (SearchPhaseExecutionException) exception.get();
@@ -700,23 +717,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         List<Tuple<String, String>> nodeLookups = new ArrayList<>();
         int numFailures = randomIntBetween(2, 5);
         ArraySearchPhaseResults<SearchPhaseResult> phaseResults = phaseResults(requestIds, nodeLookups, numFailures);
-        var shardIterators = new ArrayList<SearchShardIterator>();
-        for (int i = 0; i < numFailures; i++) {
-            ShardId shardId = new ShardId("index", "index-uuid", i);
-            String clusterAlias = randomBoolean() ? null : randomAlphaOfLengthBetween(5, 10);
-            SearchShardIterator shardIterator = new SearchShardIterator(
-                clusterAlias,
-                shardId,
-                List.of("node"),
-                null,
-                null,
-                null,
-                false,
-                false,
-                SplitShardCountSummary.UNSET
-            );
-            shardIterators.add(shardIterator);
-        }
+        var shardIterators = createShardIterators(numFailures);
 
         AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(
             searchRequest,
@@ -761,24 +762,16 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         List<Tuple<String, String>> nodeLookups = new ArrayList<>();
         int numFailures = randomIntBetween(1, 5);
         ArraySearchPhaseResults<SearchPhaseResult> phaseResults = new ArraySearchPhaseResults<>(numFailures);
-        var shardIterators = new ArrayList<SearchShardIterator>();
-        for (int i = 0; i < numFailures; i++) {
-            ShardId shardId = new ShardId("index", "index-uuid", i);
-            String clusterAlias = randomBoolean() ? null : randomAlphaOfLengthBetween(5, 10);
-            SearchShardIterator shardIterator = new SearchShardIterator(
-                clusterAlias,
-                shardId,
-                List.of("node1", "node2"),
-                null,
-                null,
-                null,
-                false,
-                false,
-                SplitShardCountSummary.UNSET
-            );
-            shardIterators.add(shardIterator);
-        }
+        var shardIterators = createShardIterators(numFailures);
 
+        SearchTask task = new SearchTask(
+            randomLong(),
+            randomAlphaOfLength(6),
+            randomAlphaOfLength(6),
+            () -> randomAlphaOfLength(6),
+            TaskId.EMPTY_TASK_ID,
+            Map.of()
+        );
         AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(
             searchRequest,
             phaseResults,
@@ -787,8 +780,12 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             new AtomicLong(),
             null,
             null,
-            shardIterators
+            shardIterators,
+            task
         );
+
+        // Set the task cancellation reason so that all the internal TaskCancelledExceptions are ignored
+        TaskCancelHelper.cancel(task, INTERNAL_PARTIAL_RESULTS_CANCEL_REASON);
 
         for (int i = 0; i < numFailures; i++) {
             SearchShardIterator shardIterator = shardIterators.get(i);
@@ -973,6 +970,27 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             phaseResults.consumeResult(phaseResult, () -> {});
         }
         return phaseResults;
+    }
+
+    private static ArrayList<SearchShardIterator> createShardIterators(int numFailures) {
+        var shardIterators = new ArrayList<SearchShardIterator>();
+        for (int i = 0; i < numFailures; i++) {
+            ShardId shardId = new ShardId("index", "index-uuid", i);
+            String clusterAlias = randomBoolean() ? null : randomAlphaOfLengthBetween(5, 10);
+            SearchShardIterator shardIterator = new SearchShardIterator(
+                clusterAlias,
+                shardId,
+                List.of("node1", "node2"),
+                null,
+                null,
+                null,
+                false,
+                false,
+                SplitShardCountSummary.UNSET
+            );
+            shardIterators.add(shardIterator);
+        }
+        return shardIterators;
     }
 
     private static final class PhaseResult extends SearchPhaseResult {

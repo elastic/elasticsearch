@@ -195,6 +195,7 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
             );
             // Do not include shard failures due to internal cancel
             if (maybeInternalCancel.isEmpty()
+                || maybeInternalCancel.get().getMessage() == null
                 || maybeInternalCancel.get().getMessage().contains(INTERNAL_PARTIAL_RESULTS_CANCEL_REASON) == false) {
                 builder.setFailures(CollectionUtils.appendToCopy(v.getFailures(), new ShardSearchFailure(e, shardTarget)));
             }

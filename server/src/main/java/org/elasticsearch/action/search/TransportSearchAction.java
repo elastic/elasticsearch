@@ -2424,11 +2424,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             SearchResponse.Cluster cluster = clusters.getCluster(clusterAlias);
             // If all shards failed due the search being cancelled internally, do not include the placeholder exception in the response
             if (ALL_SHARDS_FAILED_DUE_TO_INTERNAL_CANCEL.equals(ExceptionsHelper.unwrapCause(e).getMessage())) {
-                ccsClusterInfoUpdateInternalCancel(clusters, clusterAlias, skipOnFailure);
+                if (cluster != null) {
+                    ccsClusterInfoUpdateInternalCancel(clusters, clusterAlias, skipOnFailure);
+                }
                 maybeFinish();
                 return;
             }
-
             var isTaskCancelled = ExceptionsHelper.isTaskCancelledException(e);
             if (skipOnFailure && isTaskCancelled == false) {
                 if (cluster != null) {

@@ -33,8 +33,8 @@ public class Clusters {
      */
     public static ElasticsearchCluster oldVersionCluster(String user, String pass, Supplier<Boolean> columnar) {
         var cluster = clusterBuilder(user, pass);
-        Version oldVersion = Version.fromString(System.getProperty("tests.old_cluster_version"));
-        if (oldVersion.onOrAfter(Version.fromString("9.5.0"))) {
+        String oldVersionProp = System.getProperty("tests.old_cluster_version");
+        if (oldVersionProp != null && Version.fromString(oldVersionProp).onOrAfter(Version.fromString("9.5.0"))) {
             cluster.setting("cluster.logsdb_columnar.enabled", () -> Boolean.toString(columnar.get()));
         }
         return cluster.build();

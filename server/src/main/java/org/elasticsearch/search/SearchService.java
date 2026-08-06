@@ -269,7 +269,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.NodeScope,
         Property.Dynamic
     );
-    
+
     public static final Setting<Boolean> FETCH_PHASE_CHUNKED_ENABLED = Setting.boolSetting(
         "search.fetch_phase_chunked_enabled",
         true,

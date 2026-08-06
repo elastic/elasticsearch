@@ -12,21 +12,33 @@ package org.elasticsearch.common.xcontent;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentType;
+
+import java.io.IOException;
 
 import static org.elasticsearch.common.xcontent.ChunkedToXContent.wrapAsToXContent;
 import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.endObject;
 import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.startObject;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
 public class ChunkedToXContentTests extends ESTestCase {
 
-    public void testWrapAsToXContentProducesEqualInstances() {
-        ChunkedToXContent object = params -> Iterators.concat(startObject(), endObject());
+    public void testWrapAsToXContentProducesEqualInstances() throws IOException {
+        ChunkedToXContentObject object = params -> Iterators.concat(
+            startObject(),
+            Iterators.single((builder, p) -> builder.field("test", 42)),
+            endObject()
+        );
 
         ToXContent first = wrapAsToXContent(object);
         ToXContent second = wrapAsToXContent(object);
 
-        assertNotSame(first, second);
-        assertEquals(first, second);
-        assertEquals(first.hashCode(), second.hashCode());
+        for (var xContentType : XContentType.values()) {
+            assertToXContentEquivalent(
+                XContentHelper.toXContent(first, xContentType, false),
+                XContentHelper.toXContent(second, xContentType, false),
+                xContentType
+            );
+        }
     }
 }

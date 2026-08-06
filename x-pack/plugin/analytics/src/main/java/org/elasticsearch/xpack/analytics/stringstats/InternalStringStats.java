@@ -13,6 +13,7 @@ import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
+import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -22,41 +23,43 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
-public class InternalStringStats extends InternalAggregation {
+public class InternalStringStats extends InternalNumericMetricsAggregation.MultiValue {
 
     enum Metrics {
         count {
-            Object getFieldValue(InternalStringStats stats) {
+            double getFieldValue(InternalStringStats stats) {
                 return stats.getCount();
             }
         },
         min_length {
-            Object getFieldValue(InternalStringStats stats) {
+            double getFieldValue(InternalStringStats stats) {
                 return stats.getMinLength();
             }
         },
         max_length {
-            Object getFieldValue(InternalStringStats stats) {
+            double getFieldValue(InternalStringStats stats) {
                 return stats.getMaxLength();
             }
         },
         avg_length {
-            Object getFieldValue(InternalStringStats stats) {
+            double getFieldValue(InternalStringStats stats) {
                 return stats.getAvgLength();
             }
         },
         entropy {
-            Object getFieldValue(InternalStringStats stats) {
+            double getFieldValue(InternalStringStats stats) {
                 return stats.getEntropy();
             }
         };
 
-        abstract Object getFieldValue(InternalStringStats stats);
+        abstract double getFieldValue(InternalStringStats stats);
     }
 
-    private final DocValueFormat format;
+    static final Set<String> METRIC_NAMES = Set.of("count", "min_length", "max_length", "avg_length", "entropy");
+
     private final boolean showDistribution;
     private final long count;
     private final long totalLength;
@@ -75,8 +78,7 @@ public class InternalStringStats extends InternalAggregation {
         DocValueFormat formatter,
         Map<String, Object> metadata
     ) {
-        super(name, metadata);
-        this.format = formatter;
+        super(name, formatter, metadata);
         this.showDistribution = showDistribution;
         this.count = count;
         this.totalLength = totalLength;
@@ -88,7 +90,6 @@ public class InternalStringStats extends InternalAggregation {
     /** Read from a stream. */
     public InternalStringStats(StreamInput in) throws IOException {
         super(in);
-        format = in.readNamedWriteable(DocValueFormat.class);
         showDistribution = in.readBoolean();
         count = in.readVLong();
         totalLength = in.readVLong();
@@ -192,12 +193,18 @@ public class InternalStringStats extends InternalAggregation {
         return format.format(getEntropy()).toString();
     }
 
-    public Object value(String name) {
+    @Override
+    public double value(String name) {
         try {
             return Metrics.valueOf(name).getFieldValue(this);
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException("Unknown value [" + name + "] in string stats aggregation");
         }
+    }
+
+    @Override
+    public Iterable<String> valueNames() {
+        return METRIC_NAMES;
     }
 
     @Override

@@ -1,0 +1,6 @@
+area: Transform
+issues:
+ - 51925
+pr: 155698
+summary: Add support for string_stats aggregations in pivot transforms
+type: enhancement

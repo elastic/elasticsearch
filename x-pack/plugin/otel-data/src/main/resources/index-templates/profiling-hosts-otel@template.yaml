@@ -1,6 +1,6 @@
 ---
 version: ${xpack.oteldata.template.version}
-index_patterns: ["profiling-hosts.otel-default*"]
+index_patterns: ["profiling-hosts.otel-*"]
 priority: 250
 data_stream: {}
 allow_auto_create: true

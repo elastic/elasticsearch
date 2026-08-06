@@ -65,6 +65,7 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.DiscoveryModule;
@@ -227,6 +228,7 @@ import org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotSettings;
 import org.elasticsearch.xpack.stateless.snapshots.TransportGetShardSnapshotCommitInfoAction;
 import org.elasticsearch.xpack.stateless.utils.SearchShardSizeCollector;
 import org.elasticsearch.xpack.stateless.utils.SearchShardSizeCollectorProvider;
+import org.elasticsearch.xpack.stateless.utils.StatelessCommitServiceProvider;
 import org.elasticsearch.xpack.stateless.xpack.DummyILMInfoTransportAction;
 import org.elasticsearch.xpack.stateless.xpack.DummyILMUsageTransportAction;
 import org.elasticsearch.xpack.stateless.xpack.DummyMonitoringInfoTransportAction;
@@ -835,24 +837,32 @@ public class StatelessPlugin extends Plugin
             warmingRatioProvider
         );
         setAndGet(this.sharedBlobCacheWarmingService, cacheWarmingService);
-        var commitService = createStatelessCommitService(
-            settings,
-            objectStoreService,
-            clusterService,
-            indicesService,
-            client,
-            commitCleaner,
-            cacheService,
-            cacheWarmingService,
-            services.telemetryProvider()
-        );
-        components.add(commitService);
+
         var clusterStateCleanupService = new StatelessClusterStateCleanupService(threadPool, objectStoreService, clusterService);
         clusterService.addListener(clusterStateCleanupService);
-        // Allow wrapping non-Guiced version for testing
-        commitService = wrapStatelessCommitService(commitService);
-        clusterService.addListener(commitService);
-        setAndGet(this.commitService, commitService);
+        StatelessCommitService commitService = null;
+        if (hasIndexRole) {
+            commitService = createStatelessCommitService(
+                settings,
+                objectStoreService,
+                clusterService,
+                indicesService,
+                client,
+                commitCleaner,
+                cacheService,
+                cacheWarmingService,
+                services.telemetryProvider()
+            );
+            // createStatelessCommitService may return a subclass, so we bind the component explicitly
+            components.add(new PluginComponentBinding<>(StatelessCommitService.class, commitService));
+        }
+        components.add(new StatelessCommitServiceProvider(commitService));
+        if (commitService != null) {
+            // Allow wrapping non-Guiced version for testing
+            commitService = wrapStatelessCommitService(commitService);
+            setAndGet(this.commitService, commitService);
+            clusterService.addListener(commitService);
+        }
 
         final var snapshotsCommitService = setAndGet(
             this.snapshotsCommitServiceRef,
@@ -898,7 +908,7 @@ public class StatelessPlugin extends Plugin
             objectStoreService,
             cacheWarmingService,
             threadPool,
-            commitService.useReplicatedRanges(),
+            StatelessCommitService.STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT.get(settings),
             bccHeaderReadExecutor.get()
         );
         components.add(indexShardCacheWarmer);
@@ -1221,7 +1231,7 @@ public class StatelessPlugin extends Plugin
         ClusterService clusterService,
         IndicesService indicesService,
         ObjectStoreService objectStoreService,
-        StatelessCommitService commitService,
+        @Nullable StatelessCommitService commitService,
         IndexShardCacheWarmer indexShardCacheWarmer,
         ThreadPool threadPool,
         HollowShardsMetrics metrics,

@@ -28,7 +28,6 @@ public class AshProjectionMatrixTests extends ESTestCase {
         AshProjectionMatrix pm = new AshProjectionMatrix(w);
         assertEquals(originalDim, pm.originalDim());
         assertEquals(nDims, pm.nDims());
-        assertNull(pm.ashCentroids());
     }
 
     public void testTransposeCorrectness() {
@@ -58,7 +57,7 @@ public class AshProjectionMatrixTests extends ESTestCase {
         assertSame(wT1, wT2);
     }
 
-    public void testSerializationRoundtripNoCentroids() throws IOException {
+    public void testSerializationRoundtrip() throws IOException {
         int originalDim = randomIntBetween(4, 100);
         int nDims = randomIntBetween(2, originalDim);
         float[][] w = randomMatrix(originalDim, nDims);
@@ -69,48 +68,22 @@ public class AshProjectionMatrixTests extends ESTestCase {
 
         assertEquals(originalDim, restored.originalDim());
         assertEquals(nDims, restored.nDims());
-        assertNull(restored.ashCentroids());
         assertMatrixEquals(w, restored.w());
-    }
-
-    public void testSerializationRoundtripWithCentroids() throws IOException {
-        int originalDim = randomIntBetween(4, 100);
-        int nDims = randomIntBetween(2, originalDim);
-        int nClusters = randomIntBetween(1, 8);
-        float[][] w = randomMatrix(originalDim, nDims);
-        float[][] centroids = randomMatrix(nClusters, originalDim);
-
-        AshProjectionMatrix original = new AshProjectionMatrix(w, centroids);
-
-        AshProjectionMatrix restored = writeAndRead(original);
-
-        assertEquals(originalDim, restored.originalDim());
-        assertEquals(nDims, restored.nDims());
-        assertNotNull(restored.ashCentroids());
-        assertEquals(nClusters, restored.ashCentroids().length);
-        assertMatrixEquals(w, restored.w());
-        assertMatrixEquals(centroids, restored.ashCentroids());
     }
 
     public void testByteSizeMatchesActualSerialized() throws IOException {
         int originalDim = randomIntBetween(4, 50);
         int nDims = randomIntBetween(2, originalDim);
-        int nClusters = randomIntBetween(0, 4);
         float[][] w = randomMatrix(originalDim, nDims);
-        float[][] centroids = nClusters > 0 ? randomMatrix(nClusters, originalDim) : null;
 
-        AshProjectionMatrix pm = new AshProjectionMatrix(w, centroids);
+        AshProjectionMatrix pm = new AshProjectionMatrix(w);
 
         ByteBuffersDataOutput dataOut = new ByteBuffersDataOutput();
         try (ByteBuffersIndexOutput out = new ByteBuffersIndexOutput(dataOut, "test", "test")) {
             pm.write(out);
         }
 
-        // byteSize should match what was written (3 ints header + W + centroids)
-        long expectedSize = Integer.BYTES * 3L + (long) originalDim * nDims * Float.BYTES;
-        if (nClusters > 0) {
-            expectedSize += (long) nClusters * originalDim * Float.BYTES;
-        }
+        long expectedSize = Integer.BYTES * 2L + (long) originalDim * nDims * Float.BYTES;
         assertEquals(expectedSize, pm.byteSize());
     }
 

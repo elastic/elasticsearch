@@ -264,7 +264,6 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         Random rng = new Random(77);
         int originalDim = 8;
         int nDims = 3;
-        int nClusters = 2;
 
         float[][] w = new float[originalDim][nDims];
         for (int i = 0; i < originalDim; i++) {
@@ -272,14 +271,8 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
                 w[i][j] = (float) rng.nextGaussian();
             }
         }
-        float[][] centroids = new float[nClusters][originalDim];
-        for (int c = 0; c < nClusters; c++) {
-            for (int d = 0; d < originalDim; d++) {
-                centroids[c][d] = (float) rng.nextGaussian();
-            }
-        }
 
-        AshProjectionMatrix original = new AshProjectionMatrix(w, centroids);
+        AshProjectionMatrix original = new AshProjectionMatrix(w);
 
         // Write
         ByteBuffersDataOutput dataOut = new ByteBuffersDataOutput();
@@ -293,17 +286,10 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
 
         assertEquals(originalDim, restored.originalDim());
         assertEquals(nDims, restored.nDims());
-        assertNotNull(restored.ashCentroids());
-        assertEquals(nClusters, restored.ashCentroids().length);
 
         for (int i = 0; i < originalDim; i++) {
             for (int j = 0; j < nDims; j++) {
                 assertEquals(w[i][j], restored.w()[i][j], 0f);
-            }
-        }
-        for (int c = 0; c < nClusters; c++) {
-            for (int d = 0; d < originalDim; d++) {
-                assertEquals(centroids[c][d], restored.ashCentroids()[c][d], 0f);
             }
         }
     }

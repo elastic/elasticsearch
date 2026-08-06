@@ -307,7 +307,16 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     public void testGetIngestObject() throws Exception {
-        doWithRandomAccessPattern((doc) -> assertThat(doc.getFieldValue("_ingest", Map.class), notNullValue()));
+        doWithRandomAccessPattern((doc) -> {
+            // the bare _ingest path refers to the source field of that name, not the ingest metadata
+            assertThat(doc.getFieldValue("_ingest", Map.class), equalTo(Map.of("timestamp", BOGUS_TIMESTAMP)));
+            assertThat(doc.getFieldValue("_source._ingest", Map.class), equalTo(Map.of("timestamp", BOGUS_TIMESTAMP)));
+            // scripts (via the ctx map's key lookup) also see the source field, which takes precedence over the ingest metadata
+            assertThat(doc.getCtxMap().get("_ingest"), sameInstance(doc.getSource().get("_ingest")));
+            // once the source field is removed, scripts see the ingest metadata
+            doc.removeField("_ingest");
+            assertThat(doc.getCtxMap().get("_ingest"), sameInstance(doc.getIngestMetadata()));
+        });
     }
 
     public void testGetEmptyPathAfterStrippingOutPrefix() throws Exception {
@@ -685,7 +694,12 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     public void testHasFieldIngestObject() throws Exception {
-        doWithRandomAccessPattern((doc) -> assertThat(doc.hasField("_ingest"), equalTo(true)));
+        doWithRandomAccessPattern((doc) -> {
+            // The bare _ingest path refers to the source field of that name.
+            assertThat(doc.hasField("_ingest"), equalTo(true));
+            doc.removeField("_ingest");
+            assertThat(doc.hasField("_ingest"), equalTo(false));
+        });
     }
 
     public void testHasFieldEmptyPathAfterStrippingOutPrefix() throws Exception {
@@ -707,11 +721,11 @@ public class IngestDocumentTests extends ESTestCase {
     public void testSimpleSetFieldValue() throws Exception {
         doWithRandomAccessPattern((doc) -> {
             doc.setFieldValue("new_field", "foo");
-            assertThat(doc.getSourceAndMetadata().get("new_field"), equalTo("foo"));
+            assertThat(doc.getSource().get("new_field"), equalTo("foo"));
             doc.setFieldValue("_ttl", "ttl");
-            assertThat(doc.getSourceAndMetadata().get("_ttl"), equalTo("ttl"));
+            assertThat(doc.getSource().get("_ttl"), equalTo("ttl"));
             doc.setFieldValue("_source.another_field", "bar");
-            assertThat(doc.getSourceAndMetadata().get("another_field"), equalTo("bar"));
+            assertThat(doc.getSource().get("another_field"), equalTo("bar"));
             doc.setFieldValue("_ingest.new_field", "new_value");
             // Metadata contains timestamp, the new_field added above, and the pipeline that is synthesized from doWithRandomAccessPattern
             assertThat(doc.getIngestMetadata().size(), equalTo(3));
@@ -721,30 +735,30 @@ public class IngestDocumentTests extends ESTestCase {
         });
         doWithAccessPattern(FLEXIBLE, (doc) -> {
             doc.setFieldValue("dotted.bar.buzz", "fizz");
-            assertThat(doc.getSourceAndMetadata().get("dotted.bar.buzz"), equalTo("fizz"));
+            assertThat(doc.getSource().get("dotted.bar.buzz"), equalTo("fizz"));
             doc.setFieldValue("_source.dotted.another.buzz", "fizz");
-            assertThat(doc.getSourceAndMetadata().get("dotted.another.buzz"), equalTo("fizz"));
+            assertThat(doc.getSource().get("dotted.another.buzz"), equalTo("fizz"));
             doc.setFieldValue("_ingest.dotted.bar.buzz", "fizz");
             // Metadata contains timestamp, both fields added above, and the pipeline that is synthesized from doWithRandomAccessPattern
             assertThat(doc.getIngestMetadata().size(), equalTo(4));
             assertThat(doc.getIngestMetadata().get("dotted.bar.buzz"), equalTo("fizz"));
 
             doc.setFieldValue("dotted.foo", "foo");
-            assertThat(doc.getSourceAndMetadata().get("dotted.foo"), instanceOf(String.class));
-            assertThat(doc.getSourceAndMetadata().get("dotted.foo"), equalTo("foo"));
+            assertThat(doc.getSource().get("dotted.foo"), instanceOf(String.class));
+            assertThat(doc.getSource().get("dotted.foo"), equalTo("foo"));
         });
     }
 
     public void testSetFieldValueNullValue() throws Exception {
         doWithRandomAccessPattern((doc) -> {
             doc.setFieldValue("new_field", (Object) null);
-            assertThat(doc.getSourceAndMetadata().containsKey("new_field"), equalTo(true));
-            assertThat(doc.getSourceAndMetadata().get("new_field"), nullValue());
+            assertThat(doc.getSource().containsKey("new_field"), equalTo(true));
+            assertThat(doc.getSource().get("new_field"), nullValue());
         });
         doWithAccessPattern(FLEXIBLE, (doc) -> {
             doc.setFieldValue("dotted.new.field", (Object) null);
-            assertThat(doc.getSourceAndMetadata().containsKey("dotted.new.field"), equalTo(true));
-            assertThat(doc.getSourceAndMetadata().get("dotted.new.field"), nullValue());
+            assertThat(doc.getSource().containsKey("dotted.new.field"), equalTo(true));
+            assertThat(doc.getSource().get("dotted.new.field"), nullValue());
         });
     }
 
@@ -752,8 +766,8 @@ public class IngestDocumentTests extends ESTestCase {
     public void testNestedSetFieldValue() throws Exception {
         doWithAccessPattern(CLASSIC, (doc) -> {
             doc.setFieldValue("a.b.c.d", "foo");
-            assertThat(doc.getSourceAndMetadata().get("a"), instanceOf(Map.class));
-            Map<String, Object> a = (Map<String, Object>) doc.getSourceAndMetadata().get("a");
+            assertThat(doc.getSource().get("a"), instanceOf(Map.class));
+            Map<String, Object> a = (Map<String, Object>) doc.getSource().get("a");
             assertThat(a.get("b"), instanceOf(Map.class));
             Map<String, Object> b = (Map<String, Object>) a.get("b");
             assertThat(b.get("c"), instanceOf(Map.class));
@@ -764,12 +778,12 @@ public class IngestDocumentTests extends ESTestCase {
         });
         doWithAccessPattern(FLEXIBLE, (doc) -> {
             doc.setFieldValue("dotted.a.b.c.d", "foo");
-            assertThat(doc.getSourceAndMetadata().get("dotted.a.b.c.d"), instanceOf(String.class));
-            assertThat(doc.getSourceAndMetadata().get("dotted.a.b.c.d"), equalTo("foo"));
+            assertThat(doc.getSource().get("dotted.a.b.c.d"), instanceOf(String.class));
+            assertThat(doc.getSource().get("dotted.a.b.c.d"), equalTo("foo"));
 
             doc.setFieldValue("dotted.foo.bar.baz.blank", "foo");
-            assertThat(doc.getSourceAndMetadata().get("dotted.foo.bar.baz"), instanceOf(Map.class));
-            Map<String, Object> dottedFooBarBaz = (Map<String, Object>) doc.getSourceAndMetadata().get("dotted.foo.bar.baz");
+            assertThat(doc.getSource().get("dotted.foo.bar.baz"), instanceOf(Map.class));
+            Map<String, Object> dottedFooBarBaz = (Map<String, Object>) doc.getSource().get("dotted.foo.bar.baz");
             assertThat(dottedFooBarBaz.get("blank"), instanceOf(String.class));
             assertThat(dottedFooBarBaz.get("blank"), equalTo("foo"));
         });
@@ -778,11 +792,11 @@ public class IngestDocumentTests extends ESTestCase {
     public void testSetFieldValueOnExistingField() throws Exception {
         doWithRandomAccessPattern((doc) -> {
             doc.setFieldValue("foo", "newbar");
-            assertThat(doc.getSourceAndMetadata().get("foo"), equalTo("newbar"));
+            assertThat(doc.getSource().get("foo"), equalTo("newbar"));
         });
         doWithAccessPattern(FLEXIBLE, (doc) -> {
             doc.setFieldValue("dotted.bar.baz", "newbaz");
-            assertThat(doc.getSourceAndMetadata().get("dotted.bar.baz"), equalTo("newbaz"));
+            assertThat(doc.getSource().get("dotted.bar.baz"), equalTo("newbaz"));
         });
     }
 
@@ -790,16 +804,16 @@ public class IngestDocumentTests extends ESTestCase {
     public void testSetFieldValueOnExistingParent() throws Exception {
         doWithRandomAccessPattern((doc) -> {
             doc.setFieldValue("fizz.new", "bar");
-            assertThat(doc.getSourceAndMetadata().get("fizz"), instanceOf(Map.class));
-            Map<String, Object> innerMap = (Map<String, Object>) doc.getSourceAndMetadata().get("fizz");
+            assertThat(doc.getSource().get("fizz"), instanceOf(Map.class));
+            Map<String, Object> innerMap = (Map<String, Object>) doc.getSource().get("fizz");
             assertThat(innerMap.get("new"), instanceOf(String.class));
             String value = (String) innerMap.get("new");
             assertThat(value, equalTo("bar"));
         });
         doWithAccessPattern(FLEXIBLE, (doc) -> {
             doc.setFieldValue("dots.dotted.integers.new", "qux");
-            assertThat(doc.getSourceAndMetadata().get("dots"), instanceOf(Map.class));
-            Map<String, Object> innerMap = (Map<String, Object>) doc.getSourceAndMetadata().get("dots");
+            assertThat(doc.getSource().get("dots"), instanceOf(Map.class));
+            Map<String, Object> innerMap = (Map<String, Object>) doc.getSource().get("dots");
             assertThat(innerMap.get("dotted.integers"), instanceOf(Map.class));
             Map<String, Object> innermost = (Map<String, Object>) innerMap.get("dotted.integers");
             assertThat(innermost.get("new"), instanceOf(String.class));
@@ -840,14 +854,15 @@ public class IngestDocumentTests extends ESTestCase {
     public void testSetSourceObject() throws Exception {
         doWithRandomAccessPattern((doc) -> {
             doc.setFieldValue("_source", "value");
-            assertThat(doc.getSourceAndMetadata().get("_source"), equalTo("value"));
+            assertThat(doc.getSource().get("_source"), equalTo("value"));
         });
     }
 
     public void testSetIngestObject() throws Exception {
         doWithRandomAccessPattern((doc) -> {
             doc.setFieldValue("_ingest", "value");
-            assertThat(doc.getSourceAndMetadata().get("_ingest"), equalTo("value"));
+            assertThat(doc.getSource().get("_ingest"), equalTo("value"));
+            assertThat(doc.getCtxMap().get("_ingest"), equalTo("value"));
         });
     }
 
@@ -878,13 +893,13 @@ public class IngestDocumentTests extends ESTestCase {
     public void testListSetFieldValueNoIndexProvided() throws Exception {
         doWithRandomAccessPattern((doc) -> {
             doc.setFieldValue("list", "value");
-            Object object = doc.getSourceAndMetadata().get("list");
+            Object object = doc.getSource().get("list");
             assertThat(object, instanceOf(String.class));
             assertThat(object, equalTo("value"));
         });
         doWithAccessPattern(FLEXIBLE, (doc) -> {
             doc.setFieldValue("dots.arrays.dotted.strings", "value");
-            Object object = doc.getSourceAndMetadata().get("dots");
+            Object object = doc.getSource().get("dots");
             assertThat(object, instanceOf(Map.class));
             @SuppressWarnings("unchecked")
             Object arraysField = ((Map<String, Object>) object).get("arrays");
@@ -899,7 +914,7 @@ public class IngestDocumentTests extends ESTestCase {
     public void testListAppendFieldValue() throws Exception {
         doWithRandomAccessPattern((doc) -> {
             doc.appendFieldValue("list", "new_value");
-            Object object = doc.getSourceAndMetadata().get("list");
+            Object object = doc.getSource().get("list");
             assertThat(object, instanceOf(List.class));
             @SuppressWarnings("unchecked")
             List<Object> list = (List<Object>) object;
@@ -910,7 +925,7 @@ public class IngestDocumentTests extends ESTestCase {
         });
         doWithAccessPattern(FLEXIBLE, (doc) -> {
             doc.appendFieldValue("dots.arrays.dotted.strings", "value");
-            Object object = doc.getSourceAndMetadata().get("dots");
+            Object object = doc.getSource().get("dots");
             assertThat(object, instanceOf(Map.class));
             @SuppressWarnings("unchecked")
             Object arraysField = ((Map<String, Object>) object).get("arrays");
@@ -925,7 +940,7 @@ public class IngestDocumentTests extends ESTestCase {
     public void testListAppendFieldValueWithDuplicate() throws Exception {
         doWithRandomAccessPattern((doc) -> {
             doc.appendFieldValue("list2", "foo", false);
-            Object object = doc.getSourceAndMetadata().get("list2");
+            Object object = doc.getSource().get("list2");
             assertThat(object, instanceOf(List.class));
             @SuppressWarnings("unchecked")
             List<Object> list = (List<Object>) object;
@@ -934,7 +949,7 @@ public class IngestDocumentTests extends ESTestCase {
         });
         doWithAccessPattern(FLEXIBLE, (doc) -> {
             doc.appendFieldValue("dots.arrays.dotted.strings", "a", false);
-            Object object = doc.getSourceAndMetadata().get("dots");
+            Object object = doc.getSource().get("dots");
             assertThat(object, instanceOf(Map.class));
             @SuppressWarnings("unchecked")
             Object arraysField = ((Map<String, Object>) object).get("arrays");
@@ -949,7 +964,7 @@ public class IngestDocumentTests extends ESTestCase {
     public void testListAppendFieldValueWithoutDuplicate() throws Exception {
         doWithRandomAccessPattern((doc) -> {
             doc.appendFieldValue("list2", "foo2", false);
-            Object object = doc.getSourceAndMetadata().get("list2");
+            Object object = doc.getSource().get("list2");
             assertThat(object, instanceOf(List.class));
             @SuppressWarnings("unchecked")
             List<Object> list = (List<Object>) object;
@@ -958,7 +973,7 @@ public class IngestDocumentTests extends ESTestCase {
         });
         doWithAccessPattern(FLEXIBLE, (doc) -> {
             doc.appendFieldValue("dots.arrays.dotted.strings", "e", false);
-            Object object = doc.getSourceAndMetadata().get("dots");
+            Object object = doc.getSource().get("dots");
             assertThat(object, instanceOf(Map.class));
             @SuppressWarnings("unchecked")
             Object arraysField = ((Map<String, Object>) object).get("arrays");
@@ -973,7 +988,7 @@ public class IngestDocumentTests extends ESTestCase {
     public void testListAppendFieldValues() throws Exception {
         doWithRandomAccessPattern((doc) -> {
             doc.appendFieldValue("list", List.of("item1", "item2", "item3"));
-            Object object = doc.getSourceAndMetadata().get("list");
+            Object object = doc.getSource().get("list");
             assertThat(object, instanceOf(List.class));
             @SuppressWarnings("unchecked")
             List<Object> list = (List<Object>) object;
@@ -986,7 +1001,7 @@ public class IngestDocumentTests extends ESTestCase {
         });
         doWithAccessPattern(FLEXIBLE, (doc) -> {
             doc.appendFieldValue("dots.arrays.dotted.strings", List.of("e", "f", "g"));
-            Object object = doc.getSourceAndMetadata().get("dots");
+            Object object = doc.getSource().get("dots");
             assertThat(object, instanceOf(Map.class));
             @SuppressWarnings("unchecked")
             Object arraysField = ((Map<String, Object>) object).get("arrays");
@@ -1001,7 +1016,7 @@ public class IngestDocumentTests extends ESTestCase {
     public void testListAppendFieldValuesWithoutDuplicates() throws Exception {
         doWithRandomAccessPattern((doc) -> {
             doc.appendFieldValue("list2", List.of("foo", "bar", "baz", "foo2"), false);
-            Object object = doc.getSourceAndMetadata().get("list2");
+            Object object = doc.getSource().get("list2");
             assertThat(object, instanceOf(List.class));
             @SuppressWarnings("unchecked")
             List<Object> list = (List<Object>) object;
@@ -1013,7 +1028,7 @@ public class IngestDocumentTests extends ESTestCase {
         });
         doWithAccessPattern(FLEXIBLE, (doc) -> {
             doc.appendFieldValue("dots.arrays.dotted.strings", List.of("a", "b", "c", "d", "e"), false);
-            Object object = doc.getSourceAndMetadata().get("dots");
+            Object object = doc.getSource().get("dots");
             assertThat(object, instanceOf(Map.class));
             @SuppressWarnings("unchecked")
             Object arraysField = ((Map<String, Object>) object).get("arrays");
@@ -1028,7 +1043,7 @@ public class IngestDocumentTests extends ESTestCase {
     public void testAppendFieldValueToNonExistingList() throws Exception {
         doWithRandomAccessPattern((doc) -> {
             doc.appendFieldValue("non_existing_list", "new_value");
-            Object object = doc.getSourceAndMetadata().get("non_existing_list");
+            Object object = doc.getSource().get("non_existing_list");
             assertThat(object, instanceOf(List.class));
             @SuppressWarnings("unchecked")
             List<Object> list = (List<Object>) object;
@@ -1037,7 +1052,7 @@ public class IngestDocumentTests extends ESTestCase {
         });
         doWithAccessPattern(FLEXIBLE, (doc) -> {
             doc.appendFieldValue("dots.arrays.dotted.missing", "a");
-            Object object = doc.getSourceAndMetadata().get("dots");
+            Object object = doc.getSource().get("dots");
             assertThat(object, instanceOf(Map.class));
             @SuppressWarnings("unchecked")
             Object arraysField = ((Map<String, Object>) object).get("arrays");
@@ -1052,7 +1067,7 @@ public class IngestDocumentTests extends ESTestCase {
     public void testAppendFieldValuesToNonExistingList() throws Exception {
         doWithRandomAccessPattern((doc) -> {
             doc.appendFieldValue("non_existing_list", List.of("item1", "item2", "item3"));
-            Object object = doc.getSourceAndMetadata().get("non_existing_list");
+            Object object = doc.getSource().get("non_existing_list");
             assertThat(object, instanceOf(List.class));
             @SuppressWarnings("unchecked")
             List<Object> list = (List<Object>) object;
@@ -1063,7 +1078,7 @@ public class IngestDocumentTests extends ESTestCase {
         });
         doWithAccessPattern(FLEXIBLE, (doc) -> {
             doc.appendFieldValue("dots.arrays.dotted.missing", List.of("a", "b", "c"));
-            Object object = doc.getSourceAndMetadata().get("dots");
+            Object object = doc.getSource().get("dots");
             assertThat(object, instanceOf(Map.class));
             @SuppressWarnings("unchecked")
             Object arraysField = ((Map<String, Object>) object).get("arrays");
@@ -1078,7 +1093,7 @@ public class IngestDocumentTests extends ESTestCase {
     public void testAppendFieldValueConvertStringToList() throws Exception {
         doWithRandomAccessPattern((doc) -> {
             doc.appendFieldValue("fizz.buzz", "new_value");
-            Object object = doc.getSourceAndMetadata().get("fizz");
+            Object object = doc.getSource().get("fizz");
             assertThat(object, instanceOf(Map.class));
             @SuppressWarnings("unchecked")
             Map<String, Object> map = (Map<String, Object>) object;
@@ -1092,7 +1107,7 @@ public class IngestDocumentTests extends ESTestCase {
         });
         doWithAccessPattern(FLEXIBLE, (doc) -> {
             doc.appendFieldValue("dots.foo.bar.baz", "new_value");
-            Object object = doc.getSourceAndMetadata().get("dots");
+            Object object = doc.getSource().get("dots");
             assertThat(object, instanceOf(Map.class));
             @SuppressWarnings("unchecked")
             Object foobarbaz = ((Map<String, Object>) object).get("foo.bar.baz");
@@ -1104,7 +1119,7 @@ public class IngestDocumentTests extends ESTestCase {
     public void testAppendFieldValuesConvertStringToList() throws Exception {
         doWithRandomAccessPattern((doc) -> {
             doc.appendFieldValue("fizz.buzz", List.of("item1", "item2", "item3"));
-            Object object = doc.getSourceAndMetadata().get("fizz");
+            Object object = doc.getSource().get("fizz");
             assertThat(object, instanceOf(Map.class));
             @SuppressWarnings("unchecked")
             Map<String, Object> map = (Map<String, Object>) object;
@@ -1120,7 +1135,7 @@ public class IngestDocumentTests extends ESTestCase {
         });
         doWithAccessPattern(FLEXIBLE, (doc) -> {
             doc.appendFieldValue("dots.foo.bar.baz", List.of("fizz", "buzz", "quack"));
-            Object object = doc.getSourceAndMetadata().get("dots");
+            Object object = doc.getSource().get("dots");
             assertThat(object, instanceOf(Map.class));
             @SuppressWarnings("unchecked")
             Object foobarbaz = ((Map<String, Object>) object).get("foo.bar.baz");
@@ -1132,7 +1147,7 @@ public class IngestDocumentTests extends ESTestCase {
     public void testAppendFieldValueConvertIntegerToList() throws Exception {
         doWithRandomAccessPattern((doc) -> {
             document.appendFieldValue("int", 456);
-            Object object = document.getSourceAndMetadata().get("int");
+            Object object = document.getSource().get("int");
             assertThat(object, instanceOf(List.class));
             @SuppressWarnings("unchecked")
             List<Object> list = (List<Object>) object;
@@ -1142,7 +1157,7 @@ public class IngestDocumentTests extends ESTestCase {
         });
         doWithAccessPattern(FLEXIBLE, (doc) -> {
             doc.appendFieldValue("dots.dotted.integers.a", 2);
-            Object dots = doc.getSourceAndMetadata().get("dots");
+            Object dots = doc.getSource().get("dots");
             assertThat(dots, instanceOf(Map.class));
             @SuppressWarnings("unchecked")
             Object dottedIntegers = ((Map<String, Object>) dots).get("dotted.integers");
@@ -1157,7 +1172,7 @@ public class IngestDocumentTests extends ESTestCase {
     public void testAppendFieldValuesConvertIntegerToList() throws Exception {
         doWithRandomAccessPattern((doc) -> {
             doc.appendFieldValue("int", List.of(456, 789));
-            Object object = doc.getSourceAndMetadata().get("int");
+            Object object = doc.getSource().get("int");
             assertThat(object, instanceOf(List.class));
             @SuppressWarnings("unchecked")
             List<Object> list = (List<Object>) object;
@@ -1168,7 +1183,7 @@ public class IngestDocumentTests extends ESTestCase {
         });
         doWithAccessPattern(FLEXIBLE, (doc) -> {
             doc.appendFieldValue("dots.dotted.integers.a", List.of(2, 3));
-            Object dots = doc.getSourceAndMetadata().get("dots");
+            Object dots = doc.getSource().get("dots");
             assertThat(dots, instanceOf(Map.class));
             @SuppressWarnings("unchecked")
             Object dottedIntegers = ((Map<String, Object>) dots).get("dotted.integers");
@@ -1183,7 +1198,7 @@ public class IngestDocumentTests extends ESTestCase {
     public void testAppendFieldValueConvertMapToList() throws Exception {
         doWithRandomAccessPattern((doc) -> {
             doc.appendFieldValue("fizz", Map.of("field", "value"));
-            Object object = doc.getSourceAndMetadata().get("fizz");
+            Object object = doc.getSource().get("fizz");
             assertThat(object, instanceOf(List.class));
             List<?> list = (List<?>) object;
             assertThat(list.size(), equalTo(2));
@@ -1195,7 +1210,7 @@ public class IngestDocumentTests extends ESTestCase {
         });
         doWithAccessPattern(FLEXIBLE, (doc) -> {
             doc.appendFieldValue("dots.dotted.integers", Map.of("x", "y"));
-            Object dots = doc.getSourceAndMetadata().get("dots");
+            Object dots = doc.getSource().get("dots");
             assertThat(dots, instanceOf(Map.class));
             @SuppressWarnings("unchecked")
             Object dottedIntegers = ((Map<String, Object>) dots).get("dotted.integers");
@@ -1213,7 +1228,7 @@ public class IngestDocumentTests extends ESTestCase {
     public void testAppendFieldValueToNull() throws Exception {
         doWithRandomAccessPattern((doc) -> {
             doc.appendFieldValue("fizz.foo_null", "new_value");
-            Object object = doc.getSourceAndMetadata().get("fizz");
+            Object object = doc.getSource().get("fizz");
             assertThat(object, instanceOf(Map.class));
             @SuppressWarnings("unchecked")
             Map<String, Object> map = (Map<String, Object>) object;
@@ -1226,7 +1241,7 @@ public class IngestDocumentTests extends ESTestCase {
         });
         doWithAccessPattern(FLEXIBLE, (doc) -> {
             doc.appendFieldValue("dotted.bar.baz_null", "new_value");
-            Object object = doc.getSourceAndMetadata().get("dotted.bar.baz_null");
+            Object object = doc.getSource().get("dotted.bar.baz_null");
             assertThat(object, instanceOf(List.class));
             List<?> list = (List<?>) object;
             assertThat(list.size(), equalTo(2));
@@ -1238,7 +1253,7 @@ public class IngestDocumentTests extends ESTestCase {
     public void testAppendFieldValueToListElement() throws Exception {
         doWithAccessPattern(CLASSIC, (doc) -> {
             doc.appendFieldValue("fizz.list.0", "item2");
-            Object object = doc.getSourceAndMetadata().get("fizz");
+            Object object = doc.getSource().get("fizz");
             assertThat(object, instanceOf(Map.class));
             @SuppressWarnings("unchecked")
             Map<String, Object> map = (Map<String, Object>) object;
@@ -1268,7 +1283,7 @@ public class IngestDocumentTests extends ESTestCase {
     public void testAppendFieldValuesToListElement() throws Exception {
         doWithAccessPattern(CLASSIC, (doc) -> {
             doc.appendFieldValue("fizz.list.0", List.of("item2", "item3", "item4"));
-            Object object = doc.getSourceAndMetadata().get("fizz");
+            Object object = doc.getSource().get("fizz");
             assertThat(object, instanceOf(Map.class));
             @SuppressWarnings("unchecked")
             Map<String, Object> map = (Map<String, Object>) object;
@@ -1300,7 +1315,7 @@ public class IngestDocumentTests extends ESTestCase {
     public void testAppendFieldValueConvertStringListElementToList() throws Exception {
         doWithAccessPattern(CLASSIC, (doc) -> {
             doc.appendFieldValue("fizz.list.0.0", "new_value");
-            Object object = doc.getSourceAndMetadata().get("fizz");
+            Object object = doc.getSource().get("fizz");
             assertThat(object, instanceOf(Map.class));
             @SuppressWarnings("unchecked")
             Map<String, Object> map = (Map<String, Object>) object;
@@ -1331,7 +1346,7 @@ public class IngestDocumentTests extends ESTestCase {
     public void testAppendFieldValuesConvertStringListElementToList() throws Exception {
         doWithAccessPattern(CLASSIC, (doc) -> {
             doc.appendFieldValue("fizz.list.0.0", List.of("item2", "item3", "item4"));
-            Object object = doc.getSourceAndMetadata().get("fizz");
+            Object object = doc.getSource().get("fizz");
             assertThat(object, instanceOf(Map.class));
             @SuppressWarnings("unchecked")
             Map<String, Object> map = (Map<String, Object>) object;
@@ -1367,7 +1382,7 @@ public class IngestDocumentTests extends ESTestCase {
     public void testAppendFieldValueListElementConvertMapToList() throws Exception {
         doWithAccessPattern(CLASSIC, (doc) -> {
             doc.appendFieldValue("list.0", Map.of("item2", "value2"));
-            Object object = doc.getSourceAndMetadata().get("list");
+            Object object = doc.getSource().get("list");
             assertThat(object, instanceOf(List.class));
             List<?> list = (List<?>) object;
             assertThat(list.size(), equalTo(2));
@@ -1391,7 +1406,7 @@ public class IngestDocumentTests extends ESTestCase {
     public void testAppendFieldValueToNullListElement() throws Exception {
         doWithAccessPattern(CLASSIC, (doc) -> {
             doc.appendFieldValue("list.1", "new_value");
-            Object object = doc.getSourceAndMetadata().get("list");
+            Object object = doc.getSource().get("list");
             assertThat(object, instanceOf(List.class));
             List<?> list = (List<?>) object;
             assertThat(list.get(1), instanceOf(List.class));
@@ -1410,7 +1425,7 @@ public class IngestDocumentTests extends ESTestCase {
     public void testAppendFieldValueToListOfMaps() throws Exception {
         doWithRandomAccessPattern((doc) -> {
             doc.appendFieldValue("list", Map.of("item2", "value2"));
-            Object object = doc.getSourceAndMetadata().get("list");
+            Object object = doc.getSource().get("list");
             assertThat(object, instanceOf(List.class));
             @SuppressWarnings("unchecked")
             List<Object> list = (List<Object>) object;
@@ -1421,7 +1436,7 @@ public class IngestDocumentTests extends ESTestCase {
         });
         doWithAccessPattern(FLEXIBLE, (doc) -> {
             doc.appendFieldValue("dots.arrays.dotted.objects", Map.of("item2", "value2"));
-            Object object = doc.getSourceAndMetadata().get("dots");
+            Object object = doc.getSource().get("dots");
             assertThat(object, instanceOf(Map.class));
             @SuppressWarnings("unchecked")
             Object arrays = ((Map<String, Object>) object).get("arrays");
@@ -1441,7 +1456,7 @@ public class IngestDocumentTests extends ESTestCase {
     public void testListSetFieldValueIndexProvided() throws Exception {
         doWithAccessPattern(CLASSIC, (doc) -> {
             doc.setFieldValue("list.1", "value");
-            Object object = doc.getSourceAndMetadata().get("list");
+            Object object = doc.getSource().get("list");
             assertThat(object, instanceOf(List.class));
             @SuppressWarnings("unchecked")
             List<Object> list = (List<Object>) object;
@@ -1459,7 +1474,7 @@ public class IngestDocumentTests extends ESTestCase {
     public void testSetFieldValueListAsPartOfPath() throws Exception {
         doWithAccessPattern(CLASSIC, (doc) -> {
             doc.setFieldValue("list.0.field", "new_value");
-            Object object = doc.getSourceAndMetadata().get("list");
+            Object object = doc.getSource().get("list");
             assertThat(object, instanceOf(List.class));
             @SuppressWarnings("unchecked")
             List<Object> list = (List<Object>) object;
@@ -1538,37 +1553,37 @@ public class IngestDocumentTests extends ESTestCase {
     public void testRemoveField() throws Exception {
         doWithRandomAccessPattern((doc) -> {
             doc.removeField("foo");
-            assertThat(doc.getSourceAndMetadata().size(), equalTo(14));
-            assertThat(doc.getSourceAndMetadata().containsKey("foo"), equalTo(false));
+            assertThat(doc.getCtxMap().size(), equalTo(14));
+            assertThat(doc.getSource().containsKey("foo"), equalTo(false));
             doc.removeField("_index");
-            assertThat(doc.getSourceAndMetadata().size(), equalTo(13));
-            assertThat(doc.getSourceAndMetadata().containsKey("_index"), equalTo(false));
+            assertThat(doc.getCtxMap().size(), equalTo(13));
+            assertThat(doc.getMetadata().containsKey("_index"), equalTo(false));
             doc.removeField("_source.fizz");
-            assertThat(doc.getSourceAndMetadata().size(), equalTo(12));
-            assertThat(doc.getSourceAndMetadata().containsKey("fizz"), equalTo(false));
+            assertThat(doc.getCtxMap().size(), equalTo(12));
+            assertThat(doc.getSource().containsKey("fizz"), equalTo(false));
             assertThat(doc.getIngestMetadata().size(), equalTo(2));
             doc.removeField("_ingest.timestamp");
-            assertThat(doc.getSourceAndMetadata().size(), equalTo(12));
+            assertThat(doc.getCtxMap().size(), equalTo(12));
             assertThat(doc.getIngestMetadata().size(), equalTo(1));
             doc.removeField("_ingest.pipeline");
-            assertThat(doc.getSourceAndMetadata().size(), equalTo(12));
+            assertThat(doc.getCtxMap().size(), equalTo(12));
             assertThat(doc.getIngestMetadata().size(), equalTo(0));
         });
         doWithAccessPattern(FLEXIBLE, (doc) -> {
             doc.removeField("dotted.bar.baz");
-            assertThat(doc.getSourceAndMetadata().size(), equalTo(11));
-            assertThat(doc.getSourceAndMetadata().containsKey("dotted.bar.baz"), equalTo(false));
+            assertThat(doc.getCtxMap().size(), equalTo(11));
+            assertThat(doc.getSource().containsKey("dotted.bar.baz"), equalTo(false));
         });
     }
 
     public void testRemoveFieldIgnoreMissing() throws Exception {
         doWithRandomAccessPattern((doc) -> {
             doc.removeField("foo", randomBoolean());
-            assertThat(doc.getSourceAndMetadata().size(), equalTo(14));
-            assertThat(doc.getSourceAndMetadata().containsKey("foo"), equalTo(false));
+            assertThat(doc.getCtxMap().size(), equalTo(14));
+            assertThat(doc.getSource().containsKey("foo"), equalTo(false));
             doc.removeField("_index", randomBoolean());
-            assertThat(doc.getSourceAndMetadata().size(), equalTo(13));
-            assertThat(doc.getSourceAndMetadata().containsKey("_index"), equalTo(false));
+            assertThat(doc.getCtxMap().size(), equalTo(13));
+            assertThat(doc.getMetadata().containsKey("_index"), equalTo(false));
         });
 
         // if ignoreMissing is false, we throw an exception for values that aren't found
@@ -1630,42 +1645,42 @@ public class IngestDocumentTests extends ESTestCase {
     public void testRemoveInnerField() throws Exception {
         doWithRandomAccessPattern((doc) -> {
             doc.removeField("fizz.buzz");
-            assertThat(doc.getSourceAndMetadata().size(), equalTo(15));
-            assertThat(doc.getSourceAndMetadata().get("fizz"), instanceOf(Map.class));
+            assertThat(doc.getCtxMap().size(), equalTo(15));
+            assertThat(doc.getSource().get("fizz"), instanceOf(Map.class));
             @SuppressWarnings("unchecked")
-            Map<String, Object> map = (Map<String, Object>) doc.getSourceAndMetadata().get("fizz");
+            Map<String, Object> map = (Map<String, Object>) doc.getSource().get("fizz");
             assertThat(map.size(), equalTo(3));
             assertThat(map.containsKey("buzz"), equalTo(false));
 
             doc.removeField("fizz.foo_null");
             assertThat(map.size(), equalTo(2));
-            assertThat(doc.getSourceAndMetadata().size(), equalTo(15));
-            assertThat(doc.getSourceAndMetadata().containsKey("fizz"), equalTo(true));
+            assertThat(doc.getCtxMap().size(), equalTo(15));
+            assertThat(doc.getSource().containsKey("fizz"), equalTo(true));
 
             doc.removeField("fizz.1");
             assertThat(map.size(), equalTo(1));
-            assertThat(doc.getSourceAndMetadata().size(), equalTo(15));
-            assertThat(doc.getSourceAndMetadata().containsKey("fizz"), equalTo(true));
+            assertThat(doc.getCtxMap().size(), equalTo(15));
+            assertThat(doc.getSource().containsKey("fizz"), equalTo(true));
 
             doc.removeField("fizz.list");
             assertThat(map.size(), equalTo(0));
-            assertThat(doc.getSourceAndMetadata().size(), equalTo(15));
-            assertThat(doc.getSourceAndMetadata().containsKey("fizz"), equalTo(true));
+            assertThat(doc.getCtxMap().size(), equalTo(15));
+            assertThat(doc.getSource().containsKey("fizz"), equalTo(true));
         });
         doWithAccessPattern(FLEXIBLE, (doc) -> {
             doc.removeField("dots.foo.bar.baz");
-            assertThat(doc.getSourceAndMetadata().size(), equalTo(15));
-            assertThat(doc.getSourceAndMetadata().get("dots"), instanceOf(Map.class));
+            assertThat(doc.getCtxMap().size(), equalTo(15));
+            assertThat(doc.getSource().get("dots"), instanceOf(Map.class));
             @SuppressWarnings("unchecked")
-            Map<String, Object> dots = (Map<String, Object>) doc.getSourceAndMetadata().get("dots");
+            Map<String, Object> dots = (Map<String, Object>) doc.getSource().get("dots");
             assertThat(dots.size(), equalTo(5));
             assertThat(dots.containsKey("foo.bar.baz"), equalTo(false));
 
             doc.removeField("dots.foo.bar.null");
             assertThat(dots.size(), equalTo(4));
             assertThat(dots.containsKey("foo.bar.null"), equalTo(false));
-            assertThat(doc.getSourceAndMetadata().size(), equalTo(15));
-            assertThat(doc.getSourceAndMetadata().containsKey("dots"), equalTo(true));
+            assertThat(doc.getCtxMap().size(), equalTo(15));
+            assertThat(doc.getSource().containsKey("dots"), equalTo(true));
 
             doc.removeField("dots.arrays.dotted.strings");
             @SuppressWarnings("unchecked")
@@ -1673,8 +1688,8 @@ public class IngestDocumentTests extends ESTestCase {
             assertThat(dots.size(), equalTo(4));
             assertThat(arrays.size(), equalTo(2));
             assertThat(arrays.containsKey("dotted.strings"), equalTo(false));
-            assertThat(doc.getSourceAndMetadata().size(), equalTo(15));
-            assertThat(doc.getSourceAndMetadata().containsKey("dots"), equalTo(true));
+            assertThat(doc.getCtxMap().size(), equalTo(15));
+            assertThat(doc.getSource().containsKey("dots"), equalTo(true));
         });
     }
 
@@ -1732,11 +1747,13 @@ public class IngestDocumentTests extends ESTestCase {
         }
     }
 
-    public void testRemoveIngestObject() throws Exception {
+    public void testRemoveIngestObjectOperatesOnSource() throws Exception {
         doWithRandomAccessPattern((doc) -> {
             doc.removeField("_ingest");
-            assertThat(doc.getSourceAndMetadata().size(), equalTo(14));
-            assertThat(doc.getSourceAndMetadata().containsKey("_ingest"), equalTo(false));
+            assertThat(doc.getCtxMap().size(), equalTo(14));
+            assertThat(doc.getSource().containsKey("_ingest"), equalTo(false));
+            assertThat(doc.getCtxMap().containsKey("_ingest"), equalTo(true));
+            assertThat(doc.getCtxMap().get("_ingest"), sameInstance(doc.getIngestMetadata()));
         });
     }
 
@@ -1759,9 +1776,9 @@ public class IngestDocumentTests extends ESTestCase {
     public void testListRemoveField() throws Exception {
         doWithAccessPattern(CLASSIC, (doc) -> {
             doc.removeField("list.0.field");
-            assertThat(doc.getSourceAndMetadata().size(), equalTo(15));
-            assertThat(doc.getSourceAndMetadata().containsKey("list"), equalTo(true));
-            Object object = doc.getSourceAndMetadata().get("list");
+            assertThat(doc.getCtxMap().size(), equalTo(15));
+            assertThat(doc.getSource().containsKey("list"), equalTo(true));
+            Object object = doc.getSource().get("list");
             assertThat(object, instanceOf(List.class));
             @SuppressWarnings("unchecked")
             List<Object> list = (List<Object>) object;
@@ -1870,6 +1887,36 @@ public class IngestDocumentTests extends ESTestCase {
         assertThat(actualMillis, lessThanOrEqualTo(after));
     }
 
+    @SuppressWarnings("unchecked")
+    public void testCtxMapSourceIngestFieldTakesPrecedence() {
+        Map<String, Object> source = new HashMap<>();
+        source.put("_ingest", Map.of("source", true));
+        source.put("field", "value");
+        IngestDocument ingestDocument = new IngestDocument("_index", "_id", 1, null, null, source);
+        ingestDocument.getIngestMetadata().put("_value", "ingest-value");
+
+        // the ctx map (used by Painless) gives the source field precedence over the ingest metadata
+        assertThat(ingestDocument.getCtxMap().get("_ingest"), equalTo(Map.of("source", true)));
+
+        // general field access with the _ingest. prefix ignores the source field, both for reads and writes
+        assertThat(ingestDocument.getFieldValue("_ingest._value", String.class), equalTo("ingest-value"));
+        ingestDocument.setFieldValue("_ingest._value", "changed");
+        assertThat(ingestDocument.getIngestMetadata().get("_value"), equalTo("changed"));
+        assertThat(ingestDocument.getSource().get("_ingest"), equalTo(Map.of("source", true)));
+
+        // the copy constructor preserves the source field and the ingest metadata separately
+        IngestDocument copy = new IngestDocument(ingestDocument);
+        assertThat(copy.getSource().get("_ingest"), equalTo(Map.of("source", true)));
+        assertThat(copy.getIngestMetadata().get("_value"), equalTo("changed"));
+
+        // removing the source field exposes the ingest metadata to the ctx map's key lookup
+        ingestDocument.removeField("_ingest");
+        Map<String, Object> retrievedIngestMetadata = (Map<String, Object>) ingestDocument.getCtxMap().get("_ingest");
+        assertThat(retrievedIngestMetadata, sameInstance(ingestDocument.getIngestMetadata()));
+        retrievedIngestMetadata.put("_value", "changed-again");
+        assertThat(ingestDocument.getIngestMetadata().get("_value"), equalTo("changed-again"));
+    }
+
     public void testCopyConstructor() {
         {
             // generic test with a random document and copy
@@ -1877,7 +1924,7 @@ public class IngestDocumentTests extends ESTestCase {
             IngestDocument copy = new IngestDocument(ingestDocument);
 
             // these fields should not be the same instance
-            assertThat(ingestDocument.getSourceAndMetadata(), not(sameInstance(copy.getSourceAndMetadata())));
+            assertThat(ingestDocument.getSource(), not(sameInstance(copy.getSource())));
             assertThat(ingestDocument.getCtxMap(), not(sameInstance(copy.getCtxMap())));
             assertThat(ingestDocument.getCtxMap().getMetadata(), not(sameInstance(copy.getCtxMap().getMetadata())));
 
@@ -1938,7 +1985,7 @@ public class IngestDocumentTests extends ESTestCase {
         TestProcessor processor = new TestProcessor(ingestDocument1 -> {
             assertThat(ingestDocument1.getPipelineStack().size(), equalTo(1));
             IngestDocument copy = new IngestDocument(ingestDocument1);
-            assertThat(ingestDocument1.getSourceAndMetadata(), not(sameInstance(copy.getSourceAndMetadata())));
+            assertThat(ingestDocument1.getSource(), not(sameInstance(copy.getSource())));
             assertThat(ingestDocument1.getCtxMap(), not(sameInstance(copy.getCtxMap())));
             assertThat(ingestDocument1.getCtxMap().getMetadata(), not(sameInstance(copy.getCtxMap().getMetadata())));
             assertIngestDocument(ingestDocument1, copy);
@@ -1962,8 +2009,8 @@ public class IngestDocumentTests extends ESTestCase {
         IngestDocument original = TestIngestDocument.withDefaultVersion(sourceAndMetadata);
         IngestDocument copy = new IngestDocument(original);
 
-        assertThat(copy.getSourceAndMetadata().get("beforeClockChange"), equalTo(original.getSourceAndMetadata().get("beforeClockChange")));
-        assertThat(copy.getSourceAndMetadata().get("afterClockChange"), equalTo(original.getSourceAndMetadata().get("afterClockChange")));
+        assertThat(copy.getSource().get("beforeClockChange"), equalTo(original.getSource().get("beforeClockChange")));
+        assertThat(copy.getSource().get("afterClockChange"), equalTo(original.getSource().get("afterClockChange")));
     }
 
     public void testSetInvalidSourceField() {
@@ -2016,10 +2063,11 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     public void testDeepCopy() {
-        IngestDocument copiedDoc = new IngestDocument(
-            IngestDocument.deepCopyMap(document.getSourceAndMetadata()),
-            IngestDocument.deepCopyMap(document.getIngestMetadata())
-        );
+        Map<String, Object> sourceAndMetadata = IngestDocument.deepCopyMap(document.getSource());
+        for (String key : document.getMetadata().keySet()) {
+            sourceAndMetadata.put(key, IngestDocument.deepCopy(document.getMetadata().get(key)));
+        }
+        IngestDocument copiedDoc = new IngestDocument(sourceAndMetadata, IngestDocument.deepCopyMap(document.getIngestMetadata()));
         assertArrayEquals(
             copiedDoc.getFieldValue(DOUBLE_ARRAY_FIELD, double[].class),
             document.getFieldValue(DOUBLE_ARRAY_FIELD, double[].class),
@@ -2205,7 +2253,7 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testGetUnmodifiableSourceAndMetadata() {
+    public void testGetUnmodifiableCtxMap() {
         assertMutatingThrows(ctx -> ctx.remove("foo"));
         assertMutatingThrows(ctx -> ctx.put("foo", "bar"));
         assertMutatingThrows(ctx -> ((List<Object>) ctx.get("listField")).add("bar"));
@@ -2214,6 +2262,8 @@ public class IngestDocumentTests extends ESTestCase {
         assertMutatingThrows(ctx -> ((Set<Object>) ctx.get("setField")).remove("bar"));
         assertMutatingThrows(ctx -> ((Map<String, Object>) ctx.get("mapField")).put("bar", "baz"));
         assertMutatingThrows(ctx -> ((Map<?, ?>) ctx.get("mapField")).remove("bar"));
+        assertMutatingThrows(ctx -> ((Map<String, Object>) ctx.get("_ingest")).put("_value", "changed"));
+        assertMutatingThrows(ctx -> ((Map<?, ?>) ctx.get("_ingest")).remove("_value"));
         assertMutatingThrows(ctx -> ((List<Object>) ((Set<Object>) ctx.get("setField")).iterator().next()).add("bar"));
         assertMutatingThrows(
             ctx -> ((List<Object>) ((List<Object>) ((Set<Object>) ctx.get("setField")).iterator().next()).iterator().next()).add("bar")
@@ -2226,7 +2276,7 @@ public class IngestDocumentTests extends ESTestCase {
         Map<String, Object> document = new HashMap<>();
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         ingestDocument.setFieldValue("byteArrayField", randomByteArrayOfLength(10));
-        Map<String, Object> unmodifiableDocument = ingestDocument.getUnmodifiableSourceAndMetadata();
+        Map<String, Object> unmodifiableDocument = ingestDocument.getUnmodifiableCtxMap();
         byte originalByteValue = ((byte[]) unmodifiableDocument.get("byteArrayField"))[0];
         ((byte[]) unmodifiableDocument.get("byteArrayField"))[0] = (byte) (originalByteValue + 1);
         assertThat(((byte[]) unmodifiableDocument.get("byteArrayField"))[0], equalTo(originalByteValue));
@@ -2239,11 +2289,12 @@ public class IngestDocumentTests extends ESTestCase {
         ingestDocument.setFieldValue("listField", new ArrayList<>());
         ingestDocument.setFieldValue("mapField", new HashMap<>());
         ingestDocument.setFieldValue("setField", new HashSet<>());
+        ingestDocument.getIngestMetadata().put("_value", "value");
         List<Object> listWithinSet = new ArrayList<>();
         listWithinSet.add(new ArrayList<>());
         ingestDocument.getFieldValue("setField", Set.class).add(listWithinSet);
-        Map<String, Object> unmodifiableDocument = ingestDocument.getUnmodifiableSourceAndMetadata();
+        Map<String, Object> unmodifiableDocument = ingestDocument.getUnmodifiableCtxMap();
         assertThrows(UnsupportedOperationException.class, () -> mutation.accept(unmodifiableDocument));
-        mutation.accept(ingestDocument.getSourceAndMetadata()); // no exception expected
+        mutation.accept(ingestDocument.getCtxMap()); // no exception expected
     }
 }

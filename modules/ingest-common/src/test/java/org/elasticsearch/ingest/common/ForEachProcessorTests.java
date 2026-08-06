@@ -105,8 +105,8 @@ public class ForEachProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = new IngestDocument("_index", "_id", 1, null, null, Map.of("values", values));
 
         TestProcessor innerProcessor = new TestProcessor(id -> {
-            id.setFieldValue("_ingest._value.index", id.getSourceAndMetadata().get("_index"));
-            id.setFieldValue("_ingest._value.id", id.getSourceAndMetadata().get("_id"));
+            id.setFieldValue("_ingest._value.index", id.getMetadata().getIndex());
+            id.setFieldValue("_ingest._value.id", id.getMetadata().getId());
         });
         ForEachProcessor processor = new ForEachProcessor("_tag", null, "values", innerProcessor, false);
         execProcessor(processor, ingestDocument, (result, e) -> {});

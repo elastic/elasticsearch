@@ -68,7 +68,8 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         RELOCATE_REBALANCING(true, false),
 
         /// Placeholder value for unknown priorities. This can be used in a short-lived `ShardRouting` (for example, for use in a balancing
-        /// calculation) but it must _not_ be used in a `ShardRouting` which will be added to the `ClusterState`.
+        /// calculation) but it must _not_ be used in a `ShardRouting` which will be added to the `ClusterState`. It can also appear in a
+        /// [org.elasticsearch.indices.recovery.RecoveryState] received from an older node.
         UNKNOWN(true, true);
 
         private final boolean isValidForRelocation;

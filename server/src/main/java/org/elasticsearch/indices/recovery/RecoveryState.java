@@ -180,6 +180,8 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         out.writeByte(stage.id());
         shardId.writeTo(out);
         recoverySource.writeTo(out);
+        // Only send recoveryPriority to nodes which are new enough to know about it.
+        // This is fine as the only time this is serialized is when returning in the response to the recovery API.
         if (out.getTransportVersion().supports(RECOVERY_PRIORITY_TRANSPORT_VERSION)) {
             recoveryPriority.writeTo(out);
         }

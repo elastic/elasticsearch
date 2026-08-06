@@ -51,8 +51,7 @@ public class SageMakerModelBuilderTests extends ESTestCase {
     private SageMakerModelBuilder builder;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void createBuilder() throws Exception {
         builder = new SageMakerModelBuilder(SageMakerSchemasTests.mockSchemas());
     }
 

@@ -31,7 +31,6 @@ import org.apache.lucene.util.DocIdSetBuilder;
 import org.apache.lucene.util.RamUsageEstimator;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Objects;
 
 /**
@@ -104,19 +103,16 @@ public class BitmapBKDQuery extends Query implements Accountable {
                     @Override
                     public Scorer get(long leadCost) throws IOException {
                         DocIdSetBuilder result = new DocIdSetBuilder(reader.maxDoc(), pointValues);
-                        pointValues.intersect(new MergePointVisitor(result));
+                        pointValues.intersect(new CollectingMergePointVisitor(result));
                         return new ConstantScoreScorer(score(), scoreMode, result.build().iterator());
                     }
 
                     @Override
                     public long cost() {
                         if (cost == -1) {
-                            try {
-                                DocIdSetBuilder result = new DocIdSetBuilder(reader.maxDoc(), pointValues);
-                                cost = pointValues.estimateDocCount(new MergePointVisitor(result));
-                            } catch (IOException e) {
-                                throw new UncheckedIOException(e);
-                            }
+                            // estimateDocCount only ever calls compare(), so the plain merge visitor is
+                            // enough here and no DocIdSetBuilder need be allocated.
+                            cost = pointValues.estimateDocCount(new MergePointVisitor());
                         }
                         return cost;
                     }
@@ -131,23 +127,24 @@ public class BitmapBKDQuery extends Query implements Accountable {
     }
 
     /**
-     * A copy of {@link org.apache.lucene.search.PointInSetQuery}'s {@code MergePointVisitor}.
+     * The merge-sort between the BKD tree's sorted leaves and the bitmap's sorted encoded values,
+     * derived from {@link org.apache.lucene.search.PointInSetQuery}'s {@code MergePointVisitor}. Both
+     * sides are scanned at most once, giving O(N_index_leaves + N_bitmap_values) total work across the
+     * entire tree.
      * <p>
-     * Does a merge-sort between the BKD tree's sorted leaves and the bitmap's sorted encoded values.
-     * Both sides are scanned at most once, giving O(N_index_leaves + N_bitmap_values) total work
-     * across the entire tree.
+     * This half decides <em>which cells match</em> and collects nothing, which is all
+     * {@link PointValues#estimateDocCount} needs — it calls only {@link #compare}. Collecting the
+     * matched documents costs a {@link DocIdSetBuilder}, so that lives in
+     * {@link CollectingMergePointVisitor} and the cost estimate does not pay for it.
      */
     private class MergePointVisitor implements IntersectVisitor {
-        private final DocIdSetBuilder result;
         private final BitmapValues.PeekableIterator iterator;
         private final ArrayUtil.ByteArrayComparator comparator;
         /** The bitmap value being merged, encoded. Owned here, so nothing else can recycle it. */
         private final byte[] queryPoint;
         private boolean hasQueryPoint;
-        private DocIdSetBuilder.BulkAdder adder;
 
-        MergePointVisitor(DocIdSetBuilder result) {
-            this.result = result;
+        MergePointVisitor() {
             this.comparator = ArrayUtil.getUnsignedComparator(values.bytesPerValue());
             this.iterator = values.iterator();
             this.queryPoint = new byte[values.bytesPerValue()];
@@ -174,35 +171,16 @@ public class BitmapBKDQuery extends Query implements Accountable {
         }
 
         @Override
-        public void grow(int count) {
-            adder = result.grow(count);
-        }
-
-        @Override
         public void visit(int docID) {
-            adder.add(docID);
-        }
-
-        @Override
-        public void visit(DocIdSetIterator docIdSetIterator) throws IOException {
-            adder.add(docIdSetIterator);
+            throw new UnsupportedOperationException("this visitor does not collect; use " + CollectingMergePointVisitor.class);
         }
 
         @Override
         public void visit(int docID, byte[] packedValue) {
-            if (matches(packedValue)) {
-                visit(docID);
-            }
+            throw new UnsupportedOperationException("this visitor does not collect; use " + CollectingMergePointVisitor.class);
         }
 
-        @Override
-        public void visit(DocIdSetIterator docIdSetIterator, byte[] packedValue) throws IOException {
-            if (matches(packedValue)) {
-                adder.add(docIdSetIterator);
-            }
-        }
-
-        private boolean matches(byte[] packedValue) {
+        protected boolean matches(byte[] packedValue) {
             while (hasQueryPoint) {
                 int cmp = comparator.compare(queryPoint, 0, packedValue, 0);
                 if (cmp == 0) {
@@ -244,6 +222,50 @@ public class BitmapBKDQuery extends Query implements Accountable {
 
             // We exhausted all points in the bitmap
             return Relation.CELL_OUTSIDE_QUERY;
+        }
+    }
+
+    /**
+     * Adds document collection to {@link MergePointVisitor}, for the pass that actually builds the
+     * matching doc set. Kept separate so that {@link PointValues#estimateDocCount}, which only calls
+     * {@link MergePointVisitor#compare}, does not have to allocate a {@link DocIdSetBuilder} it would
+     * never write to.
+     */
+    private class CollectingMergePointVisitor extends MergePointVisitor {
+        private final DocIdSetBuilder result;
+        private DocIdSetBuilder.BulkAdder adder;
+
+        CollectingMergePointVisitor(DocIdSetBuilder result) {
+            this.result = result;
+        }
+
+        @Override
+        public void grow(int count) {
+            adder = result.grow(count);
+        }
+
+        @Override
+        public void visit(int docID) {
+            adder.add(docID);
+        }
+
+        @Override
+        public void visit(DocIdSetIterator docIdSetIterator) throws IOException {
+            adder.add(docIdSetIterator);
+        }
+
+        @Override
+        public void visit(int docID, byte[] packedValue) {
+            if (matches(packedValue)) {
+                visit(docID);
+            }
+        }
+
+        @Override
+        public void visit(DocIdSetIterator docIdSetIterator, byte[] packedValue) throws IOException {
+            if (matches(packedValue)) {
+                adder.add(docIdSetIterator);
+            }
         }
     }
 

@@ -229,6 +229,6 @@ public record NumericColumnMetadata(
     }
 
     int numBlocks() {
-        return numValues == 0 ? 0 : (numValues + blockSize - 1) / blockSize;
+        return numValues == 0 ? 0 : (int) ((numValues + (long) blockSize - 1) / blockSize);
     }
 }

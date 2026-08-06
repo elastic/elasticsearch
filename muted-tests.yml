@@ -129,14 +129,8 @@ tests:
   method: test10ArchiveAutoFormCluster
   issue: https://github.com/elastic/elasticsearch/issues/155685
 - class: org.elasticsearch.xpack.esql.action.CrossClusterQueryIT
-  method: testRemoteFailureInlinestats
-  issue: https://github.com/elastic/elasticsearch/issues/153576
-- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryIT
   method: testSearchesWhereNonExistentClusterIsSpecifiedWithWildcards
   issue: https://github.com/elastic/elasticsearch/issues/156063
-- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryIT
-  method: testExplainCCSWithInlineStats
-  issue: https://github.com/elastic/elasticsearch/issues/156064
 - class: org.elasticsearch.compute.aggregation.SumLongGroupingAggregatorFunctionTests
   method: testOverflowInGroupingProducesNullAndWarning
   issue: https://github.com/elastic/elasticsearch/issues/156070

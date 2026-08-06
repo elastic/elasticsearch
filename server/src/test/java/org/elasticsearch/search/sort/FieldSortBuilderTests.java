@@ -83,7 +83,7 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
         return randomFieldSortBuilder();
     }
 
-    private List<Object> missingContent = Arrays.asList("_last", "_first", Integer.toString(randomInt()), randomInt());
+    private final List<Object> missingContent = Arrays.asList("_last", "_first", Integer.toString(randomInt()), randomInt());
 
     public FieldSortBuilder randomFieldSortBuilder() {
         String fieldName = rarely() ? FieldSortBuilder.DOC_FIELD_NAME : randomAlphaOfLengthBetween(1, 10);
@@ -885,8 +885,11 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
         // Must NOT be a SortedNumericSortField: that construction discards the nested-aware
         // comparator source and returns Long.MAX_VALUE (the LONG missing sentinel) for every parent.
         assertThat(sortField, not(instanceOf(SortedNumericSortField.class)));
-        assertThat(sortField.getComparatorSource(), instanceOf(LongValuesComparatorSource.class));
-        assertNotNull(((XFieldComparatorSource) sortField.getComparatorSource()).nested());
+
+        XFieldComparatorSource source = (XFieldComparatorSource) sortField.getComparatorSource();
+        assertThat(source, instanceOf(LongValuesComparatorSource.class));
+        assertThat(source.reducedType(), equalTo(SortField.Type.LONG));  // INT source would fail here
+        assertNotNull(source.nested());
     }
 
     private void assertIntegerSortRewrite(IndexVersion version, SortField.Type expectedType) throws IOException {

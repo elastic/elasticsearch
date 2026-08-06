@@ -479,6 +479,21 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
      * exception is thrown during response serialization.
      */
     public void testBatchedNodeResponseExceptionReachesCoordinator() throws Exception {
+        assertSerializationExceptionReachesCoordinator(TransportVersion.current());
+    }
+
+    /**
+     * Ensure the batched query handler always responds to the coordinator channel even when an
+     * exception is thrown during response serialization on the backwards-compatible
+     * {@code bwcBuildResponse} path.
+     */
+    public void testBwcBuildResponseExceptionReachesCoordinator() throws Exception {
+        // batched_query_phase_version predates batched_response_might_include_reduction_failure,
+        // so using it as the channel version steers buildResponse() into bwcBuildResponse().
+        assertSerializationExceptionReachesCoordinator(TransportVersion.fromName("batched_query_phase_version"));
+    }
+
+    private void assertSerializationExceptionReachesCoordinator(TransportVersion channelVersion) throws Exception {
         TestThreadPool threadPool = new TestThreadPool(getTestName());
         var innerTransport = MockTransportService.newMockTransport(Settings.EMPTY, TransportVersion.current(), threadPool);
         String nodeId = UUIDs.randomBase64UUID();
@@ -583,6 +598,11 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 @Override
                 public String getProfileName() {
                     return "";
+                }
+
+                @Override
+                public TransportVersion getVersion() {
+                    return channelVersion;
                 }
 
                 @Override

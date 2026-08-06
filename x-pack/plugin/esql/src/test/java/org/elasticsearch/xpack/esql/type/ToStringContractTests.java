@@ -110,7 +110,7 @@ public class ToStringContractTests extends ESTestCase {
     // unsignedLongToString — reference: new BytesRef(unsignedLongAsNumber(stored).toString())
     //
     // ES|QL stores unsigned longs as (unsigned_value ^ Long.MIN_VALUE).
-    // stored < 0  → fast path (unsigned_value ≤ Long.MAX_VALUE)
+    // stored < 0 → fast path (unsigned_value ≤ Long.MAX_VALUE)
     // stored >= 0 → slow path (unsigned_value > Long.MAX_VALUE, needs BigInteger)
     // -----------------------------------------------------------------------
 

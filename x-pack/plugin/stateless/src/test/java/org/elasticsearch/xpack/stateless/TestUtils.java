@@ -132,44 +132,56 @@ public class TestUtils {
             mockIndicesService(clusterService),
             new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
         );
-        statelessSharedBlobCacheService.assertInvariants();
         return statelessSharedBlobCacheService;
     }
 
-    public static StatelessIndexEventListener newStatelessIndexEventListener(
+    public static StatelessIndexNodeRecoveryListener newStatelessIndexNodeRecoveryListener(
         ThreadPool threadPool,
         StatelessCommitService statelessCommitService,
         ObjectStoreService objectStoreService,
         TranslogReplicator translogReplicator,
-        RecoveryCommitRegistrationHandler recoveryCommitRegistrationHandler,
         SharedBlobCacheWarmingService warmingService,
         HollowShardsService hollowShardsService,
         SplitTargetService splitTargetService,
         SplitSourceService splitSourceService,
         ProjectResolver projectResolver,
         Executor bccHeaderReadExecutor,
-        ClusterSettings clusterSettings,
         StatelessSharedBlobCacheService cacheService,
         SnapshotsCommitService snapshotsCommitService,
-        ClusterService clusterService
+        StatelessRecoveryMetricsCollector recoveryMetricsCollector
     ) {
-        return new StatelessIndexEventListener(
+        return new StatelessIndexNodeRecoveryListener(
             threadPool,
             statelessCommitService,
             objectStoreService,
             translogReplicator,
-            recoveryCommitRegistrationHandler,
             warmingService,
             hollowShardsService,
             splitTargetService,
             splitSourceService,
             projectResolver,
             bccHeaderReadExecutor,
-            clusterSettings,
             cacheService,
             snapshotsCommitService,
-            clusterService,
-            StatelessRecoveryMetricsCollector.NOOP
+            recoveryMetricsCollector
+        );
+    }
+
+    public static StatelessSearchNodeRecoveryListener newStatelessSearchNodeRecoveryListener(
+        ObjectStoreService objectStoreService,
+        RecoveryCommitRegistrationHandler recoveryCommitRegistrationHandler,
+        SharedBlobCacheWarmingService warmingService,
+        ProjectResolver projectResolver,
+        Executor bccHeaderReadExecutor,
+        ClusterService clusterService
+    ) {
+        return new StatelessSearchNodeRecoveryListener(
+            objectStoreService,
+            recoveryCommitRegistrationHandler,
+            warmingService,
+            projectResolver,
+            bccHeaderReadExecutor,
+            clusterService
         );
     }
 

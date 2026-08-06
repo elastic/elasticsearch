@@ -128,9 +128,6 @@ tests:
 - class: org.elasticsearch.gradle.internal.precommit.TestingConventionsPrecommitPluginFuncTest
   method: testing convention tasks are cacheable and uptodate
   issue: https://github.com/elastic/elasticsearch/issues/152371
-- class: org.elasticsearch.search.suggest.CompletionSuggestSearchIT
-  method: testBigSizeCircuitBreak
-  issue: https://github.com/elastic/elasticsearch/issues/152785
 - class: org.elasticsearch.compute.aggregation.SumLongAggregatorFunctionTests
   method: testOverflowFails
   issue: https://github.com/elastic/elasticsearch/issues/150455

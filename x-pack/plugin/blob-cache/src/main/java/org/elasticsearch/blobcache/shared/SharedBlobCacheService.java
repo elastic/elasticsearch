@@ -715,9 +715,9 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
      * @param fetchExecutor    an executor to use for reading from the blob store
      * @param timestampMillis  representative data timestamp to stamp on the cache region
      * @param listener         a listener that is completed with {@code true} if the current thread triggered the fetching of the range, in
-     *                         which case the data is available in cache. The listener is completed with {@code false} in every other cases: if
-     *                         the range to write is already available in cache, if the range is pending fetching via another thread or if
-     *                         there is not enough free pages to fetch the range.
+     *                         which case the data is available in cache. The listener is completed with {@code false} in every other cases:
+     *                         if the range to write is already available in cache, if the range is pending fetching via another thread or
+     *                         if there is not enough free pages to fetch the range.
      */
     public void maybeFetchRange(
         final KeyType cacheKey,
@@ -754,9 +754,9 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
      *                         range when none are free.
      * @param timestampMillis  representative data timestamp to stamp on the cache region
      * @param listener         a listener that is completed with {@code true} if the current thread triggered the fetching of the range, in
-     *                         which case the data is available in cache. The listener is completed with {@code false} in every other cases: if
-     *                         the range to write is already available in cache, if the range is pending fetching via another thread or if
-     *                         there is not enough free pages to fetch the range.
+     *                         which case the data is available in cache. The listener is completed with {@code false} in every other cases:
+     *                         if the range to write is already available in cache, if the range is pending fetching via another thread or
+     *                         if there is not enough free pages to fetch the range.
      */
     public void fetchRange(
         final KeyType cacheKey,

@@ -18,7 +18,7 @@ Use this page to avoid the most common `NULL` gotchas, then refer to the section
 
 Use these patterns to avoid unexpected behavior:
 
-| ❌ | ✅ | Why |
+| ❌ Avoid | ✅ Use instead | Why |
 | --- | --- | --- |
 | `field == NULL` | `field IS NULL` | Comparisons with `NULL` return `NULL`, not `true`. **Learn more:** [Test for NULL values](#esql-test-for-null). |
 | `field != NULL` | `field IS NOT NULL` | Comparisons with `NULL` return `NULL`, not `false`. **Learn more:** [Test for NULL values](#esql-test-for-null). |
@@ -35,11 +35,11 @@ Rows can disappear when a `WHERE` condition evaluates to `NULL`. `WHERE` keeps o
 
 Use `IS NULL` and `IS NOT NULL` to test whether an expression evaluates to a `NULL` value.
 
-The following query returns rows where `department` evaluates to `NULL`:
+The following query returns rows where `languages` evaluates to `NULL`:
 
 ```esql
 FROM employees
-| WHERE department IS NULL
+| WHERE languages IS NULL
 ```
 
 Do not use equality or inequality comparisons to test for `NULL`. A comparison with `NULL` evaluates to `NULL`, not to `true` or `false`.
@@ -158,7 +158,7 @@ If you want a filter to keep rows where a value is either missing or matches ano
 
 ```esql
 FROM employees
-| WHERE salary < 100 OR salary IS NULL
+| WHERE languages < 3 OR languages IS NULL
 ```
 
 ## Expressions and functions [esql-null-functions]
@@ -251,7 +251,7 @@ Use `NULLS FIRST` or `NULLS LAST` to choose a different placement:
 
 ```esql
 FROM employees
-| SORT department ASC NULLS FIRST
+| SORT first_name ASC NULLS FIRST
 ```
 
 Refer to [`SORT`](commands/sort.md).
@@ -261,13 +261,13 @@ Refer to [`SORT`](commands/sort.md).
 Missing values, unmapped fields, and `NULL` are related but not the same thing.
 
 :::{note}
-Missing is data-level, unmapped is schema-level, and `NULL` is the ES|QL value that a query can evaluate or return.
+Missing is data-level, unmapped is schema-level, and `NULL` is the {{esql}} value that a query can evaluate or return.
 :::
 
 - A missing value is a document or result row that has no value for a field. In {{esql}}, this often appears as `NULL`.
 - An unmapped field is a field that exists in indexed documents but is not defined in the index mapping. This is a schema-level condition.
-- With `SET unmapped_fields = "nullify"`, fully unmapped fields return `NULL`.
-- With `SET unmapped_fields = "load"`, {{esql}} can load real values from `_source`; values absent from `_source` still return `NULL`.
+- With `SET unmapped_fields = "nullify"` {applies_to}`stack: preview =9.3, ga 9.4+`, fully unmapped fields return `NULL`.
+- With `SET unmapped_fields = "load"` {applies_to}`stack: preview =9.4, ga 9.5+`, {{esql}} can load real values from `_source`; values absent from `_source` still return `NULL`.
 - Runtime fields are computed fields in the mapping. {{esql}} treats mapped runtime fields like other mapped fields.
 
 Refer to [unmapped fields](esql-unmapped-fields.md) and [`SET unmapped_fields`](directives/set.md#esql-unmapped_fields).

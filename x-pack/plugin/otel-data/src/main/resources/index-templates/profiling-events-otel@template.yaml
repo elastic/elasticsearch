@@ -1,6 +1,6 @@
 ---
 version: ${xpack.oteldata.template.version}
-index_patterns: ["profiling-events*.otel-default"]
+index_patterns: ["profiling-events*.otel-*"]
 priority: 250
 data_stream:
   hidden: false

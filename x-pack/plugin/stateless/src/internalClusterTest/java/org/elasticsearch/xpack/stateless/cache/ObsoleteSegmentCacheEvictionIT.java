@@ -16,17 +16,19 @@ import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
+import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
@@ -47,6 +49,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static java.util.stream.IntStream.range;
@@ -95,7 +98,7 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         var plugins = new ArrayList<>(super.nodePlugins());
         plugins.remove(TestUtils.StatelessPluginWithTrialLicense.class);
-        plugins.add(DirectEvictionStatelessPlugin.class);
+        plugins.add(EvictionTrackingStatelessPlugin.class);
         return plugins;
     }
 
@@ -142,8 +145,7 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
         );
 
         // Force-merge to 1 segment
-        forceMerge(true);
-        refresh(indexName);
+        forceMergeThenRefreshAndAwaitEvictions(indexName, searchEngine, searchDirectory);
 
         var blobsRegionsAfterMerge = readAllFilesAndCollectRegions(searchEngine, searchDirectory, searchCacheService);
 
@@ -201,8 +203,9 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
             equalTo(regionsBeforeFirstMerge.values().stream().mapToLong(BitSet::cardinality).sum())
         );
 
-        forceMerge(true);
-        refresh(indexName);
+        // Force-merge to 1 segment
+        forceMergeThenRefreshAndAwaitEvictions(indexName, searchEngine, searchDirectory);
+
         var regionsAfterFirstMerge = readAllFilesAndCollectRegions(searchEngine, searchDirectory, searchCacheService);
         assertThat(
             "post-merge blobs should be entirely new (no overlap with pre-merge blobs)",
@@ -238,12 +241,8 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
             equalTo(regionsBeforeSecondMerge.values().stream().mapToLong(BitSet::cardinality).sum())
         );
 
-        forceMerge(true);
-        refresh(indexName);
-        // Wait for the search shard to process the post-merge commit (and call retainFiles).
-        flushAndWaitForSearchShard(indexName, searchEngine);
-        // Eviction runs synchronously via DirectEvictionStatelessPlugin, so the counter is already zero.
-        assertThat(BlobStoreCacheDirectoryTestUtils.pendingObsoleteRegionsEvictionTasks(searchDirectory), equalTo(0L));
+        // Force-merge to 1 segment
+        forceMergeThenRefreshAndAwaitEvictions(indexName, searchEngine, searchDirectory);
 
         var regionsAfterSecondMerge = readAllFilesAndCollectRegions(searchEngine, searchDirectory, searchCacheService);
         assertThat(
@@ -311,8 +310,7 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
         final var pitId = openPitResponse.getPointInTimeId();
 
         // Force-merge to 1 segment
-        forceMerge(true);
-        refresh(indexName);
+        forceMergeThenRefreshAndAwaitEvictions(indexName, searchEngine, searchDirectory);
 
         var blobsRegionsAfterMerge = readAllFilesAndCollectRegions(searchEngine, searchDirectory, searchCacheService);
 
@@ -340,8 +338,23 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
 
         // After PIT close, trigger a new commit so the search node processes retainFilesAndEvict without the PIT reader
         // TODO Fix this, it would be better to have immediate release/eviction after a reader is closed
+        final var indexEngine = getShardEngine(findIndexShard(indexName), IndexEngine.class);
+        long minGeneration = indexEngine.getCurrentGeneration();
+
+        final var cacheService = asInstanceOf(
+            EvictionTrackingCacheService.class,
+            BlobStoreCacheDirectoryTestUtils.getCacheService(searchDirectory)
+        );
+        final var future = cacheService.startTracking();
+
         flush(indexName);
+        minGeneration += 1L;
+
         refresh(indexName);
+        minGeneration += 1L;
+
+        searchEngine.addPrimaryTermAndGenerationListener(0L, minGeneration, ActionListener.releasing(future.refs.acquire()));
+        cacheService.stopTrackingAndAwait(future);
 
         var blobsRegionsAfterClosePIT = readAllFilesAndCollectRegions(searchEngine, searchDirectory, searchCacheService);
 
@@ -428,8 +441,7 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
         );
 
         // Force-merge to 1 segment
-        forceMerge(true);
-        refresh(indexName);
+        forceMergeThenRefreshAndAwaitEvictions(indexName, searchEngine, searchDirectory);
 
         var blobsRegionsAfterMerge = readAllFilesAndCollectRegions(searchEngine, searchDirectory, searchCacheService);
 
@@ -475,7 +487,10 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
         final var searchShard = findSearchShard(indexName);
         final var searchEngine = getShardEngine(searchShard, SearchEngine.class);
         final var searchDirectory = SearchDirectory.unwrapDirectory(searchShard.store().directory());
-        final var searchCacheService = BlobStoreCacheDirectoryTestUtils.getCacheService(searchDirectory);
+        final var searchCacheService = asInstanceOf(
+            EvictionTrackingCacheService.class,
+            BlobStoreCacheDirectoryTestUtils.getCacheService(searchDirectory)
+        );
 
         final int nbSegments = randomIntBetween(1, 5);
         final var bytes = randomUnicodeOfLength(BlobCacheUtils.toIntBytes(REGION_SIZE.getBytes()));
@@ -534,10 +549,21 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
             assertThat(docResult.getResponse().getResult(), equalTo(DocWriteResponse.Result.UPDATED));
         }
 
+        final var indexEngine = getShardEngine(findIndexShard(indexName), IndexEngine.class);
+        long minGeneration = indexEngine.getCurrentGeneration();
+
+        final var future = searchCacheService.startTracking();
+
         refresh(indexName);
+        minGeneration += 1L;
+
         if (randomBoolean()) {
-            flushAndWaitForSearchShard(indexName, searchEngine);
+            flush(indexName);
+            minGeneration += 1L;
         }
+
+        searchEngine.addPrimaryTermAndGenerationListener(0L, minGeneration, ActionListener.releasing(future.refs.acquire()));
+        searchCacheService.stopTrackingAndAwait(future);
 
         final var blobsRegionsAfterUpdates = readAllFilesAndCollectRegions(searchEngine, searchDirectory, searchCacheService);
         if (updatedDocs.size() == nbSegments) {
@@ -620,7 +646,10 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
         final var searchShard = findSearchShard(indexName);
         final var searchEngine = getShardEngine(searchShard, SearchEngine.class);
         final var searchDirectory = SearchDirectory.unwrapDirectory(searchShard.store().directory());
-        final var searchCacheService = BlobStoreCacheDirectoryTestUtils.getCacheService(searchDirectory);
+        final var searchCacheService = asInstanceOf(
+            EvictionTrackingCacheService.class,
+            BlobStoreCacheDirectoryTestUtils.getCacheService(searchDirectory)
+        );
 
         final var bytes = randomUnicodeOfLength(BlobCacheUtils.toIntBytes(REGION_SIZE.getBytes()));
 
@@ -648,11 +677,22 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
             equalTo(blobsRegionsBeforeMerge.values().stream().mapToLong(BitSet::cardinality).sum())
         );
 
+        final var indexEngine = getShardEngine(findIndexShard(indexName), IndexEngine.class);
+        long minGeneration = indexEngine.getCurrentGeneration();
+
+        final var future = searchCacheService.startTracking();
+
         assertNoFailures(indicesAdmin().prepareForceMerge().setFlush(false).setMaxNumSegments(1).get());
         refresh(indexName);
+        minGeneration += 1L;
+
         if (randomBoolean()) {
-            flushAndWaitForSearchShard(indexName, searchEngine);
+            flush(indexName);
+            minGeneration += 1L;
         }
+
+        searchEngine.addPrimaryTermAndGenerationListener(0L, minGeneration, ActionListener.releasing(future.refs.acquire()));
+        searchCacheService.stopTrackingAndAwait(future);
 
         var blobsRegionsAfterMerge = readAllFilesAndCollectRegions(searchEngine, searchDirectory, searchCacheService);
         assertThat("all segments should be in a single BCC blob", blobsRegionsAfterMerge.size(), equalTo(1));
@@ -733,6 +773,28 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
         }
     }
 
+    /** Force-merges to 1 segment, refreshes, then waits for the search shard to process both commits and complete all evictions. */
+    private void forceMergeThenRefreshAndAwaitEvictions(String indexName, SearchEngine searchEngine, SearchDirectory searchDirectory) {
+        final var indexEngine = getShardEngine(findIndexShard(indexName), IndexEngine.class);
+        long minGeneration = indexEngine.getCurrentGeneration();
+
+        final var cacheService = asInstanceOf(
+            EvictionTrackingCacheService.class,
+            BlobStoreCacheDirectoryTestUtils.getCacheService(searchDirectory)
+        );
+        final var future = cacheService.startTracking();
+
+        forceMerge(true);
+        minGeneration += 1L;
+
+        refresh(indexName);
+        minGeneration += 1L;
+
+        searchEngine.addPrimaryTermAndGenerationListener(0L, minGeneration, ActionListener.releasing(future.refs.acquire()));
+        cacheService.stopTrackingAndAwait(future);
+    }
+
+    /** Flushes and blocks until the search shard has processed the resulting commit. */
     private void flushAndWaitForSearchShard(final String indexName, final SearchEngine searchEngine) {
         assertThat(indexName, equalTo(searchEngine.config().getShardId().getIndexName()));
         final var future = new PlainActionFuture<Long>();
@@ -743,13 +805,10 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
         safeGet(future);
     }
 
-    /**
-     * Overrides the cache service so that async evictions run on a direct executor (same thread),
-     * removing the need for {@code assertBusy} in eviction assertions.
-     */
-    public static class DirectEvictionStatelessPlugin extends TestUtils.StatelessPluginWithTrialLicense {
+    /** Stateless plugin whose cache service tracks async eviction tasks, allowing tests to deterministically await their completion. */
+    public static class EvictionTrackingStatelessPlugin extends TestUtils.StatelessPluginWithTrialLicense {
 
-        public DirectEvictionStatelessPlugin(Settings settings) {
+        public EvictionTrackingStatelessPlugin(Settings settings) {
             super(settings);
         }
 
@@ -760,24 +819,80 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
             ThreadPool threadPool,
             BlobCacheMetrics blobCacheMetrics,
             ClusterService clusterService,
-            IndicesService indicesService
+            IndicesService indicesService,
+            PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricHolder
         ) {
-            var cacheService = new StatelessSharedBlobCacheService(
+            return new EvictionTrackingCacheService(
                 nodeEnvironment,
                 settings,
                 threadPool,
                 blobCacheMetrics,
                 clusterService,
                 indicesService,
-                new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
-            ) {
-                @Override
-                public void submitAsyncEviction(Runnable task) {
-                    task.run();
-                }
-            };
-            cacheService.assertInvariants();
-            return cacheService;
+                metricHolder
+            );
+        }
+    }
+
+    private static class EvictionFuture {
+
+        private final PlainActionFuture<Void> future;
+        private final RefCountingRunnable refs;
+
+        EvictionFuture() {
+            this.future = new PlainActionFuture<>();
+            this.refs = new RefCountingRunnable(() -> future.onResponse(null));
+        }
+    }
+
+    static class EvictionTrackingCacheService extends StatelessSharedBlobCacheService {
+
+        private final AtomicReference<EvictionFuture> current = new AtomicReference<>();
+
+        EvictionTrackingCacheService(
+            NodeEnvironment nodeEnvironment,
+            Settings settings,
+            ThreadPool threadPool,
+            BlobCacheMetrics blobCacheMetrics,
+            ClusterService clusterService,
+            IndicesService indicesService,
+            PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricHolder
+        ) {
+            super(nodeEnvironment, settings, threadPool, blobCacheMetrics, clusterService, indicesService, metricHolder);
+        }
+
+        /** Starts tracking eviction tasks. Must be followed by {@link #stopTrackingAndAwait}. */
+        EvictionFuture startTracking() {
+            final var tracker = new EvictionFuture();
+            if (current.compareAndSet(null, tracker) == false) {
+                Releasables.close(tracker.refs);
+                throw new AssertionError("Already tracking evictions");
+            }
+            return tracker;
+        }
+
+        /** Stops tracking and blocks until all tracked eviction tasks have completed. */
+        void stopTrackingAndAwait(final EvictionFuture tracker) {
+            if (current.compareAndSet(tracker, null) == false) {
+                throw new AssertionError("Already tracking evictions");
+            }
+            Releasables.close(tracker.refs);
+            safeGet(tracker.future);
+        }
+
+        @Override
+        public void submitAsyncEviction(Runnable task) {
+            final EvictionFuture tracker = current.get();
+            if (tracker != null) {
+                final var releasable = tracker.refs.acquire();
+                super.submitAsyncEviction(() -> {
+                    try (releasable) {
+                        task.run();
+                    }
+                });
+            } else {
+                super.submitAsyncEviction(task);
+            }
         }
     }
 }

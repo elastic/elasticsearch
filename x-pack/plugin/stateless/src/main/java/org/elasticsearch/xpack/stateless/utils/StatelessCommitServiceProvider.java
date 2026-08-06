@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 /// [StatelessCommitService] exists only on index nodes; search nodes do not have one.
 /// Because Guice cannot express optional bindings, this record acts as an indirection: the plugin
 /// registers it with a `null` commit service on search nodes, and call sites unwrap the value via [#commitService()].
-public class StatelessCommitServiceProvider() {
+public class StatelessCommitServiceProvider {
 
     private final StatelessCommitService commitService;
 

@@ -89,6 +89,7 @@ public class RemoteIndexResolutionIT extends AbstractCrossClusterTestCase {
     public void testResolvesLocalAndRemoteIndex() {
         indexRandom(LOCAL_CLUSTER, true, "index-1", 1);
         indexRandom(REMOTE_CLUSTER_1, true, "index-1", 1);
+        indexRandom(REMOTE_CLUSTER_2, true, "index-1", 1);
 
         try (
             var response = run(
@@ -109,7 +110,8 @@ public class RemoteIndexResolutionIT extends AbstractCrossClusterTestCase {
             assertExecutionInfo(
                 response,
                 new EsqlResponseExecutionInfo(LOCAL_CLUSTER, "index-*", Status.SUCCESSFUL),
-                new EsqlResponseExecutionInfo(REMOTE_CLUSTER_1, "index-*", Status.SUCCESSFUL)
+                new EsqlResponseExecutionInfo(REMOTE_CLUSTER_1, "index-*", Status.SUCCESSFUL),
+                new EsqlResponseExecutionInfo(REMOTE_CLUSTER_2, "index-*", Status.SUCCESSFUL)
             );
         }
     }

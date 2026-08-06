@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionType;
@@ -15,6 +16,8 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.ResolvedIndexExpression;
 import org.elasticsearch.action.ResolvedIndexExpressions;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldcaps.RemoteDatasetNotSupportedException;
@@ -38,6 +41,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -48,10 +52,12 @@ import org.elasticsearch.xpack.esql.view.ViewResolutionService;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -77,6 +83,7 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<EsqlResolveF
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final IndexAbstractionResolver indexAbstractionResolver;
     private final NodeClient client;
+    private final Executor searchCoordinationExecutor;
 
     private final TransportFieldCapabilitiesAction fieldCapsAction;
 
@@ -92,6 +99,7 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<EsqlResolveF
         CrossProjectModeDecider crossProjectModeDecider,
         IndexNameExpressionResolver indexNameExpressionResolver,
         NodeClient client,
+        ThreadPool threadPool,
         TransportFieldCapabilitiesAction fieldCapsAction
     ) {
         // TODO replace DIRECT_EXECUTOR_SERVICE when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
@@ -103,6 +111,7 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<EsqlResolveF
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.indexAbstractionResolver = new IndexAbstractionResolver(indexNameExpressionResolver);
         this.client = client;
+        this.searchCoordinationExecutor = threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION);
         this.fieldCapsAction = fieldCapsAction;
 
         // TODO cleanup
@@ -120,6 +129,10 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<EsqlResolveF
         final var minTransportVersion = new AtomicReference<>(clusterService.state().getMinTransportVersion());
         final ProjectState projectState = projectResolver.getProjectState(clusterService.state());
 
+        // TODO request filter
+        // TODO check task cancellation
+        // TODO validate CPS resolution correctness
+
         final IndicesOptions originalIndicesOptions = request.indicesOptions();
         final boolean resolveCrossProject = crossProjectModeDecider.resolvesCrossProject(request);
 
@@ -131,34 +144,55 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<EsqlResolveF
             );
         final OriginalIndices localIndices = remoteIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
 
-        var response = new EsqlResolveFieldsResponseBuilder();
-        response.fcBuilder.withMinTransportVersion(minTransportVersion.get());
+        var response = new EsqlResolveFieldsResponseBuilder(minTransportVersion.get());
         try (var resultListener = new RefCountingListener(listener.delegateFailure((l, r) -> l.onResponse(response.build())))) {
             // local resolutions
             if (localIndices != null) {
                 var abstractions = resolveIndexAbstractions(localIndices, projectState);
-                response.fcBuilder.withResolvedLocally(abstractions.expressions);
-                resolveConcreteIndices(task, request, abstractions.indices, response, resultListener);
+                response.resolvedLocally = abstractions.expressions;
+                resolveConcreteIndices(request, abstractions.indices, response, resultListener);
                 // TODO resolve views
                 // TODO resolve datasets
-                return;
             }
 
             // remote resolutions
             for (var entry : remoteIndices.entrySet()) {
                 String clusterAlias = entry.getKey();
                 OriginalIndices indices = entry.getValue();
-                // TODO resolve remotes
-                listener.onFailure(new Exception("unsupported for now"));
+
+                // TODO connection timeout
+                // TODO can match
+                boolean ensureConnected = transportService.getRemoteClusterService().isSkipUnavailable(clusterAlias).orElse(true) == false;
+                transportService.getRemoteClusterService()
+                    .maybeEnsureConnectedAndGetConnection(
+                        clusterAlias,
+                        ensureConnected,
+                        resultListener.acquire().delegateFailureAndWrap((l, connection) -> {
+                            var remoteRequest = new EsqlResolveFieldsRequest(
+                                TransportFieldCapabilitiesAction.prepareRemoteRequest(
+                                    clusterAlias,
+                                    request.fieldCapsRequest(),
+                                    indices,
+                                    0, // TODO current time
+                                    resolveCrossProject
+                                )
+                            );
+                            transportService.sendRequest(
+                                connection,
+                                NAME,
+                                remoteRequest,
+                                TransportRequestOptions.EMPTY,
+                                new ActionListenerResponseHandler<>(l.delegateFailureAndWrap((ll, remoteResponse) -> {
+                                    response.appendRemoteResponse(clusterAlias, remoteResponse);
+                                    ll.onResponse(null);
+                                }), EsqlResolveFieldsResponse::new, searchCoordinationExecutor)
+                            );
+                        })
+                    );
             }
         } catch (Exception e) {
             listener.onFailure(e);
         }
-
-        // TODO request filter
-        // TODO check index blocks?
-        // TODO check task cancellation
-        // TODO validate CPS resolution correctness
     }
 
     private ResolvedIndexAbstractions resolveIndexAbstractions(OriginalIndices localIndices, ProjectState projectState) {
@@ -198,7 +232,6 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<EsqlResolveF
     }
 
     private void resolveConcreteIndices(
-        Task task,
         EsqlResolveFieldsRequest request,
         List<IndexAbstraction> indices,
         EsqlResolveFieldsResponseBuilder builder,
@@ -226,14 +259,15 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<EsqlResolveF
         // fcRequest.projectRouting(projectRouting);
 
         client.execute(TransportFieldCapabilitiesAction.TYPE, fcRequest, listener.acquire().delegateFailureAndWrap((l, fcResponse) -> {
-            builder.fcBuilder.withIndexResponses(fcResponse.getIndexResponses());
+            builder.indexResponses.addAll(fcResponse.getIndexResponses());
+            builder.failures.addAll(fcResponse.getFailures());
             l.onResponse(null);
         }));
     }
 
-    private class ResolvedIndexAbstractions {
+    private static class ResolvedIndexAbstractions {
         private final ResolvedIndexExpressions expressions;
-        private List<IndexAbstraction> indices = new ArrayList<>();
+        private final List<IndexAbstraction> indices = new ArrayList<>();
         // TODO views
         // TODO datasets
 
@@ -242,12 +276,50 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<EsqlResolveF
         }
     }
 
-    private class EsqlResolveFieldsResponseBuilder {
+    private static class EsqlResolveFieldsResponseBuilder {
 
-        private final FieldCapabilitiesResponse.Builder fcBuilder = FieldCapabilitiesResponse.builder();
+        private TransportVersion minTransportVersion;
+        private ResolvedIndexExpressions resolvedLocally;
+        private final Map<String, ResolvedIndexExpressions> resolvedRemotely = new HashMap<>();
+        private final List<FieldCapabilitiesIndexResponse> indexResponses = new ArrayList<>();
+        private final List<FieldCapabilitiesFailure> failures = new ArrayList<>();
+
+        EsqlResolveFieldsResponseBuilder(TransportVersion minTransportVersion) {
+            this.minTransportVersion = minTransportVersion;
+        }
+
+        void appendRemoteResponse(String clusterAlias, EsqlResolveFieldsResponse remoteResponse) {
+            var remoteTransportVersion = remoteResponse.caps().minTransportVersion();
+            if (remoteTransportVersion != null) {
+                minTransportVersion = TransportVersion.min(minTransportVersion, remoteTransportVersion);
+            }
+            resolvedRemotely.put(clusterAlias, remoteResponse.caps().getResolvedLocally());
+            for (FieldCapabilitiesIndexResponse index : remoteResponse.caps().getIndexResponses()) {
+                // TODO deduplicate
+                indexResponses.add(
+                    new FieldCapabilitiesIndexResponse(
+                        RemoteClusterAware.buildRemoteIndexName(clusterAlias, index.getIndexName()),
+                        index.getIndexMappingHash(),
+                        index.get(),
+                        index.canMatch(),
+                        index.getIndexMode()
+                    )
+                );
+            }
+            // TODO collect failures: reuse FailureCollector?
+            failures.addAll(remoteResponse.caps().getFailures());
+        }
 
         EsqlResolveFieldsResponse build() {
-            return new EsqlResolveFieldsResponse(fcBuilder.build());
+            return new EsqlResolveFieldsResponse(
+                FieldCapabilitiesResponse.builder()
+                    .withMinTransportVersion(minTransportVersion)
+                    .withResolvedLocally(resolvedLocally)
+                    .withResolvedRemotely(resolvedRemotely)
+                    .withIndexResponses(indexResponses)
+                    .withFailures(failures)
+                    .build()
+            );
         }
     }
 

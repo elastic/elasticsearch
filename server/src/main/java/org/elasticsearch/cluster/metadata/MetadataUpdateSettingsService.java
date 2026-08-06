@@ -248,7 +248,8 @@ public class MetadataUpdateSettingsService {
                                             new UnassignedInfo(
                                                 UnassignedInfo.Reason.INDEX_REOPENED,
                                                 "Unassigning shards to update static settings"
-                                            )
+                                            ),
+                                            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
                                         )
                                     );
                                 } else {

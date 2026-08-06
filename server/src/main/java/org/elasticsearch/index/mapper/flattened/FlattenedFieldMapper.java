@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.mapper.flattened;
 
-import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.ImpactsEnum;
 import org.apache.lucene.index.IndexReader;
@@ -97,6 +96,7 @@ import org.elasticsearch.lucene.queries.KeyedFlattenedExistsQuery;
 import org.elasticsearch.lucene.queries.KeyedFlattenedTermQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesPrefixQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermQuery;
+import org.elasticsearch.lucene.queries.SortedSetDocValuesRangeQuery;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.FlattenedDocValuesField;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
@@ -766,7 +766,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                     }
                     return new ScanningBinaryDocValuesTermQuery(name(), keyedValue, false);
                 } else {
-                    return SortedSetDocValuesField.newSlowExactQuery(name(), indexedValueForSearch(value));
+                    return SortedSetDocValuesRangeQuery.newSlowExactQuery(name(), indexedValueForSearch(value));
                 }
             } else {
                 return super.termQuery(value, context);
@@ -802,7 +802,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                 BytesRef upper = new BytesRef(keyPrefix);
                 upper.bytes[upper.offset + upper.length - 1] = (byte) 0x01; // bump the trailing separator byte for an exclusive upper bound
 
-                return SortedSetDocValuesField.newSlowRangeQuery(name(), lower, upper, true, false);
+                return SortedSetDocValuesRangeQuery.newSlowRangeQuery(name(), lower, upper, true, false);
             }
             return new PrefixQuery(new Term(name(), keyPrefix));
         }

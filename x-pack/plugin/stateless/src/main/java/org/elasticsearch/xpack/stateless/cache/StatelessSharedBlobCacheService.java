@@ -22,6 +22,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.TimeProvider;
 import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Predicates;
@@ -104,6 +105,19 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         );
 
     /**
+     * Whether time-based search shards should stamp metadata-read cache regions with
+     * {@link SharedBlobCacheService#BACKFILL_IN_PROGRESS_TIMESTAMP} and run completion backfill.
+     */
+    public static final Setting<Boolean> STATELESS_CACHE_BOOST_PREFERENCE_TIMESTAMP_BACKFILL_ENABLED_SETTING = Setting.boolSetting(
+        "stateless.cache_boost_preference.timestamp_backfill.enabled",
+        settings -> Boolean.toString(
+            STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING.get(settings) == StatelessCacheEvictionPolicyType.PINNED_WINDOW
+        ),
+        Setting.Property.OperatorDynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
      * Fraction of total regions that must be consecutively rejected by the eviction policy within a single eviction
      * scan before the cache enters a node-wide eviction degradation period. When {@code rejectedCount / numRegions} exceeds
      * this ratio the policy is bypassed for the duration of {@link #STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_DURATION_SETTING}.
@@ -173,6 +187,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
     private final PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder;
     private final boolean hasSearchRole;
     private final boolean cacheBoostPreferenceEnabled;
+    private volatile boolean metadataTimestampBackfillEnabled;
     private volatile boolean evictObsoleteRegionsEnabled;
     private volatile boolean demoteClosedShardRegionsEnabled;
     private volatile boolean evictDeletedIndexRegionsEnabled;
@@ -227,6 +242,10 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
             : evictionDegradationThreshold + " not in [0," + numRegions + "]";
         assert evictionDegradationDurationMillis >= 0 : evictionDegradationDurationMillis + " < 0";
         clusterSettings.initializeAndWatch(
+            STATELESS_CACHE_BOOST_PREFERENCE_TIMESTAMP_BACKFILL_ENABLED_SETTING,
+            enabled -> this.metadataTimestampBackfillEnabled = enabled
+        );
+        clusterSettings.initializeAndWatch(
             STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING,
             enabled -> this.evictObsoleteRegionsEnabled = enabled
         );
@@ -238,6 +257,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
             STATELESS_CACHE_EVICT_DELETED_INDEX_REGIONS_ENABLED_SETTING,
             enabled -> this.evictDeletedIndexRegionsEnabled = enabled
         );
+        assert this.rangeSize >= this.regionSize : this.rangeSize + " < " + this.regionSize;
     }
 
     // package private for testing
@@ -245,12 +265,12 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         Settings settings,
         ClusterService clusterService,
         IndicesService indicesService,
-        ThreadPool threadPool
+        TimeProvider timeProvider
     ) {
         if (DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE)) {
-            return new SwitchingEvictionPolicy(settings, clusterService, indicesService, threadPool);
+            return new SwitchingEvictionPolicy(settings, clusterService, indicesService, timeProvider);
         } else {
-            return StatelessCacheEvictionPolicyType.createEvictionPolicy(settings, clusterService, indicesService, threadPool);
+            return StatelessCacheEvictionPolicyType.createEvictionPolicy(settings, clusterService, indicesService, timeProvider);
         }
     }
 
@@ -339,10 +359,6 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         return hasSearchRole;
     }
 
-    public void assertInvariants() {
-        assert getRangeSize() >= getRegionSize() : getRangeSize() + " < " + getRegionSize();
-    }
-
     public Executor getShardReadThreadPoolExecutor() {
         return shardReadThreadPoolExecutor;
     }
@@ -426,6 +442,13 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
 
     public boolean isCacheBoostPreferenceEnabled() {
         return cacheBoostPreferenceEnabled;
+    }
+
+    /**
+     * Whether time-based shards should use metadata-read timestamp backfill (sentinel stamping followed by completion backfill).
+     */
+    public boolean isMetadataTimestampBackfillEnabled() {
+        return metadataTimestampBackfillEnabled;
     }
 
     /// Whether to asynchronously force-evict cache regions corresponding to obsolete segments that are not referenced anymore.

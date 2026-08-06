@@ -19,6 +19,7 @@ import java.util.EnumSet;
 public class PushExpressionToFieldLoadGoldenTests extends GoldenTestCase {
     private static final String DIMENSION_VALUES = "dimension_values";
     private static final String ESQL_SUM_LONG_OVERFLOW_FIX = "esql_sum_long_overflow_fix";
+    private static final String PACK_DIMS_AGG = "pack_dims_agg";
 
     private static final EnumSet<Stage> STAGES = EnumSet.of(
         Stage.ANALYSIS,
@@ -201,7 +202,10 @@ public class PushExpressionToFieldLoadGoldenTests extends GoldenTestCase {
                   c = count(count_over_time(network.eth0.tx)),
                   a = avg(avg_over_time(network.eth0.tx))
             BY pod, time_bucket = BUCKET(@timestamp,5minute)
-            """).expectationChangesAt(DIMENSION_VALUES).expectationChangesAt(ESQL_SUM_LONG_OVERFLOW_FIX).run();
+            """).expectationChangesAt(DIMENSION_VALUES)
+            .expectationChangesAt(ESQL_SUM_LONG_OVERFLOW_FIX)
+            .expectationChangesAt(PACK_DIMS_AGG)
+            .run();
     }
 
     // ---- Reduction plan tests ----

@@ -896,7 +896,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
      */
     static class DetailsHandler {
         private static final String[] PATH_FILE_NAME = new String[] { "Executable", "file", "name" };
-        private static final String[] PATH_FILE_NAME_OTEL = new String[] { "process", "executable", "name" };
+        private static final String[] PATH_FILE_NAME_OTEL = new String[] { "resource", "attributes", "process.executable.name" };
         private final GetStackTracesResponseBuilder builder;
         private final ActionListener<GetStackTracesResponse> submitListener;
         private final Map<String, String> executables;

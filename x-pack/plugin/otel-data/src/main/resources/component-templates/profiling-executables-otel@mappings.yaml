@@ -15,12 +15,19 @@ template:
   mappings:
     dynamic: false
     properties:
-      process.executable.build_id.htlhash:
-        type: keyword
-        index: true
-      process.executable.name:
-        type: keyword
-        index: true
       "@timestamp":
         type: date
         format: epoch_second
+      resource:
+        properties:
+          attributes:
+            type: passthrough
+            dynamic: true
+            priority: 40
+            properties:
+              process.executable.build_id.htlhash:
+                type: keyword
+                index: true
+              process.executable.name:
+                type: keyword
+                index: false

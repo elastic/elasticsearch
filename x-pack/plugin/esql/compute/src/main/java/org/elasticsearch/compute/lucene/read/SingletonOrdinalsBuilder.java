@@ -82,6 +82,11 @@ public class SingletonOrdinalsBuilder implements BlockLoader.SingletonOrdinalsBu
     }
 
     @Override
+    public SingletonOrdinalsBuilder cancelPositionEntry() {
+        throw new UnsupportedOperationException("should only have one value per doc");
+    }
+
+    @Override
     public SingletonOrdinalsBuilder endPositionEntry() {
         throw new UnsupportedOperationException("should only have one value per doc");
     }

@@ -102,6 +102,11 @@ final class BytesRefBlockBuilder extends AbstractBlockBuilder implements BytesRe
     }
 
     @Override
+    void truncateValueStorageTo(int newValueCount) {
+        values.truncateTo(newValueCount);
+    }
+
+    @Override
     public BytesRefBlockBuilder copyFrom(Block block, int beginInclusive, int endExclusive) {
         if (block.areAllValuesNull()) {
             for (int p = beginInclusive; p < endExclusive; p++) {

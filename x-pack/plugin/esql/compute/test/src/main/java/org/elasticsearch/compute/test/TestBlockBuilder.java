@@ -39,6 +39,9 @@ public abstract class TestBlockBuilder implements Block.Builder {
     public abstract TestBlockBuilder beginPositionEntry();
 
     @Override
+    public abstract TestBlockBuilder cancelPositionEntry();
+
+    @Override
     public abstract TestBlockBuilder endPositionEntry();
 
     public static Block blockFromValues(List<List<Object>> blockValues, ElementType elementType) {
@@ -110,6 +113,12 @@ public abstract class TestBlockBuilder implements Block.Builder {
         }
 
         @Override
+        public TestBlockBuilder cancelPositionEntry() {
+            builder.cancelPositionEntry();
+            return this;
+        }
+
+        @Override
         public TestBlockBuilder endPositionEntry() {
             builder.endPositionEntry();
             return this;
@@ -166,6 +175,12 @@ public abstract class TestBlockBuilder implements Block.Builder {
         @Override
         public TestBlockBuilder beginPositionEntry() {
             builder.beginPositionEntry();
+            return this;
+        }
+
+        @Override
+        public TestBlockBuilder cancelPositionEntry() {
+            builder.cancelPositionEntry();
             return this;
         }
 
@@ -230,6 +245,12 @@ public abstract class TestBlockBuilder implements Block.Builder {
         }
 
         @Override
+        public TestBlockBuilder cancelPositionEntry() {
+            builder.cancelPositionEntry();
+            return this;
+        }
+
+        @Override
         public TestBlockBuilder endPositionEntry() {
             builder.endPositionEntry();
             return this;
@@ -290,6 +311,12 @@ public abstract class TestBlockBuilder implements Block.Builder {
         }
 
         @Override
+        public TestBlockBuilder cancelPositionEntry() {
+            builder.cancelPositionEntry();
+            return this;
+        }
+
+        @Override
         public TestBlockBuilder endPositionEntry() {
             builder.endPositionEntry();
             return this;
@@ -346,6 +373,12 @@ public abstract class TestBlockBuilder implements Block.Builder {
         @Override
         public TestBlockBuilder beginPositionEntry() {
             builder.beginPositionEntry();
+            return this;
+        }
+
+        @Override
+        public TestBlockBuilder cancelPositionEntry() {
+            builder.cancelPositionEntry();
             return this;
         }
 
@@ -413,6 +446,12 @@ public abstract class TestBlockBuilder implements Block.Builder {
         }
 
         @Override
+        public TestBlockBuilder cancelPositionEntry() {
+            builder.cancelPositionEntry();
+            return this;
+        }
+
+        @Override
         public TestBlockBuilder endPositionEntry() {
             builder.endPositionEntry();
             return this;
@@ -473,6 +512,12 @@ public abstract class TestBlockBuilder implements Block.Builder {
         @Override
         public TestBlockBuilder beginPositionEntry() {
             builder.beginPositionEntry();
+            return this;
+        }
+
+        @Override
+        public TestBlockBuilder cancelPositionEntry() {
+            builder.cancelPositionEntry();
             return this;
         }
 

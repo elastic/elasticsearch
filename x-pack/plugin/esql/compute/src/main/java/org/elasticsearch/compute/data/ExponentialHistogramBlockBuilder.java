@@ -93,6 +93,16 @@ public final class ExponentialHistogramBlockBuilder extends AbstractDelegatingCo
     }
 
     @Override
+    protected void cancelSubBlockPositions(int valuesToRemove) {
+        rollbackLastValues(minimaBuilder, valuesToRemove);
+        rollbackLastValues(maximaBuilder, valuesToRemove);
+        rollbackLastValues(sumsBuilder, valuesToRemove);
+        rollbackLastValues(valueCountsBuilder, valuesToRemove);
+        rollbackLastValues(zeroThresholdsBuilder, valuesToRemove);
+        rollbackLastValues(encodedHistogramsBuilder, valuesToRemove);
+    }
+
+    @Override
     public ExponentialHistogramBlockBuilder append(ExponentialHistogram histogram) {
         ExponentialHistogramArrayBlock.EncodedHistogramData data = ExponentialHistogramArrayBlock.encode(histogram);
         doAppend(data);

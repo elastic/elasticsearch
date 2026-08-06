@@ -65,6 +65,15 @@ public final class TDigestBlockBuilder extends AbstractDelegatingCompoundBlock.A
     }
 
     @Override
+    protected void cancelSubBlockPositions(int valuesToRemove) {
+        rollbackLastValues(encodedDigestsBuilder, valuesToRemove);
+        rollbackLastValues(minimaBuilder, valuesToRemove);
+        rollbackLastValues(maximaBuilder, valuesToRemove);
+        rollbackLastValues(sumsBuilder, valuesToRemove);
+        rollbackLastValues(valueCountsBuilder, valuesToRemove);
+    }
+
+    @Override
     public TDigestBlock.Builder copyFrom(TDigestBlock block, int position) {
         copyFrom(block, position, position + 1);
         return this;

@@ -246,6 +246,11 @@ public final class ConstantNullBlock extends AbstractBlockRefCounted
         }
 
         @Override
+        public Builder cancelPositionEntry() {
+            throw new UnsupportedOperationException("cancelPositionEntry is not supported by null block builders");
+        }
+
+        @Override
         public Builder endPositionEntry() {
             throw new UnsupportedOperationException();
         }

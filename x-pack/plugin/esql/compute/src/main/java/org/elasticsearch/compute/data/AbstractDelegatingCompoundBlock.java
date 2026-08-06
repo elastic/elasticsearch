@@ -407,6 +407,31 @@ public abstract class AbstractDelegatingCompoundBlock<T extends Block> extends A
         }
 
         @Override
+        public final Block.Builder cancelPositionEntry() {
+            assert closed == false;
+            assert built == false;
+            assert isPositionEntryOpen() : "must call beginPositionEntry() first";
+            int valuesToRemove = valueCount - openPositionEntryStartValue;
+            cancelSubBlockPositions(valuesToRemove);
+            valueCount = openPositionEntryStartValue;
+            openPositionEntryStartValue = -1;
+            return this;
+        }
+
+        /**
+         * Removes the scalar values that were appended to each sub-block for the current
+         * position entry.
+         */
+        protected abstract void cancelSubBlockPositions(int valuesToRemove);
+
+        protected static void rollbackLastValues(Block.Builder builder, int valuesToRemove) {
+            AbstractBlockBuilder abstractBuilder = (AbstractBlockBuilder) builder;
+            for (int i = 0; i < valuesToRemove; i++) {
+                abstractBuilder.rollbackLastValue();
+            }
+        }
+
+        @Override
         public final T build() {
             if (closed || built) {
                 throw new IllegalStateException("already closed");

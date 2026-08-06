@@ -173,6 +173,11 @@ public class DocBlock extends AbstractVectorBlock implements Block, RefCounted {
         }
 
         @Override
+        public Builder cancelPositionEntry() {
+            throw new UnsupportedOperationException("cancelPositionEntry is not supported by doc blocks");
+        }
+
+        @Override
         public Builder endPositionEntry() {
             throw new UnsupportedOperationException("doc blocks only contain one value per position");
         }

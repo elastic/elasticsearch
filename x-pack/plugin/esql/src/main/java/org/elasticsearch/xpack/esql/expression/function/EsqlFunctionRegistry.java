@@ -1158,12 +1158,21 @@ public class EsqlFunctionRegistry {
         }
     }
 
+    /**
+     * The capability a node advertises for a function, so that callers can gate on a function's existence. Kept as the
+     * single source of this {@code fn_}-prefixed contract; tests that need to reference a function's capability (e.g. to
+     * skip when an older BWC node lacks the function) must use this rather than re-deriving the prefix.
+     */
+    public static String functionCapabilityName(String functionName) {
+        return "fn_" + functionName;
+    }
+
     protected final void addCapabilities(Set<String> filterAliases, EsqlCapabilities.Builder capabilities, boolean enabled) {
         for (FunctionDefinition def : defs.values()) {
             if (false == filterAliases.add(def.name())) {
                 continue;
             }
-            String name = "fn_" + def.name();
+            String name = functionCapabilityName(def.name());
             capabilities.add(name, enabled);
             for (String sub : def.capabilities()) {
                 capabilities.add(name + "_" + sub, enabled);

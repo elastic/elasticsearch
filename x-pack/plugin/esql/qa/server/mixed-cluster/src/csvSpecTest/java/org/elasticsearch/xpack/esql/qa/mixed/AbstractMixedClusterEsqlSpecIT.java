@@ -17,14 +17,19 @@ import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.CsvTestUtils;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 import org.junit.AfterClass;
 import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.JOIN_LOOKUP_V12;
@@ -122,6 +127,72 @@ public abstract class AbstractMixedClusterEsqlSpecIT extends EsqlSpecTestCase {
             testCase.missingCapabilitiesRemoteCluster.isEmpty()
         );
         assumeTrue("Test " + testName + " is skipped on " + bwcVersion, isEnabled(testName, instructions, bwcVersion));
+
+        // Reaching here means the older node has every declared capability, so this test would run on it. Fail (rather
+        // than let it flake) if the query calls a function the older node lacks but nothing gates the test to skip there.
+        failIfQueryUsesFunctionMissingOnOldNode(testName);
+    }
+
+    /**
+     * Deterministic guard against the flaky failure fixed in #156026/#156027: a mixed-cluster test whose query calls a
+     * function the older node does not have, but which declares no capability that would skip it there, flakes with
+     * {@code Unknown function [X]} whenever the query routes to the older coordinator. Here we turn that into a
+     * deterministic, actionable failure that names the {@code fn_<name>} capability the author must add to the spec.
+     * <p>
+     * The check is skipped whenever it cannot be made confidently, so it never introduces a new source of flakiness:
+     * when the query uses no functions, when a capability result is indeterminate, when the older node is unreachable,
+     * or when the older node predates the {@code fn_} capability mechanism (nodes before 9.4 advertise none, detected
+     * via the {@code fn_count} sentinel, where a missing function is indistinguishable from a missing mechanism).
+     */
+    private void failIfQueryUsesFunctionMissingOnOldNode(String testName) {
+        Set<String> functionCapabilities = EsqlTestUtils.functionCapabilitiesUsedBy(testCase.query);
+        if (functionCapabilities.isEmpty()) {
+            return;
+        }
+        try {
+            if (Boolean.FALSE.equals(oldNodeHasCapabilities(List.copyOf(functionCapabilities))) == false) {
+                // The older node has every function (TRUE) or the answer was indeterminate (null): nothing to enforce.
+                return;
+            }
+            String countCapability = EsqlFunctionRegistry.functionCapabilityName("count");
+            if (Boolean.TRUE.equals(oldNodeHasCapabilities(List.of(countCapability))) == false) {
+                // Older node predates fn_ capabilities (or became unreachable): a missing function is indistinguishable
+                // from a missing mechanism, so skip.
+                return;
+            }
+            List<String> missing = new ArrayList<>();
+            for (String capability : functionCapabilities) {
+                if (Boolean.FALSE.equals(oldNodeHasCapabilities(List.of(capability)))) {
+                    missing.add(capability);
+                }
+            }
+            if (missing.isEmpty() == false) {
+                fail(
+                    "Test ["
+                        + testName
+                        + "] calls function(s) the older BWC node ["
+                        + bwcVersion
+                        + "] does not have and is not gated to skip there, so it flakes with \"Unknown function\".\n"
+                        + "Add to the test:\n"
+                        + missing.stream().map(c -> "required_capability: " + c).collect(Collectors.joining("\n"))
+                );
+            }
+        } catch (IOException e) {
+            // Could not reach the older node to check; skip rather than introduce a new flake.
+        }
+    }
+
+    /**
+     * Whether the older node advertises all of {@code capabilities}: {@code TRUE} if it does, {@code FALSE} if at least
+     * one is missing, {@code null} if the answer could not be determined (so callers skip rather than fail). This is a
+     * cluster-wide {@code AND} over the {@code _capabilities} fan-out, not an old-node-local check, but it is still
+     * attributable to the older node because every {@code fn_<name>} asked about comes from the current build's
+     * registry, which the newer node always advertises. Unlike
+     * {@link org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase#hasCapabilities} the result is not cached, so a
+     * transient failure cannot stick for the rest of the run.
+     */
+    private Boolean oldNodeHasCapabilities(List<String> capabilities) throws IOException {
+        return clusterHasCapability(oldNodeClient(), "POST", "/_query", List.of(), capabilities).orElse(null);
     }
 
     private RestClient oldNodeClient() throws IOException {

@@ -39,6 +39,7 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
     private static void checkQueryPragmas() {
         assumeTrue("requires query pragmas", canUseQueryPragmas());
     }
+
     /**
      * Request-level filter (same JSON {@code filter} object as REST ES|QL {@code POST ... /_query})
      * intersects with IN-subquery execution.

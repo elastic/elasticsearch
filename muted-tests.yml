@@ -619,3 +619,6 @@ tests:
 - class: org.elasticsearch.simdvec.internal.vectorization.ES93BinaryQuantizedVectorScorerTests
   method: testBulkScore {p0=MMAP p1=COSINE}
   issue: https://github.com/elastic/elasticsearch/issues/156012
+- class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
+  method: testRelocatingTaskIsNotCancelledOnShutdownTimeout
+  issue: https://github.com/elastic/elasticsearch/issues/155593

@@ -46,7 +46,7 @@ public final class EventsIndex {
     }
 
     public EventsIndex withOtelSuffix() {
-        return new EventsIndex(name + ".otel-default", samplingFactor, exponent);
+        return new EventsIndex(name + ".otel-*", samplingFactor, exponent);
     }
 
     public int getExponent() {

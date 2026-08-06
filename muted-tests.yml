@@ -137,6 +137,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.CrossClusterQueryIT
   method: testExplainCCSWithInlineStats
   issue: https://github.com/elastic/elasticsearch/issues/156064
+- class: org.elasticsearch.compute.aggregation.SumLongGroupingAggregatorFunctionTests
+  method: testOverflowInGroupingProducesNullAndWarning
+  issue: https://github.com/elastic/elasticsearch/issues/156070
 
 # Examples:
 #

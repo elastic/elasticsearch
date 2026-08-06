@@ -564,6 +564,8 @@ public class StatelessPlugin extends Plugin
     private final SetOnce<SearchShardSizeCollector> searchShardSizeCollector = new SetOnce<>();
     private final SetOnce<WarmingRatioProviderFactory> warmingRatioProviderFactoryRef = new SetOnce<>();
 
+    private volatile boolean isNodeShuttingDown = false;
+
     private ObjectStoreService getObjectStoreService() {
         return Objects.requireNonNull(this.objectStoreService.get());
     }
@@ -1061,6 +1063,12 @@ public class StatelessPlugin extends Plugin
                     threadPool.relativeTimeInMillisSupplier()
                 )
             );
+
+            clusterService.addListener(event -> {
+                if (event.state().metadata().nodeShutdowns().contains(event.state().nodes().getLocalNodeId())) {
+                    isNodeShuttingDown = true;
+                }
+            });
         }
 
         if (statelessServicesConsumerProviders.get() != null) {
@@ -1436,13 +1444,12 @@ public class StatelessPlugin extends Plugin
 
     @Override
     public void onIndexModule(IndexModule indexModule) {
-        var statelessCommitService = commitService.get();
-        var localTranslogReplicator = translogReplicator.get();
-        var localSplitTargetService = splitTargetService.get();
-        var localSplitSourceService = splitSourceService.get();
-        var snapshotsCommitService = snapshotsCommitServiceRef.get();
         // register an IndexCommitListener so that stateless is notified of newly created commits on "index" nodes
         if (hasIndexRole) {
+            final var statelessCommitService = commitService.get();
+            final var localTranslogReplicator = translogReplicator.get();
+            final var snapshotsCommitService = snapshotsCommitServiceRef.get();
+
             indexModule.addIndexEventListener(shardsMappingSizeCollector.get());
             indexModule.addIndexOperationListener(new StatelessIndexingOperationListener(hollowShardsService.get()));
             indexModule.addIndexEventListener(new IndexEventListener() {
@@ -1580,9 +1587,25 @@ public class StatelessPlugin extends Plugin
                     return in;
                 }
             });
+            indexModule.addIndexEventListener(
+                new StatelessIndexNodeRecoveryListener(
+                    threadPool.get(),
+                    statelessCommitService,
+                    objectStoreService.get(),
+                    localTranslogReplicator,
+                    sharedBlobCacheWarmingService.get(),
+                    hollowShardsService.get(),
+                    splitTargetService.get(),
+                    splitSourceService.get(),
+                    projectResolver.get(),
+                    bccHeaderReadExecutor.get(),
+                    getStatelessSharedBlobCacheService(),
+                    snapshotsCommitService,
+                    recoveryMetricsCollector.get()
+                )
+            );
         }
         if (hasSearchRole) {
-            final var commitService = this.commitService.get();
             final var collector = searchShardSizeCollector.get();
             indexModule.addIndexEventListener(new IndexEventListener() {
 
@@ -1596,7 +1619,7 @@ public class StatelessPlugin extends Plugin
                     if (reason == IndexRemovalReason.DELETED) {
                         // Evict cache regions of shards of the deleted index
                         final var cacheService = sharedBlobCacheService.get();
-                        if (cacheService.isEvictDeletedIndexRegionsEnabled() && commitService.isNodeShuttingDown() == false) {
+                        if (cacheService.isEvictDeletedIndexRegionsEnabled() && isNodeShuttingDown == false) {
                             cacheService.forceEvictAsync(k -> k.shardId().getIndex().equals(indexService.index()));
                         }
                     }
@@ -1608,14 +1631,14 @@ public class StatelessPlugin extends Plugin
 
                     // Demote cache regions of the closed shard, so they can be more easily evicted
                     final var cacheService = sharedBlobCacheService.get();
-                    if (cacheService.isDemoteClosedShardRegionsEnabled() && commitService.isNodeShuttingDown() == false) {
+                    if (cacheService.isDemoteClosedShardRegionsEnabled() && isNodeShuttingDown == false) {
                         final var hasShard = indicesService.get().hasShardPredicate();
                         // Index deletion also ultimately closes the store, but there is no point demoting regions of an index
                         // that no longer exists: beforeIndexRemoved above enqueues them for eviction when that is enabled, and
                         // otherwise they are left to the regular LFU. We check index existence in the predicate because
                         // onStoreClosed can run on the cluster state applier thread, where querying the ClusterService#state()
                         // is not allowed.
-                        final Predicate<ShardId> shouldDemote = id -> commitService.isNodeShuttingDown() == false
+                        final Predicate<ShardId> shouldDemote = id -> isNodeShuttingDown == false
                             && clusterService.get().state().metadata().lookupProject(id.getIndex()).isPresent()
                             && hasShard.test(id) == false;
                         cacheService.demoteAllAsync(shardId, shouldDemote);
@@ -1639,27 +1662,17 @@ public class StatelessPlugin extends Plugin
                     return in;
                 }
             });
+            indexModule.addIndexEventListener(
+                new StatelessSearchNodeRecoveryListener(
+                    objectStoreService.get(),
+                    recoveryCommitRegistrationHandler.get(),
+                    sharedBlobCacheWarmingService.get(),
+                    projectResolver.get(),
+                    bccHeaderReadExecutor.get(),
+                    clusterService.get()
+                )
+            );
         }
-        indexModule.addIndexEventListener(
-            new StatelessIndexEventListener(
-                threadPool.get(),
-                statelessCommitService,
-                objectStoreService.get(),
-                localTranslogReplicator,
-                recoveryCommitRegistrationHandler.get(),
-                sharedBlobCacheWarmingService.get(),
-                hollowShardsService.get(),
-                splitTargetService.get(),
-                splitSourceService.get(),
-                projectResolver.get(),
-                bccHeaderReadExecutor.get(),
-                clusterService.get().getClusterSettings(),
-                getStatelessSharedBlobCacheService(),
-                snapshotsCommitService,
-                clusterService.get(),
-                recoveryMetricsCollector.get()
-            )
-        );
         indexModule.addIndexEventListener(recoveryMetricsCollector.get());
     }
 

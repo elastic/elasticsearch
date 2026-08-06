@@ -16,20 +16,31 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.appliesTo;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Tests for {@code RANGE_WITHIN(value, range) -> boolean}.
  */
 public class RangeWithinTests extends AbstractScalarFunctionTestCase {
+    private static final FunctionAppliesTo DOUBLE_RANGE_APPLIES_TO = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.6.0", "", false);
+
     public RangeWithinTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
+    }
+
+    @Override
+    protected boolean canSerialize() {
+        return DataType.DOUBLE_RANGE.supportedVersion().supportedLocally()
+            || testCase.getData().stream().noneMatch(data -> data.type() == DataType.DOUBLE_RANGE);
     }
 
     @ParametersFactory
@@ -50,16 +61,14 @@ public class RangeWithinTests extends AbstractScalarFunctionTestCase {
             suppliers.add(rangeWithinRange("equal ranges", 500L, 1500L, 500L, 1500L, true));
             suppliers.add(rangeWithinRange("point range within wider range", 1000L, 1000L, 500L, 1500L, true));
         }
-        if (DataType.DOUBLE_RANGE.supportedVersion().supportedLocally()) {
-            suppliers.add(doublePointInRange("double inside range", 1.0, 0.5, 1.5, true));
-            suppliers.add(doublePointInRange("double outside range", 2.0, 0.5, 1.5, false));
-            suppliers.add(doublePointInRange("double at range start", 0.5, 0.5, 1.5, true));
-            suppliers.add(doublePointInRange("double at range end", 1.5, 0.5, 1.5, false));
+        suppliers.add(doublePointInRange("double inside range", 1.0, 0.5, 1.5, true));
+        suppliers.add(doublePointInRange("double outside range", 2.0, 0.5, 1.5, false));
+        suppliers.add(doublePointInRange("double at range start", 0.5, 0.5, 1.5, true));
+        suppliers.add(doublePointInRange("double at range end", 1.5, 0.5, 1.5, false));
 
-            suppliers.add(doubleRangeWithinRange("double range within range", 0.5, 1.5, 0.0, 2.0, true));
-            suppliers.add(doubleRangeWithinRange("overlapping double range is not within", 0.0, 1.0, 0.5, 1.5, false));
-            suppliers.add(doubleRangeWithinRange("equal double ranges", 0.5, 1.5, 0.5, 1.5, true));
-        }
+        suppliers.add(doubleRangeWithinRange("double range within range", 0.5, 1.5, 0.0, 2.0, true));
+        suppliers.add(doubleRangeWithinRange("overlapping double range is not within", 0.0, 1.0, 0.5, 1.5, false));
+        suppliers.add(doubleRangeWithinRange("equal double ranges", 0.5, 1.5, 0.5, 1.5, true));
 
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
@@ -106,7 +115,10 @@ public class RangeWithinTests extends AbstractScalarFunctionTestCase {
             name,
             List.of(DataType.DOUBLE, DataType.DOUBLE_RANGE),
             () -> new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(point, DataType.DOUBLE, "point"), typedDoubleRange(rangeFrom, rangeTo)),
+                List.of(
+                    new TestCaseSupplier.TypedData(point, DataType.DOUBLE, "point").withAppliesTo(DOUBLE_RANGE_APPLIES_TO),
+                    typedDoubleRange(rangeFrom, rangeTo)
+                ),
                 "RangeWithinDoublePointEvaluator[point=Attribute[channel=0], range=Attribute[channel=1]]",
                 DataType.BOOLEAN,
                 equalTo(expected)
@@ -135,7 +147,8 @@ public class RangeWithinTests extends AbstractScalarFunctionTestCase {
     }
 
     private static TestCaseSupplier.TypedData typedDoubleRange(double from, double to) {
-        return new TestCaseSupplier.TypedData(new DoubleRangeBlockBuilder.DoubleRange(from, to), DataType.DOUBLE_RANGE, "range");
+        return new TestCaseSupplier.TypedData(new DoubleRangeBlockBuilder.DoubleRange(from, to), DataType.DOUBLE_RANGE, "range")
+            .withAppliesTo(DOUBLE_RANGE_APPLIES_TO);
     }
 
     @Override

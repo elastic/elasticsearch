@@ -16,12 +16,15 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.appliesTo;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -32,6 +35,8 @@ import static org.hamcrest.Matchers.equalTo;
  * channel 0 — that's why the matchers below show channel 1 first.
  */
 public class RangeContainsTests extends AbstractScalarFunctionTestCase {
+    private static final FunctionAppliesTo DOUBLE_RANGE_APPLIES_TO = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.6.0", "", false);
+
     public RangeContainsTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -59,12 +64,10 @@ public class RangeContainsTests extends AbstractScalarFunctionTestCase {
             // Range is half-open [from, to); date == to is NOT contained. Use 1501 so that 1500 is inside [500, 1501).
             suppliers.add(rangePoint("date just before range end", 500L, 1501L, 1500L, true));
         }
-        if (DataType.DOUBLE_RANGE.supportedVersion().supportedLocally()) {
-            suppliers.add(doubleRangeRange("double range contains range", 0.0, 2.0, 0.5, 1.5, true));
-            suppliers.add(doubleRangeRange("double range does not contain overlap", 0.0, 1.0, 0.5, 1.5, false));
-            suppliers.add(doubleRangePoint("double range contains point", 0.5, 1.5, 1.0, true));
-            suppliers.add(doubleRangePoint("double range excludes end", 0.5, 1.5, 1.5, false));
-        }
+        suppliers.add(doubleRangeRange("double range contains range", 0.0, 2.0, 0.5, 1.5, true));
+        suppliers.add(doubleRangeRange("double range does not contain overlap", 0.0, 1.0, 0.5, 1.5, false));
+        suppliers.add(doubleRangePoint("double range contains point", 0.5, 1.5, 1.0, true));
+        suppliers.add(doubleRangePoint("double range excludes end", 0.5, 1.5, 1.5, false));
 
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
@@ -127,7 +130,10 @@ public class RangeContainsTests extends AbstractScalarFunctionTestCase {
             name,
             List.of(DataType.DOUBLE_RANGE, DataType.DOUBLE),
             () -> new TestCaseSupplier.TestCase(
-                List.of(typedDoubleRange(from, to), new TestCaseSupplier.TypedData(point, DataType.DOUBLE, "point")),
+                List.of(
+                    typedDoubleRange(from, to),
+                    new TestCaseSupplier.TypedData(point, DataType.DOUBLE, "point").withAppliesTo(DOUBLE_RANGE_APPLIES_TO)
+                ),
                 "RangeWithinDoublePointEvaluator[point=Attribute[channel=1], range=Attribute[channel=0]]",
                 DataType.BOOLEAN,
                 equalTo(expected)
@@ -136,7 +142,8 @@ public class RangeContainsTests extends AbstractScalarFunctionTestCase {
     }
 
     private static TestCaseSupplier.TypedData typedDoubleRange(double from, double to) {
-        return new TestCaseSupplier.TypedData(new DoubleRangeBlockBuilder.DoubleRange(from, to), DataType.DOUBLE_RANGE, "range");
+        return new TestCaseSupplier.TypedData(new DoubleRangeBlockBuilder.DoubleRange(from, to), DataType.DOUBLE_RANGE, "range")
+            .withAppliesTo(DOUBLE_RANGE_APPLIES_TO);
     }
 
     @Override

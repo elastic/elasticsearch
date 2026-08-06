@@ -69,7 +69,11 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
+import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MappingLookup;
@@ -83,8 +87,10 @@ import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.lucene.queries.MinDocQuery;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.ScrollContext;
@@ -938,6 +944,74 @@ public class QueryPhaseTests extends IndexShardTestCase {
             searchContext.sort(formatsLong);
             searchContext.setSize(0);
             QueryPhase.addCollectorsAndSearch(searchContext, null);
+        }
+    }
+
+    /**
+     * Regression test for the case where a DV-skipper competitive iterator is built immediately when
+     * {@code search_after} is set (because {@code leafTopSet=true}), causing docs to be skipped before
+     * {@code collect()} runs and resulting in an under-count of total hits.
+     * {@code LongValuesComparatorSource.setDisableSkipping()} disables the competitive iterator so that
+     * all matching docs are delivered to {@code collect()} and the total hits count is accurate.
+     */
+    public void testSearchAfterWithTrackTotalHitsAndDVSkipperGivesCorrectCount() throws Exception {
+        int numDocs = 2000;
+        Sort indexSort = new Sort(new SortField("@timestamp", SortField.Type.LONG, true));
+        IndexWriterConfig iwc = new IndexWriterConfig(null).setIndexSort(indexSort);
+        Directory skipperDir = newDirectory();
+        try {
+            IndexWriter writer = new IndexWriter(skipperDir, iwc);
+            for (int i = 0; i < numDocs; i++) {
+                Document doc = new Document();
+                doc.add(NumericDocValuesField.indexedField("@timestamp", i));
+                writer.addDocument(doc);
+            }
+            writer.forceMerge(1);
+            writer.close();
+
+            try (IndexReader skipperReader = DirectoryReader.open(skipperDir)) {
+                SortedNumericIndexFieldData fd = new SortedNumericIndexFieldData(
+                    "@timestamp",
+                    IndexNumericFieldData.NumericType.LONG,
+                    CoreValuesSourceType.NUMERIC,
+                    null,
+                    IndexType.skippers()
+                );
+                LongValuesComparatorSource source = new LongValuesComparatorSource(
+                    fd,
+                    null,
+                    MultiValueMode.MAX,
+                    null,
+                    IndexNumericFieldData.NumericType.LONG
+                );
+                // Simulates DefaultSearchContext.maybeDisableSkippingForTotalHits(): disables the
+                // competitive iterator so that all docs are counted even when search_after is set.
+                // Without this, the DV-skipper iterator built immediately from topValue=1000 would
+                // skip docs with timestamp >= 1000, reporting 1000 instead of 2000 total hits.
+                source.setDisableSkipping();
+
+                SortField sortField = new SortField("@timestamp", source, true);
+                Sort sort = new Sort(sortField);
+                SortAndFormats formats = new SortAndFormats(sort, new DocValueFormat[] { DocValueFormat.RAW });
+
+                // search_after timestamp=1000: the next page (descending sort) has timestamps < 1000.
+                FieldDoc after = new FieldDoc(0, Float.NaN, new Long[] { 1000L });
+
+                try (TestSearchContext searchContext = createContext(newContextSearcher(skipperReader), Queries.ALL_DOCS_INSTANCE)) {
+                    searchContext.sort(formats);
+                    searchContext.searchAfter(after);
+                    searchContext.trackTotalHitsUpTo(SearchContext.TRACK_TOTAL_HITS_ACCURATE);
+                    searchContext.setSize(10);
+                    QueryPhase.addCollectorsAndSearch(searchContext, null);
+                    TopDocs topDocs = searchContext.queryResult().topDocs().topDocs;
+                    // All numDocs docs match the query. search_after only affects which docs are returned,
+                    // not the total count. With the competitive iterator disabled, all docs are counted.
+                    assertThat(topDocs.totalHits.value(), equalTo((long) numDocs));
+                    assertThat(topDocs.totalHits.relation(), equalTo(TotalHits.Relation.EQUAL_TO));
+                }
+            }
+        } finally {
+            skipperDir.close();
         }
     }
 

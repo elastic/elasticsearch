@@ -1096,8 +1096,15 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
+    private Supplier<DirectoryMetrics> storeMetricsDelta() {
+        return Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled() ? indicesService.storeMetricsDelta() : EMPTY_SUPPLIER;
+    }
+
+    // Holders are disjoint: store is flag-gated, cache is always-on.
     private Supplier<DirectoryMetrics> directoryMetricsDelta() {
-        return Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled() ? indicesService.directoryMetricsDelta() : EMPTY_SUPPLIER;
+        final Supplier<DirectoryMetrics> store = storeMetricsDelta();
+        final Supplier<DirectoryMetrics> cache = indicesService.cacheMetricsDelta();
+        return () -> store.get().merge(cache.get());
     }
 
     private static void setDirectoryMetrics(SearchPhaseResult result, Supplier<DirectoryMetrics> metricsDelta, SearchContext context) {
@@ -1105,9 +1112,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     private static void setFetchDirectoryMetrics(SearchPhaseResult result, SearchContext context) {
-        if (Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled() == false) {
-            return;
-        }
         result.setDirectoryMetrics(context.getFetchThreadsMetrics().merge(context.getWorkerThreadsMetrics()));
     }
 
@@ -1879,7 +1883,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 minimumDocsPerSlice,
                 memoryAccountingBufferSize,
                 circuitBreaker,
-                Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled() ? indicesService::directoryMetricsDelta : DirectoryMetrics.Capture.NOOP
+                this::directoryMetricsDelta
             );
             // we clone the query shard context here just for rewriting otherwise we
             // might end up with incorrect state since we are using now() or script services

@@ -2072,12 +2072,26 @@ public class IndicesService extends AbstractLifecycleComponent
      * @return supplier to give the delta of all directory metrics. Must be called from the same thread as this method.
      */
     public Supplier<DirectoryMetrics> directoryMetricsDelta() {
-        return assertThread(buildDirectoryMetricsDelta());
+        return assertThread(buildDirectoryMetricsDelta(s -> true));
     }
 
-    private Supplier<DirectoryMetrics> buildDirectoryMetricsDelta() {
+    /** Like {@link #directoryMetricsDelta()} but limited to {@link StoreMetrics#NAME}. */
+    public Supplier<DirectoryMetrics> storeMetricsDelta() {
+        return assertThread(buildDirectoryMetricsDelta(StoreMetrics.NAME::equals));
+    }
+
+    /** Like {@link #directoryMetricsDelta()} but excludes {@link StoreMetrics#NAME}; always measured regardless of feature flag. */
+    public Supplier<DirectoryMetrics> cacheMetricsDelta() {
+        return assertThread(buildDirectoryMetricsDelta(s -> StoreMetrics.NAME.equals(s) == false));
+    }
+
+    private Supplier<DirectoryMetrics> buildDirectoryMetricsDelta(Predicate<String> keyFilter) {
         DirectoryMetrics.Builder directoryMetricsBuilder = new DirectoryMetrics.Builder();
-        directoryMetricHolderMap.forEach((s, m) -> directoryMetricsBuilder.add(s, m.instance()));
+        directoryMetricHolderMap.forEach((s, m) -> {
+            if (keyFilter.test(s)) {
+                directoryMetricsBuilder.add(s, m.instance());
+            }
+        });
         return directoryMetricsBuilder.build().delta();
     }
 

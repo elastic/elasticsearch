@@ -53,7 +53,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.Semaphore;
 
 /// Master-side service that proactively cancels shard recoveries that are no longer wanted.
 ///
@@ -101,9 +101,9 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
     private volatile boolean enableDirectRecoveryCancellations = false;
     private volatile boolean relocationDuringSnapshotEnabled = false;
 
-    /// True while a snapshot-cancellation run is queued or about to start. Ensures intermediate triggers while a run
-    /// is already scheduled are coalesced.
-    private final AtomicBoolean pendingSnapshotCancellationRun = new AtomicBoolean();
+    /// Single permit used to coalesce snapshot-cancellation runs.
+    /// Acquired when a run is queued, released at the start of each run (or on rejection).
+    private final Semaphore pendingSnapshotCancellationPermit = new Semaphore(1);
     private final CancelRecoveriesBlockingSnapshotRunnable snapshotCancellationRunnable = new CancelRecoveriesBlockingSnapshotRunnable();
 
     /// LRU bounded cache of allocation IDs for which a cancellation request was recently sent. Used to deduplicate
@@ -257,7 +257,10 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
 
         @Override
         protected void doRun() {
-            final var requests = computeUndesiredRecoveryCancellations(desiredBalance, routingAllocation);
+            final Map<DiscoveryNode, CancelRecoveriesAction.Request> requests = computeUndesiredRecoveryCancellations(
+                desiredBalance,
+                routingAllocation
+            );
             if (requests.isEmpty()) {
                 return;
             }
@@ -278,9 +281,10 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
     }
 
     /// Grabs the latest cluster state and checks for WAITING snapshot shards blocked by queued primary relocations.
-    /// Cancels those recoveries if they have not started yet. Concurrent triggers are coalesced via [pendingSnapshotCancellationRun].
+    /// Cancels those recoveries if they have not yet started. Concurrent triggers are coalesced via
+    /// [pendingSnapshotCancellationPermit].
     private void cancelRecoveriesBlockingSnapshots() {
-        if (pendingSnapshotCancellationRun.compareAndSet(false, true) == false) {
+        if (pendingSnapshotCancellationPermit.tryAcquire() == false) {
             return;
         }
         genericExecutor.execute(snapshotCancellationRunnable);
@@ -365,15 +369,15 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
         }
     }
 
-    /// Reused across schedule attempts. Clears [pendingSnapshotCancellationRun] at the start of each run so a
+    /// Reused across schedule attempts. Releases [pendingSnapshotCancellationPermit] at the start of each run so a
     /// concurrent trigger can queue a follow-up against a (possibly) fresher cluster state.
     /// Each run ([#doRun]) is synchronized, in order to serialize close-in-time executions.
     private class CancelRecoveriesBlockingSnapshotRunnable extends AbstractRunnable {
         @Override
         protected synchronized void doRun() {
-            pendingSnapshotCancellationRun.set(false);
+            pendingSnapshotCancellationPermit.release();
             final ClusterState currentState = clusterService.state();
-            final var requests = computeCancellationCandidatesForSnapshots(currentState);
+            final Map<DiscoveryNode, CancelRecoveriesAction.Request> requests = computeCancellationCandidatesForSnapshots(currentState);
             if (requests.isEmpty()) {
                 return;
             }
@@ -387,7 +391,7 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
 
         @Override
         public void onRejection(Exception e) {
-            pendingSnapshotCancellationRun.set(false);
+            pendingSnapshotCancellationPermit.release();
             onFailure(e);
         }
     }

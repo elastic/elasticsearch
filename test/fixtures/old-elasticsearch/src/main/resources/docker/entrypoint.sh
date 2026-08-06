@@ -13,4 +13,10 @@ chmod 777 "$ES_PATH_REPO"
 # Ensure files and directories created by old ES inside the repo are world-accessible
 # so the host-side new cluster can write to them for repository verification and restore.
 umask 0000
-exec gosu elasticsearch bin/elasticsearch
+# Every other supported version stays in the foreground by default. 0.90.13's launch
+# script backgrounds the process (and exits) unless explicitly told to foreground with -f.
+if [ "$ES_VERSION" = "0.90.13" ]; then
+    exec gosu elasticsearch bin/elasticsearch -f
+else
+    exec gosu elasticsearch bin/elasticsearch
+fi

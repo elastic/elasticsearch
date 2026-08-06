@@ -1318,6 +1318,8 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         "COUNT_OVER_TIME:field is missing",
         "EMBEDDING:value is missing",
         "FIELD_EXTRACT:path is missing",
+        "FIELD_EXTRACT_FLATTENED:injected_key is missing",
+        "FIELD_EXTRACT_FLATTENED:path is missing",
         "FIRST_OVER_TIME:field is missing",
         "JSON_EXTRACT:string is missing",
         "KNN:field is missing",

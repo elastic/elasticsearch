@@ -937,8 +937,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             return shardMoved.get();
         }
 
-        /// Iterate over all the nodes and move any shards where `canRemain` returns `NO`, accumulate the best
-        /// moves we've seen where `canRemain` returns `NOT_PREFERRED`.
+        /// Iterate over all the nodes and move any shards where `canRemain` returns `NO`, and accumulate the best
+        /// moves we've seen where `canRemain` returns `NOT_PREFERRED` via the `bestNonPreferredShardMovementsTracker`.
         ///
         /// Executes in two passes, the first pass will execute moves where `canAllocate` returns `YES`, the
         /// second pass will move shards where `canAllocate` returns `NOT_PREFERRED`.

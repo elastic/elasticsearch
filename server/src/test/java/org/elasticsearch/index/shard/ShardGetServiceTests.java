@@ -48,7 +48,8 @@ import static org.hamcrest.Matchers.equalTo;
 public class ShardGetServiceTests extends IndexShardTestCase {
 
     private GetResult getForUpdate(IndexShard indexShard, String id, long ifSeqNo, long ifPrimaryTerm) throws IOException {
-        return indexShard.getService().getForUpdate(id, null, ifSeqNo, ifPrimaryTerm, FetchSourceContext.FETCH_ALL_SOURCE);
+        return indexShard.getService()
+            .getForUpdate(id, null, ifSeqNo, ifPrimaryTerm, FetchSourceContext.FETCH_ALL_SOURCE, SplitShardCountSummary.IRRELEVANT);
     }
 
     public void testGetForUpdate() throws IOException {
@@ -116,7 +117,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         }
 
         // the first realtime get has no translog location to read: it refreshes internally and serves an
-        // index-backed snapshot
+        // index-backed get result
         indexDoc(primary, "test", "0", "{\"foo\" : \"bar\"}");
         try (Engine.GetResult indexBacked = primary.getService().preResolveForUpdate("0", null)) {
             assertTrue(indexBacked.exists());
@@ -124,7 +125,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         }
 
         // later writes record their translog location, so an un-refreshed write is served from the translog
-        Engine.IndexResult indexed = indexDoc(primary, "test", "0", "{\"foo\" : \"bar\"}");
+        Engine.IndexResult indexed = indexDoc(primary, "test", "0", "{\"foo\" : \"baz\"}");
         try (Engine.GetResult translogServed = primary.getService().preResolveForUpdate("0", null)) {
             assertTrue(translogServed.exists());
             assertTrue(translogServed.isFromTranslog());
@@ -140,10 +141,11 @@ public class ShardGetServiceTests extends IndexShardTestCase {
                 new TestPreResolved("0", engineGet),
                 UNASSIGNED_SEQ_NO,
                 UNASSIGNED_PRIMARY_TERM,
-                FetchSourceContext.FETCH_ALL_SOURCE
+                FetchSourceContext.FETCH_ALL_SOURCE,
+                SplitShardCountSummary.IRRELEVANT
             );
         assertTrue(get.isExists());
-        assertEquals("{\"foo\" : \"bar\"}", get.sourceRef().utf8ToString());
+        assertEquals("{\"foo\" : \"baz\"}", get.sourceRef().utf8ToString());
         assertEquals(indexed.getSeqNo(), get.getSeqNo());
 
         // OCC conditions are validated on consumption
@@ -155,7 +157,8 @@ public class ShardGetServiceTests extends IndexShardTestCase {
                     new TestPreResolved("0", conflicted),
                     indexed.getSeqNo() + 1,
                     primary.getOperationPrimaryTerm(),
-                    FetchSourceContext.FETCH_ALL_SOURCE
+                    FetchSourceContext.FETCH_ALL_SOURCE,
+                    SplitShardCountSummary.IRRELEVANT
                 )
         );
 
@@ -165,30 +168,38 @@ public class ShardGetServiceTests extends IndexShardTestCase {
                 new TestPreResolved("0", matching),
                 indexed.getSeqNo(),
                 primary.getOperationPrimaryTerm(),
-                FetchSourceContext.FETCH_ALL_SOURCE
+                FetchSourceContext.FETCH_ALL_SOURCE,
+                SplitShardCountSummary.IRRELEVANT
             );
         assertTrue(casGet.isExists());
 
-        // the id resolution and the fetch are accounted separately: a pre-resolved-and-consumed update counts twice
-        GetStats before = primary.getService().stats();
-        try (Engine.GetResult counted = primary.getService().preResolveForUpdate("0", null)) {
-            assertTrue(counted.exists());
-            assertEquals(before.getExistsCount() + 1, primary.getService().stats().getExistsCount());
+        {
+            GetStats before = primary.getService().stats();
+            try (Engine.GetResult counted = primary.getService().preResolveForUpdate("0", null)) {
+                assertTrue(counted.exists());
+                assertEquals(before.getExistsCount() + 1, primary.getService().stats().getExistsCount());
+            }
         }
-        Engine.GetResult consumed = primary.getService().preResolveForUpdate("0", null);
-        primary.getService()
-            .getForUpdate(
-                new TestPreResolved("0", consumed),
-                UNASSIGNED_SEQ_NO,
-                UNASSIGNED_PRIMARY_TERM,
-                FetchSourceContext.FETCH_ALL_SOURCE
-            );
-        assertEquals(before.getExistsCount() + 3, primary.getService().stats().getExistsCount());
-        try (Engine.GetResult missingCounted = primary.getService().preResolveForUpdate("missing", null)) {
-            assertFalse(missingCounted.exists());
-        }
-        assertEquals(before.getMissingCount() + 1, primary.getService().stats().getMissingCount());
 
+        {
+            GetStats before = primary.getService().stats();
+            Engine.GetResult consumed = primary.getService().preResolveForUpdate("0", null);
+            assertEquals(before.getExistsCount() + 1, primary.getService().stats().getExistsCount());
+            primary.getService()
+                .getForUpdate(
+                    new TestPreResolved("0", consumed),
+                    UNASSIGNED_SEQ_NO,
+                    UNASSIGNED_PRIMARY_TERM,
+                    FetchSourceContext.FETCH_ALL_SOURCE,
+                    SplitShardCountSummary.IRRELEVANT
+                );
+            // the id resolution and the fetch are accounted separately
+            assertEquals(before.getExistsCount() + 2, primary.getService().stats().getExistsCount());
+            try (Engine.GetResult missingCounted = primary.getService().preResolveForUpdate("missing", null)) {
+                assertFalse(missingCounted.exists());
+            }
+            assertEquals(before.getMissingCount() + 1, primary.getService().stats().getMissingCount());
+        }
         closeShards(primary);
     }
 

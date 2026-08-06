@@ -322,7 +322,8 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         @Nullable String routing,
         long ifSeqNo,
         long ifPrimaryTerm,
-        FetchSourceContext fetchSourceContext
+        FetchSourceContext fetchSourceContext,
+        SplitShardCountSummary splitShardCountSummary
     ) throws IOException {
         return doGet(
             id,
@@ -355,12 +356,17 @@ public final class ShardGetService extends AbstractIndexShardComponent {
     }
 
     /**
-     * Variant of {@link #getForUpdate(String, String, long, long, FetchSourceContext)} that consumes a pre-resolved
+     * Variant of {@link #getForUpdate(String, String, long, long, FetchSourceContext, SplitShardCountSummary)} that consumes a pre-resolved
      * document instead of resolving it at call time, validating the sequence-number conditions against it. The
      * pre-resolved result is released before returning.
      */
-    public GetResult getForUpdate(PreResolved preResolved, long ifSeqNo, long ifPrimaryTerm, FetchSourceContext fetchSourceContext)
-        throws IOException {
+    public GetResult getForUpdate(
+        PreResolved preResolved,
+        long ifSeqNo,
+        long ifPrimaryTerm,
+        FetchSourceContext fetchSourceContext,
+        SplitShardCountSummary splitShardCountSummary
+    ) throws IOException {
         return doGet(
             preResolved.id(),
             preResolved.routing(),
@@ -372,9 +378,9 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             ifPrimaryTerm,
             fetchSourceContext,
             false,
-            SplitShardCountSummary.UNSET,
+            splitShardCountSummary,
             false,
-            // ownership transfers inside doGet's try-with-resources: a throw before this point leaves the snapshot
+            // ownership transfers inside doGet's try-with-resources: a throw before this point leaves the get result
             // with the PreResolved, whose owner releases it
             (engineGet, summary) -> validatePreResolved(engineGet, preResolved.takeGetResult())
         );
@@ -399,14 +405,14 @@ public final class ShardGetService extends AbstractIndexShardComponent {
 
     /**
      * Resolves the document targeted by an update ahead of its execution. OCC validation happens on consumption via
-     * {@link #getForUpdate(PreResolved, long, long, FetchSourceContext)}. The caller must release the result.
+     * {@link #getForUpdate(PreResolved, long, long, FetchSourceContext, SplitShardCountSummary)}. The caller must release the result.
      */
     public Engine.GetResult preResolveForUpdate(String id, @Nullable String routing) {
         currentMetric.inc();
         final long now = System.nanoTime();
         try {
             // must not carry seq_no OCC: a conflict thrown here would abort pre-resolution for the whole bulk;
-            // the conditions are validated per item when the snapshot is consumed
+            // the conditions are validated per item when the pre-resolved get is consumed
             var engineGet = newEngineGet(
                 id,
                 routing,

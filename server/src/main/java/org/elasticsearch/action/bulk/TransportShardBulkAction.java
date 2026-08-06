@@ -481,7 +481,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             try {
                 final UpdateHelper.PreResolvedUpdate preResolvedUpdate = context.takePreResolvedUpdate();
                 if (preResolvedUpdate != null) {
-                    // releases the snapshot if complete() throws before consuming it; a no-op otherwise
+                    // releases the acquired searcher if complete() throws before consuming the get; a no-op otherwise
                     try (preResolvedUpdate) {
                         updateResult = preResolvedUpdate.complete();
                     }
@@ -490,7 +490,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         updateRequest,
                         context.getPrimary(),
                         nowInMillisSupplier,
-                        UPDATE_FETCH_SOURCE_CONTEXT
+                        UPDATE_FETCH_SOURCE_CONTEXT,
+                        context.getBulkShardRequest().splitShardCountSummary()
                     );
                 }
             } catch (Exception failure) {

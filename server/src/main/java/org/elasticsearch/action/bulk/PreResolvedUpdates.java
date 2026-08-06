@@ -33,7 +33,8 @@ import static org.elasticsearch.core.Strings.format;
  * their stored-fields reads to be prefetched before execution.
  *
  * <p>Slots are indexed by position in {@link BulkShardRequest#items()} and consumed at most once via {@link #take};
- * empty or already-taken slots resolve at execution time instead. Closing releases every unconsumed snapshot.
+ * empty or already-taken slots resolve at execution time instead. Closing releases the acquired searcher of every
+ * slot that was never consumed.
  */
 public final class PreResolvedUpdates implements Releasable {
 
@@ -77,16 +78,22 @@ public final class PreResolvedUpdates implements Releasable {
             for (int i = 0; i < items.length; i++) {
                 final DocWriteRequest<?> itemRequest = items[i].request();
                 // ops without an id (not yet auto-generated) cannot clash with an update's target, and aborted
-                // items never execute: no snapshot to take, and no write for a later update to miss
+                // items never execute: nothing to resolve, and no write for a later update to miss
                 if (itemRequest == null || itemRequest.id() == null || isAborted(items[i].getPrimaryResponse())) {
                     continue;
                 }
                 if (seenIds.add(itemRequest.id()) == false || itemRequest.opType() != DocWriteRequest.OpType.UPDATE) {
-                    // an earlier op of any type may write this doc; a pre-bulk snapshot would miss that write, so
+                    // an earlier op of any type may write this doc; a pre-bulk get would miss that write, so
                     // such updates resolve at execution time
                     continue;
                 }
-                final var preResolved = updateHelper.preResolve((UpdateRequest) itemRequest, primary, nowInMillis, fetchSourceContext);
+                final var preResolved = updateHelper.preResolve(
+                    (UpdateRequest) itemRequest,
+                    primary,
+                    nowInMillis,
+                    fetchSourceContext,
+                    request.splitShardCountSummary()
+                );
                 if (preResolved != null) {
                     if (slots == null) {
                         slots = new UpdateHelper.PreResolvedUpdate[items.length];

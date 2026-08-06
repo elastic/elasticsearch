@@ -14,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -65,13 +66,25 @@ public class UpdateHelper {
     /**
      * Prepares an update request by converting it into an index or delete request or an update response (no action).
      */
-    public Result prepare(UpdateRequest request, IndexShard indexShard, LongSupplier nowInMillis, FetchSourceContext fetchSourceContext)
-        throws IOException {
+    public Result prepare(
+        UpdateRequest request,
+        IndexShard indexShard,
+        LongSupplier nowInMillis,
+        FetchSourceContext fetchSourceContext,
+        SplitShardCountSummary splitShardCountSummary
+    ) throws IOException {
         if (indexShard.indexSettings().sequenceNumbersDisabled()) {
             throw new UpdateNotSupportedException(indexShard.shardId());
         }
         final GetResult getResult = indexShard.getService()
-            .getForUpdate(request.id(), request.routing(), request.ifSeqNo(), request.ifPrimaryTerm(), fetchSourceContext);
+            .getForUpdate(
+                request.id(),
+                request.routing(),
+                request.ifSeqNo(),
+                request.ifPrimaryTerm(),
+                fetchSourceContext,
+                splitShardCountSummary
+            );
         return prepare(indexShard, request, getResult, nowInMillis);
     }
 
@@ -84,27 +97,30 @@ public class UpdateHelper {
         UpdateRequest request,
         IndexShard indexShard,
         LongSupplier nowInMillis,
-        FetchSourceContext fetchSourceContext
+        FetchSourceContext fetchSourceContext,
+        SplitShardCountSummary splitShardCountSummary
     ) {
         final Engine.GetResult getResult = indexShard.getService().preResolveForUpdate(request.id(), request.routing());
         // a missing document has nothing to prefetch (the upsert path keeps today's semantics), and holding a
-        // translog-served snapshot would pin an in-memory copy of the document for the whole bulk while its reads
+        // translog-served get result would pin an in-memory copy of the document for the whole bulk while its reads
         // never touch stored fields
         if (getResult.exists() == false || getResult.isFromTranslog()) {
             getResult.close();
             return null;
         }
-        return new PreResolvedUpdate(request, indexShard, nowInMillis, fetchSourceContext, getResult);
+        return new PreResolvedUpdate(request, indexShard, nowInMillis, fetchSourceContext, getResult, splitShardCountSummary);
     }
 
     /**
      * An update preparation whose document was pre-resolved ahead of execution. {@link #complete()} consumes the
-     * snapshot and may be called at most once; closing releases the snapshot if it was never consumed.
+     * pre-resolved get and may be called at most once; closing releases the acquired searcher if the get was never
+     * consumed.
      */
     public final class PreResolvedUpdate implements Releasable, ShardGetService.PreResolved {
         private final IndexShard indexShard;
         private final LongSupplier nowInMillis;
         private final FetchSourceContext fetchSourceContext;
+        private final SplitShardCountSummary splitShardCountSummary;
 
         private UpdateRequest request;
         private Engine.GetResult preResolvedGet;
@@ -114,8 +130,10 @@ public class UpdateHelper {
             IndexShard indexShard,
             LongSupplier nowInMillis,
             FetchSourceContext fetchSourceContext,
-            Engine.GetResult preResolvedGet
+            Engine.GetResult preResolvedGet,
+            SplitShardCountSummary splitShardCountSummary
         ) {
+            this.splitShardCountSummary = splitShardCountSummary;
             assert preResolvedGet != null;
             this.request = request;
             this.indexShard = indexShard;
@@ -130,8 +148,8 @@ public class UpdateHelper {
                 throw new IllegalStateException("pre-resolved update already consumed or closed");
             }
             final GetResult getResult = indexShard.getService()
-                .getForUpdate(this, request.ifSeqNo(), request.ifPrimaryTerm(), fetchSourceContext);
-            assert isReleased() : "expected the pre-resolved snapshot to be consumed";
+                .getForUpdate(this, request.ifSeqNo(), request.ifPrimaryTerm(), fetchSourceContext, splitShardCountSummary);
+            assert isReleased() : "expected the pre-resolved get to be consumed";
             return prepare(indexShard, request, getResult, nowInMillis);
         }
 
@@ -154,7 +172,7 @@ public class UpdateHelper {
             return engineGetResult;
         }
 
-        /** Whether the pre-resolved snapshot has been consumed or released. */
+        /** Whether the pre-resolved get has been consumed or released. */
         public boolean isReleased() {
             return preResolvedGet == null;
         }

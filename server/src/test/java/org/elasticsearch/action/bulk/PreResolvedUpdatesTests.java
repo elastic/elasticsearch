@@ -33,6 +33,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.StoppableExecutorServiceWrapper;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -70,13 +71,16 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.elasticsearch.script.MockScriptEngine.mockInlineScript;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.spy;
 
@@ -88,6 +92,9 @@ public class PreResolvedUpdatesTests extends IndexShardTestCase {
     private static class TrackingUpdateHelper extends UpdateHelper {
         // copy-on-write so the @After release assertion can safely iterate even if a timed-out bulk is still running
         private final List<PreResolvedUpdate> preResolved = new CopyOnWriteArrayList<>();
+        private final Set<String> preResolvedIds = ConcurrentCollections.newConcurrentSet();
+        private final AtomicInteger livePrepareCount = new AtomicInteger();
+        private final Set<String> livePreparedIds = ConcurrentCollections.newConcurrentSet();
         private CheckedRunnable<Exception> afterPreResolve;
         private RuntimeException failure;
 
@@ -109,19 +116,47 @@ public class PreResolvedUpdatesTests extends IndexShardTestCase {
             return preResolved;
         }
 
+        boolean hasPreResolvedId(String id) {
+            return preResolvedIds.contains(id);
+        }
+
+        int livePrepareCount() {
+            return livePrepareCount.get();
+        }
+
+        boolean hasLivePreparedId(String id) {
+            return livePreparedIds.contains(id);
+        }
+
+        @Override
+        public Result prepare(
+            UpdateRequest request,
+            IndexShard indexShard,
+            LongSupplier nowInMillis,
+            FetchSourceContext fetchSourceContext,
+            SplitShardCountSummary splitShardCountSummary
+        ) throws IOException {
+            livePrepareCount.incrementAndGet();
+            livePreparedIds.add(request.id());
+            return super.prepare(request, indexShard, nowInMillis, fetchSourceContext, splitShardCountSummary);
+        }
+
         @Override
         public PreResolvedUpdate preResolve(
             UpdateRequest request,
             IndexShard indexShard,
             LongSupplier nowInMillis,
-            FetchSourceContext fetchSourceContext
+            FetchSourceContext fetchSourceContext,
+            SplitShardCountSummary splitShardCountSummary
         ) {
             if (failure != null) {
                 throw failure;
             }
-            PreResolvedUpdate result = super.preResolve(request, indexShard, nowInMillis, fetchSourceContext);
+            PreResolvedUpdate result = super.preResolve(request, indexShard, nowInMillis, fetchSourceContext, splitShardCountSummary);
             if (result != null) {
                 preResolved.add(result);
+                // We clear the request reference once we close the PreResolvedUpdate, that's why we need to keep the ids
+                preResolvedIds.add(result.id());
                 if (afterPreResolve != null) {
                     try {
                         afterPreResolve.run();
@@ -154,6 +189,7 @@ public class PreResolvedUpdatesTests extends IndexShardTestCase {
         );
     }
 
+    private final AtomicInteger mappingUpdates = new AtomicInteger();
     private TrackingUpdateHelper updateHelper;
     private ClusterService clusterService;
     private MockTransportService transportService;
@@ -202,9 +238,11 @@ public class PreResolvedUpdatesTests extends IndexShardTestCase {
         executeBulk(primary, request);
 
         // "0", "1" and "2" pre-resolve; the duplicate op and the missing document do not. The un-refreshed "2" still
-        // yields an index-backed snapshot: its realtime get has no translog location to read, so it refreshes
+        // yields an index-backed get result: its realtime get has no translog location to read, so it refreshes
         // internally instead of reading the translog.
         assertEquals(3, updateHelper.preResolved().size());
+        assertIdsArePreResolved("0", "1", "2");
+
         assertEquals(DocWriteResponse.Result.CREATED, response(request, 0).getResponse().getResult());
         assertEquals(DocWriteResponse.Result.UPDATED, response(request, 1).getResponse().getResult());
         assertTrue(response(request, 2).isFailed());
@@ -221,7 +259,14 @@ public class PreResolvedUpdatesTests extends IndexShardTestCase {
         assertEquals("updated", source(primary, "2").get("foo"));
         assertFalse(
             primary.getService()
-                .getForUpdate("missing", null, UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM, FetchSourceContext.FETCH_ALL_SOURCE)
+                .getForUpdate(
+                    "missing",
+                    null,
+                    UNASSIGNED_SEQ_NO,
+                    UNASSIGNED_PRIMARY_TERM,
+                    FetchSourceContext.FETCH_ALL_SOURCE,
+                    SplitShardCountSummary.IRRELEVANT
+                )
                 .isExists()
         );
 
@@ -235,8 +280,9 @@ public class PreResolvedUpdatesTests extends IndexShardTestCase {
         executeBulk(primary, request, threadPool, false);
 
         assertEquals(0, updateHelper.preResolved().size());
+        assertEquals(1, updateHelper.livePrepareCount());
+        assertIdsArePreparedLive("0");
         assertEquals(DocWriteResponse.Result.UPDATED, response(request, 0).getResponse().getResult());
-
     }
 
     public void testPreResolutionFailureFallsBackToLivePath() throws Exception {
@@ -244,21 +290,24 @@ public class PreResolvedUpdatesTests extends IndexShardTestCase {
         indexDoc(primary, "_doc", "1", "{\"foo\" : \"bar\"}");
         primary.refresh("test");
 
-        // the first update pre-resolves, then pre-resolution of the second blows up: the first one's snapshot must be
+        // the first update pre-resolves, then pre-resolution of the second blows up: the first one's acquired searcher must be
         // released and both updates must succeed on the live path
         updateHelper.doAfterPreResolve(updateHelper::failPreResolutions);
         BulkShardRequest request = request(primary, update("0"), update("1"));
         executeBulk(primary, request);
 
         assertEquals(1, updateHelper.preResolved().size());
+        assertIdsArePreResolved("0");
+        assertEquals("both updates must have prepared on the live path", 2, updateHelper.livePrepareCount());
+        assertIdsArePreparedLive("0", "1");
+
         assertEquals(DocWriteResponse.Result.UPDATED, response(request, 0).getResponse().getResult());
         assertEquals(DocWriteResponse.Result.UPDATED, response(request, 1).getResponse().getResult());
         assertEquals("updated", source(primary, "0").get("foo"));
         assertEquals("updated", source(primary, "1").get("foo"));
-
     }
 
-    public void testIfSeqNoValidatedAgainstPreResolvedSnapshot() throws Exception {
+    public void testIfSeqNoValidatedAgainstPreResolvedGet() throws Exception {
 
         var indexed = indexDoc(primary, "_doc", "0", "{\"foo\" : \"bar\"}");
         primary.refresh("test");
@@ -270,6 +319,8 @@ public class PreResolvedUpdatesTests extends IndexShardTestCase {
         executeBulk(primary, request);
 
         assertEquals(1, updateHelper.preResolved().size());
+        assertIdsArePreResolved("0");
+
         BulkItemResponse response = response(request, 0);
         if (matching) {
             assertFalse(response.isFailed());
@@ -278,10 +329,9 @@ public class PreResolvedUpdatesTests extends IndexShardTestCase {
             assertTrue(response.isFailed());
             assertThat(response.getFailure().getCause(), instanceOf(VersionConflictEngineException.class));
         }
-
     }
 
-    public void testNoopUpdateReleasesPreResolvedSnapshot() throws Exception {
+    public void testNoopUpdateReleasesPreResolvedGet() throws Exception {
         indexDoc(primary, "_doc", "0", "{\"foo\":\"bar\"}");
         primary.refresh("test");
 
@@ -289,23 +339,27 @@ public class PreResolvedUpdatesTests extends IndexShardTestCase {
         executeBulk(primary, request);
 
         assertEquals(1, updateHelper.preResolved().size());
-        assertEquals(DocWriteResponse.Result.NOOP, response(request, 0).getResponse().getResult());
+        assertIdsArePreResolved("0");
 
+        assertEquals(DocWriteResponse.Result.NOOP, response(request, 0).getResponse().getResult());
     }
 
-    public void testStaleSnapshotConflictRetriesOnLivePath() throws Exception {
+    public void testStalePreResolutionConflictRetriesOnLivePath() throws Exception {
         indexDoc(primary, "_doc", "0", "{\"foo\" : \"bar\"}");
         primary.refresh("test");
 
-        // a concurrent write right after pre-resolution makes the snapshot stale
+        // a concurrent write right after pre-resolution makes the pre-resolved get stale
         updateHelper.doAfterPreResolve(() -> indexDoc(primary, "_doc", "0", "{\"foo\" : \"concurrent\"}"));
         BulkShardRequest request = request(primary, update("0").retryOnConflict(1));
         executeBulk(primary, request);
 
         assertEquals(1, updateHelper.preResolved().size());
+        assertIdsArePreResolved("0");
+        assertEquals("the conflict retry must have prepared on the live path", 1, updateHelper.livePrepareCount());
+        assertIdsArePreparedLive("0");
+
         assertEquals(DocWriteResponse.Result.UPDATED, response(request, 0).getResponse().getResult());
         assertEquals("updated", source(primary, "0").get("foo"));
-
     }
 
     public void testUpdatePrecededBySameIdWriteResolvesLive() throws Exception {
@@ -314,7 +368,7 @@ public class PreResolvedUpdatesTests extends IndexShardTestCase {
         primary.refresh("test");
 
         // an update preceded by a same-id write of any op type must observe that write: the update's doc matches the
-        // pre-bulk source of doc 0, so a stale snapshot would detect a noop and silently drop the update
+        // pre-bulk source of doc 0, so a stale pre-resolved get would detect a noop and silently drop the update
         BulkShardRequest request = request(
             primary,
             new IndexRequest("index").id("0").source("{\"foo\":\"new\"}", XContentType.JSON),
@@ -325,16 +379,17 @@ public class PreResolvedUpdatesTests extends IndexShardTestCase {
         executeBulk(primary, request);
 
         assertEquals("updates preceded by same-id writes must not pre-resolve", 0, updateHelper.preResolved().size());
+        assertEquals("both updates must have prepared on the live path", 2, updateHelper.livePrepareCount());
+        assertIdsArePreparedLive("0", "1");
         assertFalse(response(request, 0).isFailed());
         assertEquals(DocWriteResponse.Result.UPDATED, response(request, 1).getResponse().getResult());
         assertEquals("old", source(primary, "0").get("foo"));
         assertFalse(response(request, 2).isFailed());
         assertEquals(DocWriteResponse.Result.CREATED, response(request, 3).getResponse().getResult());
         assertEquals("upserted", source(primary, "1").get("foo"));
-
     }
 
-    public void testScriptedUpdateUsesPreResolvedSnapshot() throws Exception {
+    public void testScriptedUpdateUsesPreResolvedGet() throws Exception {
         indexDoc(primary, "_doc", "0", "{\"foo\":\"bar\"}");
         primary.refresh("test");
 
@@ -345,12 +400,13 @@ public class PreResolvedUpdatesTests extends IndexShardTestCase {
         executeBulk(primary, request);
 
         assertEquals(1, updateHelper.preResolved().size());
+        assertIdsArePreResolved("0");
+
         assertEquals(DocWriteResponse.Result.UPDATED, response(request, 0).getResponse().getResult());
         assertEquals(true, source(primary, "0").get("scripted"));
-
     }
 
-    public void testScriptedDeleteAndNoopConsumePreResolvedSnapshots() throws Exception {
+    public void testScriptedDeleteAndNoopConsumePreResolvedGets() throws Exception {
         indexDoc(primary, "_doc", "0", "{\"foo\":\"bar\"}");
         indexDoc(primary, "_doc", "1", "{\"foo\":\"bar\"}");
         primary.refresh("test");
@@ -363,14 +419,22 @@ public class PreResolvedUpdatesTests extends IndexShardTestCase {
         executeBulk(primary, request);
 
         assertEquals(2, updateHelper.preResolved().size());
+        assertIdsArePreResolved("0", "1");
+
         assertEquals(DocWriteResponse.Result.DELETED, response(request, 0).getResponse().getResult());
         assertFalse(
             primary.getService()
-                .getForUpdate("0", null, UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM, FetchSourceContext.FETCH_ALL_SOURCE)
+                .getForUpdate(
+                    "0",
+                    null,
+                    UNASSIGNED_SEQ_NO,
+                    UNASSIGNED_PRIMARY_TERM,
+                    FetchSourceContext.FETCH_ALL_SOURCE,
+                    SplitShardCountSummary.IRRELEVANT
+                )
                 .isExists()
         );
         assertEquals(DocWriteResponse.Result.NOOP, response(request, 1).getResponse().getResult());
-
     }
 
     public void testSequenceNumbersDisabledSkipsPreResolution() throws Exception {
@@ -419,21 +483,23 @@ public class PreResolvedUpdatesTests extends IndexShardTestCase {
 
         assertNull(PreResolvedUpdates.EMPTY.take(0));
         PreResolvedUpdates.EMPTY.close();
-
     }
 
-    public void testStaleSnapshotConflictFailsWithoutRetries() throws Exception {
+    public void testStalePreResolutionConflictFailsWithoutRetries() throws Exception {
         indexDoc(primary, "_doc", "0", "{\"foo\" : \"bar\"}");
         primary.refresh("test");
 
-        // the accepted trade: a write landing after pre-resolution makes the snapshot stale, and with the default
-        // retry_on_conflict=0 the update fails with a conflict where the live path would succeed. This also proves
-        // pass 2 consumes the snapshot — if the wiring went dead, the live get would see the write and succeed.
+        // a write landing after pre-resolution makes the pre-resolved get stale and the update fails with a conflict
+        // (with the default retry_on_conflict=0). This race already exists between the get and the write of an
+        // update (e.g. a thread preempted right after the get); pre-resolution keeps the same consistency
+        // guarantees and just widens the window. This also proves pass 2 consumes the pre-resolved get, if the wiring
+        // went dead, the live get would see the write and succeed.
         updateHelper.doAfterPreResolve(() -> indexDoc(primary, "_doc", "0", "{\"foo\" : \"concurrent\"}"));
         BulkShardRequest request = request(primary, update("0"));
         executeBulk(primary, request);
 
         assertEquals(1, updateHelper.preResolved().size());
+        assertEquals("without retries nothing prepares on the live path", 0, updateHelper.livePrepareCount());
         BulkItemResponse response = response(request, 0);
         assertTrue(response.isFailed());
         assertThat(response.getFailure().getCause(), instanceOf(VersionConflictEngineException.class));
@@ -461,7 +527,6 @@ public class PreResolvedUpdatesTests extends IndexShardTestCase {
             assertNull("aborted items never execute", resolved.get(0));
             assertNotNull(resolved.get(1));
         }
-
     }
 
     public void testIdLessIndexOpDoesNotDisablePreResolution() throws Exception {
@@ -483,7 +548,6 @@ public class PreResolvedUpdatesTests extends IndexShardTestCase {
             assertNull(resolved.get(0));
             assertNotNull(resolved.get(1));
         }
-
     }
 
     public void testDuplicateIdObservesEarlierOpInBulk() throws Exception {
@@ -494,12 +558,13 @@ public class PreResolvedUpdatesTests extends IndexShardTestCase {
         executeBulk(primary, request);
 
         assertEquals("the duplicate op must not pre-resolve", 1, updateHelper.preResolved().size());
+        assertEquals("the duplicate op must have prepared on the live path", 1, updateHelper.livePrepareCount());
+        assertIdsArePreparedLive("0");
         assertFalse(response(request, 0).isFailed());
         assertFalse(response(request, 1).isFailed());
         Map<String, Object> source = source(primary, "0");
         assertEquals("f1", source.get("foo"));
         assertEquals("b1", source.get("bar"));
-
     }
 
     public void testMappingUpdateRetryUsesLivePath() throws Exception {
@@ -510,10 +575,14 @@ public class PreResolvedUpdatesTests extends IndexShardTestCase {
         executeBulk(primary, request);
 
         assertEquals(1, updateHelper.preResolved().size());
+        assertIdsArePreResolved("0");
+        assertEquals("the first attempt must have required a mapping update", 1, mappingUpdates.get());
+        assertEquals("the retry must have prepared on the live path", 1, updateHelper.livePrepareCount());
+        assertIdsArePreparedLive("0");
+
         assertFalse(response(request, 0).isFailed());
         assertEquals(DocWriteResponse.Result.UPDATED, response(request, 0).getResponse().getResult());
         assertEquals("x", source(primary, "0").get("newfield"));
-
     }
 
     public void testRoutingPreserved() throws Exception {
@@ -526,19 +595,23 @@ public class PreResolvedUpdatesTests extends IndexShardTestCase {
         assertEquals(1, updateHelper.preResolved().size());
         assertEquals(DocWriteResponse.Result.UPDATED, response(request, 0).getResponse().getResult());
         GetResult get = primary.getService()
-            .getForUpdate("0", "r1", UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM, FetchSourceContext.FETCH_ALL_SOURCE);
+            .getForUpdate(
+                "0",
+                "r1",
+                UNASSIGNED_SEQ_NO,
+                UNASSIGNED_PRIMARY_TERM,
+                FetchSourceContext.FETCH_ALL_SOURCE,
+                SplitShardCountSummary.IRRELEVANT
+            );
         assertEquals("r1", get.getFields().get(RoutingFieldMapper.NAME).getValue());
-
     }
 
-    public void testUpsertOfMissingDocIsNotPreResolved() throws Exception {
-
+    public void testUpsertOfMissingDocIsNotPreResolved() {
         BulkShardRequest request = request(primary, update("0", "{\"foo\":\"x\"}").docAsUpsert(true));
         executeBulk(primary, request);
 
         assertEquals(0, updateHelper.preResolved().size());
         assertEquals(DocWriteResponse.Result.CREATED, response(request, 0).getResponse().getResult());
-
     }
 
     public void testResumeRejectionFailsBulkAndReleasesSlots() throws Exception {
@@ -563,16 +636,30 @@ public class PreResolvedUpdatesTests extends IndexShardTestCase {
         doReturn(gated).when(rejectingThreadPool).executor(ThreadPool.Names.WRITE);
 
         // item 0 waits for a mapping update; resuming after it is rejected, which fails the whole bulk before item 1
-        // executes, so its pre-resolved snapshot must be released by the listener chain
+        // executes, so its acquired searcher must be released by the listener chain
         BulkShardRequest request = request(primary, update("0", "{\"newfield\":\"x\"}"), update("1"));
         rejecting.set(true);
         executeBulk(primary, request, rejectingThreadPool, true);
 
         assertEquals(2, updateHelper.preResolved().size());
+        assertIdsArePreResolved("0", "1");
         assertTrue(response(request, 0).isFailed());
         assertTrue(response(request, 1).isFailed());
         assertThat(response(request, 1).getFailure().getCause(), instanceOf(EsRejectedExecutionException.class));
+    }
 
+    private void assertIdsArePreResolved(String... ids) {
+        assertThat(ids.length, is(equalTo(updateHelper.preResolved().size())));
+        for (String id : ids) {
+            assertTrue("Expected to have pre-resolved id " + id, updateHelper.hasPreResolvedId(id));
+        }
+    }
+
+    private void assertIdsArePreparedLive(String... ids) {
+        assertThat(ids.length, is(equalTo(updateHelper.livePrepareCount())));
+        for (String id : ids) {
+            assertTrue("Expected to have prepared id " + id + " on the live path", updateHelper.hasLivePreparedId(id));
+        }
     }
 
     /** Applies mapping updates directly to the shard instead of going through the master. */
@@ -586,6 +673,7 @@ public class PreResolvedUpdatesTests extends IndexShardTestCase {
 
         @Override
         public void updateMappingOnMaster(Index index, CompressedXContent mappingUpdate, ActionListener<Void> listener) {
+            mappingUpdates.incrementAndGet();
             try {
                 updateMappings(
                     primary,
@@ -661,7 +749,14 @@ public class PreResolvedUpdatesTests extends IndexShardTestCase {
 
     private Map<String, Object> source(IndexShard primary, String id) throws IOException {
         GetResult doc = primary.getService()
-            .getForUpdate(id, null, UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM, FetchSourceContext.FETCH_ALL_SOURCE);
+            .getForUpdate(
+                id,
+                null,
+                UNASSIGNED_SEQ_NO,
+                UNASSIGNED_PRIMARY_TERM,
+                FetchSourceContext.FETCH_ALL_SOURCE,
+                SplitShardCountSummary.IRRELEVANT
+            );
         return XContentHelper.convertToMap(doc.sourceRef(), false, XContentType.JSON).v2();
     }
 }

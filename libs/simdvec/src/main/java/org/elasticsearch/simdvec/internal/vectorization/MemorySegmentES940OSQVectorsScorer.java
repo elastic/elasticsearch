@@ -20,8 +20,8 @@ import org.apache.lucene.store.MemorySegmentAccessInput;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.core.DirectAccessInput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.lucene.store.IndexInputUtils;
 import org.elasticsearch.simdvec.ES940OSQVectorsScorer;
-import org.elasticsearch.simdvec.IndexInputUtils;
 import org.elasticsearch.simdvec.internal.BufferScratch;
 
 import java.io.IOException;

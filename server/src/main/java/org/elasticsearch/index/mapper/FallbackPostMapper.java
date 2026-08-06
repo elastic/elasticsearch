@@ -118,6 +118,11 @@ public final class FallbackPostMapper {
                 // elements because object content cannot be reconstructed field-by-field from doc values.
                 syntheticFallback = mode == Mapper.SourceKeepMode.ALL
                     || (mode == Mapper.SourceKeepMode.ARRAYS && objectMapper instanceof NestedObjectMapper == false);
+                // Nested objects natively preserve array structure via Lucene's nested document mechanism;
+                // clear ARRAYS mode so SOURCE_KEEP_ARRAYS_IN_ARRAY pre-capture is not triggered.
+                if (objectMapper instanceof NestedObjectMapper && mode == Mapper.SourceKeepMode.ARRAYS) {
+                    mode = Mapper.SourceKeepMode.NONE;
+                }
             } else if (mapper instanceof FieldMapper fieldMapper) {
                 mode = fieldMapper.sourceKeepMode().isPresent()
                     ? fieldMapper.sourceKeepMode().get()
@@ -205,7 +210,6 @@ public final class FallbackPostMapper {
                 if (precaptured) {
                     Reason precaptureReason = resolvePrecaptureReason(FieldContext.forField(context, fieldMapper));
                     if (fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK
-                        || precaptureReason == Reason.SOURCE_KEEP_ALL
                         || precaptureReason == Reason.COPY_TO_DESTINATION) {
                         context.commitPendingPreCapture(fieldPath);
                     } else {

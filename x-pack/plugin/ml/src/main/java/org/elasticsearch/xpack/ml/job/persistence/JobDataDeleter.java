@@ -93,6 +93,18 @@ public class JobDataDeleter {
 
     private static final int MAX_SNAPSHOTS_TO_DELETE = 10000;
 
+    // Bound these result/annotation DeleteByQuery requests to a single slice. The primary driver is the
+    // revert-on-open path (elastic/elasticsearch#153260): reverting to the CURRENT (latest) snapshot makes the
+    // "intervening results/annotations since snapshot" delete small by construction, so AUTO_SLICES fan-out
+    // (up to min(shards,20) scroll contexts per request) buys negligible speedup while it can exhaust
+    // search.max_open_scroll_context during a mass reopen storm. deleteAnnotations is also reached by the
+    // job-delete path (deleteAllAnnotations); annotations are low-volume there too, so one slice is fine.
+    private static final int DELETE_SLICES = 1;
+
+    // Short scroll keepalive so abandoned/partial scroll contexts free quickly instead of lingering for the 5-minute
+    // default, preventing accumulation faster than expiry when the reopen pipeline retries (elastic/elasticsearch#153260).
+    private static final TimeValue DELETE_SCROLL_KEEP_ALIVE = TimeValue.timeValueMinutes(1);
+
     private final Client client;
     private final String jobId;
     private final boolean deleteUserAnnotations;
@@ -208,7 +220,8 @@ public class JobDataDeleter {
             .setIndicesOptions(IndicesOptions.lenientExpandOpen())
             .setAbortOnVersionConflict(false)
             .setRefresh(true)
-            .setSlices(AbstractBulkByPaginatedSearchRequest.AUTO_SLICES);
+            .setSlices(DELETE_SLICES)
+            .setScroll(DELETE_SCROLL_KEEP_ALIVE);
 
         // _doc is the most efficient sort order and will also disable scoring
         dbqRequest.getSearchRequest().source().sort(ElasticsearchMappings.ES_DOC);
@@ -278,7 +291,8 @@ public class JobDataDeleter {
             .setIndicesOptions(IndicesOptions.lenientExpandOpen())
             .setAbortOnVersionConflict(false)
             .setRefresh(true)
-            .setSlices(AbstractBulkByPaginatedSearchRequest.AUTO_SLICES);
+            .setSlices(DELETE_SLICES)
+            .setScroll(DELETE_SCROLL_KEEP_ALIVE);
 
         // _doc is the most efficient sort order and will also disable scoring
         dbqRequest.getSearchRequest().source().sort(ElasticsearchMappings.ES_DOC);

@@ -782,6 +782,34 @@ public class MachineLearning extends Plugin
     );
 
     /**
+     * Backoff-bound floor for capacity-constrained failures in the AD job-open pipeline
+     * (scroll-context/circuit-breaker/thread-pool saturation). Longer than the default 5s so the search tier can
+     * drain before the revert delete is re-issued. Because {@code RetryableAction} sleeps on the previous bound for
+     * the failing attempt, this floor takes effect from the second capacity retry onward—the first capacity failure
+     * still waits the prior ~5s bound. Applied by
+     * {@link org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor.OpenJobRetryableAction}.
+     * See elastic/elasticsearch#153260.
+     */
+    public static final Setting<TimeValue> JOB_OPEN_CAPACITY_RETRY_INITIAL_DELAY = Setting.timeSetting(
+        "xpack.ml.job_open_capacity_retry_initial_delay",
+        TimeValue.timeValueSeconds(30),
+        TimeValue.timeValueSeconds(1),
+        Property.NodeScope
+    );
+
+    /**
+     * Maximum retry backoff bound for capacity-constrained failures in the AD job-open pipeline. Higher than the
+     * default 5m cap so repeated capacity failures back off further, letting scroll contexts expire between attempts.
+     * See elastic/elasticsearch#153260.
+     */
+    public static final Setting<TimeValue> JOB_OPEN_CAPACITY_RETRY_MAX_DELAY = Setting.timeSetting(
+        "xpack.ml.job_open_capacity_retry_max_delay",
+        TimeValue.timeValueMinutes(10),
+        TimeValue.timeValueSeconds(1),
+        Property.NodeScope
+    );
+
+    /**
      * Minimum number of consecutive search cycles a cross-cluster scope change must persist before being
      * confirmed. Lowering this value (together with {@link #CCS_STABILIZATION_FLOOR}) enables faster
      * detection in integration tests without waiting for production timeouts.
@@ -942,6 +970,8 @@ public class MachineLearning extends Plugin
             MAX_ML_NODE_SIZE,
             DELAYED_DATA_CHECK_FREQ,
             JOB_OPEN_RETRY_TIMEOUT,
+            JOB_OPEN_CAPACITY_RETRY_INITIAL_DELAY,
+            JOB_OPEN_CAPACITY_RETRY_MAX_DELAY,
             CCS_STABILIZATION_CYCLES,
             CCS_STABILIZATION_FLOOR,
             CONFIG_METRICS_POLL_INTERVAL,

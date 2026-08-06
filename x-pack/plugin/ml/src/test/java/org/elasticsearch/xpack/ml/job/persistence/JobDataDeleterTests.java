@@ -14,6 +14,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
@@ -33,6 +34,7 @@ import java.util.Set;
 import static org.elasticsearch.core.Tuple.tuple;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
@@ -87,6 +89,8 @@ public class JobDataDeleterTests extends ESTestCase {
             } else {
                 assertThat(dbqQueryString, containsString("_xpack"));
             }
+            assertThat(deleteRequest.getSlices(), equalTo(1));
+            assertThat(deleteRequest.getScrollTime(), equalTo(TimeValue.timeValueMinutes(1)));
         });
         verify(client, times(2)).threadPool();
     }
@@ -118,6 +122,8 @@ public class JobDataDeleterTests extends ESTestCase {
             } else {
                 assertThat(dbqQueryString, containsString("_xpack"));
             }
+            assertThat(deleteRequest.getSlices(), equalTo(1));
+            assertThat(deleteRequest.getScrollTime(), equalTo(TimeValue.timeValueMinutes(1)));
         });
         verify(client, times(2)).threadPool();
     }
@@ -149,6 +155,8 @@ public class JobDataDeleterTests extends ESTestCase {
             } else {
                 assertThat(dbqQueryString, containsString("_xpack"));
             }
+            assertThat(deleteRequest.getSlices(), equalTo(1));
+            assertThat(deleteRequest.getScrollTime(), equalTo(TimeValue.timeValueMinutes(1)));
         });
         verify(client, times(2)).threadPool();
     }
@@ -165,6 +173,8 @@ public class JobDataDeleterTests extends ESTestCase {
         assertThat(deleteRequest.indices(), is(arrayContaining(".ml-anomalies-my-job-id")));
         String dbqQueryString = Strings.toString(deleteRequest.getSearchRequest().source().query());
         assertThat(dbqQueryString, containsString("{\"term\":{\"job_id\":{\"value\":\"my-job-id\"}}"));
+        assertThat(deleteRequest.getSlices(), equalTo(1));
+        assertThat(deleteRequest.getScrollTime(), equalTo(TimeValue.timeValueMinutes(1)));
         verify(client, times(1)).threadPool();
     }
 

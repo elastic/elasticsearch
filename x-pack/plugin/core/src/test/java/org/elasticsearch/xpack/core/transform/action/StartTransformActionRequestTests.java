@@ -14,10 +14,12 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredential;
 import org.elasticsearch.xpack.core.transform.action.StartTransformAction.Request;
+import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
 
 import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Collection;
 
 import static java.time.Instant.ofEpochMilli;
 import static org.elasticsearch.xpack.core.transform.transforms.TransformConfig.TRANSFORM_CLOUD_CREDENTIAL_ON_REQUEST;
@@ -79,6 +81,22 @@ public class StartTransformActionRequestTests extends AbstractWireSerializingTra
         Request mutated = new Request(instance.getId(), instance.from(), initialDelay, instance.ackTimeout());
         mutated.setCloudCredential(instance.getCloudCredential());
         return mutated;
+    }
+
+    @Override
+    protected Collection<TransportVersion> bwcVersions() {
+        // Requests carrying initial_delay are rejected instead of silently dropping the value on older nodes.
+        return super.bwcVersions().stream().filter(version -> version.supports(TRANSFORM_START_INITIAL_DELAY)).toList();
+    }
+
+    public void testInitialDelayCannotSerializeToOlderNode() throws IOException {
+        testSerializationIsNotBackwardsCompatible(
+            TRANSFORM_START_INITIAL_DELAY,
+            request -> request.getInitialDelay() != null,
+            "Cannot send a _start request with "
+                + TransformTaskParams.INITIAL_DELAY.getPreferredName()
+                + " to an outdated node. Please upgrade the node to 9.6.0+ and try again."
+        );
     }
 
     public void testCloudCredentialRoundTripPreservesValue() throws IOException {

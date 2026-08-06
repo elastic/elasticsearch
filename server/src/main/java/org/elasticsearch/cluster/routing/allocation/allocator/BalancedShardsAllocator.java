@@ -944,7 +944,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         /// second pass will move any remaining shards where `canAllocate` returns `NOT_PREFERRED`.
         ///
         /// @param shardMoved An atomic boolean that is set to true if a move was made
-        /// @param bestNonPreferredShardMovementsTracker The tracker of best not-preferred shard movements
+        /// @param bestNonPreferredShardMovementsTracker The tracker of best canRemain:not-preferred shard movements
         private void iterateNodesAndMoveCannotRemain(
             AtomicBoolean shardMoved,
             BestShardMovementsTracker bestNonPreferredShardMovementsTracker

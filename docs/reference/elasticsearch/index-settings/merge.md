@@ -55,7 +55,9 @@ This caps the amount of free disk space before merge scheduling is blocked.
 The merge scheduler also supports the following *static* node-level setting, which takes effect only on node restart:
 
 `indices.merge.thread_pool.max_size_factor`
-:   A factor in the range `(0, 1]` applied to the maximum size of the `merge` thread pool, which otherwise defaults to the number of [`node.processors`](/reference/elasticsearch/configuration-reference/node-settings.md). The scaled value is rounded to the nearest integer and is never lower than `1`. Lowering it (for example to `0.5`) reduces the number of merges that may run concurrently on the node, which lowers peak merge memory usage at the cost of merge throughput. Defaults to `1`. An explicit `thread_pool.merge.max` takes precedence over the value derived from this factor.
+:   A factor in the range `(0, 1]` that reduces the maximum size of the `merge` thread pool. The result is rounded to the nearest integer and never lower than `1`. Lowering the factor, for example, to `0.5`, reduces how many merges can run concurrently on the node, which lowers peak merge memory usage at the cost of merge throughput. Defaults to `1`.
+
+    If `thread_pool.merge.max` is explicitly configured, that value is used regardless of this factor. When neither is set, the pool maximum is the number of [allocated processors](/reference/elasticsearch/configuration-reference/thread-pool-settings.md#node.processors).
 
 ## Merge multi-threading [merge-multithreading]
 

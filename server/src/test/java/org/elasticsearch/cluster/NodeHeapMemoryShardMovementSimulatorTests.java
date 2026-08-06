@@ -52,7 +52,14 @@ public class NodeHeapMemoryShardMovementSimulatorTests extends ESAllocationTestC
         var state = buildSingleShardState("test-index", nodeA, nodeB);
         var routingNodes = state.mutableRoutingNodes();
         var startedShard = getSoleStartedShard(routingNodes, nodeA);
-        var relocationShards = routingNodes.relocateShard(startedShard, nodeB, 0, "test", RoutingChangesObserver.NOOP);
+        var relocationShards = routingNodes.relocateShard(
+            startedShard,
+            nodeB,
+            0,
+            "test",
+            RoutingChangesObserver.NOOP,
+            ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+        );
 
         long shardHeap = randomLongBetween(51, 100), indexHeap = randomLongBetween(31, 50);
         // nodeA initial heap values are less than the shard+index heap that will be removed
@@ -90,7 +97,14 @@ public class NodeHeapMemoryShardMovementSimulatorTests extends ESAllocationTestC
         var state = buildTwoShardState("test-index", nodeA, nodeB);
         var routingNodes = state.mutableRoutingNodes();
         var shard0 = getStartedShardById(routingNodes, nodeA, 0);
-        var relocationShards = routingNodes.relocateShard(shard0, nodeB, 0, "test", RoutingChangesObserver.NOOP);
+        var relocationShards = routingNodes.relocateShard(
+            shard0,
+            nodeB,
+            0,
+            "test",
+            RoutingChangesObserver.NOOP,
+            ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+        );
 
         long shardHeap = 100L, indexHeap = 50L;
         var initialMetrics = Map.of(
@@ -123,7 +137,14 @@ public class NodeHeapMemoryShardMovementSimulatorTests extends ESAllocationTestC
         var state = buildSingleShardState("test-index", nodeA, nodeB);
         var routingNodes = state.mutableRoutingNodes();
         var startedShard = getSoleStartedShard(routingNodes, nodeA);
-        var relocationShards = routingNodes.relocateShard(startedShard, nodeB, 0, "test", RoutingChangesObserver.NOOP);
+        var relocationShards = routingNodes.relocateShard(
+            startedShard,
+            nodeB,
+            0,
+            "test",
+            RoutingChangesObserver.NOOP,
+            ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+        );
 
         // Neither nodeA nor nodeB has initial metrics
         var simulator = newSimulator(

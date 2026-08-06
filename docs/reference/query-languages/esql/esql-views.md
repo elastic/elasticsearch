@@ -146,7 +146,7 @@ We could, for example, see how many airports are defined only in `airports` vers
 ### Views with METADATA
 
 The [`METADATA` directive](/reference/query-languages/esql/esql-metadata-fields.md) is supported both inside and outside a view, and
-follows the same rules as observed for [`METADATA` in Subqueries](/reference/query-languages/esql/esql-subquery.md#subqueries-with-metadata).
+follows the same rules as observed for [`METADATA` in subqueries](/reference/query-languages/esql/esql-from-subquery.md#subqueries-with-metadata).
 Inside the view it generates columns, just like other fields, and these can be used for filtering and as output columns.
 
 Outside the view it generates `null` values.
@@ -230,7 +230,7 @@ Compaction does **not** apply if the view definition contains any commands after
 ## Related pages
 
 * [Combine and reuse ES|QL queries](/reference/query-languages/esql/esql-combine-reuse-queries.md): overview of subqueries, views, and `FORK`.
-* [Combine result sets with FROM subqueries](/reference/query-languages/esql/esql-subquery.md): the closest alternative to views, without a persisted definition.
+* [ES|QL subqueries](/reference/query-languages/esql/esql-subquery.md): nest queries inside other queries, either in `FROM` or `WHERE`.
 * [`FROM` command](/reference/query-languages/esql/commands/from.md): full reference for index expressions, where view names are used.
 * [`FORK` command](/reference/query-languages/esql/commands/fork.md): the other branching construct in ES|QL, which shares the branching limits described above.
 * [Query multiple indices](/reference/query-languages/esql/esql-multi-index.md): how index patterns, wildcards, and date math combine sources in a single `FROM`.

@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.coordination.Reconfigurator;
 import org.elasticsearch.cluster.coordination.stateless.AtomicRegisterPreVoteCollector;
 import org.elasticsearch.cluster.coordination.stateless.SingleNodeReconfigurator;
 import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
-import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -152,6 +151,7 @@ import org.elasticsearch.xpack.stateless.reshard.ReshardSearchFilters;
 import org.elasticsearch.xpack.stateless.reshard.SplitSourceService;
 import org.elasticsearch.xpack.stateless.reshard.SplitTargetService;
 import org.elasticsearch.xpack.stateless.utils.SearchShardSizeCollector;
+import org.elasticsearch.xpack.stateless.utils.StatelessCommitServiceProvider;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -506,7 +506,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                         indicesService,
                         new CompositeRecoverySchedulingListener(),
                         peerRecoveryTargetService,
-                        testStatelessPlugin.statelessCommitService,
+                        new StatelessCommitServiceProvider(testStatelessPlugin.statelessCommitService),
                         mock(IndexShardCacheWarmer.class),
                         testStatelessPlugin.hollowShardsService,
                         HollowShardsMetrics.NOOP,
@@ -544,7 +544,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                         indicesService,
                         clusterService(),
                         mock(GetVirtualBatchedCompoundCommitChunksPressure.class),
-                        testStatelessPlugin.statelessCommitService,
+                        new StatelessCommitServiceProvider(testStatelessPlugin.statelessCommitService),
                         projectResolver
                     ),
                     TransportGetShardSnapshotCommitInfoAction.TYPE,
@@ -866,7 +866,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                 return null;
             }).when(reshardIndexService).maybeAwaitSplit(any(ShardId.class), anyActionListener());
 
-            if (hasMasterRole && MetadataCreateIndexService.useRefreshBlock(settings)) {
+            if (hasMasterRole) {
                 return List.of(new RemoveRefreshClusterBlockService(settings, clusterService, threadPool));
             }
             return List.of();

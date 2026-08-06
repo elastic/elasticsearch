@@ -9,15 +9,20 @@
 package org.elasticsearch.test.rest.yaml;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.rest.yaml.section.ExecutableSection;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.greaterThan;
 
 public class ESClientYamlSuiteTestCaseTests extends ESTestCase {
@@ -173,57 +178,78 @@ public class ESClientYamlSuiteTestCaseTests extends ESTestCase {
     }
 
     /**
-     * The per-task scoped {@code tests.rest.suite.<task>} (set by build tooling such as the
-     * flakiness-detection re-run pipeline) is returned as the filter to intersect with an explicit-paths
-     * suite's declared paths, and takes precedence over the bare global property.
+     * When the per-task scoped {@code tests.rest.suite.<task>} value names a single file, an explicit-paths
+     * suite that declares the whole directory is narrowed to just that file's test candidates - exercising
+     * the file-level intersection end-to-end (filter, load, intersect, build).
      */
-    public void testExplicitPathsSuiteFilterHonoursScopedProperty() {
-        assertArrayEquals(new String[] { "painless" }, ESClientYamlSuiteTestCase.explicitPathsSuiteFilter("painless", null));
-        assertArrayEquals(new String[] { "a", "b" }, ESClientYamlSuiteTestCase.explicitPathsSuiteFilter("a,b", null));
-        // scoped wins over a global value
-        assertArrayEquals(new String[] { "painless" }, ESClientYamlSuiteTestCase.explicitPathsSuiteFilter("painless", "watcher"));
-        // neither set -> no filtering (empty array, not null)
-        assertArrayEquals(new String[0], ESClientYamlSuiteTestCase.explicitPathsSuiteFilter(null, null));
+    public void testScopedSuiteNarrowsDeclaredDirectoryToRequestedFile() throws Exception {
+        List<ClientYamlTestCandidate> candidates = explicitPathCandidates("suite1/10_basic", null, "suite1");
+        assertThat(suitePaths(candidates), equalTo(Set.of("suite1/10_basic")));
+    }
+
+    /** A scoped group that the explicit-paths suite does not declare is dropped; declared groups survive. */
+    public void testScopedSuiteDropsGroupNotDeclared() throws Exception {
+        List<ClientYamlTestCandidate> candidates = explicitPathCandidates("suite1,suite2", null, "suite1");
+        assertThat(apis(candidates), equalTo(Set.of("suite1")));
+    }
+
+    /** When the scoped request names a suite the declared paths do not include, nothing runs. */
+    public void testScopedSuiteRequestingUndeclaredSuiteRunsNothing() throws Exception {
+        List<ClientYamlTestCandidate> candidates = explicitPathCandidates("suite2", null, "suite1");
+        assertThat(candidates, empty());
+    }
+
+    /** The scoped value takes precedence over a bare global {@code tests.rest.suite} value. */
+    public void testScopedSuiteTakesPrecedenceOverGlobal() throws Exception {
+        List<ClientYamlTestCandidate> candidates = explicitPathCandidates("suite1", "suite2", "suite1", "suite2");
+        assertThat(apis(candidates), equalTo(Set.of("suite1")));
     }
 
     /**
-     * A bare, unscoped {@code tests.rest.suite} on an explicit-paths suite is still a hard error - the
+     * A bare, unscoped {@code tests.rest.suite} value on an explicit-paths suite is a hard error - the
      * requested value would otherwise be silently dropped.
      */
-    public void testExplicitPathsSuiteFilterRejectsBareGlobalProperty() {
+    public void testBareGlobalSuiteRejectedForExplicitPaths() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> ESClientYamlSuiteTestCase.explicitPathsSuiteFilter(null, "watcher")
+            () -> ESClientYamlSuiteTestCase.explicitPathParameters(ExecutableSection.XCONTENT_REGISTRY, Map.of(), null, "suite1", "suite1")
         );
         assertThat(e.getMessage(), containsString("not supported with explicit test paths"));
     }
 
+    /** With no suite selection set, an explicit-paths suite runs its full declared set. */
+    public void testNoSuiteRunsFullDeclaredSet() throws Exception {
+        List<ClientYamlTestCandidate> candidates = explicitPathCandidates(null, null, "suite1", "suite2");
+        assertThat(apis(candidates), equalTo(Set.of("suite1", "suite2")));
+    }
+
     /**
-     * Intersecting a declared directory with a requested single file narrows down to that one file -
-     * the file-level intersection handles the directory-vs-file granularity.
+     * Resolves the candidates for an explicit-paths suite from explicit suite-selection values, bypassing
+     * the {@code System.getProperty} reads so no global state is mutated. {@code scoped} is the per-task
+     * {@code tests.rest.suite.<task>} value and {@code global} the bare {@code tests.rest.suite} value;
+     * either may be {@code null}.
      */
-    public void testIntersectSuitesNarrowsDeclaredDirectoryToRequestedFile() throws Exception {
-        Map<String, Set<Path>> declared = ESClientYamlSuiteTestCase.loadSuites("suite1");
-        Map<String, Set<Path>> requested = ESClientYamlSuiteTestCase.loadSuites("suite1/10_basic");
-        Map<String, Set<Path>> result = ESClientYamlSuiteTestCase.intersectSuites(declared, requested);
-        assertSingleFile(result, "suite1", "10_basic.yml");
+    private static List<ClientYamlTestCandidate> explicitPathCandidates(String scoped, String global, String... testPaths)
+        throws Exception {
+        return collectCandidates(
+            ESClientYamlSuiteTestCase.explicitPathParameters(ExecutableSection.XCONTENT_REGISTRY, Map.of(), scoped, global, testPaths)
+        );
     }
 
-    /** A requested group that is not declared is dropped; declared-and-requested groups survive intact. */
-    public void testIntersectSuitesDropsGroupsNotDeclared() throws Exception {
-        Map<String, Set<Path>> declared = ESClientYamlSuiteTestCase.loadSuites("suite1");
-        Map<String, Set<Path>> requested = ESClientYamlSuiteTestCase.loadSuites("suite1", "suite2");
-        Map<String, Set<Path>> result = ESClientYamlSuiteTestCase.intersectSuites(declared, requested);
-        assertThat(result.keySet(), equalTo(Set.of("suite1")));
-        assertThat(result.get("suite1"), equalTo(declared.get("suite1")));
+    private static List<ClientYamlTestCandidate> collectCandidates(Iterable<Object[]> parameters) {
+        List<ClientYamlTestCandidate> candidates = new ArrayList<>();
+        for (Object[] parameter : parameters) {
+            candidates.add((ClientYamlTestCandidate) parameter[0]);
+        }
+        return candidates;
     }
 
-    /** When the requested suite is not among the declared paths at all, the intersection is empty. */
-    public void testIntersectSuitesEmptyWhenRequestedNotDeclared() throws Exception {
-        Map<String, Set<Path>> declared = ESClientYamlSuiteTestCase.loadSuites("suite1");
-        Map<String, Set<Path>> requested = ESClientYamlSuiteTestCase.loadSuites("suite2");
-        Map<String, Set<Path>> result = ESClientYamlSuiteTestCase.intersectSuites(declared, requested);
-        assertTrue("requested suite not among declared paths -> empty intersection", result.isEmpty());
+    private static Set<String> apis(List<ClientYamlTestCandidate> candidates) {
+        return candidates.stream().map(ClientYamlTestCandidate::getApi).collect(Collectors.toSet());
+    }
+
+    private static Set<String> suitePaths(List<ClientYamlTestCandidate> candidates) {
+        return candidates.stream().map(ClientYamlTestCandidate::getSuitePath).collect(Collectors.toSet());
     }
 
     private static void assertSingleFile(Map<String, Set<Path>> yamlSuites, String dirName, String fileName) {

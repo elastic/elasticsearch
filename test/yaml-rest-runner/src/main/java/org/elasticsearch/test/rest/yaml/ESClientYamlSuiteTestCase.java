@@ -347,23 +347,48 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
     }
 
     /**
-     * Entry point for the explicit-paths {@link #createParameters} overloads. When the per-task scoped
-     * {@code tests.rest.suite.<task path>} property is set, the suite's declared {@code testPaths} are
-     * intersected with the requested suites, so per-task tooling (e.g. the flakiness-detection re-run
-     * pipeline) can re-run just the changed subset. A bare, unscoped {@code tests.rest.suite} stays
-     * unsupported on an explicit-paths suite and fails.
+     * Entry point for the explicit-paths {@link #createParameters} overloads. Resolves the suite-selection
+     * system properties and builds the test candidates accordingly.
+     *
+     * When the per-task scoped {@code tests.rest.suite.<task path>} property is set, the suite's declared
+     * {@code testPaths} are intersected (at the resolved-file level) with the requested suites, so per-task
+     * tooling (e.g. the flakiness-detection re-run pipeline) can re-run just the changed subset; an empty
+     * intersection yields zero candidates. A bare, unscoped {@code tests.rest.suite} is unsupported on an
+     * explicit-paths suite and fails. When neither is set, the declared {@code testPaths} are run as-is.
+     *
+     * The property resolution is kept separate from {@link #explicitPathParameters} (which takes the
+     * resolved values as arguments) only so the behaviour above can be unit-tested without mutating
+     * global state.
      */
     private static Iterable<Object[]> createExplicitPathParameters(
         NamedXContentRegistry executeableSectionRegistry,
         Map<String, ?> yamlParameters,
         String... testPaths
     ) throws Exception {
+        String task = System.getProperty("tests.task");
+        String scoped = task == null ? null : System.getProperty(REST_TESTS_SUITE + "." + task);
+        String global = System.getProperty(REST_TESTS_SUITE);
+        return explicitPathParameters(executeableSectionRegistry, yamlParameters, scoped, global, testPaths);
+    }
+
+    /**
+     * Builds the candidates for an explicit-paths suite from already-resolved suite-selection values.
+     *
+     * @param scoped the value of the per-task scoped {@code tests.rest.suite.<task>} property, or {@code null}
+     * @param global the value of the bare {@code tests.rest.suite} property, or {@code null}
+     */
+    // pkg private for tests
+    static Iterable<Object[]> explicitPathParameters(
+        NamedXContentRegistry executeableSectionRegistry,
+        Map<String, ?> yamlParameters,
+        String scoped,
+        String global,
+        String... testPaths
+    ) throws Exception {
         if (testPaths == null) {
             throw new IllegalArgumentException("testPaths cannot be null");
         }
-        String task = System.getProperty("tests.task");
-        String scoped = task == null ? null : System.getProperty(REST_TESTS_SUITE + "." + task);
-        String[] filter = explicitPathsSuiteFilter(scoped, System.getProperty(REST_TESTS_SUITE));
+        String[] filter = explicitPathsSuiteFilter(scoped, global);
         Map<String, Set<Path>> yamlSuites = loadSuites(testPaths);
         if (filter.length > 0) {
             yamlSuites = intersectSuites(yamlSuites, loadSuites(filter));
@@ -384,8 +409,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
      * honoring it here would either be a silent no-op (the value is dropped) or silently narrow the suite
      * to nothing. Failing loudly forces the caller to use the scoped form (or not set it) instead.
      */
-    // pkg private for tests
-    static String[] explicitPathsSuiteFilter(String scopedValue, String globalValue) {
+    private static String[] explicitPathsSuiteFilter(String scopedValue, String globalValue) {
         if (scopedValue != null) {
             return scopedValue.split(PATHS_SEPARATOR);
         }
@@ -403,8 +427,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
      * declared files under it. An empty result (the requested suite is not among the declared paths)
      * yields zero test candidates.
      */
-    // pkg private for tests
-    static Map<String, Set<Path>> intersectSuites(Map<String, Set<Path>> declared, Map<String, Set<Path>> requested) {
+    private static Map<String, Set<Path>> intersectSuites(Map<String, Set<Path>> declared, Map<String, Set<Path>> requested) {
         Set<Path> declaredFiles = declared.values().stream().flatMap(Set::stream).collect(Collectors.toSet());
         return requested.entrySet()
             .stream()

@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 152739
+pr: 155047
+summary: Detect conflicting ES|QL approximation settings
+type: bug

@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Settings for query approximation.
@@ -131,6 +132,29 @@ public record ApproximationSettings(Integer rows, Double confidenceLevel) implem
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalInt(rows());
         out.writeOptionalDouble(confidenceLevel());
+    }
+
+    /**
+     * Keeps the explicit-null sentinel distinct from an enabled setting whose fields are both null.
+     * The record components alone cannot represent that distinction.
+     */
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        ApproximationSettings other = (ApproximationSettings) obj;
+        return (this == EXPLICIT_NULL) == (other == EXPLICIT_NULL)
+            && Objects.equals(rows, other.rows)
+            && Objects.equals(confidenceLevel, other.confidenceLevel);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(rows, confidenceLevel, this == EXPLICIT_NULL);
     }
 
     public static class Builder {

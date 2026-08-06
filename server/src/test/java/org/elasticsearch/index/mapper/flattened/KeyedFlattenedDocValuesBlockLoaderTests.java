@@ -357,6 +357,112 @@ public class KeyedFlattenedDocValuesBlockLoaderTests extends ESTestCase {
         }
     }
 
+    /**
+     * Verifies that the fast path correctly handles a page with gaps inside a single block.
+     * When docs [0, 2] are requested from a 4-doc all-single-slot no-null block, the run
+     * coalescer emits two separate runs (slot 0 alone, then slot 2 alone) because the slot
+     * indices are not consecutive; both values must still be correct.
+     */
+    public void testRunCoalescing_sparsePageWithinBlock() throws IOException {
+        try (Directory dir = newDirectory(); RandomIndexWriter writer = newColumnarIndexWriter(dir)) {
+            addColumnarDoc(writer, KEY + "\0first");
+            addColumnarDoc(writer, KEY + "\0second");
+            addColumnarDoc(writer, KEY + "\0third");
+            addColumnarDoc(writer, KEY + "\0fourth");
+
+            try (IndexReader reader = openReader(writer)) {
+                LeafReaderContext leaf = reader.leaves().get(0);
+                BlockLoader.ColumnAtATimeReader columnReader = newColumnarBatchLoader(leaf);
+
+                // Docs [0, 2] — gaps at docs 1 and 3. Both are present so the fast path is taken,
+                // but the non-consecutive slot indices (0, then 2) force two arraycopy runs.
+                TestBlock block = (TestBlock) columnReader.read(TestBlock.factory(), TestBlock.docs(0, 2), 0, false);
+                assertEquals(2, block.size());
+                assertEquals(new BytesRef("first"), block.get(0));
+                assertEquals(new BytesRef("third"), block.get(1));
+                block.close();
+
+                columnReader.close();
+            }
+        }
+    }
+
+    /**
+     * Verifies that a block containing a null slot falls through to the {@code emitDoc} per-doc
+     * path. The fast path bails when {@code blockHasNulls()} is true; {@code emitDoc} then reads
+     * slot metadata from the pre-built {@code slotLens} and {@code valueOffsets} tables. The null
+     * doc must produce {@code null} in the block while surrounding non-null docs remain correct.
+     */
+    public void testRunCoalescing_nullSlotFallsBackToEmitDoc() throws IOException {
+        try (Directory dir = newDirectory(); RandomIndexWriter writer = newColumnarIndexWriter(dir)) {
+            addColumnarDoc(writer, KEY + "\0first");
+            // Doc 1: KEY is present but the value is null.
+            LuceneDocument nullDoc = new LuceneDocument();
+            KeyedArrayOrderInlineNull.recordNull(nullDoc, KEYED_FIELD, new BytesRef(KEY + "\0"));
+            writer.addDocument(nullDoc);
+            addColumnarDoc(writer, KEY + "\0third");
+
+            try (IndexReader reader = openReader(writer)) {
+                LeafReaderContext leaf = reader.leaves().get(0);
+                BlockLoader.ColumnAtATimeReader columnReader = newColumnarBatchLoader(leaf);
+
+                // blockHasNulls()=true → fast path bails at the first doc; emitDoc handles all three.
+                TestBlock block = (TestBlock) columnReader.read(TestBlock.factory(), TestBlock.docs(0, 1, 2), 0, false);
+                assertEquals(3, block.size());
+                assertEquals(new BytesRef("first"), block.get(0));
+                assertNull("null-value slot must produce null", block.get(1));
+                assertEquals(new BytesRef("third"), block.get(2));
+                block.close();
+
+                columnReader.close();
+            }
+        }
+    }
+
+    /**
+     * Verifies that run coalescing handles a page whose docs span two blocks. With a tiny block
+     * size (2 docs per block), docs [1, 2] land in different blocks: doc 1 is the last doc of
+     * block 0, doc 2 is the first of block 1. The run coalescer must end the first run at block 0's
+     * boundary and start a new run in block 1, each copied via a separate {@code arraycopy}.
+     */
+    public void testRunCoalescing_crossBlockBoundary() throws IOException {
+        FlattenedDocValuesFormat tinyBlocks = new FlattenedDocValuesFormat(
+            FlattenedDocValuesFormat.TARGET_BLOCK_BYTES_DEFAULT,
+            2, // 2 docs per block at most
+            FlattenedDocValuesFormat.MIN_COMPRESS_BYTES_DEFAULT,
+            FlattenedDocValuesFormat.MAX_BUFFERED_BYTES_DEFAULT
+        );
+        try (Directory dir = newDirectory()) {
+            IndexWriterConfig iwc = newIndexWriterConfig().setCodec(new Elasticsearch93Lucene104Codec() {
+                @Override
+                public DocValuesFormat getDocValuesFormatForField(String field) {
+                    return KEYED_FIELD.equals(field) ? tinyBlocks : super.getDocValuesFormatForField(field);
+                }
+            });
+            try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir, iwc)) {
+                addColumnarDoc(writer, KEY + "\0block0-doc0");
+                addColumnarDoc(writer, KEY + "\0block0-doc1");
+                addColumnarDoc(writer, KEY + "\0block1-doc0");
+                addColumnarDoc(writer, KEY + "\0block1-doc1");
+
+                try (IndexReader reader = openReader(writer)) {
+                    LeafReaderContext leaf = reader.leaves().get(0);
+                    BlockLoader.ColumnAtATimeReader columnReader = newColumnarBatchLoader(leaf);
+
+                    // Docs [1, 2]: last doc of block 0 and first doc of block 1.
+                    // Run of length 1 in block 0, then a fresh run of length 1 in block 1.
+                    TestBlock block = (TestBlock) columnReader.read(TestBlock.factory(), TestBlock.docs(1, 2), 0, false);
+                    assertEquals(2, block.size());
+                    assertEquals(new BytesRef("block0-doc1"), block.get(0));
+                    assertEquals(new BytesRef("block1-doc0"), block.get(1));
+                    block.close();
+
+                    columnReader.close();
+                }
+            }
+        }
+    }
+
     /** Creates a batch-capable columnar block loader reader for {@link #KEY} on the given leaf. */
     private static BlockLoader.ColumnAtATimeReader newColumnarBatchLoader(LeafReaderContext leaf) throws IOException {
         return new KeyedFlattenedDocValuesBlockLoader(

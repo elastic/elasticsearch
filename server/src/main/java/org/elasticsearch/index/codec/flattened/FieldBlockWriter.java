@@ -22,6 +22,7 @@ import java.util.List;
 
 import static org.elasticsearch.index.codec.flattened.FlattenedDocValuesFormat.FLAG_ALL_SINGLE_SLOT;
 import static org.elasticsearch.index.codec.flattened.FlattenedDocValuesFormat.FLAG_DOCS_CONTIGUOUS;
+import static org.elasticsearch.index.codec.flattened.FlattenedDocValuesFormat.FLAG_NO_NULL_VALUES;
 import static org.elasticsearch.index.codec.flattened.FlattenedDocValuesFormat.FLAG_VALUES_COMPRESSED;
 
 /**
@@ -57,13 +58,19 @@ final class FieldBlockWriter implements Closeable {
     /** The externally-owned output this column is being written into. */
     private IndexOutput currentOut;
 
-    // Current block accumulation. Pre-sized to the configured thresholds so that typical blocks
-    // require no grows; ArrayUtil.grow handles the overshoot case (one doc's payload past the limit).
+    // Current block accumulation.
+    //
+    // blockDocIds[0..numDocsInBlock) — docId per document
+    // blockSlotCounts[0..numDocsInBlock) — slot count per document
+    // blockSlotLens[0..numSlotsInBlock) — value length per slot (-1 = null)
+    // blockValues[0..blockValuesLen) — concatenated raw value bytes (no per-slot framing)
     private int[] blockDocIds;
     private int[] blockSlotCounts;
-    private byte[] blockPayload;
+    private int[] blockSlotLens;
+    private byte[] blockValues;
     private int numDocsInBlock = 0;
-    private int blockPayloadLen = 0;
+    private int numSlotsInBlock = 0;
+    private int blockValuesLen = 0;
 
     // Block index accumulated across all flushed blocks (8 bytes/entry).
     private int[] blockFirstDocIds = new int[8];
@@ -94,7 +101,8 @@ final class FieldBlockWriter implements Closeable {
         this.currentOut = out;
         this.blockDocIds = new int[maxDocsPerBlock];
         this.blockSlotCounts = new int[maxDocsPerBlock];
-        this.blockPayload = new byte[targetBlockBytes];
+        this.blockSlotLens = new int[maxDocsPerBlock];
+        this.blockValues = new byte[targetBlockBytes];
     }
 
     /**
@@ -109,7 +117,8 @@ final class FieldBlockWriter implements Closeable {
         this.currentOut = out;
         this.columnStartOffset = out.getFilePointer();
         this.numDocsInBlock = 0;
-        this.blockPayloadLen = 0;
+        this.numSlotsInBlock = 0;
+        this.blockValuesLen = 0;
         this.numBlocks = 0;
         this.totalBlockBytes = 0;
         this.maxUncompressedBlockLen = 0;
@@ -118,21 +127,26 @@ final class FieldBlockWriter implements Closeable {
     }
 
     /**
-     * Bulk-appends all slots for {@code docId} from an already-encoded payload region.
+     * Appends all slots for {@code docId} from an already-decoded representation.
      *
-     * <p>The payload slice must contain exactly {@code slotCount} encoded slots in the columnar
-     * {@code [vint prefix][value bytes]} framing (prefix 0 = null, prefix N+1 = N value bytes).
-     * The block-flush trigger fires before appending, at the doc boundary, ensuring that no
-     * document's slots are ever split across two blocks.
+     * <p>{@code slotLens[slotLensOff .. slotLensOff+slotCount)} gives the byte length of each slot,
+     * with {@code -1} meaning a null slot. {@code values[valuesOff .. valuesOff+valuesLen)} contains
+     * the concatenated raw value bytes for the non-null slots (null slots contribute nothing).
      *
-     * @param docId      the target document ID (must be ≥ the last docId passed to this writer)
-     * @param slotCount  number of slots in the payload slice
-     * @param payload    source byte array containing the encoded slots
-     * @param payloadOff offset within {@code payload} where the slots begin
-     * @param payloadLen total byte length of all slots for this document
+     * <p>The block-flush trigger fires before appending, at the doc boundary, so no document's slots
+     * are ever split across two blocks.
+     *
+     * @param docId      the target document ID (must be &ge; the last docId passed to this writer)
+     * @param slotCount  number of slots for this document
+     * @param slotLens   per-slot lengths; {@code -1} means null
+     * @param slotLensOff start index in {@code slotLens}
+     * @param values     raw value bytes (null slots contribute no bytes)
+     * @param valuesOff  start offset in {@code values}
+     * @param valuesLen  total raw value bytes for this document
      */
-    void addDocSlots(int docId, int slotCount, byte[] payload, int payloadOff, int payloadLen) throws IOException {
-        if (numDocsInBlock > 0 && (numDocsInBlock >= maxDocsPerBlock || blockPayloadLen >= targetBlockBytes)) {
+    void addDocSlots(int docId, int slotCount, int[] slotLens, int slotLensOff, byte[] values, int valuesOff, int valuesLen)
+        throws IOException {
+        if (numDocsInBlock > 0 && (numDocsInBlock >= maxDocsPerBlock || blockValuesLen >= targetBlockBytes)) {
             flushCurrentBlock();
         }
 
@@ -142,9 +156,13 @@ final class FieldBlockWriter implements Closeable {
         blockSlotCounts[numDocsInBlock] = slotCount;
         numDocsInBlock++;
 
-        blockPayload = ArrayUtil.grow(blockPayload, blockPayloadLen + payloadLen);
-        System.arraycopy(payload, payloadOff, blockPayload, blockPayloadLen, payloadLen);
-        blockPayloadLen += payloadLen;
+        blockSlotLens = ArrayUtil.grow(blockSlotLens, numSlotsInBlock + slotCount);
+        System.arraycopy(slotLens, slotLensOff, blockSlotLens, numSlotsInBlock, slotCount);
+        numSlotsInBlock += slotCount;
+
+        blockValues = ArrayUtil.grow(blockValues, blockValuesLen + valuesLen);
+        System.arraycopy(values, valuesOff, blockValues, blockValuesLen, valuesLen);
+        blockValuesLen += valuesLen;
     }
 
     /**
@@ -187,6 +205,7 @@ final class FieldBlockWriter implements Closeable {
         if (numDocsInBlock == 0) return;
 
         maxDocsPerBlockSeen = Math.max(maxDocsPerBlockSeen, numDocsInBlock);
+        maxUncompressedBlockLen = Math.max(maxUncompressedBlockLen, blockValuesLen);
 
         blockFirstDocIds = ArrayUtil.grow(blockFirstDocIds, numBlocks + 1);
         blockStartsRelative = ArrayUtil.grow(blockStartsRelative, numBlocks + 1);
@@ -195,6 +214,7 @@ final class FieldBlockWriter implements Closeable {
 
         final long blockStart = currentOut.getFilePointer();
 
+        // Decide contiguous / allSingleSlot / noNulls.
         boolean contiguous = true;
         for (int i = 1; i < numDocsInBlock && contiguous; i++) {
             if (blockDocIds[i] != blockDocIds[i - 1] + 1) contiguous = false;
@@ -203,33 +223,23 @@ final class FieldBlockWriter implements Closeable {
         for (int i = 0; i < numDocsInBlock && allSingleSlot; i++) {
             if (blockSlotCounts[i] != 1) allSingleSlot = false;
         }
-
-        // Compute slot-count prefix size before the compress decision (it's part of the payload).
-        int bitsPerSlot = 0;
-        int slotPrefixLen = 0;
-        if (allSingleSlot == false) {
-            int maxSlot = 0;
-            for (int i = 0; i < numDocsInBlock; i++) {
-                if (blockSlotCounts[i] > maxSlot) maxSlot = blockSlotCounts[i];
-            }
-            bitsPerSlot = Math.max(1, 32 - Integer.numberOfLeadingZeros(maxSlot));
-            slotPrefixLen = 1 + (numDocsInBlock * bitsPerSlot + 7) / 8;
+        boolean noNulls = true;
+        for (int s = 0; s < numSlotsInBlock && noNulls; s++) {
+            if (blockSlotLens[s] < 0) noNulls = false;
         }
-        final int totalPayloadLen = slotPrefixLen + blockPayloadLen;
-        maxUncompressedBlockLen = Math.max(maxUncompressedBlockLen, totalPayloadLen);
-        final boolean compress = totalPayloadLen >= minCompressBytes;
+
+        final boolean compress = blockValuesLen >= minCompressBytes;
 
         byte flags = 0;
         if (compress) flags |= FLAG_VALUES_COMPRESSED;
         if (contiguous) flags |= FLAG_DOCS_CONTIGUOUS;
         if (allSingleSlot) flags |= FLAG_ALL_SINGLE_SLOT;
+        if (noNulls) flags |= FLAG_NO_NULL_VALUES;
 
         currentOut.writeByte(flags);
         writeVInt(currentOut, numDocsInBlock);
 
-        // Bit-pack docId deltas into currentOut (outside the compressed region).
-        // Absent docs can be detected without decompressing the value payload.
-        // delta[i] = blockDocIds[i+1] - blockDocIds[i] - 1, stored in-place in blockDocIds[0..numDocs-2].
+        // Bit-pack docId deltas (outside the compressed region).
         if (contiguous == false) {
             int maxDelta = 0;
             for (int i = 0; i < numDocsInBlock - 1; i++) {
@@ -242,41 +252,43 @@ final class FieldBlockWriter implements Closeable {
             FlattenedDocValuesFormat.packInts(currentOut, blockDocIds, numDocsInBlock - 1, bitsPerDelta);
         }
 
-        // Prepend bit-packed slot counts inside the (optionally compressed) payload.
-        // They are only needed when consuming slot values, so they belong in the compressed
-        // region where ZSTD can exploit their redundancy with the value bytes.
+        // Bit-pack slot counts (outside the compressed region).
         if (allSingleSlot == false) {
-            blockPayload = ArrayUtil.grow(blockPayload, totalPayloadLen);
-            System.arraycopy(blockPayload, 0, blockPayload, slotPrefixLen, blockPayloadLen);
-            blockPayload[0] = (byte) bitsPerSlot;
-            long acc = 0;
-            int bitsInAcc = 0;
-            int pos = 1;
+            int maxSlot = 0;
             for (int i = 0; i < numDocsInBlock; i++) {
-                acc = (acc << bitsPerSlot) | (blockSlotCounts[i] & ((1L << bitsPerSlot) - 1));
-                bitsInAcc += bitsPerSlot;
-                while (bitsInAcc >= 8) {
-                    bitsInAcc -= 8;
-                    blockPayload[pos++] = (byte) (acc >>> bitsInAcc);
-                }
+                if (blockSlotCounts[i] > maxSlot) maxSlot = blockSlotCounts[i];
             }
-            if (bitsInAcc > 0) {
-                blockPayload[pos] = (byte) (acc << (8 - bitsInAcc));
-            }
+            final int bitsPerSlot = Math.max(1, 32 - Integer.numberOfLeadingZeros(maxSlot));
+            currentOut.writeByte((byte) bitsPerSlot);
+            FlattenedDocValuesFormat.packInts(currentOut, blockSlotCounts, numDocsInBlock, bitsPerSlot);
         }
 
-        writeVInt(currentOut, totalPayloadLen);
+        // Bit-pack per-slot encoded lengths (outside the compressed region).
+        // noNulls: encodedLen = valueLen (0 = empty string).
+        // has nulls: encodedLen = 0 for null, valueLen+1 otherwise.
+        int maxLen = 0;
+        for (int s = 0; s < numSlotsInBlock; s++) {
+            final int enc = noNulls ? blockSlotLens[s] : (blockSlotLens[s] < 0 ? 0 : blockSlotLens[s] + 1);
+            if (enc > maxLen) maxLen = enc;
+            blockSlotLens[s] = enc; // reuse array to hold encoded values for packInts
+        }
+        final int bitsPerLen = Math.max(1, 32 - Integer.numberOfLeadingZeros(maxLen));
+        currentOut.writeByte((byte) bitsPerLen);
+        FlattenedDocValuesFormat.packInts(currentOut, blockSlotLens, numSlotsInBlock, bitsPerLen);
+
+        // Compress (or write raw) the value region.
         if (compress) {
-            compressor.compress(new ByteBuffersDataInput(List.of(ByteBuffer.wrap(blockPayload, 0, totalPayloadLen))), currentOut);
+            compressor.compress(new ByteBuffersDataInput(List.of(ByteBuffer.wrap(blockValues, 0, blockValuesLen))), currentOut);
         } else {
-            currentOut.writeBytes(blockPayload, 0, totalPayloadLen);
+            currentOut.writeBytes(blockValues, 0, blockValuesLen);
         }
 
         totalBlockBytes += (int) (currentOut.getFilePointer() - blockStart);
         numBlocks++;
 
         numDocsInBlock = 0;
-        blockPayloadLen = 0;
+        numSlotsInBlock = 0;
+        blockValuesLen = 0;
     }
 
     private static void writeVInt(IndexOutput out, int v) throws IOException {

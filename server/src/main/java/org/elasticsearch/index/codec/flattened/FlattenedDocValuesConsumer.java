@@ -148,7 +148,7 @@ final class FlattenedDocValuesConsumer extends DocValuesConsumer {
         int numDocsWithField = 0;
         int prevDocId = -1;
         boolean isDense = true;
-        // Reusable buffer for pre-encoding one slot as [vint prefix][value bytes].
+        // Reusable buffer for pre-encoding one slot as [vint prefix][value bytes] for the accumulator.
         byte[] slotBuf = new byte[64];
 
         try {
@@ -185,7 +185,8 @@ final class FlattenedDocValuesConsumer extends DocValuesConsumer {
                     int ord = keyHash.add(new BytesRef(blob.bytes, keyStart, keyLen));
                     if (ord < 0) ord = -ord - 1; // already present
 
-                    // Pre-encode slot as [vint (isNull?0:valueLen+1)][value bytes].
+                    // Store slot in accumulator as [vint (isNull?0:valueLen+1)][value bytes]
+                    // so the cursor drain loop can decode it when assembling the writer call.
                     final int encodedPrefix = isNull ? 0 : (valueLen + 1);
                     if (slotBuf.length < 5 + valueLen) slotBuf = new byte[5 + valueLen];
                     int pLen = writeVIntToArray(slotBuf, 0, encodedPrefix);
@@ -219,8 +220,10 @@ final class FlattenedDocValuesConsumer extends DocValuesConsumer {
                 int prevLexRank = -1;
                 int prevDoc = -1;
                 int slotCount = 0;
-                byte[] docPayload = new byte[256];
-                int docPayloadLen = 0;
+                // Per-doc accumulation buffers in the new format: decoded lengths and raw value bytes.
+                int[] docSlotLens = new int[8];
+                byte[] docValues = new byte[256];
+                int docValuesLen = 0;
 
                 while (cursor.next()) {
                     final int lr = cursor.lexRank();
@@ -228,7 +231,9 @@ final class FlattenedDocValuesConsumer extends DocValuesConsumer {
 
                     if (lr != prevLexRank) {
                         if (prevLexRank >= 0) {
-                            if (prevDoc >= 0) writer.addDocSlots(prevDoc, slotCount, docPayload, 0, docPayloadLen);
+                            if (prevDoc >= 0) {
+                                writer.addDocSlots(prevDoc, slotCount, docSlotLens, 0, docValues, 0, docValuesLen);
+                            }
                             writer.finish();
                             maxUncompressedBlockLen = Math.max(maxUncompressedBlockLen, writer.maxUncompressedBlockLen);
                             maxDocsPerBlockSeen = Math.max(maxDocsPerBlockSeen, writer.maxDocsPerBlockSeen);
@@ -238,28 +243,44 @@ final class FlattenedDocValuesConsumer extends DocValuesConsumer {
                         prevLexRank = lr;
                         prevDoc = -1;
                         slotCount = 0;
-                        docPayloadLen = 0;
+                        docValuesLen = 0;
                     }
 
                     if (curDoc != prevDoc) {
-                        if (prevDoc >= 0) writer.addDocSlots(prevDoc, slotCount, docPayload, 0, docPayloadLen);
+                        if (prevDoc >= 0) {
+                            writer.addDocSlots(prevDoc, slotCount, docSlotLens, 0, docValues, 0, docValuesLen);
+                        }
                         prevDoc = curDoc;
                         slotCount = 0;
-                        docPayloadLen = 0;
+                        docValuesLen = 0;
                     }
 
-                    final int pLen = cursor.payloadLength();
-                    if (docPayloadLen + pLen > docPayload.length) {
-                        docPayload = ArrayUtil.grow(docPayload, docPayloadLen + pLen);
+                    // Decode the accumulator record: [vint prefix][value bytes].
+                    // prefix == 0 → null; prefix == N+1 → N value bytes.
+                    final byte[] recBytes = cursor.payloadBytes();
+                    int recPos = cursor.payloadOffset();
+                    int prefix = 0, shift = 0, b;
+                    do {
+                        b = recBytes[recPos++] & 0xFF;
+                        prefix |= (b & 0x7F) << shift;
+                        shift += 7;
+                    } while ((b & 0x80) != 0);
+                    final int valueLen = (prefix == 0) ? -1 : (prefix - 1); // -1 = null
+                    docSlotLens = ArrayUtil.grow(docSlotLens, slotCount + 1);
+                    docSlotLens[slotCount] = valueLen;
+                    if (valueLen > 0) {
+                        docValues = ArrayUtil.grow(docValues, docValuesLen + valueLen);
+                        System.arraycopy(recBytes, recPos, docValues, docValuesLen, valueLen);
+                        docValuesLen += valueLen;
                     }
-                    System.arraycopy(cursor.payloadBytes(), cursor.payloadOffset(), docPayload, docPayloadLen, pLen);
-                    docPayloadLen += pLen;
                     slotCount++;
                 }
 
                 // Flush the last doc and last key.
                 if (prevLexRank >= 0) {
-                    if (prevDoc >= 0) writer.addDocSlots(prevDoc, slotCount, docPayload, 0, docPayloadLen);
+                    if (prevDoc >= 0) {
+                        writer.addDocSlots(prevDoc, slotCount, docSlotLens, 0, docValues, 0, docValuesLen);
+                    }
                     writer.finish();
                     maxUncompressedBlockLen = Math.max(maxUncompressedBlockLen, writer.maxUncompressedBlockLen);
                     maxDocsPerBlockSeen = Math.max(maxDocsPerBlockSeen, writer.maxDocsPerBlockSeen);
@@ -541,6 +562,8 @@ final class FlattenedDocValuesConsumer extends DocValuesConsumer {
                         mergeWriter.addDocSlots(
                             sub.mappedDocID,
                             reader.slotCount(),
+                            reader.slotLens(),
+                            reader.firstSlotIndex(),
                             reader.payload(),
                             reader.docSlotsOffset(),
                             reader.docSlotsLength()

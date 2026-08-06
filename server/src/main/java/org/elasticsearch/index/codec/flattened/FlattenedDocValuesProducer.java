@@ -37,6 +37,7 @@ import java.util.Map;
 import static org.elasticsearch.index.codec.flattened.FlattenedDocValuesConsumer.FLATTENED_COLUMNAR_BINARY;
 import static org.elasticsearch.index.codec.flattened.FlattenedDocValuesFormat.FLAG_ALL_SINGLE_SLOT;
 import static org.elasticsearch.index.codec.flattened.FlattenedDocValuesFormat.FLAG_DOCS_CONTIGUOUS;
+import static org.elasticsearch.index.codec.flattened.FlattenedDocValuesFormat.FLAG_NO_NULL_VALUES;
 import static org.elasticsearch.index.codec.flattened.FlattenedDocValuesFormat.FLAG_VALUES_COMPRESSED;
 import static org.elasticsearch.index.codec.flattened.FlattenedDocValuesFormat.VERSION_CURRENT;
 import static org.elasticsearch.index.codec.flattened.FlattenedDocValuesFormat.VERSION_START;
@@ -341,14 +342,15 @@ final class FlattenedDocValuesProducer extends DocValuesProducer {
     /**
      * Reads blocks from one column. Created lazily per key ordinal on first access.
      *
-     * <p>The cursor maintains a block index (eagerly loaded: typically 1–10 entries) and a
-     * lazily-decompressed payload for the current block. Forward scans within a block are
-     * O(docs skipped); backwards movement (rare) reloads the block header and resets the cursor.
+     * <p>The cursor maintains a block index (eagerly loaded: typically 1–10 entries), eagerly-decoded
+     * per-doc slot counts and per-slot value lengths (stored outside the compressed value region),
+     * and a lazily-decompressed raw value payload for the current block. Random access within a
+     * block is O(1): slot ranges and value offsets are pre-computed in {@link #loadBlockHeader}
+     * and {@link #ensureValuesLoaded} respectively.
      */
     static final class ColumnCursor {
         private final IndexInput dataIn;          // cloned; independent file position
         private final long columnStartOff;        // absolute data-file offset of block 0
-        private final long blockIndexOff;         // absolute offset of block index start
         private final int numBlocks;
 
         // Block index (eagerly loaded, always in-memory).
@@ -358,45 +360,48 @@ final class FlattenedDocValuesProducer extends DocValuesProducer {
         // Loaded block header (populated by loadBlockHeader).
         private int loadedBlock = -1;
         private int numDocsInBlock;
+        private int numSlotsInBlock;
         private int firstDocInBlock;
         private boolean contiguous;
         private boolean allSingleSlot;
-        private boolean payloadCompressed;
-        private int[] docIds;        // resolved docIds (null when contiguous)
-        private int[] slotCounts;    // slot counts per doc (null when allSingleSlot)
-        private int uncompPayloadLen;
-        private long payloadAbsOff;  // absolute position of [vint compressedLen?][payload bytes] in data file
+        private boolean noNullValues;
+        private boolean valueCompressed;
+        private int[] docIds;      // resolved docIds when !contiguous
+        private int[] slotStarts; // slotStarts[i] = first slot index for doc i; slotStarts[numDocs] = numSlots
+        private int bitsPerLen;
+        private long valueLenAbsOff; // absolute position of the packed value-length array
 
-        // Decompressed payload (lazy).
-        private byte[] payload;
-        private boolean payloadLoaded;
+        // Decompressed value region (lazy).
+        private int[] valueOffsets; // prefix-sum: slot s occupies payload[valueOffsets[s]..valueOffsets[s+1])
+        private int[] slotLens;     // resolved per-slot length; -1 = null
+        private byte[] payload = new byte[256];
+        private boolean valuesLoaded;
 
         // Cursor state within current block.
-        private int docCursorIdx = -1;  // last doc index consumed (−1 = before first)
-        private int payloadCursor = 0;  // byte offset in payload[]
-        private int valueStartOffset = 0; // payloadCursor after the slot-count prefix (set by ensurePayloadLoaded)
+        private int docCursorIdx = -1;   // last doc index set by advanceToDoc (−1 = before first)
         private int slotsRemaining = 0;
+        private int curSlot = 0;         // slot index of the next nextSlot() read
 
-        // Reusable slot result (reset for each nextSlot() call that returns non-null).
+        // Reusable slot result.
         private byte[] slotBytes = new byte[64];
         private final BytesRef slotResult = new BytesRef(slotBytes);
 
         ColumnCursor(IndexInput data, long columnStartOff, int blockIndexRelOff, int numBlocks) throws IOException {
             this.dataIn = data.clone();
             this.columnStartOff = columnStartOff;
-            this.blockIndexOff = columnStartOff + blockIndexRelOff;
             this.numBlocks = numBlocks;
             this.firstDocIds = new int[numBlocks];
             this.blockRelOffsets = new int[numBlocks];
             // Eagerly load the block index (8 bytes per block, typically very small).
-            this.dataIn.seek(blockIndexOff);
+            this.dataIn.seek(columnStartOff + blockIndexRelOff);
             for (int b = 0; b < numBlocks; b++) {
                 firstDocIds[b] = this.dataIn.readInt();
                 blockRelOffsets[b] = this.dataIn.readInt();
             }
-            this.payload = new byte[256];
             this.docIds = new int[8];
-            this.slotCounts = new int[8];
+            this.slotStarts = new int[9];
+            this.valueOffsets = new int[9];
+            this.slotLens = new int[8];
         }
 
         /**
@@ -415,17 +420,18 @@ final class FlattenedDocValuesProducer extends DocValuesProducer {
         }
 
         /**
-         * Loads the header of block {@code blockIdx}: flags, numDocs, and the bit-packed docId-delta
-         * and slot-count arrays (stored outside the compressed payload region). Eagerly decoding these
-         * arrays allows {@link #advanceToDoc} to binary-search the docId array without first
-         * decompressing the value payload, so absent-doc checks are free.
+         * Loads the header of block {@code blockIdx}: flags, numDocs, bit-packed docId-delta,
+         * bit-packed slot counts (built into a prefix-sum {@code slotStarts[]} table), and records
+         * the position and width of the value-length array for lazy loading.
+         *
+         * <p>After this call, {@link #advanceToDoc} can answer doc-presence checks and slot-count
+         * queries without decompressing the value region.
          */
         private void loadBlockHeader(int blockIdx) throws IOException {
             if (loadedBlock == blockIdx) return;
             loadedBlock = blockIdx;
-            payloadLoaded = false;
+            valuesLoaded = false;
             docCursorIdx = -1;
-            payloadCursor = 0;
             slotsRemaining = 0;
 
             dataIn.seek(columnStartOff + blockRelOffsets[blockIdx]);
@@ -433,7 +439,8 @@ final class FlattenedDocValuesProducer extends DocValuesProducer {
             final byte flags = dataIn.readByte();
             contiguous = (flags & FLAG_DOCS_CONTIGUOUS) != 0;
             allSingleSlot = (flags & FLAG_ALL_SINGLE_SLOT) != 0;
-            payloadCompressed = (flags & FLAG_VALUES_COMPRESSED) != 0;
+            noNullValues = (flags & FLAG_NO_NULL_VALUES) != 0;
+            valueCompressed = (flags & FLAG_VALUES_COMPRESSED) != 0;
 
             numDocsInBlock = dataIn.readVInt();
             firstDocInBlock = firstDocIds[blockIdx];
@@ -449,47 +456,74 @@ final class FlattenedDocValuesProducer extends DocValuesProducer {
                 }
             }
 
-            uncompPayloadLen = dataIn.readVInt();
-            payloadAbsOff = dataIn.getFilePointer();
+            // Eagerly read bit-packed slot counts and build slotStarts[] prefix sums.
+            if (allSingleSlot) {
+                numSlotsInBlock = numDocsInBlock;
+            } else {
+                if (slotStarts.length < numDocsInBlock + 1) slotStarts = new int[numDocsInBlock + 1];
+                final int bitsPerSlot = dataIn.readByte() & 0xFF;
+                FlattenedDocValuesFormat.unpackInts(dataIn, slotStarts, 0, numDocsInBlock, bitsPerSlot);
+                int acc = 0;
+                for (int i = 0; i < numDocsInBlock; i++) {
+                    final int cnt = slotStarts[i];
+                    slotStarts[i] = acc;
+                    acc += cnt;
+                }
+                slotStarts[numDocsInBlock] = acc;
+                numSlotsInBlock = acc;
+            }
+
+            // Record the position and bit-width of the value-length array for lazy loading.
+            bitsPerLen = dataIn.readByte() & 0xFF;
+            valueLenAbsOff = dataIn.getFilePointer();
         }
 
         /**
-         * Decompresses (or reads) the payload for the current loaded block, if not already done,
-         * then parses the slot-count prefix out of the front of the payload.
-         *
-         * <p>The uncompressed payload layout is:
-         * <pre>
-         * [byte bitsPerSlot][bit-packed slotCount × numDocs]   absent when FLAG_ALL_SINGLE_SLOT
-         * [vint valueLen+1][value bytes] × ...
-         * </pre>
-         * After this method returns, {@link #payloadCursor} and {@link #valueStartOffset} are
-         * positioned at the start of the value bytes (past the slot-count prefix).
+         * Loads the value-length array and decompresses (or reads) the raw value region for the
+         * current block, if not already done. Builds {@link #valueOffsets} (prefix sums) and
+         * {@link #slotLens} (resolved lengths, {@code -1} for null).
          */
-        private void ensurePayloadLoaded() throws IOException {
-            if (payloadLoaded) return;
-            if (payload.length < uncompPayloadLen) {
-                payload = new byte[uncompPayloadLen];
+        private void ensureValuesLoaded() throws IOException {
+            if (valuesLoaded) return;
+            if (slotLens.length < numSlotsInBlock) slotLens = new int[numSlotsInBlock];
+            if (valueOffsets.length < numSlotsInBlock + 1) valueOffsets = new int[numSlotsInBlock + 1];
+
+            // Unpack the value-length array.
+            dataIn.seek(valueLenAbsOff);
+            FlattenedDocValuesFormat.unpackInts(dataIn, slotLens, 0, numSlotsInBlock, bitsPerLen);
+
+            // Decode into resolved lengths and build prefix-sum offset table.
+            int totalValueBytes = 0;
+            if (noNullValues) {
+                for (int s = 0; s < numSlotsInBlock; s++) {
+                    valueOffsets[s] = totalValueBytes;
+                    totalValueBytes += slotLens[s];
+                }
+            } else {
+                for (int s = 0; s < numSlotsInBlock; s++) {
+                    valueOffsets[s] = totalValueBytes;
+                    final int enc = slotLens[s];
+                    if (enc == 0) {
+                        slotLens[s] = -1; // null
+                    } else {
+                        final int len = enc - 1;
+                        slotLens[s] = len;
+                        totalValueBytes += len;
+                    }
+                }
             }
-            dataIn.seek(payloadAbsOff);
-            if (payloadCompressed) {
-                // ZstdCompressionMode wrote [vint compressedLen][compressedBytes]; the decompressor
-                // reads the vint prefix from dataIn itself.
-                final BytesRef decompRef = new BytesRef(payload, 0, uncompPayloadLen);
-                DECOMPRESSOR.decompress(dataIn, uncompPayloadLen, 0, uncompPayloadLen, decompRef);
+            valueOffsets[numSlotsInBlock] = totalValueBytes;
+
+            // Decompress (or read) the raw value region. dataIn is now past the packed lengths.
+            if (payload.length < totalValueBytes) payload = new byte[totalValueBytes];
+            if (valueCompressed) {
+                final BytesRef decompRef = new BytesRef(payload, 0, totalValueBytes);
+                DECOMPRESSOR.decompress(dataIn, totalValueBytes, 0, totalValueBytes, decompRef);
                 payload = decompRef.bytes;
             } else {
-                dataIn.readBytes(payload, 0, uncompPayloadLen);
+                dataIn.readBytes(payload, 0, totalValueBytes);
             }
-            // Parse the slot-count prefix (absent when allSingleSlot).
-            int cursor = 0;
-            if (allSingleSlot == false) {
-                if (slotCounts.length < numDocsInBlock) slotCounts = new int[numDocsInBlock];
-                final int bitsPerSlot = payload[cursor++] & 0xFF;
-                cursor = FlattenedDocValuesFormat.unpackInts(payload, cursor, slotCounts, 0, numDocsInBlock, bitsPerSlot);
-            }
-            valueStartOffset = cursor;
-            payloadCursor = cursor;
-            payloadLoaded = true;
+            valuesLoaded = true;
         }
 
         /**
@@ -511,26 +545,13 @@ final class FlattenedDocValuesProducer extends DocValuesProducer {
             return -1;
         }
 
-        /** Skips {@code count} slots in {@link #payload} starting at {@link #payloadCursor}. */
-        private void skipSlots(int count) {
-            for (int i = 0; i < count; i++) {
-                int prefix = 0, shift = 0;
-                while (true) {
-                    final int b = payload[payloadCursor++] & 0xFF;
-                    prefix |= (b & 0x7F) << shift;
-                    if ((b & 0x80) == 0) break;
-                    shift += 7;
-                }
-                if (prefix > 0) payloadCursor += prefix - 1;
-            }
-        }
-
         /**
          * Positions this cursor on {@code docId}.
          *
-         * <p>The docId array is decoded eagerly in {@link #loadBlockHeader}, so a presence check
-         * never requires decompressing the value payload. Decompression happens only when the doc
-         * is confirmed present and slot values must be read.
+         * <p>Slot counts are decoded eagerly in {@link #loadBlockHeader}, so this method can return
+         * the slot count without decompressing the value region. Value decompression is deferred to
+         * {@link #nextSlot()}, which calls {@link #ensureValuesLoaded()} on first use.
+         * Backwards movement is O(1) — no re-walking of the payload.
          *
          * @return the slot count for this doc (1 if allSingleSlot), or 0 if not present
          */
@@ -538,21 +559,12 @@ final class FlattenedDocValuesProducer extends DocValuesProducer {
             final int blockIdx = findBlockFor(docId);
             if (blockIdx < 0) return 0;
             loadBlockHeader(blockIdx);
-            // docIds[] is always available after loadBlockHeader (or firstDocInBlock for contiguous).
             final int docIdx = findDocInBlock(docId);
             if (docIdx < 0) return 0;
-            ensurePayloadLoaded();
-            if (docIdx < docCursorIdx) {
-                // Backwards movement: reset to start of value bytes (past the slot-count prefix).
-                payloadCursor = valueStartOffset;
-                docCursorIdx = -1;
-                slotsRemaining = 0;
-            }
-            for (int i = docCursorIdx + 1; i < docIdx; i++) {
-                skipSlots(allSingleSlot ? 1 : slotCounts[i]);
-            }
             docCursorIdx = docIdx;
-            slotsRemaining = allSingleSlot ? 1 : slotCounts[docIdx];
+            final int firstSlot = allSingleSlot ? docIdx : slotStarts[docIdx];
+            slotsRemaining = allSingleSlot ? 1 : (slotStarts[docIdx + 1] - firstSlot);
+            curSlot = firstSlot;
             return slotsRemaining;
         }
 
@@ -560,32 +572,27 @@ final class FlattenedDocValuesProducer extends DocValuesProducer {
          * Returns the next slot value for the current doc, or {@code null} for a null slot.
          * Returns {@code null} with {@link BytesRef#length} == -1 when all slots are exhausted.
          */
-        BytesRef nextSlot() {
+        BytesRef nextSlot() throws IOException {
             if (slotsRemaining <= 0) {
                 slotResult.length = -1;
                 return null;
             }
             slotsRemaining--;
-            int prefix = 0, shift = 0;
-            while (true) {
-                final int b = payload[payloadCursor++] & 0xFF;
-                prefix |= (b & 0x7F) << shift;
-                if ((b & 0x80) == 0) break;
-                shift += 7;
-            }
-            if (prefix == 0) {
+            ensureValuesLoaded();
+            final int len = slotLens[curSlot];
+            final int off = valueOffsets[curSlot];
+            curSlot++;
+            if (len < 0) {
                 // null slot
                 return null;
             }
-            final int valLen = prefix - 1;
-            if (slotBytes.length < valLen) {
-                slotBytes = new byte[valLen];
+            if (slotBytes.length < len) {
+                slotBytes = new byte[len];
                 slotResult.bytes = slotBytes;
             }
-            System.arraycopy(payload, payloadCursor, slotBytes, 0, valLen);
-            payloadCursor += valLen;
+            System.arraycopy(payload, off, slotBytes, 0, len);
             slotResult.offset = 0;
-            slotResult.length = valLen;
+            slotResult.length = len;
             return slotResult;
         }
     }

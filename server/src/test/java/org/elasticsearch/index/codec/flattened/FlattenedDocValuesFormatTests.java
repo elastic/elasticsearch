@@ -824,4 +824,215 @@ public class FlattenedDocValuesFormatTests extends ESTestCase {
         doc.add(new BinaryDocValuesField(KEYED_FIELD, new BytesRef(blob)));
         return doc;
     }
+
+    // ---------------------------------------------------------------------------------
+    // New block-layout tests: FLAG_NO_NULL_VALUES and biased-length encoding
+    // ---------------------------------------------------------------------------------
+
+    /**
+     * Null vs empty string must round-trip distinctly. Both use the biased-length encoding
+     * ({@code FLAG_NO_NULL_VALUES} clear): {@code encodedLen == 0} → null, {@code encodedLen == 1}
+     * → empty string (valueLen = 0). A bug that confuses the two would either lose the null marker
+     * or turn empty strings into nulls.
+     */
+    public void testNullVsEmptyStringDistinction() throws IOException {
+        // doc 0: key "a" = null slot
+        // doc 1: key "a" = "" (empty string)
+        // doc 2: key "a" = "nonempty"
+        final byte[] blobNull = FlattenedColumnarBinaryDuelTests.buildBlob(List.<String[]>of(new String[] { "a", null }));
+        final byte[] blobEmpty = FlattenedColumnarBinaryDuelTests.buildBlob(List.<String[]>of(new String[] { "a", "" }));
+        final byte[] blobValue = FlattenedColumnarBinaryDuelTests.buildBlob(List.<String[]>of(new String[] { "a", "nonempty" }));
+
+        try (Directory dir = newDirectory()) {
+            final IndexWriterConfig cfg = new IndexWriterConfig();
+            cfg.setCodec(TestUtil.alwaysDocValuesFormat(new FlattenedDocValuesFormat()));
+            try (IndexWriter writer = new IndexWriter(dir, cfg)) {
+                writer.addDocument(docWithBlob(blobNull));
+                writer.addDocument(docWithBlob(blobEmpty));
+                writer.addDocument(docWithBlob(blobValue));
+                writer.forceMerge(1);
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                final LeafReader leaf = reader.leaves().get(0).reader();
+                final ColumnarKeyedBinaryDocValues dv = (ColumnarKeyedBinaryDocValues) leaf.getBinaryDocValues(KEYED_FIELD);
+                assertNotNull(dv);
+                final int ord = dv.lookupKeyOrdinal(new BytesRef("a"));
+                assertTrue("key 'a' must be present in segment", ord >= 0);
+
+                // doc 0: null slot
+                assertTrue(dv.advanceExact(0));
+                final int slots0 = dv.advanceExactKey(ord);
+                assertEquals("doc 0 must have one slot", 1, slots0);
+                assertNull("doc 0 value must be null", dv.nextKeyValue());
+
+                // doc 1: empty string — not null, length 0
+                assertTrue(dv.advanceExact(1));
+                final int slots1 = dv.advanceExactKey(ord);
+                assertEquals("doc 1 must have one slot", 1, slots1);
+                final BytesRef val1 = dv.nextKeyValue();
+                assertNotNull("doc 1 must not be null", val1);
+                assertEquals("doc 1 must be empty string", 0, val1.length);
+
+                // doc 2: non-empty
+                assertTrue(dv.advanceExact(2));
+                final int slots2 = dv.advanceExactKey(ord);
+                assertEquals("doc 2 must have one slot", 1, slots2);
+                final BytesRef val2 = dv.nextKeyValue();
+                assertNotNull(val2);
+                assertEquals("nonempty", val2.utf8ToString());
+            }
+        }
+    }
+
+    /**
+     * A block where all slots are non-null must set {@code FLAG_NO_NULL_VALUES} (the reader's fast
+     * path). Immediately followed by a block with a null slot (the flag must be clear). Both blocks
+     * must decode correctly. Uses a tiny block size so both blocks appear in a single segment.
+     */
+    public void testNoNullFlagSetAndClearBlocks() throws IOException {
+        // Force tiny blocks: each block holds at most 4 docs. targetBlockBytes uses the default so
+        // the flush trigger based on value-byte size is not reached for these tiny test values.
+        final FlattenedDocValuesFormat fmt = new FlattenedDocValuesFormat(
+            FlattenedDocValuesFormat.TARGET_BLOCK_BYTES_DEFAULT,
+            /* maxDocsPerBlock */ 4,
+            FlattenedDocValuesFormat.MIN_COMPRESS_BYTES_DEFAULT,
+            FlattenedDocValuesFormat.MAX_BUFFERED_BYTES_DEFAULT
+        );
+        // Docs 0-3: all non-null → FLAG_NO_NULL_VALUES block.
+        // Docs 4-7: doc 4 has a null → flag must be clear.
+        final List<byte[]> blobs = new ArrayList<>();
+        for (int d = 0; d < 4; d++) {
+            blobs.add(FlattenedColumnarBinaryDuelTests.buildBlob(List.<String[]>of(new String[] { "k", "v" + d })));
+        }
+        blobs.add(FlattenedColumnarBinaryDuelTests.buildBlob(List.<String[]>of(new String[] { "k", null })));
+        for (int d = 5; d < 8; d++) {
+            blobs.add(FlattenedColumnarBinaryDuelTests.buildBlob(List.<String[]>of(new String[] { "k", "v" + d })));
+        }
+
+        try (Directory dir = newDirectory()) {
+            final IndexWriterConfig cfg = new IndexWriterConfig();
+            cfg.setCodec(TestUtil.alwaysDocValuesFormat(fmt));
+            try (IndexWriter writer = new IndexWriter(dir, cfg)) {
+                for (byte[] blob : blobs) {
+                    writer.addDocument(docWithBlob(blob));
+                }
+                writer.forceMerge(1);
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                final LeafReader leaf = reader.leaves().get(0).reader();
+                final ColumnarKeyedBinaryDocValues dv = (ColumnarKeyedBinaryDocValues) leaf.getBinaryDocValues(KEYED_FIELD);
+                assertNotNull(dv);
+                final int ord = dv.lookupKeyOrdinal(new BytesRef("k"));
+                assertTrue(ord >= 0);
+
+                for (int d = 0; d < blobs.size(); d++) {
+                    assertTrue("doc " + d + " must exist", dv.advanceExact(d));
+                    final int sc = dv.advanceExactKey(ord);
+                    assertEquals("doc " + d + " slot count", 1, sc);
+                    final BytesRef v = dv.nextKeyValue();
+                    if (d == 4) {
+                        assertNull("doc 4 must be null", v);
+                    } else {
+                        assertNotNull("doc " + d + " must not be null", v);
+                        assertEquals("doc " + d + " value", "v" + d, v.utf8ToString());
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Multi-slot document with a null in a non-first slot, in a non-{@code FLAG_ALL_SINGLE_SLOT}
+     * block. Exercises the interaction between {@code slotStarts[]} prefix sums and the biased-length
+     * null encoding. The non-null slots must be recovered correctly and the null must be reported.
+     */
+    public void testMultiSlotWithNullInMiddle() throws IOException {
+        // doc 0: key "m" has three slots: ["first", null, "third"]
+        // doc 1: key "m" has two slots: ["x", "y"] (no nulls)
+        final List<String[]> slotsDoc0 = List.of(new String[] { "m", "first" }, new String[] { "m", null }, new String[] { "m", "third" });
+        final List<String[]> slotsDoc1 = List.of(new String[] { "m", "x" }, new String[] { "m", "y" });
+
+        final byte[] blob0 = FlattenedColumnarBinaryDuelTests.buildBlob(slotsDoc0);
+        final byte[] blob1 = FlattenedColumnarBinaryDuelTests.buildBlob(slotsDoc1);
+
+        try (Directory dir = newDirectory()) {
+            final IndexWriterConfig cfg = new IndexWriterConfig();
+            cfg.setCodec(TestUtil.alwaysDocValuesFormat(new FlattenedDocValuesFormat()));
+            try (IndexWriter writer = new IndexWriter(dir, cfg)) {
+                writer.addDocument(docWithBlob(blob0));
+                writer.addDocument(docWithBlob(blob1));
+                writer.forceMerge(1);
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                final LeafReader leaf = reader.leaves().get(0).reader();
+                final ColumnarKeyedBinaryDocValues dv = (ColumnarKeyedBinaryDocValues) leaf.getBinaryDocValues(KEYED_FIELD);
+                assertNotNull(dv);
+                final int ord = dv.lookupKeyOrdinal(new BytesRef("m"));
+                assertTrue(ord >= 0);
+
+                // doc 0: three slots [first, null, third]
+                assertTrue(dv.advanceExact(0));
+                assertEquals(3, dv.advanceExactKey(ord));
+                final BytesRef v0a = dv.nextKeyValue();
+                assertNotNull(v0a);
+                assertEquals("first", v0a.utf8ToString());
+                final BytesRef v0b = dv.nextKeyValue();
+                assertNull("middle slot must be null", v0b);
+                final BytesRef v0c = dv.nextKeyValue();
+                assertNotNull(v0c);
+                assertEquals("third", v0c.utf8ToString());
+
+                // doc 1: two slots [x, y]
+                assertTrue(dv.advanceExact(1));
+                assertEquals(2, dv.advanceExactKey(ord));
+                final BytesRef v1a = dv.nextKeyValue();
+                assertNotNull(v1a);
+                assertEquals("x", v1a.utf8ToString());
+                final BytesRef v1b = dv.nextKeyValue();
+                assertNotNull(v1b);
+                assertEquals("y", v1b.utf8ToString());
+            }
+        }
+    }
+
+    /**
+     * Column-wise merge with null slots: two segments, one has a null slot, verify the merged
+     * segment equals what a single-segment flush would produce.
+     */
+    public void testColumnWiseMergePreservesNulls() throws IOException {
+        // Segment 1: doc 0 key "n" = "valueA"
+        // Segment 2: doc 1 key "n" = null
+        final byte[] blob0 = FlattenedColumnarBinaryDuelTests.buildBlob(List.<String[]>of(new String[] { "n", "valueA" }));
+        final byte[] blob1 = FlattenedColumnarBinaryDuelTests.buildBlob(List.<String[]>of(new String[] { "n", null }));
+
+        try (Directory dir = newDirectory()) {
+            final IndexWriterConfig cfg = new IndexWriterConfig();
+            cfg.setCodec(TestUtil.alwaysDocValuesFormat(new FlattenedDocValuesFormat()));
+            try (IndexWriter writer = new IndexWriter(dir, cfg)) {
+                writer.addDocument(docWithBlob(blob0));
+                writer.commit();
+                writer.addDocument(docWithBlob(blob1));
+                writer.forceMerge(1);
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                assertEquals(1, reader.leaves().size());
+                final LeafReader leaf = reader.leaves().get(0).reader();
+                final ColumnarKeyedBinaryDocValues dv = (ColumnarKeyedBinaryDocValues) leaf.getBinaryDocValues(KEYED_FIELD);
+                assertNotNull(dv);
+                final int ord = dv.lookupKeyOrdinal(new BytesRef("n"));
+                assertTrue(ord >= 0);
+
+                assertTrue(dv.advanceExact(0));
+                assertEquals(1, dv.advanceExactKey(ord));
+                final BytesRef v0 = dv.nextKeyValue();
+                assertNotNull(v0);
+                assertEquals("valueA", v0.utf8ToString());
+
+                assertTrue(dv.advanceExact(1));
+                assertEquals(1, dv.advanceExactKey(ord));
+                final BytesRef v1 = dv.nextKeyValue();
+                assertNull("merged null slot must survive", v1);
+            }
+        }
+    }
 }

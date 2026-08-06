@@ -65,30 +65,34 @@ import java.io.IOException;
  *
  * <pre>
  * [byte  flags]
- *       bit0 = FLAG_VALUES_COMPRESSED    value payload is ZSTD-compressed; otherwise stored raw
+ *       bit0 = FLAG_VALUES_COMPRESSED    value region is ZSTD-compressed; otherwise stored raw
  *       bit1 = FLAG_DOCS_CONTIGUOUS      docIds are consecutive; delta array omitted
  *       bit2 = FLAG_ALL_SINGLE_SLOT      every doc has exactly one slot; count array omitted
+ *       bit3 = FLAG_NO_NULL_VALUES       no slot in this block is null
  * [vint  numDocs]
  * [byte  bitsPerDelta]                   absent when FLAG_DOCS_CONTIGUOUS
  * [bit-packed (gap-1) x (numDocs-1)]     absent when FLAG_DOCS_CONTIGUOUS; MSB-first, bitsPerDelta bits each
- * [vint  uncompressedLen]
+ * [byte  bitsPerSlotCount]               absent when FLAG_ALL_SINGLE_SLOT
+ * [bit-packed slotCount x numDocs]       absent when FLAG_ALL_SINGLE_SLOT; MSB-first, bitsPerSlotCount bits each
+ * [byte  bitsPerValueLen]                always present
+ * [bit-packed encodedLen x numSlots]     MSB-first, bitsPerValueLen bits each;
+ *                                        FLAG_NO_NULL_VALUES set:   encodedLen = valueLen (0 = empty string)
+ *                                        FLAG_NO_NULL_VALUES clear: encodedLen = 0 for null, valueLen+1 otherwise
+ * -- value region (numSlots raw value bytes concatenated; total = sum(valueLen)):
  * -- if FLAG_VALUES_COMPRESSED:
  *    [vint compressedLen][compressedLen bytes]   written by ZstdCompressionMode.ZstdCompressor
  * -- otherwise:
- *    [uncompressedLen bytes]                     raw
- * The (un)compressed payload contains:
- * [byte  bitsPerSlot]                    absent when FLAG_ALL_SINGLE_SLOT
- * [bit-packed slotCount x numDocs]       absent when FLAG_ALL_SINGLE_SLOT; MSB-first, bitsPerSlot bits each
- * [vint  valueLen+1][value bytes] x ...  per doc in ascending docId order, per slot
+ *    raw value bytes
  * </pre>
  *
- * <p>The docId-delta array is stored outside the compressed payload so that
- * {@link FlattenedDocValuesProducer.ColumnCursor#advanceToDoc} can binary-search docIds without
- * decompressing the block — absent docs cost nothing. The slot-count array lives inside the
- * compressed region because it is only needed after a doc is confirmed present; ZSTD can exploit
- * its redundancy alongside the value bytes. Per doc in ascending docId order, per slot in document
- * order: {@code [vint valueLen+1][value bytes]}, where a {@code 0} prefix denotes a null slot
- * (no bytes follow).
+ * <p>The docId-delta array and the slot-count and value-length arrays are all stored outside the
+ * compressed value region. This lets {@link FlattenedDocValuesProducer.ColumnCursor#advanceToDoc}
+ * binary-search docIds and determine slot counts without decompressing, and lets the batch reader
+ * in {@link KeyColumnBatchReader} copy whole runs of values with a single
+ * {@link System#arraycopy} after a single decompression per block. The value region contains only
+ * the concatenated raw value bytes — no per-slot framing. Null slots contribute zero value bytes;
+ * they are identified by {@code encodedLen == 0} when {@code FLAG_NO_NULL_VALUES} is clear, or
+ * distinguished from empty strings by the flag itself when it is set.
  *
  * <h2>Key dictionary</h2>
  *
@@ -135,6 +139,11 @@ public final class FlattenedDocValuesFormat extends DocValuesFormat {
     static final int FLAG_DOCS_CONTIGUOUS = 0x02;
     /** Bit 2: every doc has exactly one slot (slot-count array omitted). */
     static final int FLAG_ALL_SINGLE_SLOT = 0x04;
+    /**
+     * Bit 3: no slot in this block is null. When set, {@code encodedLen[s] = valueLen} (raw length).
+     * When clear, {@code encodedLen[s] = 0} means null, {@code encodedLen[s] = valueLen+1} otherwise.
+     */
+    static final int FLAG_NO_NULL_VALUES = 0x08;
 
     /**
      * Flush a new block when the uncompressed payload reaches this size.

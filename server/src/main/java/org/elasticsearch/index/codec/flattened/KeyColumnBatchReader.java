@@ -38,6 +38,14 @@ import java.util.Arrays;
  *       {@link org.elasticsearch.index.mapper.flattened.KeyedFlattenedDocValuesBlockLoader.BinaryKeyedBlockDocValuesReader}.</li>
  * </ul>
  *
+ * <h2>Bulk-copy fast path</h2>
+ *
+ * <p>When every document in a page has exactly one non-null value (the overwhelmingly common case
+ * for ES|QL queries over single-valued fields), and all those documents fall within a single block
+ * (common when processing a dense page), the reader copies the entire value run for the page with a
+ * single {@link System#arraycopy} and fills the offset table arithmetically — no per-doc I/O or
+ * vint decoding at all.
+ *
  * <p>The {@link SequentialColumnReader} cursor held by this reader is not closed by this class;
  * the owning producer closes the underlying {@link org.apache.lucene.store.IndexInput} clone.
  */
@@ -55,7 +63,7 @@ final class KeyColumnBatchReader implements BlockLoader.OptionalColumnAtATimeRea
     /**
      * Scratch arrays for the singleton fast path. {@code singletonBytes} holds packed value
      * bytes; {@code singletonOffsets[i]} is the start byte of position {@code i}'s value, with
-     * {@code singletonOffsets[count]} the total packed length.  Both arrays are grown lazily and
+     * {@code singletonOffsets[count]} the total packed length. Both arrays are grown lazily and
      * reused across pages, so content is only valid up to the positions set by {@link #tryRead}.
      */
     private byte[] singletonBytes = new byte[256];
@@ -82,42 +90,51 @@ final class KeyColumnBatchReader implements BlockLoader.OptionalColumnAtATimeRea
         singletonOffsets[0] = 0;
         int bytePos = 0;
 
-        for (int i = offset; i < docs.count(); i++) {
+        int i = offset;
+        while (i < docs.count()) {
             final int doc = docs.get(i);
             final int idx = i - offset;
 
             if (cursor.advance(doc) != doc) {
-                // Missing doc — cursor has moved past this position; append null.
+                // Doc missing from this column — bail to general path.
                 return finishWithBytesRefs(factory, docs, i, offset, count, idx, true);
             }
-            if (cursor.slotCount() != 1) {
-                // Multi-slot doc — cursor is at this doc; emitDoc handles sort+dedup.
+            if (cursor.blockAllSingleSlot() == false || cursor.blockHasNulls()) {
+                // Block has multi-slot or null docs — bail to general path for this doc.
                 return finishWithBytesRefs(factory, docs, i, offset, count, idx, false);
             }
 
-            // Single slot: read the vint prefix inline to avoid an intermediate BytesRef.
+            // Try to coalesce a maximal run of docs within this block (and in consecutive slot order).
+            final int blockLast = cursor.blockLastDocId();
+            final int[] vo = cursor.valueOffsets();
             final byte[] payload = cursor.payload();
-            int pos = cursor.docSlotsOffset();
-            int prefix = 0, shift = 0;
-            while (true) {
-                final int b = payload[pos++] & 0xFF;
-                prefix |= (b & 0x7F) << shift;
-                if ((b & 0x80) == 0) break;
-                shift += 7;
-            }
-            if (prefix == 0) {
-                // Null slot — cursor is at this doc; emitDoc re-reads and appends null.
-                return finishWithBytesRefs(factory, docs, i, offset, count, idx, false);
+            int runStart = cursor.firstSlotIndex(); // == docIdx for allSingleSlot blocks
+            int runLen = 1;
+
+            while (i + runLen < docs.count()) {
+                final int nextDoc = docs.get(i + runLen);
+                if (nextDoc > blockLast) break;
+                if (cursor.advance(nextDoc) != nextDoc) break;
+                if (cursor.blockAllSingleSlot() == false || cursor.blockHasNulls()) break;
+                // Check that slot indices are consecutive (no gaps in the doc array within the block).
+                if (cursor.firstSlotIndex() != runStart + runLen) break;
+                runLen++;
             }
 
-            // Copy this doc's single non-null value into the growing scratch buffer.
-            final int valLen = prefix - 1;
-            if (bytePos + valLen > singletonBytes.length) {
-                singletonBytes = Arrays.copyOf(singletonBytes, Math.max(singletonBytes.length * 2, bytePos + valLen));
+            // Copy the run in one shot.
+            final int runValueStart = vo[runStart];
+            final int runValueLen = vo[runStart + runLen] - runValueStart;
+            if (bytePos + runValueLen > singletonBytes.length) {
+                singletonBytes = Arrays.copyOf(singletonBytes, Math.max(singletonBytes.length * 2, bytePos + runValueLen));
             }
-            System.arraycopy(payload, pos, singletonBytes, bytePos, valLen);
-            bytePos += valLen;
-            singletonOffsets[idx + 1] = bytePos;
+            System.arraycopy(payload, runValueStart, singletonBytes, bytePos, runValueLen);
+            // Fill per-doc offsets: each doc's value length = vo[runStart+j+1] - vo[runStart+j].
+            for (int j = 0; j < runLen; j++) {
+                bytePos += vo[runStart + j + 1] - vo[runStart + j];
+                singletonOffsets[idx + j + 1] = bytePos;
+            }
+
+            i += runLen;
         }
 
         // Every doc had exactly one non-null value: produce a dense null-free BytesRefVector.
@@ -172,46 +189,35 @@ final class KeyColumnBatchReader implements BlockLoader.OptionalColumnAtATimeRea
     /**
      * Emits the current document's slots into {@code builder}.
      *
-     * <p>Reads slot-encoded bytes from the decompressed payload (already loaded by
+     * <p>Reads slot lengths and value offsets from the current block's pre-built tables (set up by
      * {@link SequentialColumnReader#advance(int)}), collects non-null values as zero-copy
      * {@link BytesRef} views into the payload, sorts and deduplicates them, then writes:
      * <ul>
      *   <li>0 non-null → {@code appendNull()}</li>
      *   <li>1 non-null → {@code appendBytesRef(value)} (no position entry)</li>
-     *   <li>n > 1 non-null → {@code beginPositionEntry()} + n × {@code appendBytesRef} +
+     *   <li>n &gt; 1 non-null → {@code beginPositionEntry()} + n × {@code appendBytesRef} +
      *       {@code endPositionEntry()}</li>
      * </ul>
      */
     private void emitDoc(BytesRefBuilder builder) {
         final byte[] payload = cursor.payload();
-        int pos = cursor.docSlotsOffset();
+        final int[] slotLens = cursor.slotLens();
+        final int[] vo = cursor.valueOffsets();
+        final int firstSlot = cursor.firstSlotIndex();
         final int slotCount = cursor.slotCount();
 
         // Collect (offset, length) pairs for all non-null slots.
         int nonNull = 0;
-        for (int s = 0; s < slotCount; s++) {
-            // Each slot: [vint prefix][prefix-1 value bytes]; prefix == 0 means null.
-            // The payload is always well-formed so we read unconditionally (no bounds guard).
-            int prefix = 0, shift = 0;
-            while (true) {
-                final int b = payload[pos++] & 0xFF;
-                prefix |= (b & 0x7F) << shift;
-                if ((b & 0x80) == 0) break;
-                shift += 7;
-            }
-            if (prefix == 0) {
-                // null slot: no value bytes follow
-                continue;
-            }
-            final int valLen = prefix - 1;
+        for (int s = firstSlot; s < firstSlot + slotCount; s++) {
+            final int len = slotLens[s];
+            if (len < 0) continue; // null slot
             if (nonNull >= slotOffsets.length) {
                 slotOffsets = grow(slotOffsets);
                 slotLengths = grow(slotLengths);
             }
-            slotOffsets[nonNull] = pos;
-            slotLengths[nonNull] = valLen;
+            slotOffsets[nonNull] = vo[s];
+            slotLengths[nonNull] = len;
             nonNull++;
-            pos += valLen;
         }
 
         if (nonNull == 0) {
@@ -227,18 +233,18 @@ final class KeyColumnBatchReader implements BlockLoader.OptionalColumnAtATimeRea
         // Sort by BytesRef natural order (unsigned byte comparison) using the payload as backing array.
         new InPlaceMergeSorter() {
             @Override
-            protected int compare(int i, int j) {
-                return compareSlots(payload, slotOffsets[i], slotLengths[i], slotOffsets[j], slotLengths[j]);
+            protected int compare(int a, int b) {
+                return compareSlots(payload, slotOffsets[a], slotLengths[a], slotOffsets[b], slotLengths[b]);
             }
 
             @Override
-            protected void swap(int i, int j) {
-                int tmp = slotOffsets[i];
-                slotOffsets[i] = slotOffsets[j];
-                slotOffsets[j] = tmp;
-                tmp = slotLengths[i];
-                slotLengths[i] = slotLengths[j];
-                slotLengths[j] = tmp;
+            protected void swap(int a, int b) {
+                int tmp = slotOffsets[a];
+                slotOffsets[a] = slotOffsets[b];
+                slotOffsets[b] = tmp;
+                tmp = slotLengths[a];
+                slotLengths[a] = slotLengths[b];
+                slotLengths[b] = tmp;
             }
         }.sort(0, nonNull);
 

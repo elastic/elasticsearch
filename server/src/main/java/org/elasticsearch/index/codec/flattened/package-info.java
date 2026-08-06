@@ -79,30 +79,35 @@
  *
  * <pre>
  * byte  flags
- *         bit 0 = FLAG_VALUES_COMPRESSED    value payload is ZSTD-compressed
+ *         bit 0 = FLAG_VALUES_COMPRESSED    value region is ZSTD-compressed
  *         bit 1 = FLAG_DOCS_CONTIGUOUS      docIds are consecutive; delta array omitted
  *         bit 2 = FLAG_ALL_SINGLE_SLOT      every doc has exactly one slot; count array omitted
+ *         bit 3 = FLAG_NO_NULL_VALUES       no slot in this block is null
  * vint  numDocs
  * byte  bitsPerDelta                        absent when FLAG_DOCS_CONTIGUOUS
  * bit-packed (gap-1) × (numDocs-1)          absent when FLAG_DOCS_CONTIGUOUS; MSB-first, bitsPerDelta bits each
- * vint  uncompressedLen
+ * byte  bitsPerSlotCount                    absent when FLAG_ALL_SINGLE_SLOT
+ * bit-packed slotCount × numDocs            absent when FLAG_ALL_SINGLE_SLOT; MSB-first, bitsPerSlotCount bits each
+ * byte  bitsPerValueLen                     always present
+ * bit-packed encodedLen × numSlots          MSB-first, bitsPerValueLen bits each;
+ *                                           FLAG_NO_NULL_VALUES set:   encodedLen = valueLen
+ *                                           FLAG_NO_NULL_VALUES clear: encodedLen = 0 for null, valueLen+1 otherwise
+ * value region (raw value bytes concatenated; total = sum(valueLen)):
  *   if FLAG_VALUES_COMPRESSED:
  *     vint compressedLen
  *     compressedLen bytes                   written by ZstdCompressionMode.ZstdCompressor
  *   else:
- *     uncompressedLen bytes                 raw
+ *     raw value bytes
  * </pre>
  *
- * <p>The docId-delta array is outside the compressed payload so that a doc-presence check can
- * binary-search docIds without decompressing the block. The (un)compressed payload starts with
- * an optional slot-count prefix (absent when FLAG_ALL_SINGLE_SLOT):
- * {@code [byte bitsPerSlot][bit-packed slotCount × numDocs]}, then per document in ascending
- * docId order, per slot in document order: {@code [vint valueLen+1][value bytes]}, where prefix 0
- * means null. Slot counts live in the compressed region so ZSTD can exploit their redundancy with
- * the value bytes.
+ * <p>The docId-delta array, slot-count array, and value-length array are all stored outside the
+ * compressed value region. This lets a doc-presence check binary-search docIds, and lets the
+ * batch reader ({@link org.elasticsearch.index.codec.flattened.KeyColumnBatchReader}) copy runs
+ * of values with a single {@link System#arraycopy} after decompressing once per block. The value
+ * region contains only concatenated raw value bytes — no per-slot framing.
  *
  * <p>Flush triggers: a new block is started when {@code numDocs >= MAX_DOCS_PER_BLOCK} (default
- * 8192) or {@code blockPayloadLen >= TARGET_BLOCK_BYTES} (default 64 KiB). The check fires at the
+ * 8192) or {@code blockValuesLen >= TARGET_BLOCK_BYTES} (default 64 KiB). The check fires at the
  * start of each new document so a single document's slots are never split across blocks.
  *
  * <h2>Key dictionary</h2>
@@ -205,8 +210,10 @@
  *       {@link org.elasticsearch.index.codec.flattened.SequentialColumnReader} forward across
  *       the page. Whole blocks can be skipped without decompression when the target document is
  *       past the block's last doc-id (the doc-id arrays live outside the compressed region).
- *       Within the target block the payload is decompressed once and all documents in the page
- *       are served from that buffer — no per-doc binary searches or decompression resets.</li>
+ *       Within the target block, the value region is decompressed once; slot counts and value
+ *       offsets are pre-computed from the eagerly-decoded header arrays. Maximal consecutive runs
+ *       of single-valued, non-null documents are then copied with a single
+ *       {@link System#arraycopy} — no per-doc vint decoding at all.</li>
  *   <li>If the batch reader is unavailable (ordinal absent, or a non-columnar segment), the loader
  *       falls back to the per-doc path via
  *       {@link org.elasticsearch.index.fielddata.KeyLookupArrayOrderBinaryDocValues}.</li>

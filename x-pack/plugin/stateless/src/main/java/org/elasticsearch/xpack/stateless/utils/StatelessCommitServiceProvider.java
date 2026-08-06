@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.stateless.utils;
 
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 
 /// Carrier that lets Guice inject an optionally-present [StatelessCommitService] into transport actions that are instantiated on every
@@ -16,7 +15,7 @@ import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 /// [StatelessCommitService] exists only on index nodes; search nodes do not have one.
 /// Because Guice cannot express optional bindings, this record acts as an indirection: the plugin
 /// registers it with a `null` commit service on search nodes, and call sites unwrap the value via [#commitService()].
-public record StatelessCommitServiceProvider(@Nullable StatelessCommitService commitService) {
+public record StatelessCommitServiceProvider(StatelessCommitService commitService) {
 
     @Override
     public StatelessCommitService commitService() {

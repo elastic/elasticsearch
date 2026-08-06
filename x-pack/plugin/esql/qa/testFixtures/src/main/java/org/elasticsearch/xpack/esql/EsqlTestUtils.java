@@ -1679,7 +1679,6 @@ public final class EsqlTestUtils {
         }
         EsqlFunctionRegistry registry = TEST_FUNCTION_REGISTRY.snapshotRegistry();
         Set<String> capabilities = new TreeSet<>();
-        // forEachExpressionDown does not descend into a subquery plan held inside an expression, so walk those explicitly.
         Deque<LogicalPlan> pending = new ArrayDeque<>();
         pending.add(plan);
         while (pending.isEmpty() == false) {
@@ -1690,6 +1689,8 @@ public final class EsqlTestUtils {
                     capabilities.add(EsqlFunctionRegistry.functionCapabilityName(name));
                 }
             });
+            // An IN-subquery is an expression holding a whole nested plan; the expression walk above won't descend into
+            // it, so enqueue those plans to scan the functions they call too.
             next.forEachExpressionDown(InSubquery.class, in -> pending.add(in.subquery()));
         }
         return capabilities;

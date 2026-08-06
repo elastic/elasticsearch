@@ -128,21 +128,14 @@ public abstract class AbstractMixedClusterEsqlSpecIT extends EsqlSpecTestCase {
         );
         assumeTrue("Test " + testName + " is skipped on " + bwcVersion, isEnabled(testName, instructions, bwcVersion));
 
-        // Reaching here means the older node has every declared capability, so this test would run on it. Fail (rather
-        // than let it flake) if the query calls a function the older node lacks but nothing gates the test to skip there.
         failIfQueryUsesFunctionMissingOnOldNode(testName);
     }
 
     /**
-     * Deterministic guard against the flaky failure fixed in #156026/#156027: a mixed-cluster test whose query calls a
-     * function the older node does not have, but which declares no capability that would skip it there, flakes with
-     * {@code Unknown function [X]} whenever the query routes to the older coordinator. Here we turn that into a
-     * deterministic, actionable failure that names the {@code fn_<name>} capability the author must add to the spec.
-     * <p>
-     * The check is skipped whenever it cannot be made confidently, so it never introduces a new source of flakiness:
-     * when the query uses no functions, when a capability result is indeterminate, when the older node is unreachable,
-     * or when the older node predates the {@code fn_} capability mechanism (nodes before 9.4 advertise none, detected
-     * via the {@code fn_count} sentinel, where a missing function is indistinguishable from a missing mechanism).
+     * Turns the flaky failure fixed in #156026/#156027 into a deterministic, actionable one: rather than let a query
+     * that calls a function the older node lacks flake with {@code Unknown function [X]}, fail with the
+     * {@code fn_<name>} capability the author must add. Skipped whenever that cannot be determined confidently, so it
+     * never adds a new source of flakiness.
      */
     private void failIfQueryUsesFunctionMissingOnOldNode(String testName) {
         Set<String> functionCapabilities = EsqlTestUtils.functionCapabilitiesUsedBy(testCase.query);
@@ -150,14 +143,11 @@ public abstract class AbstractMixedClusterEsqlSpecIT extends EsqlSpecTestCase {
             return;
         }
         try {
+            // Only a definitive FALSE is actionable; TRUE (all present) and null (undeterminable) mean do nothing.
             if (Boolean.FALSE.equals(oldNodeHasCapabilities(List.copyOf(functionCapabilities))) == false) {
-                // The older node has every function (TRUE) or the answer was indeterminate (null): nothing to enforce.
                 return;
             }
-            String countCapability = EsqlFunctionRegistry.functionCapabilityName("count");
-            if (Boolean.TRUE.equals(oldNodeHasCapabilities(List.of(countCapability))) == false) {
-                // Older node predates fn_ capabilities (or became unreachable): a missing function is indistinguishable
-                // from a missing mechanism, so skip.
+            if (oldNodeSupportsFunctionCapabilities() == false) {
                 return;
             }
             List<String> missing = new ArrayList<>();
@@ -178,18 +168,23 @@ public abstract class AbstractMixedClusterEsqlSpecIT extends EsqlSpecTestCase {
                 );
             }
         } catch (IOException e) {
-            // Could not reach the older node to check; skip rather than introduce a new flake.
+            // Skip rather than introduce a new flake when the older node is unreachable.
         }
     }
 
     /**
-     * Whether the older node advertises all of {@code capabilities}: {@code TRUE} if it does, {@code FALSE} if at least
-     * one is missing, {@code null} if the answer could not be determined (so callers skip rather than fail). This is a
-     * cluster-wide {@code AND} over the {@code _capabilities} fan-out, not an old-node-local check, but it is still
-     * attributable to the older node because every {@code fn_<name>} asked about comes from the current build's
-     * registry, which the newer node always advertises. Unlike
-     * {@link org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase#hasCapabilities} the result is not cached, so a
-     * transient failure cannot stick for the rest of the run.
+     * Whether the older node is new enough to advertise per-function capabilities at all: nodes before 9.4 have no
+     * {@code fn_} capability mechanism, so there a missing function cannot be told apart from a missing mechanism.
+     */
+    private boolean oldNodeSupportsFunctionCapabilities() throws IOException {
+        // Any long-established function works as a probe; absence of even this means the node predates the mechanism.
+        return Boolean.TRUE.equals(oldNodeHasCapabilities(List.of(EsqlFunctionRegistry.functionCapabilityName("count"))));
+    }
+
+    /**
+     * The older node's answer for {@code capabilities}: {@code TRUE} if it advertises them all, {@code FALSE} if it
+     * lacks at least one, {@code null} if undeterminable (callers skip rather than fail). Not cached, so a transient
+     * failure cannot stick for the rest of the run.
      */
     private Boolean oldNodeHasCapabilities(List<String> capabilities) throws IOException {
         return clusterHasCapability(oldNodeClient(), "POST", "/_query", List.of(), capabilities).orElse(null);

@@ -1159,9 +1159,8 @@ public class EsqlFunctionRegistry {
     }
 
     /**
-     * The capability a node advertises for a function, so that callers can gate on a function's existence. Kept as the
-     * single source of this {@code fn_}-prefixed contract; tests that need to reference a function's capability (e.g. to
-     * skip when an older BWC node lacks the function) must use this rather than re-deriving the prefix.
+     * The capability a node advertises for a function. Single source of the {@code fn_} prefix so callers can gate on a
+     * function's existence without re-deriving it.
      */
     public static String functionCapabilityName(String functionName) {
         return "fn_" + functionName;

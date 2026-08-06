@@ -207,11 +207,8 @@ public class TransportClusterStatsAction extends TransportNodesAction<
                     null
                 );
             }
-            TagsConfigSnapshot tagsConfig = null;
             ClusterStatsTagsProvider tagsProvider = usageService.getTagsProvider();
-            if (tagsProvider != null) {
-                tagsConfig = tagsProvider.getTagsConfig(clusterService.state());
-            }
+            TagsConfigSnapshot tagsConfig = (tagsProvider != null) ? tagsProvider.getTagsConfig(clusterService.state()) : null;
             return new ClusterStatsResponse(
                 System.currentTimeMillis(),
                 additionalStats.clusterUUID(),

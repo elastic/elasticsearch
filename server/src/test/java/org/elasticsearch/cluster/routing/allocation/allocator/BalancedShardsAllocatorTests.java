@@ -1412,9 +1412,9 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
             final var routingTable = clusterState.routingTable(ProjectId.DEFAULT);
 
             final var pressureShard = routingTable.shardRoutingTable(pressureIndexName, 0).primaryShard();
-            assertTrue("pressure shard should be relocating after round 1: " + pressureShard, pressureShard.relocating());
+            assertTrue("pressure shard should be relocating after round 1: " + routingTable, pressureShard.relocating());
             assertThat(
-                "pressure shard should be relocating to yes node: " + pressureShard,
+                "pressure shard should be relocating to yes node: " + routingTable,
                 pressureShard.relocatingNodeId(),
                 equalTo(yesTargetNode)
             );
@@ -1422,7 +1422,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
             // Regardless of drain mode, the canstay shard is still on source after round 1:
             // it was deferred (only NOT_PREFERRED targets available) while the YES move was pending
             final var canstayShard = routingTable.shardRoutingTable(canStayIndexName, 0).primaryShard();
-            assertTrue("canstay shard should still be started after round 1: " + canstayShard, canstayShard.started());
+            assertTrue("canstay shard should still be started after round 1: " + routingTable, canstayShard.started());
             assertThat(canstayShard.currentNodeId(), equalTo(sourceNode));
         }
 
@@ -1432,15 +1432,15 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
             final var routingTable = clusterState.routingTable(ProjectId.DEFAULT);
 
             final var pressureShard = routingTable.shardRoutingTable(pressureIndexName, 0).primaryShard();
-            assertTrue("pressure shard should be started after round 2: " + pressureShard, pressureShard.started());
+            assertTrue("pressure shard should be started after round 2: " + routingTable, pressureShard.started());
 
             final var canstayShard = routingTable.shardRoutingTable(canStayIndexName, 0).primaryShard();
             if (drainCompletely) {
                 // Source must be fully evacuated: canstay still can't remain and is moved to a NOT_PREFERRED target
-                assertTrue("canstay shard should be relocating in drain-completely mode: " + canstayShard, canstayShard.relocating());
+                assertTrue("canstay shard should be relocating in drain-completely mode: " + routingTable, canstayShard.relocating());
             } else {
                 // Pressure resolved: canstay finds canRemain:YES on source and stays put
-                assertTrue("canstay shard should be started in partial-drain mode: " + canstayShard, canstayShard.started());
+                assertTrue("canstay shard should be started in partial-drain mode: " + routingTable, canstayShard.started());
                 assertThat("canstay shard should remain on source", canstayShard.currentNodeId(), equalTo(sourceNode));
             }
         }

@@ -402,38 +402,6 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
         assertFalse(registry.isAllResourcesCreated(clusterState, Settings.EMPTY));
     }
 
-    public void testEcsUpgradeDetectedOnFirstClusterEvent() {
-        registry.setTemplatesEnabled(false);
-        DiscoveryNode node = DiscoveryNodeUtils.create("node");
-        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
-
-        assertFalse("ECS should be disabled initially", registry.isTemplatesEnabled());
-
-        // Simulate a cluster state that contains the ECS marker template "profiling-ilm".
-        Map<String, Integer> existingComponentTemplates = Map.of("profiling-ilm", ProfilingIndexTemplateRegistry.INDEX_TEMPLATE_VERSION);
-        ClusterChangedEvent event = createClusterChangedEvent(existingComponentTemplates, Map.of(), nodes);
-
-        client.setVerifier((a, r, l) -> AcknowledgedResponse.TRUE);
-        registry.clusterChanged(event);
-
-        assertTrue("ECS should be auto-enabled after detecting existing ECS templates", registry.isTemplatesEnabled());
-    }
-
-    public void testEcsUpgradeNotTriggeredWithoutEcsTemplates() {
-        registry.setTemplatesEnabled(false);
-        DiscoveryNode node = DiscoveryNodeUtils.create("node");
-        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
-
-        assertFalse("ECS should be disabled initially", registry.isTemplatesEnabled());
-
-        ClusterChangedEvent event = createClusterChangedEvent(Map.of(), Map.of(), nodes);
-
-        client.setVerifier((a, r, l) -> AcknowledgedResponse.TRUE);
-        registry.clusterChanged(event);
-
-        assertFalse("ECS should remain disabled when no ECS templates exist", registry.isTemplatesEnabled());
-    }
-
     private ActionResponse verifyComposableTemplateInstalled(
         AtomicInteger calledTimes,
         ActionType<?> action,

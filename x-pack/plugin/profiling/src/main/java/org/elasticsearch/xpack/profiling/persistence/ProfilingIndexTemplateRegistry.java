@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.profiling.persistence;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
@@ -30,7 +29,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.isDataStreamsLifecycleOnlyMode;
 
@@ -71,7 +69,6 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
     public static final String PROFILING_TEMPLATE_VERSION_VARIABLE = "xpack.profiling.template.version";
 
     private volatile boolean templatesEnabled;
-    private final AtomicBoolean ecsUpgradeChecked = new AtomicBoolean(false);
 
     public ProfilingIndexTemplateRegistry(
         Settings nodeSettings,
@@ -90,21 +87,6 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
 
     public boolean isTemplatesEnabled() {
         return templatesEnabled;
-    }
-
-    /**
-     * Auto-enables ECS template management on the first cluster event when an existing ECS deployment is detected.
-     * Runs before template installation so ECS templates are included in the same event cycle.
-     */
-    @Override
-    public void clusterChanged(ClusterChangedEvent event) {
-        if (templatesEnabled == false && ecsUpgradeChecked.compareAndSet(false, true)) {
-            if (event.state().metadata().getProject().componentTemplates().containsKey("profiling-ilm")) {
-                logger.info("Detected existing ECS profiling templates; enabling ECS template management for backward compatibility");
-                templatesEnabled = true;
-            }
-        }
-        super.clusterChanged(event);
     }
 
     public void close() {

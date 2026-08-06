@@ -105,7 +105,7 @@ public abstract class ES93BinaryQuantizedVectorScorer {
             if (similarityFunction == MAXIMUM_INNER_PRODUCT) {
                 return VectorUtil.scaleMaxInnerProductScore(score);
             }
-            return VectorUtil.normalizeToUnitInterval(score);
+            return VectorUtil.normalizeToUnitInterval(Math.clamp(score, -1, 1));
         }
     }
 }

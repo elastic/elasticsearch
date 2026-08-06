@@ -77,6 +77,7 @@ import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.recovery.metering.StatelessRecoveryMetricsCollector;
+import org.elasticsearch.xpack.stateless.utils.StatelessCommitServiceProvider;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -128,7 +129,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
     private final IndicesService indicesService;
     private final RecoverySchedulingListener recoverySchedulingListeners;
     private final PeerRecoveryTargetService peerRecoveryTargetService;
-    private final StatelessCommitService statelessCommitService;
+    private final StatelessCommitServiceProvider statelessCommitServiceProvider;
     private final Executor recoveryExecutor;
     private final ThreadContext threadContext;
     private final ThreadPool threadPool;
@@ -145,7 +146,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         IndicesService indicesService,
         CompositeRecoverySchedulingListener recoverySchedulingListeners,
         PeerRecoveryTargetService peerRecoveryTargetService,
-        StatelessCommitService statelessCommitService,
+        StatelessCommitServiceProvider statelessCommitServiceProvider,
         IndexShardCacheWarmer indexShardCacheWarmer,
         HollowShardsService hollowShardsService,
         HollowShardsMetrics hollowShardsMetrics,
@@ -157,7 +158,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         this.indicesService = indicesService;
         this.recoverySchedulingListeners = recoverySchedulingListeners;
         this.peerRecoveryTargetService = peerRecoveryTargetService;
-        this.statelessCommitService = statelessCommitService;
+        this.statelessCommitServiceProvider = statelessCommitServiceProvider;
         this.indexShardCacheWarmer = indexShardCacheWarmer;
         this.hollowShardsService = hollowShardsService;
 
@@ -270,6 +271,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
     private void initiatePrewarm(Task task, StatelessPrimaryRelocationAction.Request request) {
         try {
             final ShardId shardId = request.shardId();
+            final StatelessCommitService statelessCommitService = statelessCommitServiceProvider.commitService();
             final BatchedCompoundCommit latestBcc = statelessCommitService.getLatestUploadedBcc(shardId);
             if (latestBcc == null) {
                 logger.trace("{} no uploaded BCC found, skipping initiate prewarm", shardId);
@@ -470,6 +472,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                 final var latestBccBlobLength = new AtomicLong(-1L);
                 final var otherBlobFilesCount = new AtomicLong(-1L);
                 final var markedShardAsRelocating = new SubscribableListener<Void>();
+                final StatelessCommitService statelessCommitService = statelessCommitServiceProvider.commitService();
                 ActionListener<Void> handoffCompleteListener = statelessCommitService.markRelocating(
                     indexShard.shardId(),
                     lastFlushedGeneration,
@@ -637,7 +640,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
     private void handlePrimaryContextHandoff(PrimaryContextHandoffRequest request, ActionListener<Void> listener) {
         // executed remotely by `TransportStatelessPrimaryRelocationAction#handleStartRelocation` (i.e. we are on the target node here)
         logger.debug("[{}] received primary context", request.shardId());
-
+        final var statelessCommitService = statelessCommitServiceProvider.commitService();
         final var indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         final var indexShard = indexService.getShard(request.shardId().id());
         statelessCommitService.setTrackedSearchNodesPerCommitOnRelocationTarget(request.shardId(), request.searchNodesPerCommit());

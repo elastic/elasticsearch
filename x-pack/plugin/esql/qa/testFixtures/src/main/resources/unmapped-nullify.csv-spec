@@ -13,6 +13,19 @@ null
 null
 ;
 
+topWithNullOutputField
+required_capability: agg_top_with_output_field
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+FROM employees
+| STATS t = TOP(salary, 3, "asc", foo)
+;
+
+t:integer
+null
+;
+
 partialMappingUnmappedFromSource
 required_capability: optional_fields_nullify_tech_preview
 

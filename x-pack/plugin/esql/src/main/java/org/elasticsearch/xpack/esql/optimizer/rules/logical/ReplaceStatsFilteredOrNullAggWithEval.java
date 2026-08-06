@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.FromPartial;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Present;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PresentOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.ToPartial;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Top;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -136,6 +137,11 @@ public class ReplaceStatsFilteredOrNullAggWithEval extends OptimizerRules.Optimi
 
     public static boolean shouldReplace(AggregateFunction aggFunction) {
         if (hasFalseFilter(aggFunction)) {
+            return true;
+        }
+        // TOP can return its optional output field rather than its primary field. A null-typed output field therefore makes the result null
+        // even when the primary field is mapped.
+        if (aggFunction instanceof Top top && top.parameters().size() == 3 && DataType.isNull(top.parameters().get(2).dataType())) {
             return true;
         }
         /*

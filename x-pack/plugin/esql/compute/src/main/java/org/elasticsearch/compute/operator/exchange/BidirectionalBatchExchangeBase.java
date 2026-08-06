@@ -13,6 +13,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.SuppressLoggerChecks;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -39,15 +40,19 @@ public abstract class BidirectionalBatchExchangeBase implements Releasable {
 
     /**
      * Logs an exchange failure at {@code nonCancellationLevel}, unless it is one of the expected, transient
-     * conditions that are downgraded to DEBUG to keep genuine failures visible:
+     * conditions that are downgraded to keep genuine failures visible:
      * <ul>
      *     <li>Cancellations - expected teardown (for example the query reached its LIMIT and the exchange was
-     *     closed early via a synthesized "client stopped" error, or the task was cancelled).</li>
+     *     closed early via a synthesized "client stopped" error, or the task was cancelled) - are logged at DEBUG.</li>
      *     <li>{@link IndexNotFoundException} - the lookup target index was not available on the routed node, for
-     *     example during a rolling restart, or before the index has recovered/propagated. This is a transient,
-     *     self-healing condition and the failure is still propagated to the coordinator, so logging it at a higher
-     *     level only produces spurious noise (and, in Serverless, trips promotion quality-gate log-error-rate
-     *     checks during routine node churn).</li>
+     *     example during a rolling restart, or before the index has recovered/propagated - is logged at DEBUG. This
+     *     is a transient, self-healing condition and the failure is still propagated to the coordinator, so logging
+     *     it at a higher level only produces spurious noise (and, in Serverless, trips promotion quality-gate
+     *     log-error-rate checks during routine node churn).</li>
+     *     <li>{@link CircuitBreakingException} circuit breaker trips - expected backpressure (the client receives a
+     *     429) rather than a bug - are logged at DEBUG so the client, server, and operator do not triple-log the same
+     *     trip. Use {@link #logExchangeFailure(Logger, Level, boolean, Exception, String, Object...)} with
+     *     {@code reportCircuitBreakerAtWarn} set to log them at WARN from a single layer.</li>
      * </ul>
      * Shared by the client, the server, and the operator driving them, so the caller supplies its own logger.
      *
@@ -59,10 +64,31 @@ public abstract class BidirectionalBatchExchangeBase implements Releasable {
      */
     @SuppressLoggerChecks(reason = "safely delegates to logger with a caller-supplied message and params")
     public static void logExchangeFailure(Logger logger, Level nonCancellationLevel, Exception failure, String message, Object... params) {
+        logExchangeFailure(logger, nonCancellationLevel, false, failure, message, params);
+    }
+
+    /**
+     * @param reportCircuitBreakerAtWarn when true, circuit breaker trips are logged at WARN; otherwise DEBUG
+     */
+    @SuppressLoggerChecks(reason = "safely delegates to logger with a caller-supplied message and params")
+    public static void logExchangeFailure(
+        Logger logger,
+        Level nonCancellationLevel,
+        boolean reportCircuitBreakerAtWarn,
+        Exception failure,
+        String message,
+        Object... params
+    ) {
         if (failure != null
             && (ExceptionsHelper.isTaskCancelledException(failure)
                 || ExceptionsHelper.unwrap(failure, IndexNotFoundException.class) != null)) {
             logger.debug(message, params);
+        } else if (failure != null && ExceptionsHelper.unwrapCause(failure) instanceof CircuitBreakingException) {
+            if (reportCircuitBreakerAtWarn) {
+                logger.warn(message, params);
+            } else {
+                logger.debug(message, params);
+            }
         } else {
             logger.log(nonCancellationLevel, message, params);
         }

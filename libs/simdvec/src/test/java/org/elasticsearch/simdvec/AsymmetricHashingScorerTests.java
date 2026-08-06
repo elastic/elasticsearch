@@ -195,12 +195,7 @@ public class AsymmetricHashingScorerTests extends ESTestCase {
 
             float reconstructed = AsymmetricHashingScorer.scoreOneVector(queryTransformed, queryDotCentroid, encodedVector, 1.0f, offset);
 
-            assertEquals(
-                "Mismatch at iter " + iter + " dim=" + dim,
-                trueDot,
-                reconstructed,
-                Math.max(1e-3f, Math.abs(trueDot) * 1e-4f)
-            );
+            assertEquals("Mismatch at iter " + iter + " dim=" + dim, trueDot, reconstructed, Math.max(1e-3f, Math.abs(trueDot) * 1e-4f));
         }
     }
 }

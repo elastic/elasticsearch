@@ -200,8 +200,7 @@ public class AshSphericalScalarQuantizerTests extends ESTestCase {
                 AshSphericalScalarQuantizer.SingleQuantizeResult result = ssq.encodeOne(z);
                 double cos = dotProduct(z, result.centeredCode()) / result.codeNorm();
                 assertTrue(
-                    "cos similarity regressed going from fewer to more bits at bitsPerDim=" + bitsPerDim + ": " + cos + " < "
-                        + previousCos,
+                    "cos similarity regressed going from fewer to more bits at bitsPerDim=" + bitsPerDim + ": " + cos + " < " + previousCos,
                     cos >= previousCos - 1e-6
                 );
                 previousCos = cos;

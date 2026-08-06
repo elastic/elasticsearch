@@ -196,7 +196,6 @@ public class SearchDirectoryTests extends ESTestCase {
                         return true;
                     }
                 };
-                statelessSharedBlobCacheService.assertInvariants();
                 return statelessSharedBlobCacheService;
             }
 

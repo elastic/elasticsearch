@@ -265,6 +265,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         ActionListener<StartTransformAction.Response> startTaskListener = ActionListener.wrap(response -> {
             logger.info("[{}] successfully completed and scheduled task in node operation", transformId);
             transformServices.scheduler().registerTransform(params, buildTask);
+            transformServices.transformNode().registerTransform(buildTask);
         }, failure -> {
             // If the transform is failed then there is no need to log an error on every node restart as the error had already been
             // logged when the transform first failed.

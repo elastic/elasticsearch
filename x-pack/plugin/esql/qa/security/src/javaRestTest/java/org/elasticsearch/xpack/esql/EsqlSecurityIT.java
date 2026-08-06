@@ -7,8 +7,11 @@
 
 package org.elasticsearch.xpack.esql;
 
+import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
+
 import org.apache.http.HttpStatus;
 import org.apache.http.util.EntityUtils;
+import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -57,6 +60,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
+@TimeoutSuite(millis = 40 * TimeUnits.MINUTE)
 public class EsqlSecurityIT extends ESRestTestCase {
     private static final String INDEX_PARTIAL_MAPPING = "index-partial-mapping";
     private static final String INDEX_FULL_MAPPING = "index-full-mapping";

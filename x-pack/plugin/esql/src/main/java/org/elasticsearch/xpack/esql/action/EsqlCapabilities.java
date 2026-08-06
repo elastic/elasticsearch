@@ -1472,6 +1472,14 @@ public class EsqlCapabilities {
          * correct time-series index when a join presents.
          */
         WHERE_IN_SUBQUERY_WITH_TS,
+
+        /**
+         * Fix for {@code PropagateEmptyRelation} not folding away {@code AbstractSubqueryJoin} nodes when their left side is an empty
+         * {@code LocalRelation}. Without the fix, a {@code WHERE false} followed by a {@code WHERE … OR field IN (subquery) AND match(…)}
+         * caused the server to hang or error out because the {@code LuceneQueryExpressionEvaluator} found no Lucene shard contexts.
+         */
+        PROPAGATE_EMPTY_RELATION_PAST_WHERE_IN_SUBQUERY,
+
         /**
          * Support for views in cluster state (and REST API).
          */
@@ -2297,6 +2305,16 @@ public class EsqlCapabilities {
          * PromQL uses TSTEP instead of TBUCKET, with corrected open-ended range query bounds.
          */
         FIX_PROMQL_TIME_BUCKET_V2(FIX_TIME_SERIES_WINDOW_BACKWARD.isEnabled()),
+
+        /**
+         * On a {@code date_nanos} {@code @timestamp} index, PromQL evaluates in the millisecond domain: the
+         * {@code @timestamp} is normalized to {@code datetime} (epoch-millis) up front, so the time buckets, the
+         * windowing, and the built-in {@code step} column all behave exactly as on a plain {@code date} index. In
+         * particular the {@code step} column is always {@code datetime} regardless of the index resolution; without
+         * this, a {@code date_nanos} index produced a {@code date_nanos} {@code step} column that tripped the
+         * post-optimization output verifier.
+         */
+        FIX_PROMQL_DATE_NANOS_STEP(FIX_PROMQL_TIME_BUCKET_V2.isEnabled()),
 
         /**
          * PromQL {@code round(v, to_nearest)} uses the Prometheus formula, fixing wrong rounding
@@ -3469,6 +3487,12 @@ public class EsqlCapabilities {
          * Fix multi value unsigned long conversion to aggregate metric double
          */
         FIX_UNSIGNED_LONG_TO_AGGREGATE_METRIC_DOUBLE,
+
+        /**
+         * Fix BUCKET with bucket counts larger than MAX_INT (previously overflowed).
+         * See: <a href="https://github.com/elastic/elasticsearch/issues/153389">#153389</a>
+         */
+        FIX_BUCKET_LARGE_NUMBER_OF_BUCKETS,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

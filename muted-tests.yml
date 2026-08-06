@@ -778,3 +778,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:inlinestats.afterStats}
   issue: https://github.com/elastic/elasticsearch/issues/156013
+- class: org.elasticsearch.xpack.shutdown.NodeShutdownShardSnapshotsIT
+  method: testShardSnapshotsStatus
+  issue: https://github.com/elastic/elasticsearch/issues/156109

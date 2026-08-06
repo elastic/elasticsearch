@@ -34,6 +34,9 @@ public abstract class AbstractXpackRollingUpgradeTestCase extends ParameterizedR
             .nodes(NODE_NUM)
             .setting("xpack.license.self_generated.type", "trial")
             .setting("xpack.security.enabled", "false")
+            .systemProperty("ingest.geoip.downloader.enabled.default", "true")
+            .systemProperty("ingest.geoip.downloader.endpoint.default", "http://invalid.endpoint")
+            .setting("ingest.geoip.downloader.endpoint", "http://invalid.endpoint")
             .setting("path.repo", new Supplier<>() {
                 @Override
                 @SuppressForbidden(reason = "TemporaryFolder only has io.File methods, not nio.File")

@@ -610,6 +610,7 @@ public class SearchEngine extends Engine {
                                 BlobFileRanges::mostRecentKnownTimestamp
                             );
                         },
+                        (blobFile, bccSize) -> {},
                         listenableFuture.map(aVoid -> {
                             // Resolve each blob once: keep its own timestamp when known, else prefer this (triggering) commit's timestamp,
                             // else the directory terminal fallback. Mirrors the prefetch path so both stamp regions consistently.

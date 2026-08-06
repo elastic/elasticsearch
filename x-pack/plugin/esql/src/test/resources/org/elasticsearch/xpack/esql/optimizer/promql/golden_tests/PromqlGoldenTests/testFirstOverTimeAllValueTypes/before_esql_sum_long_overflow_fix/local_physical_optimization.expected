@@ -1,0 +1,18 @@
+ProjectExec[[events{r}#0, step{r}#1, pod{r}#2]]
+\_LimitExec[10000[INTEGER],null]
+  \_FilterExec[ISNOTNULL(events{r}#0)]
+    \_EvalExec[[TODOUBLE(events{r}#3) AS events#0]]
+      \_FilterExec[step{r}#1 >= 0[DATETIME] AND step{r}#1 <= 253402300799999[DATETIME]]
+        \_UnpackDimsExec[_$packed_grouping_dims{r}#4,[pod{r}#2]]
+          \_AggregateExec[[step{r}#1, _$packed_dims{f$}#5],[SUM(FIRSTOVERTIME_$1{r}#6,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD],long_overflow_throw[KEYWORD]) AS events#3, step{r}#1 AS step#1, _$packed_dims{f$}#5 AS _$packed_grouping_dims#4],SINGLE,[step{r}#1, _$packed_dims{f$}#5, $$events$sum{r}#7, $$events$seen{r}#8],null]
+            \_PackDimsExec[[pod{r}#9],_$packed_dims{f$}#5]
+              \_TimeSeriesAggregateExec[[_tsid{m}#10, step{r}#1],[FIRSTOVERTIME(events_received{f}#11,true[BOOLEAN],PT10M[TIME_DURATION],@timestamp{f}#12) AS FIRSTOVERTIME_$1#6, DIMENSIONVALUES(pod{f}#2,true[BOOLEAN],PT0S[TIME_DURATION]) AS pod#9, step{r}#1],FINAL,[_tsid{m}#10, step{r}#1, $$FIRSTOVERTIME_$0$timestamps{r}#13, $$FIRSTOVERTIME_$1$values{r}#14, $$pod$values{r}#15],null,BUCKET(@timestamp{f}#12,PT10M[TIME_DURATION]),BUCKET(@timestamp{f}#12,PT10M[TIME_DURATION])]
+                \_ExchangeExec[[_tsid{m}#10, step{r}#1, $$FIRSTOVERTIME_$0$timestamps{r}#13, $$FIRSTOVERTIME_$1$values{r}#14, $$pod$values{r}#15],true]
+                  \_ProjectExec[[_tsid{m}#10, step{r}#1, $$FIRSTOVERTIME_$0$timestamps{r}#16, $$FIRSTOVERTIME_$1$values{r}#17, $$pod$values{r}#18]]
+                    \_EvalExec[[pod{f}#2 AS pod#18]]
+                      \_ReadDimsExec[pod{f}#2]<tsid=_tsid{m}#10>
+                        \_TimeSeriesAggregateExec[[_tsid{m}#10, step{r}#1],[FIRSTOVERTIME(events_received{f}#11,true[BOOLEAN],PT10M[TIME_DURATION],@timestamp{f}#12) AS FIRSTOVERTIME_$1#6, step{r}#1, FIRSTDOCID(_doc{f}#19,true[BOOLEAN],PT0S[TIME_DURATION]) AS _doc#20],INITIAL,[_tsid{m}#10, step{r}#1, $$FIRSTOVERTIME_$0$timestamps{r}#16, $$FIRSTOVERTIME_$1$values{r}#17, _doc{r}#21],136,BUCKET(@timestamp{f}#12,PT10M[TIME_DURATION]),BUCKET(@timestamp{f}#12,PT10M[TIME_DURATION])]
+                          \_FieldExtractExec[_tsid{m}#10, events_received{f}#11]<[],[],[]>
+                            \_EvalExec[[BUCKET(@timestamp{f}#12,PT10M[TIME_DURATION]) AS step#1]]
+                              \_FieldExtractExec[@timestamp{f}#12]<[],[],[]>
+                                \_EsQueryExec[k8s], indexMode[standard], [_doc{f}#19], limit[], sort[] estimatedRowSize[44] queryBuilderAndTags [[QueryBuilderAndTags[query=null, tags=[]]]]

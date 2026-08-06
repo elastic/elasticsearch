@@ -365,6 +365,70 @@ public class SigtermTerminationHandlerTests extends ESTestCase {
         assertThat(shutdownMeasurements.getFirst().attributes().get(SigtermShutdownMetrics.ATTRIBUTE_NAME_TIMED_OUT), equalTo(false));
     }
 
+    public void testShutdownTimeoutRecordsTimedOutMetrics() {
+        final TimeValue pollInterval = TimeValue.timeValueMillis(5);
+        // Short timeout so the test waits for the latch to expire rather than for shutdown to complete.
+        final TimeValue timeout = TimeValue.timeValueMillis(100);
+        final String nodeId = randomAlphaOfLength(10);
+
+        final var testThreadPool = new TestThreadPool(this.getTestName());
+        try {
+            final var client = mock(Client.class);
+            when(client.threadPool()).thenReturn(testThreadPool);
+            doAnswer(invocation -> {
+                ActionListener<AcknowledgedResponse> listener = invocation.getArgument(2);
+                listener.onResponse(AcknowledgedResponse.TRUE);
+                return null;
+            }).when(client).execute(eq(PutShutdownNodeAction.INSTANCE), any(), any());
+
+            doAnswer(invocation -> {
+                ActionListener<GetShutdownStatusAction.Response> listener = invocation.getArgument(2);
+                listener.onResponse(
+                    new GetShutdownStatusAction.Response(
+                        Collections.singletonList(
+                            new SingleNodeShutdownStatus(
+                                SingleNodeShutdownMetadata.builder()
+                                    .setNodeId(nodeId)
+                                    .setNodeEphemeralId(nodeId)
+                                    .setType(SingleNodeShutdownMetadata.Type.SIGTERM)
+                                    .setReason(this.getTestName())
+                                    .setStartedAtMillis(randomNonNegativeLong())
+                                    .setGracePeriod(timeout)
+                                    .build(),
+                                // Keep migration incomplete so overall status never reaches COMPLETE before the timeout.
+                                new ShutdownShardMigrationStatus(SingleNodeShutdownMetadata.Status.IN_PROGRESS, 0, 0, 0),
+                                ShutdownPersistentTasksStatus.fromRemainingTasks(0, 0),
+                                new ShutdownPluginsStatus(true),
+                                ShutdownShardSnapshotsStatus.fromShardCounts(0, 0, 0)
+                            )
+                        )
+                    )
+                );
+                return null;
+            }).when(client).execute(eq(GetShutdownStatusAction.INSTANCE), any(), any());
+
+            final var meterRegistry = new RecordingMeterRegistry();
+            new SigtermTerminationHandler(
+                client,
+                testThreadPool,
+                null,
+                null,
+                pollInterval,
+                timeout,
+                nodeId,
+                new SigtermShutdownMetrics(meterRegistry)
+            ).handleTermination();
+
+            assertShutdownAndMigrationMetrics(meterRegistry, "in_progress", true, false);
+
+            final List<Measurement> shutdownMeasurements = meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, SigtermShutdownMetrics.SHUTDOWN_DURATION_HISTOGRAM);
+            assertThat(shutdownMeasurements.getFirst().getDouble(), greaterThanOrEqualTo(timeout.millis() / 1000.0));
+        } finally {
+            testThreadPool.shutdownNow();
+        }
+    }
+
     public void testShutdownStalledRequiresPolling() {
         shutdownRequiresPolling(SingleNodeShutdownMetadata.Status.STALLED, SingleNodeShutdownMetadata.Status.COMPLETE);
     }

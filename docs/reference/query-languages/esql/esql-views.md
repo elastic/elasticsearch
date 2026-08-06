@@ -1,5 +1,5 @@
 ---
-navigation_title: "Define virtual indices using ES|QL views"
+navigation_title: "Views"
 applies_to:
   serverless: preview
   stack: preview 9.4.0
@@ -7,7 +7,7 @@ products:
   - id: elasticsearch
 ---
 
-# {{esql}} Views [esql-views]
+# Define reusable queries with {{esql}} views [esql-views]
 
 A view is a virtual index with fields that are produced from the output of an ES|QL query.
 Each view has a name and a definition. The definition is a complete ES|QL query, with source commands and processing commands.

@@ -4,6 +4,8 @@ products:
   repo: elasticsearch
   owner: elastic
 release-date: 2026-08-04
+hide-features:
+- data-federation
 entries:
 - file:
     name: 155231.yaml
@@ -269,13 +271,14 @@ entries:
   - https://github.com/elastic/elasticsearch/pull/155076
 - file:
     name: 155037.yaml
-    checksum: d4ef7c9ff80eda251cd7af8cd44752a0cad63972
+    checksum: 8fefcf267c75081dcad2d68b0f061f839fa9198c
   type: bug-fix
   title: Report invalid external data source settings as client errors
   products:
   - product: cloud-serverless
     target: 2026-08-04
   - product: elasticsearch
+  feature-id: data-federation
   areas:
   - ES|QL
   prs:

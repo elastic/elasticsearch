@@ -241,10 +241,10 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
     }
 
     @Override
-    public void l2Normalize(float[] v, int offset, int length) {
+    public float l2Normalize(float[] v, int offset, int length) {
         float normSq = dotProduct(v, v, offset, length);
         if (normSq == 0f) {
-            return;
+            return 0;
         }
 
         float scale = (float) (1.0 / Math.sqrt(normSq));
@@ -261,6 +261,7 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         for (; i < end; i++) {
             v[i] *= scale;
         }
+        return normSq;
     }
 
     @Override

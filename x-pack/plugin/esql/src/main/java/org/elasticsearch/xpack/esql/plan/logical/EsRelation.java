@@ -10,12 +10,14 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
@@ -34,6 +36,7 @@ import java.util.Set;
 public class EsRelation extends LeafPlan {
 
     private static final TransportVersion SPLIT_INDICES = TransportVersion.fromName("esql_es_relation_add_split_indices");
+    private static final TransportVersion SHARD_COUNTS = TransportVersion.fromName("field_caps_number_of_shards");
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
@@ -45,7 +48,14 @@ public class EsRelation extends LeafPlan {
     private final IndexMode indexMode;
     private final Map<String, List<String>> originalIndices; // keyed by cluster alias
     private final Map<String, List<String>> concreteIndices; // keyed by cluster alias
-    private final Map<String, IndexMode> indexNameWithModes;
+    /**
+     * Per-index properties keyed by concrete index name, sourced from {@code _field_caps} during
+     * index resolution. Consumers must treat a missing entry (or a zero
+     * {@link IndexProperties#numberOfShards()} value) as "unknown". The shard count is not yet
+     * consumed by the planner — it is plumbed here as planning-time metadata for future use
+     * (e.g. parallelism / cost estimation).
+     */
+    private final Map<String, IndexProperties> indexProperties; // keyed by concrete index name
     private final List<Attribute> attrs;
 
     public EsRelation(
@@ -54,7 +64,7 @@ public class EsRelation extends LeafPlan {
         IndexMode indexMode,
         Map<String, List<String>> originalIndices,
         Map<String, List<String>> concreteIndices,
-        Map<String, IndexMode> indexNameWithModes,
+        Map<String, IndexProperties> indexProperties,
         List<Attribute> attributes
     ) {
         super(source);
@@ -62,7 +72,7 @@ public class EsRelation extends LeafPlan {
         this.indexMode = indexMode;
         this.originalIndices = originalIndices;
         this.concreteIndices = concreteIndices;
-        this.indexNameWithModes = indexNameWithModes;
+        this.indexProperties = indexProperties;
         this.attrs = attributes;
     }
 
@@ -78,10 +88,19 @@ public class EsRelation extends LeafPlan {
             originalIndices = Map.of();
             concreteIndices = Map.of();
         }
+        // indexNameWithModes and shardCounts are written as separate maps on the wire (for BWC);
+        // we merge them into IndexProperties here.
         Map<String, IndexMode> indexNameWithModes = in.readMap(IndexMode::readFrom);
         List<Attribute> attributes = in.readNamedWriteableCollectionAsList(Attribute.class);
         IndexMode indexMode = IndexMode.fromString(in.readString());
-        return new EsRelation(source, indexPattern, indexMode, originalIndices, concreteIndices, indexNameWithModes, attributes);
+        Map<String, Integer> rawShardCounts = in.getTransportVersion().supports(SHARD_COUNTS)
+            ? in.readMap(StreamInput::readVInt)
+            : Map.of();
+        Map<String, IndexProperties> indexProperties = Maps.newMapWithExpectedSize(indexNameWithModes.size());
+        for (var e : indexNameWithModes.entrySet()) {
+            indexProperties.put(e.getKey(), new IndexProperties(e.getValue(), rawShardCounts.getOrDefault(e.getKey(), 0)));
+        }
+        return new EsRelation(source, indexPattern, indexMode, originalIndices, concreteIndices, indexProperties, attributes);
     }
 
     @Override
@@ -92,9 +111,21 @@ public class EsRelation extends LeafPlan {
             out.writeMap(originalIndices, StreamOutput::writeStringCollection);
             out.writeMap(concreteIndices, StreamOutput::writeStringCollection);
         }
-        out.writeMap(indexNameWithModes, (o, v) -> IndexMode.writeTo(v, out));
+        // Split IndexProperties back into two separate maps to maintain the wire format (for BWC).
+        out.writeMap(indexProperties, (o, v) -> IndexMode.writeTo(v.indexMode(), out));
         out.writeNamedWriteableCollection(attrs);
         out.writeString(indexMode.getName());
+        if (out.getTransportVersion().supports(SHARD_COUNTS)) {
+            // Write only non-zero shard counts (sparse) to stay wire-compatible with the original
+            // format, which was built from IndexResolver's sparse shardCounts map (entries only when > 0).
+            Map<String, Integer> nonZeroShardCounts = Maps.newMapWithExpectedSize(indexProperties.size());
+            for (var e : indexProperties.entrySet()) {
+                if (e.getValue().numberOfShards() > 0) {
+                    nonZeroShardCounts.put(e.getKey(), e.getValue().numberOfShards());
+                }
+            }
+            out.writeMap(nonZeroShardCounts, StreamOutput::writeVInt);
+        }
     }
 
     @Override
@@ -104,7 +135,7 @@ public class EsRelation extends LeafPlan {
 
     @Override
     protected NodeInfo<EsRelation> info() {
-        return NodeInfo.create(this, EsRelation::new, indexPattern, indexMode, originalIndices, concreteIndices, indexNameWithModes, attrs);
+        return NodeInfo.create(this, EsRelation::new, indexPattern, indexMode, originalIndices, concreteIndices, indexProperties, attrs);
     }
 
     public String indexPattern() {
@@ -123,8 +154,8 @@ public class EsRelation extends LeafPlan {
         return concreteIndices;
     }
 
-    public Map<String, IndexMode> indexNameWithModes() {
-        return indexNameWithModes;
+    public Map<String, IndexProperties> indexProperties() {
+        return indexProperties;
     }
 
     @Override
@@ -133,7 +164,7 @@ public class EsRelation extends LeafPlan {
     }
 
     public Set<String> concreteQualifiedIndices() {
-        return indexNameWithModes.keySet();
+        return indexProperties.keySet();
     }
 
     @Override
@@ -145,7 +176,7 @@ public class EsRelation extends LeafPlan {
 
     @Override
     public int hashCode() {
-        return Objects.hash(indexPattern, indexMode, originalIndices, concreteIndices, indexNameWithModes, attrs);
+        return Objects.hash(indexPattern, indexMode, originalIndices, concreteIndices, indexProperties, attrs);
     }
 
     @Override
@@ -163,7 +194,7 @@ public class EsRelation extends LeafPlan {
             && Objects.equals(indexMode, other.indexMode)
             && Objects.equals(originalIndices, other.originalIndices)
             && Objects.equals(concreteIndices, other.concreteIndices)
-            && Objects.equals(indexNameWithModes, other.indexNameWithModes)
+            && Objects.equals(indexProperties, other.indexProperties)
             && Objects.equals(attrs, other.attrs);
     }
 
@@ -182,12 +213,12 @@ public class EsRelation extends LeafPlan {
         if (resolvedIndicesAddInfo()) {
             sb.append('[');
             boolean first = true;
-            for (var e : indexNameWithModes.entrySet()) {
+            for (var e : indexProperties.entrySet()) {
                 if (first == false) {
                     sb.append(", ");
                 }
                 first = false;
-                sb.append(mapper.index(e.getKey())).append('=').append(e.getValue().name());
+                sb.append(mapper.index(e.getKey())).append('=').append(e.getValue().indexMode().name());
             }
             sb.append(']');
         }
@@ -202,18 +233,18 @@ public class EsRelation extends LeafPlan {
      * so a mode difference alone (with the names unchanged) is not on its own informative here.
      */
     private boolean resolvedIndicesAddInfo() {
-        if (indexNameWithModes == null || indexNameWithModes.isEmpty()) {
+        if (indexProperties == null || indexProperties.isEmpty()) {
             return false;
         }
         Set<String> patternParts = new HashSet<>();
         for (String part : indexPattern.split(",")) {
             patternParts.add(part.trim());
         }
-        return patternParts.equals(indexNameWithModes.keySet()) == false;
+        return patternParts.equals(indexProperties.keySet()) == false;
     }
 
     public EsRelation withAttributes(List<Attribute> newAttributes) {
-        return new EsRelation(source(), indexPattern, indexMode, originalIndices, concreteIndices, indexNameWithModes, newAttributes);
+        return new EsRelation(source(), indexPattern, indexMode, originalIndices, concreteIndices, indexProperties, newAttributes);
     }
 
     public EsRelation withAdditionalAttributes(List<? extends Attribute> additionalAttributes) {
@@ -231,6 +262,6 @@ public class EsRelation extends LeafPlan {
     }
 
     public EsRelation withIndexMode(IndexMode indexMode) {
-        return new EsRelation(source(), indexPattern, indexMode, originalIndices, concreteIndices, indexNameWithModes, attrs);
+        return new EsRelation(source(), indexPattern, indexMode, originalIndices, concreteIndices, indexProperties, attrs);
     }
 }

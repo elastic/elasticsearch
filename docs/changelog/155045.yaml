@@ -1,6 +1,0 @@
-area: ES|QL
-issues:
- - 152920
-pr: 155045
-summary: Preserve requested qualifiers on ES|QL attributes
-type: bug

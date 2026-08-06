@@ -2592,16 +2592,23 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             searchRequest.routing(),
             searchRequest.indices()
         );
-        List<SearchShardRouting> shardRoutings = clusterService.operationRouting()
-            .searchShards(
-                projectState,
-                concreteIndices,
-                routingMap,
-                searchRequest.preference(),
-                responseCollectorService,
-                searchTransportService.getPendingSearchRequests(),
-                shouldSort
-            );
+        var operationRouting = clusterService.operationRouting();
+        var arsContext = new OperationRouting.ArsContext(
+            responseCollectorService,
+            searchTransportService.getPendingSearchRequests(),
+            searchTransportService.getLiveClientConnections(),
+            operationRouting.isAdaptiveReplicaSelectionProbeEnabled(),
+            operationRouting.getAdaptiveReplicaSelectionProbeInflightCap(),
+            operationRouting.getAdaptiveReplicaSelectionWarmupSamples()
+        );
+        List<SearchShardRouting> shardRoutings = operationRouting.searchShards(
+            projectState,
+            concreteIndices,
+            routingMap,
+            searchRequest.preference(),
+            arsContext,
+            shouldSort
+        );
         final Map<String, OriginalIndices> originalIndices = buildPerIndexOriginalIndices(
             projectState,
             indicesAndAliases,

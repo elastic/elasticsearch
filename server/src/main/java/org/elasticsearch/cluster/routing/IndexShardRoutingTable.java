@@ -242,20 +242,18 @@ public class IndexShardRoutingTable {
      * selection formula. Making sure though that its random within the active shards of the same
      * (or missing) rank, and initializing shards are the last to iterate through.
      */
-    public ShardIterator activeInitializingShardsRankedIt(
-        @Nullable ResponseCollectorService collector,
-        @Nullable Map<String, Long> nodeSearchCounts
-    ) {
+    public ShardIterator activeInitializingShardsRankedIt(@Nullable OperationRouting.ArsContext arsContext) {
+        if (arsContext == null) {
+            return activeInitializingShardsRandomIt();
+        }
         final int seed = shuffler.nextSeed();
         if (allInitializingShards.isEmpty()) {
-            return new ShardIterator(shardId, rankShardsAndUpdateStats(shuffler.shuffle(activeShards, seed), collector, nodeSearchCounts));
+            return new ShardIterator(shardId, rankShardsAndUpdateStats(shuffler.shuffle(activeShards, seed), arsContext));
         }
 
         ArrayList<ShardRouting> ordered = new ArrayList<>(activeShards.size() + allInitializingShards.size());
-        List<ShardRouting> rankedActiveShards = rankShardsAndUpdateStats(shuffler.shuffle(activeShards, seed), collector, nodeSearchCounts);
-        ordered.addAll(rankedActiveShards);
-        List<ShardRouting> rankedInitializingShards = rankShardsAndUpdateStats(allInitializingShards, collector, nodeSearchCounts);
-        ordered.addAll(rankedInitializingShards);
+        ordered.addAll(rankShardsAndUpdateStats(shuffler.shuffle(activeShards, seed), arsContext));
+        ordered.addAll(rankShardsAndUpdateStats(allInitializingShards, arsContext));
         return new ShardIterator(shardId, ordered);
     }
 
@@ -271,28 +269,129 @@ public class IndexShardRoutingTable {
         return nodeStats;
     }
 
-    private static Map<String, Double> rankNodes(
+    /**
+     * Computes a rank for each node based on its adaptive replica selection (ARS) stats.
+     * Nodes with stats are ranked using the C3 formula via {@link ResponseCollectorService.ComputedNodeStats#rank}.
+     * Nodes without stats (e.g. newly joined) are assigned {@code Math.nextDown(bestRank)} so they
+     * are probed ahead of measured nodes, but only while their in-flight request count stays
+     * below {@code probeInflightCap}. The cap is enforced against both counts independently — a
+     * node is gated if either the snapshot count (within-search shard wins) or the live count
+     * (cross-search load signal) reaches the cap.
+     * <p>
+     * When {@code warmupSamples > 0}, a peer is considered <em>warm</em> once its
+     * {@link ResponseCollectorService.ComputedNodeStats#observationCount} reaches the threshold;
+     * below the threshold it is <em>warming up</em>. Two protections apply during warmup:
+     * <ul>
+     *   <li><b>Inflight cap</b>: the same {@code probeInflightCap} that gates stat-less probing
+     *       continues to apply to warming-up peers — at-or-above the cap they get no rank entry
+     *       and sort last via {@code nullsLast}, so a sudden burst can never put more than
+     *       {@code probeInflightCap} concurrent requests on a node before it has graduated.</li>
+     *   <li><b>Rank clamp</b>: a warming-up peer below the cap whose bare rank is below the lowest
+     *       warm peer's rank is clamped up to that lowest warm rank, so it ties with the best
+     *       warm peer (~50/50 via comparator tie-break + shuffle) instead of looking fastest from
+     *       sparse stats.</li>
+     * </ul>
+     * Once a peer's observation count reaches the threshold both protections release, and it ranks
+     * on standard C3 terms.
+     *
+     * @param nodeStats        per-node EWMA stats; {@code Optional.empty()} for nodes without stats
+     * @param searchCounts     mutable per-search snapshot of in-flight counts used by the ARS
+     *                         formula and local multi-shard spreading
+     * @param globalCounts     in-flight counts for the probe cap check; see {@link OperationRouting.ArsContext#globalCounts()}
+     * @param probeInflightCap maximum number of concurrent in-flight requests to a stat-less or
+     *                         warming-up node before the in-flight gate kicks in
+     * @param warmupSamples    minimum observation count for a peer to be considered warm; {@code 0}
+     *                         disables both warmup protections (clamp and in-flight gate during warmup)
+     * @return map of node ID to rank; stat-less nodes outside the cap, and all stat-less nodes when
+     *         {@code probeInflightCap} is 0, have no entry and sort per the caller's comparator
+     */
+    static Map<String, Double> rankNodes(
         final Map<String, Optional<ResponseCollectorService.ComputedNodeStats>> nodeStats,
-        final Map<String, Long> nodeSearchCounts
+        final Map<String, Long> searchCounts,
+        final Map<String, Long> globalCounts,
+        final long probeInflightCap,
+        final int warmupSamples
     ) {
         final Map<String, Double> nodeRanks = Maps.newMapWithExpectedSize(nodeStats.size());
+        List<String> probeCandidates = null;
+        List<String> warmingUpRanked = null;
+        double bestPeerRank = Double.POSITIVE_INFINITY;
+        double bestWarmRank = Double.POSITIVE_INFINITY;
+
         for (Map.Entry<String, Optional<ResponseCollectorService.ComputedNodeStats>> entry : nodeStats.entrySet()) {
-            Optional<ResponseCollectorService.ComputedNodeStats> maybeStats = entry.getValue();
-            maybeStats.ifPresent(stats -> {
-                final String nodeId = entry.getKey();
-                nodeRanks.put(nodeId, stats.rank(nodeSearchCounts.getOrDefault(nodeId, 0L)));
-            });
+            final String nodeId = entry.getKey();
+            final Optional<ResponseCollectorService.ComputedNodeStats> maybeStats = entry.getValue();
+            final long searchCount = searchCounts.getOrDefault(nodeId, 0L);
+
+            if (maybeStats.isEmpty()) {
+                // Stat-less: probe ahead of measured peers if below the cap, otherwise skip and
+                // sort last via nullsLast.
+                if (searchCount < probeInflightCap && globalCounts.getOrDefault(nodeId, 0L) < probeInflightCap) {
+                    if (probeCandidates == null) {
+                        probeCandidates = new ArrayList<>();
+                    }
+                    probeCandidates.add(nodeId);
+                }
+                continue;
+            }
+
+            final ResponseCollectorService.ComputedNodeStats stats = maybeStats.get();
+            final boolean warmingUp = warmupSamples > 0 && stats.observationCount < warmupSamples;
+
+            // Warming-up peers obey the same in-flight cap as stat-less probes. At-or-above the
+            // cap they get no rank entry and sort last via nullsLast, hard-capping the burst load
+            // a sparsely measured node can absorb before it has graduated to warm.
+            if (warmingUp) {
+                if (probeInflightCap > 0
+                    && (searchCount >= probeInflightCap || globalCounts.getOrDefault(nodeId, 0L) >= probeInflightCap)) {
+                    continue;
+                }
+                if (warmingUpRanked == null) {
+                    warmingUpRanked = new ArrayList<>();
+                }
+                warmingUpRanked.add(nodeId);
+            }
+
+            final double bare = stats.rank(searchCount);
+            nodeRanks.put(nodeId, bare);
+
+            // bestPeerRank tracks the lowest bare rank across all peers; bestWarmRank tracks the
+            // lowest among warm peers only.
+            if (bare < bestPeerRank) {
+                bestPeerRank = bare;
+            }
+            if (warmingUp == false && bare < bestWarmRank) {
+                bestWarmRank = bare;
+            }
+        }
+
+        // Clamp warming-up peers up to the best warm peer's rank so they tie with it (~50/50 via
+        // the comparator's tie-break) instead of looking fastest from sparse stats.
+        if (warmingUpRanked != null && bestWarmRank != Double.POSITIVE_INFINITY) {
+            for (String nodeId : warmingUpRanked) {
+                if (nodeRanks.get(nodeId) < bestWarmRank) {
+                    nodeRanks.put(nodeId, bestWarmRank);
+                }
+            }
+        }
+
+        // Place stat-less probe candidates just ahead of the best known rank.
+        if (probeCandidates != null && nodeRanks.isEmpty() == false) {
+            final double probeRank = Math.nextDown(bestPeerRank);
+            for (String nodeId : probeCandidates) {
+                nodeRanks.put(nodeId, probeRank);
+            }
         }
         return nodeRanks;
     }
 
     /**
-     * Adjust the for all other nodes' collected stats. In the original ranking paper there is no need to adjust other nodes' stats because
+     * Adjust all other nodes' collected stats. In the original ranking paper there is no need to adjust other nodes' stats because
      * Cassandra sends occasional requests to all copies of the data, so their stats will be updated during that broadcast phase. In
      * Elasticsearch, however, we do not have that sort of broadcast-to-all behavior. In order to prevent a node that gets a high score and
      * then never gets any more requests, we must ensure it eventually returns to a more normal score and can be a candidate for serving
      * requests.
-     *
+     * <p>
      * This adjustment takes the "winning" node's statistics and adds the average of those statistics with each non-winning node. Let's say
      * the winning node had a queue size of 10 and a non-winning node had a queue of 18. The average queue size is (10 + 18) / 2 = 14 so the
      * non-winning node will have statistics added for a queue size of 14. This is repeated for the response time and service times as well.
@@ -325,75 +424,69 @@ public class IndexShardRoutingTable {
         }
     }
 
-    private static List<ShardRouting> rankShardsAndUpdateStats(
-        List<ShardRouting> shards,
-        final ResponseCollectorService collector,
-        final Map<String, Long> nodeSearchCounts
-    ) {
-        if (collector == null || nodeSearchCounts == null || shards.size() <= 1) {
+    private static List<ShardRouting> rankShardsAndUpdateStats(List<ShardRouting> shards, final OperationRouting.ArsContext arsContext) {
+        final ResponseCollectorService collector = arsContext.collector();
+        final Map<String, Long> searchCounts = arsContext.searchCounts();
+        final Map<String, Long> globalCounts = arsContext.globalCounts();
+        if (collector == null || searchCounts == null || shards.size() <= 1) {
             return shards;
         }
 
         // Retrieve which nodes we can potentially send the query to
         final Map<String, Optional<ResponseCollectorService.ComputedNodeStats>> nodeStats = getNodeStats(shards, collector);
 
-        // Retrieve all the nodes the shards exist on
+        // Zeroing the cap suppresses probe candidates; probeEnabled also selects the null-rank
+        // sort order and enables warmup smoothing.
+        final long probeInflightCap = arsContext.probeEnabled() ? arsContext.probeInflightCap() : 0L;
+        final int warmupSamples = arsContext.probeEnabled() ? arsContext.warmupSamples() : 0;
 
         // sort all shards based on the shard rank
         ArrayList<ShardRouting> sortedShards = new ArrayList<>(shards);
-        sortedShards.sort(new NodeRankComparator(rankNodes(nodeStats, nodeSearchCounts)));
+        sortedShards.sort(
+            new NodeRankComparator(
+                rankNodes(nodeStats, searchCounts, globalCounts, probeInflightCap, warmupSamples),
+                arsContext.probeEnabled()
+            )
+        );
 
-        // adjust the non-winner nodes' stats so they will get a chance to receive queries
-        ShardRouting minShard = sortedShards.get(0);
+        // Blend the winner's stats into non-winner nodes so their stale EWMA values
+        // gradually converge toward the winner's, preventing permanent starvation.
+        ShardRouting minShard = sortedShards.getFirst();
         // If the winning shard is not started we are ranking initializing
         // shards, don't bother to do adjustments
         if (minShard.started()) {
             String minNodeId = minShard.currentNodeId();
+            // Increase the number of searches for the "winning" node by one.
+            // Note that this doesn't actually affect the "real" counts, instead
+            // it only affects the snapshot, which is shared across shards within
+            // one search for multi-shard spreading. This must happen outside the
+            // stats check so that stat-less probe winners also increment the count,
+            // making the probe cap effective for multi-shard indices.
+            searchCounts.compute(minNodeId, (id, conns) -> conns == null ? 1 : conns + 1);
             Optional<ResponseCollectorService.ComputedNodeStats> maybeMinStats = nodeStats.get(minNodeId);
-            if (maybeMinStats.isPresent()) {
-                adjustStats(collector, nodeStats, minNodeId, maybeMinStats.get());
-                // Increase the number of searches for the "winning" node by one.
-                // Note that this doesn't actually affect the "real" counts, instead
-                // it only affects the captured node search counts, which is
-                // captured once for each query in TransportSearchAction
-                nodeSearchCounts.compute(minNodeId, (id, conns) -> conns == null ? 1 : conns + 1);
-            }
+            maybeMinStats.ifPresent(computedNodeStats -> adjustStats(collector, nodeStats, minNodeId, computedNodeStats));
         }
 
         return sortedShards;
     }
 
     private static class NodeRankComparator implements Comparator<ShardRouting> {
-        private final Map<String, Double> nodeRanks;
+        private static final Comparator<Double> PROBE_ON_COMPARATOR = Comparator.nullsLast(Double::compare);
+        private static final Comparator<Double> PROBE_OFF_COMPARATOR = Comparator.nullsFirst(Double::compare);
 
-        NodeRankComparator(Map<String, Double> nodeRanks) {
+        private final Map<String, Double> nodeRanks;
+        private final Comparator<Double> rankComparator;
+
+        NodeRankComparator(Map<String, Double> nodeRanks, boolean probeEnabled) {
             this.nodeRanks = nodeRanks;
+            // When probing is on, unranked nodes (above cap or no stats) sort last.
+            // When probing is off, unranked nodes sort first to preserve original ARS behavior.
+            this.rankComparator = probeEnabled ? PROBE_ON_COMPARATOR : PROBE_OFF_COMPARATOR;
         }
 
         @Override
         public int compare(ShardRouting s1, ShardRouting s2) {
-            if (s1.currentNodeId().equals(s2.currentNodeId())) {
-                // these shards on the same node
-                return 0;
-            }
-            Double shard1rank = nodeRanks.get(s1.currentNodeId());
-            Double shard2rank = nodeRanks.get(s2.currentNodeId());
-            if (shard1rank != null) {
-                if (shard2rank != null) {
-                    return shard1rank.compareTo(shard2rank);
-                } else {
-                    // place non-nulls after null values
-                    return 1;
-                }
-            } else {
-                if (shard2rank != null) {
-                    // place nulls before non-null values
-                    return -1;
-                } else {
-                    // Both nodes do not have stats, they are equal
-                    return 0;
-                }
-            }
+            return rankComparator.compare(nodeRanks.get(s1.currentNodeId()), nodeRanks.get(s2.currentNodeId()));
         }
     }
 

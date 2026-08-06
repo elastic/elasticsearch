@@ -18,14 +18,10 @@ import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponses;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 @ESIntegTestCase.ClusterScope(numClientNodes = 1, numDataNodes = 3)
@@ -36,6 +32,7 @@ public class SearchReplicaSelectionIT extends ESIntegTestCase {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING.getKey(), true)
+            .put(OperationRouting.ADAPTIVE_REPLICA_SELECTION_PROBE_ENABLED_SETTING.getKey(), true)
             .build();
     }
 
@@ -49,20 +46,10 @@ public class SearchReplicaSelectionIT extends ESIntegTestCase {
         client.prepareIndex("test").setSource("field", "value").get();
         refresh();
 
-        // Before we've gathered stats for all nodes, we should try each node once.
-        Set<String> nodeIds = new HashSet<>();
-        assertResponses(response -> {
-            assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
-            nodeIds.add(response.getHits().getAt(0).getShard().getNodeId());
-        },
-            client.prepareSearch().setQuery(matchAllQuery()),
-            client.prepareSearch().setQuery(matchAllQuery()),
-            client.prepareSearch().setQuery(matchAllQuery())
-        );
-        assertEquals(3, nodeIds.size());
-
-        // Now after more searches, we should select a node with the lowest ARS rank.
-        for (int i = 0; i < 5; i++) {
+        // Run enough searches to build ARS stats on every node holding this shard. Other tests in
+        // this class add data nodes and accumulate stats in the shared cluster, so we cannot rely
+        // on a cold-start assumption here.
+        for (int i = 0; i < 20; i++) {
             client.prepareSearch().setQuery(matchAllQuery()).get().decRef();
         }
 
@@ -74,18 +61,24 @@ public class SearchReplicaSelectionIT extends ESIntegTestCase {
         NodesStatsResponse statsResponse = client.admin().cluster().prepareNodesStats().setAdaptiveSelection(true).get();
         NodeStats nodeStats = statsResponse.getNodesMap().get(coordinatingNodeId);
         assertNotNull(nodeStats);
-        assertEquals(3, nodeStats.getAdaptiveSelectionStats().getComputedStats().size());
+        // The cluster may have more than 3 data nodes if other tests added nodes, but we always
+        // need stats for at least the 3 nodes holding the "test" shard.
+        assertThat(nodeStats.getAdaptiveSelectionStats().getComputedStats().size(), greaterThanOrEqualTo(3));
 
         assertBusy(() -> {
+            NodesStatsResponse freshStatsResponse = client.admin().cluster().prepareNodesStats().setAdaptiveSelection(true).get();
+            NodeStats freshNodeStats = freshStatsResponse.getNodesMap().get(coordinatingNodeId);
+            assertNotNull(freshNodeStats);
+            Map<String, Double> ranks = freshNodeStats.getAdaptiveSelectionStats().getRanks();
             assertResponse(client.prepareSearch().setQuery(matchAllQuery()), response -> {
                 String selectedNodeId = response.getHits().getAt(0).getShard().getNodeId();
-                double selectedRank = nodeStats.getAdaptiveSelectionStats().getRanks().get(selectedNodeId);
-
-                for (Map.Entry<String, Double> entry : nodeStats.getAdaptiveSelectionStats().getRanks().entrySet()) {
-                    double rank = entry.getValue();
+                Double selectedRank = ranks.get(selectedNodeId);
+                assertNotNull(selectedNodeId + " should have a formula rank in adaptive selection stats", selectedRank);
+                for (double rank : ranks.values()) {
                     assertThat(rank, greaterThanOrEqualTo(selectedRank));
                 }
             });
         });
     }
+
 }

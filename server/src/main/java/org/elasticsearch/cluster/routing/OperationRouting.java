@@ -19,9 +19,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.node.ResponseCollectorService;
 
 import java.util.ArrayList;
@@ -36,6 +39,47 @@ import java.util.stream.Collectors;
 
 public class OperationRouting {
 
+    private static final Logger logger = LogManager.getLogger(OperationRouting.class);
+
+    /**
+     * Feature flag for ARS probing of stat-less nodes. Controls the default value of
+     * {@link #ADAPTIVE_REPLICA_SELECTION_PROBE_ENABLED_SETTING}: enabled in snapshot/test builds,
+     * disabled otherwise. Once the feature is stable the flag will be removed and the setting
+     * default will become {@code true} unconditionally.
+     */
+    static final FeatureFlag ARS_PROBING_FEATURE_FLAG = new FeatureFlag("ars_probing");
+
+    /**
+     * Bundles the state needed for adaptive replica selection (ARS) routing decisions.
+     *
+     * @param collector        collects per-node EWMA stats (queue size, response time, service time)
+     * @param searchCounts     mutable per-search snapshot of in-flight counts used by the ARS
+     *                         formula and incremented locally for multi-shard spreading within a
+     *                         single search; each search receives an independent copy, so
+     *                         routing-time increments from concurrent searches are invisible to
+     *                         each other
+     * @param globalCounts     best-effort live in-flight counts shared across all searches; used by
+     *                         the probe cap as an approximate cross-search load signal (the count is
+     *                         incremented at transport dispatch time, so concurrent routing decisions
+     *                         may transiently under-count)
+     * @param probeEnabled     whether ARS probing of stat-less and warming-up nodes is active;
+     *                         when {@code false} the original ARS behavior is preserved
+     * @param probeInflightCap per-coordinator cap on in-flight requests to a stat-less or warming-up
+     *                         node before probing is suspended; see
+     *                         {@link #ADAPTIVE_REPLICA_SELECTION_PROBE_INFLIGHT_CAP_SETTING}
+     * @param warmupSamples    minimum observation count for a peer to be considered warm; below
+     *                         this threshold a peer is subject to the in-flight cap and the rank
+     *                         clamp; {@code 0} disables both warmup protections
+     */
+    public record ArsContext(
+        ResponseCollectorService collector,
+        Map<String, Long> searchCounts,
+        Map<String, Long> globalCounts,
+        boolean probeEnabled,
+        long probeInflightCap,
+        int warmupSamples
+    ) {}
+
     public static final Setting<Boolean> USE_ADAPTIVE_REPLICA_SELECTION_SETTING = Setting.boolSetting(
         "cluster.routing.use_adaptive_replica_selection",
         true,
@@ -43,16 +87,127 @@ public class OperationRouting {
         Setting.Property.NodeScope
     );
 
-    private boolean useAdaptiveReplicaSelection;
+    /**
+     * Controls ARS probing of stat-less and warming-up nodes. When {@code false} the original ARS
+     * behavior is preserved: unranked nodes sort first and no probing or warmup smoothing is applied.
+     * <p>
+     * Defaults to {@link #ARS_PROBING_FEATURE_FLAG}: enabled in snapshot/test builds, disabled in
+     * release builds. Once stable, the flag will be removed and the default becomes {@code true}.
+     */
+    public static final Setting<Boolean> ADAPTIVE_REPLICA_SELECTION_PROBE_ENABLED_SETTING = Setting.boolSetting(
+        "cluster.routing.use_adaptive_replica_selection.probe_enabled",
+        ARS_PROBING_FEATURE_FLAG.isEnabled(),
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Per-coordinator cap on concurrent in-flight requests to a stat-less or warming-up data node
+     * before probing is suspended. The effective global cap for probes targeting one node is
+     * {@code probe_inflight_cap × number_of_coordinators}. Set to {@code 0} to suppress probing
+     * while keeping the feature enabled. Internal tuning surface — not advertised in user docs.
+     */
+    public static final Setting<Long> ADAPTIVE_REPLICA_SELECTION_PROBE_INFLIGHT_CAP_SETTING = Setting.longSetting(
+        "cluster.routing.use_adaptive_replica_selection.probe_inflight_cap",
+        2L,
+        0L,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Observation count below which a peer is considered <em>warming up</em>. Warming-up peers
+     * are subject to the same in-flight cap as stat-less probes and a rank clamp that pegs their
+     * rank to the best warm peer, preventing sparse EWMA stats from making them look artificially
+     * fast. Both protections release once the threshold is reached and the peer ranks on standard
+     * C3 terms. Internal tuning surface — not advertised in user docs; {@code 0} disables both
+     * protections.
+     */
+    public static final Setting<Integer> ADAPTIVE_REPLICA_SELECTION_WARMUP_SAMPLES_SETTING = Setting.intSetting(
+        "cluster.routing.use_adaptive_replica_selection.warmup_samples",
+        100,
+        0,
+        10000,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    private volatile boolean useAdaptiveReplicaSelection;
+    private volatile boolean adaptiveReplicaSelectionProbeEnabled;
+    private volatile long adaptiveReplicaSelectionProbeInflightCap;
+    private volatile int adaptiveReplicaSelectionWarmupSamples;
 
     @SuppressWarnings("this-escape")
     public OperationRouting(Settings settings, ClusterSettings clusterSettings) {
         this.useAdaptiveReplicaSelection = USE_ADAPTIVE_REPLICA_SELECTION_SETTING.get(settings);
+        this.adaptiveReplicaSelectionProbeEnabled = ADAPTIVE_REPLICA_SELECTION_PROBE_ENABLED_SETTING.get(settings);
+        this.adaptiveReplicaSelectionProbeInflightCap = ADAPTIVE_REPLICA_SELECTION_PROBE_INFLIGHT_CAP_SETTING.get(settings);
+        this.adaptiveReplicaSelectionWarmupSamples = ADAPTIVE_REPLICA_SELECTION_WARMUP_SAMPLES_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(USE_ADAPTIVE_REPLICA_SELECTION_SETTING, this::setUseAdaptiveReplicaSelection);
+        clusterSettings.addSettingsUpdateConsumer(
+            ADAPTIVE_REPLICA_SELECTION_PROBE_ENABLED_SETTING,
+            this::setAdaptiveReplicaSelectionProbeEnabled
+        );
+        clusterSettings.addSettingsUpdateConsumer(
+            ADAPTIVE_REPLICA_SELECTION_PROBE_INFLIGHT_CAP_SETTING,
+            this::setAdaptiveReplicaSelectionProbeInflightCap
+        );
+        clusterSettings.addSettingsUpdateConsumer(
+            ADAPTIVE_REPLICA_SELECTION_WARMUP_SAMPLES_SETTING,
+            this::setAdaptiveReplicaSelectionWarmupSamples
+        );
+        logger.info(
+            "ARS probing {}: inflight_cap={}, warmup_samples={}",
+            adaptiveReplicaSelectionProbeEnabled ? "enabled" : "disabled",
+            adaptiveReplicaSelectionProbeInflightCap,
+            adaptiveReplicaSelectionWarmupSamples
+        );
     }
 
     void setUseAdaptiveReplicaSelection(boolean useAdaptiveReplicaSelection) {
         this.useAdaptiveReplicaSelection = useAdaptiveReplicaSelection;
+    }
+
+    void setAdaptiveReplicaSelectionProbeEnabled(boolean probeEnabled) {
+        this.adaptiveReplicaSelectionProbeEnabled = probeEnabled;
+        logger.info(
+            "ARS probing changed to {}: inflight_cap={}, warmup_samples={}",
+            adaptiveReplicaSelectionProbeEnabled ? "enabled" : "disabled",
+            adaptiveReplicaSelectionProbeInflightCap,
+            adaptiveReplicaSelectionWarmupSamples
+        );
+    }
+
+    void setAdaptiveReplicaSelectionProbeInflightCap(long probeInflightCap) {
+        this.adaptiveReplicaSelectionProbeInflightCap = probeInflightCap;
+        logger.info(
+            "ARS probing inflight cap changed to {}: probe_enabled={}, warmup_samples={}",
+            adaptiveReplicaSelectionProbeInflightCap,
+            adaptiveReplicaSelectionProbeEnabled,
+            adaptiveReplicaSelectionWarmupSamples
+        );
+    }
+
+    void setAdaptiveReplicaSelectionWarmupSamples(int adaptiveReplicaSelectionWarmupSamples) {
+        this.adaptiveReplicaSelectionWarmupSamples = adaptiveReplicaSelectionWarmupSamples;
+        logger.info(
+            "ARS probing warmup samples changed to {}: probe_enabled={}, inflight_cap={}",
+            adaptiveReplicaSelectionWarmupSamples,
+            adaptiveReplicaSelectionProbeEnabled,
+            adaptiveReplicaSelectionProbeInflightCap
+        );
+    }
+
+    public boolean isAdaptiveReplicaSelectionProbeEnabled() {
+        return adaptiveReplicaSelectionProbeEnabled;
+    }
+
+    public long getAdaptiveReplicaSelectionProbeInflightCap() {
+        return adaptiveReplicaSelectionProbeInflightCap;
+    }
+
+    public int getAdaptiveReplicaSelectionWarmupSamples() {
+        return adaptiveReplicaSelectionWarmupSamples;
     }
 
     /**
@@ -69,13 +224,13 @@ public class OperationRouting {
         IndexRouting indexRouting = IndexRouting.fromIndexMetadata(indexMetadata(projectState.metadata(), index));
         IndexShardRoutingTable shards = projectState.routingTable().shardRoutingTable(index, indexRouting.getShard(id, routing));
         DiscoveryNodes nodes = projectState.cluster().nodes();
-        return preferenceActiveShardIterator(shards, nodes.getLocalNodeId(), nodes, preference, null, null);
+        return preferenceActiveShardIterator(shards, nodes.getLocalNodeId(), nodes, preference, null);
     }
 
     public ShardIterator getShards(ProjectState projectState, String index, int shardId, @Nullable String preference) {
         IndexShardRoutingTable indexShard = projectState.routingTable().shardRoutingTable(index, shardId);
         DiscoveryNodes nodes = projectState.cluster().nodes();
-        return preferenceActiveShardIterator(indexShard, nodes.getLocalNodeId(), nodes, preference, null, null);
+        return preferenceActiveShardIterator(indexShard, nodes.getLocalNodeId(), nodes, preference, null);
     }
 
     public List<SearchShardRouting> searchShards(
@@ -84,7 +239,7 @@ public class OperationRouting {
         @Nullable Map<String, Set<String>> routing,
         @Nullable String preference
     ) {
-        return searchShards(projectState, concreteIndices, routing, preference, null, null, true);
+        return searchShards(projectState, concreteIndices, routing, preference, null, true);
     }
 
     public List<SearchShardRouting> searchShards(
@@ -92,8 +247,7 @@ public class OperationRouting {
         String[] concreteIndices,
         @Nullable Map<String, Set<String>> routing,
         @Nullable String preference,
-        @Nullable ResponseCollectorService collectorService,
-        @Nullable Map<String, Long> nodeCounts,
+        @Nullable ArsContext arsContext,
         boolean shouldSort
     ) {
         final Set<SearchTargetShard> shards = computeTargetedShards(projectState, concreteIndices, routing);
@@ -105,8 +259,7 @@ public class OperationRouting {
                 nodes.getLocalNodeId(),
                 nodes,
                 preference,
-                collectorService,
-                nodeCounts
+                arsContext
             );
             if (iterator != null) {
                 res.add(
@@ -244,11 +397,10 @@ public class OperationRouting {
         String localNodeId,
         DiscoveryNodes nodes,
         @Nullable String preference,
-        @Nullable ResponseCollectorService collectorService,
-        @Nullable Map<String, Long> nodeCounts
+        @Nullable ArsContext arsContext
     ) {
         if (preference == null || preference.isEmpty()) {
-            return shardRoutings(indexShard, collectorService, nodeCounts);
+            return shardRoutings(indexShard, arsContext);
         }
         if (preference.charAt(0) == '_') {
             Preference preferenceType = Preference.parse(preference);
@@ -275,7 +427,7 @@ public class OperationRouting {
                 }
                 // no more preference
                 if (index == -1 || index == preference.length() - 1) {
-                    return shardRoutings(indexShard, collectorService, nodeCounts);
+                    return shardRoutings(indexShard, arsContext);
                 } else {
                     // update the preference and continue
                     preference = preference.substring(index + 1);
@@ -306,16 +458,11 @@ public class OperationRouting {
         return indexShard.activeInitializingShardsIt(routingHash);
     }
 
-    private ShardIterator shardRoutings(
-        IndexShardRoutingTable indexShard,
-        @Nullable ResponseCollectorService collectorService,
-        @Nullable Map<String, Long> nodeCounts
-    ) {
+    private ShardIterator shardRoutings(IndexShardRoutingTable indexShard, @Nullable ArsContext arsContext) {
         if (useAdaptiveReplicaSelection) {
-            return indexShard.activeInitializingShardsRankedIt(collectorService, nodeCounts);
-        } else {
-            return indexShard.activeInitializingShardsRandomIt();
+            return indexShard.activeInitializingShardsRankedIt(arsContext);
         }
+        return indexShard.activeInitializingShardsRandomIt();
     }
 
     protected static IndexRoutingTable indexRoutingTable(RoutingTable routingTable, String index) {

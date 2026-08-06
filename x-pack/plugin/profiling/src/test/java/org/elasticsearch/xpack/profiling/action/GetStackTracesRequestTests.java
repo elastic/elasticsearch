@@ -16,6 +16,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.profiling.persistence.EventsIndex;
 
 import java.io.IOException;
 import java.util.List;
@@ -551,7 +552,7 @@ public class GetStackTracesRequestTests extends ESTestCase {
             GetStackTracesRequest request = new GetStackTracesRequest();
             request.parseXContent(content);
             String[] indices = request.indices();
-            assertEquals(15, indices.length);
+            assertEquals(EventsIndex.otelIndexNames().size() + 3, indices.length);
             assertTrue("OTel stacktraces index must be present", Set.of(indices).contains("profiling-stacktraces.otel-default"));
             assertTrue("OTel stackframes index must be present", Set.of(indices).contains("profiling-stackframes.otel-default"));
             assertTrue("OTel executables index must be present", Set.of(indices).contains("profiling-executables.otel-default"));

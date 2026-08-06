@@ -83,12 +83,6 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
         Setting.Property.Dynamic
     );
 
-    public static final Setting<Boolean> PROFILING_TEMPLATES_SCHEMA_OTEL_ENABLED = Setting.boolSetting(
-        "xpack.profiling.templates.schema.otel.enabled",
-        true,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
     public static final String PROFILING_THREAD_POOL_NAME = "profiling";
     private final Settings settings;
     private final boolean enabled;
@@ -121,11 +115,8 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
             )
         );
         registry.get().setEcsSchemaEnabled(PROFILING_TEMPLATES_SCHEMA_ECS_ENABLED.get(settings));
-        registry.get().setOtelSchemaEnabled(PROFILING_TEMPLATES_SCHEMA_OTEL_ENABLED.get(settings));
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(PROFILING_TEMPLATES_SCHEMA_ECS_ENABLED, registry.get()::setEcsSchemaEnabled);
-        clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(PROFILING_TEMPLATES_SCHEMA_OTEL_ENABLED, registry.get()::setOtelSchemaEnabled);
         indexStateResolver.set(new IndexStateResolver(PROFILING_CHECK_OUTDATED_INDICES.get(settings)));
         clusterService.getClusterSettings().addSettingsUpdateConsumer(PROFILING_CHECK_OUTDATED_INDICES, this::updateCheckOutdatedIndices);
 
@@ -184,7 +175,6 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
             PROFILING_TEMPLATES_ENABLED,
             PROFILING_CHECK_OUTDATED_INDICES,
             PROFILING_TEMPLATES_SCHEMA_ECS_ENABLED,
-            PROFILING_TEMPLATES_SCHEMA_OTEL_ENABLED,
             TransportGetStackTracesAction.PROFILING_MAX_STACKTRACE_QUERY_SLICES,
             TransportGetStackTracesAction.PROFILING_MAX_DETAIL_QUERY_SLICES,
             TransportGetStackTracesAction.PROFILING_QUERY_REALTIME

@@ -58,7 +58,7 @@ public class ColumnarNumericIngestBenchmark {
         Utils.configureBenchmarkLogging();
     }
 
-    private static final String FIELD = "value";
+    private static final String FIELD = NumericFormat.FIELD;
 
     public enum Merge {
         NONE,
@@ -66,10 +66,10 @@ public class ColumnarNumericIngestBenchmark {
         FORCE
     }
 
-    @Param({ "COLUMNAR", "ES819", "ES95" })
+    @Param({ "LUCENE", "ES819", "ES95", "COLUMNAR" })
     private NumericFormat format;
 
-    @Param({ "MONOTONIC_TIMESTAMPS", "COUNTER_STEADY", "GAUGE", "RANDOM_FULL" })
+    @Param({ "MONOTONIC_TIMESTAMPS", "COUNTER_STEADY", "GAUGE", "DOUBLE_GAUGE", "DOUBLE_COUNTER", "RANDOM_FULL" })
     private String workload;
 
     @Param({ "NONE", "NATURAL", "FORCE" })
@@ -84,7 +84,7 @@ public class ColumnarNumericIngestBenchmark {
     @Setup(Level.Trial)
     public void setup() {
         values = NumericData.generate(workload, docCount);
-        codec = format.codec();
+        codec = format.codec(workload);
     }
 
     /** Secondary metrics: bytes on disk at the end, and total bytes written across all segments. */
@@ -128,7 +128,6 @@ public class ColumnarNumericIngestBenchmark {
         directory.close();
     }
 
-    /** Wraps a directory to total the bytes written across every output, including files later merged away. */
     private static final class CountingDirectory extends FilterDirectory {
         private long bytesWritten;
 

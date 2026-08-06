@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.apache.logging.log4j.Level;
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -71,12 +72,13 @@ public class FederationTests extends ESTestCase {
         assertTrue(e.getMessage().contains(Federation.REGISTER_PROPERTY));
     }
 
-    public void testDisabledByDefault() {
-        assertFalse(Federation.FEDERATION_ENABLED.get(Settings.EMPTY));
+    public void testEnabledByDefaultOnlyInSnapshotBuilds() {
+        assertEquals(Build.current().isSnapshot(), Federation.FEDERATION_ENABLED.get(Settings.EMPTY));
     }
 
-    public void testNotAvailableWhenSettingAbsent() {
-        assertFalse(Federation.isAvailable(Settings.EMPTY));
+    public void testAvailableWithoutSettingOnlyInSnapshotBuilds() {
+        assumeTrue("the test JVM must not unregister the feature", Federation.isRegistered());
+        assertEquals(Build.current().isSnapshot(), Federation.isAvailable(Settings.EMPTY));
     }
 
     public void testNotAvailableWhenSettingFalse() {
@@ -132,7 +134,7 @@ public class FederationTests extends ESTestCase {
     /**
      * Registration follows the operator property alone, never {@link Federation#FEDERATION_ENABLED}: with the feature
      * registered but not enabled, the rest of the settings are still registered and still updatable, so a deployment can
-     * ship its federation configuration before opting in, or without ever opting in. Exercised against a real
+     * ship its federation configuration before turning it on, or without ever turning it on. Exercised against a real
      * {@link ClusterSettings}, which is what the cluster settings API validates an update against, so this covers the
      * dynamic keys reaching their consumers as well as the update being accepted at all.
      */
@@ -194,9 +196,9 @@ public class FederationTests extends ESTestCase {
 
     @TestLogging(
         value = "org.elasticsearch.xpack.esql.datasources.Federation:DEBUG",
-        reason = "federation being off is the default state, so it is logged at DEBUG"
+        reason = "a registered node with federation off is inert, so it is logged at DEBUG"
     )
-    public void testLogsDefaultOffAtDebug() {
+    public void testLogsDisabledAtDebug() {
         MockLog.assertThatLogger(
             () -> Federation.logEffectiveState(true, false),
             Federation.class,

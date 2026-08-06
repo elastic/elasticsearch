@@ -29,12 +29,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class JinaAIResponseHandlerTests extends ESTestCase {
-    public void testCheckForFailureStatusCode_DoesNotThrowForStatusCodesBetween200And299() {
-        callCheckForFailureStatusCode(randomIntBetween(200, 299), "id");
-    }
-
-    public void testCheckForFailureStatusCode_ThrowsFor503() {
-        var exception = expectThrows(RetryException.class, () -> callCheckForFailureStatusCode(503, "id"));
+    public void testHandleFailureStatusCode_ThrowsFor503() {
+        var exception = expectThrows(RetryException.class, () -> callHandleFailureStatusCode(503, "id"));
         assertFalse(exception.shouldRetry());
         assertThat(
             exception.getCause().getMessage(),
@@ -43,8 +39,8 @@ public class JinaAIResponseHandlerTests extends ESTestCase {
         assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
     }
 
-    public void testCheckForFailureStatusCode_ThrowsFor500_WithShouldRetryTrue() {
-        var exception = expectThrows(RetryException.class, () -> callCheckForFailureStatusCode(500, "id"));
+    public void testHandleFailureStatusCode_ThrowsFor500_WithShouldRetryTrue() {
+        var exception = expectThrows(RetryException.class, () -> callHandleFailureStatusCode(500, "id"));
         assertTrue(exception.shouldRetry());
         assertThat(
             exception.getCause().getMessage(),
@@ -53,8 +49,8 @@ public class JinaAIResponseHandlerTests extends ESTestCase {
         assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
     }
 
-    public void testCheckForFailureStatusCode_ThrowsFor429_WithShouldRetryTrue() {
-        var exception = expectThrows(RetryException.class, () -> callCheckForFailureStatusCode(429, "id"));
+    public void testHandleFailureStatusCode_ThrowsFor429_WithShouldRetryTrue() {
+        var exception = expectThrows(RetryException.class, () -> callHandleFailureStatusCode(429, "id"));
         assertTrue(exception.shouldRetry());
         assertThat(
             exception.getCause().getMessage(),
@@ -63,8 +59,8 @@ public class JinaAIResponseHandlerTests extends ESTestCase {
         assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.TOO_MANY_REQUESTS));
     }
 
-    public void testCheckForFailureStatusCode_ThrowsFor400() {
-        var exception = expectThrows(RetryException.class, () -> callCheckForFailureStatusCode(400, "id"));
+    public void testHandleFailureStatusCode_ThrowsFor400() {
+        var exception = expectThrows(RetryException.class, () -> callHandleFailureStatusCode(400, "id"));
         assertFalse(exception.shouldRetry());
         assertThat(
             exception.getCause().getMessage(),
@@ -73,10 +69,10 @@ public class JinaAIResponseHandlerTests extends ESTestCase {
         assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
     }
 
-    public void testCheckForFailureStatusCode_ThrowsFor400_InputsTooLarge() {
+    public void testHandleFailureStatusCode_ThrowsFor400_InputsTooLarge() {
         var exception = expectThrows(
             RetryException.class,
-            () -> callCheckForFailureStatusCode(400, "\"input\" length 2049 is larger than the largest allowed size 2048", "id")
+            () -> callHandleFailureStatusCode(400, "\"input\" length 2049 is larger than the largest allowed size 2048", "id")
         );
         assertFalse(exception.shouldRetry());
         assertThat(
@@ -86,8 +82,8 @@ public class JinaAIResponseHandlerTests extends ESTestCase {
         assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
     }
 
-    public void testCheckForFailureStatusCode_ThrowsFor401() {
-        var exception = expectThrows(RetryException.class, () -> callCheckForFailureStatusCode(401, "inferenceEntityId"));
+    public void testHandleFailureStatusCode_ThrowsFor401() {
+        var exception = expectThrows(RetryException.class, () -> callHandleFailureStatusCode(401, "inferenceEntityId"));
         assertFalse(exception.shouldRetry());
         assertThat(
             exception.getCause().getMessage(),
@@ -98,18 +94,18 @@ public class JinaAIResponseHandlerTests extends ESTestCase {
         assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.UNAUTHORIZED));
     }
 
-    public void testCheckForFailureStatusCode_ThrowsFor402() {
-        var exception = expectThrows(RetryException.class, () -> callCheckForFailureStatusCode(402, "inferenceEntityId"));
+    public void testHandleFailureStatusCode_ThrowsFor402() {
+        var exception = expectThrows(RetryException.class, () -> callHandleFailureStatusCode(402, "inferenceEntityId"));
         assertFalse(exception.shouldRetry());
         assertThat(exception.getCause().getMessage(), containsString("Payment required"));
         assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.PAYMENT_REQUIRED));
     }
 
-    private static void callCheckForFailureStatusCode(int statusCode, String modelId) {
-        callCheckForFailureStatusCode(statusCode, null, modelId);
+    private static void callHandleFailureStatusCode(int statusCode, String modelId) {
+        callHandleFailureStatusCode(statusCode, null, modelId);
     }
 
-    private static void callCheckForFailureStatusCode(int statusCode, @Nullable String errorMessage, String modelId) {
+    private static void callHandleFailureStatusCode(int statusCode, @Nullable String errorMessage, String modelId) {
         var statusLine = mock(StatusLine.class);
         when(statusLine.getStatusCode()).thenReturn(statusCode);
 
@@ -132,6 +128,6 @@ public class JinaAIResponseHandlerTests extends ESTestCase {
         var httpResult = new HttpResult(httpResponse, errorMessage == null ? new byte[] {} : responseJson.getBytes(StandardCharsets.UTF_8));
         var handler = new JinaAIResponseHandler("", (request, result) -> null);
 
-        handler.checkForFailureStatusCode(mockRequest, httpResult);
+        handler.handleFailureStatusCode(mockRequest, httpResult);
     }
 }

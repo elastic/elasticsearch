@@ -16,12 +16,19 @@ import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
  */
 public class ShardRoutingHelper {
 
-    public static ShardRouting relocate(ShardRouting routing, String nodeId) {
-        return relocate(routing, nodeId, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
+    /// Shorthand for [#relocate(ShardRouting, String, long, ShardRouting.RecoveryPriority)] using a shard size of
+    /// [ShardRouting#UNAVAILABLE_EXPECTED_SHARD_SIZE].
+    public static ShardRouting relocate(ShardRouting routing, String nodeId, ShardRouting.RecoveryPriority recoveryPriority) {
+        return routing.relocate(nodeId, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE, recoveryPriority);
     }
 
-    public static ShardRouting relocate(ShardRouting routing, String nodeId, long expectedByteSize) {
-        return routing.relocate(nodeId, expectedByteSize);
+    public static ShardRouting relocate(
+        ShardRouting routing,
+        String nodeId,
+        long expectedByteSize,
+        ShardRouting.RecoveryPriority recoveryPriority
+    ) {
+        return routing.relocate(nodeId, expectedByteSize, recoveryPriority);
     }
 
     public static ShardRouting moveToStarted(ShardRouting routing) {
@@ -50,7 +57,7 @@ public class ShardRoutingHelper {
             recoverySource,
             copy.relocatingNodeId() != null
                 ? ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
-                : ShardRouting.RecoveryPriority.UNASSIGNED_EXISTING, // for testing, use arbitrary (highest) allowed priority
+                : ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED, // for testing, use arbitrary allowed priority
             copy.relocatingNodeId() != null ? null : new UnassignedInfo(UnassignedInfo.Reason.REINITIALIZED, null),
             RelocationFailureInfo.NO_FAILURES,
             copy.allocationId(),
@@ -59,8 +66,8 @@ public class ShardRoutingHelper {
         );
     }
 
-    public static ShardRouting moveToUnassigned(ShardRouting routing, UnassignedInfo info) {
-        return routing.moveToUnassigned(info);
+    public static ShardRouting moveToUnassigned(ShardRouting routing, UnassignedInfo info, ShardRouting.RecoveryPriority recoveryPriority) {
+        return routing.moveToUnassigned(info, recoveryPriority);
     }
 
     public static ShardRouting newWithRestoreSource(ShardRouting routing, SnapshotRecoverySource recoverySource) {
@@ -72,11 +79,11 @@ public class ShardRoutingHelper {
             routing.state(),
             recoverySource,
             switch (routing.state()) {
-                // for testing, use arbitrary (highest) priority
+                // for testing, use arbitrary priority
                 case INITIALIZING -> routing.relocatingNodeId() != null
                     ? ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
-                    : ShardRouting.RecoveryPriority.UNASSIGNED_EXISTING;
-                case UNASSIGNED -> ShardRouting.RecoveryPriority.UNASSIGNED_EXISTING;
+                    : ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED;
+                case UNASSIGNED -> ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED;
                 case RELOCATING -> ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO;
                 case STARTED -> null;
             },
@@ -86,5 +93,9 @@ public class ShardRoutingHelper {
             routing.getExpectedShardSize(),
             routing.role()
         );
+    }
+
+    public static ShardRouting.RecoveryPriority recoveryPriorityForNewlyCreatedShard(boolean primary) {
+        return primary ? ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY : ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED;
     }
 }

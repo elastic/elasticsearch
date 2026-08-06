@@ -221,7 +221,7 @@ public class Driver implements Releasable, Describable {
                 if (status.getStatus() >= 400 && status.getStatus() < 500) {
                     LOGGER.debug(Strings.format("User error running driver [%s]", shortDescription), e);
                 } else {
-                    LOGGER.error(Strings.format("Error running driver [%s]", shortDescription), e);
+                    logInternalServerError(e);
                 }
                 throw e;
             } finally {
@@ -600,6 +600,15 @@ public class Driver implements Releasable, Describable {
     @Override
     public String describe() {
         return description.get();
+    }
+
+    private void logInternalServerError(RuntimeException e) {
+        String pipelineDescription = description.get();
+        if (pipelineDescription == null) {
+            LOGGER.error("Error running driver [session={}] [{}]", sessionId, shortDescription, e);
+        } else {
+            LOGGER.error("Error running driver [session={}] [{}] {}", sessionId, shortDescription, pipelineDescription, e);
+        }
     }
 
     public String sessionId() {

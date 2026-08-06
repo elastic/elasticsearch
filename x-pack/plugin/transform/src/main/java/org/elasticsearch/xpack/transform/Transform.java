@@ -23,6 +23,8 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -112,6 +114,7 @@ import org.elasticsearch.xpack.transform.rest.action.RestStartTransformAction;
 import org.elasticsearch.xpack.transform.rest.action.RestStopTransformAction;
 import org.elasticsearch.xpack.transform.rest.action.RestUpdateTransformAction;
 import org.elasticsearch.xpack.transform.rest.action.RestUpgradeTransformsAction;
+import org.elasticsearch.xpack.transform.telemetry.TransformCrossProjectMetrics;
 import org.elasticsearch.xpack.transform.telemetry.TransformMeterRegistry;
 import org.elasticsearch.xpack.transform.transforms.TransformPersistentTasksExecutor;
 import org.elasticsearch.xpack.transform.transforms.scheduling.TransformScheduler;
@@ -119,6 +122,7 @@ import org.elasticsearch.xpack.transform.transforms.scheduling.TransformSchedule
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.time.Clock;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -370,17 +374,32 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             )
         );
 
-        var transformMeterRegistry = TransformMeterRegistry.create(services.telemetryProvider().getMeterRegistry());
+        var meterRegistry = services.telemetryProvider().getMeterRegistry();
+        var transformMeterRegistry = TransformMeterRegistry.create(meterRegistry);
         transformConfigAutoMigration.set(
             new TransformConfigAutoMigration(configManager, auditor, transformMeterRegistry, services.threadPool())
         );
 
-        return List.of(
-            transformServices.get(),
-            clusterStateListener,
-            new TransformExtensionHolder(getTransformExtension()),
-            transformConfigAutoMigration.get()
+        var components = new ArrayList<>(
+            List.of(
+                transformServices.get(),
+                clusterStateListener,
+                new TransformExtensionHolder(getTransformExtension()),
+                transformConfigAutoMigration.get()
+            )
         );
+        // the CPS gauges only exist on transform nodes of CPS-enabled clusters
+        if (crossProjectModeDecider.crossProjectEnabled() && DiscoveryNode.hasRole(settings, DiscoveryNodeRole.TRANSFORM_ROLE)) {
+            components.add(
+                new TransformCrossProjectMetrics(
+                    meterRegistry,
+                    services.threadPool(),
+                    TransformCrossProjectMetrics.POLL_INTERVAL_SETTING.get(settings),
+                    transformNode
+                )
+            );
+        }
+        return components;
     }
 
     @Override
@@ -411,7 +430,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(NUM_FAILURE_RETRIES_SETTING, SCHEDULER_FREQUENCY);
+        return List.of(NUM_FAILURE_RETRIES_SETTING, SCHEDULER_FREQUENCY, TransformCrossProjectMetrics.POLL_INTERVAL_SETTING);
     }
 
     @Override

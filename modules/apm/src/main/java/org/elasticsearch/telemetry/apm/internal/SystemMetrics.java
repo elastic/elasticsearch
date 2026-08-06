@@ -293,7 +293,7 @@ public class SystemMetrics extends AbstractLifecycleComponent {
     }
 
     private void registerSystemMemoryMetrics() {
-        if (OsProbe.getInstance().getTotalPhysicalMemorySize() <= 0) {
+        if (OsProbe.getInstance().getTotalPhysicalMemorySizeFromMeminfo() <= 0) {
             return;
         }
         metrics.add(
@@ -309,7 +309,7 @@ public class SystemMetrics extends AbstractLifecycleComponent {
                 "system.memory.total",
                 "Total memory.",
                 "By",
-                () -> new LongWithAttributes(OsProbe.getInstance().getTotalPhysicalMemorySize(), INTERNAL_DATASET)
+                () -> new LongWithAttributes(OsProbe.getInstance().getTotalPhysicalMemorySizeFromMeminfo(), INTERNAL_DATASET)
             )
         );
         registerLongGaugeUnlessNegative(

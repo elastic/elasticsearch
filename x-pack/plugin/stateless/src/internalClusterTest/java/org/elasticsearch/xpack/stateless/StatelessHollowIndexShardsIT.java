@@ -92,6 +92,7 @@ import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.disruption.NetworkDisruption;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
@@ -2111,11 +2112,11 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
 
         final var docsIdsGenerator = new AtomicLong();
         final Supplier<String> docIdSupplier = () -> Long.toHexString(docsIdsGenerator.getAndIncrement());
-        var bulkResponse = indexDocs(indexName, between(64, 128), docIdSupplier); // need enough docs for ingesting into all shards
+        var bulkResponse = indexDocs(indexName, between(128, 256), docIdSupplier); // need enough docs for ingesting into all shards
         var docsIds = Arrays.stream(bulkResponse.getItems()).map(BulkItemResponse::getId).collect(Collectors.toCollection(HashSet::new));
 
         flush(indexName);
-        bulkResponse = indexDocs(indexName, between(64, 128), docIdSupplier); // need enough docs for ingesting into all shards
+        bulkResponse = indexDocs(indexName, between(128, 256), docIdSupplier); // need enough docs for ingesting into all shards
         Arrays.stream(bulkResponse.getItems()).forEach(item -> docsIds.add(item.getId()));
         var hollowShardsServiceA = internalCluster().getInstance(HollowShardsService.class, indexNodeA);
         for (int i = 0; i < numberOfShards; i++) {
@@ -2151,13 +2152,18 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
             List<Long> generationsBeforeUnhollow = IntStream.range(0, numberOfShards)
                 .mapToObj(i -> statelessCommitService.getLatestUploadedBcc(new ShardId(index, i)).lastCompoundCommit().generation())
                 .toList();
+            // Captured so that, if the latch times out below, we can tell whether a shard simply never received any
+            // operations (and so stayed hollow) versus got stuck mid-unhollow. See #151100.
+            List<Long> indexOpsBeforeUnhollow = IntStream.range(0, numberOfShards)
+                .mapToObj(i -> findIndexShard(index, i).indexingStats().getTotal().getIndexCount())
+                .toList();
             var ingestLatch = new CountDownLatch(ingestingThreads);
             for (int i = 0; i < ingestingThreads; i++) {
                 Runnable ingestRunnable = switch (ingestionType) {
                     // Index docs
                     case Index -> () -> {
                         try {
-                            indexDocs(indexName, randomIntBetween(64, 128)); // need enough ops to ensure unhollowing all shards
+                            indexDocs(indexName, randomIntBetween(128, 256)); // need enough ops to ensure unhollowing all shards
                         } finally {
                             ingestLatch.countDown();
                         }
@@ -2208,11 +2214,15 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
             if (ingestLatch.await(30, TimeUnit.SECONDS) == false) {
                 for (int i = 0; i < numberOfShards; i++) {
                     var shardId = new ShardId(index, i);
+                    // Log the index-op count before vs now: if they are equal, this shard received no operations during the
+                    // burst (so it never unhollowed), which is a different failure mode from getting stuck mid-unhollow.
                     logger.error(
-                        "--> ingest latch timed out; shard {} still hollow on {}: {}",
+                        "--> ingest latch timed out; shard {} still hollow on {}: {}; index ops before={} now={}",
                         shardId,
                         indexNodeB,
-                        hollowShardsServiceB.isHollowShard(shardId)
+                        hollowShardsServiceB.isHollowShard(shardId),
+                        indexOpsBeforeUnhollow.get(i),
+                        findIndexShard(index, i).indexingStats().getTotal().getIndexCount()
                     );
                 }
                 HotThreads.logLocalHotThreads(

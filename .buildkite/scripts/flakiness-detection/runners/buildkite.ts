@@ -173,7 +173,7 @@ function precompileCommand(compileTasks: string[]): string {
     // On failure, leave a marker the analyze step folds in as `build_failed`,
     // and annotate. `$$rc` defers past Buildkite's upload-time interpolation.
     `if [ "$$rc" -ne 0 ]; then`,
-    `  printf '{"outcome":"build_failed","reason":"compile"}' > "${FLAKINESS_PRECOMPILE_ARTIFACT}" || true`,
+    `  printf '{"outcome":"build_failed","reason":"precompile"}' > "${FLAKINESS_PRECOMPILE_ARTIFACT}" || true`,
     `  buildkite-agent annotate --style error --context "flakiness-detection-precompile" "Flakiness detection could not compile the affected test source sets, so the re-runs were skipped. This reflects only the flakiness precompile step (see its log for the compile error); it makes no claim about the rest of the build." || true`,
     "fi",
     // Propagate the real exit code so dependent batch steps are skipped on failure.

@@ -200,18 +200,38 @@ export function notApplicablePayload(t: ClassifiedTest): FlakinessPayload {
   };
 }
 
-// True when the pre-flight compile step left a failure marker.
-async function precompileFailed(): Promise<boolean> {
+// Pure: does the pre-flight compile step's marker signal a build failure?
+// `markerText` is the marker file's contents, or `null` when the file is absent.
+// Absent, unreadable, malformed, or any non-`build_failed` outcome all mean "no".
+export function isPrecompileFailure(markerText: string | null): boolean {
+  if (markerText === null) {
+    return false;
+  }
   try {
-    const parsed = JSON.parse(await readFile(join(PROJECT_ROOT, PRECOMPILE_FILE), "utf8"));
+    const parsed = JSON.parse(markerText);
     return parsed?.outcome === "build_failed";
   } catch {
     return false;
   }
 }
 
-// A single record standing in for the batches that were skipped because the PR
-// did not compile.
+// True when the pre-flight compile step left a failure marker. A missing file
+// (the gate passed or never ran) reads as `null` -> not failed.
+async function precompileFailed(): Promise<boolean> {
+  let markerText: string | null = null;
+  try {
+    markerText = await readFile(join(PROJECT_ROOT, PRECOMPILE_FILE), "utf8");
+  } catch {
+    markerText = null;
+  }
+  return isPrecompileFailure(markerText);
+}
+
+// A single record standing in for the batches that were skipped because the
+// pre-flight compile gate failed. `reason` names the gate, not a specific cause:
+// the gate exits non-zero on a genuine compile error but also on an infra failure
+// within it (dependency download, build-scan upload, OOM), and it does not read
+// its own log to tell them apart.
 export function buildFailedPayload(): FlakinessPayload {
   return {
     jobId: "build-failed:precompile",
@@ -225,7 +245,7 @@ export function buildFailedPayload(): FlakinessPayload {
     outcome: "build_failed",
     timedOut: false,
     failingClasses: [],
-    reason: "compile",
+    reason: "precompile",
   };
 }
 

@@ -311,6 +311,19 @@ describe("toBuildkitePipeline compile gate", () => {
     );
     expect(precompile.command).toContain('> "flakiness-precompile.json"');
     expect(precompile.command).toContain("exit $$rc");
+
+    // Constraint: Gradle's exit code is captured immediately, before the
+    // marker/annotate side-effects, and is what the step finally exits with - so
+    // a real compile failure can never be masked by a side-effect succeeding.
+    const cmd = precompile.command;
+    const gradleAt = cmd.indexOf(".ci/scripts/run-gradle.sh");
+    const captureAt = cmd.indexOf("rc=$?");
+    const markerAt = cmd.indexOf('> "flakiness-precompile.json"');
+    const exitAt = cmd.indexOf("exit $$rc");
+    expect(captureAt).toBeGreaterThan(gradleAt);
+    expect(markerAt).toBeGreaterThan(captureAt);
+    expect(exitAt).toBeGreaterThan(markerAt);
+
     expect(precompile.artifact_paths).toBe("flakiness-precompile.json");
     expect(precompile.agents?.provider).toBe("gcp");
 

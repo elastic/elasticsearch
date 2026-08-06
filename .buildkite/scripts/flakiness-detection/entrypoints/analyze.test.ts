@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 
 import type { ClassifiedTest } from "../domain.ts";
 
-import { buildFailedPayload, notApplicablePayload } from "./analyze.ts";
+import { buildFailedPayload, isPrecompileFailure, notApplicablePayload } from "./analyze.ts";
 
 describe("notApplicablePayload", () => {
   test("maps a skipped BWC javaRestTest to a zeroed not_applicable record", () => {
@@ -59,7 +59,29 @@ describe("buildFailedPayload", () => {
       outcome: "build_failed",
       timedOut: false,
       failingClasses: [],
-      reason: "compile",
+      reason: "precompile",
     });
+  });
+});
+
+describe("isPrecompileFailure", () => {
+  test("true for the marker the gate writes on failure", () => {
+    expect(isPrecompileFailure('{"outcome":"build_failed","reason":"precompile"}')).toBe(true);
+    // reason is not part of the decision - only the outcome is
+    expect(isPrecompileFailure('{"outcome":"build_failed"}')).toBe(true);
+  });
+
+  test("false when the marker is absent (gate passed or never ran)", () => {
+    expect(isPrecompileFailure(null)).toBe(false);
+  });
+
+  test("false for any other outcome", () => {
+    expect(isPrecompileFailure('{"outcome":"clean_pass"}')).toBe(false);
+    expect(isPrecompileFailure("{}")).toBe(false);
+  });
+
+  test("false for malformed or empty marker content", () => {
+    expect(isPrecompileFailure("not json")).toBe(false);
+    expect(isPrecompileFailure("")).toBe(false);
   });
 });

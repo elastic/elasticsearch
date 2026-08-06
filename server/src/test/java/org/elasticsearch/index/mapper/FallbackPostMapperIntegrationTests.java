@@ -53,6 +53,23 @@ public class FallbackPostMapperIntegrationTests extends MapperServiceTestCase {
     }
 
     /**
+     * Verifies that when a mapper using {@link FieldMapper.SyntheticSourceMode#FALLBACK} (e.g. a
+     * numeric field with {@code doc_values: false}) also has {@code ignore_malformed: true} and
+     * receives a malformed value, the {@code SYNTHETIC_FALLBACK} pre-capture is committed to
+     * {@code _ignored_source} rather than discarded. This exercises the
+     * {@code precaptureReason == SYNTHETIC_FALLBACK} branch in {@code FallbackPostMapper.postParse}.
+     */
+    public void testSyntheticFallbackWithIgnoreMalformedPreservesValueInSyntheticSource() throws IOException {
+        DocumentMapper mapper = createSytheticSourceMapperService(
+            fieldMapping(b -> b.field("type", "integer").field("doc_values", false).field("ignore_malformed", true))
+        ).documentMapper();
+
+        String syntheticSource = syntheticSource(mapper, b -> b.field("field", "not-a-number"));
+
+        assertEquals("{\"field\":\"not-a-number\"}", syntheticSource);
+    }
+
+    /**
      * Regression test: a {@code geo_point} field with a {@code keyword} multi-field that has
      * {@code multi_value: false, on_failure: ignore} must store the violating (second) value in
      * {@code field.kw._on_failure} when the document supplies two geo_point values.

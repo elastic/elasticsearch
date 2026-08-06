@@ -52,6 +52,7 @@ import java.util.function.LongConsumer;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
 
 public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
@@ -134,6 +135,7 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
                 assertThat("completed lifecycle must have zero net balance", used.get(), equalTo(0L));
             } catch (CircuitBreakingException e) {
                 assertThat(e.getMessage(), equalTo("cranky breaker"));
+                assertThat("must not over-release bytes on trip", used.get(), greaterThanOrEqualTo(0L));
             }
         }, 5, 5);
     }
@@ -199,16 +201,19 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
     }
 
     public void testCircuitBreakerTripDuringFinishLeaf() throws IOException {
+        AtomicLong used = new AtomicLong();
         withSearcher(searcher -> {
             BestBucketsDeferringCollector dc = new BestBucketsDeferringCollector(Queries.ALL_DOCS_INSTANCE, searcher, false, bytes -> {
                 if (bytes > 0) {
                     throw new CircuitBreakingException("test trip", CircuitBreaker.Durability.TRANSIENT);
                 }
+                used.addAndGet(bytes);
             });
             dc.setDeferredCollector(Collections.singleton(BucketCollector.NO_OP_BUCKET_COLLECTOR));
             dc.preCollection();
             searcher.search(Queries.ALL_DOCS_INSTANCE, delegatingCollector(dc, delegate -> delegate));
             expectThrows(CircuitBreakingException.class, dc::postCollection);
+            assertThat("no bytes should remain charged after trip", used.get(), equalTo(0L));
         }, 10);
     }
 

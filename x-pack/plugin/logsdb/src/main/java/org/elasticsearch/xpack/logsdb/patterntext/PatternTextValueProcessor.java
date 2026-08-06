@@ -54,7 +54,7 @@ public class PatternTextValueProcessor {
         return Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(hashBytes);
     }
 
-    static Parts split(String text) {
+    public static Parts split(String text) {
         if (text.length() > MAX_LOG_LEN_TO_STORE_AS_DOC_VALUE) {
             return splitInternal(CharBuffer.wrap(text).subSequence(0, MAX_LOG_LEN_TO_STORE_AS_DOC_VALUE), true);
         } else {

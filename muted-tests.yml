@@ -781,15 +781,3 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:inlinestats.afterStats}
   issue: https://github.com/elastic/elasticsearch/issues/156013
-- class: org.elasticsearch.xpack.search.AsyncSearchActionIT
-  method: testSearchPhaseFailureLeak
-  issue: https://github.com/elastic/elasticsearch/issues/156050
-- class: org.elasticsearch.xpack.search.AsyncSearchActionIT
-  method: testRestartAfterCompletion
-  issue: https://github.com/elastic/elasticsearch/issues/156051
-- class: org.elasticsearch.xpack.search.AsyncSearchActionIT
-  method: testCancellation
-  issue: https://github.com/elastic/elasticsearch/issues/156052
-- class: org.elasticsearch.xpack.search.AsyncSearchActionIT
-  method: testDeleteCancelRunningTask
-  issue: https://github.com/elastic/elasticsearch/issues/156053

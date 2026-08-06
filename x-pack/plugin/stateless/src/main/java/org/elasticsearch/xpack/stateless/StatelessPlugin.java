@@ -139,6 +139,7 @@ import org.elasticsearch.xpack.stateless.allocation.DisableSimulationRebalancing
 import org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageAllocationDecider;
 import org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageMonitor;
 import org.elasticsearch.xpack.stateless.allocation.SharedCacheCapacityAllocationDecider;
+import org.elasticsearch.xpack.stateless.allocation.SharedCacheCapacityMonitor;
 import org.elasticsearch.xpack.stateless.allocation.StatelessAllocationDecider;
 import org.elasticsearch.xpack.stateless.allocation.StatelessBalancingWeightsFactory;
 import org.elasticsearch.xpack.stateless.allocation.StatelessExistingShardsAllocator;
@@ -792,18 +793,11 @@ public class StatelessPlugin extends Plugin
             threadPool,
             blobCacheMetrics,
             clusterService,
-            indicesService
+            indicesService,
+            metricHolder
         );
         var sharedBlobCacheServiceSupplier = new SharedBlobCacheServiceSupplier(setAndGet(this.sharedBlobCacheService, cacheService));
         components.add(sharedBlobCacheServiceSupplier);
-        components.add(
-            new StatelessSharedBlobCachePeriodicMetrics(
-                cacheService,
-                clusterService.getClusterSettings(),
-                threadPool,
-                services.telemetryProvider().getMeterRegistry()
-            )
-        );
         var cacheBlobReaderService = setAndGet(
             this.cacheBlobReaderService,
             new CacheBlobReaderService(settings, cacheService, client, threadPool)
@@ -953,6 +947,17 @@ public class StatelessPlugin extends Plugin
                 new EstimatedHeapUsageMonitor(clusterService.getClusterSettings(), clusterService::state, rerouteService)::onNewInfo
             );
 
+        services.allocationService()
+            .getClusterInfoService()
+            .addListener(
+                new SharedCacheCapacityMonitor(
+                    clusterService.getClusterSettings(),
+                    threadPool.relativeTimeInMillisSupplier(),
+                    clusterService::state,
+                    rerouteService
+                )::onNewInfo
+            );
+
         recoveryCommitRegistrationHandler.set(new RecoveryCommitRegistrationHandler(client, clusterService));
 
         // Memory metrics service for heap usage tracking
@@ -1030,6 +1035,14 @@ public class StatelessPlugin extends Plugin
         components.add(pitRelocationService);
 
         if (hasSearchRole) {
+            components.add(
+                new StatelessSharedBlobCachePeriodicMetrics(
+                    cacheService,
+                    clusterService.getClusterSettings(),
+                    threadPool,
+                    services.telemetryProvider().getMeterRegistry()
+                )
+            );
             setAndGet(this.prefetchExecutor, new SearchCommitPrefetcher.PrefetchExecutor(threadPool));
             // it is imperative that we do not listen for dynamic settings updates within the prefetcher itself because the prefetcher is
             // created whenever we create the search engine and it might miss the settings that were updated before the node was started.
@@ -1082,7 +1095,8 @@ public class StatelessPlugin extends Plugin
         ThreadPool threadPool,
         BlobCacheMetrics blobCacheMetrics,
         ClusterService clusterService,
-        IndicesService indicesService
+        IndicesService indicesService,
+        PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricHolder
     ) {
         StatelessSharedBlobCacheService statelessSharedBlobCacheService = new StatelessSharedBlobCacheService(
             nodeEnvironment,
@@ -1093,7 +1107,6 @@ public class StatelessPlugin extends Plugin
             indicesService,
             metricHolder
         );
-        statelessSharedBlobCacheService.assertInvariants();
         return statelessSharedBlobCacheService;
     }
 
@@ -1343,6 +1356,7 @@ public class StatelessPlugin extends Plugin
             SharedCacheCapacityAllocationDecider.LOW_WATERMARK_SETTING,
             SharedCacheCapacityAllocationDecider.HIGH_WATERMARK_SETTING,
             SharedCacheCapacityAllocationDecider.MINIMUM_LOGGING_INTERVAL,
+            SharedCacheCapacityAllocationDecider.REROUTE_INTERVAL_SETTING,
             SearchCommitPrefetcher.BACKGROUND_PREFETCH_ENABLED_SETTING,
             SearchCommitPrefetcherDynamicSettings.PREFETCH_COMMITS_UPON_NOTIFICATIONS_ENABLED_SETTING,
             SearchCommitPrefetcher.PREFETCH_NON_UPLOADED_COMMITS_SETTING,

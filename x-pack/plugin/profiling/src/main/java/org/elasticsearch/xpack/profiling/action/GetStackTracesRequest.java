@@ -443,9 +443,9 @@ public class GetStackTracesRequest extends UntypedActionRequest implements Indic
     public String[] indices() {
         boolean otel = schema == Schema.OTEL;
         Set<String> indices = new HashSet<>();
-        indices.add(otel ? "profiling-stacktraces.otel-default" : "profiling-stacktraces");
-        indices.add(otel ? "profiling-stackframes.otel-default" : "profiling-stackframes");
-        indices.add(otel ? "profiling-executables.otel-default" : "profiling-executables");
+        indices.add(otel ? "profiling-stacktraces.otel-*" : "profiling-stacktraces");
+        indices.add(otel ? "profiling-stackframes.otel-*" : "profiling-stackframes");
+        indices.add(otel ? "profiling-executables.otel-*" : "profiling-executables");
         if (userProvidedIndices) {
             indices.addAll(List.of(this.indices));
         } else {

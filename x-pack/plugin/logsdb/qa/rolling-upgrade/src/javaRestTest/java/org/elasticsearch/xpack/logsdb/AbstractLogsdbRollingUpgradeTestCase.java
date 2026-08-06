@@ -80,7 +80,10 @@ public abstract class AbstractLogsdbRollingUpgradeTestCase extends ESRestTestCas
     private static final ExternalResource columnarRandomizer = new ExternalResource() {
         @Override
         protected void before() {
-            columnarEnabled = randomizeColumnarIndexMode && randomBoolean();
+            Version oldVersion = Version.fromString(System.getProperty("tests.old_cluster_version"));
+            columnarEnabled = randomizeColumnarIndexMode
+                && oldVersion.onOrAfter(Version.fromString("9.5.0"))
+                && randomBoolean();
         }
 
         @Override

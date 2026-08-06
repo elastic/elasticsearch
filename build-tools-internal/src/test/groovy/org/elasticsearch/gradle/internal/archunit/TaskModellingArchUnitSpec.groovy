@@ -58,7 +58,6 @@ class TaskModellingArchUnitSpec extends AbstractArchUnitSpec {
         "org.elasticsearch.gradle.internal.release.UpdateVersionsTask",
         "org.elasticsearch.gradle.internal.snyk.GenerateSnykDependencyGraph",
         "org.elasticsearch.gradle.internal.snyk.UploadSnykDependenciesGraph",
-        "org.elasticsearch.gradle.internal.test.AntFixture",
         "org.elasticsearch.gradle.internal.test.rest.CopyRestApiTask",
     ] as Set
 

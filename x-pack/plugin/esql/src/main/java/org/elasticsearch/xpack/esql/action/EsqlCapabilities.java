@@ -3304,6 +3304,12 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_FORK_DROP_MATERIALIZES_SIBLINGS,
 
         /**
+         * Support for {@code unmapped_fields="LOAD_ALL"}, which loads every unmapped source field as its own
+         * {@code keyword} output column without requiring each field to be referenced in the query.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL(Build.current().isSnapshot()),
+
+        /**
          * Support for the {@code ==} operator on the root of a {@code flattened} field in ES|QL.
          */
         FN_EQUALS_FLATTENED,

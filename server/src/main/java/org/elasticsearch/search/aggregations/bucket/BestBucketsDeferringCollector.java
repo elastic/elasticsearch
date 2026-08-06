@@ -133,13 +133,17 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
                 docDeltasBuilder.add(doc - lastDoc);
                 bucketsBuilder.add(bucket);
                 lastDoc = doc;
-                // Passing 0 triggers the parent breaker's real-memory check without
-                // charging bytes — same protocol as AggregatorBase.checkRealMemoryCB.
-                if ((++callCount & 0x3FF) == 0) {
-                    bytesAccounter.accept(0);
-                }
+                heartbeat();
             }
         };
+    }
+
+    // Passing 0 triggers the parent breaker's real-memory check without
+    // charging bytes — same protocol as AggregatorBase.checkRealMemoryCB.
+    private void heartbeat() {
+        if ((++callCount & 0x3FF) == 0) {
+            bytesAccounter.accept(0);
+        }
     }
 
     @Override

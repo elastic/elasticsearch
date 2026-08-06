@@ -44,6 +44,10 @@ public class PresentTests extends AbstractAggregationTestCase {
         FunctionAppliesTo histogramGaAppliesTo = appliesTo(FunctionAppliesToLifecycle.GA, "9.4.0", "", true);
         FunctionAppliesTo flattenedPreviewAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.5.0", "", false);
         FunctionAppliesTo dateRangeAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.5.0", "", false);
+        FunctionAppliesTo doubleRangeAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.6.0", "", false);
+        List<TestCaseSupplier.TypedDataSupplier> doubleRangeCases = EsqlCapabilities.Cap.DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V8.isEnabled()
+            ? MultiRowTestCaseSupplier.doubleRangeCases(1, 1000).stream().map(s -> s.withAppliesTo(doubleRangeAppliesTo)).toList()
+            : List.of();
 
         Stream.of(
             MultiRowTestCaseSupplier.nullCases(1, 1000),
@@ -55,6 +59,7 @@ public class PresentTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.dateCases(1, 1000),
             MultiRowTestCaseSupplier.dateNanosCases(1, 1000),
             MultiRowTestCaseSupplier.dateRangeCases(1, 1000).stream().map(s -> s.withAppliesTo(dateRangeAppliesTo)).toList(),
+            doubleRangeCases,
             MultiRowTestCaseSupplier.denseVectorCases(1, 1000),
             MultiRowTestCaseSupplier.booleanCases(1, 1000),
             MultiRowTestCaseSupplier.ipCases(1, 1000),
@@ -107,6 +112,9 @@ public class PresentTests extends AbstractAggregationTestCase {
             DataType.EXPONENTIAL_HISTOGRAM,
             DataType.TDIGEST
         );
+        if (EsqlCapabilities.Cap.DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V8.isEnabled()) {
+            types = Stream.concat(types.stream(), Stream.of(DataType.DOUBLE_RANGE)).toList();
+        }
         for (var dataType : types) {
             var field = dataType == DataType.EXPONENTIAL_HISTOGRAM || dataType == DataType.TDIGEST
                 ? TestCaseSupplier.TypedData.multiRow(List.of(), dataType, "field")

@@ -51,7 +51,7 @@ reuse or renumber an id.
   nothing per document (doc id == ordinal); a sparse column reuses Lucene `IndexedDISI`. Supplies the
   `intoBitSet` fast path and is shared by every column type.
 - **Numeric column.** Single- and multi-valued in one store: values in written order (never
-  reordered) in fixed 128-value blocks, a block offset table, and — only when multi-valued — a
+  reordered) in configurable fixed-size blocks (default 128), a block offset table, and — only when multi-valued — a
   per-document value-address table. A block decodes whole into a reused buffer with a single-block
   cache; the range and bulk paths read straight out of it.
 - **Skip index.** Range pushdown lives inside the column (a `BINARY` field can't carry a Lucene

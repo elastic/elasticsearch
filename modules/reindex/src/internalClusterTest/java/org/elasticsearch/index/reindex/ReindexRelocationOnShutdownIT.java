@@ -689,18 +689,20 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
 
         ensureStableCluster(3);
 
-        final int numDocs = randomIntBetween(10, 40);
+        final int numDocs = randomIntBetween(100, 120);
         createIndex(SOURCE);
         indexRandom(true, SOURCE, numDocs);
         assertHitCount(prepareSearch(SOURCE).setSize(0).setTrackTotalHits(true), numDocs);
 
+        // Reindex should take 30s, doing about 3 docs/s
+        final float requestsPerSecond = numDocs / 30.0f;
         final ReindexRequest request = new ReindexRequest().setSourceIndices(SOURCE)
             .setDestIndex(DEST)
             .setRefresh(true)
             .setShouldStoreResult(true)
             .setEligibleForRelocationOnShutdown(true)
-            .setRequestsPerSecond(0.000001f);
-        request.getSearchRequest().source().size(1000);
+            .setRequestsPerSecond(requestsPerSecond);
+        request.getSearchRequest().source().size(5);
 
         final CountDownLatch listenerDone = new CountDownLatch(1);
         final AtomicReference<Throwable> failure = new AtomicReference<>();
@@ -747,9 +749,6 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
                 () -> internalCluster().getInstance(ShutdownPrepareService.class, coordNodeName).prepareForShutdown()
             );
 
-            // Rethrottle so the task quickly processes its page and commits the relocation handoff.
-            rethrottleRunningRootReindex(numDocs);
-
             // Wait until the ResumeReindexAction is in-flight: the task is now in HANDOFF_INITIATED state.
             safeAwait(resumeStarted);
 
@@ -759,6 +758,9 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
             // Release the transport block. With the fix the task was NOT cancelled, so the destination
             // handler runs and the relocation completes normally.
             resumeBlocked.countDown();
+
+            // We've seen everything we need to see, rethrottle to allow the task to finish
+            rethrottleRunningRootReindex(numDocs);
 
             // The source task should complete via TaskRelocatedException (relocated, not cancelled).
             safeAwait(listenerDone);

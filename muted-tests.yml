@@ -364,9 +364,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.S3ManagedIdentityAuthIT
   method: testQueryFailsWhenWrongCredentialIsUsed
   issue: https://github.com/elastic/elasticsearch/issues/153821
-- class: org.elasticsearch.action.RejectionActionIT
-  method: testSimulatedSearchRejectionLoad
-  issue: https://github.com/elastic/elasticsearch/issues/153848
 - class: org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommitsIT
   method: testGetVirtualBatchedCompoundCommitChunkFailureWhenIndexCloses
   issue: https://github.com/elastic/elasticsearch/issues/153888
@@ -526,9 +523,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.integration.CCMServiceIT
   method: testDisableCCM_RemovesAuthorizationTask
   issue: https://github.com/elastic/elasticsearch/issues/155579
-- class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
-  method: testRelocatingTaskIsNotCancelledOnShutdownTimeout
-  issue: https://github.com/elastic/elasticsearch/issues/155593
 - class: org.elasticsearch.xpack.ccr.RestartIT
   method: testRestart {targetCluster=FOLLOWER}
   issue: https://github.com/elastic/elasticsearch/issues/155609
@@ -538,9 +532,6 @@ tests:
 - class: org.elasticsearch.xpack.slm.SLMStatDisruptionIT
   method: testCurrentlyRunningSnapshotNotRecordedAsFailure
   issue: https://github.com/elastic/elasticsearch/issues/155621
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeRandomMappingIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/148190
 - class: org.elasticsearch.xpack.downsample.DownsampleRateIT
   method: testTimeSeriesQuerying_RandomDocuments
   issue: https://github.com/elastic/elasticsearch/issues/153348
@@ -565,9 +556,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.LookupJoinTypesIT
   method: testOutputSupportedTypes {p0=LT}
   issue: https://github.com/elastic/elasticsearch/issues/155694
-- class: org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommitsIT
-  method: testVirtualBatchedCompoundCommitChunksPressure
-  issue: https://github.com/elastic/elasticsearch/issues/155754
 - class: org.elasticsearch.search.vectors.IVFKnnByteVectorQueryTests
   method: testScoreMIP
   issue: https://github.com/elastic/elasticsearch/issues/155783
@@ -601,6 +589,42 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecApproximationBucketIncludeEmptyBucketsIT
   method: test {csv-spec:bucket_include_empty_buckets.Large number of buckets doesn't OOM - stats}
   issue: https://github.com/elastic/elasticsearch/issues/155921
-- class: org.elasticsearch.index.codec.vectors.cluster.FloatHierarchicalKMeansTests
-  method: testSoarAssignmentsValidAfterEmptyClusterRemoval
-  issue: https://github.com/elastic/elasticsearch/issues/155931
+- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
+  method: test {yaml=search.highlight/70_number_of_fragments/number_of_fragments at the maximum should SUCCEED}
+  issue: https://github.com/elastic/elasticsearch/issues/155969
+- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
+  method: test {yaml=search.highlight/70_number_of_fragments/negative number_of_fragments should FAIL}
+  issue: https://github.com/elastic/elasticsearch/issues/155970
+- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
+  method: test {yaml=search.highlight/70_number_of_fragments/number_of_fragments above the maximum should FAIL}
+  issue: https://github.com/elastic/elasticsearch/issues/155972
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=search.highlight/70_number_of_fragments/negative number_of_fragments should FAIL}
+  issue: https://github.com/elastic/elasticsearch/issues/155977
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=search.highlight/70_number_of_fragments/number_of_fragments above the maximum should FAIL}
+  issue: https://github.com/elastic/elasticsearch/issues/155980
+- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardDisruptionIT
+  method: testReshardWithDisruption
+  issue: https://github.com/elastic/elasticsearch/issues/156004
+- class: org.elasticsearch.simdvec.internal.vectorization.ES93BinaryQuantizedVectorScorerTests
+  method: testBulkScore {p0=SNAP p1=DOT_PRODUCT}
+  issue: https://github.com/elastic/elasticsearch/issues/156009
+- class: org.elasticsearch.simdvec.internal.vectorization.ES93BinaryQuantizedVectorScorerTests
+  method: testBulkScore {p0=SNAP p1=COSINE}
+  issue: https://github.com/elastic/elasticsearch/issues/156010
+- class: org.elasticsearch.simdvec.internal.vectorization.ES93BinaryQuantizedVectorScorerTests
+  method: testBulkScore {p0=MMAP p1=DOT_PRODUCT}
+  issue: https://github.com/elastic/elasticsearch/issues/156011
+- class: org.elasticsearch.simdvec.internal.vectorization.ES93BinaryQuantizedVectorScorerTests
+  method: testBulkScore {p0=MMAP p1=COSINE}
+  issue: https://github.com/elastic/elasticsearch/issues/156012
+- class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
+  method: testRelocatingTaskIsNotCancelledOnShutdownTimeout
+  issue: https://github.com/elastic/elasticsearch/issues/155593
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecUnmappedNullifyIT
+  method: test {csv-spec:unmapped-nullify.statsNullifiedFirst}
+  issue: https://github.com/elastic/elasticsearch/issues/156026
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecUnmappedNullifyIT
+  method: test {csv-spec:unmapped-nullify.statsNullifiedLast}
+  issue: https://github.com/elastic/elasticsearch/issues/156027

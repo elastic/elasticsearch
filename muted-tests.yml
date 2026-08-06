@@ -613,3 +613,6 @@ tests:
 - class: org.elasticsearch.exponentialhistogram.RankAccuracyTests
   method: testRandomDistribution
   issue: https://github.com/elastic/elasticsearch/issues/156057
+- class: org.elasticsearch.xpack.esql.action.ExternalCsvHivePartitionedIT
+  method: testHivePartitionShadowWarningReachesClient
+  issue: https://github.com/elastic/elasticsearch/issues/153780

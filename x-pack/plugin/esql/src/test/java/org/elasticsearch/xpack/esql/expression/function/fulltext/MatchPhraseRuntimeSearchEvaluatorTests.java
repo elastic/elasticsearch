@@ -193,6 +193,22 @@ public class MatchPhraseRuntimeSearchEvaluatorTests extends AbstractRuntimeSearc
         assertArrayEquals(new Boolean[] { false }, result);
     }
 
+    public void testTextWithOptionsPhraseCannotSpanValues() {
+        Boolean[] result = evaluate(runtimeMatchPhraseWithOptions("brown fox", mapOptions("slop", "0")), factory -> {
+            return bytesRefBlock(factory, builder -> {
+                builder.beginPositionEntry();
+                builder.appendBytesRef(new BytesRef("a brown")); // "brown" ends this value...
+                builder.appendBytesRef(new BytesRef("fox b"));   // ..."fox" starts the next: not a phrase
+                builder.endPositionEntry();
+                builder.beginPositionEntry();
+                builder.appendBytesRef(new BytesRef("a brown fox"));
+                builder.appendBytesRef(new BytesRef("nothing here"));
+                builder.endPositionEntry();
+            });
+        });
+        assertArrayEquals(new Boolean[] { false, true }, result);
+    }
+
     public void testTextWithZeroTermsQueryNoneAndNoTokensUsesConstantFalse() {
         MatchPhrase matchPhrase = runtimeMatchPhraseWithOptions("! ! !", mapOptions("zero_terms_query", "none"));
         assertThat(matchPhrase.toEvaluator(toEvaluator()), instanceOf(ConstantEvaluators.CONSTANT_FALSE_FACTORY.getClass()));

@@ -126,15 +126,7 @@ public final class FlattenedDocValuesFormat extends DocValuesFormat {
     static final String META_CODEC = "ESFlattenedColumnarMeta";
     static final String META_EXTENSION = "fdvm";
     static final int VERSION_START = 0;
-    /**
-     * Version 4: docId-delta and slot-count arrays stored outside the compressed payload as
-     * MSB-first bit-packed streams. The block header now contains {@code flags}, {@code numDocs},
-     * an optional {@code bitsPerDelta} byte + packed delta array, an optional {@code bitsPerSlot}
-     * byte + packed slot-count array, then the uncompressed-length vint and the value payload.
-     * Storing the index arrays outside the payload allows a doc-presence check to binary-search
-     * the docId array without decompressing the value payload first.
-     */
-    static final int VERSION_CURRENT = 4;
+    static final int VERSION_CURRENT = 0;
 
     // Block flag bits
     /** Bit 0: block payload is ZSTD-compressed; otherwise stored raw. */

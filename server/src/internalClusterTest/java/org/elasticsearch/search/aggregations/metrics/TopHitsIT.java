@@ -365,7 +365,7 @@ public class TopHitsIT extends ESIntegTestCase {
                 .addAggregation(topHits("hits").sort(SortBuilders.fieldSort("brand_id").order(SortOrder.ASC)).size(2)),
             response -> {
                 TopHits topHits = response.getAggregations().get("hits");
-                assertThat(topHits.getHits().getTotalHits().value(), equalTo(2L));
+                assertThat(topHits.getHits().getTotalHits().value, equalTo(2L));
                 assertThat(topHits.getHits().getHits().length, equalTo(2));
             }
         );

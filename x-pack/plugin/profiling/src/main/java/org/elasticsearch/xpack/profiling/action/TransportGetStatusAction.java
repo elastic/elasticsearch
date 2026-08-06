@@ -147,17 +147,19 @@ public class TransportGetStatusAction extends TransportMasterNodeAction<GetStatu
         }
 
         private boolean isResourcesCreated(ClusterState state) {
+            // In OTel-only mode the profiling plugin manages no resources; OTel templates are installed
+            // unconditionally by the otel-data plugin, so there is nothing to wait for here.
+            if (templateRegistry.isTemplatesEnabled() == false) {
+                return true;
+            }
             IndexStateResolver indexStateResolver = indexStateResolver(state);
-            boolean templatesCreated = templateRegistry.isAllResourcesCreated(state, clusterService.getSettings());
-            // ECS-specific resources (k/v indices and data streams) are only expected when ECS schema is active.
-            boolean ecsEnabled = templateRegistry.isEcsSchemaEnabled();
-            boolean indicesCreated = ecsEnabled == false || ProfilingIndexManager.isAllResourcesCreated(state, indexStateResolver);
-            boolean dataStreamsCreated = ecsEnabled == false || ProfilingDataStreamManager.isAllResourcesCreated(state, indexStateResolver);
-            return templatesCreated && indicesCreated && dataStreamsCreated;
+            return templateRegistry.isAllResourcesCreated(state, clusterService.getSettings())
+                && ProfilingIndexManager.isAllResourcesCreated(state, indexStateResolver)
+                && ProfilingDataStreamManager.isAllResourcesCreated(state, indexStateResolver);
         }
 
         private boolean isAnyPre891Data(ClusterState state) {
-            if (templateRegistry.isEcsSchemaEnabled() == false) {
+            if (templateRegistry.isTemplatesEnabled() == false) {
                 return false;
             }
             IndexStateResolver indexStateResolver = indexStateResolver(state);

@@ -56,9 +56,13 @@ import java.util.function.Supplier;
 
 public class ProfilingPlugin extends Plugin implements ActionPlugin {
     private static final Logger logger = LogManager.getLogger(ProfilingPlugin.class);
+    // Controls whether the legacy ECS index templates, ILM policies, and k/v indices are installed and managed.
+    // Defaults to false on fresh clusters (OTel templates are managed by the otel-data plugin unconditionally).
+    // On upgrade from an existing ECS deployment, auto-detection in ProfilingIndexTemplateRegistry enables this
+    // in memory by detecting the presence of the "profiling-ilm" component template.
     public static final Setting<Boolean> PROFILING_TEMPLATES_ENABLED = Setting.boolSetting(
         "xpack.profiling.templates.enabled",
-        true,
+        false,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -67,18 +71,6 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
     public static final Setting<Boolean> PROFILING_CHECK_OUTDATED_INDICES = Setting.boolSetting(
         "xpack.profiling.check_outdated_indices",
         true,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
-    // Controls whether the legacy ECS index templates and ILM policies are installed. Defaults to false on fresh clusters.
-    // On upgrade, auto-detection in ProfilingIndexTemplateRegistry checks for the presence of the "profiling-ilm" component
-    // template and enables ECS schema automatically in memory for backward compatibility. Note: explicitly setting this to
-    // false via the dynamic API after auto-detection has fired will suppress ECS template maintenance for the remainder of
-    // the node's lifetime; the flag resets on restart, at which point auto-detection runs again.
-    public static final Setting<Boolean> PROFILING_TEMPLATES_SCHEMA_ECS_ENABLED = Setting.boolSetting(
-        "xpack.profiling.templates.schema.ecs.enabled",
-        false,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -114,9 +106,6 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
                 services.featureService()
             )
         );
-        registry.get().setEcsSchemaEnabled(PROFILING_TEMPLATES_SCHEMA_ECS_ENABLED.get(settings));
-        clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(PROFILING_TEMPLATES_SCHEMA_ECS_ENABLED, registry.get()::setEcsSchemaEnabled);
         indexStateResolver.set(new IndexStateResolver(PROFILING_CHECK_OUTDATED_INDICES.get(settings)));
         clusterService.getClusterSettings().addSettingsUpdateConsumer(PROFILING_CHECK_OUTDATED_INDICES, this::updateCheckOutdatedIndices);
 
@@ -146,7 +135,7 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
 
     public void updateTemplatesEnabled(boolean newValue) {
         if (newValue == false) {
-            logger.info("profiling index templates will not be installed or reinstalled");
+            logger.info("ECS profiling index templates will not be installed or reinstalled");
         }
         registry.get().setTemplatesEnabled(newValue);
         indexManager.get().setTemplatesEnabled(newValue);
@@ -174,7 +163,6 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
         return List.of(
             PROFILING_TEMPLATES_ENABLED,
             PROFILING_CHECK_OUTDATED_INDICES,
-            PROFILING_TEMPLATES_SCHEMA_ECS_ENABLED,
             TransportGetStackTracesAction.PROFILING_MAX_STACKTRACE_QUERY_SLICES,
             TransportGetStackTracesAction.PROFILING_MAX_DETAIL_QUERY_SLICES,
             TransportGetStackTracesAction.PROFILING_QUERY_REALTIME

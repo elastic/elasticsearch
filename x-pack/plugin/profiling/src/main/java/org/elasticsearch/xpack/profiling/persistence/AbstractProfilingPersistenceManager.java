@@ -80,7 +80,9 @@ abstract class AbstractProfilingPersistenceManager<T extends ProfilingIndexAbstr
         if (event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
             return;
         }
-        if (templatesEnabled == false || isEcsSchemaEnabled() == false) {
+        // ECS is active when either explicitly enabled via PROFILING_TEMPLATES_ENABLED or
+        // auto-detected from an existing ECS deployment (registry flag).
+        if (templatesEnabled == false && templateRegistry.isTemplatesEnabled() == false) {
             return;
         }
 
@@ -121,11 +123,6 @@ abstract class AbstractProfilingPersistenceManager<T extends ProfilingIndexAbstr
 
     protected boolean areAllIndexTemplatesCreated(ClusterChangedEvent event, Settings settings) {
         return templateRegistry.isAllResourcesCreated(event.state(), settings);
-    }
-
-    /** Returns {@code true} when the ECS schema is active for this cluster. Overridable for testing. */
-    protected boolean isEcsSchemaEnabled() {
-        return templateRegistry.isEcsSchemaEnabled();
     }
 
     /**

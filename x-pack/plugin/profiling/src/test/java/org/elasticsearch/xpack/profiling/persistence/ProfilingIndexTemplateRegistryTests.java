@@ -112,7 +112,7 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
         // ECS templates include standalone index templates (sq-executables, sq-leafframes, returnpads-private) that
         // have no required component templates. The second assertBusy relies on being able to install at least two
         // composable templates from an empty cluster state.
-        registry.setEcsSchemaEnabled(true);
+        registry.setTemplatesEnabled(true);
         DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
@@ -144,7 +144,7 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
     }
 
     public void testThatNonExistingPoliciesAreAddedImmediately() throws Exception {
-        registry.setEcsSchemaEnabled(true);
+        registry.setTemplatesEnabled(true);
         DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
@@ -175,7 +175,7 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
     }
 
     public void testPolicyAlreadyExists() {
-        registry.setEcsSchemaEnabled(true);
+        registry.setTemplatesEnabled(true);
         DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
@@ -207,7 +207,7 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
     }
 
     public void testPolicyAlreadyExistsButDiffers() throws IOException {
-        registry.setEcsSchemaEnabled(true);
+        registry.setTemplatesEnabled(true);
         DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
@@ -264,7 +264,7 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
     }
 
     public void testPolicyUpgraded() throws Exception {
-        registry.setEcsSchemaEnabled(true);
+        registry.setTemplatesEnabled(true);
         DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
@@ -327,7 +327,7 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
     }
 
     public void testAllResourcesPresentButOutdated() {
-        registry.setEcsSchemaEnabled(true);
+        registry.setTemplatesEnabled(true);
         DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
         Map<String, Integer> componentTemplates = new HashMap<>();
@@ -383,7 +383,7 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
     }
 
     public void testSomeResourcesMissing() {
-        registry.setEcsSchemaEnabled(true);
+        registry.setTemplatesEnabled(true);
         DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
         Map<String, Integer> componentTemplates = new HashMap<>();
@@ -410,10 +410,11 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
     }
 
     public void testEcsUpgradeDetectedOnFirstClusterEvent() {
+        registry.setTemplatesEnabled(false);
         DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
-        assertFalse("ECS should be disabled initially", registry.isEcsSchemaEnabled());
+        assertFalse("ECS should be disabled initially", registry.isTemplatesEnabled());
 
         // Simulate a cluster state that contains the ECS marker template "profiling-ilm".
         Map<String, Integer> existingComponentTemplates = Map.of("profiling-ilm", ProfilingIndexTemplateRegistry.INDEX_TEMPLATE_VERSION);
@@ -422,21 +423,22 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
         client.setVerifier((a, r, l) -> AcknowledgedResponse.TRUE);
         registry.clusterChanged(event);
 
-        assertTrue("ECS should be auto-enabled after detecting existing ECS templates", registry.isEcsSchemaEnabled());
+        assertTrue("ECS should be auto-enabled after detecting existing ECS templates", registry.isTemplatesEnabled());
     }
 
     public void testEcsUpgradeNotTriggeredWithoutEcsTemplates() {
+        registry.setTemplatesEnabled(false);
         DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
-        assertFalse("ECS should be disabled initially", registry.isEcsSchemaEnabled());
+        assertFalse("ECS should be disabled initially", registry.isTemplatesEnabled());
 
         ClusterChangedEvent event = createClusterChangedEvent(Map.of(), Map.of(), nodes);
 
         client.setVerifier((a, r, l) -> AcknowledgedResponse.TRUE);
         registry.clusterChanged(event);
 
-        assertFalse("ECS should remain disabled when no ECS templates exist", registry.isEcsSchemaEnabled());
+        assertFalse("ECS should remain disabled when no ECS templates exist", registry.isTemplatesEnabled());
     }
 
     private ActionResponse verifyComposableTemplateInstalled(

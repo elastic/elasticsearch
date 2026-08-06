@@ -72,7 +72,6 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
     public static final String PROFILING_TEMPLATE_VERSION_VARIABLE = "xpack.profiling.template.version";
 
     private volatile boolean templatesEnabled;
-    private volatile boolean ecsSchemaEnabled = false;
     private final AtomicBoolean ecsUpgradeChecked = new AtomicBoolean(false);
 
     public ProfilingIndexTemplateRegistry(
@@ -90,24 +89,20 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
         this.templatesEnabled = templatesEnabled;
     }
 
-    public void setEcsSchemaEnabled(boolean ecsSchemaEnabled) {
-        this.ecsSchemaEnabled = ecsSchemaEnabled;
-    }
-
-    public boolean isEcsSchemaEnabled() {
-        return ecsSchemaEnabled;
+    public boolean isTemplatesEnabled() {
+        return templatesEnabled;
     }
 
     /**
-     * Auto-enables ECS schema on the first cluster event when an existing ECS deployment is detected.
+     * Auto-enables ECS template management on the first cluster event when an existing ECS deployment is detected.
      * Runs before template installation so ECS templates are included in the same event cycle.
      */
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        if (ecsSchemaEnabled == false && ecsUpgradeChecked.compareAndSet(false, true)) {
+        if (templatesEnabled == false && ecsUpgradeChecked.compareAndSet(false, true)) {
             if (event.state().metadata().getProject().componentTemplates().containsKey("profiling-ilm")) {
-                logger.info("Detected existing ECS profiling templates; enabling ECS schema for backward compatibility");
-                ecsSchemaEnabled = true;
+                logger.info("Detected existing ECS profiling templates; enabling ECS template management for backward compatibility");
+                templatesEnabled = true;
             }
         }
         super.clusterChanged(event);
@@ -142,7 +137,7 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
 
     @Override
     protected List<LifecyclePolicy> getLifecyclePolicies() {
-        return (templatesEnabled && ecsSchemaEnabled) ? lifecyclePolicies : Collections.emptyList();
+        return templatesEnabled ? lifecyclePolicies : Collections.emptyList();
     }
 
     private final Map<String, ComponentTemplate> ecsComponentTemplates = parseComponentTemplates(
@@ -215,7 +210,7 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
 
     @Override
     protected Map<String, ComponentTemplate> getComponentTemplateConfigs() {
-        return (templatesEnabled && ecsSchemaEnabled) ? ecsComponentTemplates : Collections.emptyMap();
+        return templatesEnabled ? ecsComponentTemplates : Collections.emptyMap();
     }
 
     private final Map<String, ComposableIndexTemplate> ecsComposableIndexTemplates = parseComposableTemplates(
@@ -293,7 +288,7 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
 
     @Override
     protected Map<String, ComposableIndexTemplate> getComposableTemplateConfigs() {
-        return (templatesEnabled && ecsSchemaEnabled) ? ecsComposableIndexTemplates : Collections.emptyMap();
+        return templatesEnabled ? ecsComposableIndexTemplates : Collections.emptyMap();
     }
 
     @Override
@@ -328,10 +323,6 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
      * @return <code>true</code> if and only if all resources managed by this registry have been created and are current.
      */
     public boolean isAllResourcesCreated(ClusterState state, Settings settings) {
-        if (ecsSchemaEnabled == false) {
-            // OTel templates are managed by the otel-data plugin
-            return true;
-        }
         for (String name : ecsComponentTemplates.keySet()) {
             ComponentTemplate ct = state.metadata().getProject().componentTemplates().get(name);
             if (ct == null || ct.version() < INDEX_TEMPLATE_VERSION) {

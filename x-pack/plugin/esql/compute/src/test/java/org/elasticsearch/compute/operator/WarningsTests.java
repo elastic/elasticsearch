@@ -100,6 +100,65 @@ public class WarningsTests extends ESTestCase {
         assertWarnings("Line 1:1 [foo] (in view [view1]): some custom warning");
     }
 
+    public void testRegisterExceptionDeduplication() {
+        Warnings warnings = Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, new TestWarningsSource("foo"));
+        warnings.registerException(IllegalArgumentException.class, "duplicate");
+        warnings.registerException(IllegalArgumentException.class, "duplicate");
+        warnings.registerException(IllegalArgumentException.class, "duplicate");
+
+        assertWarnings(
+            "Line 1:1: evaluation of [foo] failed, treating result as null. Only first 20 failures recorded.",
+            "Line 1:1: java.lang.IllegalArgumentException: duplicate"
+        );
+    }
+
+    public void testRegisterExceptionDeduplicationDoesNotConsumeLimit() {
+        Warnings warnings = Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, new TestWarningsSource("foo"));
+
+        for (int i = 0; i < Warnings.MAX_ADDED_WARNINGS + 1000; i++) {
+            warnings.registerException(new IllegalArgumentException("duplicate"));
+        }
+
+        for (int i = 0; i < Warnings.MAX_ADDED_WARNINGS; i++) {
+            warnings.registerException(new IllegalStateException(Integer.toString(i)));
+        }
+
+        String[] expected = new String[1 + Warnings.MAX_ADDED_WARNINGS];
+        expected[0] = "Line 1:1: evaluation of [foo] failed, treating result as null. Only first 20 failures recorded.";
+        expected[1] = "Line 1:1: java.lang.IllegalArgumentException: duplicate";
+        for (int i = 0; i < Warnings.MAX_ADDED_WARNINGS - 1; i++) {
+            expected[i + 2] = "Line 1:1: java.lang.IllegalStateException: " + i;
+        }
+
+        assertWarnings(expected);
+    }
+
+    public void testRegisterExceptionDeduplicationKeepsDifferentExceptionClasses() {
+        Warnings warnings = Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, new TestWarningsSource("foo"));
+
+        warnings.registerException(new IllegalArgumentException("same"));
+        warnings.registerException(new IllegalStateException("same"));
+
+        assertWarnings(
+            "Line 1:1: evaluation of [foo] failed, treating result as null. Only first 20 failures recorded.",
+            "Line 1:1: java.lang.IllegalArgumentException: same",
+            "Line 1:1: java.lang.IllegalStateException: same"
+        );
+    }
+
+    public void testRegisterExceptionDeduplicationKeepsDifferentMessages() {
+        Warnings warnings = Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, new TestWarningsSource("foo"));
+
+        warnings.registerException(new IllegalArgumentException("one"));
+        warnings.registerException(new IllegalArgumentException("two"));
+
+        assertWarnings(
+            "Line 1:1: evaluation of [foo] failed, treating result as null. Only first 20 failures recorded.",
+            "Line 1:1: java.lang.IllegalArgumentException: one",
+            "Line 1:1: java.lang.IllegalArgumentException: two"
+        );
+    }
+
     public void testMixedRegisterExceptionThenWarning() {
         Warnings warnings = Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, new TestWarningsSource("foo"));
         warnings.registerException(new IllegalArgumentException("bad arg"));

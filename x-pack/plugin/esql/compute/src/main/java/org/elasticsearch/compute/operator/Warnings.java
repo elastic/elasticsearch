@@ -7,7 +7,9 @@
 
 package org.elasticsearch.compute.operator;
 
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.common.logging.HeaderWarning.addWarning;
@@ -103,6 +105,7 @@ public class Warnings {
     private final String firstExceptionWarning;
     private final String nonExceptionWarningPrefix;
     private final Set<String> emittedNonExceptionWarnings = new HashSet<>();
+    private final Map<Class<? extends Exception>, Set<String>> emittedExceptionWarnings = new HashMap<>();
 
     private int addedWarnings;
     private boolean exceptionWarningEmitted = false;
@@ -136,15 +139,18 @@ public class Warnings {
      * </p>
      */
     public void registerException(Class<? extends Exception> exceptionClass, String message) {
-        if (addedWarnings < MAX_ADDED_WARNINGS) {
-            if (exceptionWarningEmitted == false) {
-                exceptionWarningEmitted = true;
-                addWarning(firstExceptionWarning);
-            }
-            // location needs to be added to the exception too, since the headers are deduplicated
-            addWarning(location + exceptionClass.getName() + ": " + message);
-            addedWarnings++;
+        if (addedWarnings >= MAX_ADDED_WARNINGS) {
+            return;
         }
+        if (emittedExceptionWarnings.computeIfAbsent(exceptionClass, ignored -> new HashSet<>()).add(message) == false) {
+            return;
+        }
+        if (exceptionWarningEmitted == false) {
+            exceptionWarningEmitted = true;
+            addWarning(firstExceptionWarning);
+        }
+        addWarning(location + exceptionClass.getName() + ": " + message);
+        addedWarnings++;
     }
 
     /**

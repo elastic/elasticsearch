@@ -1,5 +1,5 @@
 ---
-navigation_title: "Use subqueries in a WHERE command"
+navigation_title: "Subqueries with IN / NOT IN"
 applies_to:
   serverless: preview
   stack: preview 9.5.0
@@ -7,7 +7,7 @@ products:
   - id: elasticsearch
 ---
 
-# Filter rows with {{esql}} `IN` subquery in a `WHERE` command [esql-in-subquery]
+# Use {{esql}} subqueries with `IN` and `NOT IN` [esql-in-subquery]
 
 An {{esql}} query wrapped in parentheses can be used as a subquery on the
 right-hand side of the [`IN` and `NOT IN`](/reference/query-languages/esql/functions-operators/operators.md#esql-in-operator)

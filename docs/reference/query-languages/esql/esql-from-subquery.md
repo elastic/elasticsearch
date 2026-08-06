@@ -1,5 +1,5 @@
 ---
-navigation_title: "Use subqueries in a FROM command"
+navigation_title: "Subqueries with FROM"
 applies_to:
   serverless: ga
   stack: preview 9.4, ga 9.5+

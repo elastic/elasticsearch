@@ -11,7 +11,6 @@ import org.apache.http.client.utils.URIBuilder;
 
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.ArrayList;
 import java.util.List;
 
 public final class TencentCloudUtils {
@@ -31,13 +30,8 @@ public final class TencentCloudUtils {
         return region + HOST_SUFFIX;
     }
 
-    public static URI buildUri(String region, String firstPathSegment, String... morePathSegments) {
-        List<String> segments = new ArrayList<>();
-        segments.add(firstPathSegment);
-        for (String s : morePathSegments) {
-            segments.add(s);
-        }
-        var builder = new URIBuilder().setScheme(SCHEME).setHost(buildHost(region)).setPathSegments(segments);
+    public static URI buildUri(String region, String... segments) {
+        var builder = new URIBuilder().setScheme(SCHEME).setHost(buildHost(region)).setPathSegments(List.of(segments));
         try {
             return builder.build();
         } catch (URISyntaxException e) {

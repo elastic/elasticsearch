@@ -58,20 +58,12 @@ public class TencentCloudEmbeddingsModel extends TencentCloudModel {
                 chunkingSettings
             ),
             new ModelSecrets(secretSettings),
-            secretSettings,
-            serviceSettings,
             resolveUri(serviceSettings)
         );
     }
 
     public TencentCloudEmbeddingsModel(ModelConfigurations config, ModelSecrets secrets) {
-        super(
-            config,
-            secrets,
-            (DefaultSecretSettings) secrets.getSecretSettings(),
-            (TencentCloudEmbeddingsServiceSettings) config.getServiceSettings(),
-            resolveUri((TencentCloudEmbeddingsServiceSettings) config.getServiceSettings())
-        );
+        super(config, secrets, resolveUri((TencentCloudEmbeddingsServiceSettings) config.getServiceSettings()));
     }
 
     public TencentCloudEmbeddingsModel(TencentCloudEmbeddingsModel model, TencentCloudEmbeddingsServiceSettings serviceSettings) {
@@ -90,7 +82,7 @@ public class TencentCloudEmbeddingsModel extends TencentCloudModel {
 
     @Override
     public DefaultSecretSettings getSecretSettings() {
-        return (DefaultSecretSettings) super.getSecretSettings();
+        return super.getSecretSettings();
     }
 
     @Override

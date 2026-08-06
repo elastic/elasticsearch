@@ -56,20 +56,12 @@ public class TencentCloudRerankModel extends TencentCloudModel {
         super(
             new ModelConfigurations(inferenceId, TaskType.RERANK, TencentCloudService.NAME, serviceSettings, taskSettings),
             new ModelSecrets(secretSettings),
-            secretSettings,
-            serviceSettings,
             resolveUri(serviceSettings)
         );
     }
 
     public TencentCloudRerankModel(ModelConfigurations config, ModelSecrets secrets) {
-        super(
-            config,
-            secrets,
-            (DefaultSecretSettings) secrets.getSecretSettings(),
-            (TencentCloudRerankServiceSettings) config.getServiceSettings(),
-            resolveUri((TencentCloudRerankServiceSettings) config.getServiceSettings())
-        );
+        super(config, secrets, resolveUri((TencentCloudRerankServiceSettings) config.getServiceSettings()));
     }
 
     private TencentCloudRerankModel(TencentCloudRerankModel model, TencentCloudRerankTaskSettings taskSettings) {
@@ -92,7 +84,7 @@ public class TencentCloudRerankModel extends TencentCloudModel {
 
     @Override
     public DefaultSecretSettings getSecretSettings() {
-        return (DefaultSecretSettings) super.getSecretSettings();
+        return super.getSecretSettings();
     }
 
     @Override

@@ -52,7 +52,7 @@ public class TencentCloudChatCompletionRequest implements OutboundUnifiedComplet
         httpPost.setEntity(createEntity());
 
         httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
-        httpPost.setHeader(createAuthBearerHeader(model.apiKey()));
+        httpPost.setHeader(createAuthBearerHeader(model.getSecretSettings().apiKey()));
 
         listener.onResponse(new HttpRequest(httpPost, getInferenceEntityId()));
     }

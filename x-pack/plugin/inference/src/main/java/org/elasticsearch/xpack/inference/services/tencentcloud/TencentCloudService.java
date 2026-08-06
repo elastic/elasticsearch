@@ -253,9 +253,9 @@ public class TencentCloudService extends SenderService<TencentCloudModel> implem
 
     @Override
     public int rerankerWindowSize(String modelId) {
-        // Reranker models on TencentCloud AI Gateway (e.g. bge-reranker-large, bge-reranker-v2-m3) support up to
-        // 512-token inputs. Using 1 token ≈ 0.75 words gives roughly 384 words; use a conservative value with headroom.
-        // This is a static window because the gateway supports multiple models and model IDs are not validated here.
+        // The TencentCloud AI Gateway does not publish a fixed rerank context window and does not validate the model id
+        // at configuration time, so a single conservative static window is used for all rerank models. 350 tokens leaves
+        // comfortable headroom for the gateway's reranker models, which accept several hundred tokens of context.
         return 350;
     }
 

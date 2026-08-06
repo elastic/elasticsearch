@@ -87,7 +87,7 @@ public class TencentCloudServiceTests extends InferenceServiceTestCase {
             var m = (TencentCloudEmbeddingsModel) model;
             assertThat(m.getServiceSettings().modelId(), equalTo("bge-m3"));
             assertThat(m.uri().toString(), equalTo("https://bj.aisearch.tencentelasticsearch.com/v1/embeddings"));
-            assertThat(m.apiKey().toString(), equalTo("sk-12345"));
+            assertThat(m.getSecretSettings().apiKey().toString(), equalTo("sk-12345"));
         }));
     }
 

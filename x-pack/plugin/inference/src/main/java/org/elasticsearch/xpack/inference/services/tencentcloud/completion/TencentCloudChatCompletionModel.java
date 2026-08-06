@@ -49,20 +49,12 @@ public class TencentCloudChatCompletionModel extends TencentCloudModel {
         super(
             new ModelConfigurations(inferenceId, taskType, TencentCloudService.NAME, serviceSettings, EmptyTaskSettings.INSTANCE),
             new ModelSecrets(secretSettings),
-            secretSettings,
-            serviceSettings,
             resolveUri(serviceSettings)
         );
     }
 
     public TencentCloudChatCompletionModel(ModelConfigurations config, ModelSecrets secrets) {
-        super(
-            config,
-            secrets,
-            (DefaultSecretSettings) secrets.getSecretSettings(),
-            (TencentCloudChatCompletionServiceSettings) config.getServiceSettings(),
-            resolveUri((TencentCloudChatCompletionServiceSettings) config.getServiceSettings())
-        );
+        super(config, secrets, resolveUri((TencentCloudChatCompletionServiceSettings) config.getServiceSettings()));
     }
 
     public String model() {
@@ -76,7 +68,7 @@ public class TencentCloudChatCompletionModel extends TencentCloudModel {
 
     @Override
     public DefaultSecretSettings getSecretSettings() {
-        return (DefaultSecretSettings) super.getSecretSettings();
+        return super.getSecretSettings();
     }
 
     @Override

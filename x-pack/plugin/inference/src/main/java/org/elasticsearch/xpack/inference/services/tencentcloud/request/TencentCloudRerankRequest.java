@@ -56,7 +56,7 @@ public class TencentCloudRerankRequest implements OutboundRerankRequest {
         );
         httpPost.setEntity(byteEntity);
 
-        decorateWithAuthHeader(httpPost, model.apiKey());
+        decorateWithAuthHeader(httpPost, model.getSecretSettings().apiKey());
 
         listener.onResponse(new HttpRequest(httpPost, getInferenceEntityId()));
     }

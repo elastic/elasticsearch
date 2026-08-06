@@ -7,16 +7,13 @@
 
 package org.elasticsearch.xpack.inference.services.tencentcloud;
 
-import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.RateLimitGroupingModel;
-import org.elasticsearch.xpack.inference.services.ServiceUtils;
-import org.elasticsearch.xpack.inference.services.settings.ApiKeySecrets;
+import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.tencentcloud.action.TencentCloudActionVisitor;
 
@@ -25,47 +22,32 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Base class for all TencentCloud models. Holds the API key, the effective request URI, and the rate limit settings.
+ * Base class for all TencentCloud models. Holds the effective request URI.
+ * The API key is obtained from the model secrets on demand (see {@link #getSecretSettings()}) rather than stored as a
+ * field, keeping the model consistent with how the rest of the inference codebase handles secrets.
  */
 public abstract class TencentCloudModel extends RateLimitGroupingModel {
 
-    private final SecureString apiKey;
-    private final TencentCloudRateLimitServiceSettings rateLimitServiceSettings;
     private final URI uri;
 
-    public TencentCloudModel(
-        ModelConfigurations configurations,
-        ModelSecrets secrets,
-        @Nullable ApiKeySecrets apiKeySecrets,
-        TencentCloudRateLimitServiceSettings rateLimitServiceSettings,
-        URI uri
-    ) {
+    public TencentCloudModel(ModelConfigurations configurations, ModelSecrets secrets, URI uri) {
         super(configurations, secrets);
-        this.rateLimitServiceSettings = Objects.requireNonNull(rateLimitServiceSettings);
-        this.apiKey = ServiceUtils.apiKey(apiKeySecrets);
-        this.uri = uri;
+        this.uri = Objects.requireNonNull(uri);
     }
 
     protected TencentCloudModel(TencentCloudModel model, TaskSettings taskSettings) {
         super(model, taskSettings);
-        this.rateLimitServiceSettings = model.rateLimitServiceSettings();
-        this.apiKey = model.apiKey();
         this.uri = model.uri();
     }
 
     protected TencentCloudModel(TencentCloudModel model, ServiceSettings serviceSettings) {
         super(model, serviceSettings);
-        this.rateLimitServiceSettings = model.rateLimitServiceSettings();
-        this.apiKey = model.apiKey();
         this.uri = model.uri();
     }
 
-    public SecureString apiKey() {
-        return apiKey;
-    }
-
-    public TencentCloudRateLimitServiceSettings rateLimitServiceSettings() {
-        return rateLimitServiceSettings;
+    @Override
+    public DefaultSecretSettings getSecretSettings() {
+        return (DefaultSecretSettings) super.getSecretSettings();
     }
 
     public URI uri() {
@@ -74,12 +56,14 @@ public abstract class TencentCloudModel extends RateLimitGroupingModel {
 
     @Override
     public int rateLimitGroupingHash() {
-        return apiKey().hashCode();
+        // Group by the upstream model and host (uri) so requests that share the same endpoint and model share a
+        // rate-limit bucket. This avoids grouping by the secret api key.
+        return Objects.hash(getServiceSettings().modelId(), uri());
     }
 
     @Override
     public RateLimitSettings rateLimitSettings() {
-        return rateLimitServiceSettings.rateLimitSettings();
+        return ((TencentCloudCommonServiceSettings) getServiceSettings()).rateLimitSettings();
     }
 
     public abstract ExecutableAction accept(TencentCloudActionVisitor creator, Map<String, Object> taskSettings);

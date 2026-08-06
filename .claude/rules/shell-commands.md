@@ -1,1 +1,0 @@
-/Users/benchap/.local/share/estc/claude/rules/shell-commands.md

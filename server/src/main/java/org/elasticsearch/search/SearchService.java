@@ -186,8 +186,6 @@ import static org.elasticsearch.search.rank.feature.RankFeatureShardPhase.EMPTY_
 public class SearchService extends AbstractLifecycleComponent implements IndexEventListener {
     private static final Logger logger = LogManager.getLogger(SearchService.class);
 
-    private static final Supplier<DirectoryMetrics> EMPTY_SUPPLIER = () -> DirectoryMetrics.EMPTY;
-
     // we can have 5 minutes here, since we make sure to clean with search requests and when shard/index closes
     public static final Setting<TimeValue> DEFAULT_KEEPALIVE_SETTING = Setting.positiveTimeSetting(
         "search.default_keep_alive",
@@ -1096,13 +1094,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
-    // Holders are disjoint: store is flag-gated, cache is always-on.
     private Supplier<DirectoryMetrics> directoryMetricsDelta() {
-        final Supplier<DirectoryMetrics> store = Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled()
-            ? indicesService.storeMetricsDelta()
-            : EMPTY_SUPPLIER;
-        final Supplier<DirectoryMetrics> cache = indicesService.cacheMetricsDelta();
-        return () -> store.get().merge(cache.get());
+        return Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled()
+            ? indicesService.directoryMetricsDelta()
+            : indicesService.cacheMetricsDelta();
     }
 
     private static void setDirectoryMetrics(SearchPhaseResult result, Supplier<DirectoryMetrics> metricsDelta, SearchContext context) {

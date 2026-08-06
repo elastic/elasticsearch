@@ -30,8 +30,15 @@ public class PulseDetector {
     private static final double PULSE_Z_THRESHOLD = 3.0;
     // We report at most this many pulses — the highest-z excursions. A small floor plus a slowly-growing fraction
     // of the series length, so a pathological or very noisy series cannot drown the output in spikes.
-    private static final int MAX_PULSES_FLOOR = 5;
-    private static final double MAX_PULSES_FRACTION = 0.02;
+    private static final int MAX_REPORTED_PULSES_FLOOR = 5;
+    private static final double MAX_REPORTED_PULSES_FRACTION = 0.02;
+    // Fraction of the series removed from the significance-gate null (top excursions by peak z), so a genuine
+    // anomaly is judged against a quiet background rather than one that still contains its neighbours. This is the
+    // anomaly/population boundary: if more than this fraction of the series looks like the tested excursion, its
+    // siblings remain in the null and it correctly reads as an ordinary member of a population, not a point pulse.
+    // A cluster counts as one excursion here and is removed as a whole span, so a wide spike is one anomaly, not
+    // its width.
+    private static final double BACKGROUND_ANOMALY_FRACTION = 0.05;
     // Minimum KDE bandwidth as a fraction of the stabilized residual range, so the kernel width never collapses
     // to zero on a flat/degenerate background (which would make the empirical-tail gate unable to flag any outlier).
     // Small enough to be inert on a well-spread background, where Silverman's bandwidth dominates.
@@ -58,15 +65,17 @@ public class PulseDetector {
      *    the residual scale,
      * 2. merge adjacent candidates of the same sign into single excursions, dropping any that span a full
      *    {@code minSegmentLength},
-     * 3. sort the excursions by their peak z and keep the top {@code max(MAX_PULSES_FLOOR, MAX_PULSES_FRACTION * n)}.
-     * 4. build ONE Gaussian-KDE null from the residuals with <em>all</em> of those top excursions removed,
-     *    and keep an excursion only if its peak's Bonferroni-corrected tail probability under that null clears
-     *    the threshold.
+     * 3. sort the excursions by their peak z,
+     * 4. build ONE Gaussian-KDE null from the residuals with the top {@code ceil(BACKGROUND_ANOMALY_FRACTION * n)}
+     *    excursions removed, and keep an excursion only if its peak's Bonferroni-corrected tail probability under
+     *    that null clears the threshold; surface at most {@code max(MAX_REPORTED_PULSES_FLOOR, MAX_REPORTED_PULSES_FRACTION * n)}.
      *
-     * Removing all the tested excursions from the single null at once is deliberate: scoring each against a null
-     * that contains the others (leave-one-out) means the largest spike and dip mask all the rest. Removing them
-     * together means several genuinely distinct excursions are each judged against the quiet remainder and all
-     * survive, while a recurring population is still rejected.
+     * Removing the tested excursions from the single null at once is deliberate: scoring each against a null that
+     * contains the others (leave-one-out) means the largest spike and dip mask all the rest. Removing them together
+     * means several genuinely distinct excursions are each judged against the quiet remainder and all survive,
+     * while a recurring population is still rejected. How many we remove — {@code BACKGROUND_ANOMALY_FRACTION} of
+     * the series — is the anomaly/population boundary, kept separate from the output cap so that decision is
+     * statistical, not a side effect of how many pulses we happen to report.
      */
     public List<ChangeType> detect(double[] values) {
         int n = values.length;
@@ -122,12 +131,20 @@ public class PulseDetector {
             return new ArrayList<>();
         }
 
-        // Keep the top excursions by peak z (the most extreme); the gate then decides which are significant.
-        int limit = Math.max(MAX_PULSES_FLOOR, (int) Math.ceil(MAX_PULSES_FRACTION * n));
-        if (excursions.size() > limit) {
-            excursions.sort(Comparator.comparingDouble((Excursion e) -> e.peakZ()).reversed());
-            excursions = new ArrayList<>(excursions.subList(0, limit));
-        }
+        // Order by peak z (most extreme first), then take two decoupled prefixes of that order:
+        //  - excludedFromNull: the top ceil(BACKGROUND_ANOMALY_FRACTION * n) excursions, cut from the gate's null
+        //    so a genuine anomaly is judged against a quiet background. Any excursion beyond this stays in the
+        //    null, so once the anomalies exceed this fraction they see their own neighbours there and are rejected
+        //    as a population -- this prefix, not the output cap, is the anomaly/population boundary.
+        //  - tested: the top max(MAX_REPORTED_PULSES_FLOOR, MAX_REPORTED_PULSES_FRACTION * n) excursions, the only
+        //    ones we gate and can surface. Both are views of the same peak-z order; a cluster is one excursion in
+        //    either, and it is removed from the null as a whole span (see backgroundExcluding), so a wide spike
+        //    counts once.
+        excursions.sort(Comparator.comparingDouble((Excursion e) -> e.peakZ()).reversed());
+        int reportLimit = Math.max(MAX_REPORTED_PULSES_FLOOR, (int) Math.ceil(MAX_REPORTED_PULSES_FRACTION * n));
+        int backgroundExclusion = (int) Math.ceil(BACKGROUND_ANOMALY_FRACTION * n);
+        List<Excursion> excludedFromNull = excursions.subList(0, Math.min(backgroundExclusion, excursions.size()));
+        List<Excursion> tested = excursions.subList(0, Math.min(reportLimit, excursions.size()));
 
         // Gate each excursion against a KDE null, all in an asinh-stabilised value space. Telemetry noise is
         // typically multiplicative (its spread grows with magnitude), so a single bandwidth on raw values is
@@ -140,7 +157,7 @@ public class PulseDetector {
         // smoothing width) is taken from the stabilised residuals, not the stabilised values: a level change
         // makes the value distribution bimodal and would inflate a value-derived width, making the gate
         // suppress genuine within-regime spike after a step.
-        double[] backgroundValues = backgroundExcluding(values, excursions, n);
+        double[] backgroundValues = backgroundExcluding(values, excludedFromNull, n);
         double stabilizingScale = Stats.asinhScale(backgroundValues);
         double[] stabilizedBackground = Stats.asinhStabilize(backgroundValues, stabilizingScale);
         double[] stabilizedValues = Stats.asinhStabilize(values, stabilizingScale);
@@ -156,10 +173,10 @@ public class PulseDetector {
         // keeps it scale-robust, so a huge spike does not mask a moderate one.
         double residualRange = Stats.range(stabilizedResiduals);
         double minBandwidth = BANDWIDTH_RANGE_FLOOR * residualRange;
-        double bandwidth = Stats.kdeBandwidth(backgroundExcluding(stabilizedResiduals, excursions, n), minBandwidth);
+        double bandwidth = Stats.kdeBandwidth(backgroundExcluding(stabilizedResiduals, excludedFromNull, n), minBandwidth);
         double logN = Math.log(n);
         List<ChangeType> pulses = new ArrayList<>();
-        for (Excursion e : excursions) {
+        for (Excursion e : tested) {
             double stabilizedValue = FastMath.asinh(values[e.peak()] / stabilizingScale);
             double logPValue = Math.min(
                 0.0,

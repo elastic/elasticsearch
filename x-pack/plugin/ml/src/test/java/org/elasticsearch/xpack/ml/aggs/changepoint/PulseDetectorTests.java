@@ -154,6 +154,33 @@ public class PulseDetectorTests extends ESTestCase {
         );
     }
 
+    public void testCountsEachClusterOnceAgainstTheAnomalyFraction() {
+        // "A spike is one thing": the anomaly/population boundary is a count of excursions (clusters), not of
+        // excursion buckets. Four spikes five buckets wide total 20 buckets = 10% of the 200-point series, well
+        // above the 5% removed from the significance-gate null -- but they form only four clusters, so all four
+        // are cut from the null as whole spans and each is judged against a quiet background and detected. If the
+        // budget were counted in buckets, half of these would remain in the null at the spike magnitude and mask
+        // the spikes. Regression guard for the per-cluster (not per-bucket) null-exclusion count.
+        Random random = new Random(19);
+        int n = 200;
+        double[] values = noise(n, 100.0, 3.0, random);
+        int[] starts = { 30, 70, 110, 150 };
+        for (int s : starts) {
+            for (int i = s; i < s + 5; i++) {
+                values[i] += 300.0;
+            }
+        }
+        List<ChangeType> events = detector(16).detect(values);
+        for (int s : starts) {
+            int center = s + 2;
+            assertTrue(
+                "each wide spike must be detected even though the excursion buckets exceed the anomaly fraction, got "
+                    + events,
+                events.stream().anyMatch(e -> e instanceof ChangeType.Spike && Math.abs(e.changePoint() - center) <= 3)
+            );
+        }
+    }
+
     public void testDoesNotFlagARecurringPopulation() {
         // A periodic train of equal-magnitude peaks is a frequent population, not a set of point anomalies: the
         // robust scale inflates so they never reach the candidate list.

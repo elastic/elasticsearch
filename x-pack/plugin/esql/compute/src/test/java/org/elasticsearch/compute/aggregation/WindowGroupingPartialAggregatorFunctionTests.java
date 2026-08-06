@@ -8,13 +8,16 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.operator.TimeSeriesAggregationOperator;
 import org.elasticsearch.compute.test.operator.blocksource.ListRowsBlockSourceOperator;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -25,14 +28,18 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.stream.Stream;
 
+import static java.util.stream.IntStream.range;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Runs the {@link org.elasticsearch.compute.operator.ForkingOperatorTestCase} matrix over a window with a partial
- * channel ({@code W = 90s} over 1-minute buckets, remainder 30s), exercising the doubled intermediate state through
- * INITIAL, INTERMEDIATE, and FINAL phase splits. Rows carry a raw timestamp column that drives the partial filter in
- * the raw-input phases; the partial-input phases forward the pre-filtered per-bucket states.
+ * side ({@code W = 90s} over 1-minute buckets, remainder 30s) through INITIAL, INTERMEDIATE, and FINAL phase
+ * splits, mirroring the production wiring: the raw-input phase runs the full aggregate and its filtered partial
+ * sibling as two ordinary aggregates, the intermediate phase reduces each side separately, and only the final phase
+ * pairs them, with the window wrapper reading the full state channels followed by the sibling's. Rows carry a raw
+ * timestamp column that drives the partial filter in the raw-input phase.
  */
 public class WindowGroupingPartialAggregatorFunctionTests extends WindowGroupingAggregatorFunctionTests {
 
@@ -40,18 +47,49 @@ public class WindowGroupingPartialAggregatorFunctionTests extends WindowGrouping
     private static final Duration REMAINDER = Duration.ofSeconds(30);
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction() {
+    protected Operator.OperatorFactory simpleWithMode(SimpleOptions options, AggregatorMode mode) {
         var sum = new SumIntAggregatorFunctionSupplier();
-        return new WindowAggregatorFunctionSupplier(sum, sum, WINDOW, REMAINDER);
-    }
-
-    @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(AggregatorMode mode) {
-        var sum = new SumIntAggregatorFunctionSupplier();
-        AggregatorFunctionSupplier partial = mode.isInputPartial()
-            ? sum
-            : new FilteredAggregatorFunctionSupplier(sum, trailingWindowFilter(timeBucket, REMAINDER.toMillis(), 1, 3));
-        return new WindowAggregatorFunctionSupplier(sum, partial, WINDOW, REMAINDER);
+        List<GroupingAggregator.Factory> aggregators = new ArrayList<>(2);
+        if (mode.isInputPartial()) {
+            int stateSize = sum.groupingIntermediateStateDesc().size();
+            List<Integer> fullChannels = range(HASH_CHANNEL_COUNT, HASH_CHANNEL_COUNT + stateSize).boxed().toList();
+            List<Integer> partialChannels = range(HASH_CHANNEL_COUNT + stateSize, HASH_CHANNEL_COUNT + 2 * stateSize).boxed().toList();
+            if (mode.isOutputPartial()) {
+                // INTERMEDIATE: each side reduces its own state as an ordinary aggregate
+                aggregators.add(sum.groupingAggregatorFactory(mode, fullChannels));
+                aggregators.add(sum.groupingAggregatorFactory(mode, partialChannels));
+            } else {
+                // FINAL: the window wrapper merges the full state with the sibling's; the sibling also emits its
+                // own column, which nothing reads, mirroring the production wiring
+                var window = new WindowAggregatorFunctionSupplier(sum, sum, WINDOW, REMAINDER);
+                List<Integer> combined = Stream.concat(fullChannels.stream(), partialChannels.stream()).toList();
+                aggregators.add(window.groupingAggregatorFactory(mode, combined));
+                aggregators.add(sum.groupingAggregatorFactory(mode, partialChannels));
+            }
+        } else {
+            List<Integer> rawChannels = List.of(HASH_CHANNEL_COUNT);
+            var filteredPartial = new FilteredAggregatorFunctionSupplier(sum, trailingWindowFilter(timeBucket, REMAINDER.toMillis(), 1, 3));
+            if (mode.isOutputPartial()) {
+                // INITIAL: the full aggregate and the filtered partial sibling execute as two ordinary aggregates
+                aggregators.add(sum.groupingAggregatorFactory(mode, rawChannels));
+                aggregators.add(filteredPartial.groupingAggregatorFactory(mode, rawChannels));
+            } else {
+                // SINGLE: raw input straight to final values; the partial side filters its own rows
+                var window = new WindowAggregatorFunctionSupplier(sum, filteredPartial, WINDOW, REMAINDER);
+                aggregators.add(window.groupingAggregatorFactory(mode, rawChannels));
+            }
+        }
+        return new TimeSeriesAggregationOperator.Factory(
+            timeBucket,
+            false,
+            List.of(
+                new BlockHash.GroupSpec(0, ElementType.BYTES_REF, null, null),
+                new BlockHash.GroupSpec(1, ElementType.LONG, null, null)
+            ),
+            mode,
+            aggregators,
+            Integer.MAX_VALUE  // TODO window functions don't support chunking https://github.com/elastic/elasticsearch/issues/138705
+        );
     }
 
     @Override

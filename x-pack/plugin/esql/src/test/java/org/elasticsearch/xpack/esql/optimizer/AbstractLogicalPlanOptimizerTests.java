@@ -116,10 +116,6 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
             .minimumTransportVersion(DimensionValues.DIMENSION_VALUES_VERSION);
     }
 
-    protected static TestAnalyzer metricsAnalyzerWithLatestVersion() {
-        return metricsAnalyzer().minimumTransportVersion(TransportVersion.current());
-    }
-
     protected static TestAnalyzer multiIndexAnalyzer() {
         var multiIndexMapping = loadMapping("mapping-basic.json");
         EsField partialTypeKeyword = new EsField("partial_type_keyword", KEYWORD, emptyMap(), true, EsField.TimeSeriesFieldType.NONE);
@@ -263,14 +259,6 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
 
     protected LogicalPlan planMetrics(String query) {
         return logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer().query(query));
-    }
-
-    /**
-     * Like {@link #planMetrics}, but with the minimum transport version pinned to current. Needed for features whose
-     * analysis requires every node to be on a recent version, e.g. windows that are not a multiple of the time bucket.
-     */
-    protected LogicalPlan planMetricsWithLatestVersion(String query) {
-        return logicalOptimizerWithLatestVersion.optimize(metricsAnalyzerWithLatestVersion().query(query));
     }
 
     protected LogicalPlan planMultiIndex(String query) {

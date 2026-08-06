@@ -138,7 +138,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.ResolvedInference;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.ApplyWindowSemantics;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.ApplyWindowFilter;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogateExpressions;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesWithout;
@@ -317,7 +317,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new TranslateTimeSeriesWithout(),
             // translate metric aggregates early before they are converted to nested expressions
             new TranslateTimeSeriesAggregate(),
-            new ApplyWindowSemantics(),
+            new ApplyWindowFilter(),
             new UnionTypesCleanup()
         )
     );

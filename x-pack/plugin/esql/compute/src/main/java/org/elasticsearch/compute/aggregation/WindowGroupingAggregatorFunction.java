@@ -28,8 +28,11 @@ import java.util.stream.IntStream;
  *     {@code E} merges the per-bucket states of all buckets fully covered by {@code (E - W, E]}. When the window is
  *     not an exact multiple of the bucket ({@code W = k * B + r} with {@code r > 0}), a second {@code partialNext}
  *     function carries, per bucket, the state of only the trailing {@code r} of that bucket; the merge then adds the
- *     boundary bucket's partial state to the {@code k} full buckets. Both walks are range-driven through the
- *     {@link TimeSeriesGroupingAggregatorEvaluationContext}, so they are agnostic to the bucket labeling convention.
+ *     boundary bucket's partial state to the {@code k} full buckets. The partial state is computed by a separate,
+ *     ordinary aggregate whose input is filtered to the trailing {@code r} of each bucket; {@code partialNext} reads
+ *     that aggregate's state channels in the partial-input phase, or filters raw rows itself in single-phase
+ *     execution. Both merge walks are range-driven through the {@link TimeSeriesGroupingAggregatorEvaluationContext},
+ *     so they are agnostic to the bucket labeling convention.
  * </p>
  */
 public record WindowGroupingAggregatorFunction(
@@ -156,33 +159,12 @@ public record WindowGroupingAggregatorFunction(
         IntVector selected,
         GroupingAggregatorEvaluationContext ctx
     ) {
-        if (partialNext == null) {
-            return next.prepareEvaluateIntermediate(selected, ctx);
+        if (partialNext != null) {
+            // the wrapper is only created for the phase that emits final values. The partial state is emitted by
+            // its own aggregate, never through this wrapper
+            throw new UnsupportedOperationException("windowed aggregation with a partial side never outputs intermediate state");
         }
-        PreparedForEvaluation nextPrepared = next.prepareEvaluateIntermediate(selected, ctx);
-        PreparedForEvaluation partialPrepared = null;
-        try {
-            partialPrepared = partialNext.prepareEvaluateIntermediate(selected, ctx);
-            int nextBlockCount = next.intermediateBlockCount();
-            PreparedForEvaluation takeNext = nextPrepared;
-            PreparedForEvaluation takePartial = partialPrepared;
-            nextPrepared = null;
-            partialPrepared = null;
-            return new PreparedForEvaluation() {
-                @Override
-                public void evaluate(Block[] blocks, int offset, IntVector selectedInPage) {
-                    takeNext.evaluate(blocks, offset, selectedInPage);
-                    takePartial.evaluate(blocks, offset + nextBlockCount, selectedInPage);
-                }
-
-                @Override
-                public void close() {
-                    Releasables.close(takeNext, takePartial);
-                }
-            };
-        } finally {
-            Releasables.close(nextPrepared, partialPrepared);
-        }
+        return next.prepareEvaluateIntermediate(selected, ctx);
     }
 
     @Override
@@ -248,9 +230,12 @@ public record WindowGroupingAggregatorFunction(
                 // the aggregator's default value
                 finalAggFunction.selectedMayContainUnseenGroups(new SeenGroupIds.Empty());
                 finalAggFunction.addIntermediateInput(0, selectedGroups, fullPage);
+                // the range covered by whole buckets; the remainder, if any, comes from the boundary bucket's
+                // partial state. It depends only on the window and the remainder, so it is the same for every group.
+                long fullSpan = partial == null ? window.toMillis() : window.toMillis() - partial.toMillis();
                 for (int i = 0; i < selectedGroups.getPositionCount(); i++) {
                     int groupId = selectedGroups.getInt(i);
-                    mergeBucketsFromWindow(groupId, backwards, fullPage, partialPage, finalAggFunction, ctx);
+                    mergeBucketsFromWindow(groupId, backwards, fullPage, partialPage, fullSpan, finalAggFunction, ctx);
                 }
             } finally {
                 Releasables.close(fullBlocks);
@@ -317,13 +302,12 @@ public record WindowGroupingAggregatorFunction(
         int[] groupIdToPositions,
         Page fullPage,
         @Nullable Page partialPage,
+        long fullSpan,
         GroupingAggregatorFunction fn,
         TimeSeriesGroupingAggregatorEvaluationContext context
     ) {
         try (var oneGroup = context.driverContext().blockFactory().newConstantIntVector(startingGroupId, 1)) {
             long end = context.rangeEndInMillis(startingGroupId);
-            // the range covered by whole buckets; the remainder, if any, comes from the boundary bucket's partial state
-            long fullSpan = partial == null ? window.toMillis() : window.toMillis() - partial.toMillis();
             context.forEachGroupInRange(startingGroupId, end - fullSpan, end, g -> {
                 assert g != startingGroupId && g >= 0 && g < groupIdToPositions.length;
                 int position = groupIdToPositions[g];
@@ -344,6 +328,8 @@ public record WindowGroupingAggregatorFunction(
 
     @Override
     public int intermediateBlockCount() {
+        // with a partial side this is the consumed input width (full state plus partial state); the wrapper never
+        // emits intermediate state in that shape - see prepareEvaluateIntermediate
         return next.intermediateBlockCount() + (partialNext == null ? 0 : partialNext.intermediateBlockCount());
     }
 

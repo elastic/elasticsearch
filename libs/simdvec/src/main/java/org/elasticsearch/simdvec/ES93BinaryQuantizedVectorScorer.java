@@ -96,7 +96,7 @@ public abstract class ES93BinaryQuantizedVectorScorer {
         // assumed to be the squared l2norm of the centroid centered vectors.
         if (similarityFunction == EUCLIDEAN) {
             score = queryAdditionalCorrection + indexAdditionalCorrection - 2 * score;
-            return Math.max(VectorUtil.normalizeDistanceToUnitInterval(score), 0);
+            return VectorUtil.normalizeDistanceToUnitInterval(Math.max(score, 0f));
         } else {
             // For dot product/cosine and max inner product, we need to apply the additional correction, which is
             // assumed to be the non-centered dot-product between the vector and the centroid

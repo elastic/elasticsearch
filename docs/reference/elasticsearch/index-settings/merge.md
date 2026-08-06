@@ -47,6 +47,11 @@ Any merge task scheduled *before* the limit is reached continues execution, even
 Defaults to `100GB` when `indices.merge.disk.watermark.high` is not explicitly set.
 This caps the amount of free disk space before merge scheduling is blocked.
 
+The merge scheduler also supports the following *static* node-level setting, which takes effect only on node restart:
+
+`indices.merge.thread_pool.max_size_factor`
+:   A factor in the range `(0, 1]` applied to the maximum size of the `merge` thread pool, which otherwise defaults to the number of [`node.processors`](/reference/elasticsearch/configuration-reference/node-settings.md). The scaled value is rounded to the nearest integer and is never lower than `1`. Lowering it (for example to `0.5`) reduces the number of merges that may run concurrently on the node, which lowers peak merge memory usage at the cost of merge throughput. Defaults to `1`. An explicit `thread_pool.merge.max` takes precedence over the value derived from this factor.
+
 ## Merge multi-threading [merge-multithreading]
 
 In general, merges are completed concurrently using multiple threads. Generally, each individual merge is single-threaded, but multiple merges can be run in parallel.

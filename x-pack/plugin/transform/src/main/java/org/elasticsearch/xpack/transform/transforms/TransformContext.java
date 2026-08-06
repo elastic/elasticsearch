@@ -63,6 +63,12 @@ public class TransformContext {
      */
     private volatile boolean isWaitingForIndexToUnblock = false;
 
+    // Facts from this transform's most recent completed search, recorded by the indexer and read
+    // by the per-node APM gauges via the TransformNode task registry. Null until the first search
+    // completes; the gauges skip transforms with unknown status.
+    private volatile Boolean uiamAuth = null;
+    private volatile Boolean lastSearchCrossProject = null;
+
     // the checkpoint of this transform, storing the checkpoint until data indexing from source to dest is _complete_
     // Note: Each indexer run creates a new future checkpoint which becomes the current checkpoint only after the indexer run finished
     private final AtomicLong currentCheckpoint;
@@ -220,6 +226,22 @@ public class TransformContext {
 
     public void setIsWaitingForIndexToUnblock(boolean isWaitingForIndexToUnblock) {
         this.isWaitingForIndexToUnblock = isWaitingForIndexToUnblock;
+    }
+
+    /** {@code true} when the config carries a UIAM cloud credential (migrated), or {@code null} if no search has completed yet. */
+    public Boolean getUiamAuth() {
+        return uiamAuth;
+    }
+
+    /** {@code true} when the last search touched at least one linked project, or {@code null} if no search has completed yet. */
+    public Boolean getLastSearchCrossProject() {
+        return lastSearchCrossProject;
+    }
+
+    /** Records the per-search facts. Called once per completed search so values stay current after {@code _update}. */
+    public void recordSearchMetrics(boolean uiamAuth, boolean crossProject) {
+        this.uiamAuth = uiamAuth;
+        this.lastSearchCrossProject = crossProject;
     }
 
     public AuthorizationState getAuthState() {

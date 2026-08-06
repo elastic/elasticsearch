@@ -702,19 +702,54 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
         }
 
         /**
-         * Array-backed variant of {@link #encode(ArrayList, BitSet)} for the columnar batch-mapping path, which buffers a document's
-         * slots into a reused {@code BytesRef[]} rather than a fresh list per document. Only the first {@code slotCount} entries of
-         * {@code slots} are read, and only the first {@code slotCount} bits of {@code nullMarkers} are consulted.
+         * Encodes keyed slots from an interleaved tuple array into the wire format:
+         * {@code [valueLen+1][key\0value]...}. Null slots are encoded as {@code [0][key\0]}.
+         *
+         * <p>Tuple layout: {@code tuples[2 * i]} is the key prefix for slot {@code i} — the key bytes
+         * followed by the {@code \0} separator (exactly what the columnar path builds once per column as
+         * {@code relativeKey + "\0"}). {@code tuples[2 * i + 1]} is the value bytes for slot {@code i},
+         * or {@code null} to signal a null slot. Only the first {@code 2 * slotCount} entries are read;
+         * callers may reuse an oversized buffer across documents.
+         *
+         * <p>Wire-format invariants preserved by this encoder:
+         * <ul>
+         *   <li>Every slot carries a VInt prefix — there is no single-slot raw passthrough (unlike
+         *       {@link ArrayOrderInlineNull}).</li>
+         *   <li>The prefix measures only the value: {@code 0} for null, {@code valueLen + 1} otherwise
+         *       (so an empty string writes {@code 1}).</li>
+         *   <li>The separator byte is written even for null slots — decoders advance by
+         *       {@code keyLen + 1}, so omitting it desynchronises the stream.</li>
+         *   <li>Slot order is preserved and is load-bearing for synthetic-source reconstruction.</li>
+         * </ul>
          */
-        public static BytesRef encode(BytesRef[] slots, int slotCount, BitSet nullMarkers) {
-            assert slotCount >= 1 : "encode(array) requires at least one slot";
+        public static BytesRef encodeTuples(BytesRef[] tuples, int slotCount) {
+            assert slotCount >= 1 : "encodeTuples requires at least one slot";
+            assert tuples.length >= 2 * slotCount : "tuples array too short: " + tuples.length + " < " + (2 * slotCount);
             int byteCount = 0;
             for (int i = 0; i < slotCount; i++) {
-                byteCount += slots[i].length;
+                byteCount += tuples[2 * i].length;
+                BytesRef value = tuples[2 * i + 1];
+                if (value != null) {
+                    byteCount += value.length;
+                }
             }
             try (BytesStreamOutput out = new BytesStreamOutput(streamSize(byteCount, slotCount))) {
                 for (int i = 0; i < slotCount; i++) {
-                    writeSlot(out, slots[i], nullMarkers.get(i));
+                    BytesRef keyPrefix = tuples[2 * i];
+                    BytesRef value = tuples[2 * i + 1];
+                    assert keyPrefix.length > 0 && keyPrefix.bytes[keyPrefix.offset + keyPrefix.length - 1] == 0
+                        : "key prefix for slot " + i + " must be non-empty and end with \\0";
+                    if (value == null) {
+                        // Null slot: [0]key\0
+                        out.writeVInt(0);
+                    } else {
+                        // Non-null slot: [valueLen+1]key\0value
+                        out.writeVInt(value.length + 1);
+                    }
+                    out.writeBytes(keyPrefix.bytes, keyPrefix.offset, keyPrefix.length);
+                    if (value != null) {
+                        out.writeBytes(value.bytes, value.offset, value.length);
+                    }
                 }
                 return out.bytes().toBytesRef();
             } catch (IOException e) {

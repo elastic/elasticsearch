@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.mapper.flattened;
 
-import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.column.LongColumn;
 import org.apache.lucene.document.column.ObjectTupleCursor;
 import org.apache.lucene.index.DirectoryReader;
@@ -109,6 +108,7 @@ import org.elasticsearch.lucene.queries.KeyedArrayOrderInlineNullPrefixQuery;
 import org.elasticsearch.lucene.queries.KeyedArrayOrderInlineNullTermQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesPrefixQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermQuery;
+import org.elasticsearch.lucene.queries.SortedSetDocValuesRangeQuery;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.FlattenedDocValuesField;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
@@ -126,7 +126,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.BitSet;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -741,7 +740,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                     }
                     return new ScanningBinaryDocValuesTermQuery(name(), keyedValue, false);
                 } else {
-                    return SortedSetDocValuesField.newSlowExactQuery(name(), indexedValueForSearch(value));
+                    return SortedSetDocValuesRangeQuery.newSlowExactQuery(name(), indexedValueForSearch(value));
                 }
             } else {
                 return super.termQuery(value, context);
@@ -777,7 +776,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                 BytesRef upper = new BytesRef(keyPrefix);
                 upper.bytes[upper.offset + upper.length - 1] = (byte) 0x01; // bump the trailing separator byte for an exclusive upper bound
 
-                return SortedSetDocValuesField.newSlowRangeQuery(name(), lower, upper, true, false);
+                return SortedSetDocValuesRangeQuery.newSlowRangeQuery(name(), lower, upper, true, false);
             }
             return new PrefixQuery(new Term(name(), keyPrefix));
         }
@@ -1949,7 +1948,9 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         // Doc each cursor is currently positioned on, or NO_MORE_DOCS once drained.
         final int[] cursorDocs = new int[columnCount];
         for (int k = 0; k < columnCount; k++) {
-            final ObjectTupleCursor<BytesRef> cursor = EscfColumnTransforms.utf8Cursor(columns[k]);
+            // retainValues=true: a document's slots are buffered and only encoded once the cursor has moved on,
+            // so the value BytesRef must stay valid past the nextDoc() call that advances off this document.
+            final ObjectTupleCursor<BytesRef> cursor = EscfColumnTransforms.utf8Cursor(columns[k], true);
             cursors.add(cursor);
             cursorDocs[k] = cursor.nextDoc();
         }
@@ -1958,33 +1959,24 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         final EscfColumnBuilder counts = mergeLongColumn();
         final BytesRef nullValueBytes = builder.nullValue.get() != null ? new BytesRef(builder.nullValue.get()) : null;
 
-        // Per-document slot buffer, reused across documents. nullMarkers[i] tracks whether slot i is a null slot, which the
-        // uniform encoding cannot infer from the bytes alone (a null slot and an empty-string value differ only by their prefix).
-        BytesRef[] slots = new BytesRef[4];
-        final BitSet nullMarkers = new BitSet();
-        final BytesRefBuilder slotScratch = new BytesRefBuilder();
+        // Per-document tuple buffer, reused across documents. Interleaved: tuples[2*i] = keyPrefix, tuples[2*i+1] = value
+        // (null value signals a null slot). No separate null marker is needed: the value's presence or absence carries the
+        // distinction, and the retained cursor BytesRef is valid until the column builder consumes it at end-of-document.
+        BytesRef[] tuples = new BytesRef[8];
 
         for (int doc = 0; doc < docCount; doc++) {
             int slotCount = 0;
-            nullMarkers.clear();
             // Column-minor within a document: all of key[0]'s values, then key[1]'s, ... See the slot-order note above.
             for (int k = 0; k < columnCount; k++) {
                 final BytesRef keyPrefix = keyPrefixes[k];
                 final ObjectTupleCursor<BytesRef> cursor = cursors.get(k);
                 while (cursorDocs[k] == doc) {
                     BytesRef value = cursor.value();
-                    final boolean isNull;
                     if (value == null && nullValueBytes != null) {
                         // null_value substitution, mirroring FlattenedFieldParser#addNull.
                         value = nullValueBytes;
                     }
-                    if (value == null) {
-                        // A null slot carries the key only, so synthetic source can tell which key was null.
-                        isNull = true;
-                        slotScratch.clear();
-                        slotScratch.append(keyPrefix);
-                    } else {
-                        isNull = false;
+                    if (value != null) {
                         if (fieldType().ignoreAbove().isIgnored(value)) {
                             throw new UnsupportedOperationException(
                                 "mapColumnGroupBatch: value for key ["
@@ -1996,22 +1988,16 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                                     + "] exceeds ignore_above; the ignored-values channel is not yet supported"
                             );
                         }
-                        slotScratch.clear();
-                        slotScratch.append(keyPrefix);
-                        slotScratch.append(value);
-                        if (slotScratch.length() > IndexWriter.MAX_TERM_LENGTH) {
+                        if (keyPrefix.length + value.length > IndexWriter.MAX_TERM_LENGTH) {
                             throw immenseKeyedValueException(relativeKeys[k], value.length);
                         }
                     }
 
-                    if (slotCount == slots.length) {
-                        slots = Arrays.copyOf(slots, ArrayUtil.oversize(slotCount + 1, RamUsageEstimator.NUM_BYTES_OBJECT_REF));
+                    if (2 * slotCount + 2 > tuples.length) {
+                        tuples = Arrays.copyOf(tuples, 2 * ArrayUtil.oversize(slotCount + 1, RamUsageEstimator.NUM_BYTES_OBJECT_REF * 2));
                     }
-                    // toBytesRef copies, which is required: the scratch buffer is reused for the very next slot.
-                    slots[slotCount] = slotScratch.toBytesRef();
-                    if (isNull) {
-                        nullMarkers.set(slotCount);
-                    }
+                    tuples[2 * slotCount] = keyPrefix;
+                    tuples[2 * slotCount + 1] = value;
                     slotCount++;
 
                     cursorDocs[k] = cursor.nextDoc();
@@ -2020,7 +2006,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
 
             if (slotCount > 0) {
                 // Unlike the non-keyed ArrayOrderInlineNull, an all-null document still writes a blob: its null slots carry keys.
-                keyed.setString(doc, MultiValuedBinaryDocValuesField.KeyedArrayOrderInlineNull.encode(slots, slotCount, nullMarkers));
+                keyed.setString(doc, MultiValuedBinaryDocValuesField.KeyedArrayOrderInlineNull.encodeTuples(tuples, slotCount));
                 counts.setLong(doc, slotCount);
             }
         }

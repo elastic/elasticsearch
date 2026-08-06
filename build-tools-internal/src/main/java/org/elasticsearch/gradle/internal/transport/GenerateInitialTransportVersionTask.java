@@ -56,11 +56,19 @@ public abstract class GenerateInitialTransportVersionTask extends DefaultTask {
             var newUpperBound = new TransportVersionUpperBound(upperBoundName, initialDefinitionName, id);
             resources.writeUpperBound(newUpperBound);
 
+            String currentUpperBoundName = getUpperBoundName(getCurrentVersion().get());
             if (stackVersion.getRevision() == 0) {
-                Version currentVersion = getCurrentVersion().get();
-                String currentUpperBoundName = getUpperBoundName(currentVersion);
-                var currentUpperBound = new TransportVersionUpperBound(currentUpperBoundName, initialDefinitionName, id);
-                resources.writeUpperBound(currentUpperBound);
+                // a minor creates a new base, which the current branch must also point at
+                resources.writeUpperBound(new TransportVersionUpperBound(currentUpperBoundName, initialDefinitionName, id));
+            } else {
+                // A patch adds an id to an existing base. If the current branch's upper bound still points into that
+                // same base, it is no longer the latest id for the base, so it has to move forward with the patch id.
+                // This is the case when no new transport version has been added to the current branch since the minor
+                // being patched was branched, ie the current upper bound is still that minor's initial version.
+                TransportVersionUpperBound currentUpperBound = resources.getUpperBoundFromGitBase(currentUpperBoundName);
+                if (currentUpperBound != null && currentUpperBound.definitionId().base() == id.base()) {
+                    resources.writeUpperBound(new TransportVersionUpperBound(currentUpperBoundName, initialDefinitionName, id));
+                }
             }
         }
     }

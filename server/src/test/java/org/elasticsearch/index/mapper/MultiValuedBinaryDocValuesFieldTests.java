@@ -412,10 +412,6 @@ public class MultiValuedBinaryDocValuesFieldTests extends ESTestCase {
         assertNull(doc.getField("field.counts"));
     }
 
-    // =====================================================================================================================================
-    // KeyedArrayOrderInlineNull tests
-    // =====================================================================================================================================
-
     public void testEncodeTuplesSingleSlot() throws IOException {
         // given
         BytesRef keyPrefix = new BytesRef("key1\0");

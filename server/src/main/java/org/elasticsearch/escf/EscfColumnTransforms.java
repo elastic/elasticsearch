@@ -44,22 +44,28 @@ public final class EscfColumnTransforms {
     }
 
     /**
-     * Returns {@code true} when every present row of {@code column} is either JSON {@code null} or an
-     * empty object — the latter being the zero-entry {@code KEY_VALUE} row that
-     * {@link EscfRowBuffer#emptyObject} writes to keep {@code {}} distinguishable from an absent field.
-     * <p>
-     * Exists for object-valued mappers such as {@code flattened}, whose non-empty values are exploded
-     * into a group of dotted leaf columns rather than a leaf at the field's own path. A leaf at that
-     * path can therefore only be {@code null} or {@code {}}, neither of which produces any Lucene
-     * field, so such a column is a no-op. The per-row type inspection this needs
-     * ({@link EscfColumn#getTypeByte}, {@link EscfColumn#getKeyValue}) is package-private, hence the
-     * predicate lives here rather than in the mapper.
+     * Returns {@code true} when every present row is JSON {@code null} or an empty object ({@code {}},
+     * the zero-entry {@link EscfRowBuffer#emptyObject} {@code KEY_VALUE} row). Used by object-valued
+     * mappers such as {@code flattened}: a leaf column at the field's own path can only contain these
+     * two no-op shapes; anything else is unexpected.
      */
     public static boolean allNullOrEmptyObject(EscfColumn column) {
-        final int docCount = column.docCount();
-        for (int row = 0; row < docCount; row++) {
-            final byte type = column.getTypeByte(row);
-            if (type == SourceValueType.ABSENT || type == SourceValueType.NULL) {
+        if (column.kind() != EscfColumnKind.UNION) {
+            // Non-union columns hold a single uniform type, never null or an empty object, so any
+            // present row disqualifies. Check presence without visiting individual rows.
+            if (column.validity == null) {
+                return column.docCount == 0; // dense: all rows present
+            }
+            return column.validity.cardinality() == 0; // sparse: no present rows
+        }
+        // Union column: visit only present rows; each carries its own type byte.
+        for (PresentDocIterator it = column.presentDocs();;) {
+            int row = it.nextDoc();
+            if (row == DocIdSetIterator.NO_MORE_DOCS) {
+                break;
+            }
+            byte type = column.typeByteForPresent(row);
+            if (type == SourceValueType.NULL) {
                 continue;
             }
             // next() returning true means the object has at least one entry.

@@ -1880,44 +1880,26 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
     }
 
     /**
-     * Maps a batch of documents for this flattened field from the group of ESCF leaf columns rooted at its path, where
-     * {@code relativeKeys[k]} is the flattened key of {@code columns[k]}.
+     * Maps a batch of documents for this flattened field. {@code relativeKeys[k]} is the flattened key of {@code columns[k]}.
      *
-     * <p>Emits the two columns of the strict-columnar keyed channel:
+     * <p>Emits two output columns:
      * <ol>
-     *   <li>{@code <root>._keyed} — one {@link MultiValuedBinaryDocValuesField.KeyedArrayOrderInlineNull} blob per document, holding
-     *       every {@code key\0value} slot (and {@code key\0} for a JSON null) with duplicates and order preserved.</li>
+     *   <li>{@code <root>._keyed} — one {@link MultiValuedBinaryDocValuesField.KeyedArrayOrderInlineNull} blob per document.</li>
      *   <li>{@code <root>._keyed.counts} — the slot count per document, including null slots.</li>
      * </ol>
      *
-     * <p>Two known divergences from the row path, both inherent to the columnar source encoding:
+     * <p>Two known divergences from the row path:
      * <ul>
-     *   <li><b>Slot order.</b> The row path emits slots in JSON document order. {@code EscfRowBuffer} records only which columns a row
-     *       touched, not the order it touched them in, so slots are emitted in schema-leaf order — the order keys were first seen
-     *       across the batch. The two agree whenever every document in the batch lists its flattened keys in the same order, which is
-     *       the common case, and the blob byte order is load-bearing when they do not.
-     *       TODO: preserve per-row key order in the ESCF encoder so this is exact.</li>
-     *   <li><b>Number rendering.</b> Values arrive already parsed, so {@code 1.50} renders as the canonical {@code 1.5} rather than
-     *       the original source characters the row path preserves via {@code parser.text()}. Same divergence as
-     *       {@link org.elasticsearch.index.mapper.KeywordFieldMapper#mapColumnBatch}.</li>
+     *   <li><b>Slot order.</b> Slots are emitted in schema-leaf order (first-seen key order across the batch) rather than per-document
+     *       JSON order. The two agree when all documents list their keys in the same order, which is the common case.
+     *       TODO: Fix this if it is an issue. The initial thoughts are that it is fine. Ingest pipelines can reorder fields on
+     *       row path.</li>
+     *   <li><b>Number rendering.</b> Values arrive already parsed, so {@code 1.50} renders as {@code 1.5}.
+     *       Same divergence as {@link KeywordFieldMapper#mapColumnBatch}.</li>
      * </ul>
      *
-     * <p>TODO: {@code depth_limit} is not enforced. The depth is available — {@code SourceSchema} is a parent-pointer tree that keeps
-     * {@code {"a.b": v}} (a leaf literally named {@code a.b}) structurally distinct from {@code {"a": {"b": v}}} (a leaf under a
-     * non-leaf), which is exactly the distinction the row path's on-descent {@code path.length() + 1} check makes. It is
-     * {@code SourceSchema#getFullPath} that flattens both to the same dotted string, and this signature only carries that already
-     * flattened form. Enforcing it means passing the leaf indices and schema through instead of (or alongside) {@code relativeKeys},
-     * so the depth can be recovered by counting non-leaf hops up to this field. Note the same erasure is why
-     * {@code relativeKeys} is not necessarily unique within a group: both shapes above yield the relative key {@code a.b}, so one
-     * batch containing both produces two distinct columns sharing that key. That is handled correctly today (each emits its own slot,
-     * as the row path does) but only under the slot-order caveat above.
-     *
-     * <p>Both of these are deferred to the production hook-up in {@code ShardBatchMapper}, where the real construction site for these
-     * arrays will exist and the cost of a richer signature can be judged against actual batches; the harness is currently the only
-     * caller. That evaluation also has to account for dot expansion: whether the columnar path normalizes dotted keys into nested
-     * non-leaves (or collapses nested objects into dotted leaves) determines what the schema tree looks like in the first place, and
-     * therefore what a depth check would even be measuring. Settling the depth semantics before that behaviour is decided risks
-     * encoding the wrong rule.
+     * <p>TODO: {@code depth_limit} and {@code relativeKeys} uniqueness are not enforced — deferred to the production hook-up in
+     * {@code ShardBatchMapper}, where the right schema representation will need to be propogated.
      *
      * @throws UnsupportedOperationException when a value exceeds {@code ignore_above}, so that the caller falls back to the row path,
      *         which writes the {@code <root>._keyed._ignored} channel this path does not yet produce

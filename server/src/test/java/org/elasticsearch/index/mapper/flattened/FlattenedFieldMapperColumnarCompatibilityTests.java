@@ -19,21 +19,6 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsString;
 
-/**
- * Verifies that {@link FlattenedFieldMapper#mapColumnGroupBatch} produces the same Lucene fields as the x-content parse path.
- * <p>
- * {@code flattened} is the first mapper that resolves a <em>group</em> of ESCF leaf columns rather than a single leaf: the columnar
- * encoder explodes {@code {"flat":{"a":1,"b":2}}} into leaves {@code flat.a} and {@code flat.b}, and the harness routes both to the
- * flattened mapper via {@link org.elasticsearch.index.mapper.FieldMapper#resolvesColumnGroup()}.
- * <p>
- * All scenarios use strict-columnar settings, where the flattened defaults ({@code index=false},
- * {@code preserve_leaf_arrays=exact}) select the {@code KeyedArrayOrderInlineNull} keyed channel — the only configuration the
- * columnar path supports today. That means exactly two output columns: {@code flat._keyed} and {@code flat._keyed.counts}.
- * <p>
- * Note that every batch here lists its flattened keys in a consistent order across documents. ESCF does not retain per-row key
- * order, so the columnar path emits slots in schema-leaf order; that matches the row path's document order only under this
- * condition, and the slot order inside the encoded blob is load-bearing.
- */
 public class FlattenedFieldMapperColumnarCompatibilityTests extends AbstractColumnarMapperCompatibilityTestCase {
 
     private static final String FIELD = "flat";

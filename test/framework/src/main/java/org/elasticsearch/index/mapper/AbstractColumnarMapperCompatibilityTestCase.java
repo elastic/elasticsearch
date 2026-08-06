@@ -286,6 +286,7 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
      * {@link FieldMapper#resolvesColumnGroup() resolves a column group}, returns that match; otherwise returns {@code null}. A
      * non-group {@link FieldMapper} ancestor cannot own descendant leaves, so the walk stops there.
      */
+     // TODO: Work on combining this to the group resolution code that gets added in ShardBatchMapper
     private static GroupMatch findColumnGroup(String leafPath, MappingLookup lookup) {
         int dot = leafPath.lastIndexOf('.');
         while (dot > 0) {

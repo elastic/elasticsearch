@@ -693,7 +693,20 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
             }
             try (BytesStreamOutput out = new BytesStreamOutput(streamSize(byteCount, slotCount))) {
                 for (int i = 0; i < slotCount; i++) {
-                    writeSlot(out, slots.get(i), nullMarkers.get(i));
+                    BytesRef slot = slots.get(i);
+                    if (nullMarkers.get(i)) {
+                        // Null slot: [0]key\0
+                        out.writeVInt(0);
+                        out.writeBytes(slot.bytes, slot.offset, slot.length);
+                    } else {
+                        // Non-null slot: [valueLen+1]key\0value
+                        // Scan for the \0 separator to compute valueLen = slot.length - keyLen - 1.
+                        int keyLen = ESVectorUtil.indexOf(slot.bytes, slot.offset, slot.length, (byte) 0);
+                        assert keyLen != -1 : "KeyedArrayOrderInlineNull slot has no separator byte: " + slot.utf8ToString();
+                        int valueLen = slot.length - keyLen - 1;
+                        out.writeVInt(valueLen + 1);
+                        out.writeBytes(slot.bytes, slot.offset, slot.length);
+                    }
                 }
                 return out.bytes().toBytesRef();
             } catch (IOException e) {
@@ -702,25 +715,14 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
         }
 
         /**
-         * Encodes keyed slots from an interleaved tuple array into the wire format:
-         * {@code [valueLen+1][key\0value]...}. Null slots are encoded as {@code [0][key\0]}.
+         * Encodes keyed slots from an interleaved tuple array. Interleaving: {@code tuples[2*i]} is the
+         * key prefix for slot {@code i} (key bytes + {@code \0}); {@code tuples[2*i+1]} is the value, or
+         * {@code null} for a null slot. Only the first {@code 2*slotCount} entries are read; callers may
+         * reuse an oversized buffer across documents.
          *
-         * <p>Tuple layout: {@code tuples[2 * i]} is the key prefix for slot {@code i} — the key bytes
-         * followed by the {@code \0} separator (exactly what the columnar path builds once per column as
-         * {@code relativeKey + "\0"}). {@code tuples[2 * i + 1]} is the value bytes for slot {@code i},
-         * or {@code null} to signal a null slot. Only the first {@code 2 * slotCount} entries are read;
-         * callers may reuse an oversized buffer across documents.
-         *
-         * <p>Wire-format invariants preserved by this encoder:
-         * <ul>
-         *   <li>Every slot carries a VInt prefix — there is no single-slot raw passthrough (unlike
-         *       {@link ArrayOrderInlineNull}).</li>
-         *   <li>The prefix measures only the value: {@code 0} for null, {@code valueLen + 1} otherwise
-         *       (so an empty string writes {@code 1}).</li>
-         *   <li>The separator byte is written even for null slots — decoders advance by
-         *       {@code keyLen + 1}, so omitting it desynchronises the stream.</li>
-         *   <li>Slot order is preserved and is load-bearing for synthetic-source reconstruction.</li>
-         * </ul>
+         * <p>Same wire format as {@link #encode(ArrayList, BitSet)}: {@code [valueLen+1][key\0value]...},
+         * with {@code [0][key\0]} for null slots. Every slot carries a VInt prefix (no single-slot raw
+         * passthrough); the separator byte is always written; slot order is load-bearing.
          */
         public static BytesRef encodeTuples(BytesRef[] tuples, int slotCount) {
             assert slotCount >= 1 : "encodeTuples requires at least one slot";
@@ -759,24 +761,6 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
 
         private static int streamSize(int byteCount, int slotCount) {
             return byteCount + slotCount * VINT_MAX_BYTES;
-        }
-
-        /**
-         * Writes a single slot in the wire format. {@code slot} is {@code key\0value} for a non-null slot and {@code key\0} for a null
-         * one; the length prefix measures only the VALUE portion, so a null slot is distinguishable by its {@code 0} prefix.
-         */
-        private static void writeSlot(BytesStreamOutput out, BytesRef slot, boolean isNull) throws IOException {
-            if (isNull) {
-                // Null slot: [0]key\0
-                out.writeVInt(0);
-            } else {
-                // Non-null slot: [valueLen+1]key\0value
-                // Scan for the \0 separator to compute valueLen = slot.length - keyLen - 1.
-                int keyLen = ESVectorUtil.indexOf(slot.bytes, slot.offset, slot.length, (byte) 0);
-                assert keyLen != -1 : "KeyedArrayOrderInlineNull slot has no separator byte: " + slot.utf8ToString();
-                out.writeVInt(slot.length - keyLen);
-            }
-            out.writeBytes(slot.bytes, slot.offset, slot.length);
         }
 
     }

@@ -1413,6 +1413,11 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
 
             final var pressureShard = routingTable.shardRoutingTable(pressureIndexName, 0).primaryShard();
             assertTrue("pressure shard should be relocating after round 1: " + pressureShard, pressureShard.relocating());
+            assertThat(
+                "pressure shard should be relocating to yes node: " + pressureShard,
+                pressureShard.relocatingNodeId(),
+                equalTo(yesTargetNode)
+            );
 
             // Regardless of drain mode, the canstay shard is still on source after round 1:
             // it was deferred (only NOT_PREFERRED targets available) while the YES move was pending

@@ -152,6 +152,7 @@ import org.elasticsearch.xpack.stateless.reshard.ReshardSearchFilters;
 import org.elasticsearch.xpack.stateless.reshard.SplitSourceService;
 import org.elasticsearch.xpack.stateless.reshard.SplitTargetService;
 import org.elasticsearch.xpack.stateless.utils.SearchShardSizeCollector;
+import org.elasticsearch.xpack.stateless.utils.StatelessCommitServiceProvider;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -506,7 +507,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                         indicesService,
                         new CompositeRecoverySchedulingListener(),
                         peerRecoveryTargetService,
-                        testStatelessPlugin.statelessCommitService,
+                        new StatelessCommitServiceProvider(testStatelessPlugin.statelessCommitService),
                         mock(IndexShardCacheWarmer.class),
                         testStatelessPlugin.hollowShardsService,
                         HollowShardsMetrics.NOOP,
@@ -544,7 +545,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                         indicesService,
                         clusterService(),
                         mock(GetVirtualBatchedCompoundCommitChunksPressure.class),
-                        testStatelessPlugin.statelessCommitService,
+                        new StatelessCommitServiceProvider(testStatelessPlugin.statelessCommitService),
                         projectResolver
                     ),
                     TransportGetShardSnapshotCommitInfoAction.TYPE,

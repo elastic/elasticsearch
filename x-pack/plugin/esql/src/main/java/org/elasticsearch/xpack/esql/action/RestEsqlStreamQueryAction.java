@@ -53,14 +53,17 @@ public class RestEsqlStreamQueryAction extends BaseRestHandler {
         try (XContentParser parser = request.contentOrSourceParamParser()) {
             esqlRequest = RequestXContent.parseStream(parser);
         }
-        esqlRequest.dropNullColumns(request.paramAsBoolean(DROP_NULL_COLUMNS_OPTION, false));
         final Boolean partialResults = request.paramAsBoolean("allow_partial_results", null);
         if (partialResults != null) {
             esqlRequest.allowPartialResults(partialResults);
         }
         return channel -> {
             EsqlStreamResponseListener restListener = new EsqlStreamResponseListener(channel);
-            EsqlStreamQueryRequest streamRequest = EsqlStreamQueryRequest.from(esqlRequest, restListener.streamStartListener());
+            EsqlStreamQueryRequest streamRequest = EsqlStreamQueryRequest.from(
+                esqlRequest,
+                restListener.streamStartListener(),
+                request.paramAsBoolean(DROP_NULL_COLUMNS_OPTION, false)
+            );
             new RestCancellableNodeClient(client, request.getHttpChannel()).execute(
                 EsqlStreamQueryAction.INSTANCE,
                 streamRequest,

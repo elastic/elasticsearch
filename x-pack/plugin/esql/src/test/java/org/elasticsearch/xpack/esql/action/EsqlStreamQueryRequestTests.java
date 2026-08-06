@@ -14,7 +14,11 @@ import org.elasticsearch.test.ESTestCase;
 public class EsqlStreamQueryRequestTests extends ESTestCase {
 
     public void testValidateRejectsNullPageSize() {
-        EsqlStreamQueryRequest req = EsqlStreamQueryRequest.from(EsqlQueryRequest.syncEsqlQueryRequest("FROM idx"), ActionListener.noop());
+        EsqlStreamQueryRequest req = EsqlStreamQueryRequest.from(
+            EsqlQueryRequest.syncEsqlQueryRequest("FROM idx"),
+            ActionListener.noop(),
+            false
+        );
         ActionRequestValidationException e = req.validate();
         assertNotNull("validate() must return a non-null exception when page_size is missing", e);
         assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("page_size"));
@@ -23,7 +27,7 @@ public class EsqlStreamQueryRequestTests extends ESTestCase {
     public void testValidateRejectsZeroPageSize() {
         EsqlQueryRequest base = EsqlQueryRequest.syncEsqlQueryRequest("FROM idx");
         base.pageSize(0);
-        EsqlStreamQueryRequest req = EsqlStreamQueryRequest.from(base, ActionListener.noop());
+        EsqlStreamQueryRequest req = EsqlStreamQueryRequest.from(base, ActionListener.noop(), false);
         ActionRequestValidationException e = req.validate();
         assertNotNull("validate() must return a non-null exception when page_size is 0", e);
         assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("page_size"));
@@ -32,7 +36,7 @@ public class EsqlStreamQueryRequestTests extends ESTestCase {
     public void testValidateRejectsNegativePageSize() {
         EsqlQueryRequest base = EsqlQueryRequest.syncEsqlQueryRequest("FROM idx");
         base.pageSize(-1);
-        EsqlStreamQueryRequest req = EsqlStreamQueryRequest.from(base, ActionListener.noop());
+        EsqlStreamQueryRequest req = EsqlStreamQueryRequest.from(base, ActionListener.noop(), false);
         ActionRequestValidationException e = req.validate();
         assertNotNull("validate() must return a non-null exception when page_size is negative", e);
         assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("page_size"));
@@ -41,8 +45,14 @@ public class EsqlStreamQueryRequestTests extends ESTestCase {
     public void testValidateAcceptsPositivePageSize() {
         EsqlQueryRequest base = EsqlQueryRequest.syncEsqlQueryRequest("FROM idx");
         base.pageSize(randomIntBetween(1, 10_000));
-        EsqlStreamQueryRequest req = EsqlStreamQueryRequest.from(base, ActionListener.noop());
+        EsqlStreamQueryRequest req = EsqlStreamQueryRequest.from(base, ActionListener.noop(), false);
         ActionRequestValidationException e = req.validate();
         assertNull("validate() must return null for a valid page_size", e);
+    }
+
+    public void testDropNullColumnsStoredOnRequest() {
+        EsqlQueryRequest base = EsqlQueryRequest.syncEsqlQueryRequest("FROM idx");
+        assertFalse(EsqlStreamQueryRequest.from(base, ActionListener.noop(), false).dropNullColumns());
+        assertTrue(EsqlStreamQueryRequest.from(base, ActionListener.noop(), true).dropNullColumns());
     }
 }

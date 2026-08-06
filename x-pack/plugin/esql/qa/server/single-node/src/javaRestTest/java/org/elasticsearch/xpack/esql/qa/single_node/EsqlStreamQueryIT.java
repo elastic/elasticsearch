@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.qa.single_node;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
-import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -18,17 +17,18 @@ import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.esql.EsqlStreamTestUtils;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.ClassRule;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.EsqlStreamTestUtils.parseNdjson;
+import static org.elasticsearch.xpack.esql.EsqlStreamTestUtils.tolerateDefaultLimitWarning;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
@@ -68,25 +68,31 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
                 "properties": {
                   "value":        { "type": "integer" },
                   "description":  { "type": "keyword" },
-                  "sparse_field": { "type": "keyword" }
+                  "sparse_field": { "type": "keyword" },
+                  "noidx_field":  { "type": "keyword", "index": false, "doc_values": false },
+                  "agg_field":    { "type": "aggregate_metric_double", "metrics": ["min", "max", "sum", "value_count"] }
                 }
               }
             }
             """);
-        assertEquals(200, client().performRequest(createIndex).getStatusLine().getStatusCode());
+        assertOK(client().performRequest(createIndex));
 
         Request bulk = new Request("POST", "/_bulk?index=" + INDEX + "&refresh=true");
         bulk.setJsonEntity("""
             {"index": {"_id": "1"}}
-            {"value": 1, "description": "number one"}
+            {"value": 1, "description": "number one", "noidx_field": "a", \
+            "agg_field": {"min": 1.0, "max": 3.0, "sum": 10.0, "value_count": 5}}
             {"index": {"_id": "2"}}
-            {"value": 2, "description": "number two"}
+            {"value": 2, "description": "number two", "noidx_field": "b", \
+            "agg_field": {"min": 2.0, "max": 6.0, "sum": 20.0, "value_count": 6}}
             {"index": {"_id": "3"}}
-            {"value": 3}
+            {"value": 3, "noidx_field": "c", \
+            "agg_field": {"min": 3.0, "max": 9.0, "sum": 30.0, "value_count": 7}}
             {"index": {"_id": "4"}}
-            {"value": 4, "description": "number four"}
+            {"value": 4, "description": "number four", "noidx_field": "d", \
+            "agg_field": {"min": 4.0, "max": 12.0, "sum": 40.0, "value_count": 8}}
             """);
-        assertEquals(200, client().performRequest(bulk).getStatusLine().getStatusCode());
+        assertOK(client().performRequest(bulk));
     }
 
     public void testFramingAndFooter() throws IOException {
@@ -137,66 +143,30 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
         assertThat(header, hasKey("columns"));
         assertThat(header, not(hasKey("values")));
 
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> allColumns = (List<Map<String, Object>>) header.get("all_columns");
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> trimmedColumns = (List<Map<String, Object>>) header.get("columns");
+        List<Map<String, Object>> allColumns = columnList(header, "all_columns");
+        List<Map<String, Object>> trimmedColumns = columnList(header, "columns");
 
         assertThat("all_columns should list all three fields", allColumns, hasSize(3));
         assertThat("sparse_field should be dropped, leaving two columns", trimmedColumns, hasSize(2));
-
-        List<String> trimmedNames = trimmedColumns.stream().map(c -> (String) c.get("name")).toList();
-        assertFalse("sparse_field must not appear in trimmed columns", trimmedNames.contains("sparse_field"));
+        assertFalse("sparse_field must not appear in trimmed columns", columnNames(header, "columns").contains("sparse_field"));
 
         for (Map<String, Object> line : lines.subList(1, lines.size() - 1)) {
             if (line.containsKey("values") == false) {
                 continue;
             }
-            @SuppressWarnings("unchecked")
-            List<List<Object>> rows = (List<List<Object>>) line.get("values");
-            for (List<Object> row : rows) {
+            for (List<Object> row : rows(line)) {
                 assertThat("row width must match trimmed column count", row.size(), equalTo(trimmedColumns.size()));
             }
         }
     }
 
-    @SuppressWarnings("unchecked")
     public void testDropNullColumnsNoIndexFields() throws IOException {
-        List<Map<String, Object>> statsLines = stream("""
-            {"query": "FROM stream-test | STATS c = COUNT(*)", "page_size": 10}
-            """, "drop_null_columns=true");
-
-        Map<String, Object> statsHeader = statsLines.get(0);
-        assertThat("drop_null_columns=true must always emit all_columns", statsHeader, hasKey("all_columns"));
-        assertThat("drop_null_columns=true must always emit columns", statsHeader, hasKey("columns"));
-
-        List<Map<String, Object>> statsAllColumns = (List<Map<String, Object>>) statsHeader.get("all_columns");
-        List<Map<String, Object>> statsTrimmedColumns = (List<Map<String, Object>>) statsHeader.get("columns");
-
-        assertThat("all_columns should list the one aggregation column", statsAllColumns, hasSize(1));
-        assertThat("no column should be trimmed when none are null", statsTrimmedColumns, hasSize(1));
-        assertThat(statsAllColumns.get(0).get("name"), equalTo("c"));
-        assertThat(statsTrimmedColumns.get(0).get("name"), equalTo("c"));
-
-        List<Map<String, Object>> rowLines = stream("""
-            {"query": "ROW x = 1", "page_size": 10}
-            """, "drop_null_columns=true");
-
-        Map<String, Object> rowHeader = rowLines.get(0);
-        assertThat("drop_null_columns=true must always emit all_columns (ROW query)", rowHeader, hasKey("all_columns"));
-        assertThat("drop_null_columns=true must always emit columns (ROW query)", rowHeader, hasKey("columns"));
-
-        List<Map<String, Object>> rowAllColumns = (List<Map<String, Object>>) rowHeader.get("all_columns");
-        List<Map<String, Object>> rowTrimmedColumns = (List<Map<String, Object>>) rowHeader.get("columns");
-
-        assertThat("all_columns should list the one literal column", rowAllColumns, hasSize(1));
-        assertThat("no column should be trimmed for a non-null literal", rowTrimmedColumns, hasSize(1));
-        assertThat(rowAllColumns.get(0).get("name"), equalTo("x"));
-        assertThat(rowTrimmedColumns.get(0).get("name"), equalTo("x"));
+        assertNoColumnTrimmed("{\"query\": \"FROM stream-test | STATS c = COUNT(*)\", \"page_size\": 10}", "c");
+        assertNoColumnTrimmed("{\"query\": \"ROW x = 1\", \"page_size\": 10}", "x");
     }
 
     public void testErrorFraming() throws IOException {
-        ResponseException re = expectThrows(ResponseException.class, () -> rawStream("""
+        ResponseException re = expectThrows(ResponseException.class, () -> EsqlStreamTestUtils.rawStream(client(), """
             {"query": "FROM stream-test | EVAL x = unknown_function(value)", "page_size": 1}
             """));
 
@@ -223,7 +193,7 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
     }
 
     public void testMissingPageSize() {
-        ResponseException re = expectThrows(ResponseException.class, () -> rawStream("""
+        ResponseException re = expectThrows(ResponseException.class, () -> EsqlStreamTestUtils.rawStream(client(), """
             {"query": "FROM stream-test | LIMIT 1"}
             """));
         assertThat(re.getResponse().getStatusLine().getStatusCode(), equalTo(400));
@@ -231,14 +201,13 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
     }
 
     public void testInvalidPageSize() {
-        ResponseException re = expectThrows(ResponseException.class, () -> rawStream("""
+        ResponseException re = expectThrows(ResponseException.class, () -> EsqlStreamTestUtils.rawStream(client(), """
             {"query": "FROM stream-test | LIMIT 1", "page_size": 0}
             """));
         assertThat(re.getResponse().getStatusLine().getStatusCode(), equalTo(400));
         assertThat(re.getMessage(), containsString("page_size"));
     }
 
-    @SuppressWarnings("unchecked")
     public void testWarningsInFooter() throws IOException {
         List<Map<String, Object>> lines = stream("""
             {"query": "FROM stream-test | EVAL n = to_int(description) | SORT value | KEEP value, n | LIMIT 100", "page_size": 10}
@@ -247,13 +216,10 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
         Map<String, Object> footer = lines.get(lines.size() - 1);
         assertThat("footer should be present", footer, hasKey("took"));
         assertThat("footer must contain warnings from failed conversions", footer, hasKey("warnings"));
+        @SuppressWarnings("unchecked")
         List<String> warnings = (List<String>) footer.get("warnings");
         assertFalse("warnings list must not be empty", warnings.isEmpty());
-        assertThat(
-            "no warning entry should start with the RFC 7234 warn-code prefix",
-            warnings,
-            everyItem(not(startsWith("299 Elasticsearch-")))
-        );
+        assertThat(warnings, everyItem(not(startsWith("299 Elasticsearch-"))));
         assertThat("no warning entry should be wrapped in quotes", warnings, everyItem(not(startsWith("\""))));
         assertTrue(
             "at least one warning must be the to_int conversion message with a Line position prefix",
@@ -261,35 +227,134 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
         );
     }
 
+    public void testDropNullColumnsDoesNotDropSourceOnlyField() throws IOException {
+        List<Map<String, Object>> lines = stream("""
+            {"query": "FROM stream-test | SORT value | LIMIT 100 | KEEP value, noidx_field, sparse_field", "page_size": 2}
+            """, "drop_null_columns=true");
+
+        Map<String, Object> header = lines.get(0);
+        assertThat(header, hasKey("all_columns"));
+        assertThat(header, hasKey("columns"));
+        assertThat("all_columns must list all three requested fields", columnList(header, "all_columns"), hasSize(3));
+
+        List<String> trimmedNames = columnNames(header, "columns");
+        assertTrue("noidx_field is populated and must not be dropped", trimmedNames.contains("noidx_field"));
+        assertFalse("sparse_field is empty and must be dropped", trimmedNames.contains("sparse_field"));
+
+        assertColumnPopulatedInEveryRow(lines, trimmedNames.indexOf("noidx_field"), "noidx_field");
+    }
+
+    public void testDropNullColumnsAgreesWithQueryEndpoint() throws IOException {
+        assertStreamAgreesWithQuery("FROM stream-test | SORT value | LIMIT 100 | RENAME sparse_field AS s | KEEP value, s");
+        assertStreamAgreesWithQuery("FROM stream-test | SORT value | LIMIT 100 | EVAL s = sparse_field | KEEP value, s");
+        assertStreamAgreesWithQuery("FROM stream-test | STATS c = COUNT(*) BY s = sparse_field");
+        assertStreamAgreesWithQuery("FROM stream-test | SORT value | LIMIT 100 | EVAL s = sparse_field | EVAL t = s | KEEP value, t");
+        assertStreamAgreesWithQuery("FROM stream-test | STATS c = COUNT(*) BY sparse_field");
+        assertStreamAgreesWithQuery("FROM stream-test | SORT value | LIMIT 100 | KEEP value, description");
+        assertStreamAgreesWithQuery("FROM stream-test | SORT value | LIMIT 100 | KEEP value, noidx_field, sparse_field");
+    }
+
+    public void testDropNullColumnsIsIndexWideNotResultWide() throws IOException {
+        Map<String, Object> queryResponse = query("FROM stream-test | WHERE value == 3 | KEEP value, description");
+        List<String> queryColumnNames = columnNames(queryResponse, "columns");
+        assertFalse("/_query must drop description when WHERE excludes the only doc with it", queryColumnNames.contains("description"));
+
+        List<Map<String, Object>> streamLines = stream(
+            streamBody("FROM stream-test | WHERE value == 3 | KEEP value, description", 10),
+            "drop_null_columns=true"
+        );
+        List<String> streamColumnNames = columnNames(streamLines.get(0), "columns");
+        assertTrue("/_query/stream must keep description because it is populated index-wide", streamColumnNames.contains("description"));
+    }
+
+    public void testDropNullColumnsAliasOfPopulatedFieldIsKept() throws IOException {
+        List<Map<String, Object>> lines = stream("""
+            {"query": "FROM stream-test | SORT value | LIMIT 100 | EVAL d = description | KEEP value, d", "page_size": 10}
+            """, "drop_null_columns=true");
+
+        assertTrue("alias of a populated field must not be dropped", columnNames(lines.get(0), "columns").contains("d"));
+    }
+
+    public void testDropNullColumnsAggregateMetricDoubleIsKept() throws IOException {
+        String query = "FROM stream-test | SORT value | LIMIT 100 | KEEP value, agg_field, sparse_field";
+        List<Map<String, Object>> lines = stream(streamBody(query, 2), "drop_null_columns=true");
+
+        List<String> trimmedNames = columnNames(lines.get(0), "columns");
+        assertTrue("a populated aggregate_metric_double must not be dropped", trimmedNames.contains("agg_field"));
+        assertFalse("sparse_field is empty and must still be dropped", trimmedNames.contains("sparse_field"));
+
+        assertColumnPopulatedInEveryRow(lines, trimmedNames.indexOf("agg_field"), "agg_field");
+        assertStreamAgreesWithQuery(query);
+    }
+
+    private void assertStreamAgreesWithQuery(String esql) throws IOException {
+        Map<String, Object> queryResponse = query(esql);
+        List<String> queryAllColumns = columnNames(queryResponse, "all_columns");
+        List<String> queryColumns = columnNames(queryResponse, "columns");
+
+        Map<String, Object> streamHeader = stream(streamBody(esql, 10), "drop_null_columns=true").get(0);
+        List<String> streamAllColumns = columnNames(streamHeader, "all_columns");
+        List<String> streamColumns = columnNames(streamHeader, "columns");
+
+        assertEquals("all_columns must agree between /_query and /_query/stream for: " + esql, queryAllColumns, streamAllColumns);
+        assertEquals("columns must agree between /_query and /_query/stream for: " + esql, queryColumns, streamColumns);
+    }
+
+    private void assertNoColumnTrimmed(String queryBody, String expectedColumnName) throws IOException {
+        List<Map<String, Object>> lines = stream(queryBody, "drop_null_columns=true");
+        Map<String, Object> header = lines.get(0);
+        assertThat(header, hasKey("all_columns"));
+        assertThat(header, hasKey("columns"));
+        assertThat(columnNames(header, "all_columns"), hasSize(1));
+        assertThat(columnNames(header, "columns"), hasSize(1));
+        assertThat(columnNames(header, "all_columns").get(0), equalTo(expectedColumnName));
+        assertThat(columnNames(header, "columns").get(0), equalTo(expectedColumnName));
+    }
+
+    private void assertColumnPopulatedInEveryRow(List<Map<String, Object>> lines, int position, String fieldName) {
+        for (Map<String, Object> line : lines.subList(1, lines.size() - 1)) {
+            if (line.containsKey("values") == false) {
+                continue;
+            }
+            for (List<Object> row : rows(line)) {
+                assertThat(fieldName + " must carry a non-null value in every row", row.get(position), notNullValue());
+            }
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<String> columnNames(Map<String, Object> line, String key) {
+        return ((List<Map<String, Object>>) line.get(key)).stream().map(c -> (String) c.get("name")).toList();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<Map<String, Object>> columnList(Map<String, Object> line, String key) {
+        return (List<Map<String, Object>>) line.get(key);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<List<Object>> rows(Map<String, Object> line) {
+        return (List<List<Object>>) line.get("values");
+    }
+
+    private Map<String, Object> query(String esql) throws IOException {
+        Request request = new Request("POST", "/_query?drop_null_columns=true");
+        request.setJsonEntity("{\"query\":\"" + esql.replace("\"", "\\\"") + "\"}");
+        tolerateDefaultLimitWarning(request);
+        return XContentHelper.convertToMap(XContentType.JSON.xContent(), client().performRequest(request).getEntity().getContent(), false);
+    }
+
+    private static String streamBody(String esql, int pageSize) {
+        return "{\"query\":\"" + esql.replace("\"", "\\\"") + "\",\"page_size\":" + pageSize + "}";
+    }
+
     private List<Map<String, Object>> stream(String bodyJson, String... queryParams) throws IOException {
-        Response response = rawStream(bodyJson, queryParams);
+        Response response = EsqlStreamTestUtils.rawStream(client(), bodyJson, queryParams);
         assertThat(
             "/_query/stream must respond with application/x-ndjson",
             response.getEntity().getContentType().getValue(),
             containsString("application/x-ndjson")
         );
         return parseNdjson(response);
-    }
-
-    private Response rawStream(String bodyJson, String... queryParams) throws IOException {
-        String path = "/_query/stream";
-        if (queryParams.length > 0) {
-            path += "?" + String.join("&", queryParams);
-        }
-        Request request = new Request("POST", path);
-        request.setJsonEntity(bodyJson);
-        return client().performRequest(request);
-    }
-
-    private static List<Map<String, Object>> parseNdjson(Response response) throws IOException {
-        String body = EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8);
-        List<Map<String, Object>> lines = new ArrayList<>();
-        for (String line : body.split("\n")) {
-            if (line.isBlank()) {
-                continue;
-            }
-            lines.add(XContentHelper.convertToMap(XContentType.JSON.xContent(), line, false));
-        }
-        return lines;
     }
 }

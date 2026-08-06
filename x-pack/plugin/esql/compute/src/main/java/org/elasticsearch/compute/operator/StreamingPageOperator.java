@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -56,9 +57,13 @@ public class StreamingPageOperator extends SinkOperator {
         }
     }
 
+    public void addCompletionListener(ActionListener<Void> listener) {
+        stream.addCloseListener(listener);
+    }
+
     @Override
     public boolean needsInput() {
-        return finishCalled == false && isBlocked().listener().isDone();
+        return isFinished() == false && isBlocked().listener().isDone();
     }
 
     @Override
@@ -74,7 +79,7 @@ public class StreamingPageOperator extends SinkOperator {
 
     @Override
     public boolean isFinished() {
-        return finishCalled;
+        return finishCalled || stream.isClosed();
     }
 
     @Override

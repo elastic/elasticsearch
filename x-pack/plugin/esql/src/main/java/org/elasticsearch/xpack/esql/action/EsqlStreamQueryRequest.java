@@ -28,21 +28,32 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class EsqlStreamQueryRequest extends EsqlQueryRequest {
 
     private final ActionListener<EsqlStreamQueryAction.StreamStart> streamStartListener;
+    private final boolean dropNullColumns;
 
-    private EsqlStreamQueryRequest(EsqlQueryRequest source, ActionListener<EsqlStreamQueryAction.StreamStart> streamStartListener) {
+    private EsqlStreamQueryRequest(
+        EsqlQueryRequest source,
+        ActionListener<EsqlStreamQueryAction.StreamStart> streamStartListener,
+        boolean dropNullColumns
+    ) {
         super(source);
         this.streamStartListener = streamStartListener;
+        this.dropNullColumns = dropNullColumns;
     }
 
     public static EsqlStreamQueryRequest from(
         EsqlQueryRequest source,
-        ActionListener<EsqlStreamQueryAction.StreamStart> streamStartListener
+        ActionListener<EsqlStreamQueryAction.StreamStart> streamStartListener,
+        boolean dropNullColumns
     ) {
-        return new EsqlStreamQueryRequest(source, streamStartListener);
+        return new EsqlStreamQueryRequest(source, streamStartListener, dropNullColumns);
     }
 
     public ActionListener<EsqlStreamQueryAction.StreamStart> streamStartListener() {
         return streamStartListener;
+    }
+
+    public boolean dropNullColumns() {
+        return dropNullColumns;
     }
 
     @Override

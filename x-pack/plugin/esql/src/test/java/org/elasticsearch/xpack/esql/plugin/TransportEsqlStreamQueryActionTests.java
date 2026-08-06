@@ -13,7 +13,9 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -23,9 +25,12 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
+import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.session.Result;
 
 import java.util.List;
@@ -87,52 +92,187 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
         assertNull(columns.get(2).originalTypes());
     }
 
-    public void testCollectIndexFieldNamesFieldAttributeIncluded() {
-        FieldAttribute attr = new FieldAttribute(
+    public void testCollectAliasSourcesEmptyForLeafPlan() {
+        EsSourceExec plan = new EsSourceExec(Source.EMPTY, "logs-*", IndexMode.STANDARD, List.of(), null);
+        AttributeMap<Attribute> map = TransportEsqlStreamQueryAction.collectAliasSources(plan);
+        assertTrue("leaf plan with no aliases must produce an empty map", map.isEmpty());
+    }
+
+    public void testCollectAliasSourcesEvalExec() {
+        FieldAttribute fa = new FieldAttribute(
             Source.EMPTY,
-            "myField",
-            new EsField("myField", DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+            "f",
+            new EsField("f", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
         );
-        Set<String> names = TransportEsqlStreamQueryAction.collectIndexFieldNames(List.of(attr));
-        assertEquals(Set.of("myField"), names);
-    }
-
-    public void testCollectIndexFieldNamesUnsupportedAttributeExcluded() {
-        UnsupportedAttribute attr = new UnsupportedAttribute(
+        Alias alias = new Alias(Source.EMPTY, "s", fa);
+        EvalExec plan = new EvalExec(
             Source.EMPTY,
-            "badField",
-            new UnsupportedEsField("badField", List.of("geo_shape"))
+            new EsSourceExec(Source.EMPTY, "idx", IndexMode.STANDARD, List.of(), null),
+            List.of(alias)
         );
-        Set<String> names = TransportEsqlStreamQueryAction.collectIndexFieldNames(List.of(attr));
-        assertTrue(names.isEmpty());
+        AttributeMap<Attribute> map = TransportEsqlStreamQueryAction.collectAliasSources(plan);
+        assertEquals("alias.toAttribute() must map to the source FieldAttribute", fa, map.resolve(alias.toAttribute(), null));
     }
 
-    public void testCollectIndexFieldNamesReferenceAttributeExcluded() {
-        ReferenceAttribute attr = new ReferenceAttribute(Source.EMPTY, "derived", DataType.LONG);
-        Set<String> names = TransportEsqlStreamQueryAction.collectIndexFieldNames(List.of(attr));
-        assertTrue(names.isEmpty());
+    public void testCollectAliasSourcesProjectExec() {
+        FieldAttribute fa = new FieldAttribute(
+            Source.EMPTY,
+            "f",
+            new EsField("f", DataType.LONG, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        Alias alias = new Alias(Source.EMPTY, "renamed", fa);
+        ProjectExec plan = new ProjectExec(
+            Source.EMPTY,
+            new EsSourceExec(Source.EMPTY, "idx", IndexMode.STANDARD, List.of(), null),
+            List.of(alias)
+        );
+        AttributeMap<Attribute> map = TransportEsqlStreamQueryAction.collectAliasSources(plan);
+        assertEquals("alias.toAttribute() must map to the source FieldAttribute", fa, map.resolve(alias.toAttribute(), null));
     }
 
-    public void testCollectIndexFieldNamesMetadataAttributeExcluded() {
+    public void testCollectAliasSourcesFragmentExecWithLogicalEval() {
+        FieldAttribute fa = new FieldAttribute(
+            Source.EMPTY,
+            "f",
+            new EsField("f", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        Alias alias = new Alias(Source.EMPTY, "s", fa);
+        EsRelation relation = new EsRelation(Source.EMPTY, "traces-*", IndexMode.STANDARD, Map.of(), Map.of(), Map.of(), List.of());
+        Eval logicalEval = new Eval(Source.EMPTY, relation, List.of(alias));
+        FragmentExec plan = new FragmentExec(logicalEval);
+        AttributeMap<Attribute> map = TransportEsqlStreamQueryAction.collectAliasSources(plan);
+        assertEquals("alias inside FragmentExec.fragment() must be collected", fa, map.resolve(alias.toAttribute(), null));
+    }
+
+    public void testCollectAliasSourcesAliasChain() {
+        FieldAttribute fa = new FieldAttribute(
+            Source.EMPTY,
+            "f",
+            new EsField("f", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        Alias aliasA = new Alias(Source.EMPTY, "a", fa);
+        EvalExec evalExec = new EvalExec(
+            Source.EMPTY,
+            new EsSourceExec(Source.EMPTY, "idx", IndexMode.STANDARD, List.of(), null),
+            List.of(aliasA)
+        );
+        Alias aliasB = new Alias(Source.EMPTY, "b", aliasA.toAttribute());
+        ProjectExec projectExec = new ProjectExec(Source.EMPTY, evalExec, List.of(aliasB));
+        AttributeMap<Attribute> map = TransportEsqlStreamQueryAction.collectAliasSources(projectExec);
+        Attribute terminal = map.resolve(aliasB.toAttribute(), aliasB.toAttribute());
+        assertEquals("resolving b through the chain a -> f must reach the FieldAttribute", fa, terminal);
+    }
+
+    public void testResolveIndexFieldNamesBareFieldAttributeIsDroppable() {
+        FieldAttribute fa = new FieldAttribute(
+            Source.EMPTY,
+            "f",
+            new EsField("f", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        String[] names = TransportEsqlStreamQueryAction.resolveIndexFieldNames(List.of(fa), AttributeMap.emptyAttributeMap());
+        assertEquals(1, names.length);
+        assertEquals("f", names[0]);
+    }
+
+    public void testResolveIndexFieldNamesNonAggregatableIsNotDroppable() {
+        FieldAttribute fa = new FieldAttribute(
+            Source.EMPTY,
+            "noidx",
+            new EsField("noidx", DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+        );
+        String[] names = TransportEsqlStreamQueryAction.resolveIndexFieldNames(List.of(fa), AttributeMap.emptyAttributeMap());
+        assertEquals(1, names.length);
+        assertNull("non-aggregatable field must not be a drop candidate", names[0]);
+    }
+
+    public void testResolveIndexFieldNamesAggregateMetricDoubleIsNotDroppable() {
+        FieldAttribute fa = new FieldAttribute(
+            Source.EMPTY,
+            "metric",
+            new EsField("metric", DataType.AGGREGATE_METRIC_DOUBLE, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        String[] names = TransportEsqlStreamQueryAction.resolveIndexFieldNames(List.of(fa), AttributeMap.emptyAttributeMap());
+        assertEquals(1, names.length);
+        assertNull("AGGREGATE_METRIC_DOUBLE must not be a drop candidate regardless of isAggregatable()", names[0]);
+    }
+
+    public void testResolveIndexFieldNamesBareReferenceAttributeIsNull() {
+        ReferenceAttribute ref = new ReferenceAttribute(Source.EMPTY, "derived", DataType.KEYWORD);
+        String[] names = TransportEsqlStreamQueryAction.resolveIndexFieldNames(List.of(ref), AttributeMap.emptyAttributeMap());
+        assertEquals(1, names.length);
+        assertNull("bare ReferenceAttribute with no mapping must resolve to null", names[0]);
+    }
+
+    public void testResolveIndexFieldNamesAliasedFieldAttribute() {
+        FieldAttribute fa = new FieldAttribute(
+            Source.EMPTY,
+            "f",
+            new EsField("f", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        Alias alias = new Alias(Source.EMPTY, "s", fa);
+        AttributeMap<Attribute> aliasSources = AttributeMap.<Attribute>of(alias.toAttribute(), fa);
+        String[] names = TransportEsqlStreamQueryAction.resolveIndexFieldNames(List.of(alias.toAttribute()), aliasSources);
+        assertEquals(1, names.length);
+        assertEquals("alias of a FieldAttribute must resolve to the field name", "f", names[0]);
+    }
+
+    public void testResolveIndexFieldNamesAliasedUnsupportedAttributeIsNull() {
+        UnsupportedAttribute ua = new UnsupportedAttribute(Source.EMPTY, "bad", new UnsupportedEsField("bad", List.of("geo_shape")));
+        Alias alias = new Alias(Source.EMPTY, "renamed", ua);
+        AttributeMap<Attribute> aliasSources = AttributeMap.<Attribute>of(alias.toAttribute(), ua);
+        String[] names = TransportEsqlStreamQueryAction.resolveIndexFieldNames(List.of(alias.toAttribute()), aliasSources);
+        assertEquals(1, names.length);
+        assertNull("alias of an UnsupportedAttribute must resolve to null at the terminal", names[0]);
+    }
+
+    public void testResolveIndexFieldNamesEnrichShapeIsNull() {
+        ReferenceAttribute enrichAttr = new ReferenceAttribute(Source.EMPTY, "enrich_field", DataType.KEYWORD);
+        Alias alias = new Alias(Source.EMPTY, "output", enrichAttr);
+        AttributeMap<Attribute> aliasSources = AttributeMap.<Attribute>of(alias.toAttribute(), enrichAttr);
+        String[] names = TransportEsqlStreamQueryAction.resolveIndexFieldNames(List.of(alias.toAttribute()), aliasSources);
+        assertEquals(1, names.length);
+        assertNull("alias of a ReferenceAttribute (enrich shape) must resolve to null", names[0]);
+    }
+
+    public void testResolveIndexFieldNamesMetadataAttributeIsNull() {
         MetadataAttribute attr = new MetadataAttribute(Source.EMPTY, "_index", DataType.KEYWORD, false);
-        Set<String> names = TransportEsqlStreamQueryAction.collectIndexFieldNames(List.of(attr));
-        assertTrue(names.isEmpty());
+        String[] names = TransportEsqlStreamQueryAction.resolveIndexFieldNames(List.of(attr), AttributeMap.emptyAttributeMap());
+        assertEquals(1, names.length);
+        assertNull("MetadataAttribute must not be a drop candidate", names[0]);
     }
 
-    public void testCollectIndexFieldNamesMixedList() {
-        FieldAttribute field = new FieldAttribute(
+    public void testResolveIndexFieldNamesUnsupportedAttributeIsNull() {
+        UnsupportedAttribute ua = new UnsupportedAttribute(Source.EMPTY, "unsup", new UnsupportedEsField("unsup", List.of("geo_shape")));
+        String[] names = TransportEsqlStreamQueryAction.resolveIndexFieldNames(List.of(ua), AttributeMap.emptyAttributeMap());
+        assertEquals(1, names.length);
+        assertNull("UnsupportedAttribute must not be a drop candidate", names[0]);
+    }
+
+    public void testResolveIndexFieldNamesMixedOutput() {
+        FieldAttribute droppable = new FieldAttribute(
             Source.EMPTY,
             "kept",
-            new EsField("kept", DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+            new EsField("kept", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
         );
-        UnsupportedAttribute unsupported = new UnsupportedAttribute(
+        FieldAttribute notDroppable = new FieldAttribute(
             Source.EMPTY,
-            "dropped",
-            new UnsupportedEsField("dropped", List.of("geo_shape"))
+            "noidx",
+            new EsField("noidx", DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
         );
-        ReferenceAttribute ref = new ReferenceAttribute(Source.EMPTY, "alsoDropped", DataType.LONG);
-        Set<String> names = TransportEsqlStreamQueryAction.collectIndexFieldNames(List.of(field, unsupported, ref));
-        assertEquals(Set.of("kept"), names);
+        ReferenceAttribute bareRef = new ReferenceAttribute(Source.EMPTY, "ref", DataType.LONG);
+        String[] names = TransportEsqlStreamQueryAction.resolveIndexFieldNames(
+            List.of(droppable, notDroppable, bareRef),
+            AttributeMap.emptyAttributeMap()
+        );
+        assertEquals(3, names.length);
+        assertEquals("kept", names[0]);
+        assertNull("non-aggregatable field must be null", names[1]);
+        assertNull("bare ReferenceAttribute must be null", names[2]);
+    }
+
+    public void testResolveIndexFieldNamesEmptyOutput() {
+        String[] names = TransportEsqlStreamQueryAction.resolveIndexFieldNames(List.of(), AttributeMap.emptyAttributeMap());
+        assertEquals(0, names.length);
     }
 
     public void testCollectIndexPatternsEsQueryExec() {
@@ -152,51 +292,6 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
         FragmentExec plan = new FragmentExec(relation);
         Set<String> patterns = TransportEsqlStreamQueryAction.collectIndexPatterns(plan);
         assertEquals(Set.of("traces-*"), patterns);
-    }
-
-    public void testClassifyNullColumnsEmptyFieldIsTrue() {
-        FieldAttribute attr = new FieldAttribute(
-            Source.EMPTY,
-            "sparse",
-            new EsField("sparse", DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
-        );
-        boolean[] mask = TransportEsqlStreamQueryAction.classifyNullColumns(List.of(attr), Set.of("sparse"));
-        assertEquals(1, mask.length);
-        assertTrue(mask[0]);
-    }
-
-    public void testClassifyNullColumnsNonEmptyFieldIsFalse() {
-        FieldAttribute attr = new FieldAttribute(
-            Source.EMPTY,
-            "present",
-            new EsField("present", DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
-        );
-        boolean[] mask = TransportEsqlStreamQueryAction.classifyNullColumns(List.of(attr), Set.of("other"));
-        assertEquals(1, mask.length);
-        assertFalse(mask[0]);
-    }
-
-    public void testClassifyNullColumnsUnsupportedAttributeAlwaysFalse() {
-        UnsupportedAttribute attr = new UnsupportedAttribute(Source.EMPTY, "unsup", new UnsupportedEsField("unsup", List.of("geo_shape")));
-        boolean[] mask = TransportEsqlStreamQueryAction.classifyNullColumns(List.of(attr), Set.of("unsup"));
-        assertEquals(1, mask.length);
-        assertFalse(mask[0]);
-    }
-
-    public void testClassifyNullColumnsDerivedAndMetadataAlwaysFalse() {
-        List<Attribute> output = List.of(
-            new ReferenceAttribute(Source.EMPTY, "ref", DataType.LONG),
-            new MetadataAttribute(Source.EMPTY, "_index", DataType.KEYWORD, false)
-        );
-        boolean[] mask = TransportEsqlStreamQueryAction.classifyNullColumns(output, Set.of("ref", "_index"));
-        assertEquals(2, mask.length);
-        assertFalse(mask[0]);
-        assertFalse(mask[1]);
-    }
-
-    public void testClassifyNullColumnsEmptyOutput() {
-        boolean[] mask = TransportEsqlStreamQueryAction.classifyNullColumns(List.of(), Set.of("anything"));
-        assertEquals(0, mask.length);
     }
 
     public void testMarkPartialFromCompletionInfoFlipsExecutionInfo() {

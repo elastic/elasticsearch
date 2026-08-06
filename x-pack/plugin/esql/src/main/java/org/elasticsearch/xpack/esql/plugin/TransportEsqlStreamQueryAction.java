@@ -32,9 +32,12 @@ import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlStreamQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlStreamQueryRequest;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.DatasetResolver;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
@@ -46,6 +49,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.StreamingOutputExec;
 import org.elasticsearch.xpack.esql.session.EsqlSession.PlanRunner;
+import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.esql.view.ViewResolver;
 
@@ -72,6 +76,40 @@ import static org.elasticsearch.xpack.esql.plugin.TransportEsqlQueryAction.getOr
 public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQueryRequest, ActionResponse.Empty> {
 
     private static final Logger logger = LogManager.getLogger(TransportEsqlStreamQueryAction.class);
+
+    /**
+     * ES|QL types for which a field_caps {@code include_empty_fields=false} omission is a faithful
+     * "this column is all null" signal: the mapper writes Lucene structures under
+     * {@link org.elasticsearch.index.mapper.MappedFieldType#name()} whenever a value is present,
+     * and the block loader reads them via doc values.
+     *
+     * <p>Deliberately excludes {@code AGGREGATE_METRIC_DOUBLE}, which reports
+     * {@code isAggregatable() == true} unconditionally while writing its doc values under
+     * {@code <name>.min}/{@code .max}/..., and has no {@code fieldHasValue} override —
+     * so field_caps reports it empty even when fully populated.
+     * Adding a type here without confirming both properties is a data-loss bug.
+     */
+    private static final Set<DataType> FIELD_CAPS_EMPTINESS_IS_TRUSTWORTHY = Set.of(
+        DataType.KEYWORD,
+        DataType.BOOLEAN,
+        DataType.LONG,
+        DataType.INTEGER,
+        DataType.SHORT,
+        DataType.BYTE,
+        DataType.UNSIGNED_LONG,
+        DataType.DOUBLE,
+        DataType.FLOAT,
+        DataType.HALF_FLOAT,
+        DataType.SCALED_FLOAT,
+        DataType.DATETIME,
+        DataType.DATE_NANOS,
+        DataType.IP,
+        DataType.VERSION,
+        DataType.GEO_POINT,
+        DataType.CARTESIAN_POINT,
+        DataType.GEO_SHAPE,
+        DataType.CARTESIAN_SHAPE
+    );
 
     private final ThreadPool threadPool;
     private final PlanExecutor planExecutor;
@@ -189,20 +227,34 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
 
             if (request.dropNullColumns()) {
                 boolean[] noColumnsDropped = new boolean[columns.size()];
-                Set<String> indexFieldNames = collectIndexFieldNames(plan.output());
-                if (indexFieldNames.isEmpty()) {
+                AttributeMap<Attribute> aliasSources = collectAliasSources(plan);
+                String[] fieldNames = resolveIndexFieldNames(plan.output(), aliasSources);
+                Set<String> indexPatterns = collectIndexPatterns(plan);
+                Set<String> indexFieldNames = new HashSet<>();
+                for (String name : fieldNames) {
+                    if (name != null) {
+                        indexFieldNames.add(name);
+                    }
+                }
+                if (indexFieldNames.isEmpty() || indexPatterns.isEmpty()) {
                     startCompute.accept(noColumnsDropped);
                 } else {
-                    Set<String> indexPatterns = collectIndexPatterns(plan);
                     FieldCapabilitiesRequest fieldCapsRequest = new FieldCapabilitiesRequest();
                     fieldCapsRequest.indices(indexPatterns.toArray(String[]::new));
                     fieldCapsRequest.fields(indexFieldNames.toArray(String[]::new));
                     fieldCapsRequest.includeEmptyFields(false);
+                    fieldCapsRequest.indicesOptions(IndexResolver.DEFAULT_OPTIONS);
+                    fieldCapsRequest.returnLocalAll(false);
+                    fieldCapsRequest.filters("-nested");
                     client.execute(TransportFieldCapabilitiesAction.TYPE, fieldCapsRequest, ActionListener.wrap(response -> {
                         Set<String> nonEmptyFields = response.get().keySet();
-                        Set<String> emptyFieldNames = new HashSet<>(indexFieldNames);
-                        emptyFieldNames.removeAll(nonEmptyFields);
-                        startCompute.accept(classifyNullColumns(plan.output(), emptyFieldNames));
+                        boolean[] nullColumns = new boolean[fieldNames.length];
+                        for (int i = 0; i < fieldNames.length; i++) {
+                            if (fieldNames[i] != null && nonEmptyFields.contains(fieldNames[i]) == false) {
+                                nullColumns[i] = true;
+                            }
+                        }
+                        startCompute.accept(nullColumns);
                     }, ex -> {
                         logger.warn("drop_null_columns: failed to check for empty fields; all columns will be shown", ex);
                         startCompute.accept(noColumnsDropped);
@@ -262,11 +314,47 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
         }).toList();
     }
 
-    static Set<String> collectIndexFieldNames(List<Attribute> output) {
-        Set<String> fieldNames = new HashSet<>();
-        for (Attribute attr : output) {
-            if (attr instanceof FieldAttribute fa && (attr instanceof UnsupportedAttribute) == false) {
-                fieldNames.add(fa.fieldName().string());
+    /**
+     * Maps every {@code Alias.toAttribute()} in the plan to the alias' child, when that child is an
+     * Attribute, so RENAME/EVAL/aliased-STATS-BY columns can be traced back to an index field.
+     * Mirrors {@link #collectIndexPatterns}' explicit descent into {@link FragmentExec#fragment()},
+     * which {@link org.elasticsearch.xpack.esql.plan.QueryPlan#forEachExpressionDown} does not reach.
+     */
+    static AttributeMap<Attribute> collectAliasSources(PhysicalPlan plan) {
+        AttributeMap.Builder<Attribute> builder = AttributeMap.builder();
+        plan.forEachExpressionDown(Alias.class, alias -> {
+            if (alias.child() instanceof Attribute attr) {
+                builder.put(alias.toAttribute(), attr);
+            }
+        });
+        // forEachExpressionDown does not descend into FragmentExec.fragment() (a LogicalPlan property,
+        // not a physical plan child), so we mirror collectIndexPatterns' explicit descent.
+        plan.forEachDown(FragmentExec.class, frag -> frag.fragment().forEachExpressionDown(Alias.class, alias -> {
+            if (alias.child() instanceof Attribute attr) {
+                builder.put(alias.toAttribute(), attr);
+            }
+        }));
+        return builder.build();
+    }
+
+    /**
+     * Per output position, the index field name whose index-wide emptiness faithfully implies the
+     * column is all null, or {@code null} when no such conclusion can be drawn.
+     * <p>
+     * A {@code null} entry means the column cannot be assessed via field_caps: it is either a
+     * computed expression (EVAL with a function, aggregation result, etc.), an enrich column, or
+     * a field type for which the field_caps emptiness signal is unreliable (text,
+     * {@code index:false doc_values:false} fields, {@code aggregate_metric_double}).
+     */
+    static String[] resolveIndexFieldNames(List<Attribute> output, AttributeMap<Attribute> aliasSources) {
+        String[] fieldNames = new String[output.size()];
+        for (int i = 0; i < output.size(); i++) {
+            Attribute terminal = aliasSources.resolve(output.get(i), output.get(i));
+            if (terminal instanceof FieldAttribute fa
+                && (terminal instanceof UnsupportedAttribute) == false
+                && fa.field().isAggregatable()
+                && FIELD_CAPS_EMPTINESS_IS_TRUSTWORTHY.contains(fa.dataType())) {
+                fieldNames[i] = fa.fieldName().string();
             }
         }
         return fieldNames;
@@ -281,17 +369,6 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
             frag -> frag.fragment().forEachDown(EsRelation.class, rel -> patterns.add(rel.indexPattern()))
         );
         return patterns;
-    }
-
-    static boolean[] classifyNullColumns(List<Attribute> output, Set<String> emptyFieldNames) {
-        boolean[] nullColumns = new boolean[output.size()];
-        for (int i = 0; i < output.size(); i++) {
-            Attribute attr = output.get(i);
-            if (attr instanceof FieldAttribute fa && (attr instanceof UnsupportedAttribute) == false) {
-                nullColumns[i] = emptyFieldNames.contains(fa.fieldName().string());
-            }
-        }
-        return nullColumns;
     }
 
     static void markPartialFromCompletionInfo(Result result) {

@@ -2104,7 +2104,17 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<Alias> newFields = new ArrayList<>();
             boolean changed = false;
             for (Alias field : fields) {
-                Alias result = (Alias) field.transformUp(UnresolvedAttribute.class, ua -> resolveAttribute(ua, allResolvedInputs));
+                Alias result = (Alias) field.transformUp(UnresolvedAttribute.class, ua -> {
+                    var maybeResolved = resolveAttribute(ua, allResolvedInputs);
+
+                    if (maybeResolved.resolved()) {
+                        return maybeResolved;
+                    } else if (ua.customMessage()) {
+                        return ua;
+                    } else {
+                        return maybeResolved;
+                    }
+                });
 
                 changed |= result != field;
                 newFields.add(result);
@@ -2452,9 +2462,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         Collection<Attribute> attrList,
         java.util.function.Function<List<String>, String> messageProducer
     ) {
-        if (ua.customMessage()) {
-            return List.of();
-        }
         // none found - add error message
         if (matches.isEmpty()) {
             Set<String> names = new HashSet<>(attrList.size());
@@ -2951,7 +2958,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 type,
                 (e instanceof ParsingException pe) ? pe.getErrorMessage() : e.getMessage()
             );
-            return new UnresolvedAttribute(value.source(), name, message);
+            return new UnresolvedAttribute(value.source(), "\"" + name + "\"", message);
         }
 
         private static Expression castStringLiteralToTemporalAmount(Expression from) {
@@ -3148,7 +3155,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         + "] must be a constant, received ["
                         + Expressions.name(fa)
                         + "]";
-                    Expression ua = new UnresolvedAttribute(fa.source(), fa.name(), unresolvedMessage);
+                    Expression ua = new UnresolvedAttribute(fa.source(), "\"" + fa.name() + "\"", unresolvedMessage);
                     return fcf.replaceChildren(Collections.singletonList(ua));
                 }
                 // TO_GAUGE is a no-op when every branch is already a non-counter type (including aggregate_metric_double).
@@ -3195,7 +3202,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     if (areMappedTypesSupported(unionTypeEsField, supportedTypes) == false) {
                         return new UnresolvedAttribute(
                             fa.source(),
-                            fa.name(),
+                            "\"" + fa.name() + "\"",
                             unsupportedExplicitCastMessage(unionTypeEsField, supportedTypes, fa.name(), convertExpression.sourceText())
                         );
                     }

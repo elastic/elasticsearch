@@ -1134,5 +1134,6 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
                        "unknown")
             | STATS count = COUNT(*) BY field
             """);
+        optimize(analyzed);
     }
 }

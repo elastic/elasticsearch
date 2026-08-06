@@ -463,7 +463,9 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
     private static boolean leaveUnresolved(UnresolvedAttribute attribute) {
         return attribute instanceof UnresolvedPattern || attribute instanceof UnresolvedTimestamp
         // Exclude metadata fields so they fail with a proper verification error instead of being silently nullified/loaded.
-            || MetadataAttribute.isSupported(attribute.name());
+            || MetadataAttribute.isSupported(attribute.name())
+        // UAs with quoted names carry permanent error messages (e.g. unsupported type casts) and must not be loaded as unmapped fields.
+            || attribute.name().startsWith("\"");
     }
 
     /**

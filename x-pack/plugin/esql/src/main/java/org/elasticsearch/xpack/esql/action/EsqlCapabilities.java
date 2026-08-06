@@ -2142,7 +2142,7 @@ public class EsqlCapabilities {
         /**
          * Support for the DOUBLE_RANGE field type.
          */
-        DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V5(Build.current().isSnapshot()),
+        DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V8(Build.current().isSnapshot()),
 
         /**
          * Network direction function.
@@ -3304,6 +3304,12 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_FORK_DROP_MATERIALIZES_SIBLINGS,
 
         /**
+         * Support for {@code unmapped_fields="LOAD_ALL"}, which loads every unmapped source field as its own
+         * {@code keyword} output column without requiring each field to be referenced in the query.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL(Build.current().isSnapshot()),
+
+        /**
          * Support for the {@code ==} operator on the root of a {@code flattened} field in ES|QL.
          */
         FN_EQUALS_FLATTENED,
@@ -3391,7 +3397,7 @@ public class EsqlCapabilities {
         /**
          * Support for equality ({@code ==}, {@code !=}) and {@code IN} with the {@code double_range} type.
          */
-        EQUALITY_DOUBLE_RANGE(DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V5.isEnabled()),
+        EQUALITY_DOUBLE_RANGE(DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V8.isEnabled()),
 
         /**
          * Fix TopN encoding/decoding of {@code long_range} values.
@@ -3571,6 +3577,16 @@ public class EsqlCapabilities {
          * Support for the PromQL {@code topk()} order-statistic aggregation.
          */
         PROMQL_TOPK,
+
+        /**
+         * Support for the PromQL {@code bottomk()} order-statistic aggregation.
+         */
+        PROMQL_BOTTOMK,
+
+        /**
+         * Support for the PromQL {@code limitk()} arbitrary-selection function.
+         */
+        PROMQL_LIMITK,
 
         /**
          * Fix PromQL {@code topk()} over an already-aggregated vector (e.g. {@code topk(k, sum by (...) (...))}).

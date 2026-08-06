@@ -33,7 +33,7 @@ public class SigtermShutdownMetricsTests extends ESTestCase {
 
     public void testRecordShutdownTime() {
         final long durationMs = randomLongBetween(0, TimeUnit.HOURS.toMillis(2));
-        final String status = randomBoolean() ? "COMPLETE" : "FAILED";
+        final var status = randomFrom(SigtermTerminationHandler.ShutdownStatus.values());
         metrics.recordShutdownTime(durationMs, status, false);
 
         final List<Measurement> measurements = registry.getRecorder()
@@ -42,7 +42,7 @@ public class SigtermShutdownMetricsTests extends ESTestCase {
         assertThat(measurements.getFirst().getDouble(), equalTo(durationMs / 1000.0));
         assertThat(
             measurements.getFirst().attributes().get(SigtermShutdownMetrics.ATTRIBUTE_NAME_STATUS),
-            equalTo(status.toLowerCase(Locale.ROOT))
+            equalTo(status.name().toLowerCase(Locale.ROOT))
         );
         assertThat(measurements.getFirst().attributes().get(SigtermShutdownMetrics.ATTRIBUTE_NAME_TIMED_OUT), equalTo(false));
     }

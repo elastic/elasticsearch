@@ -48,7 +48,7 @@ public class SigtermShutdownMetrics {
     /// @param durationMillis elapsed time in milliseconds
     /// @param status overall shutdown outcome (for example `complete`, `failed`, `in_progress`)
     /// @param timedOut true when the SIGTERM timeout expired before overall shutdown completed
-    public void recordShutdownTime(long durationMillis, String status, boolean timedOut) {
+    public void recordShutdownTime(long durationMillis, SigtermTerminationHandler.ShutdownStatus status, boolean timedOut) {
         shutdownDurationSeconds.record(toSeconds(durationMillis), attributes(status, timedOut));
     }
 
@@ -64,7 +64,7 @@ public class SigtermShutdownMetrics {
         return durationMillis / 1000.0;
     }
 
-    private static Map<String, Object> attributes(String status, boolean timedOut) {
-        return Map.of(ATTRIBUTE_NAME_STATUS, status.toLowerCase(Locale.ROOT), ATTRIBUTE_NAME_TIMED_OUT, timedOut);
+    private static Map<String, Object> attributes(SigtermTerminationHandler.ShutdownStatus status, boolean timedOut) {
+        return Map.of(ATTRIBUTE_NAME_STATUS, status.name().toLowerCase(Locale.ROOT), ATTRIBUTE_NAME_TIMED_OUT, timedOut);
     }
 }

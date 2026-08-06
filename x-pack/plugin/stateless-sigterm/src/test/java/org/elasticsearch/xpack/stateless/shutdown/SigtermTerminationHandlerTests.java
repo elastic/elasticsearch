@@ -52,6 +52,7 @@ import org.junit.Before;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
@@ -178,7 +179,7 @@ public class SigtermTerminationHandlerTests extends ESTestCase {
             verify(client, times(1)).execute(eq(PutShutdownNodeAction.INSTANCE), any(), any());
             verify(client, times(1)).execute(eq(GetShutdownStatusAction.INSTANCE), any(), any());
 
-            assertShutdownAndMigrationMetrics(meterRegistry, "complete", false, true);
+            assertShutdownAndMigrationMetrics(meterRegistry, SigtermTerminationHandler.ShutdownStatus.COMPLETE, false, true);
         } finally {
             threadPool.shutdownNow();
         }
@@ -212,7 +213,10 @@ public class SigtermTerminationHandlerTests extends ESTestCase {
         final List<Measurement> shutdownMeasurements = meterRegistry.getRecorder()
             .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, SigtermShutdownMetrics.SHUTDOWN_DURATION_HISTOGRAM);
         assertThat(shutdownMeasurements, hasSize(1));
-        assertThat(shutdownMeasurements.getFirst().attributes().get(SigtermShutdownMetrics.ATTRIBUTE_NAME_STATUS), equalTo("failed"));
+        assertThat(
+            shutdownMeasurements.getFirst().attributes().get(SigtermShutdownMetrics.ATTRIBUTE_NAME_STATUS),
+            equalTo(SigtermTerminationHandler.ShutdownStatus.FAILED.name().toLowerCase(Locale.ROOT))
+        );
         assertThat(
             meterRegistry.getRecorder()
                 .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, SigtermShutdownMetrics.SHARD_MIGRATION_DURATION_HISTOGRAM),
@@ -361,7 +365,10 @@ public class SigtermTerminationHandlerTests extends ESTestCase {
             .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, SigtermShutdownMetrics.SHUTDOWN_DURATION_HISTOGRAM);
         assertThat(shutdownMeasurements, hasSize(1));
         assertThat(shutdownMeasurements.getFirst().getDouble(), equalTo((totalPolls - 1L) * pollInterval.millis() / 1000.0));
-        assertThat(shutdownMeasurements.getFirst().attributes().get(SigtermShutdownMetrics.ATTRIBUTE_NAME_STATUS), equalTo("complete"));
+        assertThat(
+            shutdownMeasurements.getFirst().attributes().get(SigtermShutdownMetrics.ATTRIBUTE_NAME_STATUS),
+            equalTo(SigtermTerminationHandler.ShutdownStatus.COMPLETE.name().toLowerCase(Locale.ROOT))
+        );
         assertThat(shutdownMeasurements.getFirst().attributes().get(SigtermShutdownMetrics.ATTRIBUTE_NAME_TIMED_OUT), equalTo(false));
     }
 
@@ -419,7 +426,7 @@ public class SigtermTerminationHandlerTests extends ESTestCase {
                 new SigtermShutdownMetrics(meterRegistry)
             ).handleTermination();
 
-            assertShutdownAndMigrationMetrics(meterRegistry, "in_progress", true, false);
+            assertShutdownAndMigrationMetrics(meterRegistry, SigtermTerminationHandler.ShutdownStatus.IN_PROGRESS, true, false);
 
             final List<Measurement> shutdownMeasurements = meterRegistry.getRecorder()
                 .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, SigtermShutdownMetrics.SHUTDOWN_DURATION_HISTOGRAM);
@@ -655,7 +662,7 @@ public class SigtermTerminationHandlerTests extends ESTestCase {
 
     private static void assertShutdownAndMigrationMetrics(
         RecordingMeterRegistry meterRegistry,
-        String expectedShutdownStatus,
+        SigtermTerminationHandler.ShutdownStatus expectedShutdownStatus,
         boolean expectedTimedOut,
         boolean expectedMigrationCompleted
     ) {
@@ -664,7 +671,7 @@ public class SigtermTerminationHandlerTests extends ESTestCase {
         assertThat(shutdownMeasurements, hasSize(1));
         assertThat(
             shutdownMeasurements.getFirst().attributes().get(SigtermShutdownMetrics.ATTRIBUTE_NAME_STATUS),
-            equalTo(expectedShutdownStatus)
+            equalTo(expectedShutdownStatus.name().toLowerCase(Locale.ROOT))
         );
         assertThat(
             shutdownMeasurements.getFirst().attributes().get(SigtermShutdownMetrics.ATTRIBUTE_NAME_TIMED_OUT),
@@ -751,7 +758,7 @@ public class SigtermTerminationHandlerTests extends ESTestCase {
             handler.handleTermination();
 
             verify(client, times(initialRounds)).execute(eq(GetShutdownStatusAction.INSTANCE), any(), any());
-            assertShutdownAndMigrationMetrics(meterRegistry, "complete", false, true);
+            assertShutdownAndMigrationMetrics(meterRegistry, SigtermTerminationHandler.ShutdownStatus.COMPLETE, false, true);
         } finally {
             threadPool.shutdownNow();
         }

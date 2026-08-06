@@ -65,6 +65,9 @@ import static org.elasticsearch.core.TimeValue.timeValueMillis;
 public class SigtermTerminationHandler implements TerminationHandler {
     private static final Logger logger = LogManager.getLogger(SigtermTerminationHandler.class);
 
+    /// Timestamps that have not been observed yet.
+    private static final long UNSET = -1L;
+
     private final Client client;
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
@@ -101,8 +104,8 @@ public class SigtermTerminationHandler implements TerminationHandler {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<SingleNodeShutdownStatus> lastStatus = new AtomicReference<>();
         AtomicBoolean failed = new AtomicBoolean(false);
-        AtomicLong migrationStartMillis = new AtomicLong(-1);
-        AtomicLong migrationCompleteMillis = new AtomicLong(-1);
+        AtomicLong migrationStartMillis = new AtomicLong(UNSET);
+        AtomicLong migrationCompleteMillis = new AtomicLong(UNSET);
 
         client.execute(PutShutdownNodeAction.INSTANCE, shutdownRequest(), ActionListener.wrap(res -> {
             migrationStartMillis.set(threadPool.rawRelativeTimeInMillis());
@@ -124,13 +127,13 @@ public class SigtermTerminationHandler implements TerminationHandler {
 
             final long end = threadPool.rawRelativeTimeInMillis();
             final long shutdownDuration = end - started;
-            final String shutdownStatus = getShutdownStatus(failed.get(), status);
+            final ShutdownStatus shutdownStatus = getShutdownStatus(failed.get(), status);
             logger.info(
                 new ESLogMessage("shutdown completed after [{}] ms with status [{}]", shutdownDuration, status) //
                     .withFields(
                         Map.of(
                             "elasticsearch.shutdown.status",
-                            shutdownStatus,
+                            shutdownStatus.name(),
                             "elasticsearch.shutdown.duration",
                             shutdownDuration,
                             "elasticsearch.shutdown.timed-out",
@@ -139,8 +142,8 @@ public class SigtermTerminationHandler implements TerminationHandler {
                     )
             );
             metrics.recordShutdownTime(shutdownDuration, shutdownStatus, timedOut);
-            if (migrationStartMillis.get() >= 0) {
-                final boolean migrationCompleted = migrationCompleteMillis.get() >= 0;
+            if (migrationStartMillis.get() != UNSET) {
+                final boolean migrationCompleted = migrationCompleteMillis.get() != UNSET;
                 final long migrationEndMillis = migrationCompleted ? migrationCompleteMillis.get() : end;
                 final long migrationDuration = migrationEndMillis - migrationStartMillis.get();
                 logger.info(
@@ -374,13 +377,32 @@ public class SigtermTerminationHandler implements TerminationHandler {
 
     }
 
-    private static String getShutdownStatus(boolean failed, SingleNodeShutdownStatus status) {
+    private static ShutdownStatus getShutdownStatus(boolean failed, SingleNodeShutdownStatus status) {
         if (failed) {
-            return "FAILED";
+            return ShutdownStatus.FAILED;
         } else if (status != null) {
-            return status.overallStatus().toString();
+            return ShutdownStatus.fromMetadataStatus(status.overallStatus());
         } else {
-            return "UNKNOWN";
+            return ShutdownStatus.UNKNOWN;
+        }
+    }
+
+    /// Shutdown outcome values used for metrics attributes and structured logs.
+    enum ShutdownStatus {
+        FAILED,
+        NOT_STARTED,
+        IN_PROGRESS,
+        STALLED,
+        COMPLETE,
+        UNKNOWN;
+
+        private static ShutdownStatus fromMetadataStatus(SingleNodeShutdownMetadata.Status status) {
+            return switch (status) {
+                case NOT_STARTED -> NOT_STARTED;
+                case IN_PROGRESS -> IN_PROGRESS;
+                case STALLED -> STALLED;
+                case COMPLETE -> COMPLETE;
+            };
         }
     }
 
@@ -439,7 +461,7 @@ public class SigtermTerminationHandler implements TerminationHandler {
             SingleNodeShutdownStatus status = res.getShutdownStatuses().get(0);
             lastStatus.set(status);
             if (status.migrationStatus().getStatus() == SingleNodeShutdownMetadata.Status.COMPLETE) {
-                migrationCompleteMillis.compareAndSet(-1, threadPool.rawRelativeTimeInMillis());
+                migrationCompleteMillis.compareAndSet(UNSET, threadPool.rawRelativeTimeInMillis());
             }
             if (status.overallStatus().equals(SingleNodeShutdownMetadata.Status.COMPLETE)) {
                 logger.debug("node ready for shutdown with status [{}]: {}", status.overallStatus(), status);

@@ -150,8 +150,8 @@ class ImplClassWriter {
         // Generate $Pack for record structs and $Impl for interface structs
         for (StructModel struct : model.structs()) {
             switch (struct) {
-                case StructRecordModel r -> packWriter.generate(model, r, sourceElement);
-                case StructInterfaceModel i -> structImplWriter.generate(model, i, sourceElement);
+                case StructRecordModel r -> packWriter.generate(model, struct, sourceElement);
+                case StructInterfaceModel i -> structImplWriter.generate(model, struct, sourceElement);
             }
         }
 
@@ -864,7 +864,8 @@ class ImplClassWriter {
             return;
         }
 
-        // Resolve the target struct and its array field from the model
+        // Resolve the target struct and its array field from the model. Only field shape is used
+        // below, which is platform-independent.
         StructModel targetStruct = model.structs()
             .stream()
             .filter(s -> s.simpleName().equals(nm.structReturnSimpleName()))

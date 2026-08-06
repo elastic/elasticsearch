@@ -941,7 +941,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         /// moves we've seen where `canRemain` returns `NOT_PREFERRED` via the `bestNonPreferredShardMovementsTracker`.
         ///
         /// Executes in two passes, the first pass will execute moves where `canAllocate` returns `YES`, the
-        /// second pass will move shards where `canAllocate` returns `NOT_PREFERRED`.
+        /// second pass will move any remaining shards where `canAllocate` returns `NOT_PREFERRED`.
         ///
         /// @param shardMoved An atomic boolean that is set to true if a move was made
         /// @param bestNonPreferredShardMovementsTracker The tracker of best not-preferred shard movements

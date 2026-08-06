@@ -112,7 +112,6 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
         // ECS templates include standalone index templates (sq-executables, sq-leafframes, returnpads-private) that
         // have no required component templates. The second assertBusy relies on being able to install at least two
         // composable templates from an empty cluster state.
-        registry.setTemplatesEnabled(true);
         DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
@@ -144,7 +143,6 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
     }
 
     public void testThatNonExistingPoliciesAreAddedImmediately() throws Exception {
-        registry.setTemplatesEnabled(true);
         DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
@@ -175,7 +173,6 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
     }
 
     public void testPolicyAlreadyExists() {
-        registry.setTemplatesEnabled(true);
         DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
@@ -207,7 +204,6 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
     }
 
     public void testPolicyAlreadyExistsButDiffers() throws IOException {
-        registry.setTemplatesEnabled(true);
         DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
@@ -264,7 +260,6 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
     }
 
     public void testPolicyUpgraded() throws Exception {
-        registry.setTemplatesEnabled(true);
         DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
@@ -327,7 +322,6 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
     }
 
     public void testAllResourcesPresentButOutdated() {
-        registry.setTemplatesEnabled(true);
         DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
         Map<String, Integer> componentTemplates = new HashMap<>();
@@ -383,7 +377,6 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
     }
 
     public void testSomeResourcesMissing() {
-        registry.setTemplatesEnabled(true);
         DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
         Map<String, Integer> componentTemplates = new HashMap<>();

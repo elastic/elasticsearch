@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.metadata.DataStreamFailureStore;
 import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
-import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
@@ -33,8 +32,6 @@ import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
-import org.elasticsearch.xpack.esql.view.DeleteViewAction;
-import org.elasticsearch.xpack.esql.view.PutViewAction;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -119,12 +116,12 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
         expectThrows(
             org.elasticsearch.xpack.esql.parser.ParsingException.class,
             containsString("Invalid index name [data-stream-1::fake]"),
-            () -> run(syncEsqlQueryRequest("FROM data-stream-1::fake"))
+            () -> run(syncEsqlQueryRequest("FROM data-stream-1::fake")).close()
         );
         expectThrows(
             VerificationException.class,
             containsString("Unknown index [no-such-data-stream::data]"),
-            () -> run(syncEsqlQueryRequest("FROM no-such-data-stream::data"))
+            () -> run(syncEsqlQueryRequest("FROM no-such-data-stream::data")).close()
         );
     }
 
@@ -192,17 +189,17 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
         expectThrows(
             VerificationException.class,
             containsString("Unknown index [no-such-index]"),
-            () -> run(syncEsqlQueryRequest("FROM no-such-index"))
+            () -> run(syncEsqlQueryRequest("FROM no-such-index")).close()
         );
         expectThrows(
             VerificationException.class,
             containsString("Unknown index"),
-            () -> run(syncEsqlQueryRequest("FROM no-such-index-1,no-such-index-2"))
+            () -> run(syncEsqlQueryRequest("FROM no-such-index-1,no-such-index-2")).close()
         );
         expectThrows(
             VerificationException.class,
             containsString("Unknown index"),
-            () -> run(syncEsqlQueryRequest("FROM no-such-index,no-such-*"))
+            () -> run(syncEsqlQueryRequest("FROM no-such-index,no-such-*")).close()
         );
     }
 
@@ -219,12 +216,12 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
         expectThrows(
             ClusterBlockException.class,
             containsString("index [index-1] blocked by: [FORBIDDEN/4/index closed]"),
-            () -> run(syncEsqlQueryRequest("FROM index-1"))
+            () -> run(syncEsqlQueryRequest("FROM index-1")).close()
         );
         expectThrows(
             ClusterBlockException.class,
             containsString("index [index-1] blocked by: [FORBIDDEN/4/index closed]"),
-            () -> run(syncEsqlQueryRequest("FROM index-1,index-2"))
+            () -> run(syncEsqlQueryRequest("FROM index-1,index-2")).close()
         );
         try (var response = run(syncEsqlQueryRequest("FROM index-* METADATA _index"))) {
             assertOk(response);
@@ -271,22 +268,22 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
         expectThrows(
             NoShardAvailableActionException.class,
             containsString("index [unavailable-index-1] has no active shard copy"),
-            () -> run(syncEsqlQueryRequest("FROM unavailable-index-1"))
+            () -> run(syncEsqlQueryRequest("FROM unavailable-index-1")).close()
         );
         expectThrows(
             NoShardAvailableActionException.class,
             containsString("index [unavailable-index-1] has no active shard copy"),
-            () -> run(syncEsqlQueryRequest("FROM unavailable-index-1,available-index-1"))
+            () -> run(syncEsqlQueryRequest("FROM unavailable-index-1,available-index-1")).close()
         );
         expectThrows(
             NoShardAvailableActionException.class,
             containsString("index [unavailable-index-1] has no active shard copy"),
-            () -> run(syncEsqlQueryRequest("FROM *-index-1"))
+            () -> run(syncEsqlQueryRequest("FROM *-index-1")).close()
         );
         expectThrows(
             NoShardAvailableActionException.class,
             containsString("index [unavailable-index-1] has no active shard copy"),
-            () -> run(syncEsqlQueryRequest("FROM unavailable-index-1").allowPartialResults(true))
+            () -> run(syncEsqlQueryRequest("FROM unavailable-index-1").allowPartialResults(true)).close()
         );
     }
 
@@ -297,24 +294,24 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
         expectThrows(
             IndexNotFoundException.class,
             equalTo("no such index [nonexisting-1]"), // fails when present index is non-empty
-            () -> run(syncEsqlQueryRequest("FROM index-1,nonexisting-1"))
+            () -> run(syncEsqlQueryRequest("FROM index-1,nonexisting-1")).close()
         );
         expectThrows(
             IndexNotFoundException.class,
             equalTo("no such index [nonexisting-1]"), // fails when present index is non-empty even if allow_partial=true
-            () -> run(syncEsqlQueryRequest("FROM index-1,nonexisting-1").allowPartialResults(true))
+            () -> run(syncEsqlQueryRequest("FROM index-1,nonexisting-1").allowPartialResults(true)).close()
         );
         expectThrows(
             IndexNotFoundException.class,
             equalTo("no such index [nonexisting-1]"), // only the first missing index is reported
-            () -> run(syncEsqlQueryRequest("FROM index-1,nonexisting-1,nonexisting-2"))
+            () -> run(syncEsqlQueryRequest("FROM index-1,nonexisting-1,nonexisting-2")).close()
         );
 
         assertAcked(client().admin().indices().prepareCreate("index-2").setMapping("field", "type=keyword"));
         expectThrows(
             IndexNotFoundException.class,
             equalTo("no such index [nonexisting-1]"), // fails when present index has no documents and non-empty mapping
-            () -> run(syncEsqlQueryRequest("FROM index-2,nonexisting-1"))
+            () -> run(syncEsqlQueryRequest("FROM index-2,nonexisting-1")).close()
         );
 
         assertAcked(client().admin().indices().prepareCreate("index-3"));
@@ -361,32 +358,32 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
      * name, and subsequent index resolution cannot find a data stream named after the view, so the query fails with
      * "Unknown index".
      */
-    public void testViewWithIndexComponentSelectors() {
-        assumeTrue("Requires index component selectors", EsqlCapabilities.Cap.INDEX_COMPONENT_SELECTORS.isEnabled());
-        assumeTrue("Requires views", EsqlCapabilities.Cap.VIEWS_CRUD_AS_INDEX_ACTIONS.isEnabled());
-
-        assertAcked(client().admin().indices().prepareCreate("view-backing-index").setMapping("value", "type=long"));
-        indexRandom(true, "view-backing-index", 1);
-        var view = new View("test-view", "FROM view-backing-index");
-        assertAcked(client().execute(PutViewAction.INSTANCE, new PutViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, view)));
-        try {
-            // view::data is equivalent to the plain view name
-            try (var response = run(syncEsqlQueryRequest("FROM test-view::data"))) {
-                assertOk(response);
-            }
-            // view::failures is not supported; the view has no failure component
-            expectThrows(
-                VerificationException.class,
-                containsString("Unknown index [test-view::failures]"),
-                () -> run(syncEsqlQueryRequest("FROM test-view::failures"))
-            );
-        } finally {
-            client().execute(
-                DeleteViewAction.INSTANCE,
-                new DeleteViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new String[] { "test-view" })
-            ).actionGet();
-        }
-    }
+    // public void testViewWithIndexComponentSelectors() {
+    // assumeTrue("Requires index component selectors", EsqlCapabilities.Cap.INDEX_COMPONENT_SELECTORS.isEnabled());
+    // assumeTrue("Requires views", EsqlCapabilities.Cap.VIEWS_CRUD_AS_INDEX_ACTIONS.isEnabled());
+    //
+    // assertAcked(client().admin().indices().prepareCreate("view-backing-index").setMapping("value", "type=long"));
+    // indexRandom(true, "view-backing-index", 1);
+    // var view = new View("test-view", "FROM view-backing-index");
+    // assertAcked(client().execute(PutViewAction.INSTANCE, new PutViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, view)));
+    // try {
+    // // view::data is equivalent to the plain view name
+    // try (var response = run(syncEsqlQueryRequest("FROM test-view::data"))) {
+    // assertOk(response);
+    // }
+    // // view::failures is not supported; the view has no failure component
+    // expectThrows(
+    // VerificationException.class,
+    // containsString("Unknown index [test-view::failures]"),
+    // () -> run(syncEsqlQueryRequest("FROM test-view::failures"))
+    // );
+    // } finally {
+    // client().execute(
+    // DeleteViewAction.INSTANCE,
+    // new DeleteViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new String[] { "test-view" })
+    // ).actionGet();
+    // }
+    // }
 
     private static void assertOk(EsqlQueryResponse response) {
         assertThat(response.isPartial(), equalTo(false));

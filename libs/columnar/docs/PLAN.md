@@ -38,10 +38,13 @@ The direction, the decisions that constrain it, and the build order. Update as d
   `DecodeBlockTransformBenchmark`) covering Delta, Offset, GCD, SplitDelta, ALP, and FOR
   across ten block shapes.
 - Per-field pipeline selection: `NumericPipelineSelector` (`@FunctionalInterface`
-  `select(fieldName, blockSize) -> NumericPipeline`) injected into `ColumNARDocValuesFormat` at
-  construction time; four named pipeline factories cover monotonic-long, double-gauge,
-  double-counter, and default routing. Server-side wiring into `PerFieldFormatSupplier` is a
-  follow-up (see Next).
+  `select(fieldName, type) -> NumericPipelineTemplate`) injected into `ColumNARDocValuesFormat`
+  at construction time alongside an explicit `blockSize`. The selector answers "which pipeline
+  type?" without knowing the block size; the format applies its `blockSize` to the returned
+  template. Four named factories on `NumericPipeline` satisfy `NumericPipelineTemplate` as method
+  references (`defaultPipeline`, `monotonicLongPipeline`, `doubleGaugePipeline`,
+  `doubleCounterPipeline`). Server-side wiring into `PerFieldFormatSupplier` is a follow-up (see
+  Next).
 
 ## Next
 
@@ -58,6 +61,17 @@ The direction, the decisions that constrain it, and the build order. Update as d
   frozen id, applied after the terminal, so it stays additive and BWC), backed by
   `org.elasticsearch.nativeaccess.Zstd` rather than a Java LZ4. Most useful on the low-entropy stages
   (terms dictionary, plain keyword bytes).
+- **Benchmark expansion**: four follow-up items tracked in
+  `~/workspace/todo/es96-columnar/followup-benchmark-expansion.md`:
+  1. Isolated force-merge benchmark (`ColumnarNumericForceMergeBenchmark`): builds N segments in
+     `@Setup`, measures only `forceMerge(1)` in `@Benchmark`; params: `format`, `workload`,
+     `blockSize`, `segmentCount`.
+  2. Sparse workloads: add `SPARSE_10` / `SPARSE_50` fill-factor variants to `NumericData` (or a
+     wrapper); add `fillFactor` `@Param` to ingest and decode benchmarks.
+  3. Sparse random-access decode (`ColumnarNumericRandomAccessBenchmark`): seeks to pre-generated
+     random doc IDs via `advanceExact`; exercises the skip index; params `accessFraction`.
+  4. Expanded range selectivity: add `0.01` and `0.1` to `ColumnarNumericRangeSlicingBenchmark`'s
+     `selectivity` `@Param`.
 - **Multi-value benchmark coverage**: `ColumnarNumericIngestBenchmark` and `ColumnarNumericDecodeBenchmark`
   only exercise the single-value path (`FIELD_TYPE_PACKED_LONG`). The multi-value path
   (`FIELD_TYPE_PACKED_LONGS_MV`) is implemented in the consumer but has no JMH coverage. A realistic

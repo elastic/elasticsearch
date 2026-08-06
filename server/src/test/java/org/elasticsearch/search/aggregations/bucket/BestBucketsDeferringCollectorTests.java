@@ -487,10 +487,8 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
         void run(IndexSearcher searcher) throws IOException;
     }
 
-    /** Opens an index, creates a searcher, and passes it to {@code body}; segments default to one of 5 docs. */
     private void withSearcher(SearcherTest body, int... docsPerSegment) throws IOException {
-        int[] segments = docsPerSegment.length == 0 ? new int[] { 5 } : docsPerSegment;
-        try (Directory dir = buildIndex(segments); IndexReader reader = DirectoryReader.open(dir)) {
+        try (Directory dir = buildIndex(docsPerSegment); IndexReader reader = DirectoryReader.open(dir)) {
             body.run(newSearcher(reader));
         }
     }

@@ -58,19 +58,15 @@ public final class AsymmetricHashingScorer {
 
         for (int k = 0; k < nClusters; k++) {
             float[] centroid = centroids[k];
-            double dotQC = 0;
-            for (int d = 0; d < originalDim; d++) {
-                dotQC += (double) query[d] * centroid[d];
-            }
-            queryDotCentroid[k] = (float) dotQC;
+            queryDotCentroid[k] = ESVectorUtil.dotProduct(query, centroid, originalDim);
 
             // queryTransformed[k] = (query - centroid_k) @ W
             for (int j = 0; j < nDims; j++) {
-                double sum = 0;
+                float sum = 0;
                 for (int d = 0; d < originalDim; d++) {
-                    sum += (double) (query[d] - centroid[d]) * w[d][j];
+                    sum = Math.fma(query[d] - centroid[d], w[d][j], sum);
                 }
-                queryTransformed[k][j] = (float) sum;
+                queryTransformed[k][j] = sum;
             }
         }
 
@@ -82,12 +78,8 @@ public final class AsymmetricHashingScorer {
             float[] enc = encodedVectors[i];
 
             // dot product in latent space
-            double dot = 0;
-            for (int j = 0; j < nDims; j++) {
-                dot += (double) qt[j] * enc[j];
-            }
-
-            results[i] = (float) dot * scales[i] + queryDotCentroid[k] + offsets[i];
+            float dot = ESVectorUtil.dotProduct(qt, enc, nDims);
+            results[i] = dot * scales[i] + queryDotCentroid[k] + offsets[i];
         }
 
         return results;
@@ -111,12 +103,8 @@ public final class AsymmetricHashingScorer {
         float scale,
         float offset
     ) {
-        int nDims = queryTransformedForCluster.length;
-        double dot = 0;
-        for (int j = 0; j < nDims; j++) {
-            dot += (double) queryTransformedForCluster[j] * encodedVector[j];
-        }
-        return (float) dot * scale + queryDotCentroid + offset;
+        float dot = ESVectorUtil.dotProduct(queryTransformedForCluster, encodedVector);
+        return dot * scale + queryDotCentroid + offset;
     }
 
     /**

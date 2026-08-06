@@ -109,7 +109,6 @@ public final class AshProjectionMatrix {
         out.writeInt(nDims);
         ByteBuffer buffer = ByteBuffer.allocate(nDims * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
         for (int i = 0; i < originalDim; i++) {
-            buffer.clear();
             buffer.asFloatBuffer().put(w[i]);
             out.writeBytes(buffer.array(), nDims * Float.BYTES);
         }
@@ -130,7 +129,6 @@ public final class AshProjectionMatrix {
         ByteBuffer buffer = ByteBuffer.wrap(rowBytes).order(ByteOrder.LITTLE_ENDIAN);
         for (int i = 0; i < originalDim; i++) {
             in.readBytes(rowBytes, 0, nDims * Float.BYTES);
-            buffer.clear();
             buffer.asFloatBuffer().get(w[i]);
         }
         return new AshProjectionMatrix(w);

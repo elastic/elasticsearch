@@ -9,7 +9,10 @@
 
 package org.elasticsearch.index.codec.vectors.ash;
 
+import org.elasticsearch.simdvec.ESVectorUtil;
+
 import java.util.Arrays;
+import java.util.function.IntUnaryOperator;
 
 /**
  * Spherical scalar quantizer for ASH. Quantizes each dimension of the
@@ -127,7 +130,7 @@ final class AshSphericalScalarQuantizer {
         // Base level: all dims at 0.5 -> cumDot = sum(0.5 * |z_j|), cumNormSq = 0.25 * d
         double cumDot = 0;
         for (int j = 0; j < d; j++) {
-            cumDot += 0.5 * absZ[j];
+            cumDot = Math.fma(0.5, absZ[j], cumDot);
         }
         double cumNormSq = 0.25 * d;
         double bestValue = cumDot / Math.sqrt(cumNormSq);
@@ -154,7 +157,6 @@ final class AshSphericalScalarQuantizer {
         }
 
         // Write output: upgraded dims get magnitude 1.5, others stay at 0.5
-        double normSq = 0;
         for (int j = 0; j < d; j++) {
             out[j] = Math.copySign(0.5f, z[j]);
         }
@@ -162,10 +164,8 @@ final class AshSphericalScalarQuantizer {
             int dim = order[k];
             out[dim] = Math.copySign(1.5f, z[dim]);
         }
-        for (int j = 0; j < d; j++) {
-            normSq += (double) out[j] * out[j];
-        }
-        return (float) Math.sqrt(normSq);
+        float norm = ESVectorUtil.dotProduct(out, out, d);
+        return (float) Math.sqrt(norm);
     }
 
     /**
@@ -184,7 +184,7 @@ final class AshSphericalScalarQuantizer {
         // Base level: all at 0.5
         double currentDot = 0;
         for (int j = 0; j < d; j++) {
-            currentDot += 0.5 * absZ[j];
+            currentDot = Math.fma(0.5, absZ[j], currentDot);
         }
         double currentNormSq = 0.25 * d;
 
@@ -214,9 +214,7 @@ final class AshSphericalScalarQuantizer {
 
             // Sort events by time
             int[] order = new int[eventCount];
-            for (int i = 0; i < eventCount; i++) {
-                order[i] = i;
-            }
+            Arrays.setAll(order, IntUnaryOperator.identity());
             IndirectSorter.sortAscendingByDouble(order, eventTimes, eventCount);
 
             // Sweep through events, tracking cumulative dot product and norm
@@ -233,7 +231,7 @@ final class AshSphericalScalarQuantizer {
                 int level = eventLevels[oi];
 
                 cumDot += absZ[dim];
-                cumNormSq += 2.0 * level;
+                cumNormSq = Math.fma(2f, level, cumNormSq);
                 dimLevelCount[dim]++;
 
                 // Handle ties: skip if next event has same time
@@ -263,12 +261,11 @@ final class AshSphericalScalarQuantizer {
         }
 
         // Final conversion: centered code = sign * (0.5 + bestIdx)
-        double normSq = 0;
         for (int j = 0; j < d; j++) {
             float mag = 0.5f + bestIdx[j];
             out[j] = signs[j] * mag;
-            normSq += (double) out[j] * out[j];
         }
-        return (float) Math.sqrt(normSq);
+        float norm = ESVectorUtil.dotProduct(out, out, d);
+        return (float) Math.sqrt(norm);
     }
 }

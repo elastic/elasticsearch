@@ -9,6 +9,10 @@
 
 package org.elasticsearch.index.codec.vectors.ash;
 
+import org.elasticsearch.simdvec.ESVectorUtil;
+
+import java.util.Arrays;
+
 /**
  * Utility class providing thin SVD decomposition via one-sided Jacobi rotations.
  * <p>
@@ -70,9 +74,9 @@ final class SvdUtil {
                     // Compute 2x2 Gram matrix elements for columns p, q
                     double app = 0, aqq = 0, apq = 0;
                     for (int i = 0; i < m; i++) {
-                        app += (double) work[i][p] * work[i][p];
-                        aqq += (double) work[i][q] * work[i][q];
-                        apq += (double) work[i][p] * work[i][q];
+                        app = Math.fma(work[i][p], work[i][p], app);
+                        aqq = Math.fma(work[i][q], work[i][q], aqq);
+                        apq = Math.fma(work[i][p], work[i][q], apq);
                     }
 
                     if (Math.abs(apq) < 1e-10 * Math.sqrt(app * aqq)) {
@@ -119,7 +123,7 @@ final class SvdUtil {
         for (int j = 0; j < n; j++) {
             double norm = 0;
             for (int i = 0; i < m; i++) {
-                norm += (double) work[i][j] * work[i][j];
+                norm = Math.fma(work[i][j], work[i][j], norm);
             }
             s[j] = (float) Math.sqrt(norm);
             if (s[j] > 1e-10f) {
@@ -180,7 +184,7 @@ final class SvdUtil {
                     double xli = xRow[i];
                     double[] xtxRow = xtx[i];
                     for (int j = i; j < k; j++) {
-                        xtxRow[j] += xli * xRow[j];
+                        xtxRow[j] = Math.fma(xli, xRow[j], xtxRow[j]);
                     }
                 }
             }
@@ -221,7 +225,7 @@ final class SvdUtil {
                     double xVal = xRow[l];
                     double[] bRow = b[l];
                     for (int j = 0; j < k; j++) {
-                        xNewRow[j] += xVal * bRow[j];
+                        xNewRow[j] = Math.fma(xVal, bRow[j], xNewRow[j]);
                     }
                 }
             }
@@ -246,26 +250,20 @@ final class SvdUtil {
         float[] v = new float[k];
         // Initialize with uniform vector
         float initVal = (float) (1.0 / Math.sqrt(k));
-        for (int i = 0; i < k; i++) {
-            v[i] = initVal;
-        }
+        Arrays.fill(v, initVal);
         float[] mv = new float[k];
         float[] mtmv = new float[k];
         for (int iter = 0; iter < iterations; iter++) {
             // mv = M @ v
             for (int i = 0; i < k; i++) {
-                double sum = 0;
-                for (int j = 0; j < k; j++) {
-                    sum += (double) m[i][j] * v[j];
-                }
-                mv[i] = (float) sum;
+                mv[i] = ESVectorUtil.dotProduct(m[i], v, k);
             }
             // mtmv = M^T @ mv
             double normSq = 0;
             for (int j = 0; j < k; j++) {
                 double sum = 0;
                 for (int i = 0; i < k; i++) {
-                    sum += (double) m[i][j] * mv[i];
+                    sum = Math.fma(m[i][j], mv[i], sum);
                 }
                 mtmv[j] = (float) sum;
                 normSq += sum * sum;
@@ -282,7 +280,7 @@ final class SvdUtil {
         for (int i = 0; i < k; i++) {
             double sum = 0;
             for (int j = 0; j < k; j++) {
-                sum += (double) m[i][j] * v[j];
+                sum = Math.fma(m[i][j], v[j], sum);
             }
             mvNormSq += sum * sum;
         }
@@ -408,11 +406,7 @@ final class SvdUtil {
                 float[] wRow = w[i];
                 for (int j = 0; j < k; j++) {
                     float[] vtRow = vT[j];
-                    float sum = 0;
-                    for (int d = 0; d < n; d++) {
-                        sum += aRow[d] * vtRow[d];
-                    }
-                    wRow[j] = sum;
+                    wRow[j] = ESVectorUtil.dotProduct(aRow, vtRow, n);
                 }
             }
 
@@ -425,7 +419,7 @@ final class SvdUtil {
                     float aVal = aRow[d];
                     float[] vNewRow = vNew[d];
                     for (int j = 0; j < k; j++) {
-                        vNewRow[j] += aVal * wRow[j];
+                        vNewRow[j] = Math.fma(aVal, wRow[j], vNewRow[j]);
                     }
                 }
             }
@@ -452,16 +446,16 @@ final class SvdUtil {
             for (int prev = 0; prev < j; prev++) {
                 double dot = 0;
                 for (int i = 0; i < n; i++) {
-                    dot += (double) v[i][j] * v[i][prev];
+                    dot = Math.fma(v[i][j], v[i][prev], dot);
                 }
                 for (int i = 0; i < n; i++) {
-                    v[i][j] -= (float) (dot * v[i][prev]);
+                    v[i][j] = (float) Math.fma(-dot, v[i][prev], v[i][j]);
                 }
             }
             // Normalize column j
             double normSq = 0;
             for (int i = 0; i < n; i++) {
-                normSq += (double) v[i][j] * v[i][j];
+                normSq = Math.fma(v[i][j], v[i][j], normSq);
             }
             float invNorm = (float) (1.0 / Math.sqrt(normSq));
             if (Float.isFinite(invNorm)) {
@@ -486,7 +480,7 @@ final class SvdUtil {
             for (int i = 0; i < m; i++) {
                 u[i] = (float) rng.nextGaussian();
             }
-            normalize(u);
+            ESVectorUtil.l2Normalize(u);
 
             // Power iteration on A A^T: u <- A (A^T u) / ||...||
             for (int iter = 0; iter < 100; iter++) {
@@ -495,30 +489,23 @@ final class SvdUtil {
                 for (int j = 0; j < n; j++) {
                     double sum = 0;
                     for (int i = 0; i < m; i++) {
-                        sum += (double) a[i][j] * u[i];
+                        sum = Math.fma(a[i][j], u[i], sum);
                     }
                     w[j] = (float) sum;
                 }
                 // u_new = A w (m-dimensional)
                 float[] uNew = new float[m];
                 for (int i = 0; i < m; i++) {
-                    double sum = 0;
-                    for (int j = 0; j < n; j++) {
-                        sum += (double) a[i][j] * w[j];
-                    }
-                    uNew[i] = (float) sum;
+                    uNew[i] = ESVectorUtil.dotProduct(a[i], w, n);
                 }
                 // Deflate
                 for (int d = 0; d < found; d++) {
-                    double dot = 0;
+                    double dot = ESVectorUtil.dotProduct(uNew, deflated[d]);
                     for (int i = 0; i < m; i++) {
-                        dot += (double) uNew[i] * deflated[d][i];
-                    }
-                    for (int i = 0; i < m; i++) {
-                        uNew[i] -= (float) (dot * deflated[d][i]);
+                        uNew[i] = (float) Math.fma(-dot, deflated[d][i], uNew[i]);
                     }
                 }
-                normalize(uNew);
+                ESVectorUtil.l2Normalize(uNew);
                 u = uNew;
             }
             deflated[found] = u;
@@ -529,27 +516,13 @@ final class SvdUtil {
             for (int j = 0; j < n; j++) {
                 double sum = 0;
                 for (int i = 0; i < m; i++) {
-                    sum += (double) a[i][j] * u[i];
+                    sum = Math.fma(a[i][j], u[i], sum);
                 }
                 sv[j] = (float) sum;
             }
-            normalize(sv);
+            ESVectorUtil.l2Normalize(sv);
             result[vec] = sv;
         }
         return result;
-    }
-
-    private static void normalize(float[] v) {
-        double norm = 0;
-        for (float f : v) {
-            norm += (double) f * f;
-        }
-        norm = Math.sqrt(norm);
-        if (norm > 0) {
-            float invNorm = (float) (1.0 / norm);
-            for (int i = 0; i < v.length; i++) {
-                v[i] *= invNorm;
-            }
-        }
     }
 }

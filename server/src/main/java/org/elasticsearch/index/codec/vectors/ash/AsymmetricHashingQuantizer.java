@@ -11,8 +11,10 @@ package org.elasticsearch.index.codec.vectors.ash;
 
 import org.elasticsearch.simdvec.ESVectorUtil;
 
+import java.util.Arrays;
 import java.util.Random;
 import java.util.function.IntFunction;
+import java.util.function.IntUnaryOperator;
 
 /**
  * Asymmetric Hashing quantizer. Learns a projection matrix W that maps vectors from
@@ -119,17 +121,10 @@ public final class AsymmetricHashingQuantizer {
         for (int i = 0; i < trainingSize; i++) {
             int srcIdx = sampleIndices[i];
             float[] centroid = centroids.apply(srcIdx);
-            double normSq = 0;
             for (int d = 0; d < originalDim; d++) {
                 xTraining[i][d] = vectors[srcIdx][d] - centroid[d];
-                normSq += (double) xTraining[i][d] * xTraining[i][d];
             }
-            float invNorm = (float) (1.0 / Math.sqrt(normSq));
-            if (Float.isFinite(invNorm)) {
-                for (int d = 0; d < originalDim; d++) {
-                    xTraining[i][d] *= invNorm;
-                }
-            }
+            ESVectorUtil.l2Normalize(xTraining[i]);
         }
 
         // LEARNED: PCA init + Procrustes
@@ -160,27 +155,14 @@ public final class AsymmetricHashingQuantizer {
         int originalDim = vector.length;
         int nDims = w[0].length;
 
-        // Center
-        float[] centered = new float[originalDim];
-        double normSq = 0;
-        for (int d = 0; d < originalDim; d++) {
-            centered[d] = vector[d] - centroid[d];
-            normSq += (double) centered[d] * centered[d];
-        }
-        float norm = (float) Math.sqrt(normSq);
-
-        // Normalize
-        float invNorm = norm > 0 ? 1.0f / norm : 0;
-        for (int d = 0; d < originalDim; d++) {
-            centered[d] *= invNorm;
-        }
+        var centered = centralizeVector(vector, centroid);
 
         // Project: xLatent = centered @ W
         float[] xLatent = new float[nDims];
         for (int j = 0; j < nDims; j++) {
             double sum = 0;
             for (int d = 0; d < originalDim; d++) {
-                sum += (double) centered[d] * w[d][j];
+                sum = Math.fma(centered.centroidProjected[d], w[d][j], sum);
             }
             xLatent[j] = (float) sum;
         }
@@ -191,18 +173,14 @@ public final class AsymmetricHashingQuantizer {
         float codeNorm = qr.codeNorm();
 
         // Scale: norm / codeNorm
-        float scale = codeNorm > 0 ? norm / codeNorm : 0;
+        float scale = codeNorm > 0 ? (float) Math.sqrt(centered.centroidNormSq) / codeNorm : 0;
 
         // Offset = dot(vector, centroid) - dot(centroid, centroid)
         // The cross-term -scale * <Wμ, code> is NOT included here because the scorer
         // already projects the centered query (q - μ) @ W, which implicitly subtracts it.
-        double dotVecCent = 0;
-        double dotCentCent = 0;
-        for (int d = 0; d < originalDim; d++) {
-            dotVecCent += (double) vector[d] * centroid[d];
-            dotCentCent += (double) centroid[d] * centroid[d];
-        }
-        float offset = (float) (dotVecCent - dotCentCent);
+        float dotVecCent = ESVectorUtil.dotProduct(vector, centroid, originalDim);
+        float dotCentCent = ESVectorUtil.dotProduct(centroid, centroid, originalDim);
+        float offset = dotVecCent - dotCentCent;
 
         return new EncodedVector(xEnc, scale, offset);
     }
@@ -215,6 +193,17 @@ public final class AsymmetricHashingQuantizer {
      * @param centroidNormSq squared L2 norm of the centroid: ||centroid||^2
      */
     public record PrecomputedCentroid(float[] centroidProjected, float centroidNormSq) {}
+
+    private static PrecomputedCentroid centralizeVector(float[] vector, float[] centroid) {
+        int originalDim = vector.length;
+        float[] centered = new float[originalDim];
+        for (int d = 0; d < originalDim; d++) {
+            centered[d] = vector[d] - centroid[d];
+        }
+        float normSq = ESVectorUtil.l2Normalize(centered);
+        // re-use the PrecomputedCentroid record for simplicity...
+        return normSq == 0f ? new PrecomputedCentroid(new float[originalDim], 0) : new PrecomputedCentroid(centered, normSq);
+    }
 
     /**
      * Precomputes centroid-dependent values for a posting list. Call once per cluster,
@@ -245,28 +234,15 @@ public final class AsymmetricHashingQuantizer {
      * @return xEnc/scale/offset for this (vector, centroid) pair
      */
     public EncodedVector encodeOneFast(float[] vector, float[] centroid, float[][] wT, PrecomputedCentroid precomputed) {
-        int originalDim = vector.length;
         int nDims = wT.length;
 
         // Center and compute norm
-        float[] centered = new float[originalDim];
-        double normSq = 0;
-        for (int d = 0; d < originalDim; d++) {
-            centered[d] = vector[d] - centroid[d];
-            normSq += (double) centered[d] * centered[d];
-        }
-        float norm = (float) Math.sqrt(normSq);
-
-        // Normalize
-        float invNorm = norm > 0 ? 1.0f / norm : 0;
-        for (int d = 0; d < originalDim; d++) {
-            centered[d] *= invNorm;
-        }
+        var centered = centralizeVector(vector, centroid);
 
         // Project using transposed W: xLatent[j] = dot(centered, wT[j])
         float[] xLatent = new float[nDims];
         for (int j = 0; j < nDims; j++) {
-            xLatent[j] = ESVectorUtil.dotProduct(centered, wT[j]);
+            xLatent[j] = ESVectorUtil.dotProduct(centered.centroidProjected, wT[j]);
         }
 
         // Quantize
@@ -275,7 +251,7 @@ public final class AsymmetricHashingQuantizer {
         float codeNorm = qr.codeNorm();
 
         // Scale: norm / codeNorm
-        float scale = codeNorm > 0 ? norm / codeNorm : 0;
+        float scale = codeNorm > 0 ? (float) Math.sqrt(centered.centroidNormSq) / codeNorm : 0;
 
         // Offset = dot(vector, centroid) - ||centroid||^2
         float dotVecCent = ESVectorUtil.dotProduct(vector, centroid);
@@ -331,26 +307,14 @@ public final class AsymmetricHashingQuantizer {
 
             nClusters = Math.max(nClusters, clusterLabel);
 
-            // Center
-            double normSq = 0;
-            float[] centered = new float[originalDim];
-            for (int d = 0; d < originalDim; d++) {
-                centered[d] = vectors[i][d] - centroid[d];
-                normSq += (double) centered[d] * centered[d];
-            }
-            norms[i] = (float) Math.sqrt(normSq);
-
-            // Normalize
-            float invNorm = norms[i] > 0 ? 1.0f / norms[i] : 0;
-            for (int d = 0; d < originalDim; d++) {
-                centered[d] *= invNorm;
-            }
+            var centered = centralizeVector(vectors[i], centroid);
+            norms[i] = (float) Math.sqrt(centered.centroidNormSq);
 
             // Project: xLatent[i] = centered @ W
             for (int j = 0; j < nDims; j++) {
                 double sum = 0;
                 for (int d = 0; d < originalDim; d++) {
-                    sum += (double) centered[d] * w[d][j];
+                    sum = Math.fma(centered.centroidProjected[d], w[d][j], sum);
                 }
                 xLatent[i][j] = (float) sum;
             }
@@ -369,13 +333,9 @@ public final class AsymmetricHashingQuantizer {
             // offset = dot(vector, centroid) - dot(centroid, centroid) - scale[i] * dot(centroids @ W, xEnc)
             float[] centroid = centroids.apply(assignments[i]);
 
-            double dotVecCent = 0;
-            double dotCentCent = 0;
-            for (int d = 0; d < originalDim; d++) {
-                dotVecCent += (double) vectors[i][d] * centroid[d];
-                dotCentCent += (double) centroid[d] * centroid[d];
-            }
-            offsets[i] += (float) (dotVecCent - dotCentCent);
+            float dotVecCent = ESVectorUtil.dotProduct(vectors[i], centroid, originalDim);
+            float dotCentCent = ESVectorUtil.dotProduct(centroid, centroid, originalDim);
+            offsets[i] += dotVecCent - dotCentCent;
         }
 
         nClusters++; // we have the max cluster ID so far, add one to get the size
@@ -453,18 +413,18 @@ public final class AsymmetricHashingQuantizer {
         for (int j = 0; j < nDims; j++) {
             // Subtract projections of previous columns
             for (int prev = 0; prev < j; prev++) {
-                double dot = 0;
+                float dot = 0;
                 for (int i = 0; i < originalDim; i++) {
-                    dot += (double) q[i][j] * q[i][prev];
+                    dot = Math.fma(q[i][j], q[i][prev], dot);
                 }
                 for (int i = 0; i < originalDim; i++) {
-                    q[i][j] -= (float) dot * q[i][prev];
+                    q[i][j] = Math.fma(-dot, q[i][prev], q[i][j]);
                 }
             }
-            // Normalize
+            // Normalize (note iterating across rows)
             double normSq = 0;
             for (int i = 0; i < originalDim; i++) {
-                normSq += (double) q[i][j] * q[i][j];
+                normSq = Math.fma(q[i][j], q[i][j], normSq);
             }
             float invNorm = (float) (1.0 / Math.sqrt(normSq));
             for (int i = 0; i < originalDim; i++) {
@@ -482,16 +442,12 @@ public final class AsymmetricHashingQuantizer {
     private int[] sampleIndices(int n, int sampleSize) {
         if (sampleSize >= n) {
             int[] all = new int[n];
-            for (int i = 0; i < n; i++) {
-                all[i] = i;
-            }
+            Arrays.setAll(all, IntUnaryOperator.identity());
             return all;
         }
         Random rng = new Random(seed);
         int[] indices = new int[n];
-        for (int i = 0; i < n; i++) {
-            indices[i] = i;
-        }
+        Arrays.setAll(indices, IntUnaryOperator.identity());
         for (int i = 0; i < sampleSize; i++) {
             int j = i + rng.nextInt(n - i);
             int tmp = indices[i];
@@ -514,7 +470,7 @@ public final class AsymmetricHashingQuantizer {
                 float aVal = aRow[l];
                 float[] bRow = b[l];
                 for (int j = 0; j < n; j++) {
-                    cRow[j] += aVal * bRow[j];
+                    cRow[j] = Math.fma(aVal, bRow[j], cRow[j]);
                 }
             }
         }
@@ -534,7 +490,7 @@ public final class AsymmetricHashingQuantizer {
                 float aVal = aRow[i];
                 float[] cRow = c[i];
                 for (int j = 0; j < n; j++) {
-                    cRow[j] += aVal * bRow[j];
+                    cRow[j] = Math.fma(aVal, bRow[j], cRow[j]);
                 }
             }
         }

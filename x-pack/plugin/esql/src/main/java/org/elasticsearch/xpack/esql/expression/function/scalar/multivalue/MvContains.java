@@ -27,7 +27,11 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.BinaryScalarFunction;
+import org.elasticsearch.xpack.esql.core.querydsl.query.BoolQuery;
+import org.elasticsearch.xpack.esql.core.querydsl.query.ExistsQuery;
+import org.elasticsearch.xpack.esql.core.querydsl.query.NotQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
+import org.elasticsearch.xpack.esql.core.querydsl.query.TermsQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.TermsSetQuery;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -334,7 +338,22 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper,
     @Override
     public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
         // TODO: Add Lucene pushdown for spatial types too
-        DataType dataType = right().dataType();
+        Expression fieldExpression;
+        Expression foldableExpression;
+        boolean fieldIsLeft;
+        if (pushdownPredicates.isPushableFieldAttribute(left()) && right().foldable()) {
+            fieldExpression = left();
+            foldableExpression = right();
+            fieldIsLeft = true;
+        } else if (pushdownPredicates.isPushableFieldAttribute(right()) && left().foldable()) {
+            fieldExpression = right();
+            foldableExpression = left();
+            fieldIsLeft = false;
+        } else {
+            return Translatable.NO;
+        }
+
+        DataType dataType = fieldExpression.dataType();
         if (dataType.isNumeric() == false
             && DataType.isString(dataType) == false
             && dataType.isDate() == false
@@ -344,28 +363,45 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper,
             return Translatable.NO;
         }
 
-        if (pushdownPredicates.isPushableFieldAttribute(left()) && right().foldable()) {
-            Object literalValue = literalValueOf(right());
-            if (literalValue == null) {
-                return Translatable.NO;
-            }
-            if (literalValue instanceof List<?> list && list.isEmpty()) {
-                return Translatable.NO;
-            }
-
-            return Translatable.YES;
+        Object literalValue = literalValueOf(foldableExpression);
+        if (literalValue == null || (literalValue instanceof List<?> list && list.isEmpty())) {
+            return Translatable.NO;
         }
-        return Translatable.NO;
+
+        // The reverse form needs a row-level recheck: a terms query only proves that a field has at least one
+        // value from the constant set, not that all of its values are contained in that set. It also uses a
+        // missing-field clause below because MV_CONTAINS(constant, NULL) is true.
+        return fieldIsLeft ? Translatable.YES : Translatable.RECHECK_BUT_NO_NEGATED;
     }
 
     @Override
     public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
-        Object literalValue = literalValueOf(right());
+        Expression fieldExpression;
+        Expression foldableExpression;
+        boolean fieldIsLeft;
+        if (pushdownPredicates.isPushableFieldAttribute(left())) {
+            fieldExpression = left();
+            foldableExpression = right();
+            fieldIsLeft = true;
+        } else {
+            fieldExpression = right();
+            foldableExpression = left();
+            fieldIsLeft = false;
+        }
+
+        Object literalValue = literalValueOf(foldableExpression);
         List<?> values = literalValue instanceof List ? (List<?>) literalValue : List.of(literalValue);
 
         LinkedHashSet<Object> terms = new LinkedHashSet<>();
-        values.forEach(v -> terms.add(Foldables.literalValueAsLuceneQueryObject(v, left().dataType())));
+        values.forEach(v -> terms.add(Foldables.literalValueAsLuceneQueryObject(v, fieldExpression.dataType())));
 
-        return new TermsSetQuery(source(), handler.nameOf(left()), terms);
+        String fieldName = handler.nameOf(fieldExpression);
+        if (fieldIsLeft) {
+            return new TermsSetQuery(source(), fieldName, terms);
+        }
+
+        Query fieldContainsConstant = new TermsQuery(source(), fieldName, terms);
+        Query fieldIsMissing = new NotQuery(source(), new ExistsQuery(source(), fieldName));
+        return new BoolQuery(source(), false, fieldContainsConstant, fieldIsMissing);
     }
 }

@@ -279,6 +279,6 @@ public final class IndexInputUtils {
     ) throws IOException {
         byte[] buf = scratchSupplier.apply(bytesToRead);
         in.readBytes(buf, 0, bytesToRead);
-        return MemorySegmentUtils.withDowncallSegment(buf, bytesToRead, action::apply);
+        return MemorySegmentUtils.withDowncallSegment(buf, bytesToRead, action);
     }
 }

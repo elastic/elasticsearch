@@ -9,6 +9,8 @@
 
 package org.elasticsearch.foreign.adapter;
 
+import org.elasticsearch.core.CheckedFunction;
+
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
@@ -36,7 +38,8 @@ public final class MemorySegmentUtils {
      * @param action the action to apply to the segment
      * @return the result of applying {@code action}
      */
-    public static <R, E extends Exception> R withDowncallSegment(byte[] array, int length, SegmentFunction<R, E> action) throws E {
+    public static <R, E extends Exception> R withDowncallSegment(byte[] array, int length, CheckedFunction<MemorySegment, R, E> action)
+        throws E {
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment segment = arena.allocate(length);
             MemorySegment.copy(array, 0, segment, ValueLayout.JAVA_BYTE, 0, length);

@@ -9,6 +9,8 @@
 
 package org.elasticsearch.foreign.adapter;
 
+import org.elasticsearch.core.CheckedFunction;
+
 import java.lang.foreign.MemorySegment;
 
 /**
@@ -34,7 +36,8 @@ public final class MemorySegmentUtils {
      * @param action the action to apply to the segment
      * @return the result of applying {@code action}
      */
-    public static <R, E extends Exception> R withDowncallSegment(byte[] array, int length, SegmentFunction<R, E> action) throws E {
+    public static <R, E extends Exception> R withDowncallSegment(byte[] array, int length, CheckedFunction<MemorySegment, R, E> action)
+        throws E {
         return action.apply(MemorySegment.ofArray(array).asSlice(0, length));
     }
 }

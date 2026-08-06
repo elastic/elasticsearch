@@ -1096,13 +1096,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
-    private Supplier<DirectoryMetrics> storeMetricsDelta() {
-        return Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled() ? indicesService.storeMetricsDelta() : EMPTY_SUPPLIER;
-    }
-
     // Holders are disjoint: store is flag-gated, cache is always-on.
     private Supplier<DirectoryMetrics> directoryMetricsDelta() {
-        final Supplier<DirectoryMetrics> store = storeMetricsDelta();
+        final Supplier<DirectoryMetrics> store = Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled()
+            ? indicesService.storeMetricsDelta()
+            : EMPTY_SUPPLIER;
         final Supplier<DirectoryMetrics> cache = indicesService.cacheMetricsDelta();
         return () -> store.get().merge(cache.get());
     }

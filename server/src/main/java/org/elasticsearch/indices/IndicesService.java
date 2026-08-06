@@ -2072,23 +2072,28 @@ public class IndicesService extends AbstractLifecycleComponent
      * @return supplier to give the delta of all directory metrics. Must be called from the same thread as this method.
      */
     public Supplier<DirectoryMetrics> directoryMetricsDelta() {
-        return assertThread(buildDirectoryMetricsDelta(s -> true));
+        return assertThread(buildDirectoryMetricsDelta(false));
     }
 
     /** Like {@link #directoryMetricsDelta()} but limited to {@link StoreMetrics#NAME}. */
     public Supplier<DirectoryMetrics> storeMetricsDelta() {
-        return assertThread(buildDirectoryMetricsDelta(StoreMetrics.NAME::equals));
+        DirectoryMetrics.Builder builder = new DirectoryMetrics.Builder();
+        PluggableDirectoryMetricsHolder<?> holder = directoryMetricHolderMap.get(StoreMetrics.NAME);
+        if (holder != null) {
+            builder.add(StoreMetrics.NAME, holder.instance());
+        }
+        return assertThread(builder.build().delta());
     }
 
     /** Like {@link #directoryMetricsDelta()} but excludes {@link StoreMetrics#NAME}; always measured regardless of feature flag. */
     public Supplier<DirectoryMetrics> cacheMetricsDelta() {
-        return assertThread(buildDirectoryMetricsDelta(s -> StoreMetrics.NAME.equals(s) == false));
+        return assertThread(buildDirectoryMetricsDelta(true));
     }
 
-    private Supplier<DirectoryMetrics> buildDirectoryMetricsDelta(Predicate<String> keyFilter) {
+    private Supplier<DirectoryMetrics> buildDirectoryMetricsDelta(boolean excludeStore) {
         DirectoryMetrics.Builder directoryMetricsBuilder = new DirectoryMetrics.Builder();
         directoryMetricHolderMap.forEach((s, m) -> {
-            if (keyFilter.test(s)) {
+            if (excludeStore == false || StoreMetrics.NAME.equals(s) == false) {
                 directoryMetricsBuilder.add(s, m.instance());
             }
         });

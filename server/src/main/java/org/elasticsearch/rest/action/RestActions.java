@@ -312,7 +312,7 @@ public class RestActions {
 
     /**
      * Wraps listener to expose the {@link DirectoryMetrics} from the response to the client via HTTP response
-     * header. The header is omitted when {@link DirectoryMetrics#entries()} is empty.
+     * header. The header is only added when the extracted metrics are non-empty.
      * <p>
      * In case requests fan out into several internal searches; the {@code metricsExtractor} function
      * is responsible for returning the single, already-merged {@link DirectoryMetrics} for the whole response so that a
@@ -329,10 +329,12 @@ public class RestActions {
     ) {
         return delegate.delegateFailureAndWrap((l, response) -> {
             DirectoryMetrics metrics = metricsExtractor.apply(response);
-            // isEmpty() is insufficient: a holder may be non-empty but contribute no entries (e.g. zero waits).
-            var entries = metrics.entries();
-            if (entries.isEmpty() == false) {
-                String value = entries.entrySet().stream().map(e -> e.getKey() + "=" + e.getValue()).collect(Collectors.joining(","));
+            if (metrics.entries().isEmpty() == false) {
+                String value = metrics.entries()
+                    .entrySet()
+                    .stream()
+                    .map(e -> e.getKey() + "=" + e.getValue())
+                    .collect(Collectors.joining(","));
                 threadContext.addResponseHeader(SEARCH_METRICS_RESPONSE_HEADER, value);
             }
             l.onResponse(response);

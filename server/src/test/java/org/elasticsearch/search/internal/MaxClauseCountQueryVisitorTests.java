@@ -9,8 +9,13 @@
 
 package org.elasticsearch.search.internal;
 
+import org.apache.lucene.document.Document;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -22,6 +27,8 @@ import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.store.ByteBuffersDirectory;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
@@ -32,10 +39,12 @@ import org.elasticsearch.lucene.search.FuzzyQueries;
 import org.elasticsearch.lucene.search.cost.PointRangeQueryCostEstimator;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.lucene.search.Queries.ALL_DOCS_INSTANCE;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class MaxClauseCountQueryVisitorTests extends ESTestCase {
@@ -137,6 +146,45 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
             FuzzyQueries.estimateBytes(fq),
             visitor.getEstimatedBytes()
         );
+    }
+
+    public void testFuzzyClauseChargeGrowsWithSegmentCount() {
+        FuzzyQuery fq = new FuzzyQuery(new Term("field", "value0"), 2, 1, 50, true);
+
+        MaxClauseCountQueryVisitor singleSegment = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount(), null, null, 1);
+        MaxClauseCountQueryVisitor manySegments = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount(), null, null, 128);
+
+        fq.visit(singleSegment);
+        fq.visit(manySegments);
+
+        assertEquals(FuzzyQueries.estimateBytes(fq, 1), singleSegment.getEstimatedBytes());
+        assertEquals(FuzzyQueries.estimateBytes(fq, 128), manySegments.getEstimatedBytes());
+        assertThat(
+            "a fuzzy clause charged against a 128-segment reader must cost strictly more than against a 1-segment reader",
+            manySegments.getEstimatedBytes(),
+            greaterThan(singleSegment.getEstimatedBytes())
+        );
+    }
+
+    public void testSegmentCountOrDefaultFallsBackToDefaultWhenReaderIsNull() {
+        assertEquals(FuzzyQueries.DEFAULT_SEGMENT_COUNT_WHEN_UNKNOWN, MaxClauseCountQueryVisitor.segmentCountOrDefault(null));
+    }
+
+    public void testSegmentCountOrDefaultUsesRealReaderLeafCount() throws IOException {
+        int segments = randomIntBetween(2, 5);
+        try (Directory directory = new ByteBuffersDirectory()) {
+            IndexWriterConfig writerConfig = new IndexWriterConfig(null).setMergePolicy(NoMergePolicy.INSTANCE);
+            try (IndexWriter writer = new IndexWriter(directory, writerConfig)) {
+                for (int i = 0; i < segments; i++) {
+                    writer.addDocument(new Document());
+                    writer.flush();
+                }
+                writer.commit();
+            }
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                assertEquals(segments, MaxClauseCountQueryVisitor.segmentCountOrDefault(reader));
+            }
+        }
     }
 
     public void testChargesPointRangeQueryStructuralOnly() {

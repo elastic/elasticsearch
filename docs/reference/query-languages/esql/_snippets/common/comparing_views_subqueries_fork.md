@@ -21,7 +21,7 @@
 
 ### How views differ from FROM subqueries
 
-* Views must be defined using the [REST API](/reference/query-languages/esql/esql-views.md#defining-views) before they can be used in queries. Subqueries are written inline and require no setup.
+* Views must be defined using the [REST API](/reference/query-languages/esql/esql-views.md#create-and-manage-views) before they can be used in queries. Subqueries are written inline and require no setup.
 * Views have names that are unique within the index namespace. A view cannot share a name with an index.
 * Views can be nested (up to a depth of 10), with two restrictions:
   * Cyclic references are not allowed. For example, if `viewA` references `viewB` and `viewB` references `viewC`, then `viewC` cannot reference `viewA`. Cycles are detected at query time.

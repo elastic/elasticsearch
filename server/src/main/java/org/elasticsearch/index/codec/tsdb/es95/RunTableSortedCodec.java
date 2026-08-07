@@ -180,6 +180,8 @@ final class RunTableSortedCodec implements SortedOrdinalCodec {
             final SortedFieldObserver sortedFieldObserver
         ) throws IOException {
             ctx.meta().writeByte(RunTableLayout.LAYOUT_DEFAULT);
+            // Re-reading the field is safe: TsdbDocValuesProducer is stateless and supports multiple
+            // getSortedNumeric calls for the same field within a single flush.
             return fallback.createWriter(ctx).writeOrdinals(field, values, maxOrd, docValueCountConsumer, sortedFieldObserver);
         }
     }

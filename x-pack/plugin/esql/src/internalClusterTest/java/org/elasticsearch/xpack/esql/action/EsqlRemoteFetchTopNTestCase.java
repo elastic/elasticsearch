@@ -435,7 +435,58 @@ public abstract class EsqlRemoteFetchTopNTestCase extends AbstractEsqlIntegTestC
         }
     }
 
-    public void testUnionTypedField() {
+    public void testPotentiallyUnmappedFieldDoesNotUseRemoteFetch() {
+        String mappedIndex = indexName + "_mapped";
+        String unmappedIndex = indexName + "_unmapped";
+        client().admin()
+            .indices()
+            .prepareCreate(mappedIndex)
+            .setSettings(indexSettings(1, 0))
+            .setMapping("unique_sort", "type=long", "optional", "type=keyword")
+            .get();
+        client().admin()
+            .indices()
+            .prepareCreate(unmappedIndex)
+            .setSettings(indexSettings(1, 0))
+            // Keep "optional" in _source without adding it to this index's mapping.
+            .setMapping("""
+                {
+                  "dynamic": false,
+                  "properties": {
+                    "unique_sort": { "type": "long" }
+                  }
+                }
+                """)
+            .get();
+
+        BulkRequestBuilder bulk = client().prepareBulk();
+        for (int i = 0; i < 3; i++) {
+            bulk.add(prepareIndex(mappedIndex).setSource("unique_sort", i, "optional", "mapped-" + i));
+            bulk.add(prepareIndex(unmappedIndex).setSource("unique_sort", i + 3, "optional", "unmapped-" + (i + 3)));
+        }
+        bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+
+        try (
+            EsqlQueryResponse response = runQuery(
+                "SET unmapped_fields=\"load\"; FROM "
+                    + mappedIndex
+                    + ","
+                    + unmappedIndex
+                    + " | SORT unique_sort + 1 DESC | LIMIT 3 | KEEP unique_sort, optional",
+                true
+            )
+        ) {
+            assertThat(
+                EsqlTestUtils.getValuesList(response),
+                equalTo(List.of(List.of(5L, "unmapped-5"), List.of(4L, "unmapped-4"), List.of(3L, "unmapped-3")))
+            );
+            assertThat(remoteFetchStatuses(response), empty());
+            assertFieldLoadedBeforeFetch(response, "unique_sort");
+            assertFieldLoadedBeforeFetch(response, "optional");
+        }
+    }
+
+    public void testUnionTypedFieldDoesNotUseRemoteFetch() {
         String dateIndex = indexName + "_date";
         String dateNanosIndex = indexName + "_date_nanos";
         client().admin()
@@ -462,19 +513,16 @@ public abstract class EsqlRemoteFetchTopNTestCase extends AbstractEsqlIntegTestC
 
         try (
             EsqlQueryResponse response = runQuery(
-                "FROM " + dateIndex + "," + dateNanosIndex + " | SORT unique_sort DESC | LIMIT 3 | KEEP unique_sort, union_value",
+                "FROM " + dateIndex + "," + dateNanosIndex + " | SORT unique_sort ASC | LIMIT 6 | KEEP unique_sort, union_value",
                 true
             )
         ) {
             List<List<Object>> values = EsqlTestUtils.getValuesList(response);
-            assertThat(values.stream().map(List::getFirst).toList(), equalTo(List.of(7L, 6L, 5L)));
-            assertThat(
-                values.stream().map(row -> row.get(1).toString()).toList(),
-                equalTo(List.of("2026-01-01T00:00:07.123456789Z", "2026-01-01T00:00:06.123456789Z", "2026-01-01T00:00:05.123456789Z"))
-            );
-            assertRemoteFetchRows(response, 3);
+            assertThat(values.stream().map(List::getFirst).toList(), equalTo(List.of(0L, 1L, 2L, 3L, 4L, 5L)));
+            assertTrue(values.stream().allMatch(row -> row.get(1).toString().startsWith("2026-01-01T00:00:0")));
+            assertThat(remoteFetchStatuses(response), empty());
             assertFieldLoadedBeforeFetch(response, "unique_sort");
-            assertFieldNotLoadedBeforeFetch(response, "union_value");
+            assertFieldLoadedBeforeFetch(response, "union_value");
         }
     }
 

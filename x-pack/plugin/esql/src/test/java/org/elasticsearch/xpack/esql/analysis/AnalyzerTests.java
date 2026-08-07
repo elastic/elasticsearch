@@ -2535,6 +2535,33 @@ public class AnalyzerTests extends ESTestCase {
         );
     }
 
+    public void testImplicitCastingResolvesReference() {
+        /*
+        Regression test for https://github.com/elastic/elasticsearch/issues/155979
+        Similar to above but the ip reference is used by another eval field
+        This case was broken before the fix
+
+        Here an implicit casting is added on ip0. Since the analyzer does ResolveRefs -> ImplicitCasting
+        - the first time we enter resolve refs we mark ip as unresolved, ip0 inside cannot be resolved
+        - the second time we go into the loop and call ResolveRefs, we should be able to resolve ip,
+          because ip0 was already correctly resolved
+         */
+        analyzer().addIndex("hosts", "mapping-hosts.json").query("""
+            FROM hosts
+            | EVAL ip = CASE(
+                      CIDR_MATCH(ip0, "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16") OR ip0 == "127.0.0.1",
+                      TO_STRING(ip0), null),
+                   host_local = CASE(
+                       host == "localhost",
+                       host, null),
+                   field = CASE(
+                       ip IS NOT NULL, "a",
+                       host_local IS NOT NULL, "b",
+                       "unknown")
+            | STATS count = COUNT(*) BY field
+            """);
+    }
+
     public void testDenseVectorImplicitCastingKnn() {
         checkDenseVectorCastingHexKnn("float_vector");
         checkDenseVectorCastingKnn("float_vector");

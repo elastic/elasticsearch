@@ -89,8 +89,7 @@ public final class CombineDisjunctions extends OptimizerRules.OptimizerExpressio
                         if (value instanceof BytesRef bytesRef) {
                             value = new BytesRef(ipToString(bytesRef));
                         }
-                        ips.computeIfAbsent(eq.left(), k -> new LinkedHashSet<>())
-                            .add(new Literal(Source.EMPTY, value, DataType.KEYWORD));
+                        ips.computeIfAbsent(eq.left(), k -> new LinkedHashSet<>()).add(new Literal(Source.EMPTY, value, DataType.KEYWORD));
                     }
                 } else {
                     ors.add(exp);

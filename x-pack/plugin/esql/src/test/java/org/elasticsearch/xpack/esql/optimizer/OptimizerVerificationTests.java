@@ -1086,21 +1086,11 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
             """));
     }
 
-    public void testOrCidrMatchOrNotPruned2() {
-        var testAnalyzer = analyzer().addIndex("hosts", "mapping-hosts.json");
-        optimize(testAnalyzer.query("""
-            FROM hosts
-            | EVAL ip = CASE(
-                   CIDR_MATCH(ip0, "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16") OR ip0 == "127.0.0.1",
-                   TO_STRING(ip0), null)
-            """));
-    }
-
     /**
      * Regression test for https://github.com/elastic/elasticsearch/issues/155979 where src_ip_local was
      * disappearing from the plan in the logical optimizations
      */
-    public void testOrCidrMatchOrNotPruned3() {
+    public void testOrCidrMatchOrNotPruned2() {
         var testAnalyzer = analyzer().addIndex("hosts", "mapping-hosts.json");
         optimize(testAnalyzer.query("""
             FROM hosts
@@ -1116,24 +1106,5 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
                        "unknown")
             | STATS count = COUNT(*) BY field
             """));
-    }
-
-    public void testOrCidrMatchOrNotPruned4() {
-        var testAnalyzer = analyzer().addIndex("hosts", "mapping-hosts.json");
-        var analyzed = testAnalyzer.query("""
-            FROM hosts
-            | EVAL ip = CASE(
-                      CIDR_MATCH(ip0, "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16") OR ip0 == "127.0.0.1",
-                      TO_STRING(ip0), null),
-                   host_local = CASE(
-                       host == "localhost",
-                       host, null),
-                   field = CASE(
-                       ip IS NOT NULL, "a",
-                       host_local IS NOT NULL, "b",
-                       "unknown")
-            | STATS count = COUNT(*) BY field
-            """);
-        optimize(analyzed);
     }
 }

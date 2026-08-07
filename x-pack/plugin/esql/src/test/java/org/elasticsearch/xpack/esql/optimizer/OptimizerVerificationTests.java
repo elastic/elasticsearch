@@ -1123,4 +1123,26 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
             | EVAL ip = CASE(CIDR_MATCH(ip0, "10.0.0.0/8") OR ip0 IN ("127.0.0.1"::ip, "192.168.1.1"), TO_STRING(ip0), null)
             """));
     }
+
+    public void testIpInWithoutCidrMatchNotPruned() {
+        var testAnalyzer = analyzer().addIndex("hosts", "mapping-hosts.json");
+        optimize(testAnalyzer.query("""
+            FROM hosts
+            | EVAL ip = CASE(ip0 IN ("127.0.0.1"::ip, "192.168.1.1"::ip), TO_STRING(ip0), null),
+                   field = CASE(ip IS NOT NULL, "a", "b")
+            | STATS count = COUNT(*) BY field
+            """));
+    }
+
+    public void testIpEqualityAndInCombinedWithCidrMatchNotPruned() {
+        var testAnalyzer = analyzer().addIndex("hosts", "mapping-hosts.json");
+        optimize(testAnalyzer.query("""
+            FROM hosts
+            | EVAL ip = CASE(
+                CIDR_MATCH(ip0, "10.0.0.0/8") OR ip0 == "127.0.0.1"::ip OR ip0 IN ("192.168.1.1"::ip, "172.16.0.1"::ip),
+                TO_STRING(ip0), null),
+                   field = CASE(ip IS NOT NULL, "a", "b")
+            | STATS count = COUNT(*) BY field
+            """));
+    }
 }

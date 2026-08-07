@@ -47,6 +47,12 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
     private List<MapperService> mapperServices;
     private List<IndexReader> readers;
     private long minMillis, maxMillis, minNanos, maxNanos;
+    private byte minByte, maxByte;
+    private short minShort, maxShort;
+    private int minInt, maxInt;
+    private long minLong, maxLong;
+    private float minFloat, maxFloat;
+    private double minDouble, maxDouble;
 
     @Before
     public void setup() throws IOException {
@@ -56,6 +62,18 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
         readers = new ArrayList<>(indexCount);
         maxMillis = minMillis = dateTimeToLong("2025-01-01T00:00:01");
         maxNanos = minNanos = dateNanosToLong("2025-01-01T00:00:01");
+        minByte = Byte.MAX_VALUE;
+        maxByte = Byte.MIN_VALUE;
+        minShort = Short.MAX_VALUE;
+        maxShort = Short.MIN_VALUE;
+        minInt = Integer.MAX_VALUE;
+        maxInt = Integer.MIN_VALUE;
+        minLong = Long.MAX_VALUE;
+        maxLong = Long.MIN_VALUE;
+        minFloat = Float.MAX_VALUE;
+        maxFloat = -Float.MAX_VALUE;
+        minDouble = Double.MAX_VALUE;
+        maxDouble = -Double.MAX_VALUE;
 
         MapperServiceTestCase mapperHelper = new MapperServiceTestCase() {};
         // create one or more index, so that there is one or more SearchExecutionContext in SearchStats
@@ -115,6 +133,18 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
                     maxNanos = Math.max(nanos, maxNanos);
                     minMillis = Math.min(millis, minMillis);
                     minNanos = Math.min(nanos, minNanos);
+                    minByte = (byte) Math.min(minByte, byteValues.get(j));
+                    maxByte = (byte) Math.max(maxByte, byteValues.get(j));
+                    minShort = (short) Math.min(minShort, shortValues.get(j));
+                    maxShort = (short) Math.max(maxShort, shortValues.get(j));
+                    minInt = Math.min(minInt, intValues.get(j));
+                    maxInt = Math.max(maxInt, intValues.get(j));
+                    minLong = Math.min(minLong, longValues.get(j));
+                    maxLong = Math.max(maxLong, longValues.get(j));
+                    minFloat = Math.min(minFloat, floatValues.get(j));
+                    maxFloat = Math.max(maxFloat, floatValues.get(j));
+                    minDouble = Math.min(minDouble, doubleValues.get(j));
+                    maxDouble = Math.max(maxDouble, doubleValues.get(j));
                     writer.addDocument(
                         List.of(
                             new IntField("byteField", byteValues.get(j), Field.Store.NO),
@@ -156,15 +186,43 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
         for (String field : fields) {
             Object min = searchStats.min(new FieldAttribute.FieldName(field));
             Object max = searchStats.max(new FieldAttribute.FieldName(field));
-            if (field.startsWith("date") == false) {
-                assertNull(min);
-                assertNull(max);
-            } else if (field.equals("dateField")) {
-                assertEquals(minMillis, min);
-                assertEquals(maxMillis, max);
-            } else if (field.equals("dateNanosField")) {
-                assertEquals(minNanos, min);
-                assertEquals(maxNanos, max);
+            switch (field) {
+                case "byteField" -> {
+                    assertEquals(minByte, min);
+                    assertEquals(maxByte, max);
+                }
+                case "shortField" -> {
+                    assertEquals(minShort, min);
+                    assertEquals(maxShort, max);
+                }
+                case "intField" -> {
+                    assertEquals(minInt, min);
+                    assertEquals(maxInt, max);
+                }
+                case "longField" -> {
+                    assertEquals(minLong, min);
+                    assertEquals(maxLong, max);
+                }
+                case "floatField" -> {
+                    assertEquals(minFloat, min);
+                    assertEquals(maxFloat, max);
+                }
+                case "doubleField" -> {
+                    assertEquals(minDouble, min);
+                    assertEquals(maxDouble, max);
+                }
+                case "dateField" -> {
+                    assertEquals(minMillis, min);
+                    assertEquals(maxMillis, max);
+                }
+                case "dateNanosField" -> {
+                    assertEquals(minNanos, min);
+                    assertEquals(maxNanos, max);
+                }
+                case "keywordField" -> {
+                    assertNull(min);
+                    assertNull(max);
+                }
             }
         }
     }

@@ -151,6 +151,57 @@ public class AuditIT extends ESRestTestCase {
         });
     }
 
+    public void testAuditPutManagedServiceAccount() throws Exception {
+        final String namespace = "audit" + randomAlphaOfLengthBetween(3, 8).toLowerCase(Locale.ROOT);
+        final String serviceName = "svc" + randomAlphaOfLengthBetween(3, 8).toLowerCase(Locale.ROOT);
+        final Request request = new Request("PUT", "/_security/service/" + namespace + "/" + serviceName);
+        request.setJsonEntity("{\"roles\":[\"superuser\"],\"enabled\":true}");
+        try {
+            executeAndVerifySecurityConfigChange(request, "put_managed_service_account", event -> {
+                assertThat(event, hasEntry(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, "security_config_change"));
+                assertThat(event, hasKey(LoggingAuditTrail.REQUEST_ID_FIELD_NAME));
+                assertThat(event, hasKey(LoggingAuditTrail.NODE_ID_FIELD_NAME));
+                @SuppressWarnings("unchecked")
+                Map<String, Object> putConfig = (Map<String, Object>) event.get(LoggingAuditTrail.PUT_CONFIG_FIELD_NAME);
+                assertThat(putConfig, notNullValue());
+                @SuppressWarnings("unchecked")
+                Map<String, Object> managedServiceAccount = (Map<String, Object>) putConfig.get("managed_service_account");
+                assertThat(managedServiceAccount, notNullValue());
+                assertThat(managedServiceAccount, hasEntry("namespace", namespace));
+                assertThat(managedServiceAccount, hasEntry("service", serviceName));
+                assertThat(managedServiceAccount, hasEntry("enabled", true));
+                assertThat(managedServiceAccount.get("roles"), equalTo(List.of("superuser")));
+            });
+        } finally {
+            final Request deleteRequest = new Request("DELETE", "/_security/service/" + namespace + "/" + serviceName);
+            deleteRequest.addParameter("ignore", "404");
+            client().performRequest(deleteRequest);
+        }
+    }
+
+    private void executeAndVerifySecurityConfigChange(
+        Request request,
+        String eventAction,
+        CheckedConsumer<Map<String, Object>, Exception> assertions
+    ) throws Exception {
+        Instant start = Instant.now();
+        executeRequest(request);
+        assertBusy(() -> {
+            try (var auditLog = cluster.getNodeLog(0, LogType.AUDIT)) {
+                final List<String> lines = Streams.readAllLines(auditLog);
+                final List<Map<String, Object>> events = findSecurityConfigChangeEvents(lines, eventAction, start);
+                if (events.isEmpty()) {
+                    fail("Could not find any [" + eventAction + "] security_config_change events in [" + String.join("\n", lines) + "]");
+                }
+                assertThat(events, hasSize(1));
+                final Map<String, Object> event = events.get(0);
+                assertThat(event, hasEntry("type", "audit"));
+                assertThat(event, hasEntry(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, eventAction));
+                assertions.accept(event);
+            }
+        }, 5, TimeUnit.SECONDS);
+    }
+
     private void executeAndVerifyAudit(Request request, AuditLevel eventType, CheckedConsumer<Map<String, Object>, Exception> assertions)
         throws Exception {
         Instant start = Instant.now();
@@ -188,6 +239,28 @@ public class AuditIT extends ESRestTestCase {
 
     private static Response executeRequest(Request request) throws IOException {
         return client().performRequest(request);
+    }
+
+    private List<Map<String, Object>> findSecurityConfigChangeEvents(List<String> lines, String eventAction, Instant start) {
+        final List<Map<String, Object>> events = new ArrayList<>();
+        for (var line : lines) {
+            if (line.contains("security_config_change") == false) {
+                continue;
+            }
+            Map<String, Object> event = XContentHelper.convertToMap(XContentType.JSON.xContent(), line, true);
+            if (LoggingAuditTrail.SECURITY_CHANGE_ORIGIN_FIELD_VALUE.equals(event.get(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME)) == false) {
+                continue;
+            }
+            if (eventAction.equals(event.get(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME)) == false) {
+                continue;
+            }
+            Instant tstamp = ZonedDateTime.parse(String.valueOf(event.get(LoggingAuditTrail.TIMESTAMP)), TSTAMP_FORMATTER).toInstant();
+            if (tstamp.isBefore(start)) {
+                continue;
+            }
+            events.add(event);
+        }
+        return events;
     }
 
     private List<Map<String, Object>> findEvents(List<String> lines, AuditLevel level, Predicate<Map<String, Object>> filter) {

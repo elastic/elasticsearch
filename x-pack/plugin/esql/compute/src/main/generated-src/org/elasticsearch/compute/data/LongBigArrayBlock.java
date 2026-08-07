@@ -44,10 +44,7 @@ public final class LongBigArrayBlock extends AbstractArrayBlock implements LongB
         );
     }
 
-    /**
-     * Takes ownership of {@code vector}.
-     */
-    LongBigArrayBlock(
+    private LongBigArrayBlock(
         LongBigArrayVector vector, // stylecheck
         int positionCount,
         int[] firstValueIndexes,

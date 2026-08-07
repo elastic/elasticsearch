@@ -44,10 +44,7 @@ public final class IntBigArrayBlock extends AbstractArrayBlock implements IntBlo
         );
     }
 
-    /**
-     * Takes ownership of {@code vector}.
-     */
-    IntBigArrayBlock(
+    private IntBigArrayBlock(
         IntBigArrayVector vector, // stylecheck
         int positionCount,
         int[] firstValueIndexes,

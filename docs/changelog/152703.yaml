@@ -2,4 +2,4 @@ area: Ingest Node
 issues: []
 pr: 152703
 summary: Introducing configurable limits to ingest pipelines
-type: enhancement
+type: breaking

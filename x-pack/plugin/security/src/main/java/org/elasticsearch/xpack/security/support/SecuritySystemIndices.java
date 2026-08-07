@@ -37,6 +37,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_PROFILE_ORIGIN;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_VERSION_STRING;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SecurityMainIndexMappingVersion.ADD_ESQL_GLOBAL_DATASOURCE_PRIVILEGE;
+import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SecurityMainIndexMappingVersion.ADD_MANAGED_SERVICE_ACCOUNT_GENERATION_ID;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SecurityMainIndexMappingVersion.ADD_MANAGE_ROLES_PRIVILEGE;
 
 /**
@@ -546,6 +547,12 @@ public class SecuritySystemIndices {
                     builder.startObject("version");
                     builder.field("type", "integer");
                     builder.endObject();
+
+                    if (mappingVersion.onOrAfter(ADD_MANAGED_SERVICE_ACCOUNT_GENERATION_ID)) {
+                        builder.startObject("account_generation_id");
+                        builder.field("type", "keyword");
+                        builder.endObject();
+                    }
 
                     builder.startObject("creator");
                     {
@@ -1131,6 +1138,11 @@ public class SecuritySystemIndices {
          * Mapping for {@code global.data_source} configurable cluster privilege on roles.
          */
         ADD_ESQL_GLOBAL_DATASOURCE_PRIVILEGE(5),
+
+        /**
+         * Mapping for managed service account and token documents to include account generation ID.
+         */
+        ADD_MANAGED_SERVICE_ACCOUNT_GENERATION_ID(6),
 
         ;
 

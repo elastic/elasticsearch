@@ -222,7 +222,7 @@ public class TencentCloudService extends SenderService<TencentCloudModel> implem
 
     @Override
     protected void validateInputType(InputType inputType, Model model, ValidationException validationException) {
-        // TencentCloud AI Gateway does not distinguish input types; accept any.
+        ServiceUtils.validateInputTypeIsUnspecifiedOrInternal(inputType, validationException);
     }
 
     @Override

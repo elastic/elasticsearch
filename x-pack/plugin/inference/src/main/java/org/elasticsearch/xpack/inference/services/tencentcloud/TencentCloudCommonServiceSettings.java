@@ -41,10 +41,7 @@ import java.util.Objects;
  * The endpoint URL is not user-configurable; it is always constructed from the region and the task-specific path
  * ({@code https://{region}.aisearch.tencentelasticsearch.com/v1/<task-path>}).
  */
-public abstract class TencentCloudCommonServiceSettings extends FilteredXContentObject
-    implements
-        ServiceSettings,
-        TencentCloudRateLimitServiceSettings {
+public abstract class TencentCloudCommonServiceSettings extends FilteredXContentObject implements ServiceSettings {
 
     public static final String NAME = "tencentcloud_service_settings";
     private static final String REGION = "region";
@@ -166,7 +163,6 @@ public abstract class TencentCloudCommonServiceSettings extends FilteredXContent
         return region;
     }
 
-    @Override
     public RateLimitSettings rateLimitSettings() {
         return rateLimitSettings;
     }

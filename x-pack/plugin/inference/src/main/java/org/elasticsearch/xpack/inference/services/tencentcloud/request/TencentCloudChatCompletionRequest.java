@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.tencentcloud.request;
 
-import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
 import org.elasticsearch.ElasticsearchException;
@@ -16,7 +15,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
@@ -29,8 +27,6 @@ import java.io.IOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
-
-import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
 
 /**
  * Outbound request for TencentCloud AI Gateway {@code POST /v1/chat/completions}.
@@ -51,8 +47,7 @@ public class TencentCloudChatCompletionRequest implements OutboundUnifiedComplet
         HttpPost httpPost = new HttpPost(model.uri());
         httpPost.setEntity(createEntity());
 
-        httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
-        httpPost.setHeader(createAuthBearerHeader(model.getSecretSettings().apiKey()));
+        TencentCloudUtils.decorateWithAuthHeader(httpPost, model.getSecretSettings().apiKey());
 
         listener.onResponse(new HttpRequest(httpPost, getInferenceEntityId()));
     }

@@ -28,7 +28,7 @@ public class TencentCloudResponseHandler extends BaseResponseHandler {
     }
 
     @Override
-    protected void checkForFailureStatusCode(OutboundRequest outboundRequest, HttpResult result) throws RetryException {
+    protected void handleFailureStatusCode(OutboundRequest outboundRequest, HttpResult result) throws RetryException {
         if (result.isSuccessfulResponse()) {
             return;
         }

@@ -59,8 +59,7 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
     private StreamingHttpResultPublisher publisher;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void createPublisher() throws Exception {
         threadPool = mock(ThreadPool.class);
         settings = mock(HttpSettings.class);
 
@@ -75,8 +74,7 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void clearResult() throws Exception {
         result.set(null);
     }
 

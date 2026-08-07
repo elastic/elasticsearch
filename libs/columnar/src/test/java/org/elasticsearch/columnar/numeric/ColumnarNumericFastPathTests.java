@@ -274,6 +274,7 @@ public class ColumnarNumericFastPathTests extends ESTestCase {
                 values.length,
                 values.length,
                 () -> singleValuedCursor(values),
+                NumericPipeline.defaultPipeline(randomValidBlockSize()),
                 BlockBytesCodec.forId(BlockBytesCodec.IDENTITY_ID),
                 withSkipper ? SkipIndexCodec.forId(SkipIndexCodec.MULTI_LEVEL_ID) : null,
                 dir,
@@ -351,5 +352,9 @@ public class ColumnarNumericFastPathTests extends ESTestCase {
                 return values.length;
             }
         };
+    }
+
+    private static int randomValidBlockSize() {
+        return 128 << randomIntBetween(0, 6);
     }
 }

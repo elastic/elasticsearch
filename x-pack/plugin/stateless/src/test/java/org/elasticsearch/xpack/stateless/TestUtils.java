@@ -25,6 +25,7 @@ import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
+import org.elasticsearch.xpack.stateless.cache.reader.FillCacheMemoryPressure;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
@@ -56,6 +57,14 @@ public class TestUtils {
 
     private TestUtils() {}
 
+    /**
+     * A {@link FillCacheMemoryPressure} using {@code settings} (default: heap-relative) and no telemetry, for tests that do not
+     * exercise the fill-memory budget.
+     */
+    public static FillCacheMemoryPressure unmeteredFillCacheMemoryPressure(Settings settings, ThreadPool threadPool) {
+        return new FillCacheMemoryPressure(settings, MeterRegistry.NOOP, threadPool);
+    }
+
     public static IndicesService mockIndicesService(ClusterService clusterService) {
         final IndicesService indicesService = mock(IndicesService.class);
         when(indicesService.clusterService()).thenReturn(clusterService);
@@ -80,7 +89,9 @@ public class TestUtils {
                 Sets.addToCopy(
                     ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
                     StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING,
-                    StatelessSharedBlobCacheService.STATELESS_CACHE_DEMOTE_CLOSED_SHARD_REGIONS_ENABLED_SETTING
+                    StatelessSharedBlobCacheService.STATELESS_CACHE_DEMOTE_CLOSED_SHARD_REGIONS_ENABLED_SETTING,
+                    StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_TIMESTAMP_BACKFILL_ENABLED_SETTING,
+                    StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_DELETED_INDEX_REGIONS_ENABLED_SETTING
                 )
             )
         );
@@ -130,44 +141,56 @@ public class TestUtils {
             mockIndicesService(clusterService),
             new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
         );
-        statelessSharedBlobCacheService.assertInvariants();
         return statelessSharedBlobCacheService;
     }
 
-    public static StatelessIndexEventListener newStatelessIndexEventListener(
+    public static StatelessIndexNodeRecoveryListener newStatelessIndexNodeRecoveryListener(
         ThreadPool threadPool,
         StatelessCommitService statelessCommitService,
         ObjectStoreService objectStoreService,
         TranslogReplicator translogReplicator,
-        RecoveryCommitRegistrationHandler recoveryCommitRegistrationHandler,
         SharedBlobCacheWarmingService warmingService,
         HollowShardsService hollowShardsService,
         SplitTargetService splitTargetService,
         SplitSourceService splitSourceService,
         ProjectResolver projectResolver,
         Executor bccHeaderReadExecutor,
-        ClusterSettings clusterSettings,
         StatelessSharedBlobCacheService cacheService,
         SnapshotsCommitService snapshotsCommitService,
-        ClusterService clusterService
+        StatelessRecoveryMetricsCollector recoveryMetricsCollector
     ) {
-        return new StatelessIndexEventListener(
+        return new StatelessIndexNodeRecoveryListener(
             threadPool,
             statelessCommitService,
             objectStoreService,
             translogReplicator,
-            recoveryCommitRegistrationHandler,
             warmingService,
             hollowShardsService,
             splitTargetService,
             splitSourceService,
             projectResolver,
             bccHeaderReadExecutor,
-            clusterSettings,
             cacheService,
             snapshotsCommitService,
-            clusterService,
-            StatelessRecoveryMetricsCollector.NOOP
+            recoveryMetricsCollector
+        );
+    }
+
+    public static StatelessSearchNodeRecoveryListener newStatelessSearchNodeRecoveryListener(
+        ObjectStoreService objectStoreService,
+        RecoveryCommitRegistrationHandler recoveryCommitRegistrationHandler,
+        SharedBlobCacheWarmingService warmingService,
+        ProjectResolver projectResolver,
+        Executor bccHeaderReadExecutor,
+        ClusterService clusterService
+    ) {
+        return new StatelessSearchNodeRecoveryListener(
+            objectStoreService,
+            recoveryCommitRegistrationHandler,
+            warmingService,
+            projectResolver,
+            bccHeaderReadExecutor,
+            clusterService
         );
     }
 

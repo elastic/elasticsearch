@@ -786,6 +786,46 @@ public class EsqlDataTypeConverter {
         return new BytesRef(String.valueOf(field));
     }
 
+    private static final BytesRef BYTES_TRUE = new BytesRef("true");
+    private static final BytesRef BYTES_FALSE = new BytesRef("false");
+
+    public static BytesRef booleanToString(boolean b) {
+        return b ? BYTES_TRUE : BYTES_FALSE;
+    }
+
+    public static BytesRef intToString(int integer) {
+        byte[] buf = new byte[11]; // "-2147483648" is 11 bytes
+        int pos = 11;
+        boolean negative = integer < 0;
+        int q = negative ? integer : -integer;
+        while (q <= -10) {
+            buf[--pos] = (byte) ('0' - (q % 10));
+            q /= 10;
+        }
+        buf[--pos] = (byte) ('0' - q);
+        if (negative) {
+            buf[--pos] = (byte) '-';
+        }
+        return new BytesRef(buf, pos, 11 - pos);
+    }
+
+    public static BytesRef longToString(long lng) {
+        // Work in negated space throughout to handle Long.MIN_VALUE without overflow.
+        byte[] buf = new byte[20]; // "-9223372036854775808" needs 20 bytes
+        int pos = 20;
+        boolean negative = lng < 0;
+        long q = negative ? lng : -lng;
+        while (q <= -10) {
+            buf[--pos] = (byte) ('0' - (int) (q % 10));
+            q /= 10;
+        }
+        buf[--pos] = (byte) ('0' - (int) q);
+        if (negative) {
+            buf[--pos] = (byte) '-';
+        }
+        return new BytesRef(buf, pos, 20 - pos);
+    }
+
     public static boolean stringToBoolean(String field) {
         return Booleans.parseBooleanLenient(field, false);
     }
@@ -819,6 +859,10 @@ public class EsqlDataTypeConverter {
     }
 
     public static BytesRef unsignedLongToString(long number) {
+        if (number < 0) {
+            // stored biased value < 0 means unsigned value <= Long.MAX_VALUE: recover it and write directly
+            return longToString(number ^ Long.MIN_VALUE);
+        }
         return new BytesRef(unsignedLongAsNumber(number).toString());
     }
 

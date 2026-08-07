@@ -1576,7 +1576,9 @@ public final class KeywordFieldMapper extends FieldMapper {
         // strings. This is possible as an eventual user option.
 
         if (fieldType().usesArrayOrderBinaryDocValues()) {
-            mapColumnBatchArrayOrder(ctx, EscfColumnTransforms.utf8Cursor(source), emitTerms, emitDvs, emitFallback);
+            // retainValues=true: mapColumnBatchArrayOrder buffers a whole document's values in docSlots[]
+            // and only encodes them once the cursor has advanced to the next doc.
+            mapColumnBatchArrayOrder(ctx, EscfColumnTransforms.utf8Cursor(source, true), emitTerms, emitDvs, emitFallback);
         } else {
             mapColumnBatchSingleValue(ctx, source, emitTerms, emitDvs, emitFallback);
         }
@@ -1737,7 +1739,8 @@ public final class KeywordFieldMapper extends FieldMapper {
         final int docCount = ctx.docCount();
         boolean valuesProduced = false;
 
-        final ObjectTupleCursor<BytesRef> cursor = EscfColumnTransforms.utf8Cursor(source);
+        // retainValues=false: every value is consumed within one loop iteration, before the cursor advances.
+        final ObjectTupleCursor<BytesRef> cursor = EscfColumnTransforms.utf8Cursor(source, false);
         EscfColumnBuilder values = source.leafValueKind() != EscfColumnKind.STRING && (emitTerms || emitDvs) ? mergeStringColumn() : null;
         final EscfColumnBuilder fallback = emitFallback ? mergeStringColumn() : null;
         final BytesRef nullValueBytes = fieldType().nullUtf8Value;

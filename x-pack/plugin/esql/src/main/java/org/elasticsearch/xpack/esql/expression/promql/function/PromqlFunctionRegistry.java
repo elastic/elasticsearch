@@ -116,6 +116,7 @@ public class PromqlFunctionRegistry {
         //
         PromqlBuiltinFunctionDefinitions.TOPK,
         PromqlBuiltinFunctionDefinitions.BOTTOMK,
+        PromqlBuiltinFunctionDefinitions.LIMITK,
         //
         ExtractHistogramComponent.PROMQL_HISTOGRAM_AVG,
         ExtractHistogramComponent.PROMQL_HISTOGRAM_COUNT,

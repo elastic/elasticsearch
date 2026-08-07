@@ -215,9 +215,7 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
 
         PercentilesAggregationBuilder percBuilder = new PercentilesAggregationBuilder("p").field("number")
             .percentilesConfig(new PercentilesConfig.TDigest());
-        TermsAggregationBuilder termsBuilder = new TermsAggregationBuilder("terms").field("number")
-            .size(10000)
-            .subAggregation(percBuilder);
+        TermsAggregationBuilder termsBuilder = new TermsAggregationBuilder("terms").field("number").size(10000).subAggregation(percBuilder);
 
         withSequentialIndex(500, reader -> {
             expectThrows(CircuitBreakingException.class, () -> {

@@ -335,14 +335,20 @@ public class SharedCacheCapacityAllocationDeciderIT extends AbstractStatelessPlu
         // while disabled" assertions below even run.
         updateClusterSettings(Settings.builder().put(SharedCacheCapacityAllocationDecider.CAN_REMAIN_ENABLED_SETTING.getKey(), false));
 
-        // The hosting node is heavily over the 95% high watermark. The decider treats a node with no cache data as healthy (YES),
-        // but the monitor also needs the other node's commitment faked so it appears in ClusterInfo as a node below the low
-        // watermark.
+        // The hosting node is heavily over the 95% high watermark. No need to fake anything for the other node, as the decider
+        // treats a node with no cache data as healthy (YES), and the monitor never gets far enough to look at any node's
+        // commitment while canRemain is disabled.
         final long hostedBoostedCommitmentBytes = bytesForPercent(97);
-        final long otherNodeBoostedCommitmentBytes = 0L;
         final long noUnboostedCommitmentBytes = 0L;
-        // Verify that monitor is not calling a reroute
         try (MockLog mockLog = MockLog.capture(SharedCacheCapacityMonitor.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "monitor skipped because canRemain is disabled",
+                    SharedCacheCapacityMonitor.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "skipping monitor as the shared cache capacity decider or its canRemain check is disabled"
+                )
+            );
             mockLog.addExpectation(
                 new MockLog.UnseenEventExpectation(
                     "no reroute while canRemain is disabled",
@@ -354,9 +360,7 @@ public class SharedCacheCapacityAllocationDeciderIT extends AbstractStatelessPlu
             fakeNodeCacheSizeAndCommitments(
                 Map.of(
                     hostedNodeId,
-                    new NodeCacheSizeAndCommitments(CACHE_SIZE_IN_BYTES, hostedBoostedCommitmentBytes, noUnboostedCommitmentBytes),
-                    otherNodeId,
-                    new NodeCacheSizeAndCommitments(CACHE_SIZE_IN_BYTES, otherNodeBoostedCommitmentBytes, noUnboostedCommitmentBytes)
+                    new NodeCacheSizeAndCommitments(CACHE_SIZE_IN_BYTES, hostedBoostedCommitmentBytes, noUnboostedCommitmentBytes)
                 )
             );
             mockLog.assertAllExpectationsMatched();

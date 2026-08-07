@@ -98,7 +98,7 @@ class DefaultCheckpointProvider implements CheckpointProvider {
     }
 
     protected boolean crossProjectCheckpointingEnabled() {
-        return crossProjectModeDecider.crossProjectEnabled() && TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled();
+        return crossProjectModeDecider.crossProjectEnabled();
     }
 
     protected IndicesOptions checkpointIndicesOptions() {

@@ -93,8 +93,7 @@ public class TransportGetTransformAction extends AbstractTransportGetResourcesAc
         super(GetTransformAction.NAME, transportService, actionFilters, Request::new, client, xContentRegistry);
         this.clusterService = clusterService;
         this.client = client;
-        boolean crossProjectEnabled = transformServices.crossProjectModeDecider().crossProjectEnabled()
-            && TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled();
+        boolean crossProjectEnabled = transformServices.crossProjectModeDecider().crossProjectEnabled();
         this.transformParsingContext = new TransformParsingContext(crossProjectEnabled);
         this.projectResolver = projectResolver;
         this.shouldDisplayLocalOnlyDefault = crossProjectEnabled

@@ -406,13 +406,6 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
 
             var validationException = config.validate(null);
 
-            // if we had created a transform when the feature flag was enabled, but we disabled the feature flag
-            // then verify that this transform does not use CPS features
-            validationException = config.validateNoCrossProjectWhenCrossProjectIsDisabled(
-                transformServices.crossProjectModeDecider(),
-                validationException
-            );
-
             if (validationException == null) {
                 indexerBuilder.setTransformConfig(config);
                 numFailureRetriesHolder.set(TransformEffectiveSettings.getNumFailureRetries(config.getSettings(), numFailureRetries));
@@ -729,18 +722,14 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             // tokenId is not the currently-active credentialId. This closes the gap for batch transforms
             // (which don't reload config mid-run) and cleans up any dangling credentials from prior
             // interrupted rotations. Failures are logged but do not block the transform from starting.
-            if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()) {
-                sweepDanglingCredentials(params.getId(), credentialId, () -> {
-                    if (credentialId != null) {
-                        loadCloudCredentialWithRetry(buildTask, params, credentialId, doStart);
-                    } else {
-                        // Feature off, or this transform has no associated UIAM credential — nothing to load.
-                        doStart.run();
-                    }
-                });
-            } else {
-                doStart.run();
-            }
+            sweepDanglingCredentials(params.getId(), credentialId, () -> {
+                if (credentialId != null) {
+                    loadCloudCredentialWithRetry(buildTask, params, credentialId, doStart);
+                } else {
+                    // This transform has no associated UIAM credential — nothing to load.
+                    doStart.run();
+                }
+            });
         });
     }
 

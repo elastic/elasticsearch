@@ -40,7 +40,6 @@ import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
-import org.elasticsearch.xpack.core.security.cloud.CloudCredentialsExtension;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
@@ -58,7 +57,6 @@ import java.util.stream.Stream;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.junit.Assume.assumeTrue;
 
 public class DatafeedScopeChangeSnapshotIT extends MlSingleNodeTestCase {
 
@@ -80,7 +78,6 @@ public class DatafeedScopeChangeSnapshotIT extends MlSingleNodeTestCase {
 
     @Before
     public void createComponents() throws Exception {
-        assumeTrue("CPS feature flag must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
         ThreadPool tp = mockThreadPool();
         ClusterSettings clusterSettings = new ClusterSettings(
             Settings.EMPTY,

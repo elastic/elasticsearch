@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.transform.utils;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator.SourceDestValidation;
-import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -84,7 +83,7 @@ public final class SourceDestValidations {
     }
 
     private static boolean isCrossProjectSource(CrossProjectModeDecider crossProjectModeDecider) {
-        return crossProjectModeDecider.crossProjectEnabled() && TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled();
+        return crossProjectModeDecider.crossProjectEnabled();
     }
 
     private static List<SourceDestValidation> getValidations(

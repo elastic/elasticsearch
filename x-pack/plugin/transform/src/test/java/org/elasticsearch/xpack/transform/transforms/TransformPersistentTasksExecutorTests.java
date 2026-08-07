@@ -728,8 +728,6 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
     }
 
     public void testNodeOperationLoadsCloudCredentialOnFirstTry() throws Exception {
-        assumeTrue("Only relevant if feature flag is enabled", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
-
         var transformId = "testCloudCredentialLoad";
         var persisted = randomPersistedCloudCredential("an-id");
         var transformsConfigManager = new InMemoryTransformConfigManager();
@@ -749,8 +747,6 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
     }
 
     public void testNodeOperationRetriesCloudCredentialLoadOnTransientFailure() throws Exception {
-        assumeTrue("Only relevant if feature flag is enabled", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
-
         var transformId = "testCloudCredentialRetry";
         var persisted = randomPersistedCloudCredential("an-id");
         // Fail twice so we see both (a) the direct first-attempt failure that triggers the scheduler
@@ -799,8 +795,6 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
     }
 
     public void testNodeOperationSweepsDanglingCredentialsOnStartup() throws Exception {
-        assumeTrue("Only relevant if feature flag is enabled", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
-
         var transformId = "testSweepDangling";
         var activeId = "active-id";
         var danglingId1 = "dangling-1";
@@ -852,8 +846,6 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
     }
 
     public void testNodeOperationSweepDoesNotBlockStartupOnListFailure() throws Exception {
-        assumeTrue("Only relevant if feature flag is enabled", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
-
         var transformId = "testSweepListFailure";
         var activeId = "active-id";
 

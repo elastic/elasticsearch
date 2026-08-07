@@ -11,7 +11,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.SimpleDiffable;
@@ -35,7 +34,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuil
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -49,7 +47,6 @@ import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
 import org.elasticsearch.xpack.core.ml.utils.RuntimeMappingsValidator;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.elasticsearch.xpack.core.ml.utils.XContentObjectTransformer;
-import org.elasticsearch.xpack.core.security.cloud.CloudCredentialsExtension;
 import org.elasticsearch.xpack.core.security.cloud.PersistedCloudCredential;
 import org.elasticsearch.xpack.core.security.xcontent.XContentUtils;
 
@@ -66,7 +63,6 @@ import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xpack.core.ClientHelper.assertNoAuthorizationHeader;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_AGGREGATIONS_COMPOSITE_AGG_DATE_HISTOGRAM_SORT;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_AGGREGATIONS_COMPOSITE_AGG_DATE_HISTOGRAM_SOURCE_MISSING_BUCKET;
@@ -122,28 +118,12 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
     );
 
     /**
-     * Returns whether ML cross-project search (CPS) is allowed for datafeeds in the current environment.
-     * <p>
-     * Both the cluster-level {@code serverless.cross_project.enabled} setting and the ML CPS feature flag
-     * ({@link CloudCredentialsExtension#ML_CROSS_PROJECT}) must be enabled. Without this combined gate, every datafeed start on a
-     * CPS-enabled cluster — including ones targeting only local indices — would be promoted to cross-project mode,
-     * which violates the "off by default on main" contract of the ML CPS scaffolding.
+     * Returns whether ML cross-project search (CPS) is allowed for datafeeds in the current environment,
+     * i.e. whether the cluster-level {@code serverless.cross_project.enabled} setting is enabled.
      */
     public static boolean isCPSAllowed(CrossProjectModeDecider crossProjectModeDecider) {
-        return isCPSAllowed(crossProjectModeDecider, CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
-    }
-
-    // visible for testing — mirrors the withCrossProjectModeIfEnabled overload shape so unit tests
-    // can pin the flag value regardless of snapshot/release build.
-    static boolean isCPSAllowed(CrossProjectModeDecider crossProjectModeDecider, boolean featureEnabled) {
         Objects.requireNonNull(crossProjectModeDecider, "crossProjectModeDecider must not be null");
-        if (featureEnabled == false) {
-            return false;
-        }
-        if (crossProjectModeDecider.crossProjectEnabled() == false) {
-            return false;
-        }
-        return true;
+        return crossProjectModeDecider.crossProjectEnabled();
     }
 
     public static final String PROJECT_ROUTING_REQUIRES_CPS_MESSAGE =
@@ -389,20 +369,10 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
     }
 
     public static DatafeedConfig withCrossProjectModeIfEnabled(DatafeedConfig datafeed, CrossProjectModeDecider crossProjectModeDecider) {
-        return withCrossProjectModeIfEnabled(datafeed, crossProjectModeDecider, CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
-    }
-
-    // visible for testing
-    // remove the featureEnabled parameter and inline CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled() when the feature is launched
-    static DatafeedConfig withCrossProjectModeIfEnabled(
-        DatafeedConfig datafeed,
-        CrossProjectModeDecider crossProjectModeDecider,
-        boolean featureEnabled
-    ) {
         Objects.requireNonNull(datafeed, "datafeed must not be null");
         Objects.requireNonNull(crossProjectModeDecider, "crossProjectModeDecider must not be null");
 
-        if (isCPSAllowed(crossProjectModeDecider, featureEnabled) == false) {
+        if (isCPSAllowed(crossProjectModeDecider) == false) {
             return datafeed;
         }
 
@@ -425,37 +395,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
      */
     public static String documentId(String datafeedId) {
         return TYPE + "-" + datafeedId;
-    }
-
-    public ActionRequestValidationException validateNoCrossProjectWhenCrossProjectIsDisabled(
-        CrossProjectModeDecider crossProjectModeDecider,
-        ActionRequestValidationException validationException
-    ) {
-        // Only reject CPS-shaped config in the gap: cluster CPS on but ML feature flag off.
-        // If the cluster doesn't support CPS at all, the environment itself handles validation.
-        if (crossProjectModeDecider.crossProjectEnabled() && isCPSAllowed(crossProjectModeDecider) == false) {
-            return validateNoCrossProjectWhenCrossProjectFeatureIsDisabled(false, validationException);
-        }
-        return validationException;
-    }
-
-    // visible for testing
-    // remove both this and validateNoCrossProjectWhenCrossProjectIsDisabled when the feature is launched
-    ActionRequestValidationException validateNoCrossProjectWhenCrossProjectFeatureIsDisabled(
-        boolean featureEnabled,
-        ActionRequestValidationException validationException
-    ) {
-        if (featureEnabled == false) {
-            // verify there are no remote indices
-            var remoteIndices = RemoteClusterAware.getRemoteIndexExpressions(getIndices().toArray(new String[0]));
-            if (remoteIndices.isEmpty() == false) {
-                validationException = addValidationError(
-                    "Cross-project calls are not supported, but remote indices were requested: " + remoteIndices,
-                    validationException
-                );
-            }
-        }
-        return validationException;
     }
 
     public String getId() {
@@ -1282,23 +1221,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             setDefaultQueryDelay();
             if (indicesOptions == null) {
                 indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN_HIDDEN_FORBID_CLOSED;
-            }
-
-            if (indicesOptions.crossProjectModeOptions().resolveIndexExpression()
-                && CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled() == false) {
-                throw new ElasticsearchStatusException("Cross-project search is not enabled for Datafeeds", RestStatus.FORBIDDEN);
-            }
-
-            // Validate project_routing requires CPS feature flag
-            // Note: CPS mode in IndicesOptions is applied at runtime via withCrossProjectModeIfEnabled()
-            // when the datafeed starts, so we don't validate it here.
-            if (projectRouting != null) {
-                if (CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled() == false) {
-                    throw new ElasticsearchStatusException(
-                        "project_routing requires cross-project search feature to be enabled for Datafeeds",
-                        RestStatus.FORBIDDEN
-                    );
-                }
             }
 
             return new DatafeedConfig(

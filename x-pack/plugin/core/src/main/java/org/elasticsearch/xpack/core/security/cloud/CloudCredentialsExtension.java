@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.core.security.cloud;
 
-import org.elasticsearch.common.util.FeatureFlag;
-
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -17,8 +15,6 @@ import java.util.concurrent.atomic.AtomicReference;
  * {@link CloudCredentialManager}.
  */
 public interface CloudCredentialsExtension {
-
-    FeatureFlag ML_CROSS_PROJECT = new FeatureFlag("ml_cross_project");
 
     InternalCloudApiKeyService internalCloudApiKeyService();
 

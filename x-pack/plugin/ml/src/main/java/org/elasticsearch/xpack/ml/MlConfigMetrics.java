@@ -28,7 +28,6 @@ import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
-import org.elasticsearch.xpack.core.security.cloud.CloudCredentialsExtension;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 
 import java.util.ArrayList;
@@ -328,6 +327,6 @@ public final class MlConfigMetrics extends AbstractLifecycleComponent implements
     }
 
     private boolean crossProjectMlEnabled() {
-        return crossProjectModeDecider.crossProjectEnabled() && CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled();
+        return crossProjectModeDecider.crossProjectEnabled();
     }
 }

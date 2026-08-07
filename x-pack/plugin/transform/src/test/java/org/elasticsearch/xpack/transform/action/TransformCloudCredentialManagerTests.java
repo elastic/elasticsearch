@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.core.security.cloud.CloudCredentialManager;
 import org.elasticsearch.xpack.core.security.cloud.InternalCloudApiKeyService;
 import org.elasticsearch.xpack.core.security.cloud.InternalCloudApiKeyService.CloudGrantApiKeyResult;
 import org.elasticsearch.xpack.core.security.cloud.PersistedCloudCredential;
-import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 
@@ -57,19 +56,7 @@ public class TransformCloudCredentialManagerTests extends ESTestCase {
         verifyNoInteractions(apiKeyService, auditor);
     }
 
-    public void testRevokeAndCloseSkipsRevokeWhenFeatureFlagOff() {
-        assumeFalse("Only relevant if feature flag is OFF", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
-        var apiKeyService = mock(InternalCloudApiKeyService.class);
-        var auditor = mock(TransformAuditor.class);
-        var credential = randomPersistedCloudCredential();
-
-        newManager(apiKeyService, mock(TransformConfigManager.class), auditor).revokeAndClose(TRANSFORM_ID, credential);
-
-        verifyNoInteractions(apiKeyService, auditor);
-    }
-
     public void testRevokeAndCloseInvokesApiAndAuditsOnSuccess() {
-        assumeTrue("Only relevant if feature flag is enabled", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
         var apiKeyService = mock(InternalCloudApiKeyService.class);
         var auditor = mock(TransformAuditor.class);
         var credential = randomPersistedCloudCredential();
@@ -88,7 +75,6 @@ public class TransformCloudCredentialManagerTests extends ESTestCase {
     }
 
     public void testRevokeAndCloseAuditsOnRevokeFailure() {
-        assumeTrue("Only relevant if feature flag is enabled", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
         var apiKeyService = mock(InternalCloudApiKeyService.class);
         var auditor = mock(TransformAuditor.class);
         var credential = randomPersistedCloudCredential();
@@ -108,7 +94,6 @@ public class TransformCloudCredentialManagerTests extends ESTestCase {
     }
 
     public void testLoadAndRevokeByTokenIdIsNoopWhenTokenIdNull() {
-        assumeTrue("Only relevant if feature flag is enabled", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
         var apiKeyService = mock(InternalCloudApiKeyService.class);
         var configManager = mock(TransformConfigManager.class);
         var auditor = mock(TransformAuditor.class);
@@ -119,20 +104,7 @@ public class TransformCloudCredentialManagerTests extends ESTestCase {
         verifyNoInteractions(apiKeyService, configManager, auditor);
     }
 
-    public void testLoadAndRevokeByTokenIdIsNoopWhenFlagOff() {
-        assumeFalse("Only relevant if feature flag is OFF", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
-        var apiKeyService = mock(InternalCloudApiKeyService.class);
-        var configManager = mock(TransformConfigManager.class);
-        var auditor = mock(TransformAuditor.class);
-        var future = ActionTestUtils.<Void>assertNoFailureListener(r -> assertNull(r));
-
-        newManager(apiKeyService, configManager, auditor).loadAndRevokeByTokenId(TRANSFORM_ID, "some-token", future);
-
-        verifyNoInteractions(apiKeyService, configManager, auditor);
-    }
-
     public void testLoadAndRevokeByTokenIdRevokesWhenCredentialPresent() {
-        assumeTrue("Only relevant if feature flag is enabled", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
         var apiKeyService = mock(InternalCloudApiKeyService.class);
         var configManager = mock(TransformConfigManager.class);
         var auditor = mock(TransformAuditor.class);
@@ -156,7 +128,6 @@ public class TransformCloudCredentialManagerTests extends ESTestCase {
     }
 
     public void testLoadAndRevokeByTokenIdProceedsOnLoadFailure() {
-        assumeTrue("Only relevant if feature flag is enabled", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
         var apiKeyService = mock(InternalCloudApiKeyService.class);
         var configManager = mock(TransformConfigManager.class);
         var auditor = mock(TransformAuditor.class);
@@ -174,7 +145,6 @@ public class TransformCloudCredentialManagerTests extends ESTestCase {
     }
 
     public void testLoadRevokeAndDeleteByTokenIdHappyPath() {
-        assumeTrue("Only relevant if feature flag is enabled", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
         var apiKeyService = mock(InternalCloudApiKeyService.class);
         var configManager = mock(TransformConfigManager.class);
         var auditor = mock(TransformAuditor.class);
@@ -204,7 +174,6 @@ public class TransformCloudCredentialManagerTests extends ESTestCase {
     }
 
     public void testLoadRevokeAndDeleteByTokenIdContinuesOnDeleteFailure() {
-        assumeTrue("Only relevant if feature flag is enabled", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
         var apiKeyService = mock(InternalCloudApiKeyService.class);
         var configManager = mock(TransformConfigManager.class);
         var auditor = mock(TransformAuditor.class);
@@ -233,7 +202,6 @@ public class TransformCloudCredentialManagerTests extends ESTestCase {
     }
 
     public void testLoadRevokeAndDeleteByTokenIdIsNoopWhenTokenIdNull() {
-        assumeTrue("Only relevant if feature flag is enabled", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
         var apiKeyService = mock(InternalCloudApiKeyService.class);
         var configManager = mock(TransformConfigManager.class);
         var auditor = mock(TransformAuditor.class);
@@ -244,20 +212,7 @@ public class TransformCloudCredentialManagerTests extends ESTestCase {
         verifyNoInteractions(apiKeyService, configManager, auditor);
     }
 
-    public void testLoadRevokeAndDeleteByTokenIdIsNoopWhenFlagOff() {
-        assumeFalse("Only relevant if feature flag is OFF", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
-        var apiKeyService = mock(InternalCloudApiKeyService.class);
-        var configManager = mock(TransformConfigManager.class);
-        var auditor = mock(TransformAuditor.class);
-
-        var future = ActionTestUtils.<Void>assertNoFailureListener(r -> assertNull(r));
-        newManager(apiKeyService, configManager, auditor).loadRevokeAndDeleteByTokenId(TRANSFORM_ID, "some-token", future);
-
-        verifyNoInteractions(apiKeyService, configManager, auditor);
-    }
-
     public void testMintAndPersistReturnsNewTokenIdAndAudits() {
-        assumeTrue("Only relevant if feature flag is enabled", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
         runMintAndPersistAuditTest("minted cloud credential [new-id]");
     }
 
@@ -335,8 +290,6 @@ public class TransformCloudCredentialManagerTests extends ESTestCase {
     }
 
     public void testCurrentCallerCredentialPrefersSecondaryAuth() {
-        assumeTrue("Only relevant if feature flag is enabled", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
-
         var threadContext = new ThreadContext(Settings.EMPTY);
         var threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
@@ -427,8 +380,6 @@ public class TransformCloudCredentialManagerTests extends ESTestCase {
     }
 
     public void testMintAndPersistRevokesAtUiamWhenPersistFails() {
-        assumeTrue("Only relevant if feature flag is enabled", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
-
         var apiKeyService = mock(InternalCloudApiKeyService.class);
         var configManager = mock(TransformConfigManager.class);
         var auditor = mock(TransformAuditor.class);
@@ -475,8 +426,6 @@ public class TransformCloudCredentialManagerTests extends ESTestCase {
     }
 
     public void testRevokeCloseAndDeleteRevokesAndDeletesStorageDoc() {
-        assumeTrue("Only relevant if feature flag is enabled", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
-
         var apiKeyService = mock(InternalCloudApiKeyService.class);
         var configManager = mock(TransformConfigManager.class);
         var auditor = mock(TransformAuditor.class);
@@ -500,8 +449,6 @@ public class TransformCloudCredentialManagerTests extends ESTestCase {
     }
 
     public void testRevokeCloseAndDeleteLeavesStorageDocOnRevokeFailure() {
-        assumeTrue("Only relevant if feature flag is enabled", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
-
         var apiKeyService = mock(InternalCloudApiKeyService.class);
         var configManager = mock(TransformConfigManager.class);
         var auditor = mock(TransformAuditor.class);

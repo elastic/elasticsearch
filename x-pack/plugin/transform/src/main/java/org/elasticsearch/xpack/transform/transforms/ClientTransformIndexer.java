@@ -152,8 +152,7 @@ class ClientTransformIndexer extends TransformIndexer {
         context.setShouldStopAtCheckpoint(shouldStopAtCheckpoint);
 
         disablePit = TransformEffectiveSettings.isPitDisabled(transformConfig.getSettings());
-        crossProjectEnabled = transformServices.crossProjectModeDecider().crossProjectEnabled()
-            && TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled();
+        crossProjectEnabled = transformServices.crossProjectModeDecider().crossProjectEnabled();
         this.hasLinkedProjects = transformServices.hasLinkedProjects();
     }
 

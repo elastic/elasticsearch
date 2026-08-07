@@ -75,7 +75,6 @@ import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction;
 import org.elasticsearch.xpack.core.transform.action.UpgradeTransformsAction;
 import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
-import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformParsingContext;
 import org.elasticsearch.xpack.transform.action.TransformCloudCredentialManager;
 import org.elasticsearch.xpack.transform.action.TransportDeleteTransformAction;
@@ -240,9 +239,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         final Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
-        var transformParsingContext = new TransformParsingContext(
-            restHandlersServices.crossProjectModeDecider().crossProjectEnabled() && TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()
-        );
+        var transformParsingContext = new TransformParsingContext(restHandlersServices.crossProjectModeDecider().crossProjectEnabled());
         return Arrays.asList(
             new RestPutTransformAction(transformParsingContext),
             new RestStartTransformAction(),
@@ -297,9 +294,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         ClusterService clusterService = services.clusterService();
 
         var crossProjectModeDecider = services.crossProjectModeDecider();
-        var transformParsingContext = new TransformParsingContext(
-            crossProjectModeDecider.crossProjectEnabled() && TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()
-        );
+        var transformParsingContext = new TransformParsingContext(crossProjectModeDecider.crossProjectEnabled());
 
         TransformConfigManager configManager = new IndexBasedTransformConfigManager(
             clusterService,

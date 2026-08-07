@@ -28,7 +28,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.transform.transforms.QueryConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
-import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.AggregationConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.DateHistogramGroupSource;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfig;
@@ -176,7 +175,6 @@ public class SchemaUtilTests extends ESTestCase {
     }
 
     public void testGetSourceFieldMappingsIncludesProjectRouting() throws InterruptedException {
-        assumeTrue("Only relevant if feature flag is enabled", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
         String projectRouting = "_alias:_origin";
         try (var threadPool = createThreadPool()) {
             final var client = new FieldCapsMockClient(threadPool, emptySet());

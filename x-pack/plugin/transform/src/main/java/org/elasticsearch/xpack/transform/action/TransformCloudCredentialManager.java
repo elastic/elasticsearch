@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.core.security.cloud.CloudCredential;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredentialManager;
 import org.elasticsearch.xpack.core.security.cloud.InternalCloudApiKeyService;
 import org.elasticsearch.xpack.core.security.cloud.PersistedCloudCredential;
-import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 
@@ -109,7 +108,7 @@ public class TransformCloudCredentialManager {
 
     /**
      * Returns the cloud-managed credential for the caller in the current thread context, or
-     * {@code null} if the feature flag is off or the caller is not cloud-managed. Intended for
+     * {@code null} if the caller is not cloud-managed. Intended for
      * callers that need to attach the credential to an internal action's request payload so it
      * survives the system-origin context stash performed by
      * {@link org.elasticsearch.xpack.core.ClientHelper#executeAsyncWithOrigin}.
@@ -121,9 +120,6 @@ public class TransformCloudCredentialManager {
      */
     @Nullable
     public CloudCredential currentCallerCredential() {
-        if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled() == false) {
-            return null;
-        }
         return useSecondaryAuthIfAvailable(
             securityContext,
             () -> credentialManager.extractCloudManagedCredential(threadPool.getThreadContext())
@@ -138,7 +134,7 @@ public class TransformCloudCredentialManager {
      * coordinating node — rather than read from the current thread context here, since this method
      * commonly runs on the master node after the request has been forwarded, by which point the
      * {@code AUTHENTICATING_CLOUD_TOKEN_THREAD_CONTEXT} transient is no longer present.
-     * If no cloud credential is present (feature off or no UIAM context), responds with {@code null}
+     * If no cloud credential is present (no UIAM context), responds with {@code null}
      * and does <b>no</b> cleanup of any prior credential — that responsibility now belongs to the
      * caller (typically by threading the prior {@code TransformConfig#getCredentialId} through to a
      * {@link #loadRevokeAndDeleteByTokenId} call after the config write succeeds).
@@ -160,7 +156,7 @@ public class TransformCloudCredentialManager {
      */
     public void mintAndPersist(String transformId, @Nullable CloudCredential callerCredential, ActionListener<String> listener) {
         if (callerCredential == null) {
-            // Feature off or no UIAM context: nothing to mint and nothing to clean up here. The
+            // No UIAM context: nothing to mint and nothing to clean up here. The
             // caller already holds the prior credentialId (if any) on the existing TransformConfig
             // and can revoke it explicitly via loadRevokeAndDeleteByTokenId once the config write
             // succeeds.
@@ -203,18 +199,12 @@ public class TransformCloudCredentialManager {
      * Revokes the given persisted cloud credential with UIAM and closes its {@code SecureString}.
      * Fire-and-forget: failures are logged + audited but not propagated to the caller, because the
      * serverless revoke API is idempotent so a future retry / GC sweep can still clean up. No-op
-     * for null credentials and when the {@code TRANSFORM_CROSS_PROJECT} feature flag is off (the
-     * {@link InternalCloudApiKeyService.Default} implementation throws
-     * {@link UnsupportedOperationException} on revoke).
+     * for null credentials.
      *
      * <p>The {@code transformId} is used for the audit row attribution.
      */
     public void revokeAndClose(String transformId, @Nullable PersistedCloudCredential credential) {
         if (credential == null) {
-            return;
-        }
-        if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled() == false) {
-            credential.close();
             return;
         }
         String credId = credential.id();
@@ -232,17 +222,13 @@ public class TransformCloudCredentialManager {
      * its {@code SecureString}. Fire-and-forget: failures are logged but not propagated. Use this
      * in the indexer's credential-swap path where the caller already holds the displaced
      * {@link PersistedCloudCredential} object (so no redundant storage read is needed). No-op for
-     * null credentials and when the {@code TRANSFORM_CROSS_PROJECT} feature flag is off.
+     * null credentials.
      *
      * @param transformId the owning transform id (audit attribution only)
      * @param credential  the displaced credential to revoke + delete; null is silently ignored
      */
     public void revokeCloseAndDelete(String transformId, @Nullable PersistedCloudCredential credential) {
         if (credential == null) {
-            return;
-        }
-        if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled() == false) {
-            credential.close();
             return;
         }
         String credId = credential.id();
@@ -270,8 +256,7 @@ public class TransformCloudCredentialManager {
      * Loads the persisted cloud credential for {@code tokenId} from storage and revokes it
      * (best-effort, via {@link #revokeAndClose}). Always notifies {@code listener} with {@code null}
      * on completion — load failures are logged but never propagate because the idempotent UIAM
-     * revoke is safe to retry via a future GC sweep. No-op when the feature flag is off or
-     * {@code tokenId} is null.
+     * revoke is safe to retry via a future GC sweep. No-op when {@code tokenId} is null.
      *
      * <p>Use this when the caller will subsequently remove the credential storage doc itself
      * (e.g. via {@code deleteTransform}'s transform-wide DBQ which also targets credential docs).
@@ -282,7 +267,7 @@ public class TransformCloudCredentialManager {
      * @param tokenId     the UIAM tokenId of the credential to revoke; null skips the operation
      */
     public void loadAndRevokeByTokenId(String transformId, @Nullable String tokenId, ActionListener<Void> listener) {
-        if (tokenId == null || TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled() == false) {
+        if (tokenId == null) {
             listener.onResponse(null);
             return;
         }
@@ -299,7 +284,7 @@ public class TransformCloudCredentialManager {
      * Loads + revokes (via {@link #loadAndRevokeByTokenId}) and then removes the credential storage
      * doc for {@code tokenId}. Best-effort throughout: a load or revoke failure is logged but the
      * storage delete still runs; a delete failure is logged but the listener still completes. No-op
-     * when the feature flag is off or {@code tokenId} is null.
+     * when {@code tokenId} is null.
      *
      * <p>Use this in compensating-cleanup paths where the caller owns the credential-doc delete
      * (e.g. config-write-failure rollback in PUT/UPDATE) and in the running-task credential swap
@@ -309,9 +294,9 @@ public class TransformCloudCredentialManager {
      * @param tokenId     the UIAM tokenId of the credential to revoke + delete; null skips both
      */
     public void loadRevokeAndDeleteByTokenId(String transformId, @Nullable String tokenId, ActionListener<Void> listener) {
-        if (tokenId == null || TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled() == false) {
-            // The storage doc only exists when the feature is on and a tokenId was minted; either
-            // condition false means there's nothing to clean up here.
+        if (tokenId == null) {
+            // The storage doc only exists when a tokenId was minted; without one there's nothing
+            // to clean up here.
             listener.onResponse(null);
             return;
         }

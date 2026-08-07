@@ -707,8 +707,6 @@ public class TransformUpdaterTests extends ESTestCase {
      * search scope.
      */
     public void testUiamMigrationDefaultsProjectRoutingToLocalOnly() throws InterruptedException {
-        assumeTrue("Only relevant if feature flag is enabled", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
-
         InMemoryTransformConfigManager transformConfigManager = new InMemoryTransformConfigManager();
         // Legacy config: no credentialId, no project_routing — built deterministically.
         TransformConfig legacyConfig = legacyTransformConfig(randomAlphaOfLengthBetween(1, 10), null);
@@ -752,8 +750,6 @@ public class TransformUpdaterTests extends ESTestCase {
      * must not overwrite it.
      */
     public void testUiamMigrationDoesNotOverrideExistingProjectRouting() throws InterruptedException {
-        assumeTrue("Only relevant if feature flag is enabled", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
-
         InMemoryTransformConfigManager transformConfigManager = new InMemoryTransformConfigManager();
         // Legacy config (no credentialId) but it already has an explicit project_routing.
         TransformConfig legacyConfigWithRouting = legacyTransformConfig(randomAlphaOfLengthBetween(1, 10), "_alias:linked_project");
@@ -797,8 +793,6 @@ public class TransformUpdaterTests extends ESTestCase {
      * overwrite it.
      */
     public void testUiamMigrationHonoursExplicitProjectRoutingInUpdate() throws InterruptedException {
-        assumeTrue("Only relevant if feature flag is enabled", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
-
         InMemoryTransformConfigManager transformConfigManager = new InMemoryTransformConfigManager();
         TransformConfig legacyConfig = legacyTransformConfig(randomAlphaOfLengthBetween(1, 10), null);
         transformConfigManager.putTransformConfiguration(legacyConfig, ActionListener.noop());
@@ -856,8 +850,6 @@ public class TransformUpdaterTests extends ESTestCase {
      * source, so their (absent) project_routing is respected as null rather than defaulted.
      */
     public void testUiamMigrationRespectsExplicitSourceWithNullProjectRouting() throws InterruptedException {
-        assumeTrue("Only relevant if feature flag is enabled", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
-
         InMemoryTransformConfigManager transformConfigManager = new InMemoryTransformConfigManager();
         TransformConfig legacyConfig = legacyTransformConfig(randomAlphaOfLengthBetween(1, 10), null);
         transformConfigManager.putTransformConfiguration(legacyConfig, ActionListener.noop());
@@ -910,8 +902,6 @@ public class TransformUpdaterTests extends ESTestCase {
      * Re-keys of already-migrated transforms (credentialId != null) must not trigger the default.
      */
     public void testAlreadyMigratedTransformDoesNotDefaultRoutingOnRekey() throws InterruptedException {
-        assumeTrue("Only relevant if feature flag is enabled", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
-
         InMemoryTransformConfigManager transformConfigManager = new InMemoryTransformConfigManager();
         // Migrated config: has credentialId, no project_routing.
         TransformConfig migratedConfig = new TransformConfig.Builder(legacyTransformConfig(randomAlphaOfLengthBetween(1, 10), null))
@@ -957,8 +947,6 @@ public class TransformUpdaterTests extends ESTestCase {
      * must not apply.
      */
     public void testNoMintNoDefaultRouting() throws InterruptedException {
-        assumeTrue("Only relevant if feature flag is enabled", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
-
         InMemoryTransformConfigManager transformConfigManager = new InMemoryTransformConfigManager();
         TransformConfig legacyConfig = legacyTransformConfig(randomAlphaOfLengthBetween(1, 10), null);
         transformConfigManager.putTransformConfiguration(legacyConfig, ActionListener.noop());
@@ -1005,8 +993,6 @@ public class TransformUpdaterTests extends ESTestCase {
      * project currently has linked projects.
      */
     public void testUiamMigrationDefaultsProjectRoutingEvenWithoutLinkedProjects() throws InterruptedException {
-        assumeTrue("Only relevant if feature flag is enabled", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
-
         InMemoryTransformConfigManager transformConfigManager = new InMemoryTransformConfigManager();
         TransformConfig legacyConfig = legacyTransformConfig(randomAlphaOfLengthBetween(1, 10), null);
         transformConfigManager.putTransformConfiguration(legacyConfig, ActionListener.noop());

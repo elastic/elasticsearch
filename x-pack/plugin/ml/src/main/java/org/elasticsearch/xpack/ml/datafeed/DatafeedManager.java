@@ -56,7 +56,6 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredential;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredentialManager;
-import org.elasticsearch.xpack.core.security.cloud.CloudCredentialsExtension;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MachineLearningExtension;
@@ -145,7 +144,7 @@ public final class DatafeedManager {
     }
 
     private boolean crossProjectMlEnabled() {
-        return crossProjectModeDecider.crossProjectEnabled() && CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled();
+        return crossProjectModeDecider.crossProjectEnabled();
     }
 
     /**

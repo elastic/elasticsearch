@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredential;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredentialManager;
-import org.elasticsearch.xpack.core.security.cloud.CloudCredentialsExtension;
 import org.elasticsearch.xpack.core.security.cloud.InternalCloudApiKeyService;
 import org.elasticsearch.xpack.core.security.cloud.PersistedCloudCredential;
 import org.elasticsearch.xpack.ml.datafeed.CredentialTransitions.Change;
@@ -343,8 +342,6 @@ public class CredentialTransitionsTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testValidateSearchBeforeMintWhenProbeReturnsNoMatchingProjectShouldDeferToRuntime() {
-        assumeTrue("CPS feature flag must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
-
         CloudCredentialManager credentialManager = mock(CloudCredentialManager.class);
         InternalCloudApiKeyService apiKeyService = mock(InternalCloudApiKeyService.class);
         Client client = mock(Client.class);
@@ -394,8 +391,6 @@ public class CredentialTransitionsTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testValidateSearchBeforeMintWhenProbeReturnsNoMatchingProjectForQualifiedIndexShouldFail() {
-        assumeTrue("CPS feature flag must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
-
         CloudCredentialManager credentialManager = mock(CloudCredentialManager.class);
         InternalCloudApiKeyService apiKeyService = mock(InternalCloudApiKeyService.class);
         Client client = mock(Client.class);

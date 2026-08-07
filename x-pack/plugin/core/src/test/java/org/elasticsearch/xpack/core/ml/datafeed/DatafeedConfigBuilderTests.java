@@ -21,7 +21,6 @@ import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInter
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.core.security.cloud.CloudCredentialsExtension;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -160,7 +159,6 @@ public class DatafeedConfigBuilderTests extends AbstractWireSerializingTestCase<
      * so the CPS flag in the stored configuration is not used.
      */
     public void testCrossProjectModeOptionsAccepted() {
-        assumeTrue("CPS feature flag must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
         var datafeedBuilder = createRandomizedDatafeedConfigBuilder("jobId", "datafeed-id", 3600000);
         datafeedBuilder = datafeedBuilder.setIndicesOptions(
             IndicesOptions.builder(datafeedBuilder.getIndicesOptions())

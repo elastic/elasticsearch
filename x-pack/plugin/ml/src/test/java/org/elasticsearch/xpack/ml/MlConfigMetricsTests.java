@@ -27,7 +27,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
-import org.elasticsearch.xpack.core.security.cloud.CloudCredentialsExtension;
 import org.elasticsearch.xpack.core.security.cloud.PersistedCloudCredential;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.junit.After;
@@ -84,8 +83,6 @@ public class MlConfigMetricsTests extends ESTestCase {
     }
 
     public void testComputeCountsShouldBucketMixedConfigs() {
-        assumeTrue("feature under test must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
-
         PersistedCloudCredential uiamCredential = PersistedCloudCredential.plaintext("key-1", new SecureString("secret".toCharArray()));
         List<DatafeedConfig> configs = List.of(
             datafeed("flat", null, null, null),
@@ -123,8 +120,6 @@ public class MlConfigMetricsTests extends ESTestCase {
     }
 
     public void testPollIfMasterShouldUpdateGaugeObservers() throws Exception {
-        assumeTrue("feature under test must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
-
         Settings settings = cpsMasterSettings();
         mockMasterClusterState();
         when(clusterService.state()).thenAnswer(invocation -> masterClusterState());
@@ -154,8 +149,6 @@ public class MlConfigMetricsTests extends ESTestCase {
     }
 
     public void testPollIfMasterOnNonMasterNodeShouldNotScanConfigs() {
-        assumeTrue("feature under test must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
-
         Settings settings = cpsMasterSettings();
         when(clusterService.state()).thenReturn(nonMasterClusterState());
 
@@ -167,8 +160,6 @@ public class MlConfigMetricsTests extends ESTestCase {
     }
 
     public void testPollIfMasterOnNonMasterShouldClearCachedCounts() {
-        assumeTrue("feature under test must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
-
         Settings settings = cpsMasterSettings();
         when(clusterService.state()).thenAnswer(invocation -> masterClusterState());
 
@@ -187,8 +178,6 @@ public class MlConfigMetricsTests extends ESTestCase {
     }
 
     public void testPollIfMasterShouldClearCountsWhenDemotedWhileScanInFlight() {
-        assumeTrue("feature under test must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
-
         Settings settings = cpsMasterSettings();
         when(clusterService.state()).thenAnswer(invocation -> masterClusterState());
 

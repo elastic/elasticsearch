@@ -228,7 +228,7 @@ public class TransformUpdater {
         // directly (no copy needed): mint runs after <2> below, which already dispatched and closed
         // its own independent copy, so nothing else still needs this reference by the time mint runs.
         ActionListener<Map<String, String>> mintCredentialListener = writeConfigListener.delegateFailureAndWrap((l, destIndexMappings) -> {
-            if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled() && mintCloudCredential) {
+            if (mintCloudCredential) {
                 cloudCredentialManager.mintAndPersist(
                     updatedConfig.getId(),
                     callerCredential,
@@ -341,7 +341,7 @@ public class TransformUpdater {
 
         // Reset / Upgrade: load the transform's stored internal credential when the config references one.
         var credentialId = config.getCredentialId();
-        if (credentialId == null || TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled() == false) {
+        if (credentialId == null) {
             dispatchValidateTransform(config, client, deferValidation, timeout, null, wrapped);
             return;
         }
@@ -564,7 +564,7 @@ public class TransformUpdater {
         @Nullable CloudCredential callerCredential,
         boolean mintCloudCredential
     ) {
-        if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled() == false || mintCloudCredential == false || callerCredential == null) {
+        if (mintCloudCredential == false || callerCredential == null) {
             return false;
         }
         if (originalConfig.getCredentialId() != null) {

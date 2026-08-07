@@ -87,9 +87,7 @@ class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
         SearchRequest searchRequest = new SearchRequest(transformConfig.getSource().getIndex()).allowPartialSearchResults(false)
             .indicesOptions(checkpointIndicesOptions())
             .source(sourceBuilder);
-        if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()) {
-            searchRequest.setProjectRouting(transformConfig.getSource().getProjectRouting());
-        }
+        searchRequest.setProjectRouting(transformConfig.getSource().getProjectRouting());
 
         logger.trace("query for changes based on time: {}", sourceBuilder);
 

@@ -115,7 +115,7 @@ public class TransformCheckpointService {
         // we need to retrieve the config first before we can defer the rest to the corresponding provider
         transformConfigManager.getTransformConfiguration(transformId, ActionListener.wrap(transformConfig -> {
             var credentialId = transformConfig.getCredentialId();
-            if (credentialId != null && TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()) {
+            if (credentialId != null) {
                 transformConfigManager.getTransformCloudCredentialByTokenId(
                     credentialId,
                     true,

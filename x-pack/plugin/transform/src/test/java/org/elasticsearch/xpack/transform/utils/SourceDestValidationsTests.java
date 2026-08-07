@@ -11,7 +11,6 @@ import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator.SourceDestValidation;
-import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 
 import java.util.List;
 
@@ -52,7 +51,6 @@ public class SourceDestValidationsTests extends ESTestCase {
     }
 
     public void testGetValidations_CpsEnabled_SkipsSourceMissingRemoteSourceAndDestinationInSource() {
-        assumeTrue("Only relevant when CPS feature flag is on", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
         assertThat(
             SourceDestValidations.getValidations(false, cpsEnabled(), List.of()),
             containsInAnyOrder(DESTINATION_SINGLE_INDEX_VALIDATION, DESTINATION_PIPELINE_MISSING_VALIDATION)
@@ -65,7 +63,6 @@ public class SourceDestValidationsTests extends ESTestCase {
             containsInAnyOrder(DESTINATION_SINGLE_INDEX_VALIDATION)
         );
 
-        assumeTrue("Only relevant when CPS feature flag is on", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
         assertThat(
             SourceDestValidations.getValidations(true, cpsEnabled(), List.of()),
             containsInAnyOrder(DESTINATION_SINGLE_INDEX_VALIDATION)
@@ -80,7 +77,6 @@ public class SourceDestValidationsTests extends ESTestCase {
     }
 
     public void testGetValidationsForPreview_CpsEnabled_SkipsSourceMissingAndRemoteSource() {
-        assumeTrue("Only relevant when CPS feature flag is on", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
         assertThat(
             SourceDestValidations.getValidationsForPreview(cpsEnabled(), List.of()),
             containsInAnyOrder(DESTINATION_PIPELINE_MISSING_VALIDATION)
@@ -88,7 +84,6 @@ public class SourceDestValidationsTests extends ESTestCase {
     }
 
     public void testGetValidations_CpsEnabled_AdditionalValidationsAppended() {
-        assumeTrue("Only relevant when CPS feature flag is on", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
         SourceDestValidation extra = mock(SourceDestValidator.SourceDestValidation.class);
         assertThat(
             SourceDestValidations.getValidations(false, cpsEnabled(), List.of(extra)),

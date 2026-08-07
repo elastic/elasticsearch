@@ -177,10 +177,6 @@ public class ManagedServiceAccountStoreTests extends ESTestCase {
     public void testCacheKeysIncludeProjectId() {
         final ProjectId projectId = randomUniqueProjectId();
         assertThat(ManagedServiceAccountStore.cacheKeyForPrincipal(projectId, PRINCIPAL), equalTo(projectId.id() + "/" + PRINCIPAL));
-        assertThat(
-            ManagedServiceAccountStore.cacheKeyPrefixForPrincipal(projectId, PRINCIPAL),
-            equalTo(projectId.id() + "/" + PRINCIPAL + "/")
-        );
     }
 
     private List<String> getAccountRoles() throws Exception {

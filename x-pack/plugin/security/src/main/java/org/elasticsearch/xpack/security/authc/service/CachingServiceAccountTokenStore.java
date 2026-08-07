@@ -90,10 +90,9 @@ public abstract class CachingServiceAccountTokenStore implements ServiceAccountT
 
     private void authenticateWithCache(ServiceAccountToken token, ActionListener<StoreAuthenticationResult> listener) {
         assert cache != null;
-        final String cacheKey = cacheKeyForToken(token);
         try {
             final AtomicBoolean valueAlreadyInCache = new AtomicBoolean(true);
-            final ListenableFuture<CachedResult> listenableCacheEntry = cache.computeIfAbsent(cacheKey, k -> {
+            final ListenableFuture<CachedResult> listenableCacheEntry = cache.computeIfAbsent(token.getQualifiedName(), k -> {
                 valueAlreadyInCache.set(false);
                 return new ListenableFuture<>();
             });
@@ -105,7 +104,7 @@ public abstract class CachingServiceAccountTokenStore implements ServiceAccountT
                         // same wrong token
                         l.onResponse(StoreAuthenticationResult.failed(getTokenSource()));
                     } else {
-                        cache.invalidate(cacheKey, listenableCacheEntry);
+                        cache.invalidate(token.getQualifiedName(), listenableCacheEntry);
                         authenticateWithCache(token, l);
                     }
                 }), threadPool.generic(), threadPool.getThreadContext());
@@ -113,15 +112,15 @@ public abstract class CachingServiceAccountTokenStore implements ServiceAccountT
                 doAuthenticate(token, ActionListener.wrap(storeAuthenticationResult -> {
                     if (false == storeAuthenticationResult.isSuccess()) {
                         // Do not cache failed attempt
-                        cache.invalidate(cacheKey, listenableCacheEntry);
+                        cache.invalidate(token.getQualifiedName(), listenableCacheEntry);
                     } else {
-                        logger.trace("cache service token [{}] authentication result", cacheKey);
+                        logger.trace("cache service token [{}] authentication result", token.getQualifiedName());
                     }
                     listenableCacheEntry.onResponse(new CachedResult(hasher, storeAuthenticationResult.isSuccess(), token));
                     listener.onResponse(storeAuthenticationResult);
                 }, e -> {
                     // In case of failure, evict the cache entry and notify all listeners
-                    cache.invalidate(cacheKey, listenableCacheEntry);
+                    cache.invalidate(token.getQualifiedName(), listenableCacheEntry);
                     listenableCacheEntry.onFailure(e);
                     listener.onFailure(e);
                 }));
@@ -129,13 +128,6 @@ public abstract class CachingServiceAccountTokenStore implements ServiceAccountT
         } catch (final ExecutionException e) {
             listener.onFailure(e);
         }
-    }
-
-    /**
-     * Cache key for token authentication. Index-backed managed tokens override this to include the current project.
-     */
-    protected String cacheKeyForToken(ServiceAccountToken token) {
-        return token.getQualifiedName();
     }
 
     /**

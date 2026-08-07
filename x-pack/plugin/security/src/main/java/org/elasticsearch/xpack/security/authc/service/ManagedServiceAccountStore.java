@@ -177,10 +177,6 @@ public class ManagedServiceAccountStore implements CacheInvalidatorRegistry.Cach
         return projectId.id() + "/" + principal;
     }
 
-    static String cacheKeyPrefixForPrincipal(ProjectId projectId, String principal) {
-        return cacheKeyForPrincipal(projectId, principal) + "/";
-    }
-
     public void listAccounts(
         @Nullable String namespace,
         @Nullable String serviceName,
@@ -507,7 +503,7 @@ public class ManagedServiceAccountStore implements CacheInvalidatorRegistry.Cach
 
     private void clearManagedTokenCache(ServiceAccount.ServiceAccountId accountId, ActionListener<Void> listener) {
         final ClearSecurityCacheRequest clearSecurityCacheRequest = new ClearSecurityCacheRequest().cacheName("index_service_account_token")
-            .keys(cacheKeyPrefixForPrincipal(currentProjectId(), accountId.asPrincipal()));
+            .keys(accountId.asPrincipal() + "/");
         executeAsyncWithOrigin(
             client,
             SECURITY_ORIGIN,

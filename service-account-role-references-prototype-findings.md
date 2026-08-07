@@ -98,7 +98,7 @@ Verified in `ManagedServiceAccountPrivilegeTests`.
 
 | Area | Prototype behavior |
 |---|---|
-| Project scope | Uses `securityIndex.forCurrentProject()` for accounts and tokens; account and index-token credential caches key by `{projectId}/{principal}` |
+| Project scope | Uses `securityIndex.forCurrentProject()` for index reads/writes; managed account cache keys by `{projectId}/{principal}`; index token credential cache remains keyed by qualified token name (pre-multi-project behavior) |
 | File tokens | Only built-in `elastic/*`; managed path never consults file store first for non-elastic namespaces |
 | Extension `ServiceAccountTokenStore` | Managed accounts disabled when extension replaces the store (same as index tokens today) |
 | Mixed cluster | `managed_service_accounts` transport version gates CRUD/auth; built-ins continue to work |

@@ -103,12 +103,6 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
     }
 
     @Override
-    protected String cacheKeyForToken(ServiceAccountToken token) {
-        return ManagedServiceAccountStore.cacheKeyPrefixForPrincipal(securityIndex.currentProjectId(), token.getAccountId().asPrincipal())
-            + token.getTokenName();
-    }
-
-    @Override
     void doAuthenticate(ServiceAccountToken token, ActionListener<StoreAuthenticationResult> listener) {
         final GetRequest getRequest = client.prepareGet(SECURITY_MAIN_ALIAS, docIdForToken(token.getQualifiedName()))
             .setFetchSource(true)
@@ -276,13 +270,7 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
                     ActionListener.wrap(deleteResponse -> {
                         final ClearSecurityCacheRequest clearSecurityCacheRequest = new ClearSecurityCacheRequest().cacheName(
                             "index_service_account_token"
-                        )
-                            .keys(
-                                ManagedServiceAccountStore.cacheKeyPrefixForPrincipal(
-                                    securityIndex.currentProjectId(),
-                                    accountId.asPrincipal()
-                                ) + request.getTokenName()
-                            );
+                        ).keys(qualifiedTokenName);
                         executeAsyncWithOrigin(
                             client,
                             SECURITY_ORIGIN,

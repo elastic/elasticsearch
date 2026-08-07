@@ -53,7 +53,6 @@ public abstract class AzureCoreClassPatcher implements TransformAction<Transform
             File outputFile = outputs.file(inputFile.getName().replace(".jar", "-patched.jar"));
             Utils.patchJar(inputFile, outputFile, CLASS_PATCHERS, true);
         } else {
-            System.out.println("Skipping " + inputFile.getName());
             outputs.file(getInputArtifact());
         }
     }

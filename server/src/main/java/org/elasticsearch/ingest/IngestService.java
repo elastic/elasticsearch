@@ -56,7 +56,6 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.streams.StreamType;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -590,40 +589,31 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             return;
         }
 
+        // Capture the limits once, up front, so that the pre-check below and the authoritative check inside the cluster state update
+        // both evaluate this request against the same values even if the settings are updated in between.
+        final IngestSettings.PipelineLimits limits = IngestSettings.PipelineLimits.from(clusterService.getClusterSettings());
+
         nodeInfoListener.accept(listener.delegateFailureAndWrap((l, nodeInfos) -> {
             validatePipelineRequest(projectId, request, nodeInfos);
-            final ClusterSettings clusterSettings = clusterService.getClusterSettings();
-            validatePipelineSize(
-                projectId,
-                request,
-                clusterSettings.get(IngestSettings.MAX_PIPELINES),
-                clusterSettings.get(IngestSettings.MAX_PIPELINE_SIZE),
-                clusterSettings.get(IngestSettings.MAX_TOTAL_METADATA_SIZE)
-            );
+            validatePipelineSize(projectId, request, limits.maxPipelines(), limits.maxPipelineSize(), limits.maxTotalSize());
 
             taskQueue.submitTask(
                 "put-pipeline-" + request.getId(),
-                new PutPipelineClusterStateUpdateTask(projectId, l, request),
+                new PutPipelineClusterStateUpdateTask(projectId, l, request, limits),
                 request.masterNodeTimeout()
             );
         }));
     }
 
     /**
-     * Rejects a pipeline that would put too much data into the cluster state. Pipelines are held in heap on every node and serialized on
-     * every cluster state update, so oversized or too-numerous pipelines can destabilize the cluster. Three safety limits are enforced,
-     * all read live from the (dynamically-updatable) cluster settings:
-     * <ul>
-     *     <li>the serialized size of the new pipeline ({@link IngestSettings#MAX_PIPELINE_SIZE}),</li>
-     *     <li>the total number of pipelines ({@link IngestSettings#MAX_PIPELINES}), enforced only when creating a new pipeline so existing
-     *     pipelines above the limit keep working, and</li>
-     *     <li>the combined serialized size of all pipelines ({@link IngestSettings#MAX_TOTAL_METADATA_SIZE}); per-pipeline and per-count
-     *     limits do not bound the aggregate, so many pipelines each just under the per-pipeline limit could otherwise accumulate. Only
-     *     changes that grow the aggregate are checked, so a cluster that is already over the limit can still shrink its way back under
-     *     it.</li>
-     * </ul>
-     * These limits are only checked here, on the user-facing put path, and not in {@link PutPipelineClusterStateUpdateTask#execute} which
-     * is also used to apply operator-managed file-based pipelines -- those are trusted and must not be able to wedge cluster bootstrap.
+     * A best-effort pre-check of the pipeline limits, run on the user-facing put path before the request is queued as a cluster state
+     * update. It is evaluated against the last applied cluster state, so concurrent puts can each pass it; the authoritative check that
+     * actually bounds the cluster state is in {@link PutPipelineClusterStateUpdateTask#execute}. The point of doing it here as well is to
+     * reject abusive input early -- before it occupies a slot in the master's task queue -- and to report the failure against the request
+     * the user actually sent.
+     * <p>
+     * It has the useful side effect of populating {@link PipelineConfiguration#serializedSizeInBytes()} for the existing pipelines off the
+     * cluster state update thread, so the authoritative check usually only has to sum memoized values.
      * <p>
      * Package-private and taking the limits as parameters (rather than reading them from the cluster settings itself) so it can be unit
      * tested directly.
@@ -635,16 +625,43 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         ByteSizeValue maxPipelineSize,
         ByteSizeValue maxTotalSize
     ) {
-        final PipelineConfiguration newPipeline = new PipelineConfiguration(
-            request.getId(),
-            request.getSource(),
-            request.getXContentType()
+        final IngestMetadata ingestMetadata = state.metadata().getProject(projectId).custom(IngestMetadata.TYPE);
+        final Map<String, PipelineConfiguration> existingPipelines = ingestMetadata == null ? Map.of() : ingestMetadata.getPipelines();
+        validatePipelineLimits(
+            new PipelineConfiguration(request.getId(), request.getSource(), request.getXContentType()),
+            existingPipelines,
+            new IngestSettings.PipelineLimits(maxPipelines, maxPipelineSize, maxTotalSize)
         );
+    }
+
+    /**
+     * Rejects a pipeline that would put too much data into the cluster state. Pipelines are held in heap on every node and serialized on
+     * every cluster state update, so oversized or too-numerous pipelines can destabilize the cluster. Three safety limits are enforced:
+     * <ul>
+     *     <li>the serialized size of the new pipeline ({@link IngestSettings#MAX_PIPELINE_SIZE}),</li>
+     *     <li>the total number of pipelines ({@link IngestSettings#MAX_PIPELINES}), enforced only when creating a new pipeline so existing
+     *     pipelines above the limit keep working, and</li>
+     *     <li>the combined serialized size of all pipelines ({@link IngestSettings#MAX_TOTAL_METADATA_SIZE}); per-pipeline and per-count
+     *     limits do not bound the aggregate, so many pipelines each just under the per-pipeline limit could otherwise accumulate. Only
+     *     changes that grow the aggregate are checked, so a cluster that is already over the limit can still shrink its way back under
+     *     it.</li>
+     * </ul>
+     *
+     * @param newPipeline the pipeline as it would be stored
+     * @param existingPipelines the pipelines it would be stored alongside, <em>including</em> the one it replaces, if any
+     */
+    static void validatePipelineLimits(
+        PipelineConfiguration newPipeline,
+        Map<String, PipelineConfiguration> existingPipelines,
+        IngestSettings.PipelineLimits limits
+    ) {
+        final String pipelineId = newPipeline.getId();
+        final ByteSizeValue maxPipelineSize = limits.maxPipelineSize();
         final long newSize = newPipeline.serializedSizeInBytes();
         if (newSize > maxPipelineSize.getBytes()) {
             throw new IllegalArgumentException(
                 "pipeline ["
-                    + request.getId()
+                    + pipelineId
                     + "] of size ["
                     + ByteSizeValue.ofBytes(newSize)
                     + "] exceeds the maximum allowed size of ["
@@ -655,14 +672,13 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             );
         }
 
-        final IngestMetadata ingestMetadata = state.metadata().getProject(projectId).custom(IngestMetadata.TYPE);
-        final Map<String, PipelineConfiguration> existingPipelines = ingestMetadata == null ? Map.of() : ingestMetadata.getPipelines();
-        final boolean isNewPipeline = existingPipelines.containsKey(request.getId()) == false;
+        final int maxPipelines = limits.maxPipelines();
+        final boolean isNewPipeline = existingPipelines.containsKey(pipelineId) == false;
 
         if (isNewPipeline && existingPipelines.size() >= maxPipelines) {
             throw new IllegalArgumentException(
                 "could not create pipeline ["
-                    + request.getId()
+                    + pipelineId
                     + "] because the maximum number of pipelines ["
                     + maxPipelines
                     + "] would be exceeded; this limit is controlled by the ["
@@ -674,7 +690,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         // An update that does not grow the aggregate cannot push the cluster any further over the limit, so it is always allowed. Without
         // this, a cluster that is already above the limit -- because the limit was lowered, or because it was upgraded into one -- could
         // not edit any pipeline at all, not even to shrink one back under the limit.
-        final PipelineConfiguration replacedPipeline = existingPipelines.get(request.getId());
+        final PipelineConfiguration replacedPipeline = existingPipelines.get(pipelineId);
         final long replacedSize = replacedPipeline == null ? 0L : replacedPipeline.serializedSizeInBytes();
         if (newSize <= replacedSize) {
             return;
@@ -682,16 +698,17 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
         // The aggregate is the quantity that actually determines how much heap the ingest metadata occupies. Exclude the pipeline being
         // replaced (if any) from the existing total, since the new definition supersedes it.
+        final ByteSizeValue maxTotalSize = limits.maxTotalSize();
         long totalSize = newSize;
         for (Map.Entry<String, PipelineConfiguration> entry : existingPipelines.entrySet()) {
-            if (entry.getKey().equals(request.getId()) == false) {
+            if (entry.getKey().equals(pipelineId) == false) {
                 totalSize += entry.getValue().serializedSizeInBytes();
             }
         }
         if (totalSize > maxTotalSize.getBytes()) {
             throw new IllegalArgumentException(
                 "could not store pipeline ["
-                    + request.getId()
+                    + pipelineId
                     + "] because the total size of all ingest pipelines ["
                     + ByteSizeValue.ofBytes(totalSize)
                     + "] would exceed the maximum allowed size of ["
@@ -840,6 +857,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      */
     public static class PutPipelineClusterStateUpdateTask extends PipelineClusterStateUpdateTask {
         private final PutPipelineRequest request;
+        // The limits to enforce when this task runs, or null to exempt it from them entirely (see the ReservedPipelineAction constructor).
+        @Nullable
+        private final IngestSettings.PipelineLimits limits;
         private final InstantSource instantSource;
 
         // constructor allowing for injection of InstantSource/time for testing
@@ -847,26 +867,31 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             final ProjectId projectId,
             final ActionListener<AcknowledgedResponse> listener,
             final PutPipelineRequest request,
+            @Nullable final IngestSettings.PipelineLimits limits,
             final InstantSource instantSource
         ) {
             super(projectId, listener);
             this.request = request;
+            this.limits = limits;
             this.instantSource = instantSource;
         }
 
         PutPipelineClusterStateUpdateTask(
             final ProjectId projectId,
             final ActionListener<AcknowledgedResponse> listener,
-            final PutPipelineRequest request
+            final PutPipelineRequest request,
+            @Nullable final IngestSettings.PipelineLimits limits
         ) {
-            this(projectId, listener, request, Instant::now);
+            this(projectId, listener, request, limits, Instant::now);
         }
 
         /**
-         * Used by {@link org.elasticsearch.action.ingest.ReservedPipelineAction}
+         * Used by {@link org.elasticsearch.action.ingest.ReservedPipelineAction}. Pipelines applied from file-based state are
+         * operator-managed and therefore trusted: they are exempt from the pipeline limits, which must not be able to wedge cluster
+         * bootstrap.
          */
         public PutPipelineClusterStateUpdateTask(ProjectId projectId, PutPipelineRequest request) {
-            this(projectId, null, request);
+            this(projectId, null, request, null);
         }
 
         @Override
@@ -934,7 +959,17 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             }
             newPipelineConfig.put(Pipeline.MODIFIED_DATE_MILLIS, nowMillis);
 
-            pipelines.put(request.getId(), new PipelineConfiguration(request.getId(), newPipelineConfig));
+            final PipelineConfiguration newPipeline = new PipelineConfiguration(request.getId(), newPipelineConfig);
+            if (limits != null) {
+                // This is the authoritative enforcement point for the pipeline limits. Unlike the pre-check on the put path, it runs on
+                // the cluster state update thread against the pipelines as they will actually be stored: within a batch each task sees the
+                // result of the preceding one (see PIPELINE_TASK_EXECUTOR), so concurrent puts cannot collectively exceed a limit that each
+                // of them individually respected. Throwing here fails just this task -- the batch's other tasks are unaffected, and no
+                // state has been mutated yet.
+                validatePipelineLimits(newPipeline, pipelines, limits);
+            }
+
+            pipelines.put(request.getId(), newPipeline);
             return new IngestMetadata(pipelines);
         }
     }

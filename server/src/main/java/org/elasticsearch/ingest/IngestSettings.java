@@ -9,6 +9,7 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
@@ -71,5 +72,24 @@ public final class IngestSettings {
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
+
+    /**
+     * A snapshot of the three pipeline safety limits, read together so that a single put-pipeline request is evaluated against one
+     * consistent set of values even though the underlying settings can be updated dynamically at any time.
+     *
+     * @param maxPipelines see {@link #MAX_PIPELINES}
+     * @param maxPipelineSize see {@link #MAX_PIPELINE_SIZE}
+     * @param maxTotalSize see {@link #MAX_TOTAL_METADATA_SIZE}
+     */
+    public record PipelineLimits(int maxPipelines, ByteSizeValue maxPipelineSize, ByteSizeValue maxTotalSize) {
+
+        public static PipelineLimits from(ClusterSettings clusterSettings) {
+            return new PipelineLimits(
+                clusterSettings.get(MAX_PIPELINES),
+                clusterSettings.get(MAX_PIPELINE_SIZE),
+                clusterSettings.get(MAX_TOTAL_METADATA_SIZE)
+            );
+        }
+    }
 
 }

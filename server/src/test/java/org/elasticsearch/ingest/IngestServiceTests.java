@@ -121,6 +121,7 @@ import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
@@ -701,6 +702,109 @@ public class IngestServiceTests extends ESTestCase {
             () -> ingestService.validatePipelineSize(projectId, create, 100, ByteSizeValue.ofMb(1), maxTotalSize)
         );
         assertThat(e.getMessage(), containsString("ingest.pipeline.max_total_metadata_size"));
+    }
+
+    /**
+     * The pre-check on the put path runs against the last applied cluster state, so a burst of concurrent puts can all pass it before any
+     * of them is applied. The limits must therefore also be enforced inside the cluster state update, where each task in a batch sees the
+     * result of the one before it. Submitting both puts in a single batch is exactly the shape such a burst takes by the time it reaches
+     * the master, so this reproduces the race deterministically.
+     */
+    public void testMaxPipelinesIsEnforcedAcrossPutsInTheSameBatch() throws Exception {
+        var projectId = randomProjectIdOrDefault();
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
+            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
+            .build();
+
+        // Room for exactly one pipeline, and both requests were validated against the empty state.
+        var limits = new IngestSettings.PipelineLimits(1, ByteSizeValue.ofMb(1), ByteSizeValue.ofMb(1));
+        List<IngestService.PipelineClusterStateUpdateTask> tasks = List.of(
+            putTaskWithLimits(projectId, putJsonPipelineRequest("first", pipelineJson(0)), limits),
+            putTaskWithLimits(projectId, putJsonPipelineRequest("second", pipelineJson(0)), limits)
+        );
+
+        List<Exception> failures = new ArrayList<>();
+        ClusterState result = ClusterStateTaskExecutorUtils.executeHandlingResults(
+            clusterState,
+            IngestService.PIPELINE_TASK_EXECUTOR,
+            tasks,
+            task -> {},
+            (task, e) -> failures.add(e)
+        );
+
+        // The second task sees the first task's pipeline, so only one of the two is stored.
+        assertThat(failures.size(), equalTo(1));
+        assertThat(failures.get(0).getMessage(), containsString("ingest.pipeline.max_pipelines"));
+        IngestMetadata ingestMetadata = result.metadata().getProject(projectId).custom(IngestMetadata.TYPE);
+        assertThat(ingestMetadata.getPipelines().keySet(), containsInAnyOrder("first"));
+    }
+
+    /**
+     * As {@link #testMaxPipelinesIsEnforcedAcrossPutsInTheSameBatch}, but for the aggregate size limit -- the one an attacker would push on
+     * to grow the cluster state, since it is the only limit that bounds total heap.
+     */
+    public void testMaxTotalMetadataSizeIsEnforcedAcrossPutsInTheSameBatch() throws Exception {
+        var projectId = randomProjectIdOrDefault();
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
+            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
+            .build();
+
+        // An aggregate limit with room for one padded pipeline but not two.
+        long oneSize = new PipelineConfiguration("first", new BytesArray(pipelineJson(2048)), XContentType.JSON).serializedSizeInBytes();
+        var limits = new IngestSettings.PipelineLimits(100, ByteSizeValue.ofMb(1), ByteSizeValue.ofBytes(oneSize + 512));
+        List<IngestService.PipelineClusterStateUpdateTask> tasks = List.of(
+            putTaskWithLimits(projectId, putJsonPipelineRequest("first", pipelineJson(2048)), limits),
+            putTaskWithLimits(projectId, putJsonPipelineRequest("second", pipelineJson(2048)), limits)
+        );
+
+        List<Exception> failures = new ArrayList<>();
+        ClusterState result = ClusterStateTaskExecutorUtils.executeHandlingResults(
+            clusterState,
+            IngestService.PIPELINE_TASK_EXECUTOR,
+            tasks,
+            task -> {},
+            (task, e) -> failures.add(e)
+        );
+
+        assertThat(failures.size(), equalTo(1));
+        assertThat(failures.get(0).getMessage(), containsString("ingest.pipeline.max_total_metadata_size"));
+        IngestMetadata ingestMetadata = result.metadata().getProject(projectId).custom(IngestMetadata.TYPE);
+        assertThat(ingestMetadata.getPipelines().keySet(), containsInAnyOrder("first"));
+    }
+
+    /**
+     * Pipelines applied from file-based state are operator-managed, so they are exempt from the limits -- they must not be able to wedge
+     * cluster bootstrap. This exercises the constructor and the direct {@code execute} call that
+     * {@link org.elasticsearch.action.ingest.ReservedPipelineAction} uses.
+     */
+    public void testReservedPipelinesAreExemptFromLimits() {
+        var projectId = randomProjectIdOrDefault();
+        Map<String, PipelineConfiguration> existing = new HashMap<>();
+        for (int i = 0; i < 5; i++) {
+            existing.put(
+                "existing_" + i,
+                new PipelineConfiguration("existing_" + i, new BytesArray(pipelineJson(2048)), XContentType.JSON)
+            );
+        }
+
+        var task = new IngestService.PutPipelineClusterStateUpdateTask(projectId, putJsonPipelineRequest("reserved", pipelineJson(2048)));
+        IngestMetadata result = task.execute(new IngestMetadata(existing), List.of());
+
+        // Stored despite counts and sizes that would have failed a limited task.
+        assertThat(result.getPipelines().keySet(), hasItem("reserved"));
+    }
+
+    private static IngestService.PutPipelineClusterStateUpdateTask putTaskWithLimits(
+        ProjectId projectId,
+        PutPipelineRequest request,
+        IngestSettings.PipelineLimits limits
+    ) {
+        return new IngestService.PutPipelineClusterStateUpdateTask(
+            projectId,
+            ActionTestUtils.assertNoFailureListener(t -> {}),
+            request,
+            limits
+        );
     }
 
     /**
@@ -3863,6 +3967,7 @@ public class IngestServiceTests extends ESTestCase {
                 projectId,
                 ActionTestUtils.assertNoFailureListener(t -> {}),
                 request,
+                null, // these tests are not exercising the pipeline limits
                 instantSource
             )
         );

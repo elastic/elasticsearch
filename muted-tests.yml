@@ -610,3 +610,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecChangePointIT
   method: test {csv-spec:change_point.values int column with all nulls}
   issue: https://github.com/elastic/elasticsearch/issues/155124
+- class: org.elasticsearch.client.RestClientSingleHostIntegTests
+  method: testRequestResetAndAbort
+  issue: https://github.com/elastic/elasticsearch/issues/156177

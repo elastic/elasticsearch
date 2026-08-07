@@ -12,10 +12,12 @@ package org.elasticsearch.geometry;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.geometry.utils.GeographyValidator;
+import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.test.AbstractWireTestCase;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.text.ParseException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -112,6 +114,20 @@ abstract class BaseGeometryTestCase<T extends Geometry> extends AbstractWireTest
 
         assertTrue("visitor wasn't called", called.get());
         assertEquals("result", result);
+    }
+
+    protected static void assertSerialization(GeometryValidator validator, boolean coerce, String wkt, Geometry geometry)
+        throws IOException, ParseException {
+        assertEquals(wkt, WellKnownText.toWKT(geometry));
+        assertEquals(geometry, WellKnownText.fromWKT(validator, coerce, wkt));
+        assertEquals(wkt, WellKnownText.toWKT(geometry));
+        byte[] bytes = wkt.getBytes(StandardCharsets.UTF_8);
+        assertEquals(geometry, WellKnownText.fromWKT(validator, coerce, bytes, 0, bytes.length));
+        int leftPadding = randomIntBetween(0, 50);
+        int rightPadding = randomIntBetween(0, 50);
+        byte[] paddedBytes = new byte[bytes.length + leftPadding + rightPadding];
+        System.arraycopy(bytes, 0, paddedBytes, leftPadding, bytes.length);
+        assertEquals(geometry, WellKnownText.fromWKT(validator, coerce, paddedBytes, leftPadding, bytes.length));
     }
 
 }

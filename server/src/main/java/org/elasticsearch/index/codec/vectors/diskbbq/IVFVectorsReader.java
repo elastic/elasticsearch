@@ -163,7 +163,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
 
     /**
      * Copy constructor used to build a merge instance: shares everything with {@code other} but uses
-     * the provided flat vector readers (their merge instances).
+     * the provided flat vector readers.
      */
     protected IVFVectorsReader(IVFVectorsReader<E> other, GenericFlatVectorReaders genericReaders) {
         this.state = other.state;
@@ -337,9 +337,6 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
 
     @Override
     public final KnnVectorsReader getMergeInstance() throws IOException {
-        // Flat vectors are opened with RANDOM advice for search but read sequentially during a
-        // merge, so back the merge instance with the flat readers' merge instances (which switch
-        // their input to SEQUENTIAL). finishMerge() reverts them.
         return mergeInstance(genericReaders.getMergeInstance());
     }
 

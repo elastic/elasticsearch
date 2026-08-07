@@ -47,6 +47,7 @@ import java.util.function.BiConsumer;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
@@ -164,6 +165,27 @@ public class ManagedServiceAccountStoreTests extends ESTestCase {
     public void testGetByPrincipalRejectsElasticNamespace() {
         PlainActionFuture<ManagedServiceAccount> future = new PlainActionFuture<>();
         store.getByPrincipal("elastic/worker", future);
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, future::actionGet);
+        assertThat(exception.getMessage(), equalTo("the [elastic] namespace is reserved for built-in service accounts"));
+    }
+
+    public void testListAccountsRejectsInvalidServiceName() {
+        PlainActionFuture<List<ManagedServiceAccount>> future = new PlainActionFuture<>();
+        store.listAccounts("yaml_poc", "worker*", future);
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, future::actionGet);
+        assertThat(exception.getMessage(), containsString("service name"));
+    }
+
+    public void testListAccountsRejectsInvalidNamespace() {
+        PlainActionFuture<List<ManagedServiceAccount>> future = new PlainActionFuture<>();
+        store.listAccounts("yaml*", null, future);
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, future::actionGet);
+        assertThat(exception.getMessage(), containsString("namespace"));
+    }
+
+    public void testListAccountsRejectsElasticNamespace() {
+        PlainActionFuture<List<ManagedServiceAccount>> future = new PlainActionFuture<>();
+        store.listAccounts("elastic", null, future);
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, future::actionGet);
         assertThat(exception.getMessage(), equalTo("the [elastic] namespace is reserved for built-in service accounts"));
     }

@@ -182,6 +182,12 @@ public class ManagedServiceAccountStore implements CacheInvalidatorRegistry.Cach
         @Nullable String serviceName,
         ActionListener<List<ManagedServiceAccount>> listener
     ) {
+        try {
+            validateListParameters(namespace, serviceName);
+        } catch (IllegalArgumentException e) {
+            listener.onFailure(e);
+            return;
+        }
         final IndexState projectSecurityIndex = securityIndex.forCurrentProject();
         if (projectSecurityIndex.indexExists() == false) {
             listener.onResponse(List.of());
@@ -197,10 +203,11 @@ public class ManagedServiceAccountStore implements CacheInvalidatorRegistry.Cach
                 .newRestorableContext(false);
             try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(SECURITY_ORIGIN)) {
                 var query = QueryBuilders.boolQuery().filter(QueryBuilders.termQuery("doc_type", SERVICE_ACCOUNT_DOC_TYPE));
-                if (namespace != null) {
-                    query = query.filter(QueryBuilders.prefixQuery("username", namespace + "/"));
-                }
-                if (serviceName != null) {
+                if (namespace != null && serviceName != null) {
+                    query = query.filter(QueryBuilders.termQuery("username", namespace + "/" + serviceName));
+                } else if (namespace != null) {
+                    query = query.filter(QueryBuilders.wildcardQuery("username", namespace + "/*"));
+                } else if (serviceName != null) {
                     query = query.filter(QueryBuilders.wildcardQuery("username", "*/" + serviceName));
                 }
                 final SearchRequest request = client.prepareSearch(SECURITY_MAIN_ALIAS)
@@ -366,6 +373,21 @@ public class ManagedServiceAccountStore implements CacheInvalidatorRegistry.Cach
 
     static List<String> deduplicateRoles(List<String> roles) {
         return new ArrayList<>(new TreeSet<>(roles));
+    }
+
+    private static void validateListParameters(@Nullable String namespace, @Nullable String serviceName) {
+        if (namespace != null) {
+            final String namespaceError = ManagedServiceAccountIdValidator.validateNamespace(namespace);
+            if (namespaceError != null) {
+                throw new IllegalArgumentException(namespaceError);
+            }
+        }
+        if (serviceName != null) {
+            final String serviceNameError = ManagedServiceAccountIdValidator.validateServiceName(serviceName);
+            if (serviceNameError != null) {
+                throw new IllegalArgumentException(serviceNameError);
+            }
+        }
     }
 
     @Nullable

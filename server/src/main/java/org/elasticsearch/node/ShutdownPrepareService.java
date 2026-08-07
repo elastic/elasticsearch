@@ -83,6 +83,7 @@ public class ShutdownPrepareService {
     private final TerminationHandler terminationHandler;
     private final List<ShutdownHook> hooks = new ArrayList<>();
     private volatile boolean isShuttingDown = false;
+    private volatile Runnable preCancelRelocationsHook = null;
 
     @SuppressWarnings(value = "this-escape")
     public ShutdownPrepareService(
@@ -262,6 +263,9 @@ public class ShutdownPrepareService {
             tasks -> {
                 // Cancel any reindex tasks that could not be relocated, then wait a short time
                 // for them to exit the task manager before proceeding with shutdown.
+                if (preCancelRelocationsHook != null) {
+                    preCancelRelocationsHook.run();
+                }
                 tasks.forEach(t -> {
                     if (t instanceof CancellableTask cancellable) {
                         try {
@@ -344,5 +348,10 @@ public class ShutdownPrepareService {
         } else {
             logger.warn("Requested relocation task for non-bulk-by-paginated-search task {}", task);
         }
+    }
+
+    // Used for testing
+    public void setPreCancelRelocationsHook(Runnable preCancelRelocationsHook) {
+        this.preCancelRelocationsHook = preCancelRelocationsHook;
     }
 }

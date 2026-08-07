@@ -683,7 +683,7 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
 
         // Short reindex timeout so the cancellation phase fires while the relocation is in-flight.
         final Settings coordSettings = Settings.builder()
-            .put(MAXIMUM_REINDEXING_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(1))
+            .put(MAXIMUM_REINDEXING_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(3))
             .build();
         final String coordNodeName = internalCluster().startCoordinatingOnlyNode(coordSettings);
 
@@ -702,7 +702,8 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
             .setShouldStoreResult(true)
             .setEligibleForRelocationOnShutdown(true)
             .setRequestsPerSecond(requestsPerSecond);
-        request.getSearchRequest().source().size(5);
+        // Execute batches of 1 which should only delay ~1/3 of a second between each one
+        request.getSearchRequest().source().size(1);
 
         final CountDownLatch listenerDone = new CountDownLatch(1);
         final AtomicReference<Throwable> failure = new AtomicReference<>();

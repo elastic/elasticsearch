@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 155715
+summary: Add repro test for `depth_first` OOM on numeric terms + percentiles
+type: bug

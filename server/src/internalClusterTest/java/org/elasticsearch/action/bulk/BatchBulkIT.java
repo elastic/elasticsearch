@@ -1546,10 +1546,6 @@ public class BatchBulkIT extends ESIntegTestCase {
         );
     }
 
-    /**
-     * Verifies the columnar batch path is taken end-to-end for a mapping that includes a
-     * {@code flattened} attribute bag alongside a {@code keyword} field.
-     */
     public void testColumnarFlattenedBatchMode() throws IOException {
         final String index = "test-columnar-flattened";
 

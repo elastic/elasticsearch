@@ -11,18 +11,24 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.bulk.ShardBatchIndexer;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfColumn;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineBatch;
 import org.elasticsearch.index.engine.IndexOperationBatch;
+import org.elasticsearch.index.mapper.ColumnGroupResolver.ColumnGroupLookup;
 import org.elasticsearch.index.mapper.ColumnGroupResolver.ColumnGroupResolution;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.sourcebatch.SourceSchema;
+
+import java.util.HashSet;
+import java.util.List;
 
 /**
  * Batch-time mapper resolution and columnar batch mapping for the bulk batch-indexing fast path.
@@ -78,8 +84,17 @@ public final class ShardBatchMapper {
             logger.debug("batch indexing disabled: mapping defines index-time scripts");
             return null;
         }
+        // TODO: Implement
         if (lookup.getMapping().getMetadataMapperByName(IdFieldMapper.NAME) instanceof SliceIdFieldMapper) {
             logger.debug("batch indexing disabled: slice-enabled index");
+            return null;
+        }
+        // Columnar mode keeps nested objects as document boundaries rather than flattening them away, and every field
+        // under one lands in MappingLookup keyed by its full dotted path — indistinguishable from a root-level field
+        // here. Resolving those leaves would write them into the root Lucene document instead of the per-element
+        // nested documents the sequential path produces, so the whole batch has to fall back.
+        if (lookup.nestedLookup().getNestedMappers().isEmpty() == false) {
+            logger.debug("batch indexing disabled: mapping defines nested objects");
             return null;
         }
 
@@ -96,9 +111,16 @@ public final class ShardBatchMapper {
         final int leafCount = schema.leafCount();
         final FieldMapper[] columnMappers = new FieldMapper[leafCount];
         ColumnGroupResolver.Builder groupBuilder = null;
+        // Full paths of leaves bound to a per-leaf mapper, used to detect dotted/nested aliasing. Allocated lazily
+        // because most batches resolve every leaf to a group or to nothing at all.
+        HashSet<String> mappedPaths = null;
 
         for (int leaf = 0; leaf < leafCount; leaf++) {
             final String fullPath = schema.getFullPath(leaf);
+            if (hasBlankPathSegment(fullPath)) {
+                logger.debug("batch indexing disabled: malformed field name [{}]", fullPath);
+                return null;
+            }
             final Mapper resolved = lookup.getMapper(fullPath);
 
             if (resolved == null) {
@@ -106,20 +128,32 @@ public final class ShardBatchMapper {
                 // no mapper of its own, but MappingLookup.getFieldType may still return non-null because
                 // the owning mapper is a DynamicFieldType. The group check must precede the shadow check or
                 // every flattened batch is incorrectly classified as containing a runtime-field shadow.
-                final ColumnGroupResolver.ColumnGroupMatch groupMatch = ColumnGroupResolver.findColumnGroup(fullPath, lookup);
-                if (groupMatch != null) {
-                    if (groupMatch.mapper().supportsColumnarParse(indexSettings) == false) {
+                final ColumnGroupLookup group = ColumnGroupResolver.findColumnGroup(fullPath, lookup);
+                if (group instanceof ColumnGroupLookup.Conflict(FieldMapper mapper, String ownerPath)) {
+                    // The document nests values beneath a leaf field. The sequential path reports this as a document
+                    // parsing error, so fall back and let it do so rather than treating the leaf as unmapped, which
+                    // under a dynamic=false prefix would silently drop the value.
+                    logger.debug(
+                        "batch indexing disabled: leaf [{}] nests under the [{}] field mapper at [{}]",
+                        fullPath,
+                        mapper.typeName(),
+                        ownerPath
+                    );
+                    return null;
+                }
+                if (group instanceof ColumnGroupLookup.Owned owned) {
+                    if (owned.mapper().supportsColumnarParse(indexSettings) == false) {
                         logger.debug(
                             "columnar batch mapping disabled: group mapper at [{}] of type [{}] does not support columnar parsing",
-                            groupMatch.ownerPath(),
-                            groupMatch.mapper().typeName()
+                            owned.ownerPath(),
+                            owned.mapper().typeName()
                         );
                         return null;
                     }
                     if (groupBuilder == null) {
                         groupBuilder = new ColumnGroupResolver.Builder();
                     }
-                    groupBuilder.add(groupMatch, leaf);
+                    groupBuilder.add(owned, leaf);
                     // leaf is owned by the group mapper; no individual column mapper
                     columnMappers[leaf] = null;
                     continue;
@@ -132,8 +166,28 @@ public final class ShardBatchMapper {
                 }
                 final ObjectMapper.Dynamic parentDynamic = findNearestParentDynamic(fullPath, lookup);
                 if (parentDynamic == ObjectMapper.Dynamic.FALSE) {
+                    // The sequential path rejects an unmapped field that matches routing_path rather than dropping it,
+                    // so fall back and let it raise the error with its own token location.
+                    if (matchesRoutingPath(fullPath, indexSettings)) {
+                        logger.debug("batch indexing disabled: unmapped leaf [{}] matches routing_path", fullPath);
+                        return null;
+                    }
                     // TODO: Look into ignored source
                     // leaf silently ignored
+                    columnMappers[leaf] = null;
+                    continue;
+                }
+                if (parentDynamic == ObjectMapper.Dynamic.FLATTENED) {
+                    final FieldMapper sink = unmappedSink(lookup, indexSettings);
+                    if (sink == null) {
+                        return null;
+                    }
+                    if (groupBuilder == null) {
+                        groupBuilder = new ColumnGroupResolver.Builder();
+                    }
+                    // The sink is keyed by the leaf's full dotted path, matching DynamicFieldsBuilder.FlattenedSink,
+                    // which calls indexValueAtPath with context.path().pathAsText(name).
+                    groupBuilder.add(new ColumnGroupLookup.Owned(sink, FlattenedFieldMapper.UNMAPPED_SINK_NAME, fullPath), leaf);
                     columnMappers[leaf] = null;
                     continue;
                 }
@@ -152,6 +206,19 @@ public final class ShardBatchMapper {
                     fullPath,
                     fieldMapper.typeName()
                 );
+                return null;
+            }
+            // Two schema leaves can share a full path when a batch mixes the dotted and nested spellings of the same
+            // field ({"a.b":1} and {"a":{"b":1}}); the encoder keeps them as separate columns. Per-leaf mappers are
+            // dispatched one column at a time, so a document carrying both spellings would emit two independent
+            // outputs where the sequential path emits one merged multi-valued field. Group mappers are immune —
+            // mapColumnGroupBatch receives all of a group's columns at once — so only the per-leaf columns are
+            // checked here.
+            if (mappedPaths == null) {
+                mappedPaths = new HashSet<>(leafCount);
+            }
+            if (mappedPaths.add(fullPath) == false) {
+                logger.debug("batch indexing disabled: [{}] is spelled both dotted and nested in this batch", fullPath);
                 return null;
             }
             columnMappers[leaf] = fieldMapper;
@@ -183,9 +250,76 @@ public final class ShardBatchMapper {
         // objectMappers(). Their dynamic settings are instead stored in prefixProperties on
         // RootObjectMapper. resolveDynamic() consults those when prefixProperties is non-empty,
         // and returns the fallback unchanged when it is empty (non-COLUMNAR path).
-        final ObjectMapper.Dynamic rootDynamic = lookup.getMapping().getRoot().dynamic();
-        final ObjectMapper.Dynamic rootFallback = rootDynamic == null ? ObjectMapper.Dynamic.TRUE : rootDynamic;
+        //
+        // The root fallback must come from getRootDynamic rather than the raw root setting: an unset root
+        // dynamic resolves to FLATTENED, not TRUE, whenever the implicit _unmapped sink is present. This is
+        // the same value the sequential path seeds its root context with.
+        final ObjectMapper.Dynamic rootFallback = ObjectMapper.Dynamic.getRootDynamic(lookup);
         return lookup.getMapping().getRoot().resolveDynamic(leafPath, rootFallback);
+    }
+
+    /**
+     * Returns the implicit flattened {@code _unmapped} sink that absorbs unmapped leaves under
+     * {@link ObjectMapper.Dynamic#FLATTENED}, or {@code null} if the batch cannot use it and must fall back.
+     */
+    private static FieldMapper unmappedSink(MappingLookup lookup, IndexSettings indexSettings) {
+        // Dynamic templates are tried before the sink on the sequential path
+        // (DynamicFieldsBuilder#createDynamicFieldFromValue), and a match creates a concrete field instead of
+        // absorbing the value. The batch path cannot evaluate templates, so it cannot tell which leaves would
+        // have been sunk.
+        if (lookup.getMapping().getRoot().dynamicTemplates().length > 0) {
+            logger.debug("batch indexing disabled: dynamic templates may pre-empt the [{}] sink", FlattenedFieldMapper.UNMAPPED_SINK_NAME);
+            return null;
+        }
+        // getRootDynamic only reports FLATTENED when the sink exists, so this cast is safe.
+        final FlattenedFieldMapper sink = (FlattenedFieldMapper) lookup.getMapper(FlattenedFieldMapper.UNMAPPED_SINK_NAME);
+        if (sink.supportsColumnarParse(indexSettings) == false) {
+            logger.debug(
+                "columnar batch mapping disabled: [{}] sink does not support columnar parsing",
+                FlattenedFieldMapper.UNMAPPED_SINK_NAME
+            );
+            return null;
+        }
+        return sink;
+    }
+
+    /**
+     * Returns {@code true} if an unmapped field at {@code fullPath} matches {@code routing_path}. The sequential
+     * path rejects the document in that case rather than dropping the field
+     * ({@code DocumentParser#failIfMatchesRoutingPath}).
+     */
+    private static boolean matchesRoutingPath(String fullPath, IndexSettings indexSettings) {
+        final List<String> routingPaths = indexSettings.getIndexMetadata().getRoutingPaths();
+        return routingPaths.isEmpty() == false && Regex.simpleMatch(routingPaths, fullPath);
+    }
+
+    /**
+     * Returns {@code true} if {@code fullPath} is empty, or contains a dot and any dot-separated segment is blank.
+     *
+     * <p>Mirrors the field-name validation {@link DotExpandingXContentParser} applies on the sequential path,
+     * which the columnar encoder does not perform — {@link SourceSchema#getFullPath} joins names verbatim. Such a
+     * name would otherwise resolve to nothing here and be silently dropped under a {@code dynamic: false} prefix
+     * while the sequential path rejects it. Falling back is deliberately slightly over-eager: a trailing dot
+     * ({@code "a."}) is accepted there as plain {@code "a"} but rejected here, which costs a fallback rather than
+     * correctness.
+     */
+    private static boolean hasBlankPathSegment(String fullPath) {
+        if (fullPath.isEmpty()) {
+            return true;
+        }
+        if (fullPath.indexOf('.') < 0) {
+            // A dotless name is never expanded, so the sequential path does not validate it either.
+            return false;
+        }
+        int start = 0;
+        int dot;
+        while ((dot = fullPath.indexOf('.', start)) >= 0) {
+            if (fullPath.substring(start, dot).isBlank()) {
+                return true;
+            }
+            start = dot + 1;
+        }
+        return fullPath.substring(start).isBlank();
     }
 
     /**

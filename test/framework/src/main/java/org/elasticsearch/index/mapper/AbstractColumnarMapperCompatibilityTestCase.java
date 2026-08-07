@@ -154,10 +154,12 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
                 } else if (mapper == null) {
                     // No mapper at this path: it may still belong to a mapper that owns a whole group of descendant leaves, such as
                     // a flattened field, whose object value the encoder explodes into one dotted leaf per key.
-                    final ColumnGroupResolver.ColumnGroupMatch match = ColumnGroupResolver.findColumnGroup(path, mappingLookup);
-                    if (match != null) {
-                        assertSupportsColumnarParse(match.mapper(), match.ownerPath(), indexSettings);
-                        groupBuilder.add(match, c);
+                    if (ColumnGroupResolver.findColumnGroup(
+                        path,
+                        mappingLookup
+                    ) instanceof ColumnGroupResolver.ColumnGroupLookup.Owned owned) {
+                        assertSupportsColumnarParse(owned.mapper(), owned.ownerPath(), indexSettings);
+                        groupBuilder.add(owned, c);
                     }
                 }
             }

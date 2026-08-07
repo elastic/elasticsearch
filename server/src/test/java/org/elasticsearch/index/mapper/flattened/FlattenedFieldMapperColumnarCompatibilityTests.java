@@ -364,4 +364,23 @@ public class FlattenedFieldMapperColumnarCompatibilityTests extends AbstractColu
             )
         );
     }
+
+    /**
+     * Both spellings of the same key inside a <em>single</em> document produce two group columns with the identical
+     * relative key {@code a.b}, both present on that document. This is the case that breaks a per-leaf mapper — it
+     * would emit two independent outputs — but a group mapper receives every column in one
+     * {@link FlattenedFieldMapper#mapColumnGroupBatch} call and merges both slots into the same per-document blob.
+     */
+    public void testBothSpellingsOfOneKeyInASingleDocument() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "flattened").endObject()),
+            columnarSettings(),
+            batch(
+                "both spellings in one doc",
+                1L,
+                doc("d1", 1L, "{\"flat\":{\"a.b\":\"one\",\"a\":{\"b\":\"two\"}}}"),
+                doc("d2", 2L, "{\"flat\":{\"a.b\":\"only\"}}")
+            )
+        );
+    }
 }

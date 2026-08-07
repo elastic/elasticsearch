@@ -1898,10 +1898,11 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
      *       Same divergence as {@link KeywordFieldMapper#mapColumnBatch}.</li>
      * </ul>
      *
-     * <p>Duplicate relative keys within a batch are benign. {@code {"flat":{"a.b":1}}} and
-     * {@code {"flat":{"a":{"b":2}}}} each produce relative key {@code a.b} via the dotted-path walk in
-     * {@code ColumnGroupResolver}. Within a given document, these columns are absent where the other is
-     * present, so emitted slots match the row path exactly.
+     * <p>Duplicate relative keys within a batch are benign, including when one document carries both spellings
+     * ({@code {"flat":{"a.b":1,"a":{"b":2}}}} produces two columns whose relative key is {@code a.b}). Every column of
+     * the group arrives here in a single call, so both slots land in the same per-document blob and the emitted slot
+     * count matches the row path. This is why aliasing is safe for group mappers but not for per-leaf ones, which
+     * {@code ShardBatchMapper#resolveMappers} rejects.
      *
      * @throws IllegalArgumentException when a relative key's depth exceeds {@code depth_limit}, mirroring
      *         {@code FlattenedFieldParser.validateDepthLimit}

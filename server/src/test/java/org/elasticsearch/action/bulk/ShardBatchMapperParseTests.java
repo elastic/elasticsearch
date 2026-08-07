@@ -55,8 +55,6 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
         IndexMode.COLUMNAR.getName()
     ).put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), true).build();
 
-    private static final Settings STORED_SOURCE_SETTINGS = indexSettings(IndexVersion.current(), 1, 0).build();
-
     private IndexShard newShardWithMapping(String mapping, Settings settings) throws IOException {
         IndexMetadata md = IndexMetadata.builder("index").putMapping(mapping).settings(settings).primaryTerm(0, 1).build();
         IndexShard shard = newShard(new ShardId(md.getIndex(), 0), true, "n1", md, null);

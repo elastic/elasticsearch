@@ -303,4 +303,17 @@ public class SearchAfterBuilderTests extends ESTestCase {
             assertThat(e.getMessage(), containsString(type.name()));
         }
     }
+
+    /**
+     * Test that buildFieldDoc allows null values for string sort types
+     */
+    public void testBuildFieldDocAllowsNullForStringSort() {
+        for (SortField sortField : new SortField[] {
+            new SortedSetSortField("field", false),
+            new SortField("field", SortField.Type.STRING_VAL) }) {
+            SortAndFormats sortAndFormats = new SortAndFormats(new Sort(sortField), new DocValueFormat[] { DocValueFormat.RAW });
+            FieldDoc fieldDoc = SearchAfterBuilder.buildFieldDoc(sortAndFormats, new Object[] { null }, null);
+            assertNull(fieldDoc.fields[0]);
+        }
+    }
 }

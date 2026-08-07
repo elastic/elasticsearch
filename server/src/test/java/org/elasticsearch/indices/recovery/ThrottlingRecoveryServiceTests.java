@@ -635,6 +635,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         service.enqueue(
             ProjectId.DEFAULT,
             listener1,
+            DEFAULT,
             newRecoveryState(shardId),
             allocationId,
             stats,
@@ -645,6 +646,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         service.enqueue(
             ProjectId.DEFAULT,
             listener2,
+            DEFAULT,
             newRecoveryState(shardId),
             allocationId,
             stats,
@@ -1157,10 +1159,18 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final var started = new AtomicInteger();
         final int count = between(2, 5);
         for (int i = 0; i < count; i++) {
-            service.enqueue(ProjectId.DEFAULT, RecoveryListener.NOOP, newRecoveryState(), UUIDs.randomBase64UUID(), stats, listener -> {
-                started.incrementAndGet();
-                listener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
-            });
+            service.enqueue(
+                ProjectId.DEFAULT,
+                RecoveryListener.NOOP,
+                DEFAULT,
+                newRecoveryState(),
+                UUIDs.randomBase64UUID(),
+                stats,
+                listener -> {
+                    started.incrementAndGet();
+                    listener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
+                }
+            );
         }
 
         taskQueue.runAllRunnableTasks();
@@ -1188,10 +1198,18 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final var started = new AtomicInteger();
         final int count = between(1, 100);
         for (int i = 0; i < count; i++) {
-            service.enqueue(ProjectId.DEFAULT, RecoveryListener.NOOP, newRecoveryState(), UUIDs.randomBase64UUID(), stats, listener -> {
-                started.incrementAndGet();
-                listener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
-            });
+            service.enqueue(
+                ProjectId.DEFAULT,
+                RecoveryListener.NOOP,
+                DEFAULT,
+                newRecoveryState(),
+                UUIDs.randomBase64UUID(),
+                stats,
+                listener -> {
+                    started.incrementAndGet();
+                    listener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
+                }
+            );
         }
         taskQueue.runAllRunnableTasks();
         assertThat(started.get(), equalTo(count));
@@ -1235,7 +1253,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final var started = new AtomicInteger();
         final int count = between(1, 100);
         for (int i = 0; i < count; i++) {
-            service.enqueue(ProjectId.DEFAULT, RecoveryListener.NOOP, newRecoveryState(), UUIDs.randomBase64UUID(), stats, l -> {
+            service.enqueue(ProjectId.DEFAULT, RecoveryListener.NOOP, DEFAULT, newRecoveryState(), UUIDs.randomBase64UUID(), stats, l -> {
                 started.incrementAndGet();
                 l.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
             });
@@ -1307,10 +1325,18 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             } else {
                 for (int i = 0; i < recoveriesPerThread; i++) {
                     final RecoveryState recoveryState = recoveryStates.get((threadIndex - 1) * recoveriesPerThread + i);
-                    service.enqueue(ProjectId.DEFAULT, RecoveryListener.NOOP, recoveryState, UUIDs.randomBase64UUID(), stats, l -> {
-                        l.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
-                        allCompleted.countDown();
-                    });
+                    service.enqueue(
+                        ProjectId.DEFAULT,
+                        RecoveryListener.NOOP,
+                        DEFAULT,
+                        recoveryState,
+                        UUIDs.randomBase64UUID(),
+                        stats,
+                        l -> {
+                            l.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
+                            allCompleted.countDown();
+                        }
+                    );
                     enqueued.incrementAndGet();
                 }
             }

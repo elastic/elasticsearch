@@ -179,6 +179,7 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
         throttlingRecoveryService.enqueue(
             ProjectId.DEFAULT,
             RecoveryListener.NOOP,
+            DEFAULT,
             newRecoveryState(runningShardId),
             runningAllocationId,
             new RecoveryStats(),
@@ -188,6 +189,7 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
         throttlingRecoveryService.enqueue(
             ProjectId.DEFAULT,
             RecoveryListener.NOOP,
+            DEFAULT,
             newRecoveryState(queuedShardId),
             queuedAllocationId,
             new RecoveryStats(),

@@ -28,6 +28,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -137,24 +138,26 @@ public abstract class AbstractMixedClusterEsqlSpecIT extends EsqlSpecTestCase {
             return;
         }
         try {
-            // Only a definitive FALSE is actionable; TRUE (all present) and null (undeterminable) mean do nothing.
-            if (Boolean.FALSE.equals(oldNodeHasCapabilities(List.copyOf(functionCapabilities))) == false) {
+            if (oldNodeMissingAnyOf(List.copyOf(functionCapabilities)) == false) {
+                // The older node has every function, or the answer was undeterminable: nothing to enforce.
                 return;
             }
             if (oldNodeSupportsFunctionCapabilities() == false) {
+                // Nodes before 9.4 advertise no fn_ capabilities, so a missing function is indistinguishable there
+                // from a missing mechanism.
                 return;
             }
             List<String> missing = new ArrayList<>();
             for (String capability : functionCapabilities) {
-                if (Boolean.FALSE.equals(oldNodeHasCapabilities(List.of(capability)))) {
+                if (oldNodeMissingAnyOf(List.of(capability))) {
                     missing.add(capability);
                 }
             }
             if (missing.isEmpty() == false) {
                 fail(
-                    "Test ["
+                    "BWC Test ["
                         + testName
-                        + "] calls function(s) the older BWC node ["
+                        + "] calls function(s) the older node ["
                         + bwcVersion
                         + "] does not have and is not gated to skip there, so it flakes with \"Unknown function\".\n"
                         + "Add to the test:\n"
@@ -166,22 +169,27 @@ public abstract class AbstractMixedClusterEsqlSpecIT extends EsqlSpecTestCase {
         }
     }
 
-    /**
-     * Whether the older node is new enough to advertise per-function capabilities at all: nodes before 9.4 have no
-     * {@code fn_} capability mechanism, so there a missing function cannot be told apart from a missing mechanism.
-     */
     private boolean oldNodeSupportsFunctionCapabilities() throws IOException {
-        // Any long-established function works as a probe; absence of even this means the node predates the mechanism.
-        return Boolean.TRUE.equals(oldNodeHasCapabilities(List.of(EsqlFunctionRegistry.functionCapabilityName("count"))));
+        // Nodes before 9.4 have no fn_ capability mechanism; probe a long-established function to detect that.
+        return oldNodeHasAllOf(List.of(EsqlFunctionRegistry.functionCapabilityName("count")));
     }
 
     /**
-     * The older node's answer for {@code capabilities}: {@code TRUE} if it advertises them all, {@code FALSE} if it
-     * lacks at least one, {@code null} if undeterminable (callers skip rather than fail). Not cached, so a transient
-     * failure cannot stick for the rest of the run.
+     * {@code true} only if the older node definitively lacks at least one capability. An unknown answer counts as
+     * not-missing, so the guard fails closed rather than introduce a new flake.
      */
-    private Boolean oldNodeHasCapabilities(List<String> capabilities) throws IOException {
-        return clusterHasCapability(oldNodeClient(), "POST", "/_query", List.of(), capabilities).orElse(null);
+    private boolean oldNodeMissingAnyOf(List<String> capabilities) throws IOException {
+        return oldNodeAdvertises(capabilities).equals(Optional.of(false));
+    }
+
+    /** {@code true} only if the older node definitively advertises every capability. */
+    private boolean oldNodeHasAllOf(List<String> capabilities) throws IOException {
+        return oldNodeAdvertises(capabilities).orElse(false);
+    }
+
+    private Optional<Boolean> oldNodeAdvertises(List<String> capabilities) throws IOException {
+        // Not cached, so a transient failure cannot stick for the rest of the run.
+        return clusterHasCapability(oldNodeClient(), "POST", "/_query", List.of(), capabilities);
     }
 
     private RestClient oldNodeClient() throws IOException {

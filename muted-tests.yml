@@ -61,6 +61,9 @@ tests:
 - class: org.elasticsearch.xpack.security.authc.service.ServiceAccountIT
   method: testAuthenticateShouldNotFallThroughInCaseOfFailure
   issue: https://github.com/elastic/elasticsearch/issues/156136
+- class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobContainerRetriesTests
+  method: testWriteLargeBlob
+  issue: https://github.com/elastic/elasticsearch/issues/150356
 
 # Examples:
 #

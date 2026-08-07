@@ -9,6 +9,8 @@
 
 package org.elasticsearch.index.shard;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -29,7 +31,9 @@ import java.util.stream.IntStream;
  * information is accumulated shard-by-shard, and we keep track of which shards are represented in this value. Only once all shards are
  * represented should this information be considered accurate for the index.
  */
-public class IndexLongFieldRange implements Writeable, ToXContentFragment {
+public class IndexLongFieldRange implements Writeable, ToXContentFragment, Accountable {
+
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IndexLongFieldRange.class);
 
     /**
      * Sentinel value indicating that no information is currently available, for instance because the index has just been created.
@@ -73,11 +77,10 @@ public class IndexLongFieldRange implements Writeable, ToXContentFragment {
         return isComplete() && this != IndexLongFieldRange.UNKNOWN;
     }
 
-    /**
-     * @return the number of shard ids tracked while this range is {@linkplain #isComplete() incomplete}, or {@code 0} otherwise.
-     */
-    public int numberOfTrackedShards() {
-        return shards == null ? 0 : shards.length;
+    @Override
+    public long ramBytesUsed() {
+        // shards is null once the range is complete (covers all shards); when non-null it holds the tracked shard ids.
+        return BASE_RAM_BYTES_USED + (shards == null ? 0L : RamUsageEstimator.sizeOf(shards));
     }
 
     // exposed for testing

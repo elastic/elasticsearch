@@ -600,7 +600,7 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
         service.clusterChanged(new ClusterChangedEvent("test", emptyMaster, ClusterState.EMPTY_STATE));
 
         long perIndexTotal = indexA.ramBytesUsed() + indexB.ramBytesUsed();
-        long sharedMappingBytes = IndexMetadata.estimateMappingMetadataHeap(indexA.mapping());
+        long sharedMappingBytes = indexA.mapping().ramBytesUsed();
 
         service.clusterChanged(new ClusterChangedEvent("test", clusterState, emptyMaster));
         assertThat(service.getIndexMetadataEstimatedHeapBytes(), lessThan(perIndexTotal));

@@ -9,7 +9,9 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.CollectionUtil;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
@@ -60,6 +62,7 @@ import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -82,7 +85,9 @@ import static org.elasticsearch.cluster.metadata.Metadata.ALL;
 import static org.elasticsearch.cluster.project.ProjectStateRegistry.RESERVED_DIFF_VALUE_READER;
 import static org.elasticsearch.index.IndexSettings.PREFER_ILM_SETTING;
 
-public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<ProjectMetadata>, ChunkedToXContent {
+public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<ProjectMetadata>, ChunkedToXContent, Accountable {
+
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ProjectMetadata.class);
 
     private static final NamedDiffableValueSerializer<Metadata.ProjectCustom> PROJECT_CUSTOM_VALUE_SERIALIZER =
         new NamedDiffableValueSerializer<>(Metadata.ProjectCustom.class);
@@ -201,6 +206,49 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         assert Set.of(visibleClosedIndices)
             .equals(indicesByPredicate.apply(idx -> idx.isHidden() == false && idx.getState() == IndexMetadata.State.CLOSE));
         return true;
+    }
+
+    /**
+     * Returns a best-effort estimate of the heap footprint of this project's {@code indices} and {@code templates}. Each
+     * {@link IndexMetadata} contributes its own {@link IndexMetadata#ramBytesUsed()}, with {@link MappingMetadata} instances shared across
+     * indices (see {@link #mappingsByHash}) counted only once. Each {@link IndexTemplateMetadata} contributes its own
+     * {@link IndexTemplateMetadata#ramBytesUsed()}.
+     * <p>
+     * Known gaps (deliberately not counted to keep the scope small): the {@code customs} map (project-level custom metadata such as
+     * data streams, ILM, persistent tasks), the derived {@code aliasedIndices} map, the cached index-name arrays, the lazily-built
+     * {@code indicesLookup}, and the {@code mappingsByHash} lookup itself (whose values are the already-counted, deduplicated mappings).
+     * These reference structures either duplicate data counted elsewhere or are derived caches, so omitting them keeps the estimate a
+     * conservative lower bound dominated by index and template metadata.
+     */
+    @Override
+    public long ramBytesUsed() {
+        long size = BASE_RAM_BYTES_USED;
+        size += RamUsageEstimator.shallowSizeOf(id);
+        size += RamUsageEstimator.shallowSizeOf(oldestIndexVersion);
+        // Sum index metadata, counting each shared MappingMetadata instance only once (indices commonly share a deduplicated mapping).
+        size += RamUsageEstimator.shallowSizeOf(indices);
+        long indexEntryShallowSize = -1L;
+        Set<MappingMetadata> countedMappings = Collections.newSetFromMap(new IdentityHashMap<>());
+        for (Map.Entry<String, IndexMetadata> entry : indices.entrySet()) {
+            if (indexEntryShallowSize == -1L) {
+                indexEntryShallowSize = RamUsageEstimator.shallowSizeOf(entry);
+            }
+            size += indexEntryShallowSize + RamUsageEstimator.sizeOf(entry.getKey()) + entry.getValue().ramBytesUsed();
+            MappingMetadata mapping = entry.getValue().mapping();
+            if (mapping != null && countedMappings.add(mapping) == false) {
+                size -= mapping.ramBytesUsed();
+            }
+        }
+        // Sum templates.
+        size += RamUsageEstimator.shallowSizeOf(templates);
+        long templateEntryShallowSize = -1L;
+        for (Map.Entry<String, IndexTemplateMetadata> entry : templates.entrySet()) {
+            if (templateEntryShallowSize == -1L) {
+                templateEntryShallowSize = RamUsageEstimator.shallowSizeOf(entry);
+            }
+            size += templateEntryShallowSize + RamUsageEstimator.sizeOf(entry.getKey()) + entry.getValue().ramBytesUsed();
+        }
+        return RamUsageEstimator.alignObjectSize(size);
     }
 
     /**

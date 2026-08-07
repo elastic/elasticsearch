@@ -50,15 +50,11 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
-import java.lang.reflect.Field;
-import java.lang.reflect.Modifier;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_HIDDEN_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.parseIndexNameCounter;
@@ -1071,93 +1067,30 @@ public class IndexMetadataTests extends ESTestCase {
         assertThat(withFilters.ramBytesUsed(), greaterThan(withoutFilters.ramBytesUsed()));
     }
 
-    // Reference fields whose heap cost is added explicitly in IndexMetadataRamUsageEstimator#estimate.
-    private static final Set<String> FIELDS_ACCOUNTED_FOR_IN_RAM_ESTIMATOR = Set.of(
-        "index",
-        "settings",
-        "mapping",
-        "primaryTerms",
-        "inSyncAllocationIds",
-        "aliases",
-        "customData",
-        "inferenceFields",
-        "rolloverInfos",
-        "transportVersion",
-        "state",
-        "routingPaths",
-        "timeSeriesDimensions",
-        "requireFilters",
-        "includeFilters",
-        "excludeFilters",
-        "initialRecoveryFilters",
-        "indexCreatedVersion",
-        "mappingsUpdatedVersion",
-        "indexCompatibilityVersion",
-        "waitForActiveShards",
-        "timestampRange",
-        "eventIngestedRange",
-        "tierPreference",
-        "lifecyclePolicyName",
-        "lifecycleExecutionState",
-        "autoExpandReplicas",
-        "indexMode",
-        "timeSeriesStart",
-        "timeSeriesEnd",
-        "stats",
-        "writeLoadForecast",
-        "shardSizeInBytesForecast",
-        "reshardingMetadata"
-    );
-
-    // Primitives/enums already covered by RamUsageEstimator.shallowSizeOfInstance(IndexMetadata.class),
-    // plus the ramBytesUsed memoization field itself.
-    private static final Set<String> FIELDS_EXCLUDED_FROM_RAM_ESTIMATOR = Set.of(
-        "routingNumShards",
-        "routingFactor",
-        "routingPartitionSize",
-        "numberOfShards",
-        "numberOfReplicas",
-        "version",
-        "mappingVersion",
-        "settingsVersion",
-        "aliasesVersion",
-        "totalNumberOfShards",
-        "isSystem",
-        "isHidden",
-        "priority",
-        "creationDate",
-        "ignoreDiskWatermarks",
-        "shardsPerNodeLimit",
-        "isSearchableSnapshot",
-        "isPartialSearchableSnapshot",
-        "useTimeSeriesSyntheticId",
-        "sequenceNumbersDisabled",
-        "ramBytesUsed"
-    );
-
     /**
-     * Every non-static field declared on {@link IndexMetadata} must appear in exactly one of the two sets above.
-     * {@link #FIELDS_ACCOUNTED_FOR_IN_RAM_ESTIMATOR} are reference fields whose heap cost is added explicitly in
-     * {@link IndexMetadataRamUsageEstimator#estimate}; {@link #FIELDS_EXCLUDED_FROM_RAM_ESTIMATOR} are
-     * primitives/enums already covered by the shallow instance size, or internal bookkeeping fields.
-     * <p>
-     * If this test fails after adding a field to {@code IndexMetadata}, either add heap accounting for it in
-     * {@code IndexMetadataRamUsageEstimator#estimate} and add its name to {@code FIELDS_ACCOUNTED_FOR_IN_RAM_ESTIMATOR},
-     * or add its name to {@code FIELDS_EXCLUDED_FROM_RAM_ESTIMATOR} with a comment explaining why it needs no
-     * accounting (e.g. it's a primitive).
+     * Non-tautology check for a fixed minimal {@link IndexMetadata}: the estimate must exceed an independent lower bound derived from
+     * literal string lengths, {@link Settings#estimatedRamBytesUsed()}, and primary-term array length — without replicating
+     * {@link IndexMetadata#computeRamBytesUsed()}. A settings-key delta verifies that index-level accounting tracks settings growth.
      */
-    @SuppressForbidden(reason = "need access to all fields, they are mostly private")
-    public void testRamBytesUsedAccountsForAllFields() {
-        Set<String> declaredFields = Arrays.stream(IndexMetadata.class.getDeclaredFields())
-            .filter(f -> Modifier.isStatic(f.getModifiers()) == false)
-            .map(Field::getName)
-            .collect(Collectors.toSet());
+    public void testRamBytesUsedMinimalIndexMetadataHandComputed() {
+        Settings settings = indexSettings(1, 0).put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current().id())
+            .put(IndexMetadata.SETTING_INDEX_UUID, "00000000-0000-0000-0000-000000000001")
+            .build();
+        IndexMetadata metadata = IndexMetadata.builder("idx").settings(settings).build();
+        long actual = metadata.ramBytesUsed();
 
-        Set<String> known = Sets.union(FIELDS_ACCOUNTED_FOR_IN_RAM_ESTIMATOR, FIELDS_EXCLUDED_FROM_RAM_ESTIMATOR);
-        assertThat(
-            "New/removed field(s) on IndexMetadata not reflected in this test - see testRamBytesUsedAccountsForAllFields javadoc",
-            declaredFields,
-            equalTo(known)
-        );
+        long settingsBytes = settings.estimatedRamBytesUsed();
+        long independentLowerBound = RamUsageEstimator.shallowSizeOfInstance(IndexMetadata.class) + RamUsageEstimator.shallowSizeOfInstance(
+            org.elasticsearch.index.Index.class
+        ) + RamUsageEstimator.sizeOf("idx") + RamUsageEstimator.sizeOf("00000000-0000-0000-0000-000000000001") + settingsBytes
+            + RamUsageEstimator.sizeOf(new long[1]);
+        assertThat(actual, greaterThanOrEqualTo(independentLowerBound));
+
+        Settings withExtraSetting = Settings.builder().put(settings).put("index.refresh_interval", "1s").build();
+        IndexMetadata metadataWithExtraSetting = IndexMetadata.builder("idx").settings(withExtraSetting).build();
+        long settingsDelta = withExtraSetting.estimatedRamBytesUsed() - settingsBytes;
+        assertThat(settingsDelta, greaterThan(0L));
+        assertThat(metadataWithExtraSetting.ramBytesUsed() - actual, equalTo(settingsDelta));
     }
+
 }

@@ -9,6 +9,8 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
@@ -33,7 +35,9 @@ import java.util.Set;
 
 import static java.util.Collections.emptySet;
 
-public class AliasMetadata implements SimpleDiffable<AliasMetadata>, ToXContentFragment, AliasInfo {
+public class AliasMetadata implements SimpleDiffable<AliasMetadata>, ToXContentFragment, AliasInfo, Accountable {
+
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(AliasMetadata.class);
 
     private final String alias;
 
@@ -121,6 +125,23 @@ public class AliasMetadata implements SimpleDiffable<AliasMetadata>, ToXContentF
 
     public Set<String> searchRoutingValues() {
         return searchRoutingValues;
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        long size = BASE_RAM_BYTES_USED;
+        size += RamUsageEstimator.sizeOf(alias);
+        if (filter != null) {
+            size += filter.ramBytesUsed();
+        }
+        size += RamUsageEstimator.sizeOf(indexRouting);
+        size += RamUsageEstimator.sizeOf(searchRouting);
+        // searchRoutingValues is derived from searchRouting; its string contents overlap but the set/entry overhead is real.
+        size += RamUsageEstimator.sizeOfCollection(searchRoutingValues);
+        // writeIndex and isHidden are boxed Booleans referenced from the shallow size; count the boxed instances when present.
+        size += RamUsageEstimator.shallowSizeOf(writeIndex);
+        size += RamUsageEstimator.shallowSizeOf(isHidden);
+        return size;
     }
 
     public Boolean writeIndex() {

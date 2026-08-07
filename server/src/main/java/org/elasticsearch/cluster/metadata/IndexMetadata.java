@@ -12,6 +12,7 @@ package org.elasticsearch.cluster.metadata;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
@@ -1200,10 +1201,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return this.primaryTerms[shardId];
     }
 
-    long[] getPrimaryTerms() {
-        return primaryTerms;
-    }
-
     /**
      * Return the {@link IndexVersion} on which this index has been created. This
      * information is typically useful for backward compatibility.
@@ -1386,16 +1383,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public OptionalLong getForecastedShardSizeInBytes() {
         return shardSizeInBytesForecast == null ? OptionalLong.empty() : OptionalLong.of(shardSizeInBytesForecast);
-    }
-
-    @Nullable
-    Double getWriteLoadForecast() {
-        return writeLoadForecast;
-    }
-
-    @Nullable
-    Long getShardSizeInBytesForecast() {
-        return shardSizeInBytesForecast;
     }
 
     /**
@@ -3410,28 +3397,106 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         matches.compute(inferenceFieldMetadata, (k, v) -> v == null ? weight : v * weight);
     }
 
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IndexMetadata.class);
+
     private volatile long ramBytesUsed = -1;
 
     /**
-     * Returns an estimated heap footprint for this index metadata instance. Counts all reference fields using
-     * {@link org.apache.lucene.util.RamUsageEstimator}. Shared instances (e.g. deduplicated {@link MappingMetadata} in
-     * {@link ProjectMetadata}) may be counted multiple times when summed across indices; callers that need accurate cross-index totals
-     * should use {@link #estimateMappingMetadataHeap} to subtract duplicate mapping costs.
+     * Returns an estimated heap footprint for this index metadata instance. Each owned object that implements
+     * {@link Accountable} contributes its own recursive {@link Accountable#ramBytesUsed()}; leaf value types (and Lucene types that
+     * cannot implement {@link Accountable}) are sized shallowly here. The result is memoized because {@link IndexMetadata} is immutable.
+     * <p>
+     * Shared instances (e.g. deduplicated {@link MappingMetadata} in {@link ProjectMetadata}) may be counted multiple times when this
+     * value is summed across indices; callers that need accurate cross-index totals should deduplicate shared mappings using
+     * {@link MappingMetadata#ramBytesUsed()}.
      */
     @Override
     public long ramBytesUsed() {
         if (ramBytesUsed == -1L) {
-            ramBytesUsed = IndexMetadataRamUsageEstimator.estimate(this);
+            ramBytesUsed = computeRamBytesUsed();
         }
         return ramBytesUsed;
     }
 
+    private long computeRamBytesUsed() {
+        long size = BASE_RAM_BYTES_USED;
+        size += ramBytesUsedByIndex(index);
+        size += settings.estimatedRamBytesUsed();
+        if (mapping != null) {
+            size += mapping.ramBytesUsed();
+        }
+        size += RamUsageEstimator.sizeOf(primaryTerms);
+        size += RamUsageEstimator.sizeOfMap(inSyncAllocationIds);
+        size += ramBytesUsedByAccountableMap(aliases);
+        size += RamUsageEstimator.sizeOfMap(customData);
+        size += ramBytesUsedByAccountableMap(inferenceFields);
+        size += ramBytesUsedByAccountableMap(rolloverInfos);
+        size += ramBytesUsedByTransportVersion(transportVersion);
+        size += RamUsageEstimator.shallowSizeOf(state);
+        size += RamUsageEstimator.sizeOfCollection(routingPaths);
+        size += RamUsageEstimator.sizeOfCollection(timeSeriesDimensions);
+        size += ramBytesUsedByFilters(requireFilters);
+        size += ramBytesUsedByFilters(includeFilters);
+        size += ramBytesUsedByFilters(excludeFilters);
+        size += ramBytesUsedByFilters(initialRecoveryFilters);
+        size += ramBytesUsedByIndexVersion(indexCreatedVersion);
+        size += ramBytesUsedByIndexVersion(mappingsUpdatedVersion);
+        size += ramBytesUsedByIndexVersion(indexCompatibilityVersion);
+        size += RamUsageEstimator.shallowSizeOf(waitForActiveShards);
+        size += timestampRange == null ? 0L : timestampRange.ramBytesUsed();
+        size += eventIngestedRange == null ? 0L : eventIngestedRange.ramBytesUsed();
+        size += RamUsageEstimator.sizeOfCollection(tierPreference);
+        size += RamUsageEstimator.sizeOf(lifecyclePolicyName);
+        size += lifecycleExecutionState == null ? 0L : lifecycleExecutionState.ramBytesUsed();
+        size += RamUsageEstimator.shallowSizeOf(autoExpandReplicas);
+        size += RamUsageEstimator.shallowSizeOf(indexMode);
+        size += RamUsageEstimator.shallowSizeOf(timeSeriesStart);
+        size += RamUsageEstimator.shallowSizeOf(timeSeriesEnd);
+        size += stats == null ? 0L : stats.ramBytesUsed();
+        size += RamUsageEstimator.shallowSizeOf(writeLoadForecast);
+        size += RamUsageEstimator.shallowSizeOf(shardSizeInBytesForecast);
+        size += reshardingMetadata == null ? 0L : reshardingMetadata.ramBytesUsed();
+        return size;
+    }
+
+    private static long ramBytesUsedByIndex(Index index) {
+        return RamUsageEstimator.shallowSizeOf(index) + RamUsageEstimator.sizeOf(index.getName()) + RamUsageEstimator.sizeOf(
+            index.getUUID()
+        );
+    }
+
     /**
-     * Estimates the heap footprint of a {@link MappingMetadata} instance using its public API.
-     * Exposed for callers (e.g. {@code StatelessMemoryMetricsService}) that need to subtract
-     * duplicate mapping costs when summing across indices that share a mapping instance.
+     * Sizes a map whose values are {@link Accountable}, summing the map's shallow size, each entry's shallow size and key string, and each
+     * value's recursive {@link Accountable#ramBytesUsed()}.
      */
-    public static long estimateMappingMetadataHeap(MappingMetadata mapping) {
-        return IndexMetadataRamUsageEstimator.estimateMappingMetadataHeap(mapping);
+    private static <T extends Accountable> long ramBytesUsedByAccountableMap(Map<String, T> map) {
+        long size = RamUsageEstimator.shallowSizeOf(map);
+        long entryShallowSize = -1L;
+        for (Map.Entry<String, T> entry : map.entrySet()) {
+            if (entryShallowSize == -1L) {
+                entryShallowSize = RamUsageEstimator.shallowSizeOf(entry);
+            }
+            size += entryShallowSize + RamUsageEstimator.sizeOf(entry.getKey()) + entry.getValue().ramBytesUsed();
+        }
+        return RamUsageEstimator.alignObjectSize(size);
+    }
+
+    private static long ramBytesUsedByFilters(@Nullable DiscoveryNodeFilters filters) {
+        return filters == null ? 0L : filters.ramBytesUsed();
+    }
+
+    private static long ramBytesUsedByTransportVersion(@Nullable TransportVersion version) {
+        if (version == null) {
+            return 0L;
+        }
+        // nextPatchVersion forms a short linked chain of interned instances; walk it so each distinct instance is counted once.
+        return RamUsageEstimator.shallowSizeOf(version) + RamUsageEstimator.sizeOf(version.name()) + ramBytesUsedByTransportVersion(
+            version.nextPatchVersion()
+        );
+    }
+
+    private static long ramBytesUsedByIndexVersion(IndexVersion indexVersion) {
+        // luceneVersion() is an org.apache.lucene.util.Version, which cannot implement Accountable, so it is sized shallowly here.
+        return RamUsageEstimator.shallowSizeOf(indexVersion) + RamUsageEstimator.shallowSizeOf(indexVersion.luceneVersion());
     }
 }

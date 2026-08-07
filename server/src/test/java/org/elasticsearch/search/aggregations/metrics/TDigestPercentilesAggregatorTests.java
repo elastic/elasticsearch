@@ -173,32 +173,18 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
     }
 
     /**
-     * Verifies that the REQUEST circuit breaker trips when per-bucket TDigest states exceed the configured
-     * limit, rather than letting the heap grow unbounded until OOM. Before the fix, every
-     * HistogramUnionState was created with NOOP_BREAKER, making all TDigest memory invisible to the
-     * breaker. After the fix, context.breaker() is used so every centroid array allocation is tracked
-     * and the breaker can reject the query gracefully.
+     * Checks that TDigest centroid memory is visible to the REQUEST circuit breaker and that the breaker
+     * trips before heap fills up. Also verifies that doClose() returns all partial bytes after the
+     * exception, leaving the REQUEST breaker at zero.
      */
     public void testCircuitBreakerTripsOnHighCardinality() throws IOException {
-        Settings settings = Settings.builder()
-            .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "1kb")
-            .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
-            .build();
-        ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        HierarchyCircuitBreakerService breakerService = new HierarchyCircuitBreakerService(
-            CircuitBreakerMetrics.NOOP,
-            settings,
-            List.of(),
-            clusterSettings
-        );
-
+        HierarchyCircuitBreakerService breakerService = requestBreakerService("1kb");
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
         PercentilesAggregationBuilder aggBuilder = new PercentilesAggregationBuilder("p").field("number")
             .percentilesConfig(new PercentilesConfig.TDigest());
 
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-                // Write enough data so the TDigest centroid arrays exceed the 1kb REQUEST limit.
                 for (int i = 0; i < 500; i++) {
                     iw.addDocument(singleton(new SortedNumericDocValuesField("number", i)));
                 }
@@ -225,12 +211,23 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
                         aggregator.buildTopLevel();
                     }
                 });
-                // After the CircuitBreakingException, the AggregationContext try-with-resources closes,
-                // which triggers doClose() on the aggregator. All partially-charged breaker bytes must
-                // be returned so the REQUEST breaker ends at zero.
+                // doClose() must return all partial bytes; nothing should remain on the breaker.
                 assertEquals(0L, breakerService.getBreaker(CircuitBreaker.REQUEST).getUsed());
             }
         }
+    }
+
+    private HierarchyCircuitBreakerService requestBreakerService(String requestLimit) {
+        Settings settings = Settings.builder()
+            .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), requestLimit)
+            .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
+            .build();
+        return new HierarchyCircuitBreakerService(
+            CircuitBreakerMetrics.NOOP,
+            settings,
+            List.of(),
+            new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
     }
 
     private void testCase(

@@ -143,13 +143,12 @@ public class TDigestState implements Releasable, Accountable {
     }
 
     /**
-     * Factory for TDigestState. Uses the same initialization params as the passed TDigestState object but charges {@code breaker}
-     * instead of the one stored in {@code state}. Use this when the state's original breaker may no longer be valid — for example,
-     * a {@code PreallocatedCircuitBreaker} that is closed when the aggregation context is torn down before the reduce phase runs.
-     * No data loading happens, and the input TDigestState object doesn't get altered in any way.
-     * @param state the TDigestState object providing the initialization params
+     * Creates an empty {@link TDigestState} with the same parameters as {@code state}, charged to {@code breaker}.
+     * Use this when the original breaker is a {@code PreallocatedCircuitBreaker} that closes before the reduction phase runs
+     * on the coordinator. The input state is not modified.
+     * @param state the state whose parameters to copy
      * @param breaker the circuit breaker to charge for the new instance
-     * @return a TDigestState object
+     * @return a new empty TDigestState
      */
     public static TDigestState createUsingParamsFrom(TDigestState state, CircuitBreaker breaker) {
         breaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE, "tdigest-state-create-using-params-from");

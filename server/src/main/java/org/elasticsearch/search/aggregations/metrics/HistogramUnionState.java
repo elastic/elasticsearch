@@ -128,11 +128,10 @@ public class HistogramUnionState implements Releasable, Accountable {
     }
 
     /**
-     * Creates a new empty {@link HistogramUnionState} with the same initialization params as {@code otherState} but charges
-     * {@code breaker} instead of the one stored in {@code otherState}. Use this when the state's original breaker may no longer be
-     * valid — for example, a {@code PreallocatedCircuitBreaker} closed when the aggregation context is torn down before reduction runs.
-     * No data loading happens, and the input state is not altered.
-     * @param otherState the state providing initialization params
+     * Creates an empty {@link HistogramUnionState} with the same parameters as {@code otherState}, charged to {@code breaker}.
+     * Use this when the original breaker is a {@code PreallocatedCircuitBreaker} that closes before the reduction phase runs
+     * on the coordinator. The input state is not modified.
+     * @param otherState the state whose parameters to copy
      * @param breaker the circuit breaker to charge for the new instance
      * @return a new empty HistogramUnionState
      */

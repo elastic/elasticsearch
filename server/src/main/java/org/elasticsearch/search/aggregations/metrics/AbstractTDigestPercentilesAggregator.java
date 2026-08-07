@@ -106,13 +106,11 @@ abstract class AbstractTDigestPercentilesAggregator extends NumericMetricsAggreg
     }
 
     /**
-     * Removes and returns the state for {@code bucketOrd}, transferring ownership to the caller.
-     * The state's circuit-breaker bytes are returned to the breaker immediately, while the
-     * aggregation context (and its {@code PreallocatedCircuitBreakerService}) is still open.
-     * This is the only safe window to do so: {@code InternalAggregation} has no close lifecycle,
-     * so by the time the result is serialized the breaker will already be closed.
-     * After this call the aggregator no longer holds a reference, so {@link #doClose()} will not
-     * attempt to close the state.
+     * Removes the state for {@code bucketOrd} from this aggregator and returns it to the caller.
+     * Breaker bytes are returned to {@code context.breaker()} here, while the aggregation context
+     * is still open. {@link org.elasticsearch.search.aggregations.InternalAggregation} has no close
+     * lifecycle, so the breaker is already closed by the time the result is serialized.
+     * {@link #doClose()} will not touch the returned state.
      */
     protected HistogramUnionState takeState(long bucketOrd) {
         if (bucketOrd >= states.size()) {
@@ -121,8 +119,7 @@ abstract class AbstractTDigestPercentilesAggregator extends NumericMetricsAggreg
         HistogramUnionState state = states.get(bucketOrd);
         states.set(bucketOrd, null);
         if (state != null) {
-            // Return bytes now, while the breaker is still open. The state's data remains
-            // accessible for serialization and reduction; only breaker accounting is released.
+            // Release accounting while the breaker is still open. The state's data stays intact.
             context.breaker().addWithoutBreaking(-state.ramBytesUsed());
         }
         return state;
@@ -130,15 +127,13 @@ abstract class AbstractTDigestPercentilesAggregator extends NumericMetricsAggreg
 
     @Override
     protected void doClose() {
-        // Close any states that were not transferred to an InternalAggregation via takeState().
-        // This returns their circuit-breaker bytes on the failure path (e.g. when a
-        // CircuitBreakingException aborts collection before buildAggregation is called).
-        // Guard against null: the circuit breaker may trip inside the constructor before states is assigned.
+        // Closes states not handed off via takeState() — the failure path where collection was
+        // aborted before buildAggregation ran. Null guard: the breaker may trip in the constructor
+        // before states is assigned.
         if (states != null) {
             try {
                 for (long i = 0; i < states.size(); i++) {
                     HistogramUnionState state = states.get(i);
-                    // Slots nulled out by takeState() are skipped; only failure-path states remain.
                     if (state != null) {
                         Releasables.closeWhileHandlingException(state);
                     }

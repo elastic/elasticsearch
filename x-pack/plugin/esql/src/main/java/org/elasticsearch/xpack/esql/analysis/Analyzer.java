@@ -180,6 +180,7 @@ import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
+import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
@@ -1124,6 +1125,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 case Rerank r -> resolveRerank(r, childrenOutput, context);
                 case Row row -> resolveRow(row);
                 case MMR mmr -> resolveMMR(mmr, childrenOutput);
+                case DenseVector e -> resolveDenseVector(e, childrenOutput);
                 default -> plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
             };
 
@@ -1247,6 +1249,54 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             return new Completion(p.source(), p.child(), p.inferenceId(), p.rowLimit(), prompt, targetField, p.taskSettings());
+        }
+
+        private LogicalPlan resolveDenseVector(DenseVector p, List<Attribute> childrenOutput) {
+            // Expand the field patterns once. Re-running is a no-op and the plan converges: after the first pass either
+            // generatedFields is populated (non-empty result) or the field list is empty (every pattern matched nothing which is
+            // a silent no-op); either way we return the same instance, even while the inference id resolves.
+            if (p.generatedAttributes().isEmpty() == false || p.fields().isEmpty()) {
+                return p;
+            }
+
+            List<NamedExpression> resolvedFields = new ArrayList<>();
+            // Dedupe on NameId: `title, title` or overlapping patterns (`title, titl*`) resolve to the same attribute;
+            // embedding it twice would double the inference cost and generate shadowing duplicate output columns.
+            Set<NameId> seen = new HashSet<>();
+            for (NamedExpression field : p.fields()) {
+                if (field instanceof UnresolvedStar) {
+                    // "*" -> every non-metadata field; keep only the text ones, silently skip the rest (wildcard semantics)
+                    for (Attribute a : excludeExternalMetadata(childrenOutput)) {
+                        if (DataType.isString(a.dataType()) && seen.add(a.id())) {
+                            resolvedFields.add(a);
+                        }
+                    }
+                } else if (field instanceof UnresolvedNamePattern up) {
+                    // wildcard pattern -> keep resolved text matches only
+                    // a no-match or a non-text match is skipped silently
+                    for (Attribute a : resolveAgainstList(up, childrenOutput)) {
+                        if (a.resolved() && DataType.isString(a.dataType()) && seen.add(a.id())) {
+                            resolvedFields.add(a);
+                        }
+                    }
+                } else if (field instanceof UnresolvedAttribute ua) {
+                    // explicitly-named field -> keep all matches; an unknown column or a non-text type fails verification
+                    for (NamedExpression resolved : resolveAgainstList(ua, childrenOutput)) {
+                        if (resolved instanceof Attribute a && a.resolved()) {
+                            if (seen.add(a.id())) {
+                                resolvedFields.add(a);
+                            }
+                        } else {
+                            // keep unresolved results so verification can report the unknown column
+                            resolvedFields.add(resolved);
+                        }
+                    }
+                } else {
+                    resolvedFields.add(field);
+                }
+            }
+
+            return p.withResolvedFields(resolvedFields, DenseVector.generatedAttributesFor(p.source(), resolvedFields));
         }
 
         private LogicalPlan resolveMvExpand(MvExpand p, List<Attribute> childrenOutput) {

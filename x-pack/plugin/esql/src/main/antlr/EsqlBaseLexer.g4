@@ -57,6 +57,7 @@ options {
  */
 import ChangePoint,
        Dedup,
+       DenseVector,
        Enrich,
        Explain,
        Expression,

@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedSourceRelation;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
+import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.session.EsqlSession.PreAnalysisResult;
@@ -316,8 +317,12 @@ public class FieldNameUtils {
                         currentBranchKeepRefs.get().add(ua);
                     } else if (p instanceof Drop) {
                         dropWildcardRefs.add(ua);
+                    } else if (p instanceof DenseVector) {
+                        // DENSE_VECTOR reads its input fields; the pattern is already added to references above, so
+                        // field-caps fetches the wildcard's matching fields for expansion during analysis. No KEEP/DROP
+                        // alias bookkeeping applies (DenseVector is in couldOverrideAliases, which disables alias removal).
                     } else {
-                        throw new IllegalStateException("Only KEEP and DROP should allow wildcards");
+                        throw new IllegalStateException("Only KEEP, DROP and DENSE_VECTOR should allow wildcards");
                     }
                 });
                 if (p instanceof Keep) {
@@ -485,6 +490,7 @@ public class FieldNameUtils {
     private static boolean couldOverrideAliases(LogicalPlan p) {
         return (p instanceof Aggregate
             || p instanceof Completion
+            || p instanceof DenseVector
             || p instanceof Drop
             || p instanceof Eval
             || p instanceof Filter

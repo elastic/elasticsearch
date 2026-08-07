@@ -3626,6 +3626,22 @@ public class FieldNameUtilsTests extends ESTestCase {
         return FieldNameUtils.resolveFieldNames(agg, false, includePrefixFields).fieldNames();
     }
 
+    public void testDenseVectorWildcard() {
+        assumeTrue("DENSE_VECTOR requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
+        // Assert EVAL aliases are collected properly
+        assertFieldNames("""
+            FROM employees
+            | EVAL xx = ""
+            | DENSE_VECTOR x* WITH { "inference_id" : "inference_id" }
+            """, ALL_FIELDS);
+
+        // Assert index fields are collected properly
+        assertFieldNames("""
+            FROM employees
+            | DENSE_VECTOR first_name* WITH { "inference_id" : "inference_id" }
+            """, ALL_FIELDS);
+    }
+
     private void assertFieldNames(String query, Set<String> expected) {
         assertFieldNames(query, false, expected, Set.of());
     }

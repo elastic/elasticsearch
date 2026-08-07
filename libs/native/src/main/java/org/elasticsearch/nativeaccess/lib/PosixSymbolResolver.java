@@ -27,8 +27,7 @@ public final class PosixSymbolResolver implements SymbolResolver {
             if (fstat64.isPresent()) {
                 return new ResolvedSymbol("fstat64", fstat64.get());
             }
-            var fxstat = lookup.find("__fxstat")
-                .orElseThrow(() -> new UnsatisfiedLinkError("neither fstat64 nor __fxstat found"));
+            var fxstat = lookup.find("__fxstat").orElseThrow(() -> new UnsatisfiedLinkError("neither fstat64 nor __fxstat found"));
             return new ResolvedSymbol("__fxstat", fxstat);
         }
         return new ResolvedSymbol(

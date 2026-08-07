@@ -159,8 +159,13 @@ class StructSpecParser {
                 if (sizeofMethodName != null) {
                     messager.printMessage(
                         Kind.ERROR,
-                        "Duplicate @Sizeof method on '" + typeSimpleName + "': '" + sizeofMethodName + "' and '"
-                            + method.getSimpleName() + "'",
+                        "Duplicate @Sizeof method on '"
+                            + typeSimpleName
+                            + "': '"
+                            + sizeofMethodName
+                            + "' and '"
+                            + method.getSimpleName()
+                            + "'",
                         method
                     );
                     error = true;

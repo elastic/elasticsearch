@@ -36,7 +36,7 @@ public abstract class AbstractRollingUpgradeTestCase extends ParameterizedRollin
 
     private static final TemporaryFolder repoDirectory = new TemporaryFolder();
 
-    static final ElasticsearchCluster cluster = buildCluster();
+    private static final ElasticsearchCluster cluster = buildCluster();
 
     private static ElasticsearchCluster buildCluster() {
         var cluster = ElasticsearchCluster.local()

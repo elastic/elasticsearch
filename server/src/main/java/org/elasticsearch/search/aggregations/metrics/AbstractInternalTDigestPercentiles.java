@@ -147,7 +147,7 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
                         // accumulator is short-lived and never closed explicitly.
                         merged = HistogramUnionState.createUsingParamsFrom(percentiles.state, HistogramUnionState.NOOP_BREAKER);
                     }
-                    merged.add(percentiles.state);
+                    merged = merge(merged, percentiles.state);
                 }
             }
 
@@ -156,6 +156,26 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
                 return createReduced(getName(), keys, merged == null ? HistogramUnionState.EMPTY : merged, keyed, getMetadata());
             }
         };
+    }
+
+    /**
+     * Merges two {@link HistogramUnionState}s such that we always merge the one with smaller
+     * compression into the one with larger compression.
+     * This prevents producing a result that has lower than expected precision.
+     *
+     * @param digest1 The first histogram to merge
+     * @param digest2 The second histogram to merge
+     * @return One of the input histograms such that the one with larger compression is used as the one for merging
+     */
+    private static HistogramUnionState merge(final HistogramUnionState digest1, final HistogramUnionState digest2) {
+        HistogramUnionState largerCompression = digest1;
+        HistogramUnionState smallerCompression = digest2;
+        if (digest2.compression() > digest1.compression()) {
+            largerCompression = digest2;
+            smallerCompression = digest1;
+        }
+        largerCompression.add(smallerCompression);
+        return largerCompression;
     }
 
     @Override

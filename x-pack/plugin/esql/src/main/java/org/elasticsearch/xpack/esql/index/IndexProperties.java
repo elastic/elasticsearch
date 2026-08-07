@@ -18,12 +18,4 @@ import org.elasticsearch.index.IndexMode;
  * "unknown".
  * </p>
  */
-public record IndexProperties(IndexMode indexMode, int numberOfShards) {
-    /**
-     * Convenience constructor that infers the shard count from the index mode.
-     * {@link IndexMode#LOOKUP} indices always have exactly 1 shard; all other modes default to 0 (unknown).
-     */
-    public IndexProperties(IndexMode indexMode) {
-        this(indexMode, indexMode == IndexMode.LOOKUP ? 1 : 0);
-    }
-}
+public record IndexProperties(IndexMode indexMode, int numberOfShards) {}

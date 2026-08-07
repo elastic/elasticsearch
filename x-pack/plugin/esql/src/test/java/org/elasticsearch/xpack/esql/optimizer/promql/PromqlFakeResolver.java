@@ -112,7 +112,7 @@ public class PromqlFakeResolver extends Rule<LogicalPlan, LogicalPlan> {
                 IndexMode.TIME_SERIES,
                 Map.of(),
                 Map.of(),
-                Map.of("promql_data", new IndexProperties(IndexMode.TIME_SERIES)),
+                Map.of("promql_data", new IndexProperties(IndexMode.TIME_SERIES, 0)),
                 attributes
             )
         );

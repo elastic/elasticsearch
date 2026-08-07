@@ -12,23 +12,7 @@ import org.elasticsearch.test.ESTestCase;
 
 public class IndexPropertiesTests extends ESTestCase {
 
-    public void testLookupDefaultsToOneShard() {
-        IndexProperties props = new IndexProperties(IndexMode.LOOKUP);
-        assertEquals(1, props.numberOfShards());
-        assertEquals(IndexMode.LOOKUP, props.indexMode());
-    }
-
-    public void testNonLookupModesDefaultToZeroShards() {
-        for (IndexMode mode : IndexMode.availableModes()) {
-            if (mode == IndexMode.LOOKUP) {
-                continue;
-            }
-            IndexProperties props = new IndexProperties(mode);
-            assertEquals("expected 0 shards for mode " + mode, 0, props.numberOfShards());
-        }
-    }
-
-    public void testExplicitShardCountIsPreserved() {
+    public void testShardCountAndModeArePreserved() {
         IndexMode mode = randomFrom(IndexMode.availableModes());
         int count = between(0, 1000);
         IndexProperties props = new IndexProperties(mode, count);

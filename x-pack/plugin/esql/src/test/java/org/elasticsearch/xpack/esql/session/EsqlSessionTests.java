@@ -717,7 +717,7 @@ public class EsqlSessionTests extends ESTestCase {
 
     private static IndexResolution resolvedIndex(String indexName) {
         return IndexResolution.valid(
-            new EsIndex(indexName, Map.of(), Map.of(indexName, new IndexProperties(IndexMode.STANDARD)), Map.of(), Map.of()),
+            new EsIndex(indexName, Map.of(), Map.of(indexName, new IndexProperties(IndexMode.STANDARD, 0)), Map.of(), Map.of()),
             Set.of(indexName),
             Map.of()
         );

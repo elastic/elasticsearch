@@ -4679,7 +4679,12 @@ public class AnalyzerTests extends ESTestCase {
         EsIndex index = new EsIndex(
             "union_index*",
             Map.of("id", idField, "foo", fooField), // Updated mapping keys
-            Map.of("union_index_1", new IndexProperties(IndexMode.STANDARD), "union_index_2", new IndexProperties(IndexMode.STANDARD)),
+            Map.of(
+                "union_index_1",
+                new IndexProperties(IndexMode.STANDARD, 0),
+                "union_index_2",
+                new IndexProperties(IndexMode.STANDARD, 0)
+            ),
             Map.of(),
             Map.of()
         );
@@ -4721,7 +4726,7 @@ public class AnalyzerTests extends ESTestCase {
         EsIndex index = new EsIndex(
             "union_index*",
             Map.of("id", idField),
-            Map.of("test1", new IndexProperties(IndexMode.STANDARD), "test2", new IndexProperties(IndexMode.STANDARD)),
+            Map.of("test1", new IndexProperties(IndexMode.STANDARD, 0), "test2", new IndexProperties(IndexMode.STANDARD, 0)),
             Map.of(),
             Map.of()
         );
@@ -5012,7 +5017,7 @@ public class AnalyzerTests extends ESTestCase {
         var esIndex = new EsIndex(
             "k8s,k8s-downsampled",
             mapping,
-            Map.of("k8s", new IndexProperties(IndexMode.TIME_SERIES), "k8s-downsampled", new IndexProperties(IndexMode.TIME_SERIES)),
+            Map.of("k8s", new IndexProperties(IndexMode.TIME_SERIES, 0), "k8s-downsampled", new IndexProperties(IndexMode.TIME_SERIES, 0)),
             Map.of(),
             Map.of()
         );
@@ -5061,7 +5066,7 @@ public class AnalyzerTests extends ESTestCase {
         var esIndex = new EsIndex(
             "k8s,k8s-downsampled",
             mapping,
-            Map.of("k8s", new IndexProperties(IndexMode.TIME_SERIES), "k8s-downsampled", new IndexProperties(IndexMode.TIME_SERIES)),
+            Map.of("k8s", new IndexProperties(IndexMode.TIME_SERIES, 0), "k8s-downsampled", new IndexProperties(IndexMode.TIME_SERIES, 0)),
             Map.of(),
             Map.of()
         );

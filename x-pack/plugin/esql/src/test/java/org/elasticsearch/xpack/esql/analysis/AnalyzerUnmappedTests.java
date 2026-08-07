@@ -1186,7 +1186,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
                 new EsIndex(
                     "test*",
                     mapping,
-                    Map.of("test1", new IndexProperties(IndexMode.STANDARD), "test2", new IndexProperties(IndexMode.STANDARD)),
+                    Map.of("test1", new IndexProperties(IndexMode.STANDARD, 0), "test2", new IndexProperties(IndexMode.STANDARD, 0)),
                     Map.of(),
                     Map.of()
                 )
@@ -1586,11 +1586,11 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             Map.of("partial_long", partialLong, "conflicted", conflicted),
             Map.of(
                 "idx_a",
-                new IndexProperties(IndexMode.STANDARD),
+                new IndexProperties(IndexMode.STANDARD, 0),
                 "idx_b",
-                new IndexProperties(IndexMode.STANDARD),
+                new IndexProperties(IndexMode.STANDARD, 0),
                 "idx_unmapped",
-                new IndexProperties(IndexMode.STANDARD)
+                new IndexProperties(IndexMode.STANDARD, 0)
             ),
             Map.of(),
             Map.of()
@@ -1631,7 +1631,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         var merged = new EsIndex(
             pattern,
             Map.of("partial_long", partialLong, "common", keywordField("common")),
-            Map.of("idx_a", new IndexProperties(IndexMode.STANDARD), "idx_b", new IndexProperties(IndexMode.STANDARD)),
+            Map.of("idx_a", new IndexProperties(IndexMode.STANDARD, 0), "idx_b", new IndexProperties(IndexMode.STANDARD, 0)),
             Map.of(),
             Map.of()
         );
@@ -1648,7 +1648,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         var merged = new EsIndex(
             pattern,
             Map.of("partial_long", partialLong, "common", keywordField("common")),
-            Map.of("idx_a", new IndexProperties(IndexMode.STANDARD), "idx_b", new IndexProperties(IndexMode.STANDARD)),
+            Map.of("idx_a", new IndexProperties(IndexMode.STANDARD, 0), "idx_b", new IndexProperties(IndexMode.STANDARD, 0)),
             Map.of(),
             Map.of()
         );
@@ -1854,7 +1854,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         var esIndex = new EsIndex(
             "idx*",
             Map.of("obj", obj),
-            Map.of("idx_mapped", new IndexProperties(IndexMode.STANDARD)),
+            Map.of("idx_mapped", new IndexProperties(IndexMode.STANDARD, 0)),
             Map.of(),
             Map.of()
         );
@@ -1881,11 +1881,11 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             Map.of("@timestamp", tsField),
             Map.of(
                 "sample_data",
-                new IndexProperties(IndexMode.STANDARD),
+                new IndexProperties(IndexMode.STANDARD, 0),
                 "sample_data_ts_nanos",
-                new IndexProperties(IndexMode.STANDARD),
+                new IndexProperties(IndexMode.STANDARD, 0),
                 "no_mapping_sample_data",
-                new IndexProperties(IndexMode.STANDARD)
+                new IndexProperties(IndexMode.STANDARD, 0)
             ),
             Map.of(),
             Map.of()
@@ -2011,7 +2011,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     private static TestAnalyzer index1() {
         Map<String, EsField> mapping = Map.of("field", new UnsupportedEsField("field", List.of("flattened")));
         return analyzer().addIndex(
-            new EsIndex("test", mapping, Map.of("test", new IndexProperties(IndexMode.STANDARD)), Map.of(), Map.of())
+            new EsIndex("test", mapping, Map.of("test", new IndexProperties(IndexMode.STANDARD, 0)), Map.of(), Map.of())
         );
     }
 
@@ -2037,7 +2037,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
                 (k, field) -> IndexResolver.wrapPartiallyUnmappedField(field, fieldName, fieldName, mappedIndices)
             );
         }
-        return new EsIndex("idx*", wrappedMapping, Map.of("idx_mapped", new IndexProperties(IndexMode.STANDARD)), Map.of(), Map.of());
+        return new EsIndex("idx*", wrappedMapping, Map.of("idx_mapped", new IndexProperties(IndexMode.STANDARD, 0)), Map.of(), Map.of());
     }
 
     private static EsIndex partialAmdAndCommonIndex() {

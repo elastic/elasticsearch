@@ -290,7 +290,7 @@ public class PromqlPlanSelectorTests extends AbstractPromqlPlanOptimizerTests {
                 "container_cpu_usage_seconds_total",
                 new EsField("container_cpu_usage_seconds_total", DataType.COUNTER_LONG, Map.of(), true, EsField.TimeSeriesFieldType.METRIC)
             ),
-            Map.of("metrics", new IndexProperties(IndexMode.TIME_SERIES)),
+            Map.of("metrics", new IndexProperties(IndexMode.TIME_SERIES, 0)),
             Map.of(),
             Map.of()
         );
@@ -317,7 +317,7 @@ public class PromqlPlanSelectorTests extends AbstractPromqlPlanOptimizerTests {
                     EsField.TimeSeriesFieldType.METRIC
                 )
             ),
-            Map.of("histograms", new IndexProperties(IndexMode.TIME_SERIES)),
+            Map.of("histograms", new IndexProperties(IndexMode.TIME_SERIES, 0)),
             Map.of(),
             Map.of()
         );

@@ -116,7 +116,7 @@ abstract class AbstractTDigestPercentilesAggregator extends NumericMetricsAggreg
      * removed by a prior call.
      */
     @Nullable
-    protected final HistogramUnionState takeState(long bucketOrd) {
+    protected HistogramUnionState takeState(long bucketOrd) {
         if (bucketOrd >= states.size()) {
             return null;
         }

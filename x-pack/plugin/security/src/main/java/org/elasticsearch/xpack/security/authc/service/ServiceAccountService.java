@@ -237,10 +237,7 @@ public class ServiceAccountService {
         managedServiceAccountStore.deleteAccount(
             accountId,
             request.getRefreshPolicy(),
-            ActionListener.wrap(
-                deleted -> listener.onResponse(new DeleteManagedServiceAccountResponse(deleted)),
-                listener::onFailure
-            )
+            ActionListener.wrap(deleted -> listener.onResponse(new DeleteManagedServiceAccountResponse(deleted)), listener::onFailure)
         );
     }
 

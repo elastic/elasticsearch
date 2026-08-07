@@ -2104,17 +2104,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<Alias> newFields = new ArrayList<>();
             boolean changed = false;
             for (Alias field : fields) {
-                Alias result = (Alias) field.transformUp(UnresolvedAttribute.class, ua -> {
-                    var maybeResolved = resolveAttribute(ua, allResolvedInputs);
-
-                    if (maybeResolved.resolved()) {
-                        return maybeResolved;
-                    } else if (ua.customMessage()) {
-                        return ua;
-                    } else {
-                        return maybeResolved;
-                    }
-                });
+                Alias result = (Alias) field.transformUp(UnresolvedAttribute.class, ua -> resolveAttribute(ua, allResolvedInputs));
 
                 changed |= result != field;
                 newFields.add(result);
@@ -2462,6 +2452,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         Collection<Attribute> attrList,
         java.util.function.Function<List<String>, String> messageProducer
     ) {
+        if (ua.customMessage()) {
+            return List.of();
+        }
         // none found - add error message
         if (matches.isEmpty()) {
             Set<String> names = new HashSet<>(attrList.size());
@@ -2762,11 +2755,29 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     private static class ImplicitCasting extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
         @Override
         public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
-            // do implicit casting for named parameters
-            return plan.transformExpressionsUp(
-                org.elasticsearch.xpack.esql.core.expression.function.Function.class,
-                e -> ImplicitCasting.cast(e, context.functionRegistry().snapshotRegistry(), context.configuration())
-            );
+            return plan.transformUp(LogicalPlan.class, p -> {
+                LogicalPlan transformed = p.transformExpressionsOnlyUp(
+                    org.elasticsearch.xpack.esql.core.expression.function.Function.class,
+                    e -> ImplicitCasting.cast(e, context.functionRegistry().snapshotRegistry(), context.configuration())
+                );
+                if (transformed != p && transformed instanceof Eval eval) {
+                    Set<String> resolvedAliasNames = new HashSet<>();
+                    for (Alias field : eval.fields()) {
+                        if (field.resolved()) {
+                            resolvedAliasNames.add(field.name());
+                        }
+                    }
+                    if (resolvedAliasNames.isEmpty() == false) {
+                        transformed = transformed.transformExpressionsOnly(UnresolvedAttribute.class, ua -> {
+                            if (ua.customMessage() && resolvedAliasNames.contains(ua.name())) {
+                                return new UnresolvedAttribute(ua.source(), ua.name(), null);
+                            }
+                            return ua;
+                        });
+                    }
+                }
+                return transformed;
+            });
         }
 
         private static Expression cast(
@@ -2958,7 +2969,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 type,
                 (e instanceof ParsingException pe) ? pe.getErrorMessage() : e.getMessage()
             );
-            return new UnresolvedAttribute(value.source(), "\"" + name + "\"", message);
+            return new UnresolvedAttribute(value.source(), name, message);
         }
 
         private static Expression castStringLiteralToTemporalAmount(Expression from) {
@@ -3155,7 +3166,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         + "] must be a constant, received ["
                         + Expressions.name(fa)
                         + "]";
-                    Expression ua = new UnresolvedAttribute(fa.source(), "\"" + fa.name() + "\"", unresolvedMessage);
+                    Expression ua = new UnresolvedAttribute(fa.source(), fa.name(), unresolvedMessage);
                     return fcf.replaceChildren(Collections.singletonList(ua));
                 }
                 // TO_GAUGE is a no-op when every branch is already a non-counter type (including aggregate_metric_double).
@@ -3202,7 +3213,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     if (areMappedTypesSupported(unionTypeEsField, supportedTypes) == false) {
                         return new UnresolvedAttribute(
                             fa.source(),
-                            "\"" + fa.name() + "\"",
+                            fa.name(),
                             unsupportedExplicitCastMessage(unionTypeEsField, supportedTypes, fa.name(), convertExpression.sourceText())
                         );
                     }

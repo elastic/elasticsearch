@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.simdvec;
+package org.elasticsearch.lucene.store;
 
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.MemorySegmentAccessInput;

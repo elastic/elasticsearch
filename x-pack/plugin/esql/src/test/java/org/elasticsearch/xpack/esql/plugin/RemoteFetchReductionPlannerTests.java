@@ -7,6 +7,10 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
@@ -40,6 +44,7 @@ import org.elasticsearch.xpack.esql.plan.physical.RemoteFetchExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
+import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.util.List;
@@ -47,11 +52,37 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
 
+import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class RemoteFetchReductionPlannerTests extends ESTestCase {
+    public void testDistributedPlannerOwnsCoordinatorRewrite() {
+        Configuration configuration = EsqlTestUtils.configuration(
+            new QueryPragmas(Settings.builder().put(QueryPragmas.REMOTE_FETCH_TOPN.getKey(), true).build())
+        );
+        PhysicalPlan physicalPlan = distributedQueryPlan(
+            "FROM employees | SORT hire_date | LIMIT 20 | KEEP hire_date, salary, emp_no",
+            configuration
+        );
+
+        var planned = DistributedPlanPlanner.plan(
+            PlannerSettings.DEFAULTS,
+            new EsqlFlags(false),
+            configuration,
+            FoldContext.small(),
+            physicalPlan,
+            Map.of(LOCAL_CLUSTER_GROUP_KEY, new OriginalIndices(new String[] { "employees" }, SearchRequest.DEFAULT_INDICES_OPTIONS)),
+            TransportVersion.current()
+        );
+
+        assertThat(planned.coordinatorPlan().collect(RemoteFetchExec.class), hasSize(1));
+        assertTrue(planned.hasConcreteIndices());
+        assertTrue(planned.retainSearchContexts());
+    }
+
     public void testPlansCoordinatorTopNFromQueryText() {
         RemoteFetchReductionPlanner.CoordinatorPlan planned = planQuery(
             "FROM employees | SORT hire_date | LIMIT 20 | KEEP hire_date, salary, emp_no"
@@ -143,12 +174,19 @@ public class RemoteFetchReductionPlannerTests extends ESTestCase {
         assertThat(remoteFetch.fetchedOutputAttributes(), equalTo(List.of(salary, empNo)));
         assertThat(remoteFetch.child(), instanceOf(TopNExec.class));
 
-        ReductionPlan reductionPlan = RemoteFetchReductionPlanner.planReduceDriverTopN(
-            contextFactory(),
+        ReductionPlan reductionPlan = ReductionPlanner.plan(
+            PlannerSettings.DEFAULTS,
+            new EsqlFlags(false),
+            EsqlTestUtils.TEST_CFG,
+            FoldContext.small(),
             planned.dataNodePlan(),
+            true,
+            true,
+            true,
             "node-a",
-            "session-a[n]"
-        ).orElseThrow();
+            "session-a[n]",
+            null
+        );
 
         /*
          * shard data: ExchangeSink[doc, hire_date]
@@ -223,6 +261,16 @@ public class RemoteFetchReductionPlannerTests extends ESTestCase {
     }
 
     private static Optional<RemoteFetchReductionPlanner.CoordinatorPlan> planQuery(String query) {
+        PhysicalPlan distributedPlan = distributedQueryPlan(query, EsqlTestUtils.TEST_CFG);
+        var coordinatorAndDataNode = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(distributedPlan, EsqlTestUtils.TEST_CFG);
+        return RemoteFetchReductionPlanner.planCoordinatorTopN(
+            contextFactory(),
+            as(coordinatorAndDataNode.v2(), ExchangeSinkExec.class),
+            coordinatorAndDataNode.v1()
+        );
+    }
+
+    private static PhysicalPlan distributedQueryPlan(String query, Configuration configuration) {
         Map<String, EsField> mapping = Map.of(
             "hire_date",
             new EsField("hire_date", DataType.DATETIME, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
@@ -234,13 +282,7 @@ public class RemoteFetchReductionPlannerTests extends ESTestCase {
         Analyzer analyzer = EsqlTestUtils.analyzer()
             .addIndex(EsIndexGenerator.esIndex("employees", mapping, Map.of("employees", IndexMode.STANDARD)))
             .buildAnalyzer();
-        PhysicalPlan distributedPlan = new TestPlannerOptimizer(EsqlTestUtils.TEST_CFG, analyzer).distributedPlan(query);
-        var coordinatorAndDataNode = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(distributedPlan, EsqlTestUtils.TEST_CFG);
-        return RemoteFetchReductionPlanner.planCoordinatorTopN(
-            contextFactory(),
-            as(coordinatorAndDataNode.v2(), ExchangeSinkExec.class),
-            coordinatorAndDataNode.v1()
-        );
+        return new TestPlannerOptimizer(configuration, analyzer).distributedPlan(query);
     }
 
     private static Function<SearchStats, LocalPhysicalOptimizerContext> contextFactory() {

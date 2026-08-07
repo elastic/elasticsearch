@@ -840,7 +840,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         final String sessionId = request.sessionId();
         final String nodeReduceSessionId = nodeReduceSessionId(sessionId);
         if (request.plan() instanceof ExchangeSinkExec plan) {
-            reductionPlan = ComputeService.reductionPlan(
+            reductionPlan = ReductionPlanner.plan(
                 computeService.plannerSettings().get(),
                 computeService.createFlags(),
                 configuration,

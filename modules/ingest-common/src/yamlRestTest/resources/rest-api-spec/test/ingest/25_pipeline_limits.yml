@@ -171,3 +171,68 @@ teardown:
       ingest.get_pipeline:
         id: "existing_pipeline"
   - match: { existing_pipeline.processors.0.set.field: "field2" }
+
+---
+"A cluster over max_total_metadata_size can still shrink its pipelines":
+  - requires:
+      cluster_features: [ "ingest.pipeline_size_limits" ]
+      reason: "This test relies on the ingest pipeline size limits, which didn't exist in earlier versions"
+
+  # A pipeline padded out with a long description, so that there is something to shrink.
+  - do:
+      ingest.put_pipeline:
+        id: "padded_pipeline"
+        body: >
+          {
+            "description": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "processors": [
+              {
+                "set": { "field": "field2", "value": "_value" }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  # Put the cluster over the aggregate limit without it ever having violated it -- the same position a cluster ends up in when the limit
+  # is lowered, or when it is upgraded into a limit that did not exist before.
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            ingest.pipeline.max_total_metadata_size: "1b"
+  - match: { acknowledged: true }
+
+  # Replacing the pipeline with a smaller definition shrinks the aggregate, so it is allowed even though the cluster is over the limit.
+  # This is the operator's way back under the limit, so it must not be blocked.
+  - do:
+      ingest.put_pipeline:
+        id: "padded_pipeline"
+        body: >
+          {
+            "processors": [
+              {
+                "set": { "field": "field2", "value": "_value" }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      ingest.get_pipeline:
+        id: "padded_pipeline"
+  - is_false: padded_pipeline.description
+
+  # Growing it again, however, would push the aggregate further over the limit and is still rejected.
+  - do:
+      catch: /max_total_metadata_size/
+      ingest.put_pipeline:
+        id: "padded_pipeline"
+        body: >
+          {
+            "description": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "processors": [
+              {
+                "set": { "field": "field2", "value": "_value" }
+              }
+            ]
+          }

@@ -618,7 +618,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      *     <li>the total number of pipelines ({@link IngestSettings#MAX_PIPELINES}), enforced only when creating a new pipeline so existing
      *     pipelines above the limit keep working, and</li>
      *     <li>the combined serialized size of all pipelines ({@link IngestSettings#MAX_TOTAL_METADATA_SIZE}); per-pipeline and per-count
-     *     limits do not bound the aggregate, so many pipelines each just under the per-pipeline limit could otherwise accumulate.</li>
+     *     limits do not bound the aggregate, so many pipelines each just under the per-pipeline limit could otherwise accumulate. Only
+     *     changes that grow the aggregate are checked, so a cluster that is already over the limit can still shrink its way back under
+     *     it.</li>
      * </ul>
      * These limits are only checked here, on the user-facing put path, and not in {@link PutPipelineClusterStateUpdateTask#execute} which
      * is also used to apply operator-managed file-based pipelines -- those are trusted and must not be able to wedge cluster bootstrap.
@@ -667,6 +669,15 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     + IngestSettings.MAX_PIPELINES.getKey()
                     + "] setting"
             );
+        }
+
+        // An update that does not grow the aggregate cannot push the cluster any further over the limit, so it is always allowed. Without
+        // this, a cluster that is already above the limit -- because the limit was lowered, or because it was upgraded into one -- could
+        // not edit any pipeline at all, not even to shrink one back under the limit.
+        final PipelineConfiguration replacedPipeline = existingPipelines.get(request.getId());
+        final long replacedSize = replacedPipeline == null ? 0L : replacedPipeline.serializedSizeInBytes();
+        if (newSize <= replacedSize) {
+            return;
         }
 
         // The aggregate is the quantity that actually determines how much heap the ingest metadata occupies. Exclude the pipeline being

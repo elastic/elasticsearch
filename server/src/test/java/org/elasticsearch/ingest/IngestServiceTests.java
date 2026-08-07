@@ -119,6 +119,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -653,6 +654,61 @@ public class IngestServiceTests extends ESTestCase {
         // The aggregate counts only the replacement, not the (larger) pipeline it supersedes: a limit equal to the new size passes even
         // though the old pipeline alone was larger.
         ingestService.validatePipelineSize(projectId, replacement, 100, ByteSizeValue.ofMb(1), ByteSizeValue.ofBytes(newSize));
+    }
+
+    /**
+     * A cluster can end up above the aggregate limit without ever violating it -- the limit may be lowered, or the cluster may be upgraded
+     * into a limit that did not exist before. When that happens the operator still has to be able to edit their way back under it, so an
+     * update that does not grow the aggregate is allowed even though the aggregate is already over the limit. Only updates that would push
+     * it further over are rejected.
+     */
+    public void testValidatePipelineAllowsShrinkingWhenAlreadyOverMaxTotalMetadataSize() {
+        IngestService ingestService = createWithProcessors();
+        PipelineConfiguration big = new PipelineConfiguration("big", new BytesArray(pipelineJson(2048)), XContentType.JSON);
+        PipelineConfiguration other = new PipelineConfiguration("other", new BytesArray(pipelineJson(2048)), XContentType.JSON);
+        var projectId = applyClusterStateWithPipelines(ingestService, Map.of("big", big, "other", other));
+
+        // A limit well below what is already stored, i.e. the cluster is already over the aggregate limit.
+        long currentTotal = big.serializedSizeInBytes() + other.serializedSizeInBytes();
+        ByteSizeValue maxTotalSize = ByteSizeValue.ofBytes(currentTotal / 2);
+        assertThat(currentTotal, greaterThan(maxTotalSize.getBytes()));
+
+        // Replacing a pipeline with a smaller definition shrinks the aggregate, so it is allowed even though the result is still over the
+        // limit. Without this the operator would be locked out of the very edit that fixes the problem.
+        PutPipelineRequest shrink = putJsonPipelineRequest("big", pipelineJson(0));
+        assertThat(
+            new PipelineConfiguration("big", shrink.getSource(), shrink.getXContentType()).serializedSizeInBytes(),
+            lessThan(big.serializedSizeInBytes())
+        );
+        ingestService.validatePipelineSize(projectId, shrink, 100, ByteSizeValue.ofMb(1), maxTotalSize);
+
+        // Replacing it with a definition of exactly the same size leaves the aggregate unchanged, so that is allowed too.
+        PutPipelineRequest sameSize = putJsonPipelineRequest("big", pipelineJson(2048));
+        ingestService.validatePipelineSize(projectId, sameSize, 100, ByteSizeValue.ofMb(1), maxTotalSize);
+
+        // But growing a pipeline while over the limit pushes the aggregate further over, and is still rejected.
+        PutPipelineRequest grow = putJsonPipelineRequest("big", pipelineJson(4096));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> ingestService.validatePipelineSize(projectId, grow, 100, ByteSizeValue.ofMb(1), maxTotalSize)
+        );
+        assertThat(e.getMessage(), containsString("ingest.pipeline.max_total_metadata_size"));
+
+        // As is adding a brand new pipeline, however small.
+        PutPipelineRequest create = putJsonPipelineRequest("_new", pipelineJson(0));
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> ingestService.validatePipelineSize(projectId, create, 100, ByteSizeValue.ofMb(1), maxTotalSize)
+        );
+        assertThat(e.getMessage(), containsString("ingest.pipeline.max_total_metadata_size"));
+    }
+
+    /**
+     * A minimal pipeline definition, padded out to an arbitrary size by the length of its description.
+     */
+    private static String pipelineJson(int descriptionLength) {
+        return String.format(Locale.ROOT, """
+            {"description": "%s", "processors": [{"set" : {"field": "_field", "value": "_value"}}]}""", "x".repeat(descriptionLength));
     }
 
     private static ProjectId applyClusterStateWithPipelines(IngestService ingestService, Map<String, PipelineConfiguration> pipelines) {

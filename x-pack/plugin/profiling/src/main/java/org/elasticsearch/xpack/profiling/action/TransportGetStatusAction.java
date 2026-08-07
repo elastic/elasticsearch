@@ -184,7 +184,10 @@ public class TransportGetStatusAction extends TransportMasterNodeAction<GetStatu
             boolean anyPre891Data = isAnyPre891Data(state, ecsEnabled);
             // only issue a search if there is any chance that we have data
             if (resourcesCreated) {
-                SearchRequest countRequest = new SearchRequest(EventsIndex.FULL_INDEX.getName());
+                // Use a wildcard to cover both ECS (profiling-events-all) and OTel
+                // (profiling-events-all.otel-*) in a single search. LENIENT_EXPAND_OPEN
+                // silently treats missing indices as zero hits.
+                SearchRequest countRequest = new SearchRequest(EventsIndex.FULL_INDEX.getName() + "*");
                 countRequest.indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
                 countRequest.allowPartialSearchResults(true);
                 // we don't need an exact hit count, just whether there are any data at all

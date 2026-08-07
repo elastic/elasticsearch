@@ -91,7 +91,7 @@ PUT my-semantic-index
 
 ## Quickstart [semantic-quickstart-overview]
 
-Follow the [multimodal search quickstart](./semantic-field-quickstart.md) to index a small collection of images into {{es}} and search those images using text, other images, and PDFs.
+Follow the [multimodal search tutorial](docs-content://solutions/search/multimodal-search/multimodal-search-tutorial.md) to index a small collection of images into {{es}} and search those images using text, other images, and PDFs.
 
 ## Reference documentation [semantic-reference]
 

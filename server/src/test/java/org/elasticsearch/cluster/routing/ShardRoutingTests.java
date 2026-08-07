@@ -487,7 +487,7 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
             if (routing.unassigned()) {
                 routing = ShardRoutingHelper.initialize(routing, "foo", byteSize);
             } else if (routing.started()) {
-                routing = ShardRoutingHelper.relocate(routing, "foo", byteSize, ShardRouting.RecoveryPriority.RELOCATE_REBALANCING);
+                routing = routing.relocate("foo", byteSize, ShardRouting.RecoveryPriority.RELOCATE_REBALANCING);
             } else {
                 byteSize = -1;
             }

@@ -11,6 +11,10 @@ You can configure these ingest settings in the `elasticsearch.yml` file. For mor
 
 Ingest pipelines are stored in the cluster state, which is held in heap on every node and serialized on every cluster state update. The following node settings bound how much data pipelines can contribute to the cluster state, to keep an unbounded or oversized set of pipelines from destabilizing the cluster. They are safety limits intended only to reject abusive input, not to constrain legitimate use, and can all be updated dynamically.
 
+::::{note}
+These limits also apply on {{serverless-full}}, but the settings are not self-configurable there. If a project needs a higher limit, request an increase through support.
+::::
+
 `ingest.pipeline.max_pipelines` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   Maximum number of ingest pipelines that may exist at once. Defaults to `10000`. This limit is only enforced when creating a new pipeline, so existing pipelines above the limit continue to work.
 

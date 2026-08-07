@@ -677,15 +677,6 @@ tests:
   method: test {csv-spec:spatial.centroidFromAirportsFilteredCountry}
   issue: https://github.com/elastic/elasticsearch/issues/155030
 - class: org.elasticsearch.xpack.esql.action.CrossClusterQueryIT
-  method: testRemoteFailureSkipUnavailableTrue
-  issue: https://github.com/elastic/elasticsearch/issues/155120
-- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryIT
-  method: testCCSExecutionOnSearchesWithLimit0
-  issue: https://github.com/elastic/elasticsearch/issues/155121
-- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryIT
-  method: testExplainCCS
-  issue: https://github.com/elastic/elasticsearch/issues/155122
-- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryIT
   method: testNoBothIncludeCcsMetadataAndIncludeExecutionMetadata
   issue: https://github.com/elastic/elasticsearch/issues/155123
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecSpatialShapesIT

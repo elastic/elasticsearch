@@ -41,13 +41,16 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.singleton;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class SnapshotsServiceTests extends ESTestCase {
@@ -644,6 +647,70 @@ public class SnapshotsServiceTests extends ESTestCase {
                 singleton(clusterState.metadata().getProject().index(indexName).getIndex())
             ),
             empty()
+        );
+    }
+
+    public void testSnapshottingIndicesBySnapshotGroupsAndSorts() {
+        // snap-a (repo-a) covers idx-1 and idx-2; snap-b (repo-b) covers only idx-2 — exercises the many-to-many relationship
+        final var idx1Name = "idx-1";
+        final var idx2Name = "idx-2";
+        final var baseState = stateWithUnassignedIndices(idx1Name, idx2Name);
+        final var idx1 = baseState.metadata().getProject().index(idx1Name).getIndex();
+        final var idx2 = baseState.metadata().getProject().index(idx2Name).getIndex();
+
+        final var snapA = snapshot("repo-a", "snap-a");
+        final var snapB = snapshot("repo-b", "snap-b");
+        final var bothIndices = Map.of(idx1Name, indexId(idx1Name), idx2Name, indexId(idx2Name));
+        final var idx2Only = Map.of(idx2Name, indexId(idx2Name));
+        // STARTED entries with INIT-state shards — the real production state of an in-flight snapshot
+        final var bothShards = Map.of(new ShardId(idx1, 0), initShardStatus(uuid()), new ShardId(idx2, 0), initShardStatus(uuid()));
+        final var idx2Shards = Map.of(new ShardId(idx2, 0), initShardStatus(uuid()));
+        final var snaps = SnapshotsInProgress.EMPTY.withAddedEntry(
+            SnapshotsInProgress.Entry.snapshot(
+                snapA,
+                false,
+                false,
+                SnapshotsInProgress.State.STARTED,
+                bothIndices,
+                List.of(),
+                List.of(),
+                1L,
+                1L,
+                bothShards,
+                null,
+                Map.of(),
+                IndexVersion.current()
+            )
+        )
+            .withAddedEntry(
+                SnapshotsInProgress.Entry.snapshot(
+                    snapB,
+                    false,
+                    false,
+                    SnapshotsInProgress.State.STARTED,
+                    idx2Only,
+                    List.of(),
+                    List.of(),
+                    1L,
+                    1L,
+                    idx2Shards,
+                    null,
+                    Map.of(),
+                    IndexVersion.current()
+                )
+            );
+        final var clusterState = ClusterState.builder(baseState).putCustom(SnapshotsInProgress.TYPE, snaps).build();
+
+        final var result = SnapshotsServiceUtils.snapshottingIndicesBySnapshot(clusterState.projectState(), Set.of(idx1, idx2));
+        assertThat(result.size(), is(2));
+        assertThat(result.get(snapA), equalTo(Set.of(idx1, idx2)));
+        assertThat(result.get(snapB), equalTo(Set.of(idx2)));
+
+        // description sorts by repository then snapshot name; idx-1 < idx-2 within each group
+        final var description = SnapshotsServiceUtils.describeSnapshottingIndices(result);
+        assertThat(
+            description,
+            equalTo("[repo-a/snap-a] is snapshotting " + List.of(idx1, idx2) + ", [repo-b/snap-b] is snapshotting " + List.of(idx2))
         );
     }
 

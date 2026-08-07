@@ -258,13 +258,16 @@ public class MetadataIndexStateServiceTests extends ESTestCase {
             assertThat(exception.getMessage(), containsString("Cannot close indices that are being restored: [[restored]]"));
         }
         {
+            // Use a known snapshot so the message assertion can name the blocking snapshot.
+            final Snapshot knownSnapshot = new Snapshot(projectId, "test-repo", new SnapshotId("test-snap", randomUUID()));
             SnapshotInProgressException exception = expectThrows(SnapshotInProgressException.class, () -> {
                 ClusterState state = addSnapshotIndex(
                     projectId,
                     "snapshotted",
                     randomIntBetween(1, 3),
                     randomIntBetween(0, 3),
-                    initialState
+                    initialState,
+                    knownSnapshot
                 );
                 if (randomBoolean()) {
                     state = addOpenedIndex(projectId, "opened", randomIntBetween(1, 3), randomIntBetween(0, 3), state);
@@ -275,7 +278,9 @@ public class MetadataIndexStateServiceTests extends ESTestCase {
                 Index[] indices = new Index[] { state.metadata().getProject(projectId).index("snapshotted").getIndex() };
                 MetadataIndexStateService.addIndexClosedBlocks(projectId, indices, Map.of(), state);
             });
-            assertThat(exception.getMessage(), containsString("Cannot close indices that are being snapshotted: [[snapshotted]]"));
+            assertThat(exception.getMessage(), containsString("Cannot close indices that are being snapshotted:"));
+            assertThat(exception.getMessage(), containsString("[test-repo/test-snap] is snapshotting"));
+            assertThat(exception.getMessage(), containsString("[snapshotted]"));
         }
         {
             final Map<Index, ClusterBlock> blockedIndices = new HashMap<>();
@@ -433,12 +438,38 @@ public class MetadataIndexStateServiceTests extends ESTestCase {
         return ClusterState.builder(newState).putCustom(RestoreInProgress.TYPE, new RestoreInProgress.Builder().add(entry).build()).build();
     }
 
+    /**
+     * Adds an index to the cluster state that is being snapshotted by a randomly-named snapshot. Use this overload when only the
+     * presence of the exception matters; use {@link #addSnapshotIndex(ProjectId, String, int, int, ClusterState, Snapshot)} when the
+     * test needs to assert on the snapshot identity in the error message.
+     */
     private static ClusterState addSnapshotIndex(
         final ProjectId projectId,
         final String index,
         final int numShards,
         final int numReplicas,
         final ClusterState state
+    ) {
+        return addSnapshotIndex(
+            projectId,
+            index,
+            numShards,
+            numReplicas,
+            state,
+            new Snapshot(projectId, randomAlphaOfLength(10), new SnapshotId(randomAlphaOfLength(5), randomAlphaOfLength(5)))
+        );
+    }
+
+    /**
+     * Adds an index to the cluster state that is being snapshotted by the supplied {@code snapshot}.
+     */
+    private static ClusterState addSnapshotIndex(
+        final ProjectId projectId,
+        final String index,
+        final int numShards,
+        final int numReplicas,
+        final ClusterState state,
+        final Snapshot snapshot
     ) {
         ClusterState newState = addOpenedIndex(projectId, index, numShards, numReplicas, state);
 
@@ -450,11 +481,6 @@ public class MetadataIndexStateServiceTests extends ESTestCase {
             );
         }
 
-        final Snapshot snapshot = new Snapshot(
-            projectId,
-            randomAlphaOfLength(10),
-            new SnapshotId(randomAlphaOfLength(5), randomAlphaOfLength(5))
-        );
         final SnapshotsInProgress.Entry entry = SnapshotsInProgress.Entry.snapshot(
             snapshot,
             randomBoolean(),

@@ -1406,7 +1406,9 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                     indicesAdmin().prepareDelete("test-idx-1").get();
                     fail("Expected deleting index to fail during snapshot");
                 } catch (SnapshotInProgressException e) {
-                    assertThat(e.getMessage(), containsString("Cannot delete indices that are being snapshotted: [[test-idx-1/"));
+                    assertThat(e.getMessage(), containsString("Cannot delete indices that are being snapshotted:"));
+                    assertThat(e.getMessage(), containsString("[test-repo/test-snap] is snapshotting"));
+                    assertThat(e.getMessage(), containsString("[test-idx-1/"));
                 }
             } else {
                 try {
@@ -1414,7 +1416,9 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                     indicesAdmin().prepareClose("test-idx-1").get();
                     fail("Expected closing index to fail during snapshot");
                 } catch (SnapshotInProgressException e) {
-                    assertThat(e.getMessage(), containsString("Cannot close indices that are being snapshotted: [[test-idx-1/"));
+                    assertThat(e.getMessage(), containsString("Cannot close indices that are being snapshotted:"));
+                    assertThat(e.getMessage(), containsString("[test-repo/test-snap] is snapshotting"));
+                    assertThat(e.getMessage(), containsString("[test-idx-1/"));
                 }
             }
         } finally {

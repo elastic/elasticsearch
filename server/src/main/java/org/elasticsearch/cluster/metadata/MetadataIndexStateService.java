@@ -75,6 +75,7 @@ import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.RestoreService;
+import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.snapshots.SnapshotsServiceUtils;
 import org.elasticsearch.tasks.TaskId;
@@ -345,12 +346,15 @@ public class MetadataIndexStateService {
         }
 
         // Check if index closing conflicts with any running snapshots
-        Set<Index> snapshottingIndices = SnapshotsServiceUtils.snapshottingIndices(currentProjectState, indicesToClose);
+        Map<Snapshot, Set<Index>> snapshottingIndices = SnapshotsServiceUtils.snapshottingIndicesBySnapshot(
+            currentProjectState,
+            indicesToClose
+        );
         if (snapshottingIndices.isEmpty() == false) {
             throw new SnapshotInProgressException(
                 "Cannot close indices that are being snapshotted: "
-                    + snapshottingIndices
-                    + ". Try again after snapshot finishes or cancel the currently running snapshot."
+                    + SnapshotsServiceUtils.describeSnapshottingIndices(snapshottingIndices)
+                    + ". Try again after these snapshots finish, or cancel them."
             );
         }
 

@@ -18,7 +18,6 @@ import org.elasticsearch.compute.data.BatchMetadata;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.FailureCollector;
 import org.elasticsearch.compute.operator.IsBlockedResult;
-import org.elasticsearch.compute.operator.ResponseHeadersCollector;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -130,7 +129,6 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
     @Nullable
     private final BiConsumer<String, String> lookupPlanConsumer;
 
-    private final ResponseHeadersCollector responseHeadersCollector;
 
     /**
      * Create a new BidirectionalBatchExchangeClient.
@@ -169,7 +167,6 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
         this.lookupPlanConsumer = lookupPlanConsumer;
         this.maxWorkers = maxWorkers;
         this.serverNodeSupplier = serverNodeSupplier;
-        this.responseHeadersCollector = new ResponseHeadersCollector(transportService.getThreadPool().getThreadContext());
         logger.debug(
             "Created BidirectionalBatchExchangeClient: sharedExchangeId={}, maxBufferSize={}, maxWorkers={}",
             sharedExchangeId,
@@ -385,7 +382,6 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
                 worker.serverToClientId,
                 executor,
                 ActionListener.<BatchExchangeStatusResponse>wrap(response -> {
-                    responseHeadersCollector.collect();
                     logger.debug(
                         "Received batch exchange status response for worker={}, success={}",
                         worker.workerId,
@@ -409,7 +405,6 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
                         worker.statusRef.onFailure(failure);
                     }
                 }, failure -> {
-                    responseHeadersCollector.collect();
                     logExchangeFailure(
                         logger,
                         Level.ERROR,
@@ -872,15 +867,6 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
                 logger.debug("finishSinkHandler already done for worker={}", worker.workerId);
             }
         }
-    }
-
-    /**
-     * Applies collected response headers (e.g. warnings from server-side drivers) to the current
-     * thread's context. Must be called on the coordinator driver thread (typically from the
-     * operator's {@code close()} method) so that {@code DriverRunner} can propagate them.
-     */
-    public void finishCollectingResponseHeaders() {
-        responseHeadersCollector.finish();
     }
 
     /**

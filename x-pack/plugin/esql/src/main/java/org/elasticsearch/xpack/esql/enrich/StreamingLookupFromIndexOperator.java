@@ -713,7 +713,6 @@ public class StreamingLookupFromIndexOperator implements Operator {
             } catch (Exception e) {
                 BidirectionalBatchExchangeBase.logExchangeFailure(logger, Level.ERROR, e, "Error finishing client", e);
             }
-            client.finishCollectingResponseHeaders();
             try {
                 client.close();
             } catch (Exception e) {

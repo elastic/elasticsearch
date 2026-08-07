@@ -10,6 +10,7 @@ package org.elasticsearch.compute.operator.exchange;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.transport.TransportResponse;
 
@@ -48,10 +49,16 @@ public final class BatchExchangeStatusResponse extends TransportResponse {
         this.warnings = List.of();
     }
 
-    public BatchExchangeStatusResponse(StreamInput in) throws IOException {
+    public BatchExchangeStatusResponse(StreamInput in, ThreadContext threadContext) throws IOException {
         this.failure = in.readOptionalException();
         this.bytesRead = in.getTransportVersion().supports(ESQL_LOOKUP_BYTES_READ) ? in.readVLong() : 0L;
-        this.warnings = in.getTransportVersion().supports(ESQL_DRIVER_WARNINGS) ? in.readStringCollectionAsList() : List.of();
+        if (in.getTransportVersion().supports(ESQL_DRIVER_WARNINGS)) {
+            this.warnings = in.readStringCollectionAsList();
+        } else {
+            // Old nodes send warnings as transport response headers; the transport layer has already deposited
+            // them into the current thread's context before this constructor is called.
+            this.warnings = List.copyOf(threadContext.getResponseHeaders().getOrDefault("Warning", List.of()));
+        }
     }
 
     @Override

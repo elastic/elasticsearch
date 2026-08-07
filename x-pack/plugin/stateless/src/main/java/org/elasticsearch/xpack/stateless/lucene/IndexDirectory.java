@@ -272,7 +272,7 @@ public class IndexDirectory extends ByteSizeDirectory {
         if (hasLocalRef) {
             // The caller (VirtualBatchedCompoundCommit) holds a local file ref keeping the file on disk.
             // Unlike openInput/ReopeningIndexInput, this returns a plain IndexInput that is read and closed
-            // in the same thread, so no READONCE→DEFAULT conversion is needed.
+            // in the same thread, so the READONCE→DEFAULT conversion done in the normal {@link #openInput} is not needed here.
             return super.openInput(name, context);
         }
         return cacheDirectory.openInput(name, context);

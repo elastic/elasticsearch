@@ -1888,7 +1888,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
      *   <li>{@code <root>._keyed.counts} — the slot count per document, including null slots.</li>
      * </ol>
      *
-     * <p>Two known divergences from the row path:
+     * <p>Known divergence from the row path:
      * <ul>
      *   <li><b>Slot order.</b> Slots are emitted in schema-leaf order (first-seen key order across the batch) rather than per-document
      *       JSON order. The two agree when all documents list their keys in the same order, which is the common case.
@@ -1898,9 +1898,13 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
      *       Same divergence as {@link KeywordFieldMapper#mapColumnBatch}.</li>
      * </ul>
      *
-     * <p>TODO: {@code depth_limit} and {@code relativeKeys} uniqueness are not enforced — deferred to the production hook-up in
-     * {@code ShardBatchMapper}, where the right schema representation will need to be propogated.
+     * <p>Duplicate relative keys within a batch are benign. {@code {"flat":{"a.b":1}}} and
+     * {@code {"flat":{"a":{"b":2}}}} each produce relative key {@code a.b} via the dotted-path walk in
+     * {@code ColumnGroupResolver}. Within a given document, these columns are absent where the other is
+     * present, so emitted slots match the row path exactly.
      *
+     * @throws IllegalArgumentException when a relative key's depth exceeds {@code depth_limit}, mirroring
+     *         {@code FlattenedFieldParser.validateDepthLimit}
      * @throws UnsupportedOperationException when a value exceeds {@code ignore_above}, so that the caller falls back to the row path,
      *         which writes the {@code <root>._keyed._ignored} channel this path does not yet produce
      */
@@ -1911,6 +1915,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         final int columnCount = columns.length;
 
         // The "key\0" prefix is constant across documents for a given column, so build it once.
+        // Also validate depth_limit and the reserved separator character here, once per key.
         final BytesRef[] keyPrefixes = new BytesRef[columnCount];
         final BytesRefBuilder prefixScratch = new BytesRefBuilder();
         for (int k = 0; k < columnCount; k++) {
@@ -1918,6 +1923,13 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             if (key.indexOf(FlattenedFieldParser.SEPARATOR_BYTE) >= 0) {
                 throw new IllegalArgumentException(
                     "Keys in [flattened] fields cannot contain the reserved character \\0. Offending key: [" + key + "]."
+                );
+            }
+            // depth_limit mirrors FlattenedFieldParser.validateDepthLimit: path.length() + 1 > depthLimit,
+            // where path.length() equals the number of dots in the relative key (nesting depth).
+            if (dotCountInKey(key) + 1 > depthLimit()) {
+                throw new IllegalArgumentException(
+                    "The provided [flattened] field [" + fullPath() + "] exceeds the maximum depth limit of [" + depthLimit() + "]."
                 );
             }
             prefixScratch.clear();
@@ -2028,6 +2040,17 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         EscfColumnBuilder b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, BytesRefRecycler.NON_RECYCLING_INSTANCE);
         b.lockScalar(EscfColumnKind.LONG);
         return b;
+    }
+
+    /** Counts the number of {@code '.'} characters in {@code key}. Used to compute nesting depth for {@code depth_limit} checks. */
+    private static int dotCountInKey(String key) {
+        int count = 0;
+        for (int i = 0; i < key.length(); i++) {
+            if (key.charAt(i) == '.') {
+                count++;
+            }
+        }
+        return count;
     }
 
     /** Mirrors the row path's immense-keyed-value error in {@link FlattenedFieldParser}. */

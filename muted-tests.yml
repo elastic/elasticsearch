@@ -55,6 +55,9 @@ tests:
 - class: org.elasticsearch.threadpool.SimpleThreadPoolIT
   method: testThreadPoolMetrics
   issue: https://github.com/elastic/elasticsearch/issues/156130
+- class: org.elasticsearch.packaging.test.KeystoreManagementTests
+  method: test50CreateKeystoreManually
+  issue: https://github.com/elastic/elasticsearch/issues/155335
 
 # Examples:
 #

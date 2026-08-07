@@ -21,19 +21,18 @@ import java.util.Iterator;
 import java.util.List;
 
 import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.chunk;
+import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.fieldNullable;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.CHOICES_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.DELTA_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.ID_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.MESSAGE_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.MODEL_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.OBJECT_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.USAGE_FIELD;
 
 /**
- * OpenAI-compatible chat completion payload, named after its primary role as a streaming
- * {@code chat.completion.chunk}.
- *
- * <p>Despite the {@code Chunk} name, this record also serves as the non-streaming
- * {@code chat.completion} payload: the two response types share all field shapes, component
+ * This class handles both the non-streaming
+ * {@code chat.completion} payload and {@code chat.completion.chunk}: the two response types share all field shapes, component
  * order, and wire encoding.  The only difference is the field name for the message wrapper
  * ({@code "delta"} vs {@code "message"}) and whether the top-level JSON object is emitted by
  * this class or by the outer {@code InferenceAction.Response}.
@@ -103,7 +102,7 @@ public record ChatCompletionChunk(
     }
 
     private Iterator<? extends ToXContent> fields(ToXContent.Params params, String messageFieldName) {
-        var iter = Iterators.concat(
+        return Iterators.concat(
             chunk((b, p) -> b.field(ID_FIELD, id)),
             choices != null
                 ? Iterators.concat(
@@ -112,11 +111,8 @@ public record ChatCompletionChunk(
                     ChunkedToXContentHelper.endArray()
                 )
                 : Collections.emptyIterator(),
-            chunk((b, p) -> b.field(MODEL_FIELD, model).field(OBJECT_FIELD, object))
+            chunk((b, p) -> b.field(MODEL_FIELD, model).field(OBJECT_FIELD, object)),
+            fieldNullable(USAGE_FIELD, usage, params)
         );
-        if (usage != null) {
-            iter = Iterators.concat(iter, usage.toXContentChunked(params));
-        }
-        return iter;
     }
 }

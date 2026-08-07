@@ -30,8 +30,6 @@ import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TYPE
 
 /**
  * A tool call within a {@link ChatCompletionMessage}.
- *
- * <p>Field order: {@code index, id, function, type}.
  */
 public record ChatCompletionToolCall(int index, @Nullable String id, @Nullable Function function, @Nullable String type)
     implements

@@ -7,18 +7,26 @@
 
 package org.elasticsearch.xpack.core.inference.results.completion;
 
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Iterator;
 
 import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.chunk;
+import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.chunkNullable;
+import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.field;
+import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.fieldNullable;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.CACHED_TOKENS_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.CACHE_WRITE_TOKENS_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.CHAT_COMPLETION_CACHE_WRITE_TOKENS_SUPPORT_ADDED;
@@ -34,12 +42,6 @@ import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.USAG
 
 /**
  * Usage statistics for a unified chat completion response.
- *
- * <p>The {@link #writeTo}/{@link #ChatCompletionUsage(StreamInput)} pair preserves the streaming
- * wire-format gates ({@code CHAT_COMPLETION_CACHE_WRITE_TOKENS_SUPPORT_ADDED},
- * {@code INFERENCE_CACHED_TOKENS}, {@code CHAT_COMPLETION_REASONING_SUPPORT_ADDED})
- * verbatim so that the shared class does not alter the byte-level format that shipped
- * with the streaming path.
  */
 public record ChatCompletionUsage(
     int completionTokens,
@@ -47,7 +49,7 @@ public record ChatCompletionUsage(
     int totalTokens,
     @Nullable PromptTokensDetails promptTokensDetails,
     @Nullable CompletionTokenDetails completionTokenDetails
-) implements Writeable {
+) implements Writeable, ChunkedToXContentObject {
 
     public ChatCompletionUsage(int completionTokens, int promptTokens, int totalTokens) {
         this(completionTokens, promptTokens, totalTokens, null, null);
@@ -80,22 +82,22 @@ public record ChatCompletionUsage(
         }
     }
 
+    @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return chunk((b, p) -> {
-            var builder = b.startObject(USAGE_FIELD)
-                .field(COMPLETION_TOKENS_FIELD, completionTokens)
-                .field(PROMPT_TOKENS_FIELD, promptTokens)
-                .field(TOTAL_TOKENS_FIELD, totalTokens);
-            if (promptTokensDetails != null) {
-                promptTokensDetails.toXContent(builder, params);
-            }
-            if (completionTokenDetails != null && completionTokenDetails.reasoningTokens() != null) {
-                builder.startObject(COMPLETION_TOKENS_DETAILS_FIELD)
-                    .field(REASONING_TOKENS_FIELD, completionTokenDetails.reasoningTokens())
-                    .endObject();
-            }
-            return builder.endObject();
-        });
+        var xContent = Iterators.concat(
+            ChunkedToXContentHelper.startObject(),
+            chunk((b, p) -> b.field(COMPLETION_TOKENS_FIELD, completionTokens)),
+            chunk((b, p) -> b.field(PROMPT_TOKENS_FIELD, promptTokens)),
+            chunk((b, p) -> b.field(TOTAL_TOKENS_FIELD, totalTokens)),
+            fieldNullable(PROMPT_TOKENS_DETAILS_FIELD, promptTokensDetails, params)
+        );
+
+        if (completionTokenDetails != null && completionTokenDetails.reasoningTokens() != null) {
+            xContent = Iterators.concat(xContent, field(COMPLETION_TOKENS_DETAILS_FIELD, completionTokenDetails, params));
+        }
+
+        xContent = Iterators.concat(xContent, ChunkedToXContentHelper.endObject());
+        return xContent;
     }
 
     private static PromptTokensDetails readOptionalPromptTokensDetails(StreamInput in) throws IOException {
@@ -107,7 +109,7 @@ public record ChatCompletionUsage(
         return null;
     }
 
-    public record CompletionTokenDetails(@Nullable Integer reasoningTokens) implements Writeable {
+    public record CompletionTokenDetails(@Nullable Integer reasoningTokens) implements Writeable, ChunkedToXContentObject {
 
         public CompletionTokenDetails(StreamInput in) throws IOException {
             this(in.readOptionalVInt());
@@ -117,12 +119,21 @@ public record ChatCompletionUsage(
         public void writeTo(StreamOutput out) throws IOException {
             out.writeOptionalVInt(reasoningTokens);
         }
+
+        @Override
+        public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+            return Iterators.concat(
+                ChunkedToXContentHelper.startObject(),
+                chunkNullable(REASONING_TOKENS_FIELD, reasoningTokens),
+                ChunkedToXContentHelper.endObject()
+            );
+        }
     }
 
     public record PromptTokensDetails(@Nullable Integer cachedTokens, @Nullable Integer cacheWriteTokens)
         implements
-            ToXContentFragment,
-            Writeable {
+            Writeable,
+            ChunkedToXContentObject {
 
         public PromptTokensDetails(StreamInput in) throws IOException {
             this(in.readOptionalVInt(), in.readOptionalVInt());
@@ -143,24 +154,17 @@ public record ChatCompletionUsage(
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
             if (isEmpty()) {
-                return builder;
+                return Collections.emptyIterator();
             }
 
-            builder.startObject(PROMPT_TOKENS_DETAILS_FIELD);
-
-            if (cachedTokens() != null) {
-                builder.field(CACHED_TOKENS_FIELD, cachedTokens());
-            }
-
-            if (cacheWriteTokens() != null) {
-                builder.field(CACHE_WRITE_TOKENS_FIELD, cacheWriteTokens());
-            }
-
-            builder.endObject();
-
-            return builder;
+            return Iterators.concat(
+                ChunkedToXContentHelper.startObject(),
+                chunkNullable(CACHED_TOKENS_FIELD, cachedTokens),
+                chunkNullable(CACHE_WRITE_TOKENS_FIELD, cacheWriteTokens),
+                ChunkedToXContentHelper.endObject()
+            );
         }
 
         private boolean isEmpty() {

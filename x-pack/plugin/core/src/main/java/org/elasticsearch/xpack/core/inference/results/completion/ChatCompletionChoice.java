@@ -26,8 +26,6 @@ import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.INDE
 /**
  * A single choice within a {@link ChatCompletionChunk} response.
  *
- * <p>Field order: {@code message/delta, finish_reason, index}.
- *
  * <p>The {@code message} wrapper is rendered as either {@code "delta"} (streaming) or
  * {@code "message"} (non-streaming) depending on the {@code messageFieldName} argument
  * passed to {@link #toXContentChunked(ToXContent.Params, String)}.

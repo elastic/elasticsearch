@@ -32,12 +32,8 @@ import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TOOL
 /**
  * The message (or delta, in streaming) within a {@link ChatCompletionChoice}.
  *
- * <p>Component and wire order: {@code content, refusal, role, toolCalls, reasoning, reasoningDetails}.
- *
  * <p>XContent is emitted as a named object under {@code messageFieldName} — either
  * {@code "message"} for non-streaming responses or {@code "delta"} for streaming SSE chunks.
- *
- * <p>XContent field order: {@code content, refusal, role, reasoning, tool_calls, reasoning_details}.
  */
 public record ChatCompletionMessage(
     @Nullable String content,
@@ -73,6 +69,16 @@ public record ChatCompletionMessage(
     /**
      * Emits {@code startObject(messageFieldName) ... endObject}, where
      * {@code messageFieldName} is either {@code "delta"} (streaming) or {@code "message"} (non-streaming).
+     * {@code
+     *   delta: {
+     *       content?: string | null;
+     *       refusal?: string | null;
+     *       role?: 'system' | 'user' | 'assistant' | 'tool';
+     *       tool_calls?: Array<{ ... }>;
+     *       reasoning?: string | null;
+     *       reasoning_details?: Array<{ ... }>;
+     *   };
+     * }
      */
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params, String messageFieldName) {
         var xContent = Iterators.concat(

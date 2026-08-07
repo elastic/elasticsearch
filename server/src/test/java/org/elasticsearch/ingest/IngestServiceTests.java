@@ -572,7 +572,7 @@ public class IngestServiceTests extends ESTestCase {
         PutPipelineRequest request = putJsonPipelineRequest("_id", """
             {"processors": [{"set" : {"field": "_field", "value": "_value"}}]}""");
         // Generous limits: nothing should be rejected.
-        ingestService.validatePipelineSize(projectId, request, 100, ByteSizeValue.ofKb(64), ByteSizeValue.ofMb(1));
+        validateSize(ingestService, projectId, request, 100, ByteSizeValue.ofKb(64), ByteSizeValue.ofMb(1));
     }
 
     public void testValidatePipelineExceedsMaxPipelineSize() {
@@ -583,12 +583,12 @@ public class IngestServiceTests extends ESTestCase {
         long size = new PipelineConfiguration("_id", request.getSource(), request.getXContentType()).serializedSizeInBytes();
 
         // Exactly at the limit is allowed.
-        ingestService.validatePipelineSize(projectId, request, 100, ByteSizeValue.ofBytes(size), ByteSizeValue.ofMb(1));
+        validateSize(ingestService, projectId, request, 100, ByteSizeValue.ofBytes(size), ByteSizeValue.ofMb(1));
 
         // One byte under the pipeline's size is rejected.
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> ingestService.validatePipelineSize(projectId, request, 100, ByteSizeValue.ofBytes(size - 1), ByteSizeValue.ofMb(1))
+            () -> validateSize(ingestService, projectId, request, 100, ByteSizeValue.ofBytes(size - 1), ByteSizeValue.ofMb(1))
         );
         assertThat(e.getMessage(), containsString("ingest.pipeline.max_pipeline_size"));
     }
@@ -605,14 +605,14 @@ public class IngestServiceTests extends ESTestCase {
             {"processors": [{"set" : {"field": "_field", "value": "_value"}}]}""");
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> ingestService.validatePipelineSize(projectId, newPipeline, 3, ByteSizeValue.ofKb(64), ByteSizeValue.ofMb(1))
+            () -> validateSize(ingestService, projectId, newPipeline, 3, ByteSizeValue.ofKb(64), ByteSizeValue.ofMb(1))
         );
         assertThat(e.getMessage(), containsString("ingest.pipeline.max_pipelines"));
 
         // Updating an already-existing pipeline does not increase the count, so the limit does not apply to it.
         PutPipelineRequest updateExisting = putJsonPipelineRequest("existing_0", """
             {"processors": [{"set" : {"field": "_field", "value": "_value"}}]}""");
-        ingestService.validatePipelineSize(projectId, updateExisting, 3, ByteSizeValue.ofKb(64), ByteSizeValue.ofMb(1));
+        validateSize(ingestService, projectId, updateExisting, 3, ByteSizeValue.ofKb(64), ByteSizeValue.ofMb(1));
     }
 
     public void testValidatePipelineExceedsMaxTotalMetadataSize() {
@@ -626,12 +626,12 @@ public class IngestServiceTests extends ESTestCase {
         long total = existing.serializedSizeInBytes() + newSize;
 
         // Exactly at the aggregate limit is allowed.
-        ingestService.validatePipelineSize(projectId, request, 100, ByteSizeValue.ofMb(1), ByteSizeValue.ofBytes(total));
+        validateSize(ingestService, projectId, request, 100, ByteSizeValue.ofMb(1), ByteSizeValue.ofBytes(total));
 
         // One byte under the aggregate is rejected.
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> ingestService.validatePipelineSize(projectId, request, 100, ByteSizeValue.ofMb(1), ByteSizeValue.ofBytes(total - 1))
+            () -> validateSize(ingestService, projectId, request, 100, ByteSizeValue.ofMb(1), ByteSizeValue.ofBytes(total - 1))
         );
         assertThat(e.getMessage(), containsString("ingest.pipeline.max_total_metadata_size"));
     }
@@ -654,7 +654,7 @@ public class IngestServiceTests extends ESTestCase {
 
         // The aggregate counts only the replacement, not the (larger) pipeline it supersedes: a limit equal to the new size passes even
         // though the old pipeline alone was larger.
-        ingestService.validatePipelineSize(projectId, replacement, 100, ByteSizeValue.ofMb(1), ByteSizeValue.ofBytes(newSize));
+        validateSize(ingestService, projectId, replacement, 100, ByteSizeValue.ofMb(1), ByteSizeValue.ofBytes(newSize));
     }
 
     /**
@@ -681,17 +681,17 @@ public class IngestServiceTests extends ESTestCase {
             new PipelineConfiguration("big", shrink.getSource(), shrink.getXContentType()).serializedSizeInBytes(),
             lessThan(big.serializedSizeInBytes())
         );
-        ingestService.validatePipelineSize(projectId, shrink, 100, ByteSizeValue.ofMb(1), maxTotalSize);
+        validateSize(ingestService, projectId, shrink, 100, ByteSizeValue.ofMb(1), maxTotalSize);
 
         // Replacing it with a definition of exactly the same size leaves the aggregate unchanged, so that is allowed too.
         PutPipelineRequest sameSize = putJsonPipelineRequest("big", pipelineJson(2048));
-        ingestService.validatePipelineSize(projectId, sameSize, 100, ByteSizeValue.ofMb(1), maxTotalSize);
+        validateSize(ingestService, projectId, sameSize, 100, ByteSizeValue.ofMb(1), maxTotalSize);
 
         // But growing a pipeline while over the limit pushes the aggregate further over, and is still rejected.
         PutPipelineRequest grow = putJsonPipelineRequest("big", pipelineJson(4096));
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> ingestService.validatePipelineSize(projectId, grow, 100, ByteSizeValue.ofMb(1), maxTotalSize)
+            () -> validateSize(ingestService, projectId, grow, 100, ByteSizeValue.ofMb(1), maxTotalSize)
         );
         assertThat(e.getMessage(), containsString("ingest.pipeline.max_total_metadata_size"));
 
@@ -699,7 +699,7 @@ public class IngestServiceTests extends ESTestCase {
         PutPipelineRequest create = putJsonPipelineRequest("_new", pipelineJson(0));
         e = expectThrows(
             IllegalArgumentException.class,
-            () -> ingestService.validatePipelineSize(projectId, create, 100, ByteSizeValue.ofMb(1), maxTotalSize)
+            () -> validateSize(ingestService, projectId, create, 100, ByteSizeValue.ofMb(1), maxTotalSize)
         );
         assertThat(e.getMessage(), containsString("ingest.pipeline.max_total_metadata_size"));
     }
@@ -804,6 +804,27 @@ public class IngestServiceTests extends ESTestCase {
             ActionTestUtils.assertNoFailureListener(t -> {}),
             request,
             limits
+        );
+    }
+
+    /**
+     * Runs the put path's size pre-check for a request, measuring the pipeline exactly the way {@link IngestService#putPipeline} does:
+     * off the raw parsed config map, before anything has had a chance to consume it.
+     */
+    private static void validateSize(
+        IngestService ingestService,
+        ProjectId projectId,
+        PutPipelineRequest request,
+        int maxPipelines,
+        ByteSizeValue maxPipelineSize,
+        ByteSizeValue maxTotalSize
+    ) {
+        Map<String, Object> config = XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2();
+        ingestService.validatePipelineSize(
+            projectId,
+            request.getId(),
+            PipelineConfiguration.serializedSizeInBytes(request.getId(), config),
+            new IngestSettings.PipelineLimits(maxPipelines, maxPipelineSize, maxTotalSize)
         );
     }
 

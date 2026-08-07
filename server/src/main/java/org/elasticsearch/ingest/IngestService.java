@@ -593,9 +593,18 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         // both evaluate this request against the same values even if the settings are updated in between.
         final IngestSettings.PipelineLimits limits = IngestSettings.PipelineLimits.from(clusterService.getClusterSettings());
 
+        // Parse the source once and share it across the whole pre-check. Measure the pipeline's size immediately, before anything else
+        // touches the map: validating a pipeline consumes its config (ConfigurationUtils.read* removes each property as it reads it), so
+        // measuring afterwards would silently under-count. Everything downstream takes the size as a plain long.
+        final Map<String, Object> config = XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2();
+        final long pipelineSize = PipelineConfiguration.serializedSizeInBytes(request.getId(), config);
+
+        // Check the limits before asking every node in the cluster for its ingest info: this check needs nothing from that response, so
+        // running it first means abusive input is rejected without provoking a cluster-wide fan-out.
+        validatePipelineSize(projectId, request.getId(), pipelineSize, limits);
+
         nodeInfoListener.accept(listener.delegateFailureAndWrap((l, nodeInfos) -> {
-            validatePipelineRequest(projectId, request, nodeInfos);
-            validatePipelineSize(projectId, request, limits.maxPipelines(), limits.maxPipelineSize(), limits.maxTotalSize());
+            validatePipelineRequest(projectId, request, nodeInfos, config);
 
             taskQueue.submitTask(
                 "put-pipeline-" + request.getId(),
@@ -617,21 +626,13 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      * <p>
      * Package-private and taking the limits as parameters (rather than reading them from the cluster settings itself) so it can be unit
      * tested directly.
+     *
+     * @param pipelineSize the serialized size of the pipeline being put, measured by the caller before the config map was consumed
      */
-    void validatePipelineSize(
-        ProjectId projectId,
-        PutPipelineRequest request,
-        int maxPipelines,
-        ByteSizeValue maxPipelineSize,
-        ByteSizeValue maxTotalSize
-    ) {
+    void validatePipelineSize(ProjectId projectId, String pipelineId, long pipelineSize, IngestSettings.PipelineLimits limits) {
         final IngestMetadata ingestMetadata = state.metadata().getProject(projectId).custom(IngestMetadata.TYPE);
         final Map<String, PipelineConfiguration> existingPipelines = ingestMetadata == null ? Map.of() : ingestMetadata.getPipelines();
-        validatePipelineLimits(
-            new PipelineConfiguration(request.getId(), request.getSource(), request.getXContentType()),
-            existingPipelines,
-            new IngestSettings.PipelineLimits(maxPipelines, maxPipelineSize, maxTotalSize)
-        );
+        validatePipelineLimits(pipelineId, pipelineSize, existingPipelines, limits);
     }
 
     /**
@@ -647,17 +648,17 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      *     it.</li>
      * </ul>
      *
-     * @param newPipeline the pipeline as it would be stored
+     * @param pipelineId the id of the pipeline being put
+     * @param newSize the serialized size of the pipeline as it would be stored
      * @param existingPipelines the pipelines it would be stored alongside, <em>including</em> the one it replaces, if any
      */
     static void validatePipelineLimits(
-        PipelineConfiguration newPipeline,
+        String pipelineId,
+        long newSize,
         Map<String, PipelineConfiguration> existingPipelines,
         IngestSettings.PipelineLimits limits
     ) {
-        final String pipelineId = newPipeline.getId();
         final ByteSizeValue maxPipelineSize = limits.maxPipelineSize();
-        final long newSize = newPipeline.serializedSizeInBytes();
         if (newSize > maxPipelineSize.getBytes()) {
             throw new IllegalArgumentException(
                 "pipeline ["
@@ -721,7 +722,27 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     }
 
     public void validatePipelineRequest(ProjectId projectId, PutPipelineRequest request, NodesInfoResponse nodeInfos) throws Exception {
-        final Map<String, Object> config = XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2();
+        validatePipelineRequest(
+            projectId,
+            request,
+            nodeInfos,
+            XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2()
+        );
+    }
+
+    /**
+     * As {@link #validatePipelineRequest(ProjectId, PutPipelineRequest, NodesInfoResponse)}, but reusing a config map the caller has
+     * already parsed from the request source.
+     * <p>
+     * Note that validation <em>consumes</em> {@code config}: {@link ConfigurationUtils} removes each property as it reads it, so the map
+     * is largely empty by the time this returns. Callers must not read anything from it afterwards.
+     */
+    public void validatePipelineRequest(
+        ProjectId projectId,
+        PutPipelineRequest request,
+        NodesInfoResponse nodeInfos,
+        Map<String, Object> config
+    ) throws Exception {
         Map<DiscoveryNode, IngestInfo> ingestInfos = new HashMap<>();
         for (NodeInfo nodeInfo : nodeInfos.getNodes()) {
             ingestInfos.put(nodeInfo.getNode(), nodeInfo.getInfo(IngestInfo.class));
@@ -966,7 +987,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 // result of the preceding one (see PIPELINE_TASK_EXECUTOR), so concurrent puts cannot collectively exceed a limit that each
                 // of them individually respected. Throwing here fails just this task -- the batch's other tasks are unaffected, and no
                 // state has been mutated yet.
-                validatePipelineLimits(newPipeline, pipelines, limits);
+                validatePipelineLimits(request.getId(), newPipeline.serializedSizeInBytes(), pipelines, limits);
             }
 
             pipelines.put(request.getId(), newPipeline);

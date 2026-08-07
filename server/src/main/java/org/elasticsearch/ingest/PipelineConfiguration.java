@@ -191,16 +191,23 @@ public final class PipelineConfiguration implements SimpleDiffable<PipelineConfi
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         final TransportVersion transportVersion = out.getTransportVersion();
-        final Map<String, Object> configForTransport = configForTransport(transportVersion);
-        out.writeString(id);
-        out.writeGenericMap(configForTransport);
+        writeTo(out, id, configForTransport(transportVersion));
     }
 
     /**
-     * Returns the number of bytes this pipeline occupies when serialized. The size is measured without materializing the serialized form,
-     * so that even an oversized pipeline does not cause a large allocation here. The result is memoized (this class is immutable) so that
-     * summing the size across all pipelines on every pipeline creation does not repeatedly walk the whole config on the master. Used to
-     * bound both a single pipeline and the aggregate size of all stored pipelines in the cluster state.
+     * The wire layout of a pipeline, kept in one place so that {@link #writeTo(StreamOutput)} and
+     * {@link #serializedSizeInBytes(String, Map)} cannot drift apart.
+     */
+    private static void writeTo(StreamOutput out, String id, Map<String, Object> config) throws IOException {
+        out.writeString(id);
+        out.writeGenericMap(config);
+    }
+
+    /**
+     * Returns the number of bytes this pipeline occupies when serialized at the current transport version. The size is measured without
+     * materializing the serialized form, so that even an oversized pipeline does not cause a large allocation here. The result is memoized
+     * (this class is immutable) so that summing the size across all pipelines on every pipeline creation does not repeatedly walk the whole
+     * config on the master. Used to bound both a single pipeline and the aggregate size of all stored pipelines in the cluster state.
      */
     public long serializedSizeInBytes() {
         long size = serializedSize;
@@ -214,6 +221,20 @@ public final class PipelineConfiguration implements SimpleDiffable<PipelineConfi
             serializedSize = size;
         }
         return size;
+    }
+
+    /**
+     * As {@link #serializedSizeInBytes()}, but measuring a pipeline id and a raw config map that have not been made into a
+     * {@link PipelineConfiguration}. This lets the put path size-check a pipeline straight off the map it already parsed, without paying
+     * for the defensive deep copy that constructing a {@link PipelineConfiguration} would perform. The map is only read, never retained.
+     */
+    static long serializedSizeInBytes(String id, Map<String, Object> config) {
+        try (CountingStreamOutput out = new CountingStreamOutput()) {
+            writeTo(out, id, config);
+            return out.position();
+        } catch (IOException e) {
+            throw new IllegalStateException("unable to compute the size of ingest pipeline [" + id + "]", e);
+        }
     }
 
     @Override

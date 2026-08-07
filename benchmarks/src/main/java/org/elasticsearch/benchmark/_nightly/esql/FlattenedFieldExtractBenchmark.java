@@ -95,6 +95,45 @@ import java.util.stream.IntStream;
  * only the constructed {@link org.elasticsearch.index.mapper.BlockLoader} differs. The {@code subFields}
  * parameter controls how many sibling keys each document carries, which grows the root blob (and thus the
  * parse cost) while leaving the fused single-key read unchanged.
+ *
+ * <h2>Running and profiling</h2>
+ * Everything inside {@code --args '...'} is passed straight to JMH. During profiling add
+ * {@code -jvmArgsAppend -DskipSelfTest=true}: {@link #selfTest()} runs in every fork's static initializer and
+ * the measured method already checksums correctness, so skipping it keeps each fork fast. On macOS
+ * {@code -prof perf}/{@code perfasm} are unavailable (Linux only); use {@code -prof gc} and {@code -prof async}.
+ *
+ * <p><b>1. Allocation profile (cheap; confirms the root reconstruction is O(subFields)).</b> The key column is
+ * {@code gc.alloc.rate.norm} (bytes/op): it should scale ~linearly across {@code subFields} for the {@code root_*}
+ * paths and stay flat and tiny for {@code keyed_fused}; {@code root_only} and {@code root_then_evaluator} should
+ * allocate nearly the same, showing the per-row parse adds little.</p>
+ * <pre>{@code
+ * ./gradlew -p benchmarks run --args 'FlattenedFieldExtractBenchmark -p layout=in_order -prof gc -f 1 -jvmArgsAppend -DskipSelfTest=true'
+ * }</pre>
+ *
+ * <p><b>2. Async flamegraphs (the attribution: reconstruction vs parse).</b> Needs async-profiler 4.0
+ * (point {@code libPath} at its {@code libasyncProfiler.so}). Profile the two root cells at the widest object
+ * size separately and diff them: both should be dominated by the root loader reconstructing the object
+ * (XContent/JSON serialization plus ordinal iteration over every key), while {@code FieldExtract#process}
+ * appears only as a thin slice in {@code root_then_evaluator} - direct evidence the fallback is reconstruction
+ * bound, not parse bound.</p>
+ * <pre>{@code
+ * ./gradlew -p benchmarks run --args 'FlattenedFieldExtractBenchmark.benchmark -p path=root_only -p layout=in_order -p subFields=100 -f 1 -jvmArgsAppend -DskipSelfTest=true -prof "async:libPath=/ABS/PATH/libasyncProfiler.so;dir=/tmp/prof-rootonly;output=flamegraph"'
+ * ./gradlew -p benchmarks run --args 'FlattenedFieldExtractBenchmark.benchmark -p path=root_then_evaluator -p layout=in_order -p subFields=100 -f 1 -jvmArgsAppend -DskipSelfTest=true -prof "async:libPath=/ABS/PATH/libasyncProfiler.so;dir=/tmp/prof-rooteval;output=flamegraph"'
+ * }</pre>
+ *
+ * <p><b>3. Explain the fused layout penalty (why {@code shuffled} is ~2x {@code in_order}).</b> Expect the
+ * fused stack to be {@code KeyedFlattenedDocValuesBlockLoader} doing {@code SortedSetDocValues} ordinal
+ * advance/lookup; the {@code shuffled} run spends more time in random doc/ordinal access, so it is doc-values
+ * bound rather than extraction bound.</p>
+ * <pre>{@code
+ * ./gradlew -p benchmarks run --args 'FlattenedFieldExtractBenchmark.benchmark -p path=keyed_fused -p subFields=100 -f 1 -jvmArgsAppend -DskipSelfTest=true -prof "async:libPath=/ABS/PATH/libasyncProfiler.so;dir=/tmp/prof-fused;output=flamegraph"'
+ * }</pre>
+ *
+ * <p><b>4. Trustworthy headline numbers.</b> {@link Fork @Fork(1)} captures no cross-fork variance, so re-run
+ * the final numbers with more forks (and watch the {@code Error} column) on a quiet machine.</p>
+ * <pre>{@code
+ * ./gradlew -p benchmarks run --args 'FlattenedFieldExtractBenchmark -f 3'
+ * }</pre>
  */
 @Warmup(iterations = 5)
 @Measurement(iterations = 7)

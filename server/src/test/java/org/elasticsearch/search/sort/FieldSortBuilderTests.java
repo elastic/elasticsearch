@@ -22,6 +22,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.SortedNumericSelector;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSelector;
 import org.apache.lucene.search.SortedSetSortField;
@@ -36,6 +37,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.IndexType;
@@ -890,6 +892,44 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
         assertThat(source, instanceOf(LongValuesComparatorSource.class));
         assertThat(source.reducedType(), equalTo(SortField.Type.LONG));  // INT source would fail here
         assertNotNull(source.nested());
+    }
+
+    public void testIntegerSortOnOldIndexPreservesSortMode() throws IOException {
+        IndexVersion oldVersion = randomBoolean()
+            ? IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.INDEX_INT_SORT_INT_TYPE_8_19)
+            : IndexVersionUtils.randomVersionBetween(
+                IndexVersions.UPGRADE_TO_LUCENE_10_0_0,
+                IndexVersionUtils.getPreviousVersion(IndexVersions.INDEX_INT_SORT_INT_TYPE)
+            );
+        SearchExecutionContext context = createMockSearchExecutionContext(oldVersion);
+
+        for (SortMode sortMode : SortMode.values()) {
+            SortField sortField = new FieldSortBuilder("custom-integer").sortMode(sortMode).build(context).field();
+            if (sortMode == SortMode.MIN || sortMode == SortMode.MAX) {
+                assertThat(sortField, instanceOf(SortedNumericSortField.class));
+                SortedNumericSortField numericSortField = (SortedNumericSortField) sortField;
+                assertThat(numericSortField.getNumericType(), equalTo(SortField.Type.LONG));
+                assertThat(
+                    numericSortField.getSelector(),
+                    equalTo(sortMode == SortMode.MAX ? SortedNumericSelector.Type.MAX : SortedNumericSelector.Type.MIN)
+                );
+            } else {
+                assertThat(sortField.getComparatorSource(), instanceOf(LongValuesComparatorSource.class));
+                XFieldComparatorSource source = (XFieldComparatorSource) sortField.getComparatorSource();
+                assertThat(source.reducedType(), equalTo(SortField.Type.LONG));
+                assertThat(source.sortMode(), equalTo(MultiValueMode.fromString(sortMode.toString())));
+            }
+        }
+
+        IndexNumericFieldData fieldData = (IndexNumericFieldData) context.getForField(
+            context.getFieldType("custom-integer"),
+            MappedFieldType.FielddataOperation.SEARCH
+        );
+        SortField indexSort = fieldData.indexSort(oldVersion, null, MultiValueMode.MAX, true);
+        assertThat(indexSort, instanceOf(SortedNumericSortField.class));
+        SortedNumericSortField numericIndexSort = (SortedNumericSortField) indexSort;
+        assertThat(numericIndexSort.getNumericType(), equalTo(SortField.Type.LONG));
+        assertThat(numericIndexSort.getSelector(), equalTo(SortedNumericSelector.Type.MAX));
     }
 
     private void assertIntegerSortRewrite(IndexVersion version, SortField.Type expectedType) throws IOException {

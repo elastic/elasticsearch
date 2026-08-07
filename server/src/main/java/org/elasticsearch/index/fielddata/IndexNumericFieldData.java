@@ -185,6 +185,7 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
 
         XFieldComparatorSource longSource = comparatorSource(NumericType.LONG, missingValue, sortMode, nested);
         if (sortField instanceof SortedNumericSortField snsf) {
+            assert indexSort & sortRequiresCustomComparator() == false; // only here if index sort or a custom compartor is not required
             SortedNumericSortField rewrittenSortField = new SortedNumericSortField(
                 snsf.getField(),
                 SortField.Type.LONG,
@@ -197,20 +198,24 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
             return rewrittenSortField;
         }
 
-        if (nested != null) {
-            // A nested sort must keep the nested-aware comparator source. Rewriting to a plain
-            // SortedNumericSortField(LONG) sorts on the parent's own doc values, but the integer
-            // lives only in the nested children, so every parent would sort by the LONG missing
-            // sentinel (see #155243). longSource already carries the nested context, sort mode
-            // and missing value.
-            SortField rewrittenSortField = new SortField(sortField.getField(), longSource, reverse);
+        if (nested == null && (sortMode == MultiValueMode.MIN || sortMode == MultiValueMode.MAX)) {
+            SortedNumericSelector.Type selector = sortMode == MultiValueMode.MAX
+                ? SortedNumericSelector.Type.MAX
+                : SortedNumericSelector.Type.MIN;
+            SortedNumericSortField rewrittenSortField = new SortedNumericSortField(
+                sortField.getField(),
+                SortField.Type.LONG,
+                reverse,
+                selector
+            );
+            rewrittenSortField.setMissingValue(longSource.missingObject(missingValue, reverse));
             // we don't optimize sorting on int field for old indices
             rewrittenSortField.setOptimizeSortWithPoints(false);
             return rewrittenSortField;
         }
 
-        SortField rewrittenSortField = new SortedNumericSortField(sortField.getField(), SortField.Type.LONG, reverse);
-        rewrittenSortField.setMissingValue(longSource.missingObject(missingValue, reverse));
+        // Nested sorts and sort modes without a SortedNumericSelector counterpart must keep the comparator source.
+        SortField rewrittenSortField = new SortField(sortField.getField(), longSource, reverse);
         // we don't optimize sorting on int field for old indices
         rewrittenSortField.setOptimizeSortWithPoints(false);
         return rewrittenSortField;

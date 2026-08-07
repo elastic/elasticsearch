@@ -7,7 +7,12 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.common.logging.AccumulatingMockAppender;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.TimeValue;
@@ -18,8 +23,11 @@ import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.anonymizer.EsqlFailureLogger;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -41,6 +49,25 @@ import static org.hamcrest.Matchers.not;
  */
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
 public class EsqlNodeFailureIT extends AbstractEsqlIntegTestCase {
+
+    static AccumulatingMockAppender failureLoggerAppender;
+    static Logger failureLogger = LogManager.getLogger(EsqlFailureLogger.class);
+    static Level origFailureLoggerLevel = failureLogger.getLevel();
+
+    @BeforeClass
+    public static void initFailureLoggerAppender() throws IllegalAccessException {
+        failureLoggerAppender = new AccumulatingMockAppender("esql_failure_logger_appender");
+        failureLoggerAppender.start();
+        Loggers.addAppender(failureLogger, failureLoggerAppender);
+        Loggers.setLevel(failureLogger, Level.ERROR);
+    }
+
+    @AfterClass
+    public static void cleanupFailureLoggerAppender() {
+        Loggers.removeAppender(failureLogger, failureLoggerAppender);
+        Loggers.setLevel(failureLogger, origFailureLoggerLevel);
+        failureLoggerAppender.stop();
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -125,6 +152,33 @@ public class EsqlNodeFailureIT extends AbstractEsqlIntegTestCase {
             assertThat(localInfo.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
             assertThat(localInfo.getFailures().get(0).reason(), containsString("Accessing failing field"));
         }
+    }
+
+    public void testPartialResultsLogsLocalPlanOnDataNode() throws Exception {
+        populateIndices();
+        failureLoggerAppender.reset();
+        EsqlQueryRequest request = new EsqlQueryRequest();
+        request.query("FROM fail,ok METADATA _id | KEEP _id, fail_me | LIMIT 100");
+        request.allowPartialResults(true);
+        QueryPragmas pragma = new QueryPragmas(
+            Settings.builder().put(randomPragmas().getSettings()).put(QueryPragmas.MAX_CONCURRENT_SHARDS_PER_NODE.getKey(), 1).build()
+        );
+        request.pragmas(pragma);
+        request.acceptedPragmaRisks(true);
+        try (EsqlQueryResponse resp = run(request)) {
+            assertTrue(resp.isPartial());
+        }
+        var events = failureLoggerAppender.events.stream()
+            .filter(e -> EsqlFailureLogger.class.getCanonicalName().equals(e.getLoggerName()))
+            .filter(e -> Level.ERROR.equals(e.getLevel()))
+            .toList();
+        assertThat(events, not(empty()));
+        String combined = events.stream().map(e -> e.getMessage().getFormattedMessage()).reduce("", String::concat);
+        assertThat(combined, containsString("ES|QL local compute failed in session"));
+        assertThat(combined, containsString("localPhysical:"));
+        assertThat(combined, containsString("localExecution:"));
+        assertThat(combined, containsString("col_"));
+        assertThat(combined, not(containsString("fail_me")));
     }
 
     public void testDefaultPartialResults() throws Exception {

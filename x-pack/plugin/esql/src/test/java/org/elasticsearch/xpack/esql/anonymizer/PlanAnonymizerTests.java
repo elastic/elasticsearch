@@ -65,6 +65,16 @@ public class PlanAnonymizerTests extends ESTestCase {
     private static final String F_ORDER_TOTAL = "order_total";
     private static final String F_RETRY_COUNT = "retry_count";
 
+    public void testAnonymizeKnownIdentifiersLongestFirst() {
+        var ctx = AnonymizationContext.forSubmission(randomUUID());
+        ctx.mapper().column("user");
+        ctx.mapper().column("user.email");
+        String anonymized = ctx.anonymizeKnownIdentifiers("filter user.email == user");
+        assertFalse(anonymized.contains("user.email"));
+        assertFalse(anonymized.contains("user"));
+        assertTrue(anonymized.contains("col_"));
+    }
+
     public void testRawIdentifiersAreScrubbed() {
         LogicalPlan logical = sampleLogicalPlan();
         PhysicalPlan physical = new FragmentExec(logical);
@@ -137,6 +147,24 @@ public class PlanAnonymizerTests extends ESTestCase {
 
         assertFalse("index name leaked through FragmentExec wrapper:\n" + out.physical(), out.physical().contains(INDEX));
         assertFalse("field name leaked through FragmentExec wrapper:\n" + out.physical(), out.physical().contains(F_EMAIL));
+    }
+
+    public void testAnonymizeLocalComputeReplacesExecutionDescribeIdentifiers() {
+        LogicalPlan logical = sampleLogicalPlan();
+        PhysicalPlan physical = new FragmentExec(logical);
+        String executionDescribe = "DriverFactory(instances = 1)\n\\_ValuesSourceReaderOperator[field="
+            + F_EMAIL
+            + ", index="
+            + INDEX
+            + "]";
+
+        var out = PlanAnonymizer.forSubmission(randomUUID()).anonymizeLocalCompute(physical, executionDescribe);
+
+        for (String secret : List.of(INDEX, F_EMAIL)) {
+            assertFalse("index or field leaked into physical plan:\n" + out.physical(), out.physical().contains(secret));
+            assertFalse("index or field leaked into execution plan:\n" + out.executionPlan(), out.executionPlan().contains(secret));
+        }
+        assertTrue("expected anonymized column token in execution plan:\n" + out.executionPlan(), out.executionPlan().contains("col_"));
     }
 
     /**

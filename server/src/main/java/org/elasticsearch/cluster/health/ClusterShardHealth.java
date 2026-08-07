@@ -187,17 +187,24 @@ public final class ClusterShardHealth implements Writeable, ToXContentFragment {
         assert shardRouting.unassignedInfo() != null : "cannot invoke on a shard with no UnassignedInfo: " + shardRouting;
         assert shardRouting.recoverySource() != null : "cannot invoke on a shard that has no recovery source" + shardRouting;
         final UnassignedInfo unassignedInfo = shardRouting.unassignedInfo();
-        RecoverySource.Type recoveryType = shardRouting.recoverySource().getType();
-        if (recoveryType == RecoverySource.Type.RESHARD_SPLIT
-            || (unassignedInfo.lastAllocationStatus() != AllocationStatus.DECIDERS_NO
-                && unassignedInfo.failedAllocations() == 0
-                && (recoveryType == RecoverySource.Type.EMPTY_STORE
-                    || recoveryType == RecoverySource.Type.LOCAL_SHARDS
-                    || recoveryType == RecoverySource.Type.SNAPSHOT))) {
+
+        final RecoverySource.Type recoveryType = shardRouting.recoverySource().getType();
+        if (recoveryType == RecoverySource.Type.RESHARD_SPLIT) {
             return ClusterHealthStatus.YELLOW;
-        } else {
-            return ClusterHealthStatus.RED;
         }
+        // Master-initiated cancel preserves any prior failedAllocations count without representing a new failure.
+        final boolean recoveryLastFailed = unassignedInfo.reason() != UnassignedInfo.Reason.RECOVERY_CANCELLED
+            && unassignedInfo.failedAllocations() > 0;
+        final boolean unexceptionalRecoveryType = recoveryType == RecoverySource.Type.EMPTY_STORE
+            || recoveryType == RecoverySource.Type.LOCAL_SHARDS
+            || recoveryType == RecoverySource.Type.SNAPSHOT;
+
+        if (unassignedInfo.lastAllocationStatus() != AllocationStatus.DECIDERS_NO
+            && recoveryLastFailed == false
+            && unexceptionalRecoveryType) {
+            return ClusterHealthStatus.YELLOW;
+        }
+        return ClusterHealthStatus.RED;
     }
 
     @Override

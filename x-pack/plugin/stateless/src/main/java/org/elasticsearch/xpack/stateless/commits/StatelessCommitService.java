@@ -906,29 +906,22 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     ) {
         // The VBCC must remain open while we wait for the search tier to acknowledge the new-uploaded-commit notification: as long as it
         // is open, search nodes can still fetch chunks of the just-uploaded files directly from the indexing node. On the success path,
-        // after markBccUploaded moves the VBCC into recentlyUploadedVbccs, createAfterNotificationCleanup registers a once-guarded
-        // cleanup in recentlyUploadedCleanups so the VBCC stays reachable until the notification completes or the timeout fires.
-        // The blob reference is released as soon as the upload completes, regardless of notification outcome.
+        // afterCopies calls createAfterNotificationCleanup to register a once-guarded cleanup so the VBCC stays reachable until the
+        // notification completes or the timeout fires. The blob reference is released in afterCopies (once upload+copies are done).
         // On the failure path the cleanup is a simple immediate close with no deferral.
         return new ActionListener<>() {
             @Override
             public void onResponse(BccUploadResult uploadResult) {
                 maybeLogSlowBccUpload(virtualBcc, uploadResult);
                 final BatchedCompoundCommit uploadedBcc = uploadResult.batchedCompoundCommit();
-                Releasable cleanup = null;
                 try {
                     // Use the largest translog release file from all CCs to release translog files for cleaning.
                     // markBccUploaded fires the local-upload generation listeners, allowing the next upload to
                     // start immediately without waiting for copies to split targets to complete.
-                    // markBccUploaded moves the VBCC into recentlyUploadedVbccs; createAfterNotificationCleanup then registers the
-                    // once-guarded cleanup and returns the Releasable to pass to sendNewUploadedCommitNotification.
                     commitState.markBccUploaded(
                         uploadedBcc,
                         virtualBcc.getLastPendingCompoundCommit().getCommitReference().getTranslogReleaseEndFile()
                     );
-                    cleanup = commitState.createAfterNotificationCleanup(virtualBcc);
-                    commitState.sendNewUploadedCommitNotification(blobReference, uploadedBcc, cleanup);
-                    cleanup = null;
                 } catch (Exception e) {
                     // TODO: we should assert false here once we fix ES-8336
                     logger.warn(
@@ -1018,8 +1011,11 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 long ccGeneration
             ) {
                 commitState.fireUploadedGenerationListeners(ccGeneration);
+                Releasable cleanup = null;
                 try {
-                    commitState.sendNewUploadedCommitNotification(blobReference, uploadedBcc);
+                    cleanup = commitState.createAfterNotificationCleanup(virtualBcc);
+                    commitState.sendNewUploadedCommitNotification(blobReference, uploadedBcc, cleanup);
+                    cleanup = null;
                 } catch (Exception e) {
                     // TODO: we should assert false here once we fix ES-8336
                     logger.warn(
@@ -1030,12 +1026,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                         ),
                         e
                     );
-                    if (cleanup == null) {
-                        // markBccUploaded threw before createAfterNotificationCleanup was reached; clean up directly.
-                        // markBccUploaded may have added the VBCC to recentlyUploadedVbccs before throwing; remove it.
-                        commitState.recentlyUploadedVbccs.remove(uploadedBcc.primaryTermAndGeneration().generation());
-                        IOUtils.closeWhileHandlingException(virtualBcc);
-                    }
                 } finally {
                     Releasables.close(cleanup);
                     blobReference.decRef();
@@ -1078,7 +1068,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     IOUtils.closeWhileHandlingException(virtualBcc);
                     blobReference.decRef();
                 }
-                cleanup();
             }
 
             private boolean assertClosedOrRejectionFailure(final Exception e) {
@@ -1090,7 +1079,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     || e instanceof ShardNotFoundException : closed + " vs " + e;
                 return true;
             }
-        }, commitState, virtualBcc);
 
             private void cleanup() {
                 IOUtils.closeWhileHandlingException(virtualBcc);

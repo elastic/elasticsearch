@@ -641,6 +641,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
                 return SearchDirectory.this.getCacheBlobReader(
                     blobFile.blobName(),
                     blobFile,
+                    objectStoreUploadTracker,
                     BlobCacheMetrics.CachePopulationReason.Warming,
                     getCacheService().getShardReadThreadPoolExecutor(),
                     true

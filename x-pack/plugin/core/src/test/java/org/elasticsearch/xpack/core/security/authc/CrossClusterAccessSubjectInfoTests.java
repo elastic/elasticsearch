@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSetting
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
+import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -96,6 +97,40 @@ public class CrossClusterAccessSubjectInfoTests extends ESTestCase {
             .getMetadata();
 
         assertThat(actualMetadata, equalTo(expectedMetadata));
+    }
+
+    public void testCleanWithValidationForManagedServiceAccountsWithRoles() throws IOException {
+        final User user = new User(
+            "custom/my-service",
+            new String[] { "role-a", "role-b" },
+            "Managed service account - custom/my-service",
+            null,
+            Map.of(ServiceAccountSettings.MANAGED_SERVICE_ACCOUNT_FIELD, true),
+            true
+        );
+        final Authentication authentication = AuthenticationTestHelper.builder()
+            .serviceAccount(user)
+            .metadata(
+                Map.of(
+                    ServiceAccountSettings.TOKEN_NAME_FIELD,
+                    randomAlphaOfLength(8),
+                    ServiceAccountSettings.TOKEN_SOURCE_FIELD,
+                    randomFrom(TokenInfo.TokenSource.values()).name().toLowerCase(Locale.ROOT)
+                )
+            )
+            .build();
+        final CrossClusterAccessSubjectInfo subjectInfo = new CrossClusterAccessSubjectInfo(
+            authentication,
+            RoleDescriptorsIntersection.EMPTY
+        );
+        final CrossClusterAccessSubjectInfo cleaned = subjectInfo.cleanAndValidate();
+        assertThat(cleaned.getAuthentication().isManagedServiceAccount(), is(true));
+        assertThat(cleaned.getAuthentication().getEffectiveSubject().getUser().roles(), equalTo(new String[] { "role-a", "role-b" }));
+
+        final CrossClusterAccessSubjectInfo decoded = CrossClusterAccessSubjectInfo.decode(subjectInfo.encode());
+        final CrossClusterAccessSubjectInfo decodedClean = decoded.cleanAndValidate();
+        assertThat(decodedClean.getAuthentication().isManagedServiceAccount(), is(true));
+        assertThat(decodedClean.getAuthentication().getEffectiveSubject().getUser().roles(), equalTo(new String[] { "role-a", "role-b" }));
     }
 
     public void testCleanWithValidationForServiceAccounts() {

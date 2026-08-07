@@ -81,7 +81,7 @@ Observed behavior in unit tests:
 
 A managed service account is identified solely by `{namespace}/{service}`. Delete and recreate restore the same logical account.
 
-Deleting an account removes the account document (with refresh), clears the managed account cache entry, and clears index token credential cache entries by principal prefix. Token index documents are not bulk-deleted. While the account is deleted, authentication fails because the account lookup returns missing/disabled. After recreate, surviving index token documents authenticate again for the same service account.
+Deleting an account removes the account document (with refresh), clears the managed account cache entry, and clears index token credential cache entries by principal prefix. Token index documents are not bulk-deleted. While the account is deleted, authentication fails because the account lookup returns missing/disabled. After recreate, surviving index token documents authenticate again for the same service account (differs from original spec assumption that old tokens stay revoked).
 
 ## Privilege boundary
 
@@ -123,6 +123,8 @@ Verified in `ManagedServiceAccountPrivilegeTests`.
 | `./gradlew :x-pack:plugin:yamlRestTest --tests '...service_accounts/20_managed*' '...service_accounts/21_managed_gaps*'` | PASS |
 | `./gradlew :x-pack:plugin:core:test --tests '...PutManagedServiceAccountRequestTests'` | PASS |
 | `./gradlew :x-pack:plugin:security:test --tests '...ManagedServiceAccountPrivilegeTests' ...ServiceAccountServiceTests' ...IndexServiceAccountTokenStoreTests' ...TransportGetServiceAccountActionTests'` | PASS |
+| `./gradlew :x-pack:plugin:security:test --tests '...LoggingAuditTrailTests.testSecurityConfigChangeEventFormattingForManagedServiceAccount'` | PASS |
+| `./gradlew :x-pack:plugin:security:qa:audit:javaRestTest --tests '...AuditIT.testAuditPutManagedServiceAccount'` | PASS |
 | `./gradlew :x-pack:plugin:core:spotlessJavaCheck :x-pack:plugin:security:spotlessJavaCheck` | PASS |
 
 **Not run:** rolling-upgrade IT, packaging/QA.
@@ -134,18 +136,20 @@ Verified in `ManagedServiceAccountPrivilegeTests`.
 3. **Reuse role cache without principal graph?** Yes — `NamedRoleReference` only.
 4. **Persistence changes?** New `service_account` doc type using existing mapped fields (`username`, `roles`, `enabled`).
 5. **Credential binding?** Stable principal identity; DELETE revokes via missing account + cache invalidation; RECREATE restores access for surviving index tokens.
-6. **Remaining production gaps?** See below.
+6. **Audit logging?** Managed PUT/DELETE/token-create emit `security_config_change` events; documented in `elasticsearch-audit-events.md`.
+7. **Remaining production gaps?** See below.
 
 ## Production gaps
 
 ### Correctness
 - Cross-project isolation not tested
+- Several spec edge cases not tested (e.g. multi-role union, zero roles, file token on managed account)
 - Async existence checks for token delete on managed accounts added but not fully integration-tested
 - PUT update semantics are full replacement (documented); no PATCH/partial update
 
 ### Security
 - Delegated bounded admin (custom role for specific namespaces) not implemented
-- Audit trail fields for managed accounts not explicitly validated
+- Audit DELETE and managed token-create not covered by REST IT (unit tests only)
 - Rate limiting / brute-force behavior unchanged from built-in tokens
 
 ### Compatibility
@@ -164,6 +168,7 @@ Verified in `ManagedServiceAccountPrivilegeTests`.
 
 ### Documentation
 - REST API spec JSON files added for managed PUT/DELETE under `rest-api-spec/`
+- Audit events reference updated for managed service accounts
 - Serverless exposure plan not implemented
 
 ## Recommendation

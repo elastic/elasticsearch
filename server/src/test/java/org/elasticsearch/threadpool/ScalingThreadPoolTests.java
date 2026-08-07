@@ -119,6 +119,20 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
         assertMergeThreadPoolMax(1.0, 4, 4); // default factor leaves the size unchanged
     }
 
+    public void testMergeThreadPoolExplicitMaxTakesPrecedenceOverFactor() throws InterruptedException {
+        // an explicit thread_pool.merge.max overrides the value derived from the factor: 0.5 * 8 would be 4, but 3 wins
+        final Settings settings = Settings.builder()
+            .put("node.processors", 8)
+            .put("indices.merge.thread_pool.max_size_factor", 0.5)
+            .put("thread_pool.merge.max", 3)
+            .build();
+        runScalingThreadPoolTest(settings, (clusterSettings, threadPool) -> {
+            final ThreadPool.Info info = info(threadPool, ThreadPool.Names.MERGE);
+            assertThat(info.getMin(), equalTo(1));
+            assertThat(info.getMax(), equalTo(3));
+        });
+    }
+
     private void assertMergeThreadPoolMax(final double factor, final int processors, final int expectedMax) throws InterruptedException {
         final Settings settings = Settings.builder()
             .put("node.processors", processors)

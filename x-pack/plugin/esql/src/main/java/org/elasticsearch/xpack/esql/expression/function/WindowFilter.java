@@ -109,7 +109,7 @@ public class WindowFilter extends EsqlScalarFunction implements TimestampAware, 
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, (src, w, ts) -> new WindowFilter(src, w, bucket, ts), window, timestamp);
+        return NodeInfo.create(this, WindowFilter::new, window, bucket, timestamp);
     }
 
     @Override

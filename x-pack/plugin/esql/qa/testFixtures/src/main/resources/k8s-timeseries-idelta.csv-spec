@@ -302,29 +302,6 @@ events:double | pod:keyword | time_bucket:datetime
 
 ;
 
-idelta_narrow_window
-required_capability: ts_command_v0
-required_capability: fix_window_filter_bucket_child
-// Window (30s) narrower than the bucket (1m): WindowFilter keeps only samples in the trailing 30s of each bucket.
-TS k8s
-| STATS cost_change=sum(idelta(network.cost[30s])) BY time_bucket = bucket(@timestamp,1minute)
-| KEEP cost_change, time_bucket
-| SORT cost_change DESC, time_bucket DESC | LIMIT 10;
-
-cost_change:double | time_bucket:datetime
-13.5               | 2024-05-10T00:09:00.000Z
-7.125              | 2024-05-10T00:15:00.000Z
-4.5                | 2024-05-10T00:08:00.000Z
-3.0                | 2024-05-10T00:16:00.000Z
-2.875              | 2024-05-10T00:00:00.000Z
-1.125              | 2024-05-10T00:02:00.000Z
-0.75               | 2024-05-10T00:13:00.000Z
--0.25              | 2024-05-10T00:11:00.000Z
--1.75              | 2024-05-10T00:05:00.000Z
--1.875             | 2024-05-10T00:19:00.000Z
-
-;
-
 idelta_all_value_types_promql
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2

@@ -26,6 +26,7 @@ import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.sourcebatch.SourceRow;
 import org.elasticsearch.sourcebatch.SourceSchema;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -293,7 +294,8 @@ public final class ShardBatchMapper {
             if (ctx.mappingLookup().isSourceSynthetic() || ctx.mappingLookup().isSourceColumnarStored()) {
                 OnFailureStoredValues.storeEncoded(ctx, mapper.fullPath(), capturedValue);
             } else {
-                throw new IOException(
+                throw new DocumentParsingException(
+                    XContentLocation.UNKNOWN,
                     "batch indexing: unhandled multi_value=false violation on field ["
                         + mapper.fullPath()
                         + "] in non-synthetic/columnar source index"

@@ -301,7 +301,7 @@ public abstract class FieldMapper extends Mapper {
      *         {@code multi_value=false, on_failure=ignore}.
      */
     public ParseResult parse(DocumentParserContext context) throws IOException {
-        boolean wasAlreadyIgnored = context.getIgnoredFields().contains(fullPath());
+        boolean wasAlreadyIgnored = context.isFieldIgnored(fullPath());
         boolean redirectedToFailureColumn = false;
         try {
             if (builderParams.hasScript) {
@@ -338,7 +338,7 @@ public abstract class FieldMapper extends Mapper {
      * Subclasses that override {@link #parse} directly should call this instead of duplicating the check.
      */
     protected final ParseResult resolveIgnoredResult(DocumentParserContext context, boolean wasAlreadyIgnored) {
-        if (wasAlreadyIgnored == false && context.getIgnoredFields().contains(fullPath())) {
+        if (wasAlreadyIgnored == false && context.isFieldIgnored(fullPath())) {
             return ParseResult.IGNORED;
         }
         return ParseResult.INDEXED;

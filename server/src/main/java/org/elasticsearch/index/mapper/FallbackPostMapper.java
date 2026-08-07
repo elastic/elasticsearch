@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -267,31 +266,10 @@ public final class FallbackPostMapper {
     }
 
     /**
-     * Like {@link #capture(DocumentParserContext, String, Reason)} but invokes {@code ifNotWritten} when the write is skipped
-     * (i.e. routing to {@link Destination#IGNORED_SOURCE} with {@link DocumentParserContext#canAddIgnoredField()} false).
-     */
-    static void captureOrSkip(DocumentParserContext context, String fieldPath, Reason reason, CheckedRunnable<IOException> ifNotWritten)
-        throws IOException {
-        if (capture(context, fieldPath, reason) == false) {
-            ifNotWritten.run();
-        }
-    }
-
-    /**
-     * Like {@link #captureParent(DocumentParserContext, Reason)} but invokes {@code ifNotWritten} when the write is skipped.
-     */
-    static void captureParentOrSkip(DocumentParserContext context, Reason reason, CheckedRunnable<IOException> ifNotWritten)
-        throws IOException {
-        if (captureParent(context, reason) == false) {
-            ifNotWritten.run();
-        }
-    }
-
-    /**
      * Like {@link #capture(DocumentParserContext, String, Reason)} but stores {@code context.parent()}
      * as the captured entity (e.g. a disabled object), not a child field.
      */
-    private static boolean captureParent(DocumentParserContext context, Reason reason) throws IOException {
+    static boolean captureParent(DocumentParserContext context, Reason reason) throws IOException {
         if (route(reason) == Destination.IGNORED_SOURCE) {
             return writeParentToIgnoredSource(context);
         }
@@ -303,7 +281,7 @@ public final class FallbackPostMapper {
      * {@code _ignored_source}. Returns the context unchanged if {@link DocumentParserContext#canAddIgnoredField()} is false.
      * Use when no {@link Mapper} is available for the target (e.g. unmapped dynamic fields).
      */
-    static DocumentParserContext captureScope(DocumentParserContext context, String fullPath, Reason reason) throws IOException {
+    static DocumentParserContext captureScope(DocumentParserContext context, String fullPath) throws IOException {
         if (context.canAddIgnoredField() == false) {
             return context;
         }
@@ -316,7 +294,7 @@ public final class FallbackPostMapper {
      * so callers need not perform that arithmetic.
      * Returns the context unchanged if {@link DocumentParserContext#canAddIgnoredField()} is false.
      */
-    static DocumentParserContext captureScope(DocumentParserContext context, Mapper target, Reason reason) throws IOException {
+    static DocumentParserContext captureScope(DocumentParserContext context, Mapper target) throws IOException {
         if (context.canAddIgnoredField() == false) {
             return context;
         }

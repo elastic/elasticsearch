@@ -327,7 +327,7 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
                 new IllegalArgumentException("Cannot index data directly into a field with a [script] parameter")
             );
         }
-        boolean wasAlreadyIgnored = context.getIgnoredFields().contains(fullPath());
+        boolean wasAlreadyIgnored = context.isFieldIgnored(fullPath());
         parser.parse(context.parser(), v -> index(context, v), new DefaultMalformedValueHandler((e, b) -> onMalformedValue(context, b, e)));
         return resolveIgnoredResult(context, wasAlreadyIgnored);
     }

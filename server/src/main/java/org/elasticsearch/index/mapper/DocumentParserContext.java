@@ -217,6 +217,7 @@ public abstract class DocumentParserContext {
     private final SourceToParse sourceToParse;
 
     private final Set<String> ignoredFields;
+    private final Set<String> ignoredFieldsView;
     private final List<IgnoredSourceFieldMapper.NameValue> ignoredFieldValues;
     private final LinkedHashMap<String, IgnoredSourceFieldMapper.NameValue> pendingIgnoredFieldValues;
     private final Set<String> singleValuedFields;
@@ -286,6 +287,7 @@ public abstract class DocumentParserContext {
         this.mappingParserContext = mappingParserContext;
         this.sourceToParse = sourceToParse;
         this.ignoredFields = ignoreFields;
+        this.ignoredFieldsView = Collections.unmodifiableSet(this.ignoredFields);
         this.ignoredFieldValues = ignoredFieldValues;
         this.pendingIgnoredFieldValues = pendingIgnoredFieldValues;
         this.singleValuedFields = singleValuedFields;
@@ -527,10 +529,17 @@ public abstract class DocumentParserContext {
     }
 
     /**
+     * Returns {@code true} if {@code field} has been added to the ignored-fields set.
+     */
+    public final boolean isFieldIgnored(String field) {
+        return ignoredFields.contains(field);
+    }
+
+    /**
      * Return the collection of fields that have been ignored so far.
      */
     public final Set<String> getIgnoredFields() {
-        return ignoredFields;
+        return ignoredFieldsView;
     }
 
     /**
@@ -1197,8 +1206,13 @@ public abstract class DocumentParserContext {
                 // (e.g. COPY_TO_DESTINATION pre-capture that was already committed before this copy fires).
                 // Adding void on top of a real value causes two entries in _ignored_source, which produces
                 // inconsistent round-trip binary when JSON field order changes between original and round-trip.
-                boolean hasRealValue = ignoredFieldValues.stream()
-                    .anyMatch(e -> e.name().equals(copyToField) && XContentDataHelper.isDataPresent(e.value()));
+                boolean hasRealValue = false;
+                for (IgnoredSourceFieldMapper.NameValue e : ignoredFieldValues) {
+                    if (e.name().equals(copyToField) && XContentDataHelper.isDataPresent(e.value())) {
+                        hasRealValue = true;
+                        break;
+                    }
+                }
                 if (hasRealValue == false) {
                     ignoredFieldValues.add(
                         new IgnoredSourceFieldMapper.NameValue(copyToField, offset, XContentDataHelper.voidValue(), doc)

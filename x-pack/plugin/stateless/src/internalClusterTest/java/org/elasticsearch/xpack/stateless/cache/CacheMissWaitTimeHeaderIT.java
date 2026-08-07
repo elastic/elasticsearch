@@ -78,7 +78,10 @@ public class CacheMissWaitTimeHeaderIT extends AbstractBlobCacheMetricsIntegTest
         assertCacheMissWaitTimeHeader("cache-miss-header", true);
     }
 
-    /** Cold search asserts {@code cache_miss_wait_nanos > 0}; warm asserts it's absent. {@code expectStoreBytesRead} gates store metric assertions. */
+    /**
+     * Cold search asserts {@code cache_miss_wait_nanos > 0}; warm asserts it's absent.
+     * {@code expectStoreBytesRead} gates store metric assertions.
+     */
     protected void assertCacheMissWaitTimeHeader(String indexNamePrefix, boolean expectStoreBytesRead) throws InterruptedException {
         startMasterAndIndexNode();
 

@@ -210,6 +210,54 @@ public class RunTableSortedSetOrdinalTests extends ESTestCase {
         }
     }
 
+    public void testSortedSetSparseLeadingAndTrailingAbsent() throws IOException {
+        // run 0: doc 0, {} (empty); run 1: docs 1-3, {0,1}; run 2: doc 4, {} (empty)
+        final int[][] perDocSets = { {}, { 0, 1 }, { 0, 1 }, { 0, 1 }, {} };
+        final int valueCount = 2;
+        try (Directory dir = new ByteBuffersDirectory()) {
+            final Stats stats = write(dir, perDocSets, valueCount, 0, 0);
+            assertEquals(3, stats.numRuns());
+
+            final SortedNumericDocValues dv = open(dir, perDocSets.length, 0);
+            assertFalse(dv.advanceExact(0));
+            assertTrue(dv.advanceExact(1));
+            assertDocSet(dv, new int[] { 0, 1 });
+            assertTrue(dv.advanceExact(3));
+            assertDocSet(dv, new int[] { 0, 1 });
+            assertFalse(dv.advanceExact(4));
+
+            final SortedNumericDocValues dv2 = open(dir, perDocSets.length, 0);
+            assertEquals(1, dv2.nextDoc());
+            assertDocSet(dv2, new int[] { 0, 1 });
+            assertEquals(NO_MORE_DOCS, dv2.advance(4));
+        }
+    }
+
+    public void testSortedSetSparseOnlyOneDocPresent() throws IOException {
+        // run 0: docs 0-1, {} (two consecutive empty sets collapse into one run);
+        // run 1: doc 2, {0,1}; run 2: docs 3-4, {} (trailing empty)
+        final int[][] perDocSets = { {}, {}, { 0, 1 }, {}, {} };
+        final int valueCount = 2;
+        try (Directory dir = new ByteBuffersDirectory()) {
+            write(dir, perDocSets, valueCount, 0, 0);
+
+            final SortedNumericDocValues dv = open(dir, perDocSets.length, 0);
+            assertEquals(2, dv.nextDoc());
+            assertDocSet(dv, new int[] { 0, 1 });
+            assertEquals(NO_MORE_DOCS, dv.nextDoc());
+        }
+    }
+
+    public void testSortedSetConsecutiveEmptyRunsNotPossible() {
+        // Two consecutive empty-set adds collapse into a single run (maximal runs invariant).
+        final RunTableSortedSetOrdinalWriter writer = new RunTableSortedSetOrdinalWriter(4);
+        writer.add(new int[0]);
+        writer.add(new int[0]);
+        assertEquals(1, writer.numRuns());
+        writer.add(new int[] { 0, 1 });
+        assertEquals(2, writer.numRuns());
+    }
+
     private static void fill(int[][] sets, int from, int to, int[] value) {
         for (int i = from; i < to; i++) {
             sets[i] = value;

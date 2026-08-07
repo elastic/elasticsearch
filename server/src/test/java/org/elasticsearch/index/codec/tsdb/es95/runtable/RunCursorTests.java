@@ -88,6 +88,12 @@ public class RunCursorTests extends ESTestCase {
         assertRun(cursor, 199, 4);
     }
 
+    public void testSeekPastMaxDocAsserts() {
+        final RunCursor cursor = new RunCursor(longValues(new long[] { 0 }), 1, 5);
+        expectThrows(AssertionError.class, () -> cursor.seekDoc(5));
+        expectThrows(AssertionError.class, () -> cursor.seekDoc(6));
+    }
+
     private static void assertRun(RunCursor cursor, int target, int expectedRun) {
         cursor.seekDoc(target);
         assertEquals("target " + target, expectedRun, cursor.run());

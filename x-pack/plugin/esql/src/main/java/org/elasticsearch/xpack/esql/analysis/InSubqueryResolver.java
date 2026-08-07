@@ -315,12 +315,15 @@ public class InSubqueryResolver {
         return "$$in_subquery_const$" + value.hashCode() + "$" + subquery.hashCode();
     }
 
+    /** Name prefix shared by all synthetic boolean mark attributes created for {@link MarkJoin}. */
+    public static final String MARK_ATTRIBUTE_NAME_PREFIX = "$$in_subquery_mark$";
+
     /**
      * Generates a unique synthetic name for the boolean mark attribute produced by a
      * {@link MarkJoin} in place of an {@link InSubquery}.
      */
     private static String syntheticMarkName(InSubquery inSubquery) {
-        return "$$in_subquery_mark$" + inSubquery.value().hashCode() + "$" + inSubquery.subquery().hashCode();
+        return MARK_ATTRIBUTE_NAME_PREFIX + inSubquery.value().hashCode() + "$" + inSubquery.subquery().hashCode();
     }
 
     public static void verify(LogicalPlan plan) {

@@ -467,8 +467,10 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
         if (unassignedInfo == null) {
             return false;
         }
-        if (unassignedInfo.failedAllocations() > 0
-            || unassignedInfo.lastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_NO) {
+        // Master-initiated cancel preserves any prior failedAllocations count without representing a new failure.
+        final boolean recoveryLastFailed = unassignedInfo.reason() != UnassignedInfo.Reason.RECOVERY_CANCELLED
+            && unassignedInfo.failedAllocations() > 0;
+        if (recoveryLastFailed || unassignedInfo.lastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_NO) {
             return false;
         }
         if (unassignedInfo.unassignedTimeMillis() < gracePeriodCutoffTime) {

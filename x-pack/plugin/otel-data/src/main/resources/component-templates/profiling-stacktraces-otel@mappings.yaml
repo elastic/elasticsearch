@@ -12,16 +12,16 @@ template:
       routing.allocation.include._tier_preference: data_hot
       sort:
         field:
-          - Stacktrace.frame.ids
+          - frame.ids
       mapping:
         source:
           mode: synthetic
   mappings:
     dynamic: false
     properties:
-      Stacktrace.frame.ids:
+      frame.ids:
         type: keyword
         index: false
-      Stacktrace.frame.types:
+      frame.types:
         type: keyword
         index: false

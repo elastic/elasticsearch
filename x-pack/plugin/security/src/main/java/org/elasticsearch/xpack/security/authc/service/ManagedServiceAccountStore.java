@@ -29,11 +29,14 @@ import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.common.cache.Cache;
+import org.elasticsearch.common.cache.CacheBuilder;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -45,6 +48,7 @@ import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount;
 import org.elasticsearch.xpack.core.security.support.ManagedServiceAccountIdValidator;
 import org.elasticsearch.xpack.core.security.support.NativeRealmValidationUtil;
 import org.elasticsearch.xpack.core.security.support.Validation;
+import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager.IndexState;
 
@@ -66,14 +70,26 @@ import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Avai
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 
 /**
- * Index-backed store for API-managed service account definitions. No caching is performed; each authentication reads the account document.
+ * Index-backed store for API-managed service account definitions.
  */
-public class ManagedServiceAccountStore {
+public class ManagedServiceAccountStore implements CacheInvalidatorRegistry.CacheInvalidator {
 
     public static final TransportVersion MANAGED_SERVICE_ACCOUNTS = ServiceAccountInfo.MANAGED_SERVICE_ACCOUNTS;
 
+    public static final Setting<TimeValue> CACHE_TTL_SETTING = Setting.timeSetting(
+        "xpack.security.authc.managed_service_account.cache.ttl",
+        TimeValue.timeValueMinutes(20),
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<Integer> CACHE_MAX_ACCOUNTS_SETTING = Setting.intSetting(
+        "xpack.security.authc.managed_service_account.cache.max_accounts",
+        10_000,
+        Setting.Property.NodeScope
+    );
+
     static final String SERVICE_ACCOUNT_DOC_TYPE = "service_account";
-    static final String ACCOUNT_GENERATION_ID_FIELD = "account_generation_id";
+    public static final String CACHE_NAME = "managed_service_account";
 
     private static final Logger logger = LogManager.getLogger(ManagedServiceAccountStore.class);
 
@@ -81,12 +97,31 @@ public class ManagedServiceAccountStore {
     private final SecurityIndexManager securityIndex;
     private final ClusterService clusterService;
     private final Settings settings;
+    @Nullable
+    private final Cache<String, CachedAccount> accountCache;
 
-    public ManagedServiceAccountStore(Settings settings, Client client, SecurityIndexManager securityIndex, ClusterService clusterService) {
+    @SuppressWarnings("this-escape")
+    public ManagedServiceAccountStore(
+        Settings settings,
+        Client client,
+        SecurityIndexManager securityIndex,
+        ClusterService clusterService,
+        CacheInvalidatorRegistry cacheInvalidatorRegistry
+    ) {
         this.settings = settings;
         this.client = client;
         this.securityIndex = securityIndex;
         this.clusterService = clusterService;
+        final TimeValue ttl = CACHE_TTL_SETTING.get(settings);
+        if (ttl.getNanos() > 0) {
+            accountCache = CacheBuilder.<String, CachedAccount>builder()
+                .setExpireAfterWrite(ttl)
+                .setMaximumWeight(CACHE_MAX_ACCOUNTS_SETTING.get(settings))
+                .build();
+        } else {
+            accountCache = null;
+        }
+        cacheInvalidatorRegistry.registerCacheInvalidator(CACHE_NAME, this);
     }
 
     public void getByPrincipal(String principal, ActionListener<ManagedServiceAccount> listener) {
@@ -95,8 +130,20 @@ public class ManagedServiceAccountStore {
             listener.onFailure(new IllegalArgumentException(principalError));
             return;
         }
+        if (accountCache != null) {
+            final CachedAccount cached = accountCache.get(principal);
+            if (cached != null) {
+                listener.onResponse(cached.account());
+                return;
+            }
+        }
+        loadAccountFromIndex(principal, listener);
+    }
+
+    private void loadAccountFromIndex(String principal, ActionListener<ManagedServiceAccount> listener) {
         final IndexState projectSecurityIndex = securityIndex.forCurrentProject();
         if (projectSecurityIndex.indexExists() == false) {
+            cacheAccount(principal, null);
             listener.onResponse(null);
             return;
         }
@@ -109,13 +156,17 @@ public class ManagedServiceAccountStore {
                 .setFetchSource(true)
                 .request();
             executeAsyncWithOrigin(client, SECURITY_ORIGIN, TransportGetAction.TYPE, getRequest, ActionListener.wrap(response -> {
-                if (response.isExists()) {
-                    listener.onResponse(parseAccountDocument(response));
-                } else {
-                    listener.onResponse(null);
-                }
+                final ManagedServiceAccount account = response.isExists() ? parseAccountDocument(response) : null;
+                cacheAccount(principal, account);
+                listener.onResponse(account);
             }, listener::onFailure));
         });
+    }
+
+    private void cacheAccount(String principal, @Nullable ManagedServiceAccount account) {
+        if (accountCache != null) {
+            accountCache.put(principal, CachedAccount.of(account));
+        }
     }
 
     public void listAccounts(
@@ -187,9 +238,8 @@ public class ManagedServiceAccountStore {
             return;
         }
         getByPrincipal(accountId.asPrincipal(), ActionListener.wrap(existing -> {
-            final String generationId = existing == null ? UUIDs.randomBase64UUID() : existing.generationId();
             final PutResult.Type type = existing == null ? PutResult.Type.CREATED : PutResult.Type.UPDATED;
-            try (XContentBuilder builder = newAccountDocument(accountId, roles, enabled, generationId)) {
+            try (XContentBuilder builder = newAccountDocument(accountId, roles, enabled)) {
                 final IndexRequest indexRequest = client.prepareIndex(SECURITY_MAIN_ALIAS)
                     .setId(docIdForPrincipal(accountId.asPrincipal()))
                     .setSource(builder)
@@ -206,8 +256,10 @@ public class ManagedServiceAccountStore {
                             TransportBulkAction.TYPE,
                             bulkRequest,
                             TransportBulkAction.<IndexResponse>unwrappingSingleItemBulkResponse(ActionListener.wrap(response -> {
-                                listener.onResponse(
-                                    new PutResult(type, new ManagedServiceAccount(accountId, roles, enabled, generationId))
+                                final ManagedServiceAccount account = new ManagedServiceAccount(accountId, roles, enabled);
+                                invalidateManagedAccountCache(
+                                    accountId.asPrincipal(),
+                                    ActionListener.wrap(ignore -> listener.onResponse(new PutResult(type, account)), listener::onFailure)
                                 );
                             }, listener::onFailure))
                         )
@@ -259,13 +311,33 @@ public class ManagedServiceAccountStore {
                 ActionListener.wrap(deleteResponse -> {
                     final boolean deleted = deleteResponse.getResult() == DocWriteResponse.Result.DELETED;
                     if (deleted) {
-                        clearManagedTokenCache(accountId, ActionListener.wrap(ignore -> listener.onResponse(true), listener::onFailure));
+                        clearManagedAccountCaches(accountId, ActionListener.wrap(ignore -> listener.onResponse(true), listener::onFailure));
                     } else {
                         listener.onResponse(false);
                     }
                 }, listener::onFailure)
             );
         });
+    }
+
+    @Override
+    public void invalidate(Collection<String> principals) {
+        if (accountCache != null) {
+            principals.forEach(accountCache::invalidate);
+        }
+    }
+
+    @Override
+    public void invalidateAll() {
+        if (accountCache != null) {
+            accountCache.invalidateAll();
+        }
+    }
+
+    // package private for testing
+    @Nullable
+    Cache<String, CachedAccount> getAccountCache() {
+        return accountCache;
     }
 
     static String docIdForPrincipal(String principal) {
@@ -309,12 +381,8 @@ public class ManagedServiceAccountStore {
         return validationException;
     }
 
-    private XContentBuilder newAccountDocument(
-        ServiceAccount.ServiceAccountId accountId,
-        List<String> roles,
-        boolean enabled,
-        String generationId
-    ) throws IOException {
+    private XContentBuilder newAccountDocument(ServiceAccount.ServiceAccountId accountId, List<String> roles, boolean enabled)
+        throws IOException {
         final Version version = clusterService.state().nodes().getMinNodeVersion();
         final List<String> deduplicatedRoles = deduplicateRoles(roles);
         return XContentFactory.jsonBuilder()
@@ -324,7 +392,6 @@ public class ManagedServiceAccountStore {
             .field("username", accountId.asPrincipal())
             .field("roles", deduplicatedRoles)
             .field("enabled", enabled)
-            .field(ACCOUNT_GENERATION_ID_FIELD, generationId)
             .endObject();
     }
 
@@ -348,17 +415,37 @@ public class ManagedServiceAccountStore {
             logger.warn("malformed managed service account document missing username");
             return null;
         }
-        final String generationId = (String) source.get(ACCOUNT_GENERATION_ID_FIELD);
-        if (generationId == null) {
-            logger.warn("malformed managed service account document [{}] missing generation id", principal);
-            return null;
-        }
         @SuppressWarnings("unchecked")
         final List<String> roles = source.get("roles") instanceof Collection<?> collection
             ? collection.stream().map(Object::toString).collect(Collectors.toCollection(ArrayList::new))
             : List.of();
         final boolean enabled = source.get("enabled") instanceof Boolean b ? b : true;
-        return new ManagedServiceAccount(ServiceAccount.ServiceAccountId.fromPrincipal(principal), roles, enabled, generationId);
+        return new ManagedServiceAccount(ServiceAccount.ServiceAccountId.fromPrincipal(principal), roles, enabled);
+    }
+
+    private void clearManagedAccountCaches(ServiceAccount.ServiceAccountId accountId, ActionListener<Void> listener) {
+        invalidateManagedAccountCache(
+            accountId.asPrincipal(),
+            ActionListener.wrap(ignore -> clearManagedTokenCache(accountId, listener), listener::onFailure)
+        );
+    }
+
+    private void invalidateManagedAccountCache(String principal, ActionListener<Void> listener) {
+        final ClearSecurityCacheRequest clearSecurityCacheRequest = new ClearSecurityCacheRequest().cacheName(CACHE_NAME).keys(principal);
+        executeAsyncWithOrigin(
+            client,
+            SECURITY_ORIGIN,
+            ClearSecurityCacheAction.INSTANCE,
+            clearSecurityCacheRequest,
+            ActionListener.wrap(response -> listener.onResponse(null), e -> {
+                final String message = org.elasticsearch.core.Strings.format(
+                    "clearing managed service account cache for [%s] failed; please clear the cache manually",
+                    principal
+                );
+                logger.error(message, e);
+                listener.onFailure(new ElasticsearchException(message, e));
+            })
+        );
     }
 
     private void clearManagedTokenCache(ServiceAccount.ServiceAccountId accountId, ActionListener<Void> listener) {
@@ -384,6 +471,12 @@ public class ManagedServiceAccountStore {
         public enum Type {
             CREATED,
             UPDATED
+        }
+    }
+
+    record CachedAccount(@Nullable ManagedServiceAccount account) {
+        static CachedAccount of(@Nullable ManagedServiceAccount account) {
+            return new CachedAccount(account);
         }
     }
 }

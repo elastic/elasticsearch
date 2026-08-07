@@ -164,10 +164,10 @@ teardown:
   - match: { created: true }
 
   - do:
-      catch: unauthorized
       headers:
         Authorization: Bearer ${managed_service_token}
       security.authenticate: {}
+  - match: { username: "yaml_poc/worker_1" }
 
   - do:
       security.create_service_token:
@@ -181,9 +181,3 @@ teardown:
         Authorization: Bearer ${managed_service_token_recreated}
       security.authenticate: {}
   - match: { username: "yaml_poc/worker_1" }
-
-  - do:
-      catch: unauthorized
-      headers:
-        Authorization: Bearer ${managed_service_token}
-      security.authenticate: {}

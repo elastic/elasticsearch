@@ -31,7 +31,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.CharArrays;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -104,28 +103,7 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
     }
 
     @Override
-    void doAuthenticate(
-        ServiceAccountToken token,
-        @Nullable String accountGenerationId,
-        ActionListener<StoreAuthenticationResult> listener
-    ) {
-        authenticateIndexToken(token, accountGenerationId, accountGenerationId == null, listener);
-    }
-
-    void authenticateManagedToken(
-        ServiceAccountToken token,
-        String expectedGenerationId,
-        ActionListener<StoreAuthenticationResult> listener
-    ) {
-        authenticateWithGenerationCache(token, expectedGenerationId, listener);
-    }
-
-    private void authenticateIndexToken(
-        ServiceAccountToken token,
-        @Nullable String expectedGenerationId,
-        boolean allowMissingGeneration,
-        ActionListener<StoreAuthenticationResult> listener
-    ) {
+    void doAuthenticate(ServiceAccountToken token, ActionListener<StoreAuthenticationResult> listener) {
         final GetRequest getRequest = client.prepareGet(SECURITY_MAIN_ALIAS, docIdForToken(token.getQualifiedName()))
             .setFetchSource(true)
             .request();
@@ -140,29 +118,6 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
                     ActionListener.<GetResponse>wrap(response -> {
                         if (response.isExists()) {
                             final Map<String, Object> source = response.getSource();
-                            final String tokenGenerationId = (String) source.get(ManagedServiceAccountStore.ACCOUNT_GENERATION_ID_FIELD);
-                            if (expectedGenerationId != null) {
-                                if (expectedGenerationId.equals(tokenGenerationId) == false) {
-                                    logger.debug(
-                                        "service account token [{}] generation mismatch: expected [{}] but was [{}]",
-                                        token.getQualifiedName(),
-                                        expectedGenerationId,
-                                        tokenGenerationId
-                                    );
-                                    listener.onResponse(StoreAuthenticationResult.failed(getTokenSource()));
-                                    return;
-                                }
-                            } else if (allowMissingGeneration == false) {
-                                listener.onResponse(StoreAuthenticationResult.failed(getTokenSource()));
-                                return;
-                            } else if (tokenGenerationId != null) {
-                                logger.debug(
-                                    "built-in service account token [{}] must not have an account generation id",
-                                    token.getQualifiedName()
-                                );
-                                listener.onResponse(StoreAuthenticationResult.failed(getTokenSource()));
-                                return;
-                            }
                             final String tokenHash = (String) source.get("password");
                             assert tokenHash != null : "service account token hash cannot be null";
                             listener.onResponse(
@@ -195,27 +150,25 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
             listener.onFailure(new IllegalArgumentException("service account [" + accountId + "] does not exist"));
             return;
         }
-        createToken(authentication, request, null, listener);
+        createToken(authentication, request, listener);
     }
 
     void createManagedToken(
         Authentication authentication,
         CreateServiceAccountTokenRequest request,
-        String accountGenerationId,
         ActionListener<CreateServiceAccountTokenResponse> listener
     ) {
-        createToken(authentication, request, accountGenerationId, listener);
+        createToken(authentication, request, listener);
     }
 
     private void createToken(
         Authentication authentication,
         CreateServiceAccountTokenRequest request,
-        @Nullable String accountGenerationId,
         ActionListener<CreateServiceAccountTokenResponse> listener
     ) {
         final ServiceAccountId accountId = new ServiceAccountId(request.getNamespace(), request.getServiceName());
         final ServiceAccountToken token = ServiceAccountToken.newToken(accountId, request.getTokenName());
-        try (XContentBuilder builder = newDocument(authentication, token, accountGenerationId)) {
+        try (XContentBuilder builder = newDocument(authentication, token)) {
             final IndexRequest indexRequest = client.prepareIndex(SECURITY_MAIN_ALIAS)
                 .setId(docIdForToken(token.getQualifiedName()))
                 .setSource(builder)
@@ -315,12 +268,9 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
                     TransportDeleteAction.TYPE,
                     deleteRequest,
                     ActionListener.wrap(deleteResponse -> {
-                        final String cacheInvalidationKey = ElasticServiceAccounts.isBuiltInPrincipal(accountId.asPrincipal())
-                            ? qualifiedTokenName
-                            : CachingServiceAccountTokenStore.cacheInvalidationPrefixForQualifiedTokenName(qualifiedTokenName);
                         final ClearSecurityCacheRequest clearSecurityCacheRequest = new ClearSecurityCacheRequest().cacheName(
                             "index_service_account_token"
-                        ).keys(cacheInvalidationKey);
+                        ).keys(qualifiedTokenName);
                         executeAsyncWithOrigin(
                             client,
                             SECURITY_ORIGIN,
@@ -347,11 +297,7 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
         return SERVICE_ACCOUNT_TOKEN_DOC_TYPE + "-" + qualifiedTokenName;
     }
 
-    private XContentBuilder newDocument(
-        Authentication authentication,
-        ServiceAccountToken serviceAccountToken,
-        @Nullable String accountGenerationId
-    ) throws IOException {
+    private XContentBuilder newDocument(Authentication authentication, ServiceAccountToken serviceAccountToken) throws IOException {
         final Version version = clusterService.state().nodes().getMinNodeVersion();
 
         XContentBuilder builder = XContentFactory.jsonBuilder();
@@ -362,9 +308,6 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
             .field("name", serviceAccountToken.getTokenName())
             .field("creation_time", clock.instant().toEpochMilli())
             .field("enabled", true);
-        if (accountGenerationId != null) {
-            builder.field(ManagedServiceAccountStore.ACCOUNT_GENERATION_ID_FIELD, accountGenerationId);
-        }
         {
             final Subject effectiveSubject = authentication.getEffectiveSubject();
             builder.startObject("creator")

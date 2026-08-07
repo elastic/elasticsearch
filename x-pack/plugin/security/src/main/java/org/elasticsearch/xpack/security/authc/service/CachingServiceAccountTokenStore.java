@@ -16,7 +16,6 @@ import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo.TokenSource;
@@ -38,12 +37,6 @@ import java.util.function.Predicate;
 public abstract class CachingServiceAccountTokenStore implements ServiceAccountTokenStore, CacheInvalidatorRegistry.CacheInvalidator {
 
     private static final Logger logger = LogManager.getLogger(CachingServiceAccountTokenStore.class);
-
-    /**
-     * Delimiter between {@link ServiceAccountToken#getQualifiedName()} and account generation id in cache keys for
-     * managed service account tokens. Keys ending with this delimiter are treated as prefix wildcards by {@link #invalidate}.
-     */
-    static final String GENERATION_CACHE_KEY_SEPARATOR = "::";
 
     public static final Setting<String> CACHE_HASH_ALGO_SETTING = Setting.simpleString(
         "xpack.security.authc.service_token.cache.hash_algo",
@@ -84,46 +77,22 @@ public abstract class CachingServiceAccountTokenStore implements ServiceAccountT
 
     @Override
     public void authenticate(ServiceAccountToken token, ActionListener<StoreAuthenticationResult> listener) {
-        authenticateWithGenerationCache(token, null, listener);
-    }
-
-    protected void authenticateWithGenerationCache(
-        ServiceAccountToken token,
-        @Nullable String accountGenerationId,
-        ActionListener<StoreAuthenticationResult> listener
-    ) {
         try {
             if (cache == null) {
-                doAuthenticate(token, accountGenerationId, listener);
+                doAuthenticate(token, listener);
             } else {
-                authenticateWithCache(token, accountGenerationId, listener);
+                authenticateWithCache(token, listener);
             }
         } catch (Exception e) {
             listener.onFailure(e);
         }
     }
 
-    static String cacheKey(ServiceAccountToken token, @Nullable String accountGenerationId) {
-        if (accountGenerationId == null) {
-            return token.getQualifiedName();
-        }
-        return token.getQualifiedName() + GENERATION_CACHE_KEY_SEPARATOR + accountGenerationId;
-    }
-
-    static String cacheInvalidationPrefixForQualifiedTokenName(String qualifiedTokenName) {
-        return qualifiedTokenName + GENERATION_CACHE_KEY_SEPARATOR;
-    }
-
-    private void authenticateWithCache(
-        ServiceAccountToken token,
-        @Nullable String accountGenerationId,
-        ActionListener<StoreAuthenticationResult> listener
-    ) {
+    private void authenticateWithCache(ServiceAccountToken token, ActionListener<StoreAuthenticationResult> listener) {
         assert cache != null;
-        final String cacheKey = cacheKey(token, accountGenerationId);
         try {
             final AtomicBoolean valueAlreadyInCache = new AtomicBoolean(true);
-            final ListenableFuture<CachedResult> listenableCacheEntry = cache.computeIfAbsent(cacheKey, k -> {
+            final ListenableFuture<CachedResult> listenableCacheEntry = cache.computeIfAbsent(token.getQualifiedName(), k -> {
                 valueAlreadyInCache.set(false);
                 return new ListenableFuture<>();
             });
@@ -135,23 +104,23 @@ public abstract class CachingServiceAccountTokenStore implements ServiceAccountT
                         // same wrong token
                         l.onResponse(StoreAuthenticationResult.failed(getTokenSource()));
                     } else {
-                        cache.invalidate(cacheKey, listenableCacheEntry);
-                        authenticateWithCache(token, accountGenerationId, l);
+                        cache.invalidate(token.getQualifiedName(), listenableCacheEntry);
+                        authenticateWithCache(token, l);
                     }
                 }), threadPool.generic(), threadPool.getThreadContext());
             } else {
-                doAuthenticate(token, accountGenerationId, ActionListener.wrap(storeAuthenticationResult -> {
+                doAuthenticate(token, ActionListener.wrap(storeAuthenticationResult -> {
                     if (false == storeAuthenticationResult.isSuccess()) {
                         // Do not cache failed attempt
-                        cache.invalidate(cacheKey, listenableCacheEntry);
+                        cache.invalidate(token.getQualifiedName(), listenableCacheEntry);
                     } else {
-                        logger.trace("cache service token [{}] authentication result", cacheKey);
+                        logger.trace("cache service token [{}] authentication result", token.getQualifiedName());
                     }
                     listenableCacheEntry.onResponse(new CachedResult(hasher, storeAuthenticationResult.isSuccess(), token));
                     listener.onResponse(storeAuthenticationResult);
                 }, e -> {
                     // In case of failure, evict the cache entry and notify all listeners
-                    cache.invalidate(cacheKey, listenableCacheEntry);
+                    cache.invalidate(token.getQualifiedName(), listenableCacheEntry);
                     listenableCacheEntry.onFailure(e);
                     listener.onFailure(e);
                 }));
@@ -176,7 +145,7 @@ public abstract class CachingServiceAccountTokenStore implements ServiceAccountT
             final Iterator<String> it = exacts.iterator();
             while (it.hasNext()) {
                 final String name = it.next();
-                if (name.endsWith("/") || name.endsWith(GENERATION_CACHE_KEY_SEPARATOR)) {
+                if (name.endsWith("/")) {
                     prefixes.add(name);
                     it.remove();
                 }
@@ -212,11 +181,7 @@ public abstract class CachingServiceAccountTokenStore implements ServiceAccountT
         return threadPool;
     }
 
-    abstract void doAuthenticate(
-        ServiceAccountToken token,
-        @Nullable String accountGenerationId,
-        ActionListener<StoreAuthenticationResult> listener
-    );
+    abstract void doAuthenticate(ServiceAccountToken token, ActionListener<StoreAuthenticationResult> listener);
 
     abstract TokenSource getTokenSource();
 

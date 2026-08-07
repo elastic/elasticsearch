@@ -15,9 +15,9 @@ parse bearer token
        Authentication with empty User.roles() and _elastic_service_account metadata
   -> else:
        validate managed principal grammar
-       load managed account document (no cache)
+       load managed account (project-scoped cache, invalidated on PUT/DELETE)
        reject missing/disabled/malformed
-       index token auth with generation-scoped credential cache key
+       index token auth with standard credential cache
        Authentication with role names in User.roles() and _managed_service_account metadata
 ```
 
@@ -54,11 +54,11 @@ Observed behavior in unit tests:
 
 - Multiple assigned names resolve additively through one `NamedRoleReference`
 - Empty assignment yields `RoleKey.ROLE_KEY_EMPTY`
-- Account role-name changes take effect on the next authentication (no account-definition cache)
+- Account role-name changes take effect on the next authentication after account-cache invalidation on PUT
 - Named-role create/update/delete invalidates via existing role-cache mechanisms
 - Built-in accounts remain on `ServiceAccountRoleReference` and are unaffected by native role invalidation
 
-**Demonstrated in automated tests:** internal cluster and YAML REST tests cover create-account → create-token → authorize, role assignment updates, delete/recreate generation binding, disabled accounts, reserved `elastic` namespace rejection, `manage_service_account` vs `manage_security` privilege split at HTTP, and native role definition changes via `put_role`.
+**Demonstrated in automated tests:** internal cluster and YAML REST tests cover create-account → create-token → authorize, role assignment updates, delete/recreate same-service-account semantics, disabled accounts, reserved `elastic` namespace rejection, `manage_service_account` vs `manage_security` privilege split at HTTP, and native role definition changes via `put_role`.
 
 ## Document shapes (no secrets)
 
@@ -69,7 +69,6 @@ Observed behavior in unit tests:
 | `username` | `my-team/my-service` |
 | `roles` | `["role-a","role-b"]` |
 | `enabled` | `true` |
-| `account_generation_id` | UUID (immutable after create) |
 | `version` | cluster version id |
 
 **Managed index token (`doc_type=service_account_token`):**
@@ -77,15 +76,12 @@ Observed behavior in unit tests:
 | Field | Notes |
 |---|---|
 | `username`, `name`, `password`, `creation_time`, `creator` | same as built-in tokens |
-| `account_generation_id` | required; must match current account |
-
-Generation IDs are not exposed via GET APIs.
 
 ## Deletion / recreation
 
-On create, a new `account_generation_id` is generated. Token documents store this ID; authentication rejects tokens whose generation differs. Managed token cache keys include the account generation id so successful authentications cannot cross account generations without an index read.
+A managed service account is identified solely by `{namespace}/{service}`. Delete and recreate restore the same logical account.
 
-Deleting an account removes the account document (with refresh), clears index token cache by principal prefix, and bulk-deletes index tokens. Authentication fails closed even if stale token documents remain.
+Deleting an account removes the account document (with refresh), clears the managed account cache entry, and clears index token credential cache entries by principal prefix. Token index documents are not bulk-deleted. While the account is deleted, authentication fails because the account lookup returns missing/disabled. After recreate, surviving index token documents authenticate again for the same service account.
 
 ## Privilege boundary
 
@@ -134,10 +130,10 @@ Verified in `ManagedServiceAccountPrivilegeTests`.
 ## Prototype questions answered
 
 1. **NamedRoleReference path?** Yes, for managed accounts; built-ins unchanged.
-2. **Role/account updates on next request?** Yes — no account cache; per-request index read and fresh auth object.
+2. **Role/account updates on next request?** Yes — account cache invalidated on PUT; per-request auth uses fresh account data.
 3. **Reuse role cache without principal graph?** Yes — `NamedRoleReference` only.
-4. **Persistence changes?** New `service_account` doc type + generation field on managed tokens.
-5. **Credential binding?** Generation ID on account and token docs; managed token auth uses a generation-scoped credential cache key.
+4. **Persistence changes?** New `service_account` doc type using existing mapped fields (`username`, `roles`, `enabled`).
+5. **Credential binding?** Stable principal identity; DELETE revokes via missing account + cache invalidation; RECREATE restores access for surviving index tokens.
 6. **Remaining production gaps?** See below.
 
 ## Production gaps
@@ -158,13 +154,13 @@ Verified in `ManagedServiceAccountPrivilegeTests`.
 - `ServiceAccountInfo` old nodes cannot deserialize managed entries (expected; gated)
 
 ### Operability
-- No cache for managed account definitions (acceptable for prototype; may need project-scoped cache)
-- Delete does best-effort token cleanup; operators may need manual cache clear on failure
+- Managed account definition cache (`managed_service_account`) with cluster-wide invalidation on PUT/DELETE
+- Delete clears account and token credential caches; index token documents may remain
 - No bulk account listing pagination beyond scroll size 1000
 
 ### Performance
-- Per-auth index GET for managed accounts
-- Managed token auth uses generation-scoped credential cache keys (same TTL as built-in index tokens)
+- Per-auth managed account lookup (cached after first read until invalidation)
+- Managed index tokens use the same credential cache as built-in index tokens
 
 ### Documentation
 - REST API spec JSON files added for managed PUT/DELETE under `rest-api-spec/`
@@ -174,8 +170,8 @@ Verified in `ManagedServiceAccountPrivilegeTests`.
 
 **Proceed with revision.**
 
-Evidence supports the core hypothesis: managed accounts can authorize through `NamedRoleReference` without weakening built-ins, and generation binding prevents credential resurrection. Before production:
+Evidence supports the core hypothesis: managed accounts can authorize through `NamedRoleReference` without weakening built-ins. Stable principal identity with cache invalidation on DELETE provides revocation without generation IDs. Before production:
 
 1. Add cross-project and rolling-upgrade integration tests.
 2. Expose REST API specs publicly and decide delegated-admin privilege model.
-3. Evaluate a project-scoped account cache with cluster-wide invalidation if read load is a concern.
+3. Document recreate semantics for operators (surviving index tokens authenticate again).

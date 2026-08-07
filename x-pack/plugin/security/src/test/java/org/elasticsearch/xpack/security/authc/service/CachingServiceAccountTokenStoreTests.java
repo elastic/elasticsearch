@@ -28,7 +28,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -77,7 +76,7 @@ public class CachingServiceAccountTokenStoreTests extends ESTestCase {
 
         final CachingServiceAccountTokenStore store = new CachingServiceAccountTokenStore(globalSettings, threadPool) {
             @Override
-            void doAuthenticate(ServiceAccountToken token, String accountGenerationId, ActionListener<StoreAuthenticationResult> listener) {
+            void doAuthenticate(ServiceAccountToken token, ActionListener<StoreAuthenticationResult> listener) {
                 doAuthenticateInvoked.set(true);
                 listener.onResponse(StoreAuthenticationResult.fromBooleanResult(getTokenSource(), validSecret.equals(token.getSecret())));
             }
@@ -159,47 +158,6 @@ public class CachingServiceAccountTokenStoreTests extends ESTestCase {
         assertThat(cache.count(), equalTo(0));
     }
 
-    public void testGenerationAwareCacheKeyIsolatesAccountGenerations() throws ExecutionException, InterruptedException {
-        final ServiceAccountId accountId = new ServiceAccountId("yaml_poc", "worker_1");
-        final SecureString validSecret = new SecureString("super-secret-value".toCharArray());
-        final ServiceAccountToken token = newMockServiceAccountToken(accountId, "token-1", validSecret);
-        final AtomicInteger doAuthenticateInvocations = new AtomicInteger(0);
-        final TokenSource tokenSource = randomFrom(TokenSource.values());
-
-        final CachingServiceAccountTokenStore store = new CachingServiceAccountTokenStore(globalSettings, threadPool) {
-            @Override
-            void doAuthenticate(ServiceAccountToken token, String accountGenerationId, ActionListener<StoreAuthenticationResult> listener) {
-                doAuthenticateInvocations.incrementAndGet();
-                assertThat(accountGenerationId, equalTo("generation-" + doAuthenticateInvocations.get()));
-                listener.onResponse(StoreAuthenticationResult.successful(getTokenSource()));
-            }
-
-            @Override
-            TokenSource getTokenSource() {
-                return tokenSource;
-            }
-        };
-
-        final PlainActionFuture<StoreAuthenticationResult> generationOneFirstAuth = new PlainActionFuture<>();
-        store.authenticateWithGenerationCache(token, "generation-1", generationOneFirstAuth);
-        assertThat(generationOneFirstAuth.get().isSuccess(), is(true));
-        assertThat(doAuthenticateInvocations.get(), equalTo(1));
-
-        final PlainActionFuture<StoreAuthenticationResult> generationOneCachedAuth = new PlainActionFuture<>();
-        store.authenticateWithGenerationCache(token, "generation-1", generationOneCachedAuth);
-        assertThat(generationOneCachedAuth.get().isSuccess(), is(true));
-        assertThat(doAuthenticateInvocations.get(), equalTo(1));
-
-        final PlainActionFuture<StoreAuthenticationResult> generationTwoAuth = new PlainActionFuture<>();
-        store.authenticateWithGenerationCache(token, "generation-2", generationTwoAuth);
-        assertThat(generationTwoAuth.get().isSuccess(), is(true));
-        assertThat(doAuthenticateInvocations.get(), equalTo(2));
-        assertThat(store.getCache().count(), equalTo(2));
-
-        store.invalidate(List.of(CachingServiceAccountTokenStore.cacheInvalidationPrefixForQualifiedTokenName(token.getQualifiedName())));
-        assertThat(store.getCache().count(), equalTo(0));
-    }
-
     public void testCacheCanBeDisabled() throws ExecutionException, InterruptedException {
         final Settings settings = Settings.builder()
             .put(globalSettings)
@@ -211,7 +169,7 @@ public class CachingServiceAccountTokenStoreTests extends ESTestCase {
 
         final CachingServiceAccountTokenStore store = new CachingServiceAccountTokenStore(settings, threadPool) {
             @Override
-            void doAuthenticate(ServiceAccountToken token, String accountGenerationId, ActionListener<StoreAuthenticationResult> listener) {
+            void doAuthenticate(ServiceAccountToken token, ActionListener<StoreAuthenticationResult> listener) {
                 listener.onResponse(StoreAuthenticationResult.fromBooleanResult(getTokenSource(), success));
             }
 
@@ -232,7 +190,7 @@ public class CachingServiceAccountTokenStoreTests extends ESTestCase {
     public void testCacheInvalidateByKeys() {
         final CachingServiceAccountTokenStore store = new CachingServiceAccountTokenStore(globalSettings, threadPool) {
             @Override
-            void doAuthenticate(ServiceAccountToken token, String accountGenerationId, ActionListener<StoreAuthenticationResult> listener) {
+            void doAuthenticate(ServiceAccountToken token, ActionListener<StoreAuthenticationResult> listener) {
                 listener.onResponse(StoreAuthenticationResult.successful(getTokenSource()));
             }
 

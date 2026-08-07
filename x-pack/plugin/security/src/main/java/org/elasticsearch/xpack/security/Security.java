@@ -1448,14 +1448,18 @@ public class Security extends Plugin
                 settings,
                 client.get(),
                 systemIndices.getMainIndexManager(),
-                clusterService
+                clusterService,
+                cacheInvalidatorRegistry
             );
 
             components.add(new PluginComponentBinding<>(NodeLocalServiceAccountTokenStore.class, fileServiceAccountTokenStore));
             components.add(fileServiceAccountTokenStore);
             components.add(indexServiceAccountTokenStore);
             components.add(managedServiceAccountStore);
-            cacheInvalidatorRegistry.registerAlias("service", Set.of("file_service_account_token", "index_service_account_token"));
+            cacheInvalidatorRegistry.registerAlias(
+                "service",
+                Set.of("file_service_account_token", "index_service_account_token", ManagedServiceAccountStore.CACHE_NAME)
+            );
 
             return new ServiceAccountService(
                 client.get(),
@@ -1698,6 +1702,8 @@ public class Security extends Plugin
         settingsList.add(CachingServiceAccountTokenStore.CACHE_TTL_SETTING);
         settingsList.add(CachingServiceAccountTokenStore.CACHE_HASH_ALGO_SETTING);
         settingsList.add(CachingServiceAccountTokenStore.CACHE_MAX_TOKENS_SETTING);
+        settingsList.add(ManagedServiceAccountStore.CACHE_TTL_SETTING);
+        settingsList.add(ManagedServiceAccountStore.CACHE_MAX_ACCOUNTS_SETTING);
         settingsList.add(SimpleRole.CACHE_SIZE_SETTING);
         settingsList.add(NativeRoleMappingStore.LAST_LOAD_CACHE_ENABLED_SETTING);
         settingsList.addAll(remoteClusterSecurityExtensionProvider.getSettings());

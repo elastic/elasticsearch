@@ -21,14 +21,12 @@ final class ManagedServiceAccount implements ServiceAccount {
     private final ServiceAccount.ServiceAccountId id;
     private final List<String> roles;
     private final boolean enabled;
-    private final String generationId;
     private final User user;
 
-    ManagedServiceAccount(ServiceAccount.ServiceAccountId id, List<String> roles, boolean enabled, String generationId) {
+    ManagedServiceAccount(ServiceAccount.ServiceAccountId id, List<String> roles, boolean enabled) {
         this.id = Objects.requireNonNull(id, "service account id cannot be null");
         this.roles = List.copyOf(Objects.requireNonNull(roles, "roles cannot be null"));
         this.enabled = enabled;
-        this.generationId = Objects.requireNonNull(generationId, "generation id cannot be null");
         this.user = new User(
             id.asPrincipal(),
             roles.toArray(String[]::new),
@@ -57,10 +55,6 @@ final class ManagedServiceAccount implements ServiceAccount {
         return enabled;
     }
 
-    String generationId() {
-        return generationId;
-    }
-
     @Override
     public User asUser() {
         return user;
@@ -68,16 +62,6 @@ final class ManagedServiceAccount implements ServiceAccount {
 
     @Override
     public String toString() {
-        return "ManagedServiceAccount{"
-            + "id="
-            + id
-            + ", roles="
-            + roles
-            + ", enabled="
-            + enabled
-            + ", generationId='"
-            + generationId
-            + '\''
-            + '}';
+        return "ManagedServiceAccount{" + "id=" + id + ", roles=" + roles + ", enabled=" + enabled + '}';
     }
 }

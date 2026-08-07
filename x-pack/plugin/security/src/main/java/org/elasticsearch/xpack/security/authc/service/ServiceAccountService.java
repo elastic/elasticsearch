@@ -146,24 +146,20 @@ public class ServiceAccountService {
                 listener.onFailure(createAuthenticationException(serviceAccountToken));
                 return;
             }
-            indexServiceAccountTokenStore.authenticateManagedToken(
-                serviceAccountToken,
-                managedAccount.generationId(),
-                ActionListener.wrap(storeAuthenticationResult -> {
-                    if (storeAuthenticationResult.isSuccess()) {
-                        listener.onResponse(
-                            createAuthentication(managedAccount, serviceAccountToken, storeAuthenticationResult.getTokenSource(), nodeName)
-                        );
-                    } else {
-                        logger.debug(
-                            "failed to authenticate managed service account token [{}] for account [{}]",
-                            serviceAccountToken.getQualifiedName(),
-                            principal
-                        );
-                        listener.onFailure(createAuthenticationException(serviceAccountToken));
-                    }
-                }, listener::onFailure)
-            );
+            indexServiceAccountTokenStore.authenticate(serviceAccountToken, ActionListener.wrap(storeAuthenticationResult -> {
+                if (storeAuthenticationResult.isSuccess()) {
+                    listener.onResponse(
+                        createAuthentication(managedAccount, serviceAccountToken, storeAuthenticationResult.getTokenSource(), nodeName)
+                    );
+                } else {
+                    logger.debug(
+                        "failed to authenticate managed service account token [{}] for account [{}]",
+                        serviceAccountToken.getQualifiedName(),
+                        principal
+                    );
+                    listener.onFailure(createAuthenticationException(serviceAccountToken));
+                }
+            }, listener::onFailure));
         }, listener::onFailure));
     }
 
@@ -263,7 +259,7 @@ public class ServiceAccountService {
                 listener.onFailure(new IllegalArgumentException("service account [" + accountId + "] does not exist"));
                 return;
             }
-            indexServiceAccountTokenStore.createManagedToken(authentication, request, managedAccount.generationId(), listener);
+            indexServiceAccountTokenStore.createManagedToken(authentication, request, listener);
         }, listener::onFailure));
     }
 

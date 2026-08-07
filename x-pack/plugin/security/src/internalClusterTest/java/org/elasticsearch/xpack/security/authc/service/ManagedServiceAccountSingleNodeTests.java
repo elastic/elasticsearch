@@ -159,7 +159,7 @@ public class ManagedServiceAccountSingleNodeTests extends SecuritySingleNodeTest
         assertHasClusterPrivilege(bearer.toString(), "manage_own_api_key", true);
     }
 
-    public void testDeleteRecreateInvalidatesOldToken() {
+    public void testDeleteRecreateRestoresSameServiceAccount() {
         putManagedAccount(MONITOR_ROLE);
         final SecureString oldBearer = createManagedToken("token-delete-recreate");
         authenticate(oldBearer.toString());
@@ -177,11 +177,10 @@ public class ManagedServiceAccountSingleNodeTests extends SecuritySingleNodeTest
         ).actionGet();
         assertThat(recreateResponse.getResult(), equalTo(PutManagedServiceAccountResponse.Result.CREATED));
 
-        assertAuthenticationFails(oldBearer.toString());
+        authenticate(oldBearer.toString());
 
         final SecureString newBearer = createManagedToken("token-after-recreate");
         authenticate(newBearer.toString());
-        assertAuthenticationFails(oldBearer.toString());
     }
 
     private Client securityAdminClient() {

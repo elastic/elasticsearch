@@ -137,9 +137,11 @@ abstract class AbstractTDigestPercentilesAggregator extends NumericMetricsAggreg
         if (states != null) {
             try {
                 for (long i = 0; i < states.size(); i++) {
-                    // Use closeWhileHandlingException so a failure on one slot does not prevent
-                    // the remaining slots (and the container itself) from being closed.
-                    Releasables.closeWhileHandlingException(states.get(i));
+                    HistogramUnionState state = states.get(i);
+                    // Slots nulled out by takeState() are skipped; only failure-path states remain.
+                    if (state != null) {
+                        Releasables.closeWhileHandlingException(state);
+                    }
                 }
             } finally {
                 Releasables.close(states);

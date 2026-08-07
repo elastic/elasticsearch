@@ -17,6 +17,7 @@ import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -224,6 +225,10 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
                         aggregator.buildTopLevel();
                     }
                 });
+                // After the CircuitBreakingException, the AggregationContext try-with-resources closes,
+                // which triggers doClose() on the aggregator. All partially-charged breaker bytes must
+                // be returned so the REQUEST breaker ends at zero.
+                assertEquals(0L, breakerService.getBreaker(CircuitBreaker.REQUEST).getUsed());
             }
         }
     }

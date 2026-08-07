@@ -1382,11 +1382,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 return;
             }
 
-            // Expect shard to not exist
+            // Ignore retry if someone else has already recreated the shard
             if (indexService.getShardOrNull(shardId.id()) != null) {
-                final var message = "index shard unexpectedly found for " + retryRouting;
-                assert false : message;
-                listener.onFailure(new ElasticsearchException(message));
+                logger.debug("{} gave up while retrying shard creation because shard has been recreated by someone else", shardId);
+                listener.onResponse(false);
                 return;
             }
 

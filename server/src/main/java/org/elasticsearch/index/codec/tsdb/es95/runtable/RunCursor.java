@@ -30,7 +30,7 @@ final class RunCursor {
 
     private int currentRun = 0;
 
-    public RunCursor(final LongValues startDocs, int numRuns, int maxDoc) {
+    RunCursor(final LongValues startDocs, int numRuns, int maxDoc) {
         this.startDocs = startDocs;
         this.numRuns = numRuns;
         this.maxDoc = maxDoc;
@@ -39,17 +39,17 @@ final class RunCursor {
     /**
      * The index of the run currently under the cursor, valid after a {@link #seekDoc} call.
      */
-    public int run() {
+    int run() {
         return currentRun;
     }
 
     /** The number of runs in the table. */
-    public int numRuns() {
+    int numRuns() {
         return numRuns;
     }
 
     /** The first doc covered by {@code run}. */
-    public int startDoc(int run) {
+    int startDoc(int run) {
         return (int) startDocs.get(run);
     }
 
@@ -57,12 +57,12 @@ final class RunCursor {
      * Positions the cursor directly on {@code run}. Used by the sparse reader to skip a sentinel run to the
      * start of the next value-bearing run without re-searching {@code startDoc[]}.
      */
-    public void positionOn(int run) {
+    void positionOn(int run) {
         currentRun = run;
     }
 
     /** Rewinds the cursor to the first run. */
-    public void reset() {
+    void reset() {
         currentRun = 0;
     }
 
@@ -70,7 +70,7 @@ final class RunCursor {
      * Positions the cursor on the run containing {@code target}. Runs tile {@code [0, maxDoc)} with no gaps,
      * so every valid target is covered by exactly one run.
      */
-    public void seekDoc(int target) {
+    void seekDoc(int target) {
         assert target >= 0 && target < maxDoc : "target " + target + " out of range [0, " + maxDoc + ")";
         if (target < startDocs.get(currentRun)) {
             currentRun = 0;

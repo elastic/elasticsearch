@@ -47,6 +47,8 @@ public final class SortedSetRunTableLayout extends AbstractRunTableLayout {
     /**
      * Encodes the accumulated run table from {@code accumulator} to {@code data} and {@code meta}
      * and returns the run count together with the bytes written across both streams.
+     *
+     * @throws IllegalStateException if no ordinal sets have been added to the accumulator
      */
     public static RunTableSortedSetOrdinalWriter.Stats encode(
         final RunTableSortedSetOrdinalWriter accumulator,

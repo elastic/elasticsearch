@@ -28,6 +28,10 @@ final class RunTableLayout {
      * Whether the run table is compact enough to select: an average run must span at least two docs over
      * the full doc space. This keeps the layout for contiguous runs and rejects it for scattered absence
      * or degenerate near-churn where runs approach docs.
+     *
+     * <p>This is the logical complement of {@code RunTableSortedOrdinalWriter.exceedsThreshold} and
+     * {@code RunTableSortedSetOrdinalWriter.exceedsThreshold}, which the codec writers call directly on
+     * the in-progress accumulator during the doc walk. This method is used in tests.
      */
     static boolean fitsRunTable(int numRuns, int maxDoc) {
         return (long) numRuns * 2 <= maxDoc;

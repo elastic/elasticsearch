@@ -14,7 +14,7 @@ import org.apache.lucene.util.ArrayUtil;
 import java.util.Arrays;
 
 /**
- * Accumulates the run-table data for a dense multi-valued {@code SortedSet} ordinal stream.
+ * Accumulates the run-table data for a multi-valued {@code SortedSet} ordinal stream.
  *
  * <p>Within a TSDB series the value set is constant, because {@code _tsid} hashes every element of a
  * multi-valued dimension, so a differing set means a different series. This accumulator collapses the
@@ -128,8 +128,8 @@ public final class RunTableSortedSetOrdinalWriter {
     }
 
     /**
-     * The run count and the total bytes written across the data and meta streams. {@code totalBytes}
-     * feeds the size-based selection between the run table and the baseline encoding.
+     * The run count and the total bytes written across the data and meta streams. Returned by the
+     * layout class for future size-based layout selection; not consumed by the codec writers.
      */
     public record Stats(int numRuns, long totalBytes) {}
 }

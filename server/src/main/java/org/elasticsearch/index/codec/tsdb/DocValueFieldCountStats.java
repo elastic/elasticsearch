@@ -17,6 +17,6 @@ package org.elasticsearch.index.codec.tsdb;
  * @param skipAddressesTable {@code true} when the ordinal layout delimits each document's value
  *                          slice on its own, so the shared consumer must skip the per-doc
  *                          addresses table; {@code false} for every layout that relies on that
- *                          table (the default multi-valued path, numeric fields)
+ *                          table (the default multi-valued path)
  */
 public record DocValueFieldCountStats(int numDocsWithField, long numValues, boolean skipAddressesTable) {}

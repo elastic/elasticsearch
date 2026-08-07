@@ -41,6 +41,17 @@ public final class RunTableSortedSetOrdinalReader {
      * {@code setOffset[]} must be loaded, so that {@link SortedSetRunTableLayout#open} can defer building
      * the doc values view until first access without re-reading meta. The offsets are absolute in the
      * shared data stream.
+     *
+     * @param numRuns          number of runs in the table
+     * @param valueCount       field cardinality K; every ordinal in {@code ordStream[]} is in {@code [0, K)}
+     * @param totalOrds        total number of ordinals across all runs, sizing the {@code ordStream[]} section
+     * @param blockShift       block shift of the {@code startDoc[]} and {@code setOffset[]}
+     *                         {@link DirectMonotonicReader}s
+     * @param startDocsMeta    {@code startDoc[]} monotonic reader metadata
+     * @param setOffsetsMeta   {@code setOffset[]} monotonic reader metadata ({@code numRuns + 1} fencepost entries)
+     * @param dataStart        absolute data-stream offset where {@code startDoc[]} begins
+     * @param startDocsLength  byte length of the {@code startDoc[]} data section
+     * @param setOffsetsLength byte length of the {@code setOffset[]} data section
      */
     public record Meta(
         int numRuns,

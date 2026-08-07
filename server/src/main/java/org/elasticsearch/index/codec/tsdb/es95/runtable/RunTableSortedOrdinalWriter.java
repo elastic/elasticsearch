@@ -12,7 +12,7 @@ package org.elasticsearch.index.codec.tsdb.es95.runtable;
 import org.apache.lucene.util.ArrayUtil;
 
 /**
- * Accumulates the run-table data for a dense single-valued {@code Sorted} ordinal stream.
+ * Accumulates the run-table data for a single-valued {@code Sorted} ordinal stream.
  *
  * <p>TSDB segments are index-sorted by {@code (_tsid, @timestamp)}, so a dimension field's per-doc
  * ordinal stream is piecewise-constant. This accumulator collapses the stream into one entry per run (a
@@ -102,8 +102,8 @@ public final class RunTableSortedOrdinalWriter {
     }
 
     /**
-     * The run count and the total bytes written across the data and meta streams. {@code totalBytes}
-     * feeds the size-based selection between the run table and the baseline ordinal encoding.
+     * The run count and the total bytes written across the data and meta streams. Returned by the
+     * layout class for future size-based layout selection; not consumed by the codec writers.
      */
     public record Stats(int numRuns, long totalBytes) {}
 }

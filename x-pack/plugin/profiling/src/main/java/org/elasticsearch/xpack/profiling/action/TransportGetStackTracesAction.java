@@ -628,7 +628,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
 
         ClusterState clusterState = clusterService.state();
         List<Index> indices = otelSchema
-            ? resolver.resolveDataStream(clusterState, "profiling-stacktraces.otel-*")
+            ? resolver.resolveDataStream(clusterState, "profiling-stacktraces.otel-*", responseBuilder.getStart(), responseBuilder.getEnd())
             : resolver.resolve(clusterState, "profiling-stacktraces", responseBuilder.getStart(), responseBuilder.getEnd());
         // Avoid parallelism if there is potential we are on spinning disks (frozen tier uses searchable snapshots)
         int sliceCount = IndexAllocation.isAnyOnWarmOrColdTier(clusterState, indices) ? 1 : desiredSlices;
@@ -656,7 +656,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
         }
 
         // Retrieve the host metadata in parallel. Assume low-cardinality and do not split the query.
-        client.prepareSearch(otelSchema ? "profiling-hosts.otel-default" : "profiling-hosts")
+        client.prepareSearch(otelSchema ? "profiling-hosts.otel-*" : "profiling-hosts")
             .setTrackTotalHits(false)
             .setQuery(
                 QueryBuilders.boolQuery()
@@ -842,10 +842,10 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
             return;
         }
         List<Index> stackFrameIndices = otelSchema
-            ? resolver.resolveDataStream(clusterState, "profiling-stackframes.otel-default")
+            ? resolver.resolveDataStream(clusterState, "profiling-stackframes.otel-*", responseBuilder.getStart(), responseBuilder.getEnd())
             : resolver.resolve(clusterState, "profiling-stackframes", responseBuilder.getStart(), responseBuilder.getEnd());
         List<Index> executableIndices = otelSchema
-            ? resolver.resolveDataStream(clusterState, "profiling-executables.otel-default")
+            ? resolver.resolveDataStream(clusterState, "profiling-executables.otel-*", responseBuilder.getStart(), responseBuilder.getEnd())
             : resolver.resolve(clusterState, "profiling-executables", responseBuilder.getStart(), responseBuilder.getEnd());
         // Avoid parallelism if there is potential we are on spinning disks (frozen tier uses searchable snapshots)
         int stackFrameSliceCount = IndexAllocation.isAnyOnWarmOrColdTier(clusterState, stackFrameIndices) ? 1 : desiredDetailSlices;

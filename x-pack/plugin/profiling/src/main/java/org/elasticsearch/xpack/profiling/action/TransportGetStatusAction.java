@@ -147,9 +147,13 @@ public class TransportGetStatusAction extends TransportMasterNodeAction<GetStatu
         }
 
         private boolean isResourcesCreated(ClusterState state) {
+            return isResourcesCreated(state, templateRegistry.isTemplatesEnabled());
+        }
+
+        private boolean isResourcesCreated(ClusterState state, boolean ecsEnabled) {
             // In OTel-only mode the profiling plugin manages no resources; OTel templates are installed
             // unconditionally by the otel-data plugin, so there is nothing to wait for here.
-            if (templateRegistry.isTemplatesEnabled() == false) {
+            if (ecsEnabled == false) {
                 return true;
             }
             IndexStateResolver indexStateResolver = indexStateResolver(state);
@@ -158,8 +162,8 @@ public class TransportGetStatusAction extends TransportMasterNodeAction<GetStatu
                 && ProfilingDataStreamManager.isAllResourcesCreated(state, indexStateResolver);
         }
 
-        private boolean isAnyPre891Data(ClusterState state) {
-            if (templateRegistry.isTemplatesEnabled() == false) {
+        private boolean isAnyPre891Data(ClusterState state, boolean ecsEnabled) {
+            if (ecsEnabled == false) {
                 return false;
             }
             IndexStateResolver indexStateResolver = indexStateResolver(state);
@@ -175,8 +179,9 @@ public class TransportGetStatusAction extends TransportMasterNodeAction<GetStatu
         private void execute(ClusterState state, ActionListener<GetStatusAction.Response> listener) {
             boolean pluginEnabled = getValue(state, XPackSettings.PROFILING_ENABLED);
             boolean resourceManagementEnabled = getValue(state, ProfilingPlugin.PROFILING_TEMPLATES_ENABLED);
-            boolean resourcesCreated = isResourcesCreated(state);
-            boolean anyPre891Data = isAnyPre891Data(state);
+            boolean ecsEnabled = templateRegistry.isTemplatesEnabled();
+            boolean resourcesCreated = isResourcesCreated(state, ecsEnabled);
+            boolean anyPre891Data = isAnyPre891Data(state, ecsEnabled);
             // only issue a search if there is any chance that we have data
             if (resourcesCreated) {
                 SearchRequest countRequest = new SearchRequest(EventsIndex.FULL_INDEX.getName());

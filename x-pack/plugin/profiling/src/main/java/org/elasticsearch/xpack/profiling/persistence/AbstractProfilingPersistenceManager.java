@@ -80,9 +80,7 @@ abstract class AbstractProfilingPersistenceManager<T extends ProfilingIndexAbstr
         if (event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
             return;
         }
-        // ECS is active when either explicitly enabled via PROFILING_TEMPLATES_ENABLED or
-        // auto-detected from an existing ECS deployment (registry flag).
-        if (templatesEnabled == false && templateRegistry.isTemplatesEnabled() == false) {
+        if (templatesEnabled == false) {
             return;
         }
 

@@ -11,7 +11,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.core.TimeValue;
@@ -28,7 +27,8 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * Resolves aliases that point to multiple key/value indices.
+ * Resolves index patterns and data stream patterns to concrete backing indices, optionally filtered
+ * to the subset whose active period overlaps a given query time range.
  */
 public class KvIndexResolver {
     private static final Logger log = LogManager.getLogger(KvIndexResolver.class);
@@ -115,14 +115,53 @@ public class KvIndexResolver {
     }
 
     /**
-     * Resolves a data stream to its backing indices. Used for OTel data streams which have no rollover alias.
+     * Resolves a data stream pattern to its backing indices relevant for the given time range. Applies the same
+     * creation-date filtering as {@link #resolve}: backing indices whose active period does not overlap
+     * {@code [eventStart, eventEnd]} are excluded. Falls back to all backing indices when no match is found.
+     *
+     * @param clusterState The current cluster state.
+     * @param dataStreamPattern A data stream name or pattern to match.
+     * @param eventStart The earliest point in time to consider.
+     * @param eventEnd The latest point in time to consider.
+     * @return A list of backing indices whose active period overlaps the given time range.
      */
-    public List<Index> resolveDataStream(ClusterState clusterState, String dataStreamName) {
-        DataStream dataStream = clusterState.metadata().getProject().dataStreams().get(dataStreamName);
-        if (dataStream == null) {
-            log.debug("Data stream [{}] does not exist.", dataStreamName);
-            return Collections.emptyList();
+    public List<Index> resolveDataStream(ClusterState clusterState, String dataStreamPattern, Instant eventStart, Instant eventEnd) {
+        // LENIENT_EXPAND_OPEN_HIDDEN: data stream backing indices are hidden, so HIDDEN is required to resolve them.
+        // LENIENT is used rather than STRICT because the data stream may not exist yet on a fresh cluster; in that
+        // case concreteIndices returns an empty array and resolveByCreationDate falls back to returning nothing.
+        Index[] indices = resolver.concreteIndices(clusterState, IndicesOptions.LENIENT_EXPAND_OPEN_HIDDEN, true, dataStreamPattern);
+        return resolveByCreationDate(Arrays.asList(indices), clusterState, dataStreamPattern, eventStart, eventEnd);
+    }
+
+    private List<Index> resolveByCreationDate(
+        List<Index> indices,
+        ClusterState clusterState,
+        String pattern,
+        Instant eventStart,
+        Instant eventEnd
+    ) {
+        List<Index> matchingIndices = new ArrayList<>();
+        if (indices.size() > 1) {
+            Map<String, IndexMetadata> indicesMetadata = clusterState.getMetadata().getProject().indices();
+            List<Tuple<Index, Instant>> indicesWithTime = new ArrayList<>();
+            for (Index i : indices) {
+                IndexMetadata indexMetadata = indicesMetadata.get(i.getName());
+                indicesWithTime.add(Tuple.tuple(i, Instant.ofEpochMilli(indexMetadata.getCreationDate())));
+            }
+            indicesWithTime.sort((i1, i2) -> i2.v2().compareTo(i1.v2()));
+            Instant intervalEnd = Instant.MAX;
+            for (Tuple<Index, Instant> indexAndTime : indicesWithTime) {
+                Instant intervalStart = indexAndTime.v2();
+                if (intervalStart.isBefore(eventEnd) && intervalEnd.isAfter(eventStart)) {
+                    matchingIndices.add(indexAndTime.v1());
+                }
+                intervalEnd = intervalStart.plusMillis(kvIndexOverlapPeriod.millis());
+            }
         }
-        return Collections.unmodifiableList(dataStream.getIndices());
+        if (matchingIndices.isEmpty()) {
+            log.debug("Querying all indices for [{}].", pattern);
+            matchingIndices.addAll(indices);
+        }
+        return Collections.unmodifiableList(matchingIndices);
     }
 }

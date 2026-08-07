@@ -55,8 +55,7 @@ public class EsIndexGenerator {
     public static Map<String, IndexProperties> randomIndexProperties() {
         return randomMap(0, 10, () -> {
             IndexMode mode = randomFrom(IndexMode.availableModes());
-            int shards = mode == IndexMode.LOOKUP ? 1 : between(0, 10);
-            return tuple(randomIdentifier(), new IndexProperties(mode, shards));
+            return tuple(randomIdentifier(), new IndexProperties(mode, between(0, 10)));
         });
     }
 

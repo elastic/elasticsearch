@@ -1242,7 +1242,7 @@ public abstract class GoldenTestCase extends ESTestCase {
             .stream()
             .collect(Collectors.toMap(CsvTestsDataLoader.TestDataset::indexName, ds -> {
                 IndexMode m = indexModeOf(ds);
-                return new IndexProperties(m, m == IndexMode.LOOKUP ? 1 : 0);
+                return new IndexProperties(m, 0);
             }));
         List<MappingPerIndex> mappings = datasets.datasets()
             .stream()

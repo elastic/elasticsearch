@@ -10,6 +10,7 @@
 package org.elasticsearch.index.codec.flattened;
 
 import org.apache.lucene.codecs.compressing.Compressor;
+import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.store.ByteBuffersDataInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.ArrayUtil;
@@ -22,6 +23,7 @@ import java.util.List;
 
 import static org.elasticsearch.index.codec.flattened.FlattenedDocValuesFormat.FLAG_ALL_SINGLE_SLOT;
 import static org.elasticsearch.index.codec.flattened.FlattenedDocValuesFormat.FLAG_DOCS_CONTIGUOUS;
+import static org.elasticsearch.index.codec.flattened.FlattenedDocValuesFormat.FLAG_META_COMPRESSED;
 import static org.elasticsearch.index.codec.flattened.FlattenedDocValuesFormat.FLAG_NO_NULL_VALUES;
 import static org.elasticsearch.index.codec.flattened.FlattenedDocValuesFormat.FLAG_VALUES_COMPRESSED;
 
@@ -52,6 +54,13 @@ final class FieldBlockWriter implements Closeable {
     private final int maxDocsPerBlock;
     private final int minCompressBytes;
     private final Compressor compressor = new ZstdCompressionMode(1).newCompressor();
+    /**
+     * Reusable scratch buffer for the metadata region (slot counts + encoded lengths). Allocated
+     * once in the constructor and reused across blocks/columns; never cleared by {@link #reset}.
+     */
+    private byte[] metaScratch;
+    /** Reusable writer over {@link #metaScratch}; reset at the start of each block flush. */
+    private final ByteArrayDataOutput metaOut = new ByteArrayDataOutput();
 
     /** Absolute data-file offset of the first block for this column. Updated by {@link #reset}. */
     private long columnStartOffset;
@@ -103,6 +112,7 @@ final class FieldBlockWriter implements Closeable {
         this.blockSlotCounts = new int[maxDocsPerBlock];
         this.blockSlotLens = new int[maxDocsPerBlock];
         this.blockValues = new byte[targetBlockBytes];
+        this.metaScratch = new byte[maxDocsPerBlock];
     }
 
     /**
@@ -228,18 +238,61 @@ final class FieldBlockWriter implements Closeable {
             if (blockSlotLens[s] < 0) noNulls = false;
         }
 
+        // Encode slot counts and value lengths into the metadata buffer before writing flags,
+        // because FLAG_META_COMPRESSED depends on the encoded size.
+
+        // Step 1: compute bitsPerSlot (when !allSingleSlot).
+        int bitsPerSlot = 0;
+        if (allSingleSlot == false) {
+            int maxSlot = 0;
+            for (int i = 0; i < numDocsInBlock; i++) {
+                if (blockSlotCounts[i] > maxSlot) maxSlot = blockSlotCounts[i];
+            }
+            bitsPerSlot = Math.max(1, 32 - Integer.numberOfLeadingZeros(maxSlot));
+        }
+
+        // Step 2: encode lengths in-place (reuse blockSlotLens).
+        // noNulls: encodedLen = valueLen (0 = empty string).
+        // has nulls: encodedLen = 0 for null, valueLen+1 otherwise.
+        int maxLen = 0;
+        for (int s = 0; s < numSlotsInBlock; s++) {
+            final int enc = noNulls ? blockSlotLens[s] : (blockSlotLens[s] < 0 ? 0 : blockSlotLens[s] + 1);
+            if (enc > maxLen) maxLen = enc;
+            blockSlotLens[s] = enc;
+        }
+        final int bitsPerLen = Math.max(1, 32 - Integer.numberOfLeadingZeros(maxLen));
+
+        // Step 3: pack into metaScratch. Pre-size exactly; ByteArrayDataOutput does not grow.
+        int metaCap = 1 + (int) ((numSlotsInBlock * (long) bitsPerLen + 7) / 8);
+        if (allSingleSlot == false) {
+            metaCap += 1 + (int) ((numDocsInBlock * (long) bitsPerSlot + 7) / 8);
+        }
+        assert metaCap >= 2 : "metadata region must contain at least bitsPerLen byte + one packed byte";
+        metaScratch = ArrayUtil.growNoCopy(metaScratch, metaCap);
+        metaOut.reset(metaScratch, 0, metaScratch.length);
+        if (allSingleSlot == false) {
+            metaOut.writeByte((byte) bitsPerSlot);
+            FlattenedDocValuesFormat.packInts(metaOut, blockSlotCounts, numDocsInBlock, bitsPerSlot);
+        }
+        metaOut.writeByte((byte) bitsPerLen);
+        FlattenedDocValuesFormat.packInts(metaOut, blockSlotLens, numSlotsInBlock, bitsPerLen);
+        final int metaLen = metaOut.getPosition();
+        assert metaLen == metaCap : "computed metaCap=" + metaCap + " but wrote metaLen=" + metaLen;
+
         final boolean compress = blockValuesLen >= minCompressBytes;
+        final boolean compressMeta = metaLen >= minCompressBytes;
 
         byte flags = 0;
         if (compress) flags |= FLAG_VALUES_COMPRESSED;
         if (contiguous) flags |= FLAG_DOCS_CONTIGUOUS;
         if (allSingleSlot) flags |= FLAG_ALL_SINGLE_SLOT;
         if (noNulls) flags |= FLAG_NO_NULL_VALUES;
+        if (compressMeta) flags |= FLAG_META_COMPRESSED;
 
         currentOut.writeByte(flags);
         writeVInt(currentOut, numDocsInBlock);
 
-        // Bit-pack docId deltas (outside the compressed region).
+        // Bit-pack docId deltas (outside any compressed region).
         if (contiguous == false) {
             int maxDelta = 0;
             for (int i = 0; i < numDocsInBlock - 1; i++) {
@@ -252,29 +305,13 @@ final class FieldBlockWriter implements Closeable {
             FlattenedDocValuesFormat.packInts(currentOut, blockDocIds, numDocsInBlock - 1, bitsPerDelta);
         }
 
-        // Bit-pack slot counts (outside the compressed region).
-        if (allSingleSlot == false) {
-            int maxSlot = 0;
-            for (int i = 0; i < numDocsInBlock; i++) {
-                if (blockSlotCounts[i] > maxSlot) maxSlot = blockSlotCounts[i];
-            }
-            final int bitsPerSlot = Math.max(1, 32 - Integer.numberOfLeadingZeros(maxSlot));
-            currentOut.writeByte((byte) bitsPerSlot);
-            FlattenedDocValuesFormat.packInts(currentOut, blockSlotCounts, numDocsInBlock, bitsPerSlot);
+        // Write the metadata region (slot counts + value lengths) as its own compressed frame.
+        writeVInt(currentOut, metaLen);
+        if (compressMeta) {
+            compressor.compress(new ByteBuffersDataInput(List.of(ByteBuffer.wrap(metaScratch, 0, metaLen))), currentOut);
+        } else {
+            currentOut.writeBytes(metaScratch, 0, metaLen);
         }
-
-        // Bit-pack per-slot encoded lengths (outside the compressed region).
-        // noNulls: encodedLen = valueLen (0 = empty string).
-        // has nulls: encodedLen = 0 for null, valueLen+1 otherwise.
-        int maxLen = 0;
-        for (int s = 0; s < numSlotsInBlock; s++) {
-            final int enc = noNulls ? blockSlotLens[s] : (blockSlotLens[s] < 0 ? 0 : blockSlotLens[s] + 1);
-            if (enc > maxLen) maxLen = enc;
-            blockSlotLens[s] = enc; // reuse array to hold encoded values for packInts
-        }
-        final int bitsPerLen = Math.max(1, 32 - Integer.numberOfLeadingZeros(maxLen));
-        currentOut.writeByte((byte) bitsPerLen);
-        FlattenedDocValuesFormat.packInts(currentOut, blockSlotLens, numSlotsInBlock, bitsPerLen);
 
         // Compress (or write raw) the value region.
         if (compress) {

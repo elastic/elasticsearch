@@ -18,6 +18,7 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
@@ -1032,6 +1033,102 @@ public class FlattenedDocValuesFormatTests extends ESTestCase {
                 assertEquals(1, dv.advanceExactKey(ord));
                 final BytesRef v1 = dv.nextKeyValue();
                 assertNull("merged null slot must survive", v1);
+            }
+        }
+    }
+
+    // ---------------------------------------------------------------------------------
+    // Bit-packing helpers
+    // ---------------------------------------------------------------------------------
+
+    /**
+     * Verifies the {@code byte[]}-source {@link FlattenedDocValuesFormat#unpackInts} overload, which
+     * is dead code before this change and becomes load-bearing as the metadata-region decoder.
+     *
+     * <p>For random {@code bitsPerValue} (1..32) and random {@code n}, {@link
+     * FlattenedDocValuesFormat#packInts} writes to a {@link ByteArrayDataOutput} and
+     * {@link FlattenedDocValuesFormat#unpackInts(byte[], int, int[], int, int, int)} reads back.
+     * Asserts value equality AND that the returned source offset equals {@code ceil(n*bits/8)} —
+     * the latter is what makes two concatenated packed arrays line up correctly.
+     */
+    public void testByteArrayUnpackIntsRoundTrip() throws IOException {
+        for (int trial = 0; trial < 200; trial++) {
+            final int bitsPerValue = randomIntBetween(1, 32);
+            final int n = randomIntBetween(0, 128);
+            final int[] expected = new int[n];
+            final long mask = bitsPerValue == 32 ? 0xFFFFFFFFL : (1L << bitsPerValue) - 1L;
+            for (int i = 0; i < n; i++) {
+                expected[i] = (int) (randomLong() & mask);
+            }
+
+            // Expected packed size: ceil(n * bitsPerValue / 8). Zero when n==0 (no values → no bytes).
+            final int expectedPackedBytes = (int) ((n * (long) bitsPerValue + 7) / 8);
+            // Allocate at least 1 byte so we never create a zero-length array.
+            final byte[] buf = new byte[Math.max(1, expectedPackedBytes)];
+            final ByteArrayDataOutput out = new ByteArrayDataOutput(buf);
+            FlattenedDocValuesFormat.packInts(out, expected, n, bitsPerValue);
+
+            final int[] actual = new int[Math.max(1, n)]; // avoid zero-length array
+            final int returnedOff = FlattenedDocValuesFormat.unpackInts(buf, 0, actual, 0, n, bitsPerValue);
+            if (n > 0) {
+                assertArrayEquals("bitsPerValue=" + bitsPerValue + " n=" + n, expected, Arrays.copyOf(actual, n));
+            }
+            // The returned offset must land exactly at the start of the next array, not one byte earlier or later.
+            assertEquals("returnedOff mismatch for bitsPerValue=" + bitsPerValue + " n=" + n, expectedPackedBytes, returnedOff);
+        }
+    }
+
+    // ---------------------------------------------------------------------------------
+    // binaryValue() sparse-column short-circuit
+    // ---------------------------------------------------------------------------------
+
+    /**
+     * A doc present in only a subset of columns; the absent-column cursors must not decompress
+     * anything. Also verifies that {@code advanceToDoc} returning 0 for an absent doc and then
+     * returning the correct count for a present doc in the same block (catches a missing
+     * {@code metaLoaded = false} reset when a new block is loaded).
+     */
+    public void testBinaryValueWithSparseColumns() throws IOException {
+        // Doc 0 has only key "a"; doc 1 has keys "a" and "b"; doc 2 has only key "b".
+        // All three docs in one block so the same block is loaded for present and absent lookups.
+        final byte[] blob0 = FlattenedColumnarBinaryDuelTests.buildBlob(List.<String[]>of(new String[] { "a", "hello" }));
+        final byte[] blob1 = FlattenedColumnarBinaryDuelTests.buildBlob(
+            List.<String[]>of(new String[] { "a", "world" }, new String[] { "b", "one" })
+        );
+        final byte[] blob2 = FlattenedColumnarBinaryDuelTests.buildBlob(List.<String[]>of(new String[] { "b", "two" }));
+
+        try (Directory dir = newDirectory()) {
+            final IndexWriterConfig cfg = new IndexWriterConfig();
+            cfg.setCodec(TestUtil.alwaysDocValuesFormat(new FlattenedDocValuesFormat()));
+            try (IndexWriter writer = new IndexWriter(dir, cfg)) {
+                writer.addDocument(docWithBlob(blob0));
+                writer.addDocument(docWithBlob(blob1));
+                writer.addDocument(docWithBlob(blob2));
+                writer.forceMerge(1); // single segment, all three docs in one block
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                final LeafReader leaf = reader.leaves().get(0).reader();
+                final ColumnarKeyedBinaryDocValues dv = (ColumnarKeyedBinaryDocValues) leaf.getBinaryDocValues(KEYED_FIELD);
+                assertNotNull(dv);
+                final int ordA = dv.lookupKeyOrdinal(new BytesRef("a"));
+                final int ordB = dv.lookupKeyOrdinal(new BytesRef("b"));
+                assertTrue("key 'a' must be present", ordA >= 0);
+                assertTrue("key 'b' must be present", ordB >= 0);
+
+                // Doc 0: key "a" present, key "b" absent.
+                assertTrue(dv.advanceExact(0));
+                assertEquals(1, dv.advanceExactKey(ordA));
+                assertEquals("hello", dv.nextKeyValue().utf8ToString());
+                assertEquals("key 'b' absent from doc 0", 0, dv.advanceExactKey(ordB));
+
+                // Doc 2: key "a" absent (same block), key "b" present.
+                // This exercises the reset path: the 'a' column's cursor must reset metaLoaded
+                // when moving to a new block that it has not loaded yet, so it can correctly
+                // report absence for doc 2 even though doc 1 is present in the same block.
+                assertTrue(dv.advanceExact(2));
+                assertEquals("key 'a' absent from doc 2", 0, dv.advanceExactKey(ordA));
+                assertEquals(1, dv.advanceExactKey(ordB));
+                assertEquals("two", dv.nextKeyValue().utf8ToString());
             }
         }
     }

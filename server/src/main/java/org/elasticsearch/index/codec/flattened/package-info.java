@@ -83,13 +83,22 @@
  *         bit 1 = FLAG_DOCS_CONTIGUOUS      docIds are consecutive; delta array omitted
  *         bit 2 = FLAG_ALL_SINGLE_SLOT      every doc has exactly one slot; count array omitted
  *         bit 3 = FLAG_NO_NULL_VALUES       no slot in this block is null
+ *         bit 4 = FLAG_META_COMPRESSED      metadata region is ZSTD-compressed
  * vint  numDocs
  * byte  bitsPerDelta                        absent when FLAG_DOCS_CONTIGUOUS
  * bit-packed (gap-1) × (numDocs-1)          absent when FLAG_DOCS_CONTIGUOUS; MSB-first, bitsPerDelta bits each
- * byte  bitsPerSlotCount                    absent when FLAG_ALL_SINGLE_SLOT
- * bit-packed slotCount × numDocs            absent when FLAG_ALL_SINGLE_SLOT; MSB-first, bitsPerSlotCount bits each
- * byte  bitsPerValueLen                     always present
- * bit-packed encodedLen × numSlots          MSB-first, bitsPerValueLen bits each;
+ * vint  metaLen                             uncompressed byte length of the metadata region
+ * metadata region:
+ *   if FLAG_META_COMPRESSED:
+ *     vint compressedLen
+ *     compressedLen bytes                   written by ZstdCompressionMode.ZstdCompressor
+ *   else:
+ *     metaLen raw bytes
+ *   decoded content (exactly metaLen bytes):
+ *     byte  bitsPerSlotCount                absent when FLAG_ALL_SINGLE_SLOT
+ *     bit-packed slotCount × numDocs        absent when FLAG_ALL_SINGLE_SLOT; MSB-first
+ *     byte  bitsPerValueLen                 always present
+ *     bit-packed encodedLen × numSlots      MSB-first, bitsPerValueLen bits each;
  *                                           FLAG_NO_NULL_VALUES set:   encodedLen = valueLen
  *                                           FLAG_NO_NULL_VALUES clear: encodedLen = 0 for null, valueLen+1 otherwise
  * value region (raw value bytes concatenated; total = sum(valueLen)):
@@ -100,11 +109,14 @@
  *     raw value bytes
  * </pre>
  *
- * <p>The docId-delta array, slot-count array, and value-length array are all stored outside the
- * compressed value region. This lets a doc-presence check binary-search docIds, and lets the
- * batch reader ({@link org.elasticsearch.index.codec.flattened.KeyColumnBatchReader}) copy runs
- * of values with a single {@link System#arraycopy} after decompressing once per block. The value
- * region contains only concatenated raw value bytes — no per-slot framing.
+ * <p>The docId-delta array stays outside any compressed region so that block skipping and
+ * doc-presence checks never decompress anything. The slot-count and value-length arrays live in
+ * a separate small ZSTD frame (the metadata region) ahead of the value region: they are only
+ * needed once a doc is known to be present, and bit-packed lengths sized by the block's longest
+ * value are near-incompressible when stored raw — ZSTD recovers that cost almost entirely. The
+ * two regions are kept separate so that a slot-count query does not force decompression of the
+ * much larger value region. The value region contains only concatenated raw value bytes — no
+ * per-slot framing.
  *
  * <p>Flush triggers: a new block is started when {@code numDocs >= MAX_DOCS_PER_BLOCK} (default
  * 8192) or {@code blockValuesLen >= TARGET_BLOCK_BYTES} (default 64 KiB). The check fires at the
@@ -209,10 +221,10 @@
  *   <li>For each page of documents, {@code KeyColumnBatchReader.tryRead} drives a single
  *       {@link org.elasticsearch.index.codec.flattened.SequentialColumnReader} forward across
  *       the page. Whole blocks can be skipped without decompression when the target document is
- *       past the block's last doc-id (the doc-id arrays live outside the compressed region).
- *       Within the target block, the value region is decompressed once; slot counts and value
- *       offsets are pre-computed from the eagerly-decoded header arrays. Maximal consecutive runs
- *       of single-valued, non-null documents are then copied with a single
+ *       past the block's last doc-id (the doc-id arrays live outside any compressed region).
+ *       Within the target block, the small metadata region is decompressed once (lazily) to build
+ *       slot-count and value-offset tables; the value region is also decompressed once. Maximal
+ *       consecutive runs of single-valued, non-null documents are then copied with a single
  *       {@link System#arraycopy} — no per-doc vint decoding at all.</li>
  *   <li>If the batch reader is unavailable (ordinal absent, or a non-columnar segment), the loader
  *       falls back to the per-doc path via

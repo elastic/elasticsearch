@@ -37,6 +37,7 @@ import java.util.Map;
 import static org.elasticsearch.index.codec.flattened.FlattenedDocValuesConsumer.FLATTENED_COLUMNAR_BINARY;
 import static org.elasticsearch.index.codec.flattened.FlattenedDocValuesFormat.FLAG_ALL_SINGLE_SLOT;
 import static org.elasticsearch.index.codec.flattened.FlattenedDocValuesFormat.FLAG_DOCS_CONTIGUOUS;
+import static org.elasticsearch.index.codec.flattened.FlattenedDocValuesFormat.FLAG_META_COMPRESSED;
 import static org.elasticsearch.index.codec.flattened.FlattenedDocValuesFormat.FLAG_NO_NULL_VALUES;
 import static org.elasticsearch.index.codec.flattened.FlattenedDocValuesFormat.FLAG_VALUES_COMPRESSED;
 import static org.elasticsearch.index.codec.flattened.FlattenedDocValuesFormat.VERSION_CURRENT;
@@ -342,11 +343,14 @@ final class FlattenedDocValuesProducer extends DocValuesProducer {
     /**
      * Reads blocks from one column. Created lazily per key ordinal on first access.
      *
-     * <p>The cursor maintains a block index (eagerly loaded: typically 1–10 entries), eagerly-decoded
-     * per-doc slot counts and per-slot value lengths (stored outside the compressed value region),
-     * and a lazily-decompressed raw value payload for the current block. Random access within a
-     * block is O(1): slot ranges and value offsets are pre-computed in {@link #loadBlockHeader}
-     * and {@link #ensureValuesLoaded} respectively.
+     * <p>The cursor maintains a block index (eagerly loaded: typically 1–10 entries), and a two-stage
+     * lazy load per block: the metadata region (slot counts + value lengths) is decompressed in
+     * {@link #ensureMetaLoaded}, and the raw value region is decompressed in {@link #ensureValuesLoaded}.
+     * Doc-presence checks and block skipping never decompress anything — only the uncompressed docId
+     * array in the block header is consulted. For {@code FLAG_ALL_SINGLE_SLOT} blocks, slot-count
+     * queries are also free (the count is always 1). Random access within a block is O(1) once the
+     * metadata is loaded: {@link #slotStarts} and {@link #valueOffsets} are prefix-sum tables built
+     * once per block.
      */
     static final class ColumnCursor {
         private final IndexInput dataIn;          // cloned; independent file position
@@ -366,10 +370,16 @@ final class FlattenedDocValuesProducer extends DocValuesProducer {
         private boolean allSingleSlot;
         private boolean noNullValues;
         private boolean valueCompressed;
+        private boolean metaCompressed;
         private int[] docIds;      // resolved docIds when !contiguous
         private int[] slotStarts; // slotStarts[i] = first slot index for doc i; slotStarts[numDocs] = numSlots
-        private int bitsPerLen;
-        private long valueLenAbsOff; // absolute position of the packed value-length array
+        private long metaAbsOff;         // absolute file position of the metadata region
+        private int metaLen;             // uncompressed byte length of the metadata region
+        private long valueRegionAbsOff;  // absolute file position of the value region (set after ensureMetaLoaded)
+        private int bitsPerLen;          // bit width of the packed value-length array
+        private int metaLensOff;         // offset of the packed value-length array within metaScratch
+        private byte[] metaScratch = new byte[64]; // decompressed metadata buffer; grown on demand
+        private boolean metaLoaded;
 
         // Decompressed value region (lazy).
         private int[] valueOffsets; // prefix-sum: slot s occupies payload[valueOffsets[s]..valueOffsets[s+1])
@@ -420,16 +430,16 @@ final class FlattenedDocValuesProducer extends DocValuesProducer {
         }
 
         /**
-         * Loads the header of block {@code blockIdx}: flags, numDocs, bit-packed docId-delta,
-         * bit-packed slot counts (built into a prefix-sum {@code slotStarts[]} table), and records
-         * the position and width of the value-length array for lazy loading.
-         *
-         * <p>After this call, {@link #advanceToDoc} can answer doc-presence checks and slot-count
-         * queries without decompressing the value region.
+         * Loads the header of block {@code blockIdx}: flags, numDocs, the bit-packed docId-delta
+         * array, and the metadata region location. After this call, {@link #advanceToDoc} can answer
+         * doc-presence checks using only the uncompressed docId array (no decompression). For
+         * {@code FLAG_ALL_SINGLE_SLOT} blocks, slot counts are also free (always 1). For multi-slot
+         * blocks, {@link #ensureMetaLoaded()} must be called first.
          */
         private void loadBlockHeader(int blockIdx) throws IOException {
             if (loadedBlock == blockIdx) return;
             loadedBlock = blockIdx;
+            metaLoaded = false;
             valuesLoaded = false;
             docCursorIdx = -1;
             slotsRemaining = 0;
@@ -441,11 +451,12 @@ final class FlattenedDocValuesProducer extends DocValuesProducer {
             allSingleSlot = (flags & FLAG_ALL_SINGLE_SLOT) != 0;
             noNullValues = (flags & FLAG_NO_NULL_VALUES) != 0;
             valueCompressed = (flags & FLAG_VALUES_COMPRESSED) != 0;
+            metaCompressed = (flags & FLAG_META_COMPRESSED) != 0;
 
             numDocsInBlock = dataIn.readVInt();
             firstDocInBlock = firstDocIds[blockIdx];
 
-            // Eagerly read bit-packed docId deltas (outside the compressed region).
+            // Eagerly read bit-packed docId deltas (outside any compressed region).
             if (contiguous == false) {
                 if (docIds.length < numDocsInBlock) docIds = new int[numDocsInBlock];
                 docIds[0] = firstDocInBlock;
@@ -456,13 +467,30 @@ final class FlattenedDocValuesProducer extends DocValuesProducer {
                 }
             }
 
-            // Eagerly read bit-packed slot counts and build slotStarts[] prefix sums.
+            // Record the start of the metadata region for lazy decoding.
+            metaLen = dataIn.readVInt();
+            metaAbsOff = dataIn.getFilePointer();
+        }
+
+        /**
+         * Decompresses (or reads) the metadata region for the current block, if not already done.
+         * Builds {@link #slotStarts} (prefix sums of slot counts) and sets {@link #numSlotsInBlock},
+         * {@link #bitsPerLen}, {@link #metaLensOff}, and {@link #valueRegionAbsOff}.
+         */
+        private void ensureMetaLoaded() throws IOException {
+            if (metaLoaded) return;
+
+            dataIn.seek(metaAbsOff);
+            metaScratch = FlattenedDocValuesFormat.readMaybeCompressed(DECOMPRESSOR, dataIn, metaLen, metaCompressed, metaScratch);
+            valueRegionAbsOff = dataIn.getFilePointer();
+
+            int off = 0;
             if (allSingleSlot) {
                 numSlotsInBlock = numDocsInBlock;
             } else {
                 if (slotStarts.length < numDocsInBlock + 1) slotStarts = new int[numDocsInBlock + 1];
-                final int bitsPerSlot = dataIn.readByte() & 0xFF;
-                FlattenedDocValuesFormat.unpackInts(dataIn, slotStarts, 0, numDocsInBlock, bitsPerSlot);
+                final int bitsPerSlot = metaScratch[off++] & 0xFF;
+                off = FlattenedDocValuesFormat.unpackInts(metaScratch, off, slotStarts, 0, numDocsInBlock, bitsPerSlot);
                 int acc = 0;
                 for (int i = 0; i < numDocsInBlock; i++) {
                     final int cnt = slotStarts[i];
@@ -473,24 +501,29 @@ final class FlattenedDocValuesProducer extends DocValuesProducer {
                 numSlotsInBlock = acc;
             }
 
-            // Record the position and bit-width of the value-length array for lazy loading.
-            bitsPerLen = dataIn.readByte() & 0xFF;
-            valueLenAbsOff = dataIn.getFilePointer();
+            bitsPerLen = metaScratch[off++] & 0xFF;
+            metaLensOff = off;
+
+            metaLoaded = true;
         }
 
         /**
          * Loads the value-length array and decompresses (or reads) the raw value region for the
-         * current block, if not already done. Builds {@link #valueOffsets} (prefix sums) and
-         * {@link #slotLens} (resolved lengths, {@code -1} for null).
+         * current block, if not already done. Calls {@link #ensureMetaLoaded()} first, then builds
+         * {@link #valueOffsets} (prefix sums) and {@link #slotLens} (resolved lengths, {@code -1}
+         * for null).
          */
         private void ensureValuesLoaded() throws IOException {
             if (valuesLoaded) return;
+            // Metadata must be decoded first: it supplies numSlotsInBlock, bitsPerLen, metaLensOff,
+            // and valueRegionAbsOff, all of which this method needs.
+            ensureMetaLoaded();
+
             if (slotLens.length < numSlotsInBlock) slotLens = new int[numSlotsInBlock];
             if (valueOffsets.length < numSlotsInBlock + 1) valueOffsets = new int[numSlotsInBlock + 1];
 
-            // Unpack the value-length array.
-            dataIn.seek(valueLenAbsOff);
-            FlattenedDocValuesFormat.unpackInts(dataIn, slotLens, 0, numSlotsInBlock, bitsPerLen);
+            // Unpack value lengths from the already-decoded metadata buffer (no seek needed).
+            FlattenedDocValuesFormat.unpackInts(metaScratch, metaLensOff, slotLens, 0, numSlotsInBlock, bitsPerLen);
 
             // Decode into resolved lengths and build prefix-sum offset table.
             int totalValueBytes = 0;
@@ -514,7 +547,10 @@ final class FlattenedDocValuesProducer extends DocValuesProducer {
             }
             valueOffsets[numSlotsInBlock] = totalValueBytes;
 
-            // Decompress (or read) the raw value region. dataIn is now past the packed lengths.
+            // Seek to the value region (ensureMetaLoaded may have been a no-op on this call).
+            dataIn.seek(valueRegionAbsOff);
+
+            // Decompress (or read) the raw value region.
             if (payload.length < totalValueBytes) payload = new byte[totalValueBytes];
             if (valueCompressed) {
                 final BytesRef decompRef = new BytesRef(payload, 0, totalValueBytes);
@@ -548,10 +584,12 @@ final class FlattenedDocValuesProducer extends DocValuesProducer {
         /**
          * Positions this cursor on {@code docId}.
          *
-         * <p>Slot counts are decoded eagerly in {@link #loadBlockHeader}, so this method can return
-         * the slot count without decompressing the value region. Value decompression is deferred to
-         * {@link #nextSlot()}, which calls {@link #ensureValuesLoaded()} on first use.
-         * Backwards movement is O(1) — no re-walking of the payload.
+         * <p>Doc-presence checks never decompress anything: they use only the uncompressed docId
+         * array (or arithmetic for contiguous blocks). For {@code FLAG_ALL_SINGLE_SLOT} blocks, the
+         * slot count (always 1) is free. For multi-slot blocks, the metadata region is decompressed
+         * lazily via {@link #ensureMetaLoaded()}, which is at most once per block and is a
+         * prerequisite of {@link #nextSlot()} anyway. Backwards movement is O(1) once the metadata
+         * for the target block is loaded.
          *
          * @return the slot count for this doc (1 if allSingleSlot), or 0 if not present
          */
@@ -562,8 +600,15 @@ final class FlattenedDocValuesProducer extends DocValuesProducer {
             final int docIdx = findDocInBlock(docId);
             if (docIdx < 0) return 0;
             docCursorIdx = docIdx;
-            final int firstSlot = allSingleSlot ? docIdx : slotStarts[docIdx];
-            slotsRemaining = allSingleSlot ? 1 : (slotStarts[docIdx + 1] - firstSlot);
+            final int firstSlot;
+            if (allSingleSlot) {
+                firstSlot = docIdx;
+                slotsRemaining = 1;
+            } else {
+                ensureMetaLoaded();
+                firstSlot = slotStarts[docIdx];
+                slotsRemaining = slotStarts[docIdx + 1] - firstSlot;
+            }
             curSlot = firstSlot;
             return slotsRemaining;
         }

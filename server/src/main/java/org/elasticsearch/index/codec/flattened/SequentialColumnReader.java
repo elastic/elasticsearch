@@ -18,6 +18,7 @@ import java.io.IOException;
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 import static org.elasticsearch.index.codec.flattened.FlattenedDocValuesFormat.FLAG_ALL_SINGLE_SLOT;
 import static org.elasticsearch.index.codec.flattened.FlattenedDocValuesFormat.FLAG_DOCS_CONTIGUOUS;
+import static org.elasticsearch.index.codec.flattened.FlattenedDocValuesFormat.FLAG_META_COMPRESSED;
 import static org.elasticsearch.index.codec.flattened.FlattenedDocValuesFormat.FLAG_NO_NULL_VALUES;
 import static org.elasticsearch.index.codec.flattened.FlattenedDocValuesFormat.FLAG_VALUES_COMPRESSED;
 
@@ -70,19 +71,30 @@ final class SequentialColumnReader implements Closeable {
     private boolean allSingleSlot;
     private boolean noNullValues;
     private boolean compressed;
+    private boolean metaCompressed;
     /**
      * Per-doc slot ranges. {@code slotStarts[i]} is the index of the first slot for doc {@code i};
      * {@code slotStarts[numDocsInBlock]} is {@code numSlotsInBlock}. Sized {@code numDocsInBlock+1}.
      * When {@code allSingleSlot}, slot index equals doc index (no array needed; read via
      * {@code docIdx} directly).
+     * Populated by {@link #ensureMetaLoaded()}.
      */
     private int[] slotStarts;   // size numDocsInBlock+1 when !allSingleSlot
     /** Resolved docIds when {@code !contiguous} (populated eagerly in loadBlockHeader). */
     private int[] docIds;
-    /** Absolute file offset of the bit-packed value-length array (after slot counts). */
-    private long valueLenAbsOff;
-    /** Number of packed bytes for the value-length array (= ceil(numSlots * bitsPerLen / 8)). */
+    /** Absolute file offset of the metadata region (slot counts + value lengths). */
+    private long metaAbsOff;
+    /** Uncompressed byte length of the metadata region. */
+    private int metaLen;
+    /** Absolute file offset of the value region (set after {@link #ensureMetaLoaded()}). */
+    private long valueRegionAbsOff;
+    /** Bit width of the packed value-length array (set in {@link #ensureMetaLoaded()}). */
     private int bitsPerLen;
+    /** Offset of the packed value-length array within {@link #metaScratch}. */
+    private int metaLensOff;
+    /** Decompressed metadata buffer; grown on demand. */
+    private byte[] metaScratch = new byte[64];
+    private boolean metaLoaded;
 
     // Loaded per-slot state — populated lazily by ensureValuesLoaded().
     /** {@code valueOffsets[s]} = byte start of slot {@code s} in {@link #payload}. Length numSlots+1. */
@@ -320,6 +332,7 @@ final class SequentialColumnReader implements Closeable {
     }
 
     private void loadBlockHeader(int blockIdx) throws IOException {
+        metaLoaded = false;
         valuesLoaded = false;
 
         dataIn.seek(columnStartOff + blockStartsRel[blockIdx]);
@@ -329,10 +342,11 @@ final class SequentialColumnReader implements Closeable {
         allSingleSlot = (flags & FLAG_ALL_SINGLE_SLOT) != 0;
         noNullValues = (flags & FLAG_NO_NULL_VALUES) != 0;
         compressed = (flags & FLAG_VALUES_COMPRESSED) != 0;
+        metaCompressed = (flags & FLAG_META_COMPRESSED) != 0;
 
         numDocsInBlock = dataIn.readVInt();
 
-        // Eagerly read bit-packed docId deltas (outside the compressed region).
+        // Eagerly read bit-packed docId deltas (outside any compressed region).
         if (contiguous == false) {
             if (docIds.length < numDocsInBlock) docIds = new int[numDocsInBlock];
             docIds[0] = firstDocIds[blockIdx];
@@ -343,14 +357,31 @@ final class SequentialColumnReader implements Closeable {
             }
         }
 
-        // Eagerly read bit-packed slot counts and build slotStarts[] prefix sums.
+        // Record the start of the metadata region for lazy decoding.
+        metaLen = dataIn.readVInt();
+        metaAbsOff = dataIn.getFilePointer();
+    }
+
+    /**
+     * Decompresses (or reads) the metadata region for the current block, if not already done.
+     * Builds {@link #slotStarts} (prefix sums of slot counts) and sets {@link #numSlotsInBlock},
+     * {@link #bitsPerLen}, {@link #metaLensOff}, and {@link #valueRegionAbsOff}.
+     */
+    private void ensureMetaLoaded() throws IOException {
+        if (metaLoaded) return;
+
+        dataIn.seek(metaAbsOff);
+        metaScratch = FlattenedDocValuesFormat.readMaybeCompressed(DECOMPRESSOR, dataIn, metaLen, metaCompressed, metaScratch);
+        valueRegionAbsOff = dataIn.getFilePointer();
+
+        int off = 0;
         if (allSingleSlot) {
             numSlotsInBlock = numDocsInBlock;
         } else {
             if (slotStarts.length < numDocsInBlock + 1) slotStarts = new int[numDocsInBlock + 1];
-            final int bitsPerSlot = dataIn.readByte() & 0xFF;
+            final int bitsPerSlot = metaScratch[off++] & 0xFF;
             // Unpack slot counts temporarily into slotStarts[0..numDocs); then prefix-sum in place.
-            FlattenedDocValuesFormat.unpackInts(dataIn, slotStarts, 0, numDocsInBlock, bitsPerSlot);
+            off = FlattenedDocValuesFormat.unpackInts(metaScratch, off, slotStarts, 0, numDocsInBlock, bitsPerSlot);
             int acc = 0;
             for (int i = 0; i < numDocsInBlock; i++) {
                 final int cnt = slotStarts[i];
@@ -361,25 +392,24 @@ final class SequentialColumnReader implements Closeable {
             numSlotsInBlock = acc;
         }
 
-        // Record the start offset of the value-length bit-array and its width for lazy loading.
-        bitsPerLen = dataIn.readByte() & 0xFF;
-        valueLenAbsOff = dataIn.getFilePointer();
-        // Skip past the packed length array to reach the value region.
-        final int packedLenBytes = (numSlotsInBlock * bitsPerLen + 7) / 8;
-        dataIn.seek(valueLenAbsOff + packedLenBytes);
-        // dataIn is now positioned at the start of the value region (used by ensureValuesLoaded).
+        bitsPerLen = metaScratch[off++] & 0xFF;
+        metaLensOff = off;
+
+        metaLoaded = true;
     }
 
     private void ensureValuesLoaded() throws IOException {
         if (valuesLoaded) return;
 
-        // Unpack the value-length array.
+        // Metadata must be decoded first: it provides numSlotsInBlock, bitsPerLen, metaLensOff,
+        // and valueRegionAbsOff, all of which this method needs.
+        ensureMetaLoaded();
+
         if (slotLens.length < numSlotsInBlock) slotLens = new int[numSlotsInBlock];
         if (valueOffsets.length < numSlotsInBlock + 1) valueOffsets = new int[numSlotsInBlock + 1];
 
-        // Seek back to the length array and read it.
-        dataIn.seek(valueLenAbsOff);
-        FlattenedDocValuesFormat.unpackInts(dataIn, slotLens, 0, numSlotsInBlock, bitsPerLen);
+        // Unpack the value-length array from the already-decoded metadata buffer (no seek).
+        FlattenedDocValuesFormat.unpackInts(metaScratch, metaLensOff, slotLens, 0, numSlotsInBlock, bitsPerLen);
 
         // Decode lengths and build prefix-sum offset table.
         int totalValueBytes = 0;
@@ -403,7 +433,11 @@ final class SequentialColumnReader implements Closeable {
         }
         valueOffsets[numSlotsInBlock] = totalValueBytes;
 
-        // Decompress (or read) the value region. dataIn is positioned just after the length array.
+        // Seek to the value region (ensureMetaLoaded may have been a no-op on this call, so the
+        // file pointer may already have moved past the metadata area).
+        dataIn.seek(valueRegionAbsOff);
+
+        // Decompress (or read) the raw value bytes.
         if (payload.length < totalValueBytes) payload = new byte[totalValueBytes];
         if (compressed) {
             final BytesRef decompRef = new BytesRef(payload, 0, totalValueBytes);

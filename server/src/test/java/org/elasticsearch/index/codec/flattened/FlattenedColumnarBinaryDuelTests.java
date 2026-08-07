@@ -327,6 +327,65 @@ public class FlattenedColumnarBinaryDuelTests extends ESTestCase {
     }
 
     // ---------------------------------------------------------------------------------
+    // Metadata-compression threshold coverage
+    // ---------------------------------------------------------------------------------
+
+    /**
+     * Exercises all four (FLAG_META_COMPRESSED, FLAG_VALUES_COMPRESSED) combinations in one test by
+     * choosing parameters that produce the asymmetric cases:
+     *
+     * <ol>
+     *   <li>Many docs with 1-byte values: metadata region is large (many slot-count + length entries)
+     *       but the raw value bytes are small. A high {@code minCompressBytes} flips the combination:
+     *       meta compresses and values do not.</li>
+     *   <li>Two docs with multi-KB values: value region is large but the metadata payload is tiny
+     *       (2 docs × 1 slot × packed length = a handful of bytes). Values compress, meta does not.</li>
+     * </ol>
+     *
+     * <p>Both cases duel against the row format so round-trip correctness is verified regardless of
+     * which compression flags are active.
+     */
+    public void testMetaCompressionThresholdBothWays() throws IOException {
+        // Case 1: many docs with 1-byte values — forces meta compression, suppresses value compression.
+        // minCompressBytes = 1024 so that the ~numDocs-byte metadata frame crosses the threshold
+        // while the numDocs single-byte value region stays below it.
+        final int manyDocs = 200;
+        final int highThreshold = 1024;
+        final List<byte[]> blobs1 = new ArrayList<>(manyDocs);
+        for (int d = 0; d < manyDocs; d++) {
+            blobs1.add(buildBlob(List.<String[]>of(new String[] { "k", String.valueOf(d % 10) })));
+        }
+        duelRoundTripWithFormat(
+            new FlattenedDocValuesFormat(
+                FlattenedDocValuesFormat.TARGET_BLOCK_BYTES_DEFAULT,
+                manyDocs * 2,
+                highThreshold,
+                MAX_BUFFERED_BYTES_DEFAULT
+            ),
+            blobs1
+        );
+
+        // Case 2: two docs with large values — forces value compression, suppresses meta compression.
+        // The metadata payload for 2 docs with 1 slot each is tiny (2 bytes), well below the default
+        // minCompressBytes threshold; the ~4 KB value region exceeds it.
+        final List<byte[]> blobs2 = new ArrayList<>();
+        final char[] filler = new char[4000];
+        Arrays.fill(filler, 'x');
+        final String bigVal = new String(filler);
+        blobs2.add(buildBlob(List.<String[]>of(new String[] { "k", bigVal + "-0" })));
+        blobs2.add(buildBlob(List.<String[]>of(new String[] { "k", bigVal + "-1" })));
+        duelRoundTripWithFormat(
+            new FlattenedDocValuesFormat(
+                FlattenedDocValuesFormat.TARGET_BLOCK_BYTES_DEFAULT,
+                8192,
+                MIN_COMPRESS_BYTES_DEFAULT,
+                MAX_BUFFERED_BYTES_DEFAULT
+            ),
+            blobs2
+        );
+    }
+
+    // ---------------------------------------------------------------------------------
     // Duel infrastructure
     // ---------------------------------------------------------------------------------
 

@@ -12,10 +12,13 @@ package org.elasticsearch.index.codec.flattened;
 import org.apache.lucene.codecs.DocValuesConsumer;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.DocValuesProducer;
+import org.apache.lucene.codecs.compressing.Decompressor;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
+import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.BytesRef;
 
 import java.io.IOException;
 
@@ -69,30 +72,39 @@ import java.io.IOException;
  *       bit1 = FLAG_DOCS_CONTIGUOUS      docIds are consecutive; delta array omitted
  *       bit2 = FLAG_ALL_SINGLE_SLOT      every doc has exactly one slot; count array omitted
  *       bit3 = FLAG_NO_NULL_VALUES       no slot in this block is null
+ *       bit4 = FLAG_META_COMPRESSED      metadata region is ZSTD-compressed
  * [vint  numDocs]
  * [byte  bitsPerDelta]                   absent when FLAG_DOCS_CONTIGUOUS
  * [bit-packed (gap-1) x (numDocs-1)]     absent when FLAG_DOCS_CONTIGUOUS; MSB-first, bitsPerDelta bits each
- * [byte  bitsPerSlotCount]               absent when FLAG_ALL_SINGLE_SLOT
- * [bit-packed slotCount x numDocs]       absent when FLAG_ALL_SINGLE_SLOT; MSB-first, bitsPerSlotCount bits each
- * [byte  bitsPerValueLen]                always present
- * [bit-packed encodedLen x numSlots]     MSB-first, bitsPerValueLen bits each;
+ * [vint  metaLen]                        uncompressed byte length of the metadata region
+ * -- metadata region:
+ * -- if FLAG_META_COMPRESSED: [vint compressedLen][compressedLen bytes]
+ * -- else:                    metaLen raw bytes
+ * -- decoded content (exactly metaLen bytes):
+ *    [byte  bitsPerSlotCount]            absent when FLAG_ALL_SINGLE_SLOT
+ *    [bit-packed slotCount x numDocs]    absent when FLAG_ALL_SINGLE_SLOT; MSB-first
+ *    [byte  bitsPerValueLen]             always present
+ *    [bit-packed encodedLen x numSlots]  MSB-first, bitsPerValueLen bits each;
  *                                        FLAG_NO_NULL_VALUES set:   encodedLen = valueLen (0 = empty string)
  *                                        FLAG_NO_NULL_VALUES clear: encodedLen = 0 for null, valueLen+1 otherwise
  * -- value region (numSlots raw value bytes concatenated; total = sum(valueLen)):
  * -- if FLAG_VALUES_COMPRESSED:
  *    [vint compressedLen][compressedLen bytes]   written by ZstdCompressionMode.ZstdCompressor
- * -- otherwise:
+ * -- else:
  *    raw value bytes
  * </pre>
  *
- * <p>The docId-delta array and the slot-count and value-length arrays are all stored outside the
- * compressed value region. This lets {@link FlattenedDocValuesProducer.ColumnCursor#advanceToDoc}
- * binary-search docIds and determine slot counts without decompressing, and lets the batch reader
- * in {@link KeyColumnBatchReader} copy whole runs of values with a single
- * {@link System#arraycopy} after a single decompression per block. The value region contains only
- * the concatenated raw value bytes — no per-slot framing. Null slots contribute zero value bytes;
- * they are identified by {@code encodedLen == 0} when {@code FLAG_NO_NULL_VALUES} is clear, or
- * distinguished from empty strings by the flag itself when it is set.
+ * <p>The docId-delta array stays outside any compressed region so that block skipping and
+ * doc-presence checks ({@link FlattenedDocValuesProducer.ColumnCursor#advanceToDoc}) never
+ * decompress anything. The slot-count and value-length arrays live in a separate small ZSTD frame
+ * ahead of the value region: they are only needed once a doc is known to be present, and
+ * bit-packed lengths outside a compressed region are sized by the block's longest value, so a
+ * block of mostly-short values containing one long value pays a wide bit width on every slot — a
+ * cost ZSTD recovers almost entirely. The two frames are separate (rather than one) so that a
+ * slot-count lookup does not force decompression of the much larger value region. Null slots
+ * contribute zero value bytes; they are identified by {@code encodedLen == 0} when
+ * {@code FLAG_NO_NULL_VALUES} is clear, or distinguished from empty strings by the flag itself
+ * when it is set.
  *
  * <h2>Key dictionary</h2>
  *
@@ -144,6 +156,8 @@ public final class FlattenedDocValuesFormat extends DocValuesFormat {
      * When clear, {@code encodedLen[s] = 0} means null, {@code encodedLen[s] = valueLen+1} otherwise.
      */
     static final int FLAG_NO_NULL_VALUES = 0x08;
+    /** Bit 4: the metadata region (slot counts + value lengths) is ZSTD-compressed. */
+    static final int FLAG_META_COMPRESSED = 0x10;
 
     /**
      * Flush a new block when the uncompressed payload reaches this size.
@@ -222,8 +236,12 @@ public final class FlattenedDocValuesFormat extends DocValuesFormat {
      * Writes {@code n} values from {@code arr[0..n-1]} to {@code out} as an MSB-first bit-packed
      * stream. Each value occupies exactly {@code bitsPerValue} bits. The last byte is zero-padded
      * on the right if {@code n * bitsPerValue} is not a multiple of 8.
+     *
+     * <p>{@code out} may be any {@link DataOutput} — including a
+     * {@link org.apache.lucene.store.ByteArrayDataOutput} for in-memory buffering. The body only
+     * calls {@link DataOutput#writeByte}, so no {@link IndexInput}-specific API is used.
      */
-    static void packInts(IndexOutput out, int[] arr, int n, int bitsPerValue) throws IOException {
+    static void packInts(DataOutput out, int[] arr, int n, int bitsPerValue) throws IOException {
         long accumulator = 0;
         int bitsInAcc = 0;
         for (int i = 0; i < n; i++) {
@@ -275,5 +293,29 @@ public final class FlattenedDocValuesFormat extends DocValuesFormat {
             arr[arrOffset + i] = (int) ((accumulator >>> bitsInAcc) & mask);
         }
         return srcOff;
+    }
+
+    /**
+     * Reads a possibly-ZSTD-compressed region of exactly {@code len} uncompressed bytes from
+     * {@code in} into {@code scratch}, growing the array if needed, and returns the (possibly grown)
+     * scratch. After a successful return, the uncompressed bytes occupy {@code scratch[0..len-1]}
+     * and {@code in} is positioned past the compressed (or raw) bytes.
+     *
+     * <p>{@code len} must be &gt; 0. The decompressor does not store the original length; the caller
+     * must supply it.
+     */
+    static byte[] readMaybeCompressed(Decompressor decompressor, IndexInput in, int len, boolean compressed, byte[] scratch)
+        throws IOException {
+        assert len > 0 : "readMaybeCompressed called with len=0";
+        if (compressed) {
+            if (scratch.length < len) scratch = new byte[ArrayUtil.oversize(len, 1)];
+            final BytesRef ref = new BytesRef(scratch, 0, len);
+            decompressor.decompress(in, len, 0, len, ref);
+            scratch = ref.bytes; // decompressor may reallocate
+        } else {
+            if (scratch.length < len) scratch = new byte[ArrayUtil.oversize(len, 1)];
+            in.readBytes(scratch, 0, len);
+        }
+        return scratch;
     }
 }

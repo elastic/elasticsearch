@@ -48,7 +48,7 @@ import java.util.function.Supplier;
 /// The max number of concurrent recovery slots is controlled by the [#INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING]
 /// dynamic setting.
 ///
-/// Dispatch is also subject to the node's recovery gates: while they block, no queued recovery is dispatched, and [#fillSlots]
+/// Dispatch is also subject to the node's recovery gates: while they block, no queued recovery is dispatched, and [#doFillSlots]
 /// registers a listener with the [RecoveryGateMonitor] so dispatch resumes as soon as they allow recoveries again.
 public final class ThrottlingRecoveryService extends AbstractLifecycleComponent implements ClusterStateListener {
 
@@ -299,6 +299,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
     /// Evaluates the recovery gates and drains the pending queue up to the max slot capacity, forking to the generic executor so
     /// dispatch is not run on the cluster state applier thread. Called on every enqueue, slot release and recovery gate callback.
     private void fillSlots() {
+        // generic thread pool is unbounded and does not reject
         executor.execute(this::doFillSlots);
     }
 

@@ -64,7 +64,7 @@ final class IndirectSorter {
 
             @Override
             protected int comparePivot(int j) {
-                return Double.compare(keys[indices[j]], keys[pivotIdx]);
+                return Double.compare(keys[pivotIdx], keys[indices[j]]);
             }
 
             @Override

@@ -478,6 +478,27 @@ POST /_query
 1. `?1` refers to the first param, `?2` to the second param
 2. Values are provided as a simple array, matched by position
 
+##### Anonymous parameters
+
+With anonymous parameters, each `?` consumes the next param in order:
+
+```console
+POST /_query
+{
+  "query": """
+    FROM library
+    | WHERE page_count > ? AND author == ? <1>
+    | KEEP author, name, page_count
+    | SORT page_count DESC
+  """,
+  "params": [300, "Frank Herbert"] <2>
+}
+```
+% TEST[setup:library]
+
+1. Each `?` is replaced by the next param in the array
+2. Values are provided as a simple array
+
 ### Identifier parameters (`??`) [esql-rest-identifier-params]
 
 ```{applies_to}

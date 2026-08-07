@@ -25,7 +25,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -183,37 +185,75 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
         PercentilesAggregationBuilder aggBuilder = new PercentilesAggregationBuilder("p").field("number")
             .percentilesConfig(new PercentilesConfig.TDigest());
 
+        withSequentialIndex(500, reader -> {
+            expectThrows(CircuitBreakingException.class, () -> collectWithBreaker(reader, breakerService, aggBuilder, fieldType));
+            // doClose() must return all partial bytes; nothing should remain on the breaker.
+            assertEquals(0L, breakerService.getBreaker(CircuitBreaker.REQUEST).getUsed());
+        });
+    }
+
+    /**
+     * Verifies that when the REQUEST breaker trips mid-collection, doClose() releases all partially
+     * allocated bytes and leaves the breaker at zero. The cranky breaker trips randomly (roughly 1 in 20
+     * calls), so we repeat several times to maximize the chance of hitting the failure path.
+     */
+    public void testCrankyBreakerDoesNotLeakOnTrip() throws IOException {
+        CrankyCircuitBreakerService breakerService = new CrankyCircuitBreakerService();
+        CircuitBreaker breaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
+        PercentilesAggregationBuilder aggBuilder = new PercentilesAggregationBuilder("p").field("number")
+            .percentilesConfig(new PercentilesConfig.TDigest());
+
+        withSequentialIndex(100, reader -> {
+            for (int i = 0; i < 5; i++) {
+                try {
+                    collectWithBreaker(reader, breakerService, aggBuilder, fieldType);
+                } catch (CircuitBreakingException e) {
+                    assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
+                }
+                // doClose() must return all partial bytes on any trip; nothing should remain.
+                assertEquals(0L, breaker.getUsed());
+            }
+        });
+    }
+
+    private void withSequentialIndex(int docCount, CheckedConsumer<DirectoryReader, IOException> body) throws IOException {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-                for (int i = 0; i < 500; i++) {
+                for (int i = 0; i < docCount; i++) {
                     iw.addDocument(singleton(new SortedNumericDocValuesField("number", i)));
                 }
             }
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
-                expectThrows(CircuitBreakingException.class, () -> {
-                    try (
-                        AggregationContext context = createAggregationContext(
-                            reader,
-                            createIndexSettings(),
-                            Queries.ALL_DOCS_INSTANCE,
-                            breakerService,
-                            0,
-                            DEFAULT_MAX_BUCKETS,
-                            false,
-                            false,
-                            fieldType
-                        )
-                    ) {
-                        Aggregator aggregator = createAggregator(aggBuilder, context);
-                        aggregator.preCollection();
-                        context.searcher().search(Queries.ALL_DOCS_INSTANCE, aggregator.asCollector());
-                        aggregator.postCollection();
-                        aggregator.buildTopLevel();
-                    }
-                });
-                // doClose() must return all partial bytes; nothing should remain on the breaker.
-                assertEquals(0L, breakerService.getBreaker(CircuitBreaker.REQUEST).getUsed());
+                body.accept(reader);
             }
+        }
+    }
+
+    private void collectWithBreaker(
+        DirectoryReader reader,
+        CircuitBreakerService breakerService,
+        PercentilesAggregationBuilder aggBuilder,
+        MappedFieldType fieldType
+    ) throws IOException {
+        try (
+            AggregationContext context = createAggregationContext(
+                reader,
+                createIndexSettings(),
+                Queries.ALL_DOCS_INSTANCE,
+                breakerService,
+                0,
+                DEFAULT_MAX_BUCKETS,
+                false,
+                false,
+                fieldType
+            )
+        ) {
+            Aggregator aggregator = createAggregator(aggBuilder, context);
+            aggregator.preCollection();
+            context.searcher().search(Queries.ALL_DOCS_INSTANCE, aggregator.asCollector());
+            aggregator.postCollection();
+            aggregator.buildTopLevel();
         }
     }
 

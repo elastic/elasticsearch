@@ -201,6 +201,6 @@ public class AnalysisBenchmark {
             mapping.put(name, new EsField(name, DataType.KEYWORD, emptyMap(), true, EsField.TimeSeriesFieldType.NONE));
         }
 
-        return new EsIndex("test", mapping, Map.of("test", new IndexProperties(IndexMode.STANDARD)), Map.of(), Map.of());
+        return new EsIndex("test", mapping, Map.of("test", new IndexProperties(IndexMode.STANDARD, 0)), Map.of(), Map.of());
     }
 }

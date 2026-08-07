@@ -59,6 +59,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.SequenceInputStream;
+import java.lang.reflect.Modifier;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -217,7 +218,7 @@ public class SearchDirectoryTests extends ESTestCase {
     }
 
     public void testStatelessDirectory() throws IOException {
-        try (Directory directory = StatelessDirectoryFactory.create(LuceneTestCase.createTempDir().toAbsolutePath())) {
+        try (Directory directory = StatelessDirectoryFactory.newSearchDirectory(LuceneTestCase.createTempDir().toAbsolutePath())) {
             // It's important to close the IndexOutput so the necessary metadata gets updated
             try (var output = directory.createOutput("vectors", IOContext.DEFAULT)) {
                 output.writeInt(12);
@@ -231,9 +232,25 @@ public class SearchDirectoryTests extends ESTestCase {
     }
 
     /**
+     * We have code (e.g. {@code KnnIndexer}) that reaches {@link StatelessDirectoryFactory} reflectively.
+     * Renaming methods, changing their parameters, or making them non-static breaks that caller at runtime.
+     * This test ensures the API stays stable for these consumers.
+     */
+    public void testReflectiveApiUse() throws Exception {
+        var factoryClass = Class.forName("org.elasticsearch.xpack.stateless.lucene.StatelessDirectoryFactory");
+
+        var newSearchDirectory = factoryClass.getMethod("newSearchDirectory", Path.class, Path.class, Settings.class);
+        assertThat(newSearchDirectory.getReturnType(), equalTo(Directory.class));
+        assertTrue("invoked with a null receiver", Modifier.isStatic(newSearchDirectory.getModifiers()));
+
+        var logCacheStats = factoryClass.getMethod("logCacheStats", Directory.class, String.class);
+        assertTrue("invoked with a null receiver", Modifier.isStatic(logCacheStats.getModifiers()));
+    }
+
+    /**
      * Test that BlobCacheIndexInput can be read from the cache while the blob in object store keeps growing in size.
      *
-     * In production, the batched compound commits are expanded in cache by appending compound commits. For simplicity, this test appends
+     * <p>In production, the batched compound commits are expanded in cache by appending compound commits. For simplicity, this test appends
      * Lucene files instead.
      */
     public void testExpandingCacheRegions() throws Exception {

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.security.action.service;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -27,8 +28,11 @@ import java.util.List;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 public class TransportGetServiceAccountActionTests extends ESTestCase {
 
@@ -80,5 +84,43 @@ public class TransportGetServiceAccountActionTests extends ESTestCase {
         transportGetServiceAccountAction.doExecute(mock(Task.class), request3, future3);
         final GetServiceAccountResponse getServiceAccountResponse3 = future3.actionGet();
         assertThat(getServiceAccountResponse3.getServiceAccountInfos().length, equalTo(0));
+    }
+
+    public void testBuiltInLookupSkipsManagedStoreWhenSecurityIndexUnavailable() {
+        ServiceAccountService failingServiceAccountService = mock(ServiceAccountService.class);
+        doAnswer(invocation -> {
+            ActionListener<List<ServiceAccountInfo>> listener = invocation.getArgument(2);
+            listener.onFailure(new ElasticsearchException("security index unavailable"));
+            return null;
+        }).when(failingServiceAccountService).getManagedAccountInfos(any(), any(), any());
+        TransportGetServiceAccountAction action = new TransportGetServiceAccountAction(
+            MockUtils.setupTransportServiceWithThreadpoolExecutor(),
+            new ActionFilters(Collections.emptySet()),
+            failingServiceAccountService
+        );
+
+        final PlainActionFuture<GetServiceAccountResponse> future = new PlainActionFuture<>();
+        action.doExecute(mock(Task.class), new GetServiceAccountRequest("elastic", "fleet-server"), future);
+        assertThat(future.actionGet().getServiceAccountInfos()[0].getPrincipal(), equalTo("elastic/fleet-server"));
+        verify(failingServiceAccountService, never()).getManagedAccountInfos(any(), any(), any());
+    }
+
+    public void testUnfilteredLookupStillUsesManagedStore() {
+        ServiceAccountService failingServiceAccountService = mock(ServiceAccountService.class);
+        doAnswer(invocation -> {
+            ActionListener<List<ServiceAccountInfo>> listener = invocation.getArgument(2);
+            listener.onFailure(new ElasticsearchException("security index unavailable"));
+            return null;
+        }).when(failingServiceAccountService).getManagedAccountInfos(any(), any(), any());
+        TransportGetServiceAccountAction action = new TransportGetServiceAccountAction(
+            MockUtils.setupTransportServiceWithThreadpoolExecutor(),
+            new ActionFilters(Collections.emptySet()),
+            failingServiceAccountService
+        );
+
+        final PlainActionFuture<GetServiceAccountResponse> future = new PlainActionFuture<>();
+        action.doExecute(mock(Task.class), new GetServiceAccountRequest(null, null), future);
+        expectThrows(ElasticsearchException.class, future::actionGet);
+        verify(failingServiceAccountService).getManagedAccountInfos(eq(null), eq(null), any());
     }
 }

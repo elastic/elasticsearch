@@ -15,7 +15,7 @@ parse bearer token
        Authentication with empty User.roles() and _elastic_service_account metadata
   -> else:
        validate managed principal grammar
-       load managed account (project-scoped cache, invalidated on PUT/DELETE)
+       load managed account (project-scoped cache keyed by project id + principal, invalidated on PUT/DELETE)
        reject missing/disabled/malformed
        index token auth with standard credential cache
        Authentication with role names in User.roles() and _managed_service_account metadata
@@ -58,7 +58,7 @@ Observed behavior in unit tests:
 - Named-role create/update/delete invalidates via existing role-cache mechanisms
 - Built-in accounts remain on `ServiceAccountRoleReference` and are unaffected by native role invalidation
 
-**Demonstrated in automated tests:** internal cluster and YAML REST tests cover create-account → create-token → authorize, role assignment updates, delete/recreate same-service-account semantics, disabled accounts, reserved `elastic` namespace rejection, `manage_service_account` vs `manage_security` privilege split at HTTP, and native role definition changes via `put_role`.
+**Demonstrated in automated tests:** internal cluster, YAML REST, and multi-project REST tests cover create-account → create-token → authorize, role assignment updates, delete/recreate same-service-account semantics, disabled accounts, reserved `elastic` namespace rejection, `manage_service_account` vs `manage_security` privilege split at HTTP, native role definition changes via `put_role`, project isolation for identically named principals/tokens, and exact `elastic/*` GET without consulting the managed store.
 
 ## Document shapes (no secrets)
 
@@ -98,17 +98,18 @@ Verified in `ManagedServiceAccountPrivilegeTests`.
 
 | Area | Prototype behavior |
 |---|---|
-| Project scope | Uses `securityIndex.forCurrentProject()` for accounts and tokens |
+| Project scope | Uses `securityIndex.forCurrentProject()` for accounts and tokens; account and index-token credential caches key by `{projectId}/{principal}` |
 | File tokens | Only built-in `elastic/*`; managed path never consults file store first for non-elastic namespaces |
 | Extension `ServiceAccountTokenStore` | Managed accounts disabled when extension replaces the store (same as index tokens today) |
 | Mixed cluster | `managed_service_accounts` transport version gates CRUD/auth; built-ins continue to work |
 | Serverless | REST handlers marked `INTERNAL`; no serverless CRUD exposure |
 
-**Not tested:** cross-project token replay with identical principal/name.
+| Malformed account docs | Missing or mistyped fields are rejected during parse; authentication fails without exposing document contents |
+| Cross-project replay | Bearer from project A cannot authenticate in project B even when principal/token names match |
 
 ## API compatibility
 
-- GET `/_security/service` returns built-in `role_descriptor` unchanged; managed entries add `"managed": true`, `"roles"`, `"enabled"`.
+- GET `/_security/service` returns built-in `role_descriptor` unchanged; managed entries add `"managed": true`, `"roles"`, `"enabled"`. Requests scoped to the reserved `elastic` namespace skip managed-store lookup so built-in definitions remain available during security-index outages.
 - PUT/DELETE `/_security/service/{namespace}/{service}` are new routes for managed accounts.
 - Token creation route unchanged; dispatches to managed vs built-in action by namespace.
 - `ServiceAccountInfo` wire format gated by `managed_service_accounts` transport version.

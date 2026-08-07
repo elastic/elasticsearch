@@ -20,7 +20,6 @@ import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.TransportDeleteAction;
 import org.elasticsearch.action.get.GetRequest;
-import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.TransportGetAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
@@ -28,6 +27,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.cache.Cache;
@@ -59,7 +59,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeSet;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction.toSingleItemBulkRequest;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
@@ -130,20 +129,21 @@ public class ManagedServiceAccountStore implements CacheInvalidatorRegistry.Cach
             listener.onFailure(new IllegalArgumentException(principalError));
             return;
         }
+        final ProjectId projectId = currentProjectId();
         if (accountCache != null) {
-            final CachedAccount cached = accountCache.get(principal);
+            final CachedAccount cached = accountCache.get(cacheKeyForPrincipal(projectId, principal));
             if (cached != null) {
                 listener.onResponse(cached.account());
                 return;
             }
         }
-        loadAccountFromIndex(principal, listener);
+        loadAccountFromIndex(projectId, principal, listener);
     }
 
-    private void loadAccountFromIndex(String principal, ActionListener<ManagedServiceAccount> listener) {
+    private void loadAccountFromIndex(ProjectId projectId, String principal, ActionListener<ManagedServiceAccount> listener) {
         final IndexState projectSecurityIndex = securityIndex.forCurrentProject();
         if (projectSecurityIndex.indexExists() == false) {
-            cacheAccount(principal, null);
+            cacheAccount(projectId, principal, null);
             listener.onResponse(null);
             return;
         }
@@ -156,17 +156,29 @@ public class ManagedServiceAccountStore implements CacheInvalidatorRegistry.Cach
                 .setFetchSource(true)
                 .request();
             executeAsyncWithOrigin(client, SECURITY_ORIGIN, TransportGetAction.TYPE, getRequest, ActionListener.wrap(response -> {
-                final ManagedServiceAccount account = response.isExists() ? parseAccountDocument(response) : null;
-                cacheAccount(principal, account);
+                final ManagedServiceAccount account = response.isExists() ? parseAccountDocument(principal, response.getSource()) : null;
+                cacheAccount(projectId, principal, account);
                 listener.onResponse(account);
             }, listener::onFailure));
         });
     }
 
-    private void cacheAccount(String principal, @Nullable ManagedServiceAccount account) {
+    private void cacheAccount(ProjectId projectId, String principal, @Nullable ManagedServiceAccount account) {
         if (accountCache != null) {
-            accountCache.put(principal, CachedAccount.of(account));
+            accountCache.put(cacheKeyForPrincipal(projectId, principal), CachedAccount.of(account));
         }
+    }
+
+    private ProjectId currentProjectId() {
+        return securityIndex.currentProjectId();
+    }
+
+    static String cacheKeyForPrincipal(ProjectId projectId, String principal) {
+        return projectId.id() + "/" + principal;
+    }
+
+    static String cacheKeyPrefixForPrincipal(ProjectId projectId, String principal) {
+        return cacheKeyForPrincipal(projectId, principal) + "/";
     }
 
     public void listAccounts(
@@ -209,7 +221,19 @@ public class ManagedServiceAccountStore implements CacheInvalidatorRegistry.Cach
                         contextSupplier,
                         ActionListener.wrap(accounts -> listener.onResponse(List.copyOf(accounts)), listener::onFailure)
                     ),
-                    hit -> parseAccountDocument(hit.getSourceAsMap())
+                    hit -> {
+                        final Map<String, Object> source = hit.getSourceAsMap();
+                        if (source == null) {
+                            logger.warn("managed service account search hit has no source");
+                            return null;
+                        }
+                        final Object username = source.get("username");
+                        if (username instanceof String principal) {
+                            return parseAccountDocument(principal, source);
+                        }
+                        logger.warn("managed service account search hit has invalid username field");
+                        return null;
+                    }
                 );
             }
         });
@@ -321,9 +345,9 @@ public class ManagedServiceAccountStore implements CacheInvalidatorRegistry.Cach
     }
 
     @Override
-    public void invalidate(Collection<String> principals) {
+    public void invalidate(Collection<String> keys) {
         if (accountCache != null) {
-            principals.forEach(accountCache::invalidate);
+            keys.forEach(accountCache::invalidate);
         }
     }
 
@@ -396,31 +420,63 @@ public class ManagedServiceAccountStore implements CacheInvalidatorRegistry.Cach
     }
 
     @Nullable
-    private ManagedServiceAccount parseAccountDocument(GetResponse response) {
-        return parseAccountDocument(response.getSource());
-    }
-
-    @Nullable
-    private ManagedServiceAccount parseAccountDocument(Map<String, Object> source) {
+    private ManagedServiceAccount parseAccountDocument(String expectedPrincipal, Map<String, Object> source) {
         if (source == null) {
+            logger.warn("managed service account document [{}] has no source", expectedPrincipal);
             return null;
         }
-        final String docType = (String) source.get("doc_type");
-        if (SERVICE_ACCOUNT_DOC_TYPE.equals(docType) == false) {
-            logger.warn("malformed managed service account document with unexpected doc_type [{}]", docType);
+        final Object docTypeValue = source.get("doc_type");
+        if (docTypeValue instanceof String docType) {
+            if (SERVICE_ACCOUNT_DOC_TYPE.equals(docType) == false) {
+                logger.warn("managed service account document [{}] has invalid doc_type", expectedPrincipal);
+                return null;
+            }
+        } else {
+            logger.warn("managed service account document [{}] has invalid doc_type", expectedPrincipal);
             return null;
         }
-        final String principal = (String) source.get("username");
-        if (principal == null) {
-            logger.warn("malformed managed service account document missing username");
+        final Object usernameValue = source.get("username");
+        if (usernameValue instanceof String username) {
+            if (username.equals(expectedPrincipal) == false) {
+                logger.warn(
+                    "managed service account document id principal [{}] does not match stored username [{}]",
+                    expectedPrincipal,
+                    username
+                );
+                return null;
+            }
+            if (ManagedServiceAccountIdValidator.validatePrincipal(username) != null) {
+                logger.warn("managed service account document [{}] has invalid principal", expectedPrincipal);
+                return null;
+            }
+            final Object rolesValue = source.get("roles");
+            if (rolesValue instanceof List<?> rolesList) {
+                final List<String> roles = new ArrayList<>(rolesList.size());
+                for (Object roleValue : rolesList) {
+                    if (roleValue instanceof String role) {
+                        final Validation.Error roleNameError = NativeRealmValidationUtil.validateRoleName(role, true);
+                        if (roleNameError != null) {
+                            logger.warn("managed service account document [{}] has invalid role [{}]", expectedPrincipal, role);
+                            return null;
+                        }
+                        roles.add(role);
+                    } else {
+                        logger.warn("managed service account document [{}] has non-string role entry", expectedPrincipal);
+                        return null;
+                    }
+                }
+                final Object enabledValue = source.get("enabled");
+                if (enabledValue instanceof Boolean enabled) {
+                    return new ManagedServiceAccount(ServiceAccount.ServiceAccountId.fromPrincipal(username), roles, enabled);
+                }
+                logger.warn("managed service account document [{}] has invalid enabled field", expectedPrincipal);
+                return null;
+            }
+            logger.warn("managed service account document [{}] has invalid roles field", expectedPrincipal);
             return null;
         }
-        @SuppressWarnings("unchecked")
-        final List<String> roles = source.get("roles") instanceof Collection<?> collection
-            ? collection.stream().map(Object::toString).collect(Collectors.toCollection(ArrayList::new))
-            : List.of();
-        final boolean enabled = source.get("enabled") instanceof Boolean b ? b : true;
-        return new ManagedServiceAccount(ServiceAccount.ServiceAccountId.fromPrincipal(principal), roles, enabled);
+        logger.warn("managed service account document [{}] has invalid username field", expectedPrincipal);
+        return null;
     }
 
     private void clearManagedAccountCaches(ServiceAccount.ServiceAccountId accountId, ActionListener<Void> listener) {
@@ -431,7 +487,8 @@ public class ManagedServiceAccountStore implements CacheInvalidatorRegistry.Cach
     }
 
     private void invalidateManagedAccountCache(String principal, ActionListener<Void> listener) {
-        final ClearSecurityCacheRequest clearSecurityCacheRequest = new ClearSecurityCacheRequest().cacheName(CACHE_NAME).keys(principal);
+        final ClearSecurityCacheRequest clearSecurityCacheRequest = new ClearSecurityCacheRequest().cacheName(CACHE_NAME)
+            .keys(cacheKeyForPrincipal(currentProjectId(), principal));
         executeAsyncWithOrigin(
             client,
             SECURITY_ORIGIN,
@@ -450,7 +507,7 @@ public class ManagedServiceAccountStore implements CacheInvalidatorRegistry.Cach
 
     private void clearManagedTokenCache(ServiceAccount.ServiceAccountId accountId, ActionListener<Void> listener) {
         final ClearSecurityCacheRequest clearSecurityCacheRequest = new ClearSecurityCacheRequest().cacheName("index_service_account_token")
-            .keys(accountId.asPrincipal() + "/");
+            .keys(cacheKeyPrefixForPrincipal(currentProjectId(), accountId.asPrincipal()));
         executeAsyncWithOrigin(
             client,
             SECURITY_ORIGIN,

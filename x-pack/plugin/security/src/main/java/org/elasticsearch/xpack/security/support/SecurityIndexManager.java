@@ -668,6 +668,13 @@ public class SecurityIndexManager implements ClusterStateListener {
     }
 
     /**
+     * Returns the current project for requests executing on this node.
+     */
+    public ProjectId currentProjectId() {
+        return projectResolver.getProjectId();
+    }
+
+    /**
      * Retrieves the project scoped index state.
      * This is a point-in-time copy of the current state of the index in that project.
      * Its internal representation will not change even if the index's underlying state changes in the cluster metadata.

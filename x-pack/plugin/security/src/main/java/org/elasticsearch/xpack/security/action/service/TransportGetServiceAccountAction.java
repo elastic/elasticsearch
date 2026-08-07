@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountReq
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountResponse;
 import org.elasticsearch.xpack.core.security.action.service.ServiceAccountInfo;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount;
+import org.elasticsearch.xpack.core.security.support.ManagedServiceAccountIdValidator;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 
 import java.util.ArrayList;
@@ -63,6 +64,11 @@ public class TransportGetServiceAccountAction extends HandledTransportAction<Get
             .map(v -> ServiceAccountInfo.builtIn(v.id().asPrincipal(), v.roleDescriptor()))
             .toList();
 
+        if (requestsBuiltInAccountsOnly(request)) {
+            listener.onResponse(new GetServiceAccountResponse(builtInInfos.toArray(ServiceAccountInfo[]::new)));
+            return;
+        }
+
         serviceAccountService.getManagedAccountInfos(request.getNamespace(), request.getServiceName(), ActionListener.wrap(managedInfos -> {
             final List<ServiceAccountInfo> allInfos = new ArrayList<>(builtInInfos.size() + managedInfos.size());
             allInfos.addAll(builtInInfos);
@@ -70,5 +76,9 @@ public class TransportGetServiceAccountAction extends HandledTransportAction<Get
             allInfos.sort(Comparator.comparing(ServiceAccountInfo::getPrincipal));
             listener.onResponse(new GetServiceAccountResponse(allInfos.toArray(ServiceAccountInfo[]::new)));
         }, listener::onFailure));
+    }
+
+    private static boolean requestsBuiltInAccountsOnly(GetServiceAccountRequest request) {
+        return ManagedServiceAccountIdValidator.BUILTIN_NAMESPACE.equals(request.getNamespace());
     }
 }

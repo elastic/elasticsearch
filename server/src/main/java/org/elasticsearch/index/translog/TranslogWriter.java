@@ -39,6 +39,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -297,9 +298,10 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
             assert minSeqNo != SequenceNumbers.NO_OPS_PERFORMED || operationCounter == 0;
             assert maxSeqNo != SequenceNumbers.NO_OPS_PERFORMED || operationCounter == 0;
-
+            final List<Long> batchSeqNos = new ArrayList<>(ops.size());
             for (Translog.IndexBatch.Op op : ops) {
                 final long seqNo = op.seqNo();
+                batchSeqNos.add(seqNo);
                 minSeqNo = SequenceNumbers.min(minSeqNo, seqNo);
                 maxSeqNo = SequenceNumbers.max(maxSeqNo, seqNo);
                 nonFsyncedSequenceNumbers.add(seqNo);
@@ -310,7 +312,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             assert assertNoSeqNumberConflict(batch);
 
             location = new Translog.Location(generation, offset, operation.length());
-            // TODO: operationListener needs batch-aware support
+            operationListener.batchAdded(operation, batchSeqNos, location);
             bufferedBytes = buffer.size();
         }
 

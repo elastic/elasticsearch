@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.stateless.engine.translog;
 
+import org.apache.lucene.internal.hppc.LongArrayList;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.shard.ShardId;
@@ -15,6 +16,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -70,6 +72,62 @@ public class NodeTranslogBufferTests extends ESTestCase {
         translogBuffer.complete(1, Set.of(shardSyncState));
 
         assertFalse(translogBuffer.writeToBuffer(shardSyncState, serialized(new byte[10]), 2, new Translog.Location(0, 50, 20)));
+    }
+
+    public void testWriteBatchToBufferTracksAllSeqNos() throws IOException {
+        ShardSyncState shardSyncState = mock(ShardSyncState.class);
+        ShardId shardId = new ShardId("test1", "_na_", 0);
+        when(shardSyncState.getShardId()).thenReturn(shardId);
+        // A batch is one record but three logical operations, so the directory sees an op count of 3.
+        when(shardSyncState.createDirectory(1, 3)).thenReturn(new TranslogMetadata.Directory(0, new int[0]));
+
+        NodeTranslogBuffer translogBuffer = new NodeTranslogBuffer(BigArrays.NON_RECYCLING_INSTANCE, 1000);
+        Translog.Serialized operation = serialized(new byte[40]);
+        assertTrue(
+            translogBuffer.writeBatchToBuffer(
+                shardSyncState,
+                operation,
+                List.of(5L, 6L, 7L),
+                new Translog.Location(0, 0, operation.length())
+            )
+        );
+
+        TranslogReplicator.CompoundTranslog translog = translogBuffer.complete(1, Set.of(shardSyncState));
+        assertThat(translog.metadata().totalOps().get(shardId), equalTo(3L));
+        ShardSyncState.SyncMarker syncMarker = translog.metadata().syncedLocations().get(shardId);
+        assertThat(syncMarker.syncedSeqNos(), equalTo(LongArrayList.from(5L, 6L, 7L)));
+        assertThat(syncMarker.location(), equalTo(new Translog.Location(0, operation.length(), 0)));
+    }
+
+    public void testBatchCountsTowardsFlushSizeThreshold() throws IOException {
+        NodeTranslogBuffer translogBuffer = new NodeTranslogBuffer(BigArrays.NON_RECYCLING_INSTANCE, 50);
+        Translog.Serialized operation = serialized(new byte[60]);
+        assertTrue(
+            translogBuffer.writeBatchToBuffer(
+                mock(ShardSyncState.class),
+                operation,
+                List.of(1L, 2L),
+                new Translog.Location(0, 0, operation.length())
+            )
+        );
+        assertTrue(translogBuffer.shouldFlushBufferDueToSize());
+    }
+
+    public void testCannotAddBatchIfTranslogHasBeenWritten() throws IOException {
+        NodeTranslogBuffer translogBuffer = new NodeTranslogBuffer(BigArrays.NON_RECYCLING_INSTANCE, 50);
+        ShardSyncState shardSyncState = mock(ShardSyncState.class);
+        when(shardSyncState.getShardId()).thenReturn(new ShardId("test1", "_na_", 0));
+        when(shardSyncState.createDirectory(1, 2)).thenReturn(new TranslogMetadata.Directory(0, new int[0]));
+
+        assertTrue(
+            translogBuffer.writeBatchToBuffer(shardSyncState, serialized(new byte[40]), List.of(1L, 2L), new Translog.Location(0, 0, 50))
+        );
+
+        translogBuffer.complete(1, Set.of(shardSyncState));
+
+        assertFalse(
+            translogBuffer.writeBatchToBuffer(shardSyncState, serialized(new byte[10]), List.of(3L), new Translog.Location(0, 50, 20))
+        );
     }
 
     public void testInactiveShardsAreNotIncludedInTranslog() throws IOException {

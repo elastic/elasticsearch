@@ -167,6 +167,38 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
         }
     }
 
+    public void testRetainedColumnWithEmptyJsonRowsProducesNoExpandedColumns() {
+        BlockFactory bf = blockFactory();
+        Result result = result(
+            List.of(intAttr(), unmappedAttr()),
+            List.of(page(bf, List.of(row(1, jsonObject("{}")), row(2, jsonObject("{}")))))
+        );
+
+        Result expanded = expand(result, bf);
+        try {
+            assertThat(names(expanded), equalTo(List.of(INT_ATTR)));
+            assertThat(nonNullRows(expanded), contains(matchesMap().entry(INT_ATTR, 1), matchesMap().entry(INT_ATTR, 2)));
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+    }
+
+    public void testNetZeroProjectionAcrossMultiplePagesPreservesRowCount() {
+        BlockFactory bf = blockFactory();
+        Result result = result(
+            List.of(unmappedAttr()),
+            List.of(page(bf, List.of(row(jsonObject("{}")), row(jsonObject("{}")))), page(bf, List.of(row(jsonObject("{}")))))
+        );
+
+        Result expanded = expand(result, bf);
+        try {
+            assertThat(names(expanded), equalTo(List.of()));
+            assertThat(rowCount(expanded), equalTo(3));
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+    }
+
     public void testNonStringJsonValuesAreStringified() {
         BlockFactory bf = blockFactory();
         Result result = result(

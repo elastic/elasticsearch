@@ -110,13 +110,8 @@ public class ElasticInferenceServiceReasoningUpgradeIT extends ParameterizedRoll
     }
 
     @Override
-    protected void upgradeNodeToVersion(int nodeIndex, String newClusterVersion) {
-        cluster.upgradeNodeToVersion(nodeIndex, Version.fromString(newClusterVersion));
-    }
-
-    @Override
-    protected String getTestRestCluster() {
-        return cluster.getHttpAddresses();
+    protected ElasticsearchCluster getUpgradeCluster() {
+        return cluster;
     }
 
     /**

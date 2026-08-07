@@ -18,6 +18,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.util.resource.Resource;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.Map;
@@ -31,9 +32,8 @@ public abstract class AbstractXpackRollingUpgradeWithSecurityTestCase extends Ab
     protected static final String USER = "test_user";
     protected static final String PASS = "x-pack-test-password";
 
-    protected AbstractXpackRollingUpgradeWithSecurityTestCase(@Name("upgradedNodes") int upgradedNodes) {
-        super(upgradedNodes);
-    }
+    @ClassRule
+    public static ElasticsearchCluster cluster = buildClusterWithSecurity();
 
     protected static ElasticsearchCluster buildClusterWithSecurity() {
         return buildCluster(
@@ -62,6 +62,15 @@ public abstract class AbstractXpackRollingUpgradeWithSecurityTestCase extends Ab
                 .keystore("xpack.security.transport.ssl.secure_key_passphrase", "testnode")
                 .keystore("xpack.watcher.encryption_key", Resource.fromClasspath("system_key"))
         );
+    }
+
+    protected AbstractXpackRollingUpgradeWithSecurityTestCase(@Name("upgradedNodes") int upgradedNodes) {
+        super(upgradedNodes);
+    }
+
+    @Override
+    protected ElasticsearchCluster getUpgradeCluster() {
+        return cluster;
     }
 
     @Override

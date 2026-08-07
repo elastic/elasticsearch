@@ -15,7 +15,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ParameterizedRollingUpgradeTestCase;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
-import org.elasticsearch.test.cluster.util.Version;
 import org.junit.ClassRule;
 
 import java.io.IOException;
@@ -45,13 +44,8 @@ public abstract class NodeShutdownRollingUpgradeTestCase extends ParameterizedRo
     }
 
     @Override
-    protected void upgradeNodeToVersion(int nodeIndex, String newClusterVersion) {
-        cluster.upgradeNodeToVersion(nodeIndex, Version.fromString(newClusterVersion));
-    }
-
-    @Override
-    protected String getTestRestCluster() {
-        return cluster.getHttpAddresses();
+    protected ElasticsearchCluster getUpgradeCluster() {
+        return cluster;
     }
 
     @Override

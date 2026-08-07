@@ -19,6 +19,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.test.rest.TestFeatureService;
@@ -124,7 +126,7 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
                     try {
                         String newClusterVersion = System.getProperty("tests.new_cluster_version", CURRENT_ES_VERSION);
                         logger.info("Upgrading node {} to version {}", n, newClusterVersion);
-                        upgradeNodeToVersion(n, newClusterVersion);
+                        getUpgradeCluster().upgradeNodeToVersion(n, Version.fromString(newClusterVersion));
                     } catch (Exception e) {
                         upgradeFailed = true;
                         throw e;
@@ -135,9 +137,12 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
         }
     }
 
-    protected abstract void upgradeNodeToVersion(int nodeIndex, String newClusterVersion);
+    protected abstract ElasticsearchCluster getUpgradeCluster();
 
-    protected abstract String getTestRestCluster();
+    @Override
+    protected String getTestRestCluster() {
+        return getUpgradeCluster().getHttpAddresses();
+    }
 
     @AfterClass
     public static void resetNodes() {

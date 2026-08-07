@@ -19,11 +19,9 @@ import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchResponseUtils;
-import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -42,16 +40,8 @@ import static org.hamcrest.core.IsNot.not;
 
 public class TokenBackwardsCompatibilityIT extends AbstractXpackRollingUpgradeWithSecurityTestCase {
 
-    @ClassRule
-    public static ElasticsearchCluster cluster = buildClusterWithSecurity();
-
     public TokenBackwardsCompatibilityIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
-    }
-
-    @Override
-    protected ElasticsearchCluster getUpgradeCluster() {
-        return cluster;
     }
 
     private Collection<RestClient> twoClients = null;

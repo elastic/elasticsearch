@@ -82,13 +82,8 @@ public class FileSettingsUpgradeIT extends ParameterizedRollingUpgradeTestCase {
     }
 
     @Override
-    protected void upgradeNodeToVersion(int nodeIndex, String newClusterVersion) {
-        cluster.upgradeNodeToVersion(nodeIndex, Version.fromString(newClusterVersion));
-    }
-
-    @Override
-    protected String getTestRestCluster() {
-        return cluster.getHttpAddresses();
+    protected ElasticsearchCluster getUpgradeCluster() {
+        return cluster;
     }
 
     public void testFileSettingsApplied() throws IOException {

@@ -16,7 +16,6 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ParameterizedRollingUpgradeTestCase;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
-import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.http.MockWebServer;
 import org.junit.ClassRule;
 
@@ -46,13 +45,8 @@ public class InferenceUpgradeTestCase extends ParameterizedRollingUpgradeTestCas
     }
 
     @Override
-    protected void upgradeNodeToVersion(int nodeIndex, String newClusterVersion) {
-        cluster.upgradeNodeToVersion(nodeIndex, Version.fromString(newClusterVersion));
-    }
-
-    @Override
-    protected String getTestRestCluster() {
-        return cluster.getHttpAddresses();
+    protected ElasticsearchCluster getUpgradeCluster() {
+        return cluster;
     }
 
     protected static String getUrl(MockWebServer webServer) {

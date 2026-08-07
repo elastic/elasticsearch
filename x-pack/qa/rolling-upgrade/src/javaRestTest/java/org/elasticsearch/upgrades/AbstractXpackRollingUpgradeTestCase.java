@@ -40,16 +40,4 @@ public abstract class AbstractXpackRollingUpgradeTestCase extends ParameterizedR
 
         return customizer.apply(builder).build();
     }
-
-    protected abstract ElasticsearchCluster getUpgradeCluster();
-
-    @Override
-    protected void upgradeNodeToVersion(int nodeIndex, String newClusterVersion) {
-        getUpgradeCluster().upgradeNodeToVersion(nodeIndex, Version.fromString(newClusterVersion));
-    }
-
-    @Override
-    protected String getTestRestCluster() {
-        return getUpgradeCluster().getHttpAddresses();
-    }
 }

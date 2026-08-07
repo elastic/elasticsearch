@@ -20,9 +20,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.features.InfrastructureFeatures;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.List;
@@ -37,16 +35,8 @@ public class XpackSystemIndicesUpgradeIT extends AbstractXpackRollingUpgradeWith
 
     private static final String BASIC_AUTH_VALUE = basicAuthHeaderValue(USER, new SecureString(PASS.toCharArray()));
 
-    @ClassRule
-    public static final ElasticsearchCluster cluster = buildClusterWithSecurity();
-
     public XpackSystemIndicesUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
-    }
-
-    @Override
-    protected ElasticsearchCluster getUpgradeCluster() {
-        return cluster;
     }
 
     @Override

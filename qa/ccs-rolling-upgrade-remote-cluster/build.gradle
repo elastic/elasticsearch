@@ -20,7 +20,10 @@ buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
   tasks.register(bwcTaskName(bwcVersion), StandaloneRestIntegTestTask) {
     usesBwcDistribution(bwcVersion)
     systemProperty("tests.upgrade_from_version", bwcVersion.toString().replace('-SNAPSHOT', ''))
-    def fipsDisabled = buildParams.inFipsJvm == false
-    onlyIf("FIPS mode disabled") { fipsDisabled }
   }
+}
+
+// Security is explicitly disabled, do not run tests in FIPS mode
+tasks.withType(Test).configureEach {
+  buildParams.withFipsEnabledOnly(it)
 }

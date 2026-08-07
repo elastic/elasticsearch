@@ -14,12 +14,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
+import org.elasticsearch.xpack.inference.services.SettingsScope;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIServiceSettings;
 
@@ -49,14 +49,14 @@ public class VoyageAIEmbeddingsServiceSettings extends VoyageAIServiceSettings {
     public static VoyageAIEmbeddingsServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         var validationException = new ValidationException();
 
-        var modelId = extractRequiredString(map, ServiceFields.MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var modelId = extractRequiredString(map, ServiceFields.MODEL_ID, SettingsScope.SERVICE_SETTINGS, validationException);
         var rateLimitSettings = extractRateLimitSettings(map, context, validationException);
 
         var embeddingType = Objects.requireNonNullElse(
             extractOptionalEnum(
                 map,
                 ServiceFields.EMBEDDING_TYPE,
-                ModelConfigurations.SERVICE_SETTINGS,
+                SettingsScope.SERVICE_SETTINGS,
                 VoyageAIEmbeddingType::fromString,
                 EnumSet.allOf(VoyageAIEmbeddingType.class),
                 validationException
@@ -64,14 +64,9 @@ public class VoyageAIEmbeddingsServiceSettings extends VoyageAIServiceSettings {
             VoyageAIEmbeddingType.FLOAT
         );
 
-        var similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        var dimensions = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        var maxInputTokens = extractOptionalPositiveInteger(
-            map,
-            MAX_INPUT_TOKENS,
-            ModelConfigurations.SERVICE_SETTINGS,
-            validationException
-        );
+        var similarity = extractSimilarity(map, SettingsScope.SERVICE_SETTINGS, validationException);
+        var dimensions = extractOptionalPositiveInteger(map, DIMENSIONS, SettingsScope.SERVICE_SETTINGS, validationException);
+        var maxInputTokens = extractOptionalPositiveInteger(map, MAX_INPUT_TOKENS, SettingsScope.SERVICE_SETTINGS, validationException);
 
         var dimensionsSetByUser = extractOptionalBoolean(map, DIMENSIONS_SET_BY_USER, validationException);
 
@@ -79,7 +74,7 @@ public class VoyageAIEmbeddingsServiceSettings extends VoyageAIServiceSettings {
             case REQUEST -> {
                 if (dimensionsSetByUser != null) {
                     validationException.addValidationError(
-                        ServiceUtils.invalidSettingError(ServiceFields.DIMENSIONS_SET_BY_USER, ModelConfigurations.SERVICE_SETTINGS)
+                        ServiceUtils.invalidSettingError(ServiceFields.DIMENSIONS_SET_BY_USER, SettingsScope.SERVICE_SETTINGS)
                     );
                 }
                 dimensionsSetByUser = dimensions != null;
@@ -161,7 +156,7 @@ public class VoyageAIEmbeddingsServiceSettings extends VoyageAIServiceSettings {
         var extractedMaxInputTokens = extractOptionalPositiveInteger(
             serviceSettings,
             MAX_INPUT_TOKENS,
-            ModelConfigurations.SERVICE_SETTINGS,
+            SettingsScope.SERVICE_SETTINGS,
             validationException
         );
 

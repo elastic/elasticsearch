@@ -11,11 +11,11 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.SettingsScope;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceChatCompletionTaskSettings;
 
 import java.io.IOException;
@@ -38,7 +38,7 @@ public record ImmutableEmptyTaskSettings() implements TaskSettings {
         throw new ElasticsearchStatusException(
             "[{}] Configuration contains unknown settings {}",
             RestStatus.BAD_REQUEST,
-            ModelConfigurations.TASK_SETTINGS,
+            SettingsScope.TASK_SETTINGS,
             settings.keySet()
         );
     }

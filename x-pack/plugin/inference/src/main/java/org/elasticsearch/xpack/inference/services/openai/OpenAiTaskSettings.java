@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.inference.services.openai;
 
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.services.SettingsScope;
 
 import java.io.IOException;
 import java.util.Map;
@@ -49,7 +49,7 @@ public abstract class OpenAiTaskSettings<T extends OpenAiTaskSettings<T>> implem
 
         ValidationException validationException = new ValidationException();
 
-        String user = extractOptionalString(map, USER, ModelConfigurations.TASK_SETTINGS, validationException);
+        String user = extractOptionalString(map, USER, SettingsScope.TASK_SETTINGS, validationException);
         Map<String, Object> headers = extractOptionalMapRemoveNulls(map, HEADERS, validationException);
         var stringHeaders = validateMapStringValues(headers, HEADERS, validationException, false, null);
 

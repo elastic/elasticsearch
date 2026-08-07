@@ -17,6 +17,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.common.oauth2.OAuth2Secrets;
+import org.elasticsearch.xpack.inference.services.SettingsScope;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiOAuth2Settings;
 
 import java.io.IOException;
@@ -24,7 +25,6 @@ import java.util.EnumSet;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.inference.ModelSecrets.SECRET_SETTINGS;
 import static org.elasticsearch.xpack.inference.common.oauth2.OAuth2Secrets.CLIENT_SECRET_FIELD;
 
 /**
@@ -89,7 +89,13 @@ public class OpenAiOAuth2SecretsSettings extends OpenAiSecretSettings {
 
     @Override
     protected SecretSettings updated(Map<String, SecureString> provided) {
-        return updateExactlyOneField(SECRET_SETTINGS, CLIENT_SECRET_FIELD, clientSecret(), provided, OpenAiOAuth2SecretsSettings::new);
+        return updateExactlyOneField(
+            SettingsScope.SECRET_SETTINGS.toString(),
+            CLIENT_SECRET_FIELD,
+            clientSecret(),
+            provided,
+            OpenAiOAuth2SecretsSettings::new
+        );
     }
 
     @Override

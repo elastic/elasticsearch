@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.inference.services.azureaistudio.completion;
 
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.xpack.inference.services.SettingsScope;
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants;
 
 import java.util.Map;
@@ -55,7 +55,7 @@ public record AzureAiStudioChatCompletionRequestTaskSettings(
             TEMPERATURE_FIELD,
             AzureAiStudioConstants.MIN_TEMPERATURE_TOP_P,
             AzureAiStudioConstants.MAX_TEMPERATURE_TOP_P,
-            ModelConfigurations.TASK_SETTINGS,
+            SettingsScope.TASK_SETTINGS,
             validationException
         );
         var topP = extractOptionalDoubleInRange(
@@ -63,16 +63,11 @@ public record AzureAiStudioChatCompletionRequestTaskSettings(
             TOP_P_FIELD,
             AzureAiStudioConstants.MIN_TEMPERATURE_TOP_P,
             AzureAiStudioConstants.MAX_TEMPERATURE_TOP_P,
-            ModelConfigurations.TASK_SETTINGS,
+            SettingsScope.TASK_SETTINGS,
             validationException
         );
         Boolean doSample = extractOptionalBoolean(map, DO_SAMPLE_FIELD, validationException);
-        Integer maxNewTokens = extractOptionalPositiveInteger(
-            map,
-            MAX_NEW_TOKENS_FIELD,
-            ModelConfigurations.TASK_SETTINGS,
-            validationException
-        );
+        Integer maxNewTokens = extractOptionalPositiveInteger(map, MAX_NEW_TOKENS_FIELD, SettingsScope.TASK_SETTINGS, validationException);
 
         validationException.throwIfValidationErrorsExist();
 

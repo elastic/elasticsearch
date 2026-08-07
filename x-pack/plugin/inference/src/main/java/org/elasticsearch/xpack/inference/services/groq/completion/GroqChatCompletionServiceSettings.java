@@ -12,12 +12,12 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
+import org.elasticsearch.xpack.inference.services.SettingsScope;
 import org.elasticsearch.xpack.inference.services.groq.GroqRateLimitServiceSettings;
 import org.elasticsearch.xpack.inference.services.groq.GroqService;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields;
@@ -47,16 +47,11 @@ public class GroqChatCompletionServiceSettings extends FilteredXContentObject im
     public static GroqChatCompletionServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         var validationException = new ValidationException();
 
-        var modelId = ServiceUtils.extractRequiredString(
-            map,
-            ServiceFields.MODEL_ID,
-            ModelConfigurations.SERVICE_SETTINGS,
-            validationException
-        );
+        var modelId = ServiceUtils.extractRequiredString(map, ServiceFields.MODEL_ID, SettingsScope.SERVICE_SETTINGS, validationException);
         var organizationId = ServiceUtils.extractOptionalString(
             map,
             OpenAiServiceFields.ORGANIZATION,
-            ModelConfigurations.SERVICE_SETTINGS,
+            SettingsScope.SERVICE_SETTINGS,
             validationException
         );
         var uri = ServiceUtils.extractOptionalUri(map, ServiceFields.URL, validationException);
@@ -105,7 +100,7 @@ public class GroqChatCompletionServiceSettings extends FilteredXContentObject im
         var extractedOrganizationId = ServiceUtils.extractOptionalString(
             serviceSettings,
             OpenAiServiceFields.ORGANIZATION,
-            ModelConfigurations.SERVICE_SETTINGS,
+            SettingsScope.SERVICE_SETTINGS,
             validationException
         );
 

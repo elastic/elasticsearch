@@ -13,7 +13,6 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -26,6 +25,7 @@ import org.elasticsearch.xpack.core.inference.InferenceUtils;
 import org.elasticsearch.xpack.inference.common.parser.Headers;
 import org.elasticsearch.xpack.inference.common.parser.StatefulValue;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.SettingsScope;
 
 import java.io.IOException;
 import java.util.Map;
@@ -97,7 +97,7 @@ public abstract class AzureOpenAiTaskSettings<T extends AzureOpenAiTaskSettings<
 
         Headers headers = headersArg instanceof Headers
             ? (Headers) headersArg
-            : Headers.create(headersArg, ModelConfigurations.TASK_SETTINGS);
+            : Headers.create(headersArg, SettingsScope.TASK_SETTINGS.toString());
         return new CommonSettings(user, headers);
     }
 
@@ -154,7 +154,7 @@ public abstract class AzureOpenAiTaskSettings<T extends AzureOpenAiTaskSettings<
         if (parsed.user().isPresent() && parsed.user().get().isEmpty()) {
             var validationException = new ValidationException();
             validationException.addValidationError(
-                InferenceUtils.mustBeNonEmptyString(AzureOpenAiServiceFields.USER, ModelConfigurations.TASK_SETTINGS)
+                InferenceUtils.mustBeNonEmptyString(AzureOpenAiServiceFields.USER, SettingsScope.TASK_SETTINGS.toString())
             );
             throw validationException;
         }

@@ -13,13 +13,13 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.common.oauth2.BaseOAuth2Settings;
 import org.elasticsearch.xpack.inference.common.oauth2.OAuth2Settings;
+import org.elasticsearch.xpack.inference.services.SettingsScope;
 
 import java.io.IOException;
 import java.util.EnumSet;
@@ -51,7 +51,7 @@ public class AzureOpenAiOAuth2Settings extends BaseOAuth2Settings {
 
     public static AzureOpenAiOAuth2Settings fromMap(Map<String, Object> map, ValidationException validationException) {
         var oauth2ServiceSettings = OAuth2Settings.fromMap(map, validationException);
-        var tenantId = extractOptionalString(map, TENANT_ID_FIELD, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var tenantId = extractOptionalString(map, TENANT_ID_FIELD, SettingsScope.SERVICE_SETTINGS, validationException);
 
         var hasAllFields = validateFields(oauth2ServiceSettings, tenantId, TENANT_ID_FIELD, SERVICE_DESCRIPTION, validationException);
 
@@ -94,7 +94,7 @@ public class AzureOpenAiOAuth2Settings extends BaseOAuth2Settings {
         var extractedTenantId = extractOptionalString(
             serviceSettingsMap,
             TENANT_ID_FIELD,
-            ModelConfigurations.SERVICE_SETTINGS,
+            SettingsScope.SERVICE_SETTINGS,
             validationException
         );
 

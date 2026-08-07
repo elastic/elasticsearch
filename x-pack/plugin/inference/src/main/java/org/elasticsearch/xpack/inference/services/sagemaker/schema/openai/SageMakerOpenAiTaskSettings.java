@@ -12,8 +12,8 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.services.SettingsScope;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerStoredTaskSchema;
 
 import java.io.IOException;
@@ -74,7 +74,7 @@ record SageMakerOpenAiTaskSettings(@Nullable String user) implements SageMakerSt
     }
 
     static SageMakerOpenAiTaskSettings fromMap(Map<String, Object> map, ValidationException exception) {
-        var user = extractOptionalString(map, USER_FIELD, ModelConfigurations.TASK_SETTINGS, exception);
+        var user = extractOptionalString(map, USER_FIELD, SettingsScope.TASK_SETTINGS, exception);
         return new SageMakerOpenAiTaskSettings(user);
     }
 }

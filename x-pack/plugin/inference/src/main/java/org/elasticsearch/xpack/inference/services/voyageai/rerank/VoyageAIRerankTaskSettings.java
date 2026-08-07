@@ -12,10 +12,10 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TopNProvider;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.services.SettingsScope;
 
 import java.io.IOException;
 import java.util.Map;
@@ -47,12 +47,7 @@ public class VoyageAIRerankTaskSettings implements TaskSettings, TopNProvider {
         }
 
         Boolean returnDocuments = extractOptionalBoolean(map, RETURN_DOCUMENTS, validationException);
-        Integer topKDocumentsOnly = extractOptionalPositiveInteger(
-            map,
-            TOP_K_DOCS_ONLY,
-            ModelConfigurations.TASK_SETTINGS,
-            validationException
-        );
+        Integer topKDocumentsOnly = extractOptionalPositiveInteger(map, TOP_K_DOCS_ONLY, SettingsScope.TASK_SETTINGS, validationException);
 
         Boolean truncation = extractOptionalBoolean(map, TRUNCATION, validationException);
 

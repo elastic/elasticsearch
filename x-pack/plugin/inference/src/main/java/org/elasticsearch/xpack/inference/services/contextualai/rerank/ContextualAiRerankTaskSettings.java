@@ -12,10 +12,10 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TopNProvider;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.services.SettingsScope;
 
 import java.io.IOException;
 import java.util.Map;
@@ -44,8 +44,8 @@ public class ContextualAiRerankTaskSettings implements TopNProvider, TaskSetting
         }
 
         var returnDocuments = extractOptionalBoolean(map, RETURN_DOCUMENTS_FIELD, validationException);
-        var topN = extractOptionalPositiveInteger(map, TOP_N_FIELD, ModelConfigurations.TASK_SETTINGS, validationException);
-        var instruction = extractOptionalString(map, INSTRUCTION_FIELD, ModelConfigurations.TASK_SETTINGS, validationException);
+        var topN = extractOptionalPositiveInteger(map, TOP_N_FIELD, SettingsScope.TASK_SETTINGS, validationException);
+        var instruction = extractOptionalString(map, INSTRUCTION_FIELD, SettingsScope.TASK_SETTINGS, validationException);
 
         validationException.throwIfValidationErrorsExist();
 

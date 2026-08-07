@@ -12,9 +12,9 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.services.SettingsScope;
 import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsTaskSettings;
 
 import java.io.IOException;
@@ -30,7 +30,7 @@ public class AzureAiStudioEmbeddingsTaskSettings implements TaskSettings {
     public static AzureAiStudioEmbeddingsTaskSettings fromMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();
 
-        String user = extractOptionalString(map, USER_FIELD, ModelConfigurations.TASK_SETTINGS, validationException);
+        String user = extractOptionalString(map, USER_FIELD, SettingsScope.TASK_SETTINGS, validationException);
         validationException.throwIfValidationErrorsExist();
 
         return new AzureAiStudioEmbeddingsTaskSettings(user);

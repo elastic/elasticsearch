@@ -11,12 +11,12 @@ import software.amazon.awssdk.core.SdkBytes;
 import software.amazon.awssdk.services.sagemakerruntime.model.InvokeEndpointResponse;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.RerankRequest;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
+import org.elasticsearch.xpack.inference.services.SettingsScope;
 import org.elasticsearch.xpack.inference.services.sagemaker.SageMakerInferenceRequest;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModel;
 
@@ -67,7 +67,7 @@ public class ElasticRerankPayload implements ElasticPayload {
                 }
 
                 if (elasticTaskSettings.isEmpty() == false) {
-                    builder.field(ModelConfigurations.TASK_SETTINGS);
+                    builder.field(SettingsScope.TASK_SETTINGS.toString());
                     if (elasticTaskSettings.isFragment()) {
                         builder.startObject();
                     }

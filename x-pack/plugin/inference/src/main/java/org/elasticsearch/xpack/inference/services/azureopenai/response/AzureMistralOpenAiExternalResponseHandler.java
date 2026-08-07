@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.azureopenai.response;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.BaseResponseHandler;

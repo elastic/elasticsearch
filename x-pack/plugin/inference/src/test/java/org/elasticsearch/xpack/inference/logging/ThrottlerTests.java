@@ -7,27 +7,31 @@
 
 package org.elasticsearch.xpack.inference.logging;
 
-import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogBuilder;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.logging.Level;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
+import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
 
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.when;
 
 public class ThrottlerTests extends ESTestCase {
     private DeterministicTaskQueue taskQueue;
@@ -241,56 +245,82 @@ public class ThrottlerTests extends ESTestCase {
         mockedLogger.verifyNoMoreInteractions();
     }
 
-    record MockLogger(Logger logger, LogBuilder logBuilder) {
+    static class MockLogger {
+        final Logger logger;
+        private final List<String> messages = new ArrayList<>();
+        private final List<Throwable> throwables = new ArrayList<>();
+
+        MockLogger(Logger logger) {
+            this.logger = logger;
+        }
+
+        Logger logger() {
+            return logger;
+        }
+
         MockLogger clearInvocations() {
+            messages.clear();
+            throwables.clear();
             Mockito.clearInvocations(logger);
-            Mockito.clearInvocations(logBuilder);
 
             return this;
         }
 
         MockLogger verifyNoMoreInteractions() {
             Mockito.verifyNoMoreInteractions(logger);
-            Mockito.verifyNoMoreInteractions(logBuilder);
 
             return this;
         }
 
         MockLogger verify(int times, String message) {
-            Mockito.verify(logger, times(times)).atLevel(eq(Level.WARN));
-            Mockito.verify(logBuilder, times(times)).log(eq(message));
+            assertThat("Expected " + times + " log messages", messages, hasSize(times));
+            for (String msg : messages) {
+                assertEquals(message, msg);
+            }
 
             return this;
         }
 
-        MockLogger verifyContains(int times, String message) {
-            Mockito.verify(logger, times(times)).atLevel(eq(Level.WARN));
-            Mockito.verify(logBuilder, times(times)).log(contains(message));
+        MockLogger verifyContains(int times, String substring) {
+            assertThat("Expected " + times + " log messages", messages, hasSize(times));
+            for (String msg : messages) {
+                assertThat(msg, containsString(substring));
+            }
 
             return this;
         }
 
         MockLogger verifyNever() {
-            Mockito.verify(logger, never()).atLevel(eq(Level.WARN));
-            Mockito.verify(logBuilder, never()).log(any(String.class));
-            Mockito.verify(logBuilder, never()).log(any(Throwable.class));
+            Mockito.verify(logger, never()).log(eq(Level.WARN), any(String.class));
+            Mockito.verify(logger, never()).log(eq(Level.WARN), ArgumentMatchers.<Supplier<String>>any(), any(Throwable.class));
 
             return this;
         }
 
         MockLogger verifyThrowable(int times) {
-            Mockito.verify(logBuilder, times(times)).withThrowable(any(Throwable.class));
+            assertThat("Expected " + times + " throwables", throwables, hasSize(times));
 
             return this;
         }
     }
 
     static MockLogger mockLogger() {
-        var builder = mock(LogBuilder.class);
-        when(builder.withThrowable(any(Throwable.class))).thenReturn(builder);
         var logger = mock(Logger.class);
-        when(logger.atLevel(any(Level.class))).thenReturn(builder);
+        var mockLogger = new MockLogger(logger);
 
-        return new MockLogger(logger, builder);
+        doAnswer(invocation -> {
+            mockLogger.messages.add((String) invocation.getArgument(1));
+            return null;
+        }).when(logger).log(eq(Level.WARN), any(String.class));
+
+        doAnswer(invocation -> {
+            Supplier<String> supplier = invocation.getArgument(1);
+            mockLogger.messages.add(supplier.get());
+            Throwable t = invocation.getArgument(2);
+            mockLogger.throwables.add(t);
+            return null;
+        }).when(logger).log(eq(Level.WARN), ArgumentMatchers.<Supplier<String>>any(), any(Throwable.class));
+
+        return mockLogger;
     }
 }

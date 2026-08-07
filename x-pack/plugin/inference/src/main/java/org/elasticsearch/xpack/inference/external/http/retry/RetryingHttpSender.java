@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.inference.external.http.retry;
 
 import org.apache.http.client.protocol.HttpClientContext;
-import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
@@ -18,6 +18,7 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.common.SizeLimitInputStream;
@@ -40,6 +41,8 @@ import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_P
 public class RetryingHttpSender implements RequestSender {
 
     public static final int MAX_RETRIES = 3;
+
+    private static final org.apache.logging.log4j.Logger log4jLogger = LogManager.getLogger(RetryingHttpSender.class);
 
     private final HttpClient httpClient;
     private final ThrottlerManager throttlerManager;
@@ -110,7 +113,7 @@ public class RetryingHttpSender implements RequestSender {
             ActionListener<InferenceServiceResults> listener
         ) {
             super(
-                Objects.requireNonNull(logger),
+                log4jLogger,
                 threadPool,
                 retrySettings.getInitialDelay(),
                 retrySettings.getMaxDelayBound(),
@@ -118,7 +121,7 @@ public class RetryingHttpSender implements RequestSender {
                 listener,
                 executor
             );
-            this.logger = logger;
+            this.logger = Objects.requireNonNull(logger);
             this.outboundRequest = Objects.requireNonNull(outboundRequest);
             this.context = Objects.requireNonNull(context);
             this.responseHandler = Objects.requireNonNull(responseHandler);

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.elastic.authorization;
 
 import org.apache.hc.core5.http.HttpHeaders;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -18,6 +17,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockRequest;
 import org.elasticsearch.test.http.MockResponse;
@@ -71,6 +72,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends ESTestCase {
+    private static final Logger esLogger = LogManager.getLogger(ElasticInferenceServiceAuthorizationRequestHandlerTests.class);
     private final MockWebServer webServer = new MockWebServer();
     private ThreadPool threadPool;
 
@@ -484,7 +486,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
         var authHandler = new ElasticInferenceServiceAuthorizationRequestHandler(
             eisGatewayUrl,
             threadPool,
-            logger,
+            esLogger,
             createNoopApplierFactory(),
             mockCcmFeature,
             mockCcmService,

@@ -51,7 +51,6 @@ import org.elasticsearch.xpack.slm.history.SnapshotHistoryStore;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -88,12 +87,11 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
     }
 
     /**
-     * Find {@link RegisteredPolicySnapshots} for the given policy that are no longer running.
+     * Find {@link SnapshotId}s for the given policy that are registered but no longer running.
      * @param projectState the current project state
      * @param policyId the policy id for which to find completed registered snapshots
-     * @return a list of snapshot names
      */
-    static List<String> findCompletedRegisteredSnapshotNames(ProjectState projectState, String policyId) {
+    static List<SnapshotId> findCompletedRegisteredSnapshotIds(ProjectState projectState, String policyId) {
         Set<SnapshotId> runningSnapshots = currentlyRunningSnapshots(projectState.cluster());
 
         RegisteredPolicySnapshots registeredSnapshots = projectState.metadata()
@@ -105,8 +103,17 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
             .filter(policySnapshot -> policySnapshot.getPolicy().equals(policyId))
             // look for snapshots that are no longer running
             .filter(policySnapshot -> runningSnapshots.contains(policySnapshot.getSnapshotId()) == false)
-            .map(policySnapshot -> policySnapshot.getSnapshotId().getName())
+            .map(PolicySnapshot::getSnapshotId)
             .toList();
+    }
+
+    /**
+     * Snapshot infos retrieved for registered snapshots that were not running at lookup time, plus the ids that were queried.
+     * The queried ids are used by {@link WriteJobStatus} to distinguish "missing from the repository" (infer failure) from
+     * "was still running at lookup, so we never fetched it" (leave registered for a later cleanup).
+     */
+    record CompletedRegisteredSnapshotInfos(Set<SnapshotId> queriedSnapshotIds, List<SnapshotInfo> snapshotInfos) {
+        static final CompletedRegisteredSnapshotInfos EMPTY = new CompletedRegisteredSnapshotInfos(Set.of(), List.of());
     }
 
     @Override
@@ -139,22 +146,23 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
         final ProjectState projectState,
         final String policyId,
         final Client client,
-        final ActionListener<List<SnapshotInfo>> listener
+        final ActionListener<CompletedRegisteredSnapshotInfos> listener
     ) {
-        var snapshotNames = findCompletedRegisteredSnapshotNames(projectState, policyId);
+        var completedSnapshotIds = findCompletedRegisteredSnapshotIds(projectState, policyId);
 
-        if (snapshotNames.isEmpty() == false) {
+        if (completedSnapshotIds.isEmpty() == false) {
             var policyMetadata = getSnapPolicyMetadataById(projectState.metadata(), policyId);
             if (policyMetadata.isPresent() == false) {
                 listener.onFailure(new IllegalStateException(format("snapshot lifecycle policy [%s] no longer exists", policyId)));
                 return;
             }
             SnapshotLifecyclePolicy policy = policyMetadata.get().getPolicy();
+            final Set<SnapshotId> queriedSnapshotIds = Set.copyOf(completedSnapshotIds);
 
             GetSnapshotsRequest request = new GetSnapshotsRequest(
                 TimeValue.MAX_VALUE,    // do not time out internal request in case of slow master node
                 new String[] { policy.getRepository() },
-                snapshotNames.toArray(new String[0])
+                completedSnapshotIds.stream().map(SnapshotId::getName).toArray(String[]::new)
             );
             request.ignoreUnavailable(true);
             request.includeIndexNames(false);
@@ -164,10 +172,13 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                 .execute(
                     TransportGetSnapshotsAction.TYPE,
                     request,
-                    ActionListener.wrap(response -> listener.onResponse(response.getSnapshots()), listener::onFailure)
+                    ActionListener.wrap(
+                        response -> listener.onResponse(new CompletedRegisteredSnapshotInfos(queriedSnapshotIds, response.getSnapshots())),
+                        listener::onFailure
+                    )
                 );
         } else {
-            listener.onResponse(Collections.emptyList());
+            listener.onResponse(CompletedRegisteredSnapshotInfos.EMPTY);
         }
     }
 
@@ -225,18 +236,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                         ProjectState currentProjectState = clusterService.state().projectState(projectId);
                         findCompletedRegisteredSnapshotInfo(currentProjectState, policyId, client, new ActionListener<>() {
                             @Override
-                            public void onResponse(List<SnapshotInfo> snapshotInfo) {
-                                submitUnbatchedTask(
-                                    clusterService,
-                                    "slm-record-success-" + policyId,
-                                    WriteJobStatus.success(projectId, policyId, snapshotId, snapshotStartTime, timestamp, snapshotInfo)
-                                );
-                            }
-
-                            @Override
-                            public void onFailure(Exception e) {
-                                logger.warn(() -> format("failed to retrieve stale registered snapshots for job [%s]", jobId), e);
-                                // still record the successful snapshot
+                            public void onResponse(CompletedRegisteredSnapshotInfos completedRegisteredSnapshotInfos) {
                                 submitUnbatchedTask(
                                     clusterService,
                                     "slm-record-success-" + policyId,
@@ -246,7 +246,25 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                                         snapshotId,
                                         snapshotStartTime,
                                         timestamp,
-                                        Collections.emptyList()
+                                        completedRegisteredSnapshotInfos
+                                    )
+                                );
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                logger.warn(() -> format("failed to retrieve stale registered snapshots for job [%s]", jobId), e);
+                                // still record the successful snapshot; leave other registered snapshots for a later run
+                                submitUnbatchedTask(
+                                    clusterService,
+                                    "slm-record-success-" + policyId,
+                                    WriteJobStatus.success(
+                                        projectId,
+                                        policyId,
+                                        snapshotId,
+                                        snapshotStartTime,
+                                        timestamp,
+                                        CompletedRegisteredSnapshotInfos.EMPTY
                                     )
                                 );
                             }
@@ -296,7 +314,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                     ProjectState currentProjectState = clusterService.state().projectState(projectId);
                     findCompletedRegisteredSnapshotInfo(currentProjectState, policyId, client, new ActionListener<>() {
                         @Override
-                        public void onResponse(List<SnapshotInfo> snapshotInfo) {
+                        public void onResponse(CompletedRegisteredSnapshotInfos completedRegisteredSnapshotInfos) {
                             submitUnbatchedTask(
                                 clusterService,
                                 "slm-record-failure-" + policyMetadata.getPolicy().getId(),
@@ -305,7 +323,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                                     policyMetadata.getPolicy().getId(),
                                     snapshotId,
                                     timestamp,
-                                    snapshotInfo,
+                                    completedRegisteredSnapshotInfos,
                                     e
                                 )
                             );
@@ -314,7 +332,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                         @Override
                         public void onFailure(Exception e) {
                             logger.warn(() -> format("failed to retrieve stale registered snapshots for job [%s]", jobId), e);
-                            // still record the failed snapshot
+                            // still record the failed snapshot; leave other registered snapshots for a later run
                             submitUnbatchedTask(
                                 clusterService,
                                 "slm-record-failure-" + policyMetadata.getPolicy().getId(),
@@ -323,7 +341,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                                     policyMetadata.getPolicy().getId(),
                                     snapshotId,
                                     timestamp,
-                                    Collections.emptyList(),
+                                    CompletedRegisteredSnapshotInfos.EMPTY,
                                     e
                                 )
                             );
@@ -416,6 +434,12 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
         private final Optional<Exception> exception;
         // preloaded snapshot info for registered snapshots that are no longer running
         private final List<SnapshotInfo> registeredSnapshotInfo;
+        /**
+         * Snapshot ids that were not running when {@link SnapshotLifecycleTask#findCompletedRegisteredSnapshotInfo} ran and for which
+         * we attempted to load {@link SnapshotInfo}. Only these may be inferred as failures when their info is missing. Registered
+         * snapshots that finish between that lookup and this cluster state update are left registered for a later cleanup.
+         */
+        private final Set<SnapshotId> previouslyCompletedRegisteredSnapshots;
 
         private WriteJobStatus(
             ProjectId projectId,
@@ -423,7 +447,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
             SnapshotId snapshotId,
             long snapshotStartTime,
             long snapshotFinishTime,
-            List<SnapshotInfo> registeredSnapshotInfo,
+            CompletedRegisteredSnapshotInfos completedRegisteredSnapshotInfos,
             Optional<Exception> exception
         ) {
             this.projectId = projectId;
@@ -432,7 +456,8 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
             this.exception = exception;
             this.snapshotStartTime = snapshotStartTime;
             this.snapshotFinishTime = snapshotFinishTime;
-            this.registeredSnapshotInfo = registeredSnapshotInfo;
+            this.registeredSnapshotInfo = completedRegisteredSnapshotInfos.snapshotInfos();
+            this.previouslyCompletedRegisteredSnapshots = completedRegisteredSnapshotInfos.queriedSnapshotIds();
         }
 
         static WriteJobStatus success(
@@ -441,7 +466,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
             SnapshotId snapshotId,
             long snapshotStartTime,
             long snapshotFinishTime,
-            List<SnapshotInfo> registeredSnapshotInfo
+            CompletedRegisteredSnapshotInfos completedRegisteredSnapshotInfos
         ) {
             return new WriteJobStatus(
                 projectId,
@@ -449,7 +474,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                 snapshotId,
                 snapshotStartTime,
                 snapshotFinishTime,
-                registeredSnapshotInfo,
+                completedRegisteredSnapshotInfos,
                 Optional.empty()
             );
         }
@@ -459,7 +484,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
             String policyId,
             SnapshotId snapshotId,
             long timestamp,
-            List<SnapshotInfo> registeredSnapshotInfo,
+            CompletedRegisteredSnapshotInfos completedRegisteredSnapshotInfos,
             Exception exception
         ) {
             return new WriteJobStatus(
@@ -468,7 +493,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                 snapshotId,
                 timestamp,
                 timestamp,
-                registeredSnapshotInfo,
+                completedRegisteredSnapshotInfos,
                 Optional.of(exception)
             );
         }
@@ -544,12 +569,16 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                                     )
                                 );
                         }
-                    } else {
-                        // either the snapshot no longer exist in the repo or its info failed to be retrieved, assume failure to clean it up
+                    } else if (previouslyCompletedRegisteredSnapshots.contains(registeredSnapshotId)) {
+                        // we looked up this snapshot because it was already not running, and its info is unavailable — assume failure
                         // so it is not stuck in the registered set forever
                         newStats = newStats.withFailedIncremented(policyName);
                         newPolicyMetadata.incrementInvocationsSinceLastSuccess()
                             .setLastFailure(buildFailedSnapshotRecord(registeredSnapshotId));
+                    } else {
+                        // not running now, but we never fetched its info (it was still running at lookup time). Leave it registered
+                        // so a later SLM run can record the true outcome instead of inferring a failure.
+                        newRegistered.add(registeredSnapshot);
                     }
                 }
             }

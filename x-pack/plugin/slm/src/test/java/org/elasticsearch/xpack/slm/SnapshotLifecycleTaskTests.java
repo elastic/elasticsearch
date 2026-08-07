@@ -352,14 +352,14 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
                 initiatingSnap,
                 randomLong(),
                 randomLong(),
-                Collections.emptyList()
+                SnapshotLifecycleTask.CompletedRegisteredSnapshotInfos.EMPTY
             )
             : SnapshotLifecycleTask.WriteJobStatus.failure(
                 projectId,
                 policyId,
                 initiatingSnap,
                 randomLong(),
-                Collections.emptyList(),
+                SnapshotLifecycleTask.CompletedRegisteredSnapshotInfos.EMPTY,
                 new RuntimeException()
             );
 
@@ -393,14 +393,14 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
                 initiatingSnap,
                 randomLong(),
                 randomLong(),
-                Collections.emptyList()
+                SnapshotLifecycleTask.CompletedRegisteredSnapshotInfos.EMPTY
             )
             : SnapshotLifecycleTask.WriteJobStatus.failure(
                 projectId,
                 policyId,
                 initiatingSnap,
                 randomLong(),
-                Collections.emptyList(),
+                SnapshotLifecycleTask.CompletedRegisteredSnapshotInfos.EMPTY,
                 new RuntimeException()
             );
 
@@ -429,14 +429,14 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
                 initiatingSnap,
                 randomLong(),
                 randomLong(),
-                Collections.emptyList()
+                SnapshotLifecycleTask.CompletedRegisteredSnapshotInfos.EMPTY
             )
             : SnapshotLifecycleTask.WriteJobStatus.failure(
                 projectId,
                 policyId,
                 initiatingSnap,
                 randomLong(),
-                Collections.emptyList(),
+                SnapshotLifecycleTask.CompletedRegisteredSnapshotInfos.EMPTY,
                 new RuntimeException()
             );
 
@@ -480,7 +480,10 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
             initiatingSnapshot,
             randomLong(),
             randomLong(),
-            List.of(snapshotInfoSuccess, snapshotInfoFailure)
+            new SnapshotLifecycleTask.CompletedRegisteredSnapshotInfos(
+                Set.of(inferredFailureSnapshot, snapshotInfoSuccess.snapshotId(), snapshotInfoFailure.snapshotId()),
+                List.of(snapshotInfoSuccess, snapshotInfoFailure)
+            )
         );
 
         ClusterState newClusterState = writeJobTask.execute(clusterState);
@@ -540,7 +543,15 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
             policyId,
             initiatingSnapshot,
             randomLong(),
-            List.of(snapshotInfoSuccess, snapshotInfoFailure1, snapshotInfoFailure2),
+            new SnapshotLifecycleTask.CompletedRegisteredSnapshotInfos(
+                Set.of(
+                    inferredFailureSnapshot,
+                    snapshotInfoSuccess.snapshotId(),
+                    snapshotInfoFailure1.snapshotId(),
+                    snapshotInfoFailure2.snapshotId()
+                ),
+                List.of(snapshotInfoSuccess, snapshotInfoFailure1, snapshotInfoFailure2)
+            ),
             new RuntimeException()
         );
 
@@ -570,6 +581,46 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
             .custom(RegisteredPolicySnapshots.TYPE);
         List<SnapshotId> newRegisteredSnapIds = newRegisteredPolicySnapshots.getSnapshotsByPolicy(policyId);
         assertEquals(List.of(stillRunning), newRegisteredSnapIds);
+    }
+
+    /**
+     * Reproduces the race from #155621: snapshot B was still running when snapshot A's cleanup looked up completed registered
+     * snapshots (so B's SnapshotInfo was never fetched), but B finished before A's WriteJobStatus cluster-state update ran.
+     * B must stay registered rather than being inferred as a failure.
+     */
+    public void testDoesNotInferFailureForSnapshotThatFinishedAfterLookup() throws Exception {
+        final String policyId = randomAlphaOfLength(10);
+        final SnapshotId snapshotA = randSnapshotId();
+        final SnapshotId snapshotB = randSnapshotId();
+
+        var definedSlmPolicies = List.of(policyId);
+        var registeredSnapshots = Map.of(policyId, List.of(snapshotA, snapshotB));
+        // B has finished by the time WriteJobStatus runs (not in SnapshotsInProgress)
+        var inProgress = Map.of(policyId, List.<SnapshotId>of());
+        ClusterState clusterState = buildClusterState(projectId, definedSlmPolicies, registeredSnapshots, inProgress);
+
+        // Lookup saw A as already completed (queried) while B was still running (not queried). No SnapshotInfo for B.
+        var writeJobTask = SnapshotLifecycleTask.WriteJobStatus.success(
+            projectId,
+            policyId,
+            snapshotA,
+            randomLong(),
+            randomLong(),
+            new SnapshotLifecycleTask.CompletedRegisteredSnapshotInfos(Set.of(snapshotA), List.of())
+        );
+
+        ClusterState newClusterState = writeJobTask.execute(clusterState);
+
+        SnapshotLifecycleMetadata newSlmMetadata = newClusterState.metadata().getProject(projectId).custom(SnapshotLifecycleMetadata.TYPE);
+        SnapshotLifecycleStats.SnapshotPolicyStats snapshotPolicyStats = newSlmMetadata.getStats().getMetrics().get(policyId);
+        assertEquals(1, snapshotPolicyStats.getSnapshotTakenCount());
+        assertEquals(0, snapshotPolicyStats.getSnapshotFailedCount());
+        assertNull(newSlmMetadata.getSnapshotConfigurations().get(policyId).getLastFailure());
+
+        RegisteredPolicySnapshots newRegisteredPolicySnapshots = newClusterState.metadata()
+            .getProject(projectId)
+            .custom(RegisteredPolicySnapshots.TYPE);
+        assertEquals(List.of(snapshotB), newRegisteredPolicySnapshots.getSnapshotsByPolicy(policyId));
     }
 
     public void testGetCurrentlyRunningSnapshots() {

@@ -61,6 +61,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.inference.completion.CompletionOperatorTests
   method: testSimpleCircuitBreaking
   issue: https://github.com/elastic/elasticsearch/issues/156135
+- class: org.elasticsearch.xpack.security.authc.service.ServiceAccountIT
+  method: testAuthenticateShouldNotFallThroughInCaseOfFailure
+  issue: https://github.com/elastic/elasticsearch/issues/156136
 
 # Examples:
 #

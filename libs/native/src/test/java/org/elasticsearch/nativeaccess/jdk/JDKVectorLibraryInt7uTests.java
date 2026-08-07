@@ -12,8 +12,8 @@ package org.elasticsearch.nativeaccess.jdk;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
-import org.elasticsearch.nativeaccess.VectorSimilarityFunctionsTests;
+import org.elasticsearch.nativeaccess.SimdVecLibrary;
+import org.elasticsearch.nativeaccess.SimdVecLibraryTests;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -24,32 +24,32 @@ import java.util.List;
 import static java.lang.foreign.ValueLayout.JAVA_FLOAT_UNALIGNED;
 import static org.hamcrest.Matchers.containsString;
 
-public class JDKVectorLibraryInt7uTests extends VectorSimilarityFunctionsTests {
+public class JDKVectorLibraryInt7uTests extends SimdVecLibraryTests {
 
     // bounds of the range of values that can be seen by int7 scalar quantized vectors
     static final byte MIN_INT7_VALUE = 0;
     static final byte MAX_INT7_VALUE = 127;
 
-    public JDKVectorLibraryInt7uTests(VectorSimilarityFunctions.Function function, int size) {
+    public JDKVectorLibraryInt7uTests(SimdVecLibrary.SimilarityFunction function, int size) {
         super(function, size);
     }
 
     @ParametersFactory
     public static Iterable<Object[]> parametersFactory() {
-        List<Object[]> baseParams = CollectionUtils.iterableAsArrayList(VectorSimilarityFunctionsTests.parametersFactory());
+        List<Object[]> baseParams = CollectionUtils.iterableAsArrayList(SimdVecLibraryTests.parametersFactory());
         // cosine is not used on float vectors, and quantization is only used on floats
-        baseParams.removeIf(os -> os[0] == VectorSimilarityFunctions.Function.COSINE);
+        baseParams.removeIf(os -> os[0] == SimdVecLibrary.SimilarityFunction.COSINE);
         return baseParams;
     }
 
     @BeforeClass
     public static void beforeClass() {
-        VectorSimilarityFunctionsTests.setup();
+        SimdVecLibraryTests.setup();
     }
 
     @AfterClass
     public static void afterClass() {
-        VectorSimilarityFunctionsTests.cleanup();
+        SimdVecLibraryTests.cleanup();
     }
 
     public void testInt7BinaryVectors() {
@@ -380,9 +380,14 @@ public class JDKVectorLibraryInt7uTests extends VectorSimilarityFunctionsTests {
     public void testBulkSparseIllegalArgs() {
         assumeTrue(notSupportedMsg(), supported());
         int count = 3;
-        var addresses = arena.allocate(ValueLayout.ADDRESS.byteSize() * count, ValueLayout.ADDRESS.byteAlignment());
         var query = arena.allocate(size);
         var scores = arena.allocate((long) count * Float.BYTES);
+
+        var dummyVec = arena.allocate(size);
+        var addresses = arena.allocate(ValueLayout.ADDRESS.byteSize() * count, ValueLayout.ADDRESS.byteAlignment());
+        for (int i = 0; i < count; i++) {
+            addresses.setAtIndex(ValueLayout.ADDRESS, i, dummyVec);
+        }
 
         var tooSmallAddrs = arena.allocate(ValueLayout.ADDRESS.byteSize() * count - 1);
         Exception ex = expectThrows(IOOBE, () -> similarityBulkSparse(tooSmallAddrs, query, size, count, scores));
@@ -403,7 +408,8 @@ public class JDKVectorLibraryInt7uTests extends VectorSimilarityFunctionsTests {
         assertThat(ex.getMessage(), containsString("out of bounds for length"));
 
         // null (zero) address in the addresses segment
-        ex = expectThrows(IAE, () -> similarityBulkSparse(addresses, query, size, count, scores));
+        var zeroAddrs = arena.allocate(ValueLayout.ADDRESS.byteSize() * count, ValueLayout.ADDRESS.byteAlignment());
+        ex = expectThrows(IAE, () -> similarityBulkSparse(zeroAddrs, query, size, count, scores));
         assertThat(ex.getMessage(), containsString("null"));
     }
 

@@ -149,7 +149,7 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractXpackRollingUpg
         }
 
         if (isMixedCluster()) {
-            final List<NodeInfo> nodeInfos = getNodeInfos();
+            final List<NodeInfo> nodeInfos = NodeInfo.getAll(client());
 
             final List<String> oldVersionNodeIds = nodeInfos.stream()
                 .filter(n -> isOldClusterVersion(n.version(), n.buildHash()))
@@ -327,21 +327,7 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractXpackRollingUpg
         assertThat(((Number) extractValue("_shards.failed", responseAsMap)).intValue(), equalTo(0));
     }
 
-    @SuppressWarnings("unchecked")
-    private static List<NodeInfo> getNodeInfos() throws IOException {
-        final Response response = client().performRequest(new Request(HttpGet.METHOD_NAME, "_nodes/_all"));
-        assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
-        final Map<String, Object> nodes = (Map<String, Object>) extractValue(responseAsMap(response), "nodes");
-        assertNotNull("Nodes info is null", nodes);
-        return nodes.entrySet().stream().map(e -> {
-            final Map<?, ?> info = (Map<?, ?>) e.getValue();
-            return new NodeInfo(e.getKey(), (String) extractValue(info, "version"), (String) extractValue(info, "build_hash"));
-        }).toList();
-    }
-
     private static Settings repositorySettings(String repository) {
         return Settings.builder().put("location", "./" + repository).build();
     }
-
-    private record NodeInfo(String nodeId, String version, String buildHash) {}
 }

@@ -157,6 +157,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.recovery.CompositeRecoverySchedulingListener;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
+import org.elasticsearch.indices.recovery.RecoveryGateMonitor;
 import org.elasticsearch.indices.recovery.RecoveryMetricsCollector;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.SnapshotFilesProvider;
@@ -200,6 +201,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsLoader;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.RecoveryPlannerPlugin;
+import org.elasticsearch.plugins.RecoveryPlugin;
 import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.plugins.ScriptPlugin;
@@ -935,11 +937,17 @@ class NodeConstruction {
         };
 
         final CompositeRecoverySchedulingListener recoverySchedulingListeners = new CompositeRecoverySchedulingListener();
+        // Recovery gates may be contributed by plugins and are resolved once on first use, by which point plugin components exist.
+        final RecoveryGateMonitor recoveryGateMonitor = new RecoveryGateMonitor(
+            () -> pluginsService.filterPlugins(RecoveryPlugin.class).flatMap(p -> p.getRecoveryGates().stream()).toList(),
+            threadPool
+        );
         final ThrottlingRecoveryService throttlingRecoveryService = new ThrottlingRecoveryService(
             threadPool,
             projectResolver,
             clusterService,
-            recoverySchedulingListeners
+            recoverySchedulingListeners,
+            recoveryGateMonitor
         );
 
         IndicesService indicesService = new IndicesServiceBuilder().settings(settings)
@@ -1427,7 +1435,8 @@ class NodeConstruction {
             clusterModule.getAllocationService(),
             rerouteService
         );
-        clusterModule.registerRecoveryDirectCancellationCallback(recoveryCancellationService::computeAndSubmitCancellations);
+        resourcesToClose.add(recoveryCancellationService);
+        clusterModule.registerRecoveryDirectCancellationCallback(recoveryCancellationService::cancelUndesiredRecoveries);
 
         modules.add(loadPluginComponents(pluginComponents));
 
@@ -1479,6 +1488,7 @@ class NodeConstruction {
             b.bind(RepositoriesService.class).toInstance(repositoriesService);
             b.bind(SnapshotsService.class).toInstance(snapshotsService);
             b.bind(SnapshotShardsService.class).toInstance(snapshotShardsService);
+            b.bind(RecoveryDirectCancellationService.class).toInstance(recoveryCancellationService);
             b.bind(RestoreService.class).toInstance(restoreService);
             b.bind(RerouteService.class).toInstance(rerouteService);
             b.bind(ShardLimitValidator.class).toInstance(shardLimitValidator);

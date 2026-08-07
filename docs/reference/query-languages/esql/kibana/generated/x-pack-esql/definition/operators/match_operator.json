@@ -11,10 +11,7 @@
           "name" : "field",
           "type" : "boolean",
           "optional" : false,
-          "description" : "Field or expression that the query will target.",
-          "hint" : {
-            "kind" : "entity"
-          }
+          "description" : "Field or expression that the query will target."
         },
         {
           "name" : "query",
@@ -35,10 +32,7 @@
           "name" : "field",
           "type" : "boolean",
           "optional" : false,
-          "description" : "Field or expression that the query will target.",
-          "hint" : {
-            "kind" : "entity"
-          }
+          "description" : "Field or expression that the query will target."
         },
         {
           "name" : "query",
@@ -59,10 +53,7 @@
           "name" : "field",
           "type" : "date",
           "optional" : false,
-          "description" : "Field or expression that the query will target.",
-          "hint" : {
-            "kind" : "entity"
-          }
+          "description" : "Field or expression that the query will target."
         },
         {
           "name" : "query",
@@ -83,10 +74,7 @@
           "name" : "field",
           "type" : "date",
           "optional" : false,
-          "description" : "Field or expression that the query will target.",
-          "hint" : {
-            "kind" : "entity"
-          }
+          "description" : "Field or expression that the query will target."
         },
         {
           "name" : "query",
@@ -107,10 +95,7 @@
           "name" : "field",
           "type" : "date_nanos",
           "optional" : false,
-          "description" : "Field or expression that the query will target.",
-          "hint" : {
-            "kind" : "entity"
-          }
+          "description" : "Field or expression that the query will target."
         },
         {
           "name" : "query",
@@ -131,10 +116,7 @@
           "name" : "field",
           "type" : "date_nanos",
           "optional" : false,
-          "description" : "Field or expression that the query will target.",
-          "hint" : {
-            "kind" : "entity"
-          }
+          "description" : "Field or expression that the query will target."
         },
         {
           "name" : "query",
@@ -155,10 +137,7 @@
           "name" : "field",
           "type" : "double",
           "optional" : false,
-          "description" : "Field or expression that the query will target.",
-          "hint" : {
-            "kind" : "entity"
-          }
+          "description" : "Field or expression that the query will target."
         },
         {
           "name" : "query",
@@ -179,10 +158,7 @@
           "name" : "field",
           "type" : "double",
           "optional" : false,
-          "description" : "Field or expression that the query will target.",
-          "hint" : {
-            "kind" : "entity"
-          }
+          "description" : "Field or expression that the query will target."
         },
         {
           "name" : "query",
@@ -203,10 +179,7 @@
           "name" : "field",
           "type" : "double",
           "optional" : false,
-          "description" : "Field or expression that the query will target.",
-          "hint" : {
-            "kind" : "entity"
-          }
+          "description" : "Field or expression that the query will target."
         },
         {
           "name" : "query",
@@ -227,10 +200,7 @@
           "name" : "field",
           "type" : "double",
           "optional" : false,
-          "description" : "Field or expression that the query will target.",
-          "hint" : {
-            "kind" : "entity"
-          }
+          "description" : "Field or expression that the query will target."
         },
         {
           "name" : "query",
@@ -251,10 +221,7 @@
           "name" : "field",
           "type" : "integer",
           "optional" : false,
-          "description" : "Field or expression that the query will target.",
-          "hint" : {
-            "kind" : "entity"
-          }
+          "description" : "Field or expression that the query will target."
         },
         {
           "name" : "query",
@@ -275,10 +242,7 @@
           "name" : "field",
           "type" : "integer",
           "optional" : false,
-          "description" : "Field or expression that the query will target.",
-          "hint" : {
-            "kind" : "entity"
-          }
+          "description" : "Field or expression that the query will target."
         },
         {
           "name" : "query",
@@ -299,10 +263,7 @@
           "name" : "field",
           "type" : "integer",
           "optional" : false,
-          "description" : "Field or expression that the query will target.",
-          "hint" : {
-            "kind" : "entity"
-          }
+          "description" : "Field or expression that the query will target."
         },
         {
           "name" : "query",
@@ -323,10 +284,7 @@
           "name" : "field",
           "type" : "integer",
           "optional" : false,
-          "description" : "Field or expression that the query will target.",
-          "hint" : {
-            "kind" : "entity"
-          }
+          "description" : "Field or expression that the query will target."
         },
         {
           "name" : "query",
@@ -347,10 +305,7 @@
           "name" : "field",
           "type" : "ip",
           "optional" : false,
-          "description" : "Field or expression that the query will target.",
-          "hint" : {
-            "kind" : "entity"
-          }
+          "description" : "Field or expression that the query will target."
         },
         {
           "name" : "query",
@@ -371,10 +326,7 @@
           "name" : "field",
           "type" : "ip",
           "optional" : false,
-          "description" : "Field or expression that the query will target.",
-          "hint" : {
-            "kind" : "entity"
-          }
+          "description" : "Field or expression that the query will target."
         },
         {
           "name" : "query",
@@ -395,10 +347,7 @@
           "name" : "field",
           "type" : "keyword",
           "optional" : false,
-          "description" : "Field or expression that the query will target.",
-          "hint" : {
-            "kind" : "entity"
-          }
+          "description" : "Field or expression that the query will target."
         },
         {
           "name" : "query",
@@ -419,10 +368,7 @@
           "name" : "field",
           "type" : "long",
           "optional" : false,
-          "description" : "Field or expression that the query will target.",
-          "hint" : {
-            "kind" : "entity"
-          }
+          "description" : "Field or expression that the query will target."
         },
         {
           "name" : "query",
@@ -443,10 +389,7 @@
           "name" : "field",
           "type" : "long",
           "optional" : false,
-          "description" : "Field or expression that the query will target.",
-          "hint" : {
-            "kind" : "entity"
-          }
+          "description" : "Field or expression that the query will target."
         },
         {
           "name" : "query",
@@ -467,10 +410,7 @@
           "name" : "field",
           "type" : "long",
           "optional" : false,
-          "description" : "Field or expression that the query will target.",
-          "hint" : {
-            "kind" : "entity"
-          }
+          "description" : "Field or expression that the query will target."
         },
         {
           "name" : "query",
@@ -491,10 +431,7 @@
           "name" : "field",
           "type" : "long",
           "optional" : false,
-          "description" : "Field or expression that the query will target.",
-          "hint" : {
-            "kind" : "entity"
-          }
+          "description" : "Field or expression that the query will target."
         },
         {
           "name" : "query",
@@ -515,10 +452,7 @@
           "name" : "field",
           "type" : "text",
           "optional" : false,
-          "description" : "Field or expression that the query will target.",
-          "hint" : {
-            "kind" : "entity"
-          }
+          "description" : "Field or expression that the query will target."
         },
         {
           "name" : "query",
@@ -539,10 +473,7 @@
           "name" : "field",
           "type" : "unsigned_long",
           "optional" : false,
-          "description" : "Field or expression that the query will target.",
-          "hint" : {
-            "kind" : "entity"
-          }
+          "description" : "Field or expression that the query will target."
         },
         {
           "name" : "query",
@@ -563,10 +494,7 @@
           "name" : "field",
           "type" : "unsigned_long",
           "optional" : false,
-          "description" : "Field or expression that the query will target.",
-          "hint" : {
-            "kind" : "entity"
-          }
+          "description" : "Field or expression that the query will target."
         },
         {
           "name" : "query",
@@ -587,10 +515,7 @@
           "name" : "field",
           "type" : "unsigned_long",
           "optional" : false,
-          "description" : "Field or expression that the query will target.",
-          "hint" : {
-            "kind" : "entity"
-          }
+          "description" : "Field or expression that the query will target."
         },
         {
           "name" : "query",
@@ -611,10 +536,7 @@
           "name" : "field",
           "type" : "unsigned_long",
           "optional" : false,
-          "description" : "Field or expression that the query will target.",
-          "hint" : {
-            "kind" : "entity"
-          }
+          "description" : "Field or expression that the query will target."
         },
         {
           "name" : "query",
@@ -635,10 +557,7 @@
           "name" : "field",
           "type" : "unsigned_long",
           "optional" : false,
-          "description" : "Field or expression that the query will target.",
-          "hint" : {
-            "kind" : "entity"
-          }
+          "description" : "Field or expression that the query will target."
         },
         {
           "name" : "query",
@@ -659,10 +578,7 @@
           "name" : "field",
           "type" : "version",
           "optional" : false,
-          "description" : "Field or expression that the query will target.",
-          "hint" : {
-            "kind" : "entity"
-          }
+          "description" : "Field or expression that the query will target."
         },
         {
           "name" : "query",
@@ -683,10 +599,7 @@
           "name" : "field",
           "type" : "version",
           "optional" : false,
-          "description" : "Field or expression that the query will target.",
-          "hint" : {
-            "kind" : "entity"
-          }
+          "description" : "Field or expression that the query will target."
         },
         {
           "name" : "query",

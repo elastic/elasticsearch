@@ -1309,6 +1309,11 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         "EMBEDDING:value is missing",
         "FIELD_EXTRACT:path is missing",
 
+        // MATCH_OPERATOR's field is a FieldAttribute, not a literal — we intentionally
+        // do not add an ENTITY hint to it, so the csv-spec test cluster never exercises
+        // this parameter via flattened-keyword field extraction.
+        "MATCH_OPERATOR:field is missing",
+
         // mv_in_range's bounds are literals in the csv-specs (like the comparison operators below), so its
         // keyword/text parameters are not exercised via flattened-keyword field extraction.
         "MV_IN_RANGE:field is missing",

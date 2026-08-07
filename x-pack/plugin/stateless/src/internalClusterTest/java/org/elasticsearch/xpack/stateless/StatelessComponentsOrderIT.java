@@ -68,6 +68,10 @@ public class StatelessComponentsOrderIT extends AbstractStatelessPluginIntegTest
                 indexingFuture = executorService.submit(() -> {
                     try {
                         for (int i = 0; i < 11; i++) {
+                            if (plugin.mergeReadStartedLatch.getCount() == 0) {
+                                logger.info("--> merge read started, stopping indexing loop");
+                                break;
+                            }
                             indexDocs(indexName, 10, UnaryOperator.identity(), null, null, false);
                             flush(indexName);
                         }

@@ -1357,16 +1357,20 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
                 // The exact value of age is not important as long as it is greater or equal than the minimum age
                 // that is measured before creating the upload task
                 assertThat(ageMeasurements.get(0).getLong(), greaterThanOrEqualTo(minAge));
-
-                List<Measurement> averageThroughputMeasurements = metricsPlugin.getDoubleHistogramMeasurement(
-                    BCC_AVERAGE_COMMIT_UPLOAD_THROUGHPUT_METRIC
-                );
-                // We don't want to repeat specific calculation logic here but the metric should be present.
-                assertEquals(1, averageThroughputMeasurements.size());
-                assertTrue(averageThroughputMeasurements.get(0).getDouble() > 0);
                 metricsPlugin.resetMeter();
             }
         }
+
+        // Throughput metrics are pulled.
+        metricsPlugin.collect();
+
+        List<Measurement> averageThroughputMeasurements = metricsPlugin.getDoubleGaugeMeasurement(
+            BCC_AVERAGE_COMMIT_UPLOAD_THROUGHPUT_METRIC
+        );
+        // We don't want to repeat specific calculation logic here but the metric should be present.
+        assertEquals(1, averageThroughputMeasurements.size());
+        assertTrue(averageThroughputMeasurements.get(0).getDouble() > 0);
+        metricsPlugin.resetMeter();
     }
 
     public void testBccTimestampRangeMetricRecordedOnUpload() throws Exception {

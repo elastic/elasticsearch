@@ -66,7 +66,9 @@ import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryCommitTooNewException;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.metric.DoubleGauge;
 import org.elasticsearch.telemetry.metric.DoubleHistogram;
+import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.threadpool.Scheduler;
@@ -221,7 +223,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     public static final String BCC_ELAPSED_TIME_BEFORE_FREEZE_HISTOGRAM_METRIC = "es.bcc.elapsed_time_before_freeze.histogram";
     public static final String BCC_TIMESTAMP_RANGE_HISTOGRAM_METRIC = "es.bcc.timestamp_range.histogram";
     public static final String BCC_MISSING_TIMESTAMP_METRIC = "es.bcc.missing_timestamp.total";
-    public static final String BCC_AVERAGE_COMMIT_UPLOAD_THROUGHPUT_METRIC = "es.bcc.average_upload_throughput.histogram";
+    public static final String BCC_AVERAGE_COMMIT_UPLOAD_THROUGHPUT_METRIC = "es.bcc.average_upload_throughput.gauge";
     public static final String BCC_SIZE_ATTRIBUTE_KEY = "es_bcc_size";
 
     private final ClusterService clusterService;
@@ -259,7 +261,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     private final LongHistogram bccAgeHistogram;
     private final DoubleHistogram bccTimestampRangeHistogram;
     private final LongCounter bccMissingTimestampCounter;
-    private final DoubleHistogram commitUploadThroughputHistogram;
+    private final DoubleGauge averageCommitUploadThroughputGauge;
 
     /**
      * An estimate of the maximum size in bytes that the header and replicated contents are likely to fill in a region. This is used when a
@@ -380,11 +382,12 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 "Number of uploaded batched compound commits where none of the compound commits have a @timestamp range",
                 "count"
             );
-        this.commitUploadThroughputHistogram = telemetryProvider.getMeterRegistry()
-            .registerDoubleHistogram(
+        this.averageCommitUploadThroughputGauge = telemetryProvider.getMeterRegistry()
+            .registerDoubleGauge(
                 BCC_AVERAGE_COMMIT_UPLOAD_THROUGHPUT_METRIC,
                 "moving average of batch compound commit upload throughput",
-                "MiB/s"
+                "MiB/s",
+                () -> new DoubleWithAttributes(commitUploadThroughputMiBSec.getAverage())
             );
     }
 
@@ -904,7 +907,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             public void onResponse(BccUploadResult uploadResult) {
                 maybeLogSlowBccUpload(virtualBcc, uploadResult);
                 commitUploadThroughputMiBSec.addValue(uploadResult.uploadThroughputMiBPerSec());
-                commitUploadThroughputHistogram.record(commitUploadThroughputMiBSec.getAverage());
 
                 final BatchedCompoundCommit uploadedBcc = uploadResult.batchedCompoundCommit();
                 try {

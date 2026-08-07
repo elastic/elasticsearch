@@ -229,7 +229,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new BooleanFunctionEqualsElimination(),
             new CombineBinaryComparisons(),
             new CombineDisjunctions(),
-            new DebugRule(),
             // TODO: bifunction can now (since we now have just one data types set) be pushed into the rule
             new SimplifyComparisonsArithmetics(DataType::areCompatible),
             new ReplaceStringCasingWithInsensitiveEquals(),

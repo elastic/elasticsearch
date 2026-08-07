@@ -238,14 +238,8 @@ public class PkiRealm extends Realm implements CachingRealm {
             metadataBuilder.put(PKI_PUBLIC_KEY_FINGERPRINT_METADATA_KEY, sha256Fingerprint(encodedPublicKey));
         }
         if (token.isDelegated()) {
-            metadataBuilder.put(
-                "pki_delegated_by_user",
-                token.getDelegateeAuthentication().getEffectiveSubject().getUser().principal()
-            );
-            metadataBuilder.put(
-                "pki_delegated_by_realm",
-                token.getDelegateeAuthentication().getEffectiveSubject().getRealm().getName()
-            );
+            metadataBuilder.put("pki_delegated_by_user", token.getDelegateeAuthentication().getEffectiveSubject().getUser().principal());
+            metadataBuilder.put("pki_delegated_by_realm", token.getDelegateeAuthentication().getEffectiveSubject().getRealm().getName());
         }
         final Map<String, Object> metadata = Map.copyOf(metadataBuilder);
         final UserRoleMapper.UserData userData = new UserRoleMapper.UserData(principal, token.dn(), Set.of(), metadata, config);

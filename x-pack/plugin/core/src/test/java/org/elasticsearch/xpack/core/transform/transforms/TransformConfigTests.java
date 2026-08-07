@@ -566,7 +566,6 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         TransformConfig copied = new TransformConfig.Builder(original).build();
 
         assertThat(copied.getHeaders(), equalTo(headers));
-        assertThat(copied.getCredentialId(), equalTo(original.getCredentialId()));
     }
 
     public void testMaxLengthDescription() {

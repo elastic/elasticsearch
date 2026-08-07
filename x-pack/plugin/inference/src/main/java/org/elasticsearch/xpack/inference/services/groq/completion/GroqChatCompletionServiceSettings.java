@@ -260,6 +260,9 @@ public class GroqChatCompletionServiceSettings extends FilteredXContentObject im
                 new ParseField(RateLimitSettings.FIELD_NAME),
                 ObjectParser.ValueType.OBJECT_OR_NULL
             );
+            // api_key appears in the same JSON block as service settings in update requests; DefaultSecretSettings extracts it separately.
+            // Declare it here as a no-op so the strict parser does not reject it as an unknown field.
+            PARSER.declareString((u, v) -> {}, new ParseField(DefaultSecretSettings.API_KEY));
         }
 
         private StatefulValue<RateLimitSettings> rateLimitSettings = StatefulValue.undefined();

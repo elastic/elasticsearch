@@ -297,4 +297,85 @@ public class NumberFieldMapperColumnarCompatibilityTests extends AbstractColumna
             batch("half_float string", 1L, doc("d1", 1L, "{\"f\":\"1.5\"}"), doc("d2", 2L, "{}"), doc("d3", 3L, "{\"f\":\"-2.25\"}"))
         );
     }
+
+    /**
+     * Columnar-mode settings leaving {@code doc_values.multi_value} at its default of {@code true},
+     * so array values reach the mapper instead of being rejected at parse time.
+     */
+    private static Settings multiValueColumnarSettings() {
+        return Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
+            .build();
+    }
+
+    /**
+     * {@link NumberFieldMapper#supportsColumnarParse} accepts {@code doc_values.multi_value=true} —
+     * the setting defaults to {@code true}, so rejecting it would take every numeric field in a
+     * columnar index off the columnar path. Multi-valued documents themselves are not implemented:
+     * they arrive as an ESCF {@code ARRAY} column and the kind switch in
+     * {@link NumberFieldMapper#mapColumnBatch} throws, which makes {@code ShardBatchMapper} fall the
+     * chunk back to the row path. This test pins the gap that fallback papers over.
+     */
+    @AwaitsFix(bugUrl = "columnar mapColumnBatch does not implement multi-valued numeric fields; ARRAY columns fall back to the row path")
+    public void testLongField_multiValue() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "long").endObject()),
+            multiValueColumnarSettings(),
+            // Every present value is an array so the column is a plain ARRAY; mixing in a scalar
+            // would make it a UNION and trip the same switch for a different reason.
+            batch("long multi-value", 1L, doc("d1", 1L, "{\"f\":[1,2,3]}"), doc("d2", 2L, "{}"), doc("d3", 3L, "{\"f\":[7]}"))
+        );
+    }
+
+    /**
+     * As {@link #testLongField_multiValue}, for a null value. A null makes the column a UNION rather
+     * than a plain LONG, which the same kind switch rejects.
+     */
+    @AwaitsFix(bugUrl = "columnar mapColumnBatch does not implement null numeric values; UNION columns fall back to the row path")
+    public void testLongField_nullValue() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "long").field("null_value", 9).endObject()),
+            columnarSettings(),
+            batch("long null value", 1L, doc("d1", 1L, "{\"f\":1}"), doc("d2", 2L, "{\"f\":null}"), doc("d3", 3L, "{\"f\":3}"))
+        );
+    }
+
+    /**
+     * {@link NumberFieldMapper#supportsColumnarParse} accepts {@code ignore_malformed=true} — the
+     * logsdb index modes default it to {@code true}. Per-value error handling
+     * ({@code addIgnoredField} plus the ignored-source stored copy) is not implemented in
+     * {@code mapColumnBatch}, so an unparseable value throws out of {@code NumberColumnTransform}
+     * and the chunk falls back to the row path, which applies {@code ignore_malformed} properly.
+     */
+    @AwaitsFix(bugUrl = "columnar mapColumnBatch does not implement ignore_malformed; malformed values fall back to the row path")
+    public void testLongField_ignoreMalformed() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "long").field("ignore_malformed", true).endObject()),
+            columnarSettings(),
+            // All values are strings so the column is a plain STRING and the malformed value reaches
+            // the numeric parser; mixing in a JSON number would make it a UNION and fail earlier.
+            batch(
+                "long ignore_malformed",
+                1L,
+                doc("d1", 1L, "{\"f\":\"1\"}"),
+                doc("d2", 2L, "{\"f\":\"not-a-number\"}"),
+                doc("d3", 3L, "{}")
+            )
+        );
+    }
+
+    /**
+     * As {@link #testLongField_ignoreMalformed}, for a value that parses but falls outside the
+     * type's range — rejected by {@code NumberColumnTransform#validateLongRange} rather than by the
+     * string parser.
+     */
+    @AwaitsFix(bugUrl = "columnar mapColumnBatch does not implement ignore_malformed; out-of-range values fall back to the row path")
+    public void testByteField_ignoreMalformedOutOfRange() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "byte").field("ignore_malformed", true).endObject()),
+            columnarSettings(),
+            batch("byte ignore_malformed out of range", 1L, doc("d1", 1L, "{\"f\":1}"), doc("d2", 2L, "{\"f\":300}"))
+        );
+    }
 }

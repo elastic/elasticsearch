@@ -85,7 +85,20 @@ tasks.named('internalClusterTest') {
     jvmArgs '--add-opens=java.base/java.io=ALL-UNNAMED'
     // A small write buffer size to avoid OOM when many nodes run in the same JVM
     systemProperty("es.searchable.snapshot.shared_cache.write_buffer.size", "256kb")
+    exclude '**/CacheMissWaitTimeHeaderFlagOffIT.class'  // needs a separate JVM with the flag off
 }
+
+// FeatureFlag is fixed at class init; flag-off test must run in its own JVM.
+def directoryMetricsDisabledTest = tasks.register('internalClusterTestDirectoryMetricsDisabled', Test) {
+    testClassesDirs = sourceSets.internalClusterTest.output.classesDirs
+    classpath = sourceSets.internalClusterTest.runtimeClasspath
+    include '**/CacheMissWaitTimeHeaderFlagOffIT.class'
+    systemProperty 'es.directory_metrics_feature_flag_enabled', 'false'
+    systemProperty 'es.searchable.snapshot.shared_cache.write_buffer.size', '256kb'
+    jvmArgs '--add-opens=java.base/java.io=ALL-UNNAMED'
+    systemProperty 'tempDir', "${workingDir}/nodesTemp"
+}
+tasks.named('check').configure { dependsOn directoryMetricsDisabledTest }
 
 tasks.register('statelessS3ThirdPartyTests', Test) {
     def testSourceSet = sourceSets.test

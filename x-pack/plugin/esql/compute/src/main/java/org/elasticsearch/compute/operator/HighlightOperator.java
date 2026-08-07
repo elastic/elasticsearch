@@ -97,7 +97,6 @@ public class HighlightOperator extends AbstractPageMappingOperator {
     private final Supplier<BreakIterator> breakIteratorSupplier;
     private final ExpressionEvaluator[] fieldEvaluators;
     private final MemoryIndex memoryIndex;
-    private LeafReader memoryIndexReader;
     private final CustomUnifiedHighlighter[] highlighters;
     private final CharArraySet termsToKeep;
 
@@ -282,7 +281,8 @@ public class HighlightOperator extends AbstractPageMappingOperator {
             appendNulls(fields);
             return;
         }
-        if (indexRow(fields) == false) {
+        LeafReader memoryIndexReader = indexRow(fields);
+        if (memoryIndexReader == null) {
             appendNulls(fields);
             return;
         }
@@ -293,7 +293,7 @@ public class HighlightOperator extends AbstractPageMappingOperator {
                 continue;
             }
             try {
-                appendSnippets(field.builder, highlight(fieldIndex, field.rowText));
+                appendSnippets(field.builder, highlight(memoryIndexReader, fieldIndex, field.rowText));
             } catch (IOException e) {
                 throw new IllegalStateException("HIGHLIGHT failed for ON field [" + field.name + "]", e);
             }
@@ -301,11 +301,11 @@ public class HighlightOperator extends AbstractPageMappingOperator {
     }
 
     /**
-     * Analyzes this row's values into the shared memory index. Returns {@code false} when filtering kept nothing the
-     * query could match and {@code no_match_size} is 0, so every field of the row is {@code null} and the caller can
-     * skip the highlighters.
+     * Analyzes this row's values into the shared memory index and returns a {@link LeafReader} over it. Returns
+     * {@code null} when filtering kept nothing the query could match and {@code no_match_size} is 0, so every field of
+     * the row is {@code null} and the caller can skip the highlighters.
      */
-    private boolean indexRow(HighlightField[] fields) {
+    private LeafReader indexRow(HighlightField[] fields) {
         memoryIndex.reset();
         boolean keptToken = false;
         for (HighlightField field : fields) {
@@ -323,11 +323,10 @@ public class HighlightOperator extends AbstractPageMappingOperator {
         }
         // With filtering off keptToken stays false, so it says nothing about the row.
         if (termsToKeep != null && keptToken == false && config.noMatchSize() == 0) {
-            return false;
+            return null;
         }
         // MemoryIndex snapshots FieldInfos at reader construction, so create it after addField.
-        memoryIndexReader = (LeafReader) memoryIndex.createSearcher().getIndexReader();
-        return true;
+        return (LeafReader) memoryIndex.createSearcher().getIndexReader();
     }
 
     /**
@@ -409,7 +408,7 @@ public class HighlightOperator extends AbstractPageMappingOperator {
 
     // CustomUnifiedHighlighter derives its FieldHighlighter from the query at build time and caches nothing from the
     // reader, so the constructor's per-field instances can be reused for every row and page.
-    private Snippet[] highlight(int fieldIndex, String text) throws IOException {
+    private Snippet[] highlight(LeafReader memoryIndexReader, int fieldIndex, String text) throws IOException {
         return highlighters[fieldIndex].highlightField(memoryIndexReader, 0, () -> text);
     }
 

@@ -22,21 +22,21 @@ public class DataTierMixedIT extends ESRestTestCase {
 
     private static ElasticsearchCluster buildCluster() {
         Version oldVersion = Version.fromString(OLD_CLUSTER_VERSION);
+        boolean isOldClusterDetachedVersion = isOldClusterDetachedVersion();
         // data_* roles were introduced in 7.10.0, so use 'data' for older versions
         String dataNodeRoles = oldVersion.before("7.10.0") ? "[\"data\"]" : "[\"data_content\", \"data_hot\"]";
 
-        var builder = ElasticsearchCluster.local()
+        return ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
-            .version(OLD_CLUSTER_VERSION, isOldClusterDetachedVersion())
             .setting("xpack.security.enabled", "false")
             .setting("xpack.watcher.enabled", "false")
             .setting("xpack.ml.enabled", "false")
             .setting("xpack.license.self_generated.type", "trial")
-            .withNode(node -> node.setting("node.roles", "[\"master\"]"))
-            .withNode(node -> node.setting("node.roles", dataNodeRoles))
-            .withNode(node -> node.setting("node.roles", "[\"master\"]"));
-
-        return builder.build();
+            // Node 0 runs the current version from the start, forming a mixed-version cluster with nodes 1 and 2.
+            .withNode(node -> node.version(Version.CURRENT).setting("node.roles", "[\"master\"]"))
+            .withNode(node -> node.version(OLD_CLUSTER_VERSION, isOldClusterDetachedVersion).setting("node.roles", dataNodeRoles))
+            .withNode(node -> node.version(OLD_CLUSTER_VERSION, isOldClusterDetachedVersion).setting("node.roles", "[\"master\"]"))
+            .build();
     }
 
     @Override
@@ -45,9 +45,6 @@ public class DataTierMixedIT extends ESRestTestCase {
     }
 
     public void testMixedTierCompatibility() throws Exception {
-        // Take the first node to the current version to create a mixed-version cluster.
-        cluster.upgradeNodeToVersion(0, Version.CURRENT);
-
         createIndex("test-index", indexSettings(1, 0).build());
         ensureGreen("test-index");
     }

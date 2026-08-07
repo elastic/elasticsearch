@@ -9,4 +9,4 @@ breaking:
 issues: []
 pr: 152703
 summary: Introducing configurable limits to ingest pipelines
-type: "breaking, enhancement"
+type: breaking

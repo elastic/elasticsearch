@@ -318,6 +318,8 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
                 return Stream.empty();
             }
         }
+        // Anthropic streams a single message, so the chunk always holds one choice at index 0; parallel tool calls are
+        // distinguished by the tool call index, not the choice index.
         var choice = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice(delta, null, 0);
         return Stream.of(newChunk(List.of(choice), null));
     }
@@ -351,7 +353,7 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
                 var partialJson = extractMandatoryString(deltaMap, PARTIAL_JSON_FIELD);
                 var toolCallIndex = contentBlockIndexToToolCallIndex.get(blockIndex);
                 if (toolCallIndex == null) {
-                    logger.warn("Received [{}] for unknown content block index [{}].", INPUT_JSON_DELTA_TYPE, blockIndex);
+                    logger.debug("Received [{}] for unknown content block index [{}].", INPUT_JSON_DELTA_TYPE, blockIndex);
                     return Stream.empty();
                 }
                 var function = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall.Function(
@@ -430,6 +432,8 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
                 return Stream.empty();
             }
         }
+        // Anthropic streams a single message, so the chunk always holds one choice at index 0; parallel tool calls are
+        // distinguished by the tool call index, not the choice index.
         var choice = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice(delta, null, 0);
         return Stream.of(newChunk(List.of(choice), null));
     }
@@ -519,7 +523,7 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
             case ANTHROPIC_STOP_REASON_TOOL_USE -> TOOL_CALLS_FINISH_REASON;
             case ANTHROPIC_STOP_REASON_REFUSAL -> CONTENT_FILTER_FINISH_REASON;
             default -> {
-                logger.warn("Unhandled Anthropic stop reason [{}], defaulting to [{}].", stopReason, STOP_FINISH_REASON);
+                logger.debug("Unhandled Anthropic stop reason [{}], defaulting to [{}].", stopReason, STOP_FINISH_REASON);
                 yield STOP_FINISH_REASON;
             }
         };

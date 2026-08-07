@@ -48,9 +48,7 @@ public class MatchQueryBuilderCrossClusterSearchIT extends AbstractSemanticCross
     }
 
     @Before
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    public void configureInferenceEndpoints() throws Exception {
         configureClusters();
     }
 

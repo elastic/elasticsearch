@@ -87,9 +87,10 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         Setting.Property.NodeScope
     );
     /**
-     * This feature enables the calculation of a minimum threshold for adaptive shard memory estimation,
-     * derived from StatelessMemoryMetricsService#MAX_HEAP_SIZE and ShardLimitValidator#SETTING_CLUSTER_MAX_SHARDS_PER_NODE.
-     * As the shard count increases, this threshold drives automatic cluster sizing to accommodate the additional memory requirements.
+     * Enables the per-shard capacity floor used by the indexing tier autoscaling floor calculation.
+     * The threshold is {@code MAX_HEAP_SIZE / shardLimitPerNode}, allocating the full maximum heap
+     * uniformly across the shard limit. As shard count increases, this floor drives automatic cluster
+     * sizing so nodes are large enough to accommodate the shards within evacuation bounds.
      */
     public static final Setting<Boolean> ADAPTIVE_SHARD_MEMORY_ESTIMATION_MIN_THRESHOLD_ENABLED_SETTING = Setting.boolSetting(
         "memory_metrics.adaptive_min_threshold.enabled",
@@ -369,16 +370,14 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         long estimateBytes = ADAPTIVE_SHARD_MEMORY_OVERHEAD.getBytes() + metrics.numSegments * ADAPTIVE_SEGMENT_MEMORY_OVERHEAD.getBytes()
             + metrics.totalFields * ADAPTIVE_FIELD_MEMORY_OVERHEAD.getBytes() + metrics.liveDocsBytes + metrics.pointsInMemoryBytes;
         long extraBytes = (long) (estimateBytes * adaptiveExtraOverheadRatio);
-
-        if (this.adaptiveShardMemoryEstimationMinThresholdEnabled) {
-            return Math.max(getAdaptiveShardMemoryEstimationMinThreshold(), estimateBytes + extraBytes);
-        }
-
         return estimateBytes + extraBytes;
     }
 
     public long getAdaptiveShardMemoryEstimationMinThreshold() {
-        return (MAX_HEAP_SIZE - getNodeBaseHeapEstimateInBytes()) / this.shardLimitPerNode;
+        if (adaptiveShardMemoryEstimationMinThresholdEnabled == false) {
+            return 0L;
+        }
+        return MAX_HEAP_SIZE / this.shardLimitPerNode;
     }
 
     // visible for testing

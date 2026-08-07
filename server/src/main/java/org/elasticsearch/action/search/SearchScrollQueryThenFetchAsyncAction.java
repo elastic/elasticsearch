@@ -108,7 +108,9 @@ final class SearchScrollQueryThenFetchAsyncAction extends SearchScrollAsyncActio
                                     accumulateDirectoryMetrics(response.getDirectoryMetrics());
                                     fetchResults.setOnce(response.getShardIndex(), response);
                                     response.incRef();
-                                    consumeResponse(counter, reducedQueryPhase);
+                                    if (counter.countDown()) {
+                                        sendResponseAndReleaseFetchResults(reducedQueryPhase);
+                                    }
                                 }
 
                                 @Override
@@ -119,7 +121,12 @@ final class SearchScrollQueryThenFetchAsyncAction extends SearchScrollAsyncActio
                                         querySearchResult.getContextId(),
                                         t,
                                         querySearchResult.getSearchShardTarget(),
-                                        () -> sendResponsePhase(reducedQueryPhase, fetchResults)
+                                        () -> new SearchPhase("fetch") {
+                                            @Override
+                                            protected void run() {
+                                                sendResponseAndReleaseFetchResults(reducedQueryPhase);
+                                            }
+                                        }
                                     );
                                 }
                             }
@@ -127,19 +134,19 @@ final class SearchScrollQueryThenFetchAsyncAction extends SearchScrollAsyncActio
                     } else {
                         // the counter is set to the total size of docIdsToLoad
                         // which can have null values so we have to count them down too
-                        consumeResponse(counter, reducedQueryPhase);
+                        if (counter.countDown()) {
+                            sendResponseAndReleaseFetchResults(reducedQueryPhase);
+                        }
                     }
                 }
             }
         };
     }
 
-    private void consumeResponse(CountDown counter, SearchPhaseController.ReducedQueryPhase reducedQueryPhase) {
-        if (counter.countDown()) {
-            sendResponse(reducedQueryPhase, fetchResults);
-            for (FetchSearchResult fetchSearchResult : fetchResults.asList()) {
-                fetchSearchResult.decRef();
-            }
+    private void sendResponseAndReleaseFetchResults(SearchPhaseController.ReducedQueryPhase reducedQueryPhase) {
+        sendResponse(reducedQueryPhase, fetchResults);
+        for (FetchSearchResult fetchSearchResult : fetchResults.asList()) {
+            fetchSearchResult.decRef();
         }
     }
 

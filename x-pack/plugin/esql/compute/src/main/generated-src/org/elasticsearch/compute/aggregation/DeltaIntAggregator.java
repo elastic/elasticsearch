@@ -155,7 +155,6 @@ public class DeltaIntAggregator {
             Releasables.close(states, () -> adjustBreaker(-stateBytes));
         }
 
-        @Override
         public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
             assert blocks.length >= offset + 2 : "blocks=" + blocks.length + ",offset=" + offset;
             final BlockFactory blockFactory = driverContext.blockFactory();

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -18,9 +19,12 @@ import org.elasticsearch.xpack.esql.expression.function.AggregateMetricDoubleNat
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
+import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
 import java.util.List;
@@ -31,19 +35,36 @@ import static java.util.Collections.emptyList;
 /**
  * Similar to {@link Present}, but it is used to check the presence of values over a time series in the given field.
  */
-public class PresentOverTime extends TimeSeriesAggregateFunction implements AggregateMetricDoubleNativeSupport {
+public class PresentOverTime extends TimeSeriesAggregateFunction implements AggregateMetricDoubleNativeSupport, ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "PresentOverTime",
         PresentOverTime::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(PresentOverTime.class)
+        .binary(PresentOverTime::new)
+        .name("present_over_time");
+    public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
+        .withinSeriesOverTime(PresentOverTime::new)
+        .counterSupport(PromqlFunctionDefinition.CounterSupport.SUPPORTED)
+        .description("Returns `1` if the range vector has at least one element, and `0` otherwise.")
+        .example("present_over_time(http_requests_total[5m])")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
+        .differenceFromPrometheus(
+            "Evaluated per series and per time bucket: returns `true` (PromQL `1`) when the bucket has at least one "
+                + "sample and `false` (PromQL `0`) otherwise. Prometheus returns `1` only for series that have samples "
+                + "and omits the rest; it never emits `0`."
+        )
+        .name("present_over_time");
 
     @FunctionInfo(
         type = FunctionType.TIME_SERIES_AGGREGATE,
         returnType = { "boolean" },
+        briefSummary = "Calculates the presence of a field over a time range.",
         description = "Calculates the presence of a field in the output result over time range.",
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") },
-        preview = true,
+        appliesTo = {
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0"),
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.4.0") },
         examples = { @Example(file = "k8s-timeseries", tag = "present_over_time") }
     )
     public PresentOverTime(
@@ -121,6 +142,11 @@ public class PresentOverTime extends TimeSeriesAggregateFunction implements Aggr
     @Override
     public DataType dataType() {
         return perTimeSeriesAggregation().dataType();
+    }
+
+    @Override
+    public AggregatorFunctionSupplier supplier() {
+        return perTimeSeriesAggregation().supplier();
     }
 
     @Override

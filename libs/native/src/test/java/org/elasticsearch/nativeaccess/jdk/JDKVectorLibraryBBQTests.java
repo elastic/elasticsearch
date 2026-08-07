@@ -12,30 +12,28 @@ package org.elasticsearch.nativeaccess.jdk;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
-import org.elasticsearch.nativeaccess.VectorSimilarityFunctionsTests;
+import org.elasticsearch.nativeaccess.BBQTestUtils;
+import org.elasticsearch.nativeaccess.SimdVecLibrary;
+import org.elasticsearch.nativeaccess.SimdVecLibraryTests;
 import org.junit.AfterClass;
-import org.junit.AssumptionViolatedException;
 import org.junit.BeforeClass;
 
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.ToIntBiFunction;
 import java.util.stream.Stream;
 
-import static java.lang.foreign.ValueLayout.JAVA_FLOAT_UNALIGNED;
 import static org.hamcrest.Matchers.containsString;
 
-public class JDKVectorLibraryBBQTests extends VectorSimilarityFunctionsTests {
+public class JDKVectorLibraryBBQTests extends SimdVecLibraryTests {
 
-    private final VectorSimilarityFunctions.BBQType type;
+    private final SimdVecLibrary.BBQType type;
 
     private final byte maxQueryValue;
     private final byte maxIndexValue;
 
-    public JDKVectorLibraryBBQTests(VectorSimilarityFunctions.BBQType type, VectorSimilarityFunctions.Function function, int size) {
+    public JDKVectorLibraryBBQTests(SimdVecLibrary.BBQType type, SimdVecLibrary.SimilarityFunction function, int size) {
         super(function, size);
         this.type = type;
         this.maxQueryValue = (byte) ((1 << type.queryBits()) - 1);
@@ -44,16 +42,15 @@ public class JDKVectorLibraryBBQTests extends VectorSimilarityFunctionsTests {
 
     @ParametersFactory
     public static Iterable<Object[]> parametersFactory() {
-        List<Object[]> baseParams = CollectionUtils.iterableAsArrayList(VectorSimilarityFunctionsTests.parametersFactory());
+        List<Object[]> baseParams = CollectionUtils.iterableAsArrayList(SimdVecLibraryTests.parametersFactory());
         // BBQ only with dimensions a multiple of 8
         baseParams.removeIf(os -> (Integer) os[1] % 8 != 0);
         // cosine is not a thing on BBQ
-        baseParams.removeIf(os -> os[0] == VectorSimilarityFunctions.Function.COSINE);
+        baseParams.removeIf(os -> os[0] == SimdVecLibrary.SimilarityFunction.COSINE);
         // remove all square distance (not implemented yet)
-        baseParams.removeIf(os -> os[0] == VectorSimilarityFunctions.Function.SQUARE_DISTANCE);
+        baseParams.removeIf(os -> os[0] == SimdVecLibrary.SimilarityFunction.SQUARE_DISTANCE);
 
-        // duplicate for int1 & int2
-        return () -> Stream.of(VectorSimilarityFunctions.BBQType.values())
+        return () -> Stream.of(SimdVecLibrary.BBQType.values())
             .flatMap(bbq -> baseParams.stream().map(os -> CollectionUtils.concatLists(List.of(bbq), Arrays.asList(os))))
             .map(List::toArray)
             .iterator();
@@ -61,12 +58,12 @@ public class JDKVectorLibraryBBQTests extends VectorSimilarityFunctionsTests {
 
     @BeforeClass
     public static void beforeClass() {
-        VectorSimilarityFunctionsTests.setup();
+        SimdVecLibraryTests.setup();
     }
 
     @AfterClass
     public static void afterClass() {
-        VectorSimilarityFunctionsTests.cleanup();
+        SimdVecLibraryTests.cleanup();
     }
 
     public void testInt4BinaryVectors() {
@@ -74,14 +71,14 @@ public class JDKVectorLibraryBBQTests extends VectorSimilarityFunctionsTests {
         final int dims = size;
         final int numVecs = randomIntBetween(2, 101);
 
-        final int indexVectorBytes = numBytes(dims, type.dataBits());
-        final int queryVectorBytes = numBytes(dims, type.queryBits());
+        final int indexVectorBytes = BBQTestUtils.numBytes(dims, type.dataBits());
+        final int queryVectorBytes = queryBytes(dims);
 
         var unpackedIndexVectors = new byte[numVecs][dims];
         var unpackedQueryVectors = new byte[numVecs][dims];
 
-        var indexVectors = new byte[numVecs][indexVectorBytes];
-        var queryVectors = new byte[numVecs][queryVectorBytes];
+        var indexVectors = new byte[numVecs][];
+        var queryVectors = new byte[numVecs][];
 
         var indexSegment = arena.allocate((long) indexVectorBytes * numVecs);
         var querySegment = arena.allocate((long) queryVectorBytes * numVecs);
@@ -91,8 +88,8 @@ public class JDKVectorLibraryBBQTests extends VectorSimilarityFunctionsTests {
             randomBytesBetween(unpackedIndexVectors[i], (byte) 0, maxIndexValue);
             randomBytesBetween(unpackedQueryVectors[i], (byte) 0, maxQueryValue);
 
-            pack(unpackedIndexVectors[i], indexVectors[i], type.dataBits());
-            pack(unpackedQueryVectors[i], queryVectors[i], type.queryBits());
+            indexVectors[i] = packDoc(unpackedIndexVectors[i]);
+            queryVectors[i] = packQuery(unpackedQueryVectors[i]);
 
             MemorySegment.copy(indexVectors[i], 0, indexSegment, ValueLayout.JAVA_BYTE, (long) i * indexVectorBytes, indexVectorBytes);
             MemorySegment.copy(queryVectors[i], 0, querySegment, ValueLayout.JAVA_BYTE, (long) i * queryVectorBytes, queryVectorBytes);
@@ -105,15 +102,15 @@ public class JDKVectorLibraryBBQTests extends VectorSimilarityFunctionsTests {
             var querySlice = querySegment.asSlice((long) queryIndex * queryVectorBytes, queryVectorBytes);
             var indexSlice = indexSegment.asSlice((long) indexIndex * indexVectorBytes, indexVectorBytes);
 
-            int expected = scalarSimilarity(unpackedQueryVectors[queryIndex], unpackedIndexVectors[indexIndex]);
-            assertEquals(expected, nativeSimilarity(indexSlice, querySlice, indexVectorBytes));
+            float expected = ScalarOperations.similarity(function, unpackedQueryVectors[queryIndex], unpackedIndexVectors[indexIndex]);
+            assertEquals(expected, nativeSimilarity(indexSlice, querySlice, indexVectorBytes), 0f);
 
             if (supportsHeapSegments()) {
                 var queryHeapSegment = MemorySegment.ofArray(queryVectors[queryIndex]);
                 var indexHeapSegment = MemorySegment.ofArray(indexVectors[indexIndex]);
-                assertEquals(expected, nativeSimilarity(indexHeapSegment, queryHeapSegment, indexVectorBytes));
-                assertEquals(expected, nativeSimilarity(indexHeapSegment, querySlice, indexVectorBytes));
-                assertEquals(expected, nativeSimilarity(indexSlice, queryHeapSegment, indexVectorBytes));
+                assertEquals(expected, nativeSimilarity(indexHeapSegment, queryHeapSegment, indexVectorBytes), 0f);
+                assertEquals(expected, nativeSimilarity(indexHeapSegment, querySlice, indexVectorBytes), 0f);
+                assertEquals(expected, nativeSimilarity(indexSlice, queryHeapSegment, indexVectorBytes), 0f);
 
                 // trivial bulk with a single vector
                 float[] bulkScore = new float[1];
@@ -146,18 +143,17 @@ public class JDKVectorLibraryBBQTests extends VectorSimilarityFunctionsTests {
         return new TestOffsets(offsets, offsetsSegment);
     }
 
-    static TestData createTestData(final int numVecs, final int dims, final VectorSimilarityFunctions.BBQType type, final long extraData) {
+    static TestData createTestData(final int numVecs, final int dims, final SimdVecLibrary.BBQType type, final long extraData) {
         final byte maxIndexValue = (byte) ((1 << type.dataBits()) - 1);
         final byte maxQueryValue = (byte) ((1 << type.queryBits()) - 1);
 
-        final int indexVectorBytes = numBytes(dims, type.dataBits());
-        final int queryVectorBytes = numBytes(dims, type.queryBits());
+        final int indexVectorBytes = BBQTestUtils.numBytes(dims, type.dataBits());
+        final int queryVectorBytes = queryBytes(type, dims);
 
         var unpackedIndexVectors = new byte[numVecs][dims];
         var unpackedQueryVector = new byte[dims];
 
-        var indexVectors = new byte[numVecs][indexVectorBytes];
-        var queryVector = new byte[queryVectorBytes];
+        var indexVectors = new byte[numVecs][];
 
         // Mimics extra data at the end
         var indexLineLength = indexVectorBytes + extraData;
@@ -166,12 +162,12 @@ public class JDKVectorLibraryBBQTests extends VectorSimilarityFunctionsTests {
         var querySegment = arena.allocate(queryVectorBytes);
 
         randomBytesBetween(unpackedQueryVector, (byte) 0, maxQueryValue);
-        pack(unpackedQueryVector, queryVector, type.queryBits());
+        var queryVector = packQuery(type, unpackedQueryVector);
         MemorySegment.copy(queryVector, 0, querySegment, ValueLayout.JAVA_BYTE, 0L, queryVectorBytes);
 
         for (int i = 0; i < numVecs; i++) {
             randomBytesBetween(unpackedIndexVectors[i], (byte) 0, maxIndexValue);
-            pack(unpackedIndexVectors[i], indexVectors[i], type.dataBits());
+            indexVectors[i] = packDoc(type, unpackedIndexVectors[i]);
             MemorySegment.copy(indexVectors[i], 0, indexSegment, ValueLayout.JAVA_BYTE, (long) i * indexLineLength, indexVectorBytes);
         }
 
@@ -186,7 +182,7 @@ public class JDKVectorLibraryBBQTests extends VectorSimilarityFunctionsTests {
         );
     }
 
-    static TestData createTestData(final int numVecs, final int dims, final VectorSimilarityFunctions.BBQType type) {
+    static TestData createTestData(final int numVecs, final int dims, final SimdVecLibrary.BBQType type) {
         return createTestData(numVecs, dims, type, 0);
     }
 
@@ -197,7 +193,7 @@ public class JDKVectorLibraryBBQTests extends VectorSimilarityFunctionsTests {
         final TestData testData = createTestData(numVecs, size, type);
 
         float[] expectedScores = new float[numVecs];
-        scalarSimilarityBulk(testData.unpackedQueryVector, testData.unpackedIndexVectors, expectedScores);
+        ScalarOperations.bulk(function, testData.unpackedQueryVector, testData.unpackedIndexVectors, expectedScores);
 
         var bulkScoresSeg = arena.allocate((long) numVecs * Float.BYTES);
         nativeSimilarityBulk(testData.indexSegment, testData.querySegment, testData.indexVectorBytes, numVecs, bulkScoresSeg);
@@ -224,7 +220,13 @@ public class JDKVectorLibraryBBQTests extends VectorSimilarityFunctionsTests {
         final TestOffsets testOffsets = createTestOffsets(numVecs);
 
         float[] expectedScores = new float[numVecs];
-        scalarSimilarityBulkWithOffsets(testData.unpackedQueryVector, testData.unpackedIndexVectors, testOffsets.offsets, expectedScores);
+        ScalarOperations.bulkWithOffsets(
+            function,
+            testData.unpackedQueryVector,
+            testData.unpackedIndexVectors,
+            testOffsets.offsets,
+            expectedScores
+        );
 
         var bulkScoresSeg = arena.allocate((long) numVecs * Float.BYTES);
 
@@ -249,7 +251,13 @@ public class JDKVectorLibraryBBQTests extends VectorSimilarityFunctionsTests {
         final TestOffsets testOffsets = createTestOffsets(numVecs);
 
         float[] expectedScores = new float[numVecs];
-        scalarSimilarityBulkWithOffsets(testData.unpackedQueryVector, testData.unpackedIndexVectors, testOffsets.offsets, expectedScores);
+        ScalarOperations.bulkWithOffsets(
+            function,
+            testData.unpackedQueryVector,
+            testData.unpackedIndexVectors,
+            testOffsets.offsets,
+            expectedScores
+        );
 
         var bulkScoresSeg = arena.allocate((long) numVecs * Float.BYTES);
 
@@ -276,7 +284,13 @@ public class JDKVectorLibraryBBQTests extends VectorSimilarityFunctionsTests {
         final TestOffsets testOffsets = createTestOffsets(numVecs);
 
         float[] expectedScores = new float[numVecs];
-        scalarSimilarityBulkWithOffsets(testData.unpackedQueryVector, testData.unpackedIndexVectors, testOffsets.offsets, expectedScores);
+        ScalarOperations.bulkWithOffsets(
+            function,
+            testData.unpackedQueryVector,
+            testData.unpackedIndexVectors,
+            testOffsets.offsets,
+            expectedScores
+        );
 
         float[] bulkScores = new float[numVecs];
         nativeSimilarityBulkWithOffsets(
@@ -289,6 +303,109 @@ public class JDKVectorLibraryBBQTests extends VectorSimilarityFunctionsTests {
             MemorySegment.ofArray(bulkScores)
         );
         assertArrayEquals(expectedScores, bulkScores, 0f);
+    }
+
+    public void testBulkSparse() {
+        assumeTrue(notSupportedMsg(), supported());
+        assumeTrue("BulkSparse only used in production for D1Q4 (BBQ)", type == SimdVecLibrary.BBQType.D1Q4);
+
+        final int numVecs = randomIntBetween(2, 101);
+        final TestData testData = createTestData(numVecs, size, type);
+
+        var ordinals = new int[numVecs];
+        for (int i = 0; i < numVecs; i++) {
+            ordinals[i] = randomInt(numVecs - 1);
+        }
+
+        float[] expectedScores = new float[numVecs];
+        ScalarOperations.bulkWithOffsets(function, testData.unpackedQueryVector, testData.unpackedIndexVectors, ordinals, expectedScores);
+
+        var addressesSeg = arena.allocate(ValueLayout.ADDRESS.byteSize() * numVecs, ValueLayout.ADDRESS.byteAlignment());
+        for (int i = 0; i < numVecs; i++) {
+            addressesSeg.setAtIndex(
+                ValueLayout.ADDRESS,
+                i,
+                testData.indexSegment.asSlice((long) ordinals[i] * testData.indexVectorBytes, testData.indexVectorBytes)
+            );
+        }
+
+        var bulkScoresSeg = arena.allocate((long) numVecs * Float.BYTES);
+        nativeSimilarityBulkSparse(addressesSeg, testData.querySegment, testData.indexVectorBytes, numVecs, bulkScoresSeg);
+        assertScoresEquals(expectedScores, bulkScoresSeg);
+    }
+
+    public void testBulkSparseScattered() {
+        assumeTrue(notSupportedMsg(), supported());
+        assumeTrue("BulkSparse only used in production for D1Q4 (BBQ)", type == SimdVecLibrary.BBQType.D1Q4);
+
+        final int numVecs = randomIntBetween(2, 101);
+        final int indexVectorBytes = BBQTestUtils.numBytes(size, type.dataBits());
+        final int queryVectorBytes = queryBytes(size);
+
+        var unpackedIndexVectors = new byte[numVecs][size];
+        var unpackedQueryVector = new byte[size];
+
+        var indexSegments = new MemorySegment[numVecs];
+        var querySegment = arena.allocate(queryVectorBytes);
+
+        randomBytesBetween(unpackedQueryVector, (byte) 0, maxQueryValue);
+        var queryVector = packQuery(unpackedQueryVector);
+        MemorySegment.copy(queryVector, 0, querySegment, ValueLayout.JAVA_BYTE, 0L, queryVectorBytes);
+
+        for (int i = 0; i < numVecs; i++) {
+            randomBytesBetween(unpackedIndexVectors[i], (byte) 0, maxIndexValue);
+            var indexVector = packDoc(unpackedIndexVectors[i]);
+            indexSegments[i] = arena.allocate(indexVectorBytes);
+            MemorySegment.copy(indexVector, 0, indexSegments[i], ValueLayout.JAVA_BYTE, 0L, indexVectorBytes);
+        }
+
+        var ordinals = new int[numVecs];
+        for (int i = 0; i < numVecs; i++) {
+            ordinals[i] = randomInt(numVecs - 1);
+        }
+
+        float[] expectedScores = new float[numVecs];
+        ScalarOperations.bulkWithOffsets(function, unpackedQueryVector, unpackedIndexVectors, ordinals, expectedScores);
+
+        var addressesSeg = arena.allocate(ValueLayout.ADDRESS.byteSize() * numVecs, ValueLayout.ADDRESS.byteAlignment());
+        for (int i = 0; i < numVecs; i++) {
+            addressesSeg.setAtIndex(ValueLayout.ADDRESS, i, indexSegments[ordinals[i]]);
+        }
+
+        var bulkScoresSeg = arena.allocate((long) numVecs * Float.BYTES);
+        nativeSimilarityBulkSparse(addressesSeg, querySegment, indexVectorBytes, numVecs, bulkScoresSeg);
+        assertScoresEquals(expectedScores, bulkScoresSeg);
+    }
+
+    public void testBulkSparseIllegalArgs() {
+        assumeTrue(notSupportedMsg(), supported());
+        assumeTrue("BulkSparse only used in production for D1Q4 (BBQ)", type == SimdVecLibrary.BBQType.D1Q4);
+        final int indexVectorBytes = BBQTestUtils.numBytes(size, type.dataBits());
+        final int queryVectorBytes = queryBytes(size);
+        int count = 3;
+        var query = arena.allocate(queryVectorBytes);
+        var scores = arena.allocate((long) count * Float.BYTES);
+
+        var dummyVec = arena.allocate(indexVectorBytes);
+        var addresses = arena.allocate(ValueLayout.ADDRESS.byteSize() * count, ValueLayout.ADDRESS.byteAlignment());
+        for (int i = 0; i < count; i++) {
+            addresses.setAtIndex(ValueLayout.ADDRESS, i, dummyVec);
+        }
+
+        var tooSmallAddrs = arena.allocate(ValueLayout.ADDRESS.byteSize() * (count - 1), ValueLayout.ADDRESS.byteAlignment());
+        Exception ex = expectThrows(IOOBE, () -> nativeSimilarityBulkSparse(tooSmallAddrs, query, indexVectorBytes, count, scores));
+        assertThat(ex.getMessage(), containsString("out of bounds for length"));
+
+        var tooSmallQuery = arena.allocate(queryVectorBytes - 1);
+        ex = expectThrows(IOOBE, () -> nativeSimilarityBulkSparse(addresses, tooSmallQuery, indexVectorBytes, count, scores));
+        assertThat(ex.getMessage(), containsString("out of bounds for length"));
+
+        var tooSmallScores = arena.allocate((long) count * Float.BYTES - 1);
+        ex = expectThrows(IOOBE, () -> nativeSimilarityBulkSparse(addresses, query, indexVectorBytes, count, tooSmallScores));
+        assertThat(ex.getMessage(), containsString("out of bounds for length"));
+
+        ex = expectThrows(IOOBE, () -> nativeSimilarityBulkSparse(addresses, query, indexVectorBytes, -1, scores));
+        assertThat(ex.getMessage(), containsString("out of bounds for length"));
     }
 
     public void testIllegalDims() {
@@ -322,41 +439,89 @@ public class JDKVectorLibraryBBQTests extends VectorSimilarityFunctionsTests {
         assertThat(ex.getMessage(), containsString("out of bounds for length"));
     }
 
-    private static void pack(byte[] unpackedVector, byte[] packedVector, byte elementBits) {
-        for (int i = 0; i < unpackedVector.length; i++) {
-            var value = unpackedVector[i];
-            var packedIndex = i / 8;
-            var packedBitPosition = (7 - (i % 8));
+    // Verifies that individual offset values are bounds-checked against the data segment.
+    public void testBulkOffsetsOutOfRange() {
+        assumeTrue(notSupportedMsg(), supported());
+        final int indexVectorBytes = BBQTestUtils.numBytes(size, type.dataBits());
+        final int queryVectorBytes = queryBytes(size);
+        final int numVecs = 3;
+        var indexSegment = arena.allocate((long) indexVectorBytes * numVecs);
+        var query = arena.allocate(queryVectorBytes);
+        var scores = arena.allocate((long) numVecs * Float.BYTES);
+        var offsetsSegment = arena.allocate((long) numVecs * Integer.BYTES);
 
-            for (int j = 0; j < elementBits; ++j) {
-                int v = value & 0x1;
-                int shifted = v << packedBitPosition;
-                value >>= 1;
-                packedVector[packedIndex + j * (packedVector.length / elementBits)] |= (byte) shifted;
-            }
-        }
+        offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, 0, 0);
+        offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, 1, numVecs);
+        offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, 2, 0);
+        Exception ex = expectThrows(
+            IOOBE,
+            () -> nativeSimilarityBulkWithOffsets(indexSegment, query, indexVectorBytes, indexVectorBytes, offsetsSegment, numVecs, scores)
+        );
+        assertThat(ex.getMessage(), containsString("out of bounds for length"));
+
+        offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, 1, -1);
+        ex = expectThrows(
+            IOOBE,
+            () -> nativeSimilarityBulkWithOffsets(indexSegment, query, indexVectorBytes, indexVectorBytes, offsetsSegment, numVecs, scores)
+        );
+        assertThat(ex.getMessage(), containsString("out of bounds for length"));
     }
 
-    // Returns how many bytes do we need to store the quantized vector
-    private static int numBytes(int dimensions, int bits) {
-        assert dimensions % 8 == 0;
-        return dimensions / (8 / bits);
+    /** Layout-aware query byte size for the {@link #type} of this test instance. */
+    private int queryBytes(int dims) {
+        return queryBytes(type, dims);
+    }
+
+    /** Layout-aware doc packer for the {@link #type} of this test instance. */
+    private byte[] packDoc(byte[] unpacked) {
+        return packDoc(type, unpacked);
+    }
+
+    /** Layout-aware query packer for the {@link #type} of this test instance. */
+    private byte[] packQuery(byte[] unpacked) {
+        return packQuery(type, unpacked);
+    }
+
+    private static int queryBytes(SimdVecLibrary.BBQType type, int dims) {
+        return switch (type.layout()) {
+            case STRIPED -> BBQTestUtils.numBytes(dims, type.queryBits());
+            case PACKED -> dims;
+        };
+    }
+
+    private static byte[] packDoc(SimdVecLibrary.BBQType type, byte[] unpacked) {
+        return switch (type.layout()) {
+            case STRIPED -> BBQTestUtils.packStriped(unpacked, type.dataBits());
+            case PACKED -> BBQTestUtils.packQuads(unpacked);
+        };
+    }
+
+    private static byte[] packQuery(SimdVecLibrary.BBQType type, byte[] unpacked) {
+        return switch (type.layout()) {
+            case STRIPED -> BBQTestUtils.packStriped(unpacked, type.queryBits());
+            case PACKED -> unpacked.clone();
+        };
     }
 
     long nativeSimilarity(MemorySegment a, MemorySegment b, int length) {
-        try {
-            return (long) getVectorDistance().getHandle(function, type, VectorSimilarityFunctions.Operation.SINGLE)
-                .invokeExact(a, b, length);
-        } catch (Throwable t) {
-            throw rethrow(t);
-        }
+        return switch (type) {
+            case D1Q1 -> getVectorDistance().dotProductD1Q1(a, b, length);
+            case D1Q4 -> getVectorDistance().dotProductD1Q4(a, b, length);
+            case D2Q2 -> getVectorDistance().dotProductD2Q2(a, b, length);
+            case D2Q4 -> getVectorDistance().dotProductD2Q4(a, b, length);
+            case D4Q4 -> getVectorDistance().dotProductD4Q4(a, b, length);
+            case D2Q4_PACKED -> getVectorDistance().dotProductD2Q4Packed(a, b, length);
+        };
     }
 
     void nativeSimilarityBulk(MemorySegment a, MemorySegment b, int dims, int count, MemorySegment result) {
-        try {
-            getVectorDistance().getHandle(function, type, VectorSimilarityFunctions.Operation.BULK).invokeExact(a, b, dims, count, result);
-        } catch (Throwable t) {
-            throw rethrow(t);
+        switch (type) {
+            case D1Q1 -> getVectorDistance().dotProductD1Q1Bulk(a, b, dims, count, result);
+            case D1Q4 -> getVectorDistance().dotProductD1Q4Bulk(a, b, dims, count, result);
+            case D2Q2 -> getVectorDistance().dotProductD2Q2Bulk(a, b, dims, count, result);
+            case D2Q4 -> getVectorDistance().dotProductD2Q4Bulk(a, b, dims, count, result);
+            case D4Q4 -> getVectorDistance().dotProductD4Q4Bulk(a, b, dims, count, result);
+            case D2Q4_PACKED -> getVectorDistance().dotProductD2Q4PackedBulk(a, b, dims, count, result);
         }
     }
 
@@ -369,66 +534,18 @@ public class JDKVectorLibraryBBQTests extends VectorSimilarityFunctionsTests {
         int count,
         MemorySegment result
     ) {
-        try {
-            getVectorDistance().getHandle(function, type, VectorSimilarityFunctions.Operation.BULK_OFFSETS)
-                .invokeExact(a, b, dims, pitch, offsets, count, result);
-        } catch (Throwable t) {
-            throw rethrow(t);
+        switch (type) {
+            case D1Q1 -> getVectorDistance().dotProductD1Q1BulkWithOffsets(a, b, dims, pitch, offsets, count, result);
+            case D1Q4 -> getVectorDistance().dotProductD1Q4BulkWithOffsets(a, b, dims, pitch, offsets, count, result);
+            case D2Q2 -> getVectorDistance().dotProductD2Q2BulkWithOffsets(a, b, dims, pitch, offsets, count, result);
+            case D2Q4 -> getVectorDistance().dotProductD2Q4BulkWithOffsets(a, b, dims, pitch, offsets, count, result);
+            case D4Q4 -> getVectorDistance().dotProductD4Q4BulkWithOffsets(a, b, dims, pitch, offsets, count, result);
+            case D2Q4_PACKED -> getVectorDistance().dotProductD2Q4PackedBulkWithOffsets(a, b, dims, pitch, offsets, count, result);
         }
     }
 
-    int scalarSimilarity(byte[] a, byte[] b) {
-        return switch (function) {
-            case DOT_PRODUCT -> dotProductScalar(a, b);
-            case SQUARE_DISTANCE -> throw new AssumptionViolatedException("square distance not implemented");
-            case COSINE -> throw new AssumptionViolatedException("cosine not supported");
-        };
-    }
-
-    void scalarSimilarityBulk(byte[] query, byte[][] data, float[] scores) {
-        switch (function) {
-            case DOT_PRODUCT -> bulkScalar(JDKVectorLibraryBBQTests::dotProductScalar, query, data, scores);
-            case SQUARE_DISTANCE -> throw new AssumptionViolatedException("square distance not implemented");
-        }
-    }
-
-    void scalarSimilarityBulkWithOffsets(byte[] query, byte[][] data, int[] offsets, float[] scores) {
-        switch (function) {
-            case DOT_PRODUCT -> bulkWithOffsetsScalar(JDKVectorLibraryBBQTests::dotProductScalar, query, data, offsets, scores);
-            case SQUARE_DISTANCE -> throw new AssumptionViolatedException("square distance not implemented");
-        }
-    }
-
-    static int dotProductScalar(byte[] a, byte[] b) {
-        int res = 0;
-        for (int i = 0; i < a.length; i++) {
-            res += a[i] * b[i];
-        }
-        return res;
-    }
-
-    static void bulkScalar(ToIntBiFunction<byte[], byte[]> function, byte[] query, byte[][] data, float[] scores) {
-        for (int i = 0; i < data.length; i++) {
-            scores[i] = function.applyAsInt(query, data[i]);
-        }
-    }
-
-    static void bulkWithOffsetsScalar(
-        ToIntBiFunction<byte[], byte[]> function,
-        byte[] query,
-        byte[][] data,
-        int[] offsets,
-        float[] scores
-    ) {
-        for (int i = 0; i < data.length; i++) {
-            scores[i] = function.applyAsInt(query, data[offsets[i]]);
-        }
-    }
-
-    static void assertScoresEquals(float[] expectedScores, MemorySegment expectedScoresSeg) {
-        assert expectedScores.length == (expectedScoresSeg.byteSize() / Float.BYTES);
-        for (int i = 0; i < expectedScores.length; i++) {
-            assertEquals(expectedScores[i], expectedScoresSeg.get(JAVA_FLOAT_UNALIGNED, (long) i * Float.BYTES), 0f);
-        }
+    void nativeSimilarityBulkSparse(MemorySegment addresses, MemorySegment b, int dims, int count, MemorySegment result) {
+        assert type == SimdVecLibrary.BBQType.D1Q4 : "BulkSparse only wired for D1Q4";
+        getVectorDistance().dotProductD1Q4BulkSparse(addresses, b, dims, count, result);
     }
 }

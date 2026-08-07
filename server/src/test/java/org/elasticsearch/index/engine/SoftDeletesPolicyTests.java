@@ -191,4 +191,26 @@ public class SoftDeletesPolicyTests extends ESTestCase {
         assertThat(policy.getMinRetainedSeqNo(), equalTo(minimumRetainingSequenceNumber.getAsLong()));
     }
 
+    public void testNoRetainForPeerRecoveryUsesGlobalCheckpoint() {
+        final int retentionOperations = randomIntBetween(0, 1024);
+        final AtomicLong globalCheckpoint = new AtomicLong(randomLongBetween(retentionOperations, Long.MAX_VALUE - 1));
+        final Collection<RetentionLease> leases = new ArrayList<>();
+        final int numberOfLeases = randomIntBetween(0, 5);
+        for (int i = 0; i < numberOfLeases; i++) {
+            leases.add(
+                new RetentionLease(Integer.toString(i), randomLongBetween(0, globalCheckpoint.get()), randomNonNegativeLong(), "test")
+            );
+        }
+        final long primaryTerm = randomNonNegativeLong();
+        final long version = randomNonNegativeLong();
+        final Supplier<RetentionLeases> leasesSupplier = () -> new RetentionLeases(primaryTerm, version, List.copyOf(leases));
+        final SoftDeletesPolicy policy = new SoftDeletesPolicy(globalCheckpoint::get, 0, retentionOperations, leasesSupplier, false);
+        long safeCommitCheckpoint = NO_OPS_PERFORMED;
+        for (int i = 0, iters = scaledRandomIntBetween(10, 100); i < iters; i++) {
+            safeCommitCheckpoint = randomLongBetween(safeCommitCheckpoint, globalCheckpoint.get());
+            policy.setLocalCheckpointOfSafeCommit(safeCommitCheckpoint);
+            assertThat(policy.getMinRetainedSeqNo(), equalTo(1 + globalCheckpoint.get()));
+        }
+    }
+
 }

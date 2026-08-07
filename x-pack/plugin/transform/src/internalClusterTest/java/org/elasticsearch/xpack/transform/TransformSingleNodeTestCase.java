@@ -14,17 +14,22 @@ import org.elasticsearch.action.admin.cluster.snapshots.features.TransportResetF
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.xpack.core.transform.action.DeleteTransformAction;
 import org.elasticsearch.xpack.core.transform.action.GetTransformAction;
 import org.elasticsearch.xpack.core.transform.action.PutTransformAction;
+import org.elasticsearch.xpack.core.transform.action.StopTransformAction;
 import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
 import org.elasticsearch.xpack.core.transform.transforms.QueryConfig;
@@ -114,12 +119,14 @@ public abstract class TransformSingleNodeTestCase extends ESSingleNodeTestCase {
         client().execute(PutTransformAction.INSTANCE, request).actionGet(TimeValue.THIRTY_SECONDS);
     }
 
-    protected void createDiceTransform(String transformId, String transformSrc, String projectRouting) {
+    protected void createDiceTransform(String transformId, String transformSrc, IndicesOptions indicesOptions, String projectRouting) {
         createTransform(
             TransformConfig.builder()
                 .setId(transformId)
                 .setDest(new DestConfig(transformId, null, null))
-                .setSource(new SourceConfig(new String[] { transformSrc }, QueryConfig.matchAll(), Map.of(), projectRouting))
+                .setSource(
+                    new SourceConfig(new String[] { transformSrc }, QueryConfig.matchAll(), Map.of(), indicesOptions, projectRouting)
+                )
                 .setFrequency(TimeValue.ONE_MINUTE)
                 .setSyncConfig(new TimeSyncConfig("time", TimeValue.ONE_MINUTE))
                 .setLatestConfig(new LatestConfig(List.of("roll"), "time"))
@@ -137,20 +144,39 @@ public abstract class TransformSingleNodeTestCase extends ESSingleNodeTestCase {
         return configs.getFirst();
     }
 
+    protected void stopTransform(String transformId) {
+        var request = new StopTransformAction.Request(transformId, true, false, TimeValue.THIRTY_SECONDS, false, false);
+        assertTrue(client().execute(StopTransformAction.INSTANCE, request).actionGet(TimeValue.THIRTY_SECONDS).isAcknowledged());
+    }
+
+    protected void deleteTransform(String transformId) {
+        var request = new DeleteTransformAction.Request(transformId, true, false, TimeValue.THIRTY_SECONDS);
+        client().execute(DeleteTransformAction.INSTANCE, request).actionGet(TimeValue.THIRTY_SECONDS);
+    }
+
     protected void updateTransform(String transformId, TransformConfigUpdate transformConfigUpdate) {
         var request = new UpdateTransformAction.Request(transformConfigUpdate, transformId, false, TimeValue.THIRTY_SECONDS);
         client().execute(UpdateTransformAction.INSTANCE, request).actionGet(TimeValue.THIRTY_SECONDS);
     }
 
     protected Set<String> getAuditMessages(String transformId) {
-        var searchRequest = new SearchRequest(TransformInternalIndexConstants.AUDIT_INDEX_PATTERN);
-        var searchResponse = client().search(searchRequest).actionGet(TimeValue.THIRTY_SECONDS);
-        return Arrays.stream(searchResponse.getHits().getHits())
-            .map(SearchHit::getSourceAsMap)
-            .filter(source -> Objects.equals(source.get("transform_id"), transformId))
-            .map(source -> source.get("message"))
-            .map(Object::toString)
-            .collect(Collectors.toSet());
+        try {
+            var searchRequest = new SearchRequest(TransformInternalIndexConstants.AUDIT_INDEX_PATTERN);
+            var searchResponse = client().search(searchRequest).actionGet(TimeValue.THIRTY_SECONDS);
+            try {
+                return Arrays.stream(searchResponse.getHits().getHits())
+                    .map(SearchHit::getSourceAsMap)
+                    .filter(source -> Objects.equals(source.get("transform_id"), transformId))
+                    .map(source -> source.get("message"))
+                    .map(Object::toString)
+                    .collect(Collectors.toSet());
+            } finally {
+                searchResponse.decRef();
+            }
+        } catch (SearchPhaseExecutionException | IndexNotFoundException e) {
+            logger.debug("Failed to search audit messages, returning empty set for retry", e);
+            return Set.of();
+        }
     }
 
 }

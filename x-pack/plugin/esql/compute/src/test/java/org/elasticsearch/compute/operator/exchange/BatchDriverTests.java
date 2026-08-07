@@ -12,7 +12,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
@@ -24,6 +23,7 @@ import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -671,9 +671,7 @@ public class BatchDriverTests extends ESTestCase {
 
     private DriverContext driverContext() {
         MockBigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofGb(1));
-        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
-        BlockFactory blockFactory = new BlockFactory(breaker, bigArrays);
-        return new DriverContext(bigArrays, blockFactory, LocalCircuitBreaker.SizeSettings.DEFAULT_SETTINGS);
+        return new DriverContext(bigArrays, BlockFactory.builder(bigArrays).build(), LocalCircuitBreaker.SizeSettings.DEFAULT_SETTINGS);
     }
 
     /**
@@ -804,8 +802,9 @@ public class BatchDriverTests extends ESTestCase {
         // This helps catch timing-related issues that might be hidden when everything runs sequentially
         Thread batchFeedingThread = new Thread(() -> {
             try {
-                // Feed first batch - this will trigger the callback chain
-                threadPool.executor(ThreadPool.Names.SEARCH).execute(feedBatch);
+                // Feed first batch directly to avoid racing with driver scheduling on the same SEARCH executor.
+                // Subsequent batches are still triggered by onBatchEnd callbacks.
+                feedBatch.run();
             } catch (Exception e) {
                 logger.error("[TEST] Error in batch feeding thread", e);
                 throw new AssertionError("Error in batch feeding thread", e);
@@ -1100,8 +1099,8 @@ public class BatchDriverTests extends ESTestCase {
      * Helper method to create an ExpressionEvaluator that filters out rows where a specific column equals a value.
      * Returns true (keep) when the column value is NOT equal to the filter value.
      */
-    private EvalOperator.ExpressionEvaluator createNotEqualsOneEvaluator(DriverContext driverContext, int columnIndex) {
-        return new EvalOperator.ExpressionEvaluator() {
+    private ExpressionEvaluator createNotEqualsOneEvaluator(DriverContext driverContext, int columnIndex) {
+        return new ExpressionEvaluator() {
             @Override
             public Block eval(Page page) {
                 Page actualPage = page;
@@ -1147,7 +1146,7 @@ public class BatchDriverTests extends ESTestCase {
      * Helper method to create an EvalOperator that adds 1 to int values.
      */
     private EvalOperator createAddOneOperator(DriverContext driverContext) {
-        return new EvalOperator(driverContext, new EvalOperator.ExpressionEvaluator() {
+        return new EvalOperator(driverContext, new ExpressionEvaluator() {
             @Override
             public Block eval(Page page) {
                 Page actualPage = page;

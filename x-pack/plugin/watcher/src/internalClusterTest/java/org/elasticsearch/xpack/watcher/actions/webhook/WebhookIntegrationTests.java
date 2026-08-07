@@ -151,8 +151,8 @@ public class WebhookIntegrationTests extends AbstractWatcherIntegrationTestCase 
         HttpServerTransport serverTransport = internalCluster().getDataNodeInstance(HttpServerTransport.class);
         TransportAddress publishAddress = serverTransport.boundAddress().publishAddress();
 
-        String host = publishAddress.address().getHostString();
-        HttpRequestTemplate.Builder builder = HttpRequestTemplate.builder(host, publishAddress.getPort())
+        // Use "localhost" as the host since it resolves correctly for both IPv4 and IPv6
+        HttpRequestTemplate.Builder builder = HttpRequestTemplate.builder("localhost", publishAddress.getPort())
             .path(new TextTemplate("/%3Clogstash-%7Bnow%2Fd%7D%3E/_doc/1"))
             .body(new TextTemplate("{\"foo\":\"bar\"}"))
             .putHeader("Content-Type", new TextTemplate("application/json"))

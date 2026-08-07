@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.ConcurrentRebalanceAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.Strings;
@@ -32,7 +31,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -226,14 +224,7 @@ public class ConcurrentRebalanceAllocationDeciderTests extends ESAllocationTestC
 
         ConcurrentRebalanceAllocationDecider decider = new ConcurrentRebalanceAllocationDecider(clusterSettings);
 
-        RoutingAllocation allocation = new RoutingAllocation(
-            new AllocationDeciders(Arrays.asList(decider)),
-            null,
-            clusterState,
-            null,
-            null,
-            0
-        );
+        RoutingAllocation allocation = TestRoutingAllocationFactory.forClusterState(clusterState).allocationDeciders(decider).build();
         allocation.debugDecision(true);
 
         ShardRouting shardRouting = findStartedShard(clusterState);
@@ -267,14 +258,7 @@ public class ConcurrentRebalanceAllocationDeciderTests extends ESAllocationTestC
 
         ConcurrentRebalanceAllocationDecider decider = new ConcurrentRebalanceAllocationDecider(clusterSettings);
 
-        RoutingAllocation allocation = new RoutingAllocation(
-            new AllocationDeciders(Arrays.asList(decider)),
-            null,
-            clusterState,
-            null,
-            null,
-            0
-        );
+        RoutingAllocation allocation = TestRoutingAllocationFactory.forClusterState(clusterState).allocationDeciders(decider).build();
         allocation.debugDecision(true);
 
         Decision decision = decider.canRebalance(allocation);

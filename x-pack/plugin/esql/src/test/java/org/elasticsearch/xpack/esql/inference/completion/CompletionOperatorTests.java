@@ -42,7 +42,13 @@ public class CompletionOperatorTests extends InferenceOperatorTestCase<ChatCompl
 
     @Override
     protected Operator.OperatorFactory simple(SimpleOptions options) {
-        return new CompletionOperator.Factory(mockedInferenceService(), SIMPLE_INFERENCE_ID, evaluatorFactory(inputChannel), Map.of());
+        return new CompletionOperator.Factory(
+            mockedInferenceService(),
+            SIMPLE_INFERENCE_ID,
+            evaluatorFactory(inputChannel),
+            Map.of(),
+            null
+        );
     }
 
     @Override
@@ -114,7 +120,8 @@ public class CompletionOperatorTests extends InferenceOperatorTestCase<ChatCompl
             failingService,
             SIMPLE_INFERENCE_ID,
             evaluatorFactory(inputChannel),
-            Map.of()
+            Map.of(),
+            null
         );
 
         DriverContext driverContext = driverContext();

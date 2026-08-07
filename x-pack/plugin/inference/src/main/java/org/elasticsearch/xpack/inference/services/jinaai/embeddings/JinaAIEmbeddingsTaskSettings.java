@@ -18,7 +18,6 @@ import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -60,9 +59,7 @@ public class JinaAIEmbeddingsTaskSettings implements TaskSettings {
 
         Boolean lateChunking = extractOptionalBoolean(map, LATE_CHUNKING, validationException);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
         if (inputType == null && lateChunking == null) {
             return EMPTY_SETTINGS;
         } else {
@@ -199,7 +196,7 @@ public class JinaAIEmbeddingsTaskSettings implements TaskSettings {
 
     @Override
     public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
-        JinaAIEmbeddingsTaskSettings updatedSettings = JinaAIEmbeddingsTaskSettings.fromMap(new HashMap<>(newSettings));
+        JinaAIEmbeddingsTaskSettings updatedSettings = JinaAIEmbeddingsTaskSettings.fromMap(newSettings);
         return of(this, updatedSettings);
     }
 }

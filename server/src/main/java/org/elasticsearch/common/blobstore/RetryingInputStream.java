@@ -14,6 +14,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.blobstore.RequestedRangeNotSatisfiedException;
 
 import java.io.FilterInputStream;
@@ -22,6 +23,8 @@ import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.common.blobstore.RetryingInputStream.StreamAction.OPEN;
 import static org.elasticsearch.common.blobstore.RetryingInputStream.StreamAction.READ;
@@ -41,6 +44,14 @@ import static org.elasticsearch.core.Strings.format;
  * @param <V> The type used to represent the version of a blob
  */
 public abstract class RetryingInputStream<V> extends InputStream {
+
+    private static final Set<String> REQUIRED_METRIC_ATTRIBUTES = Set.of(
+        "repo_type",
+        "repo_name",
+        "operation",
+        "purpose",
+        "es_retry_action"
+    );
 
     private static final Logger logger = LogManager.getLogger(RetryingInputStream.class);
 
@@ -67,6 +78,7 @@ public abstract class RetryingInputStream<V> extends InputStream {
         }
     }
 
+    private final RepositoriesMetrics repositoriesMetrics;
     private final BlobStoreServices<V> blobStoreServices;
     private final OperationPurpose purpose;
     private final long start;
@@ -79,19 +91,26 @@ public abstract class RetryingInputStream<V> extends InputStream {
     private int failuresAfterMeaningfulProgress = 0;
     private boolean closed = false;
 
-    protected RetryingInputStream(BlobStoreServices<V> blobStoreServices, OperationPurpose purpose) throws IOException {
-        this(blobStoreServices, purpose, 0L, Long.MAX_VALUE - 1L);
+    protected RetryingInputStream(RepositoriesMetrics repositoriesMetrics, BlobStoreServices<V> blobStoreServices, OperationPurpose purpose)
+        throws IOException {
+        this(repositoriesMetrics, blobStoreServices, purpose, 0L, Long.MAX_VALUE - 1L);
     }
 
     @SuppressWarnings("this-escape") // TODO: We can do better than this but I don't want to touch the tests for the first implementation
-    protected RetryingInputStream(BlobStoreServices<V> blobStoreServices, OperationPurpose purpose, long start, long end)
-        throws IOException {
+    protected RetryingInputStream(
+        RepositoriesMetrics repositoriesMetrics,
+        BlobStoreServices<V> blobStoreServices,
+        OperationPurpose purpose,
+        long start,
+        long end
+    ) throws IOException {
         if (start < 0L) {
             throw new IllegalArgumentException("start must be non-negative");
         }
         if (end < start || end == Long.MAX_VALUE) {
             throw new IllegalArgumentException("end must be >= start and not Long.MAX_VALUE");
         }
+        this.repositoriesMetrics = repositoriesMetrics;
         this.blobStoreServices = blobStoreServices;
         this.purpose = purpose;
         this.failures = new ArrayList<>(MAX_SUPPRESSED_EXCEPTIONS);
@@ -127,10 +146,22 @@ public abstract class RetryingInputStream<V> extends InputStream {
 
     private <T extends Exception> void retryOrAbortOnOpen(T exception) throws T {
         if (attempt == 1) {
-            blobStoreServices.onRetryStarted(StreamAction.OPEN);
+            onRetryStarted(OPEN);
         }
         final long delayInMillis = maybeLogAndComputeRetryDelay(StreamAction.OPEN, exception);
         delayBeforeRetry(StreamAction.OPEN, exception, delayInMillis);
+    }
+
+    private void onRetryStarted(StreamAction action) {
+        repositoriesMetrics.inputStreamRetryStartedCounter().incrementBy(1, blobStoreServices.getMetricsAttributes(action));
+    }
+
+    private void onRetrySucceeded(StreamAction action, long numberOfRetries) {
+        final var metricsAttributes = blobStoreServices.getMetricsAttributes(action);
+        assert metricsAttributes.keySet().containsAll(REQUIRED_METRIC_ATTRIBUTES)
+            : "Missing required attributes expected " + REQUIRED_METRIC_ATTRIBUTES + ", got " + metricsAttributes.keySet();
+        repositoriesMetrics.inputStreamRetryCompletedCounter().incrementBy(1, metricsAttributes);
+        repositoriesMetrics.inputStreamRetryHistogram().record(numberOfRetries, metricsAttributes);
     }
 
     @Override
@@ -177,7 +208,7 @@ public abstract class RetryingInputStream<V> extends InputStream {
 
     private <T extends Exception> void retryOrAbortOnRead(int initialAttempt, T exception) throws T, IOException {
         if (attempt == initialAttempt) {
-            blobStoreServices.onRetryStarted(READ);
+            onRetryStarted(READ);
         }
         reopenStreamOrFail(exception);
     }
@@ -268,7 +299,7 @@ public abstract class RetryingInputStream<V> extends InputStream {
                 purpose.getKey(),
                 numberOfRetries
             );
-            blobStoreServices.onRetrySucceeded(action, numberOfRetries);
+            onRetrySucceeded(action, numberOfRetries);
         }
     }
 
@@ -361,10 +392,6 @@ public abstract class RetryingInputStream<V> extends InputStream {
          */
         SingleAttemptInputStream<V> getInputStream(@Nullable V version, long start, long end) throws IOException;
 
-        void onRetryStarted(StreamAction action);
-
-        void onRetrySucceeded(StreamAction action, long numberOfRetries);
-
         long getMeaningfulProgressSize();
 
         int getMaxRetries();
@@ -372,6 +399,8 @@ public abstract class RetryingInputStream<V> extends InputStream {
         String getBlobDescription();
 
         boolean isRetryableException(StreamAction action, Exception e);
+
+        Map<String, Object> getMetricsAttributes(StreamAction action);
     }
 
     /**

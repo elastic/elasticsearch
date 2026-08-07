@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.cohere.request.v1;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.external.request.OutboundRerankRequest;
 import org.elasticsearch.xpack.inference.services.cohere.CohereAccount;
 import org.elasticsearch.xpack.inference.services.cohere.request.CohereRequest;
 import org.elasticsearch.xpack.inference.services.cohere.request.CohereUtils;
@@ -19,7 +20,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-public class CohereV1RerankRequest extends CohereRequest {
+public class CohereV1RerankRequest extends CohereRequest implements OutboundRerankRequest {
 
     private final String query;
     private final List<String> input;

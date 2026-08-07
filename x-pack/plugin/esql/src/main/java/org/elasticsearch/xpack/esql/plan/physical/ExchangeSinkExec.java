@@ -77,6 +77,11 @@ public class ExchangeSinkExec extends UnaryExec {
         return new ExchangeSinkExec(source(), output, intermediateAgg, newChild);
     }
 
+    /** Like {@link #replaceChild(PhysicalPlan)} but sets the output to the new child's output. */
+    public ExchangeSinkExec replaceChildAndUpdateOutput(PhysicalPlan newChild) {
+        return new ExchangeSinkExec(source(), newChild.output(), intermediateAgg, newChild);
+    }
+
     @Override
     public boolean equals(Object o) {
         if (super.equals(o)) {

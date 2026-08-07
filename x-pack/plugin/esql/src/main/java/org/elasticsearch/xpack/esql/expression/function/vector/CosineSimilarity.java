@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
@@ -31,6 +32,9 @@ public class CosineSimilarity extends VectorSimilarityFunction {
         "CosineSimilarity",
         CosineSimilarity::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(CosineSimilarity.class)
+        .binary(CosineSimilarity::new)
+        .name("v_cosine");
     public static final DenseVectorFieldMapper.SimilarityFunction SIMILARITY_FUNCTION = new DenseVectorFieldMapper.SimilarityFunction() {
         @Override
         public float calculateSimilarity(byte[] leftVector, byte[] rightVector) {
@@ -55,6 +59,7 @@ public class CosineSimilarity extends VectorSimilarityFunction {
 
     @FunctionInfo(
         returnType = "double",
+        briefSummary = "Calculates the cosine similarity between two dense_vectors.",
         description = "Calculates the cosine similarity between two dense_vectors.",
         examples = { @Example(file = "vector-cosine-similarity", tag = "vector-cosine-similarity") },
         appliesTo = {

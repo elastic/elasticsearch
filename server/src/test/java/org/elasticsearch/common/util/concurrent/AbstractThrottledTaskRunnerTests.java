@@ -15,6 +15,8 @@ import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestEsExecutors;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
@@ -23,6 +25,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -36,16 +39,14 @@ public class AbstractThrottledTaskRunnerTests extends ESTestCase {
     private ExecutorService executor;
     private int maxThreads;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void createExecutor() throws Exception {
         maxThreads = between(1, 10);
         executor = EsExecutors.newScaling("test", maxThreads, maxThreads, 0, TimeUnit.MILLISECONDS, false, threadFactory, threadContext);
     }
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @After
+    public void terminateExecutor() throws Exception {
         terminate(executor);
     }
 
@@ -247,6 +248,33 @@ public class AbstractThrottledTaskRunnerTests extends ESTestCase {
         assertThat(taskRunner.runningTasks(), equalTo(0));
         assertTrue(queue.isEmpty());
         assertTrue(permits.tryAcquire(totalPermits));
+    }
+
+    public void testDirectExecutorDoesNotOverflowStack() {
+        final int maxTasks = randomIntBetween(1, 10);
+        final int taskCount = randomIntBetween(5_000, 10_000);
+        final var counter = new AtomicInteger();
+        ActionListener<Releasable> task = ActionListener.wrap(releasable -> {
+            counter.incrementAndGet();
+            releasable.close();
+        }, e -> { throw new AssertionError(e); });
+
+        final BlockingQueue<ActionListener<Releasable>> queue = ConcurrentCollections.newBlockingQueue();
+        final AbstractThrottledTaskRunner<ActionListener<Releasable>> taskRunner = new AbstractThrottledTaskRunner<>(
+            "test",
+            maxTasks,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            queue
+        );
+
+        for (int i = 0; i < taskCount; i++) {
+            queue.add(task);
+        }
+        taskRunner.enqueueTask(task);
+
+        assertThat(counter.get(), equalTo(taskCount + 1));
+        assertTrue(queue.isEmpty());
+        assertThat(taskRunner.runningTasks(), equalTo(0));
     }
 
     private void assertNoRunningTasks(AbstractThrottledTaskRunner<?> taskRunner) {

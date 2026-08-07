@@ -34,7 +34,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.LeafQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -65,7 +65,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class QueryRewriteContextIT extends ESIntegTestCase {
-    private static class TestQueryBuilder extends AbstractQueryBuilder<TestQueryBuilder> {
+    private static class TestQueryBuilder extends LeafQueryBuilder<TestQueryBuilder> {
         private static final String NAME = "test";
 
         private static TestQueryBuilder fromXContent(XContentParser parser) {

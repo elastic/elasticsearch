@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.extractor;
 
+import org.elasticsearch.core.ReleasableRef;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.test.SearchHitBuilder;
@@ -21,63 +22,68 @@ public class SourceFieldTests extends ESTestCase {
 
     public void testSingleValue() {
         SearchHit hit = new SearchHitBuilder(42).setSource("{\"single\":\"bar\"}").build();
+        try (var hitRef = ReleasableRef.of(hit)) {
+            ExtractedField field = new SourceField("single", Collections.singleton("text"));
 
-        ExtractedField field = new SourceField("single", Collections.singleton("text"));
-
-        assertThat(field.value(hit, new SourceSupplier(hit)), equalTo(new String[] { "bar" }));
-        assertThat(field.getName(), equalTo("single"));
-        assertThat(field.getSearchField(), equalTo("single"));
-        assertThat(field.getTypes(), contains("text"));
-        assertThat(field.getMethod(), equalTo(ExtractedField.Method.SOURCE));
-        assertThat(field.supportsFromSource(), is(true));
-        assertThat(field.newFromSource(), sameInstance(field));
-        assertThat(field.isMultiField(), is(false));
-        expectThrows(UnsupportedOperationException.class, () -> field.getParentField());
-        expectThrows(UnsupportedOperationException.class, () -> field.getDocValueFormat());
+            assertThat(field.value(hitRef.get(), new SourceSupplier(hitRef.get())), equalTo(new String[] { "bar" }));
+            assertThat(field.getName(), equalTo("single"));
+            assertThat(field.getSearchField(), equalTo("single"));
+            assertThat(field.getTypes(), contains("text"));
+            assertThat(field.getMethod(), equalTo(ExtractedField.Method.SOURCE));
+            assertThat(field.supportsFromSource(), is(true));
+            assertThat(field.newFromSource(), sameInstance(field));
+            assertThat(field.isMultiField(), is(false));
+            expectThrows(UnsupportedOperationException.class, () -> field.getParentField());
+            expectThrows(UnsupportedOperationException.class, () -> field.getDocValueFormat());
+        }
     }
 
     public void testArray() {
         SearchHit hit = new SearchHitBuilder(42).setSource("""
             {"array":["a","b"]}""").build();
+        try (var hitRef = ReleasableRef.of(hit)) {
+            ExtractedField field = new SourceField("array", Collections.singleton("text"));
 
-        ExtractedField field = new SourceField("array", Collections.singleton("text"));
-
-        assertThat(field.value(hit, new SourceSupplier(hit)), equalTo(new String[] { "a", "b" }));
-        assertThat(field.getName(), equalTo("array"));
-        assertThat(field.getSearchField(), equalTo("array"));
-        assertThat(field.getTypes(), contains("text"));
-        assertThat(field.getMethod(), equalTo(ExtractedField.Method.SOURCE));
-        assertThat(field.supportsFromSource(), is(true));
-        assertThat(field.newFromSource(), sameInstance(field));
-        assertThat(field.isMultiField(), is(false));
-        expectThrows(UnsupportedOperationException.class, () -> field.getParentField());
-        expectThrows(UnsupportedOperationException.class, () -> field.getDocValueFormat());
+            assertThat(field.value(hitRef.get(), new SourceSupplier(hitRef.get())), equalTo(new String[] { "a", "b" }));
+            assertThat(field.getName(), equalTo("array"));
+            assertThat(field.getSearchField(), equalTo("array"));
+            assertThat(field.getTypes(), contains("text"));
+            assertThat(field.getMethod(), equalTo(ExtractedField.Method.SOURCE));
+            assertThat(field.supportsFromSource(), is(true));
+            assertThat(field.newFromSource(), sameInstance(field));
+            assertThat(field.isMultiField(), is(false));
+            expectThrows(UnsupportedOperationException.class, () -> field.getParentField());
+            expectThrows(UnsupportedOperationException.class, () -> field.getDocValueFormat());
+        }
     }
 
     public void testMissing() {
         SearchHit hit = new SearchHitBuilder(42).setSource("""
             {"array":["a","b"]}""").build();
+        try (var hitRef = ReleasableRef.of(hit)) {
+            ExtractedField missing = new SourceField("missing", Collections.singleton("text"));
 
-        ExtractedField missing = new SourceField("missing", Collections.singleton("text"));
-
-        assertThat(missing.value(hit, new SourceSupplier(hit)), equalTo(new Object[0]));
+            assertThat(missing.value(hitRef.get(), new SourceSupplier(hitRef.get())), equalTo(new Object[0]));
+        }
     }
 
     public void testValueGivenNested() {
         SearchHit hit = new SearchHitBuilder(42).setSource("""
             {"level_1":{"level_2":{"foo":"bar"}}}""").build();
+        try (var hitRef = ReleasableRef.of(hit)) {
+            ExtractedField nested = new SourceField("level_1.level_2.foo", Collections.singleton("text"));
 
-        ExtractedField nested = new SourceField("level_1.level_2.foo", Collections.singleton("text"));
-
-        assertThat(nested.value(hit, new SourceSupplier(hit)), equalTo(new String[] { "bar" }));
+            assertThat(nested.value(hitRef.get(), new SourceSupplier(hitRef.get())), equalTo(new String[] { "bar" }));
+        }
     }
 
     public void testValueGivenNestedArray() {
         SearchHit hit = new SearchHitBuilder(42).setSource("""
             {"level_1":{"level_2":[{"foo":"bar"}]}}""").build();
+        try (var hitRef = ReleasableRef.of(hit)) {
+            ExtractedField nested = new SourceField("level_1.level_2.foo", Collections.singleton("text"));
 
-        ExtractedField nested = new SourceField("level_1.level_2.foo", Collections.singleton("text"));
-
-        assertThat(nested.value(hit, new SourceSupplier(hit)), equalTo(new String[] { "bar" }));
+            assertThat(nested.value(hitRef.get(), new SourceSupplier(hitRef.get())), equalTo(new String[] { "bar" }));
+        }
     }
 }

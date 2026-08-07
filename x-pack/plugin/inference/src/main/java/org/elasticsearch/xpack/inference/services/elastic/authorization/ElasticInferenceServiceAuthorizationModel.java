@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.inference.common.parser.DateParser;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceModel;
+import org.elasticsearch.xpack.inference.services.elastic.compatibility.CompletionCompatibilityService;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsModel;
@@ -37,6 +38,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -58,30 +60,39 @@ public class ElasticInferenceServiceAuthorizationModel {
     // public because it's used in tests outside the package
     public static ElasticInferenceServiceAuthorizationModel of(
         ElasticInferenceServiceAuthorizationResponseEntity responseEntity,
-        String baseEisUrl
+        String baseEisUrl,
+        CompletionCompatibilityService completionCompatibilityService
     ) {
         var components = new ElasticInferenceServiceComponents(baseEisUrl);
-        return createInternal(responseEntity.getAuthorizedEndpoints(), components);
+        return createInternal(
+            responseEntity.authorizedEndpoints(),
+            responseEntity.removedEndpoints(),
+            components,
+            completionCompatibilityService
+        );
     }
 
     private static ElasticInferenceServiceAuthorizationModel createInternal(
         List<ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint> responseEndpoints,
-        ElasticInferenceServiceComponents components
+        Set<String> removedEndpoints,
+        ElasticInferenceServiceComponents components,
+        CompletionCompatibilityService completionCompatibilityService
     ) {
         var validEndpoints = new ArrayList<ElasticInferenceServiceModel>();
         for (var authorizedEndpoint : responseEndpoints) {
-            var model = createModel(authorizedEndpoint, components);
+            var model = createModel(authorizedEndpoint, components, completionCompatibilityService);
             if (model != null) {
                 validEndpoints.add(model);
             }
         }
 
-        return new ElasticInferenceServiceAuthorizationModel(validEndpoints);
+        return new ElasticInferenceServiceAuthorizationModel(validEndpoints, removedEndpoints);
     }
 
     private static ElasticInferenceServiceModel createModel(
         ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint authorizedEndpoint,
-        ElasticInferenceServiceComponents components
+        ElasticInferenceServiceComponents components,
+        CompletionCompatibilityService completionCompatibilityService
     ) {
         try {
             var taskType = getTaskType(authorizedEndpoint.taskType().elasticsearchTaskType());
@@ -96,8 +107,20 @@ public class ElasticInferenceServiceAuthorizationModel {
             }
 
             return switch (taskType) {
-                case CHAT_COMPLETION -> createCompletionModel(authorizedEndpoint, TaskType.CHAT_COMPLETION, components, endpointMetadata);
-                case COMPLETION -> createCompletionModel(authorizedEndpoint, TaskType.COMPLETION, components, endpointMetadata);
+                case CHAT_COMPLETION -> createCompletionModel(
+                    authorizedEndpoint,
+                    TaskType.CHAT_COMPLETION,
+                    components,
+                    endpointMetadata,
+                    completionCompatibilityService
+                );
+                case COMPLETION -> createCompletionModel(
+                    authorizedEndpoint,
+                    TaskType.COMPLETION,
+                    components,
+                    endpointMetadata,
+                    completionCompatibilityService
+                );
                 case SPARSE_EMBEDDING -> createSparseTextEmbeddingsModel(authorizedEndpoint, components, endpointMetadata);
                 case TEXT_EMBEDDING, EMBEDDING -> createDenseEmbeddingsModel(authorizedEndpoint, components, taskType, endpointMetadata);
                 case RERANK -> createRerankModel(authorizedEndpoint, components, endpointMetadata);
@@ -130,11 +153,12 @@ public class ElasticInferenceServiceAuthorizationModel {
         ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint authorizedEndpoint
     ) {
         try {
-            var kibanaConnectorName = authorizedEndpoint.displayName();
             return new EndpointMetadata(
                 getHeuristics(authorizedEndpoint),
                 getInternalFields(authorizedEndpoint),
-                new EndpointMetadata.Display(kibanaConnectorName)
+                Optional.ofNullable(authorizedEndpoint.display()).orElse(EndpointMetadata.Display.EMPTY_INSTANCE),
+                authorizedEndpoint.regions(),
+                authorizedEndpoint.deniedByRegionPolicy()
             );
         } catch (IllegalArgumentException e) {
             logger.atWarn()
@@ -165,15 +189,49 @@ public class ElasticInferenceServiceAuthorizationModel {
         ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint authorizedEndpoint,
         TaskType taskType,
         ElasticInferenceServiceComponents components,
-        EndpointMetadata endpointMetadata
+        EndpointMetadata endpointMetadata,
+        CompletionCompatibilityService completionCompatibilityService
     ) {
+        var config = getConfigurationOrEmpty(authorizedEndpoint);
+        validateCompletionAuthorizedEndpoint(config, taskType);
+
+        var taskSettings = completionCompatibilityService.getTaskSettingsStrategy(taskType).createTaskSettings(config.reasoning());
+        // This indicates that the cluster does not support reasoning yet (needs to finish upgrading). We'll skip this endpoint and let
+        // a future poll retrieve it after upgrade is complete.
+        if (taskSettings.isEmpty()) {
+            logger.atInfo()
+                .log(
+                    "Skipping authorized endpoint id [{}] with task type [{}] because reasoning is not supported by all nodes "
+                        + "in the cluster",
+                    authorizedEndpoint.id(),
+                    taskType
+                );
+            return null;
+        }
+
         return new ElasticInferenceServiceCompletionModel(
             authorizedEndpoint.id(),
             taskType,
             new ElasticInferenceServiceCompletionServiceSettings(authorizedEndpoint.modelName()),
             components,
-            endpointMetadata
+            endpointMetadata,
+            taskSettings.get()
         );
+    }
+
+    private static void validateCompletionAuthorizedEndpoint(
+        ElasticInferenceServiceAuthorizationResponseEntity.Configuration config,
+        TaskType taskType
+    ) {
+        if (config.reasoning() != null && taskType != TaskType.CHAT_COMPLETION) {
+            throw new IllegalArgumentException(
+                Strings.format(
+                    "Reasoning is only supported for task type [%s] but was supplied for an endpoint with task type [%s]",
+                    TaskType.CHAT_COMPLETION,
+                    taskType
+                )
+            );
+        }
     }
 
     private static ElasticInferenceServiceSparseEmbeddingsModel createSparseTextEmbeddingsModel(
@@ -285,14 +343,19 @@ public class ElasticInferenceServiceAuthorizationModel {
      * Returns an object indicating that the cluster is not authorized for any endpoints from EIS.
      */
     public static ElasticInferenceServiceAuthorizationModel unauthorized() {
-        return new ElasticInferenceServiceAuthorizationModel(List.of());
+        return new ElasticInferenceServiceAuthorizationModel(List.of(), Set.of());
     }
 
     private final Map<String, ElasticInferenceServiceModel> authorizedEndpoints;
     private final EnumSet<TaskType> taskTypes;
+    private final Set<String> removedEndpoints;
 
     // Default for testing
     ElasticInferenceServiceAuthorizationModel(List<ElasticInferenceServiceModel> authorizedEndpoints) {
+        this(authorizedEndpoints, Set.of());
+    }
+
+    ElasticInferenceServiceAuthorizationModel(List<ElasticInferenceServiceModel> authorizedEndpoints, Set<String> removedEndpoints) {
         Objects.requireNonNull(authorizedEndpoints);
         this.authorizedEndpoints = authorizedEndpoints.stream()
             .collect(
@@ -305,6 +368,7 @@ public class ElasticInferenceServiceAuthorizationModel {
         var taskTypesSet = EnumSet.noneOf(TaskType.class);
         taskTypesSet.addAll(this.authorizedEndpoints.values().stream().map(ElasticInferenceServiceModel::getTaskType).toList());
         this.taskTypes = taskTypesSet;
+        this.removedEndpoints = Objects.requireNonNull(removedEndpoints);
     }
 
     /**
@@ -335,24 +399,35 @@ public class ElasticInferenceServiceAuthorizationModel {
         return Set.copyOf(authorizedEndpoints.keySet());
     }
 
+    public Set<String> getRemovedEndpoints() {
+        return removedEndpoints;
+    }
+
     public List<Model> getEndpoints(Set<String> endpointIds) {
         return endpointIds.stream().<Model>map(authorizedEndpoints::get).filter(Objects::nonNull).toList();
     }
 
     @Override
     public String toString() {
-        return Strings.format("AuthorizationModel{authorizedEndpoints=%s, taskTypes=%s}", authorizedEndpoints, taskTypes);
+        return Strings.format(
+            "AuthorizationModel{authorizedEndpoints=%s, taskTypes=%s, removedEndpoints=%s}",
+            authorizedEndpoints,
+            taskTypes,
+            removedEndpoints
+        );
     }
 
     @Override
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass()) return false;
         ElasticInferenceServiceAuthorizationModel that = (ElasticInferenceServiceAuthorizationModel) o;
-        return Objects.equals(authorizedEndpoints, that.authorizedEndpoints) && Objects.equals(taskTypes, that.taskTypes);
+        return Objects.equals(authorizedEndpoints, that.authorizedEndpoints)
+            && Objects.equals(taskTypes, that.taskTypes)
+            && Objects.equals(removedEndpoints, that.removedEndpoints);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(authorizedEndpoints, taskTypes);
+        return Objects.hash(authorizedEndpoints, taskTypes, removedEndpoints);
     }
 }

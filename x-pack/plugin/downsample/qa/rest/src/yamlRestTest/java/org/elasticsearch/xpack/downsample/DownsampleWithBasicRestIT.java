@@ -19,6 +19,7 @@ public class DownsampleWithBasicRestIT extends ESClientYamlSuiteTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("x-pack-downsample")
+        .module("x-pack-esql")
         .module("x-pack-ilm")
         .module("lang-painless")
         .module("aggregations")         // for auto_date_histogram
@@ -26,7 +27,6 @@ public class DownsampleWithBasicRestIT extends ESClientYamlSuiteTestCase {
         .module("x-pack-analytics")     // for histogram
         .module("data-streams")         // for time series
         .module("ingest-common")
-        .module("exponential-histogram")// for exponential histograms
         .setting("xpack.security.enabled", "false")
         .build();
 

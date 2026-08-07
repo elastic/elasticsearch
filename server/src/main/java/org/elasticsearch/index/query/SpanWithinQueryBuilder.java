@@ -28,7 +28,7 @@ import static org.elasticsearch.index.query.SpanQueryBuilder.SpanQueryBuilderUti
 /**
  * Builder for {@link org.apache.lucene.queries.spans.SpanWithinQuery}.
  */
-public class SpanWithinQueryBuilder extends AbstractQueryBuilder<SpanWithinQueryBuilder> implements SpanQueryBuilder {
+public class SpanWithinQueryBuilder extends LeafQueryBuilder<SpanWithinQueryBuilder> implements SpanQueryBuilder {
     public static final String NAME = "span_within";
 
     private static final ParseField BIG_FIELD = new ParseField("big");

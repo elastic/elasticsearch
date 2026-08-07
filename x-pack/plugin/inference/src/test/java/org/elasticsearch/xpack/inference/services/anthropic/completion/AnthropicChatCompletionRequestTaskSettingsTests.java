@@ -19,7 +19,7 @@ import static org.hamcrest.Matchers.is;
 public class AnthropicChatCompletionRequestTaskSettingsTests extends ESTestCase {
 
     public void testFromMap_ReturnsEmptySettings_WhenTheMapIsEmpty() {
-        var settings = AnthropicChatCompletionRequestTaskSettings.fromMap(new HashMap<>(Map.of()));
+        var settings = AnthropicChatCompletionRequestTaskSettings.fromMap(new HashMap<>());
         assertNull(settings.maxTokens());
     }
 

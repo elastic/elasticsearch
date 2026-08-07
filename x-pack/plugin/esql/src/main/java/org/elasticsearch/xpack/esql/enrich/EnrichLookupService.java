@@ -23,6 +23,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.compute.operator.lookup.EnrichQuerySourceOperator;
 import org.elasticsearch.compute.operator.lookup.LookupEnrichQueryGenerator;
 import org.elasticsearch.compute.operator.lookup.QueryList;
 import org.elasticsearch.core.Nullable;
@@ -55,6 +56,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 
 import java.io.IOException;
 import java.util.List;
@@ -76,7 +78,8 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
         IndexNameExpressionResolver indexNameExpressionResolver,
         BigArrays bigArrays,
         BlockFactory blockFactory,
-        ProjectResolver projectResolver
+        ProjectResolver projectResolver,
+        PlannerSettings.Holder plannerSettings
     ) {
         super(
             LOOKUP_ACTION_NAME,
@@ -89,7 +92,8 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
             blockFactory,
             true,
             TransportRequest::readFrom,
-            projectResolver
+            projectResolver,
+            plannerSettings
         );
     }
 
@@ -127,11 +131,11 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
     }
 
     @Override
-    protected LookupResponse createLookupResponse(List<Page> pages, BlockFactory blockFactory) throws IOException {
+    protected LookupResponse createLookupResponse(List<Page> pages, BlockFactory blockFactory, long bytesRead) {
         if (pages.size() != 1) {
             throw new UnsupportedOperationException("ENRICH always makes a single page of output");
         }
-        return new LookupResponse(pages.getFirst(), blockFactory);
+        return new LookupResponse(pages.getFirst(), blockFactory, bytesRead);
     }
 
     @Override
@@ -263,10 +267,12 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
 
     private static class LookupResponse extends AbstractLookupService.LookupResponse {
         private Page page;
+        private final long bytesRead;
 
-        private LookupResponse(Page page, BlockFactory blockFactory) {
+        private LookupResponse(Page page, BlockFactory blockFactory, long bytesRead) {
             super(blockFactory);
             this.page = page;
+            this.bytesRead = bytesRead;
         }
 
         private LookupResponse(StreamInput in, BlockFactory blockFactory) throws IOException {
@@ -274,6 +280,14 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
             try (BlockStreamInput bsi = new BlockStreamInput(in, blockFactory)) {
                 this.page = new Page(bsi);
             }
+            this.bytesRead = in.getTransportVersion().supports(EnrichQuerySourceOperator.Status.ESQL_ENRICH_BYTES_READ)
+                ? in.readVLong()
+                : 0L;
+        }
+
+        @Override
+        public long bytesRead() {
+            return bytesRead;
         }
 
         @Override
@@ -282,6 +296,9 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
             blockFactory.breaker().addEstimateBytesAndMaybeBreak(bytes, "serialize enrich lookup response");
             reservedBytes += bytes;
             page.writeTo(out);
+            if (out.getTransportVersion().supports(EnrichQuerySourceOperator.Status.ESQL_ENRICH_BYTES_READ)) {
+                out.writeVLong(bytesRead);
+            }
         }
 
         @Override
@@ -302,12 +319,15 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
     @Override
     protected void sendChildRequest(
         CancellableTask parentTask,
-        ActionListener<List<Page>> delegate,
+        ActionListener<AbstractLookupService.LookupResponse> delegate,
         DiscoveryNode targetNode,
         TransportRequest transportRequest
     ) {
         ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
-        ActionListener<List<Page>> listener = ContextPreservingActionListener.wrapPreservingContext(delegate, threadContext);
+        ActionListener<AbstractLookupService.LookupResponse> listener = ContextPreservingActionListener.wrapPreservingContext(
+            delegate,
+            threadContext
+        );
         hasEnrichPrivilege(listener.delegateFailureAndWrap((l, ignored) -> {
             // Since we just checked the needed privileges
             // we can access the index regardless of the user/role that is executing the query

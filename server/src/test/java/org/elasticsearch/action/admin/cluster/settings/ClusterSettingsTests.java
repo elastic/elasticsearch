@@ -15,6 +15,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -30,5 +32,97 @@ public class ClusterSettingsTests extends ESTestCase {
 
         // the value should be current when initializing the consumer
         clusterSettings.initializeAndWatch(clusterSetting, value -> { assertThat(value, equalTo("updated_value")); });
+    }
+
+    public void testInitializeAndWatchWatchIfRegisteredWithRegisteredSetting() {
+        AtomicReference<String> settingValue = new AtomicReference<>();
+        Setting<String> clusterSetting = Setting.simpleString("cluster.setting", Setting.Property.NodeScope, Setting.Property.Dynamic);
+        Settings nodeSettings = Settings.builder().put("cluster.setting", "initial_value").build();
+
+        ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, Set.of(clusterSetting));
+        clusterSettings.initializeAndWatchIfRegistered(clusterSetting, settingValue::set);
+
+        assertThat(settingValue.get(), equalTo("initial_value"));
+
+        Settings newSettings = Settings.builder().put("cluster.setting", "updated_value").build();
+        clusterSettings.applySettings(newSettings);
+
+        assertThat(settingValue.get(), equalTo("updated_value"));
+    }
+
+    public void testInitializeAndWatchWatchIfRegisteredWithUnregisteredSetting() {
+        AtomicReference<String> settingValue = new AtomicReference<>();
+        Setting<String> clusterSetting = Setting.simpleString("cluster.setting", Setting.Property.NodeScope, Setting.Property.Dynamic);
+        Settings nodeSettings = Settings.builder().put("cluster.setting", "initial_value").build();
+
+        ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, Set.of());
+
+        // Can't use initializeAndWatch
+        assertThrows(IllegalArgumentException.class, () -> clusterSettings.initializeAndWatch(clusterSetting, settingValue::set));
+
+        // But initializeAndWatchIfRegistered will initialize the value
+        clusterSettings.initializeAndWatchIfRegistered(clusterSetting, settingValue::set);
+        assertThat(settingValue.get(), equalTo("initial_value"));
+
+        // but not update it dynamically
+        Settings newSettings = Settings.builder().put("cluster.setting", "updated_value").build();
+        clusterSettings.applySettings(newSettings);
+        assertThat(settingValue.get(), equalTo("initial_value"));
+    }
+
+    public void testAddRemovableSettingsUpdateConsumer() {
+        final AtomicInteger updateCount = new AtomicInteger();
+        final AtomicReference<String> settingValue = new AtomicReference<>();
+        final Setting<String> clusterSetting = Setting.simpleString(
+            "cluster.setting",
+            Setting.Property.NodeScope,
+            Setting.Property.Dynamic
+        );
+        final ClusterSettings clusterSettings = new ClusterSettings(
+            Settings.builder().put("cluster.setting", "initial_value").build(),
+            Set.of(clusterSetting)
+        );
+
+        final var releasable = clusterSettings.addRemovableSettingsUpdateConsumer(clusterSetting, v -> {
+            settingValue.set(v);
+            updateCount.incrementAndGet();
+        });
+
+        clusterSettings.applySettings(Settings.builder().put("cluster.setting", "first_update").build());
+        assertThat(settingValue.get(), equalTo("first_update"));
+        assertThat(updateCount.get(), equalTo(1));
+
+        releasable.close();
+
+        // After closing the releasable the consumer is no longer called on settings updates
+        clusterSettings.applySettings(Settings.builder().put("cluster.setting", "second_update").build());
+        assertThat(settingValue.get(), equalTo("first_update"));
+        assertThat(updateCount.get(), equalTo(1));
+
+        // Closing again is a no-op
+        releasable.close();
+        assertThat(updateCount.get(), equalTo(1));
+    }
+
+    public void testInitializeAndWatchWatchIfRegisteredWithUnregisteredAndDefaultValue() {
+        AtomicReference<String> settingValue = new AtomicReference<>();
+        Setting<String> clusterSetting = Setting.simpleString(
+            "cluster.setting",
+            "default_value",
+            Setting.Property.NodeScope,
+            Setting.Property.Dynamic
+        );
+
+        // Setting has no value in provided settings
+        Settings nodeSettings = Settings.builder().build();
+
+        ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, Set.of());
+
+        // Can't use initializeAndWatch
+        assertThrows(IllegalArgumentException.class, () -> clusterSettings.initializeAndWatch(clusterSetting, settingValue::set));
+
+        // but initializeAndWatchIfRegistered will initialize to default value
+        clusterSettings.initializeAndWatchIfRegistered(clusterSetting, settingValue::set);
+        assertThat(settingValue.get(), equalTo("default_value"));
     }
 }

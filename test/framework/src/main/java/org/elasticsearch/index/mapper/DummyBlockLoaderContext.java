@@ -9,8 +9,10 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.index.mapper.blockloader.Warnings;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.Set;
@@ -65,6 +67,21 @@ public class DummyBlockLoaderContext implements MappedFieldType.BlockLoaderConte
     @Override
     public BlockLoaderFunctionConfig blockLoaderFunctionConfig() {
         return null;
+    }
+
+    @Override
+    public Warnings warnings() {
+        return null;
+    }
+
+    @Override
+    public ByteSizeValue ordinalsByteSize() {
+        return DEFAULT_ORDINALS_BYTE_SIZE;
+    }
+
+    @Override
+    public ByteSizeValue scriptByteSize() {
+        return DEFAULT_SCRIPT_BYTE_SIZE;
     }
 
     public static class MapperServiceBlockLoaderContext extends DummyBlockLoaderContext {

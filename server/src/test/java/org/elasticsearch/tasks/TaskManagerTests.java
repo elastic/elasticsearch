@@ -60,6 +60,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.in;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
@@ -637,6 +638,110 @@ public class TaskManagerTests extends ESTestCase {
                 return new Task(id, type, action, "request-" + id, parentTaskId, headers);
             }
         };
+    }
+
+    public void testForEachCancellableTaskIteratesOverTasks() throws Exception {
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), Tracer.NOOP);
+
+        Task task1 = taskManager.register("transport", "action1", new CancellableRequest("1"));
+        Task task2 = taskManager.register("transport", "action2", new CancellableRequest("2"));
+        Task task3 = taskManager.register("transport", "action3", new CancellableRequest("3"));
+        try {
+            assertBusy(() -> {
+                Set<Long> visitedTaskIds = new HashSet<>();
+                taskManager.forEachCancellableTask(1, info -> {
+                    visitedTaskIds.add(info.task().getId());
+                    return true;
+                });
+                assertThat(visitedTaskIds, is(Set.of(task1.getId(), task2.getId(), task3.getId())));
+            });
+        } finally {
+            taskManager.unregister(task1);
+            taskManager.unregister(task2);
+            taskManager.unregister(task3);
+        }
+    }
+
+    public void testForEachCancellableTaskEarlyTermination() throws Exception {
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), Tracer.NOOP);
+
+        Task task1 = taskManager.register("transport", "action1", new CancellableRequest("1"));
+        Task task2 = taskManager.register("transport", "action2", new CancellableRequest("2"));
+        Task task3 = taskManager.register("transport", "action3", new CancellableRequest("3"));
+        try {
+            assertBusy(() -> {
+                List<Long> visitedTaskIds = new ArrayList<>();
+                taskManager.forEachCancellableTask(1, info -> {
+                    visitedTaskIds.add(info.task().getId());
+                    return false;
+                });
+                assertThat(visitedTaskIds.size(), is(1));
+            });
+        } finally {
+            taskManager.unregister(task1);
+            taskManager.unregister(task2);
+            taskManager.unregister(task3);
+        }
+    }
+
+    public void testForEachCancellableTaskSkipsNonPositiveThreshold() {
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), Tracer.NOOP);
+
+        Task task = taskManager.register("transport", "action", new CancellableRequest("1"));
+        try {
+            List<Long> visitedTaskIds = new ArrayList<>();
+            taskManager.forEachCancellableTask(0, info -> {
+                visitedTaskIds.add(info.task().getId());
+                return true;
+            });
+            assertThat(visitedTaskIds.isEmpty(), is(true));
+
+            taskManager.forEachCancellableTask(-1, info -> {
+                visitedTaskIds.add(info.task().getId());
+                return true;
+            });
+            assertThat(visitedTaskIds.isEmpty(), is(true));
+        } finally {
+            taskManager.unregister(task);
+        }
+    }
+
+    public void testForEachCancellableTaskReportsHasOutstandingChildren() throws Exception {
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), Tracer.NOOP);
+        final var transportServiceMock = mock(TransportService.class);
+        when(transportServiceMock.getThreadPool()).thenReturn(threadPool);
+        taskManager.setTaskCancellationService(new TaskCancellationService(transportServiceMock) {
+            @Override
+            void cancelTaskAndDescendants(CancellableTask task, String reason, boolean waitForCompletion, ActionListener<Void> listener) {}
+        });
+
+        Task parentTask = taskManager.register("transport", "parent", new CancellableRequest("parent"));
+        try {
+            CancellableTask cancellableParent = (CancellableTask) parentTask;
+
+            assertBusy(() -> {
+                List<TaskManager.CancellableTaskInfo> infos = new ArrayList<>();
+                taskManager.forEachCancellableTask(1, info -> {
+                    infos.add(info);
+                    return true;
+                });
+                assertThat(infos.size(), is(1));
+                assertThat(infos.getFirst().hasOutstandingChildren(), is(false));
+            });
+
+            MockConnection connection = new MockConnection();
+            taskManager.registerChildConnection(cancellableParent.getId(), connection);
+
+            List<TaskManager.CancellableTaskInfo> infos = new ArrayList<>();
+            taskManager.forEachCancellableTask(1, info -> {
+                infos.add(info);
+                return true;
+            });
+            assertThat(infos.size(), is(1));
+            assertThat(infos.getFirst().hasOutstandingChildren(), is(true));
+        } finally {
+            taskManager.unregister(parentTask);
+        }
     }
 
 }

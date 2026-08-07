@@ -353,6 +353,25 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         }
 
         @Override
+        public String contentType() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
+        protected void throwMergeTypeConflict(FieldMapper.Builder incoming, String fullName) {
+            if (CONTENT_TYPE.equals(incoming.contentType())) {
+                throw new IllegalArgumentException(
+                    "mapper ["
+                        + fullName
+                        + "] of type [geo_shape] cannot change strategy from ["
+                        + strategy.get().getStrategyName()
+                        + "] to [BKD]"
+                );
+            }
+            super.throwMergeTypeConflict(incoming, fullName);
+        }
+
+        @Override
         public LegacyGeoShapeFieldMapper build(MapperBuilderContext context) {
             LegacyGeoShapeParser parser = new LegacyGeoShapeParser();
             GeoShapeFieldType ft = buildFieldType(parser, context);

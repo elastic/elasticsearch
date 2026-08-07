@@ -12,6 +12,7 @@ import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
+import org.elasticsearch.xpack.inference.external.request.RequestTests;
 import org.elasticsearch.xpack.inference.services.openshiftai.completion.OpenShiftAiChatCompletionModelTests;
 
 import java.io.IOException;
@@ -44,7 +45,7 @@ public class OpenShiftAiChatCompletionRequestTests extends ESTestCase {
     public void testCreateRequest_WithStreaming() throws IOException {
         String input = randomAlphaOfLength(15);
         var request = createRequest(MODEL_VALUE, URL_VALUE, API_KEY_VALUE, input, true);
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();

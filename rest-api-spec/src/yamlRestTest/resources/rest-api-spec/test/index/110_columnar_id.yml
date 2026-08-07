@@ -1,0 +1,116 @@
+---
+"Index with ID and columnar _id mode":
+  - requires:
+      cluster_features: ["mapper.id_field.mode_mapping_attribute"]
+      reason: columnar _id mode was added in this version
+
+  - do:
+      indices.create:
+          index: test-weird-index-中文
+          body:
+              mappings:
+                  _id:
+                      mode: columnar
+
+  - do:
+      index:
+          index:  test-weird-index-中文
+          id:     "1"
+          body:   { foo: bar }
+
+  - match:   { _index:   test-weird-index-中文 }
+  - match:   { _id:      "1"}
+  - match:   { _version: 1}
+
+  - do:
+      get:
+          index:  test-weird-index-中文
+          id:     "1"
+
+  - match:   { _index:   test-weird-index-中文 }
+  - match:   { _id:      "1"}
+  - match:   { _version: 1}
+  - match:   { _source: { foo: bar }}
+
+  - do:
+      catch: bad_request
+      index:
+          index:  test-weird-index-中文
+          id:     aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          body:   { foo: bar }
+
+---
+"Index without ID and columnar _id mode":
+  - requires:
+      cluster_features: ["mapper.id_field.mode_mapping_attribute"]
+      reason: columnar _id mode was added in this version
+
+  - do:
+      indices.create:
+          index: test_1
+          body:
+              mappings:
+                  _id:
+                      mode: columnar
+
+  - do:
+      index:
+          index:  test_1
+          body:   { foo: bar }
+
+  - is_true:   _id
+  - match:   { _index:   test_1 }
+  - match:   { _version: 1      }
+  - set:     { _id:      id    }
+
+  - do:
+      get:
+          index:  test_1
+          id:     '$id'
+
+  - match:   { _index:   test_1 }
+  - match:   { _id:      $id    }
+  - match:   { _version: 1      }
+  - match:   { _source: { foo: bar }}
+
+---
+"Search with columnar _id mode":
+  - requires:
+      cluster_features: ["mapper.id_field.mode_mapping_attribute"]
+      reason: columnar _id mode was added in this version
+
+  - do:
+      indices.create:
+          index: test_search
+          body:
+              mappings:
+                  _id:
+                      mode: columnar
+
+  - do:
+      index:
+          index:  test_search
+          id:     "doc1"
+          body:   { val: 1 }
+
+  - do:
+      index:
+          index:  test_search
+          id:     "doc2"
+          body:   { val: 2 }
+
+  - do:
+      indices.refresh:
+          index: test_search
+
+  - do:
+      search:
+          index: test_search
+          body:
+              sort: [ { val: asc } ]
+
+  - match:  { hits.total.value: 2 }
+  - match:  { hits.hits.0._id: "doc1" }
+  - match:  { hits.hits.0._source: { val: 1 } }
+  - match:  { hits.hits.1._id: "doc2" }
+  - match:  { hits.hits.1._source: { val: 2 } }

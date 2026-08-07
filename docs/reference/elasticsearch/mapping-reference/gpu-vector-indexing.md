@@ -1,13 +1,10 @@
 ---
 applies_to:
-  stack:
+  stack: preview 9.3, ga 9.4
 navigation_title: "GPU vector indexing"
 ---
 
 # GPU accelerated vector indexing
-```{applies_to}
-stack: preview 9.3
-```
 
 {{es}} can use GPU acceleration to significantly speed up the indexing of
 dense vectors. GPU indexing is based on the
@@ -23,7 +20,7 @@ GPU vector indexing requires the following:
 
 * An [Enterprise subscription](https://www.elastic.co/subscriptions)
 * A supported NVIDIA GPU (Ampere architecture or better, compute capability
-  >= 8.0) with a minimum 8GB of GPU memory
+  \>= 8.0) with a minimum 8GB of GPU memory
 * GPU driver, CUDA and
   [cuVS runtime libraries](https://docs.rapids.ai/api/cuvs/stable/build/)
   installed on the node. Refer to the
@@ -83,6 +80,43 @@ docker run \
   --gpus all \
   --rm -it es-gpu
 ```
+
+## Monitoring
+```{applies_to}
+stack: ga 9.3.2
+```
+
+Use the `GET _xpack/usage` API to monitor GPU vector indexing status and usage
+across all nodes in the cluster:
+
+```console
+GET _xpack/usage?filter_path=gpu_vector_indexing
+```
+% TEST[skip:Requires GPU hardware]
+
+```console-result
+{
+  "gpu_vector_indexing": {
+    "available": true, <1>
+    "enabled": true, <2>
+    "index_build_count": 30, <3>
+    "nodes_with_gpu": 3, <4>
+    "nodes": [ <5>
+      { "type": "NVIDIA L4", "memory_in_bytes": 24000000000,
+        "enabled": true, "index_build_count": 10 },
+      { "type": "NVIDIA L4", "memory_in_bytes": 24000000000,
+        "enabled": true, "index_build_count": 10 },
+      { "type": "NVIDIA A100", "memory_in_bytes": 80000000000,
+        "enabled": true, "index_build_count": 10 }
+    ]
+  }
+}
+```
+1. Whether the current license permits GPU indexing.
+2. Whether at least one node has GPU hardware configured and has not disabled it via `vectors.indexing.use_gpu=false`.
+3. Total number of GPU index builds across the cluster.
+4. Number of data nodes with GPU support.
+5. Per-node GPU details including type, memory, enabled status, and build count.
 
 ## Troubleshooting
 By default, {{es}} uses GPU indexing for supported vector types if a

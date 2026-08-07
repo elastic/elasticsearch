@@ -15,7 +15,10 @@ import org.elasticsearch.entitlement.bridge.NotEntitledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ESTestCase.WithEntitlementsOnTestCode;
 
+import java.io.IOException;
 import java.nio.file.Path;
+
+import static org.hamcrest.Matchers.instanceOf;
 
 /**
  * A version of {@link EntitlementMetaTests} that tests {@link WithEntitlementsOnTestCode}.
@@ -37,6 +40,7 @@ public class WithEntitlementsOnTestCodeMetaTests extends ESTestCase {
     @SuppressForbidden(reason = "Testing that a forbidden API is disallowed")
     public void testForbiddenActionDenied() {
         assumeTrue("Not yet working in serverless", TestEntitlementBootstrap.isEnabledForTests());
-        assertThrows(NotEntitledException.class, () -> Path.of(".").toRealPath());
+        var e = assertThrows(IOException.class, () -> Path.of(".").toRealPath());
+        assertThat(e.getCause(), instanceOf(NotEntitledException.class));
     }
 }

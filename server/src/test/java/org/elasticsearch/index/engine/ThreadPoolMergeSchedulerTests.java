@@ -225,7 +225,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
 
     private void testIndexingThrottlingWhenSubmittingMerges(boolean withDiskIOThrottlingEnabled) {
         final int maxThreadCount = randomIntBetween(1, 5);
-        // settings validation requires maxMergeCount >= maxThreadCount
+        // keep maxMergeCount >= maxThreadCount so the test exercises the configured thread count
         final int maxMergeCount = maxThreadCount + randomIntBetween(0, 5);
         List<MergeTask> submittedMergeTasks = new ArrayList<>();
         AtomicBoolean isUsingMaxTargetIORate = new AtomicBoolean(false);
@@ -293,7 +293,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
 
     public void testIndexingThrottlingWhileMergesAreRunning() {
         final int maxThreadCount = randomIntBetween(1, 5);
-        // settings validation requires maxMergeCount >= maxThreadCount
+        // keep maxMergeCount >= maxThreadCount so the test exercises the configured thread count
         final int maxMergeCount = maxThreadCount + randomIntBetween(0, 5);
         List<MergeTask> submittedMergeTasks = new ArrayList<>();
         List<MergeTask> scheduledToRunMergeTasks = new ArrayList<>();
@@ -386,6 +386,52 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
         }
         // all merges done
         assertThat(threadPoolMergeScheduler.isIndexingThrottlingEnabled(), is(false));
+    }
+
+    /**
+     * Verifies count-based indexing throttle with a custom {@code getMaxMergeCount()} override and no auto IO throttle,
+     * which is the mechanism stateless Elasticsearch relies on. Throttle activates when submitted-minus-done merges exceed
+     * the configured threshold, and deactivates once enough merges complete.
+     */
+    public void testIndexingThrottlingWithCustomMaxMergeCount() {
+        int maxConcurrentMerges = randomIntBetween(1, 4);
+        int factor = randomIntBetween(1, 3);
+        int threshold = factor * maxConcurrentMerges;
+
+        List<MergeTask> submittedMergeTasks = new ArrayList<>();
+        AtomicBoolean isUsingMaxTargetIORate = new AtomicBoolean(randomBoolean());
+        ThreadPoolMergeExecutorService executor = mockThreadPoolMergeExecutorService(submittedMergeTasks, isUsingMaxTargetIORate);
+        when(executor.getMaxConcurrentMerges()).thenReturn(maxConcurrentMerges);
+
+        TestStatelessStyleScheduler scheduler = new TestStatelessStyleScheduler(
+            factor,
+            new ShardId("index", "_na_", 0),
+            IndexSettingsModule.newIndexSettings("index", Settings.EMPTY),
+            executor
+        );
+
+        assertFalse("should not be throttled initially", scheduler.isIndexingThrottlingEnabled());
+        for (int i = 0; i < threshold; i++) {
+            submitMockMerge(scheduler);
+            assertFalse("at or below threshold should not throttle", scheduler.isIndexingThrottlingEnabled());
+        }
+        submitMockMerge(scheduler);
+        assertTrue("exceeding threshold should throttle", scheduler.isIndexingThrottlingEnabled());
+
+        // schedule and run one merge to bring active count back to threshold → throttle off
+        MergeTask task = submittedMergeTasks.remove(0);
+        assertEquals(Schedule.RUN, task.schedule());
+        task.run();
+        assertFalse("returning to threshold should deactivate throttle", scheduler.isIndexingThrottlingEnabled());
+    }
+
+    private static void submitMockMerge(ThreadPoolMergeScheduler scheduler) {
+        MergeSource mergeSource = mock(MergeSource.class);
+        OneMerge oneMerge = mock(OneMerge.class);
+        when(oneMerge.getStoreMergeInfo()).thenReturn(getNewMergeInfo(randomLongBetween(1L, 10L)));
+        when(oneMerge.getMergeProgress()).thenReturn(new MergePolicy.OneMergeProgress());
+        when(mergeSource.getNextMerge()).thenReturn(oneMerge, (OneMerge) null);
+        scheduler.merge(mergeSource, randomFrom(MergeTrigger.values()));
     }
 
     public void testMergeSourceWithFollowUpMergesRunSequentially() throws Exception {
@@ -832,6 +878,35 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
 
         boolean isIndexingThrottlingEnabled() {
             return isIndexingThrottlingEnabled.get();
+        }
+    }
+
+    /**
+     * A test scheduler with stateless-like behaviour: no auto IO throttle and a custom merge count threshold derived from
+     * {@code factor * executor.getMaxConcurrentMerges()}. The unlimited thread count ensures that all scheduled merge tasks
+     * are immediately set to RUN (not backlogged), matching the stateless production configuration.
+     */
+    static class TestStatelessStyleScheduler extends TestThreadPoolMergeScheduler {
+        private final int factor;
+
+        TestStatelessStyleScheduler(int factor, ShardId shardId, IndexSettings indexSettings, ThreadPoolMergeExecutorService executor) {
+            super(shardId, indexSettings, executor);
+            this.factor = factor;
+        }
+
+        @Override
+        protected boolean isAutoThrottle() {
+            return false;
+        }
+
+        @Override
+        protected int getMaxMergeCount() {
+            return factor * getThreadPoolMergeExecutorService().getMaxConcurrentMerges();
+        }
+
+        @Override
+        protected int getMaxThreadCount() {
+            return Integer.MAX_VALUE;
         }
     }
 

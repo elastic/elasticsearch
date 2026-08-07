@@ -1,6 +1,0 @@
-area: Inference
-issues: []
-pr: 142181
-summary: "[Inference API] Do not write \"task\" field in Jina embedding request if\
-  \ unsupported"
-type: bug

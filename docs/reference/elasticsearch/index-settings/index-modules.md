@@ -4,6 +4,7 @@ mapped_pages:
 navigation_title: General
 applies_to:
   stack: all
+  serverless: all
 ---
 # General index settings [index-modules]
 
@@ -53,9 +54,7 @@ $$$index-codec$$$ `index.codec` {applies_to}`serverless: all`
 :   The `default` value compresses stored data with LZ4 compression, but this can be set to `best_compression` which uses [ZSTD](https://en.wikipedia.org/wiki/Zstd) for a higher compression ratio, at the expense of slower stored fields read performance. If you are updating the compression type, the new one will be applied after segments are merged. Segment merging can be forced using [force merge](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-forcemerge). Experiments with indexing log datasets have shown that `best_compression` gives up to ~28% lower storage usage and similar indexing throughput (sometimes a bit slower or faster depending on other used options) compared to `default` while affecting get by id latencies between ~10% and ~33%. The higher get by id latencies is not a concern for many use cases like logging or metrics, since these don’t really rely on get by id functionality (Get APIs or searching by _id).
 
 $$$index-mode-setting$$$ `index.mode` {applies_to}`serverless: all`
-:   The `index.mode` setting is used to control settings applied in specific domains like ingestion of time series data or logs. Different mutually exclusive modes exist, which are used to apply settings or default values controlling indexing of documents, sorting and other parameters whose value affects indexing or query performance.
-
-        **Example**
+:   The `index.mode` setting is used to control settings applied in specific domains like ingestion of time series data or logs. Different mutually exclusive modes exist, which are used to apply settings or default values controlling indexing of documents, sorting and other parameters whose value affects indexing or query performance. For example:
 
       ```console
       PUT my-index-000001
@@ -68,14 +67,16 @@ $$$index-mode-setting$$$ `index.mode` {applies_to}`serverless: all`
       }
       ```
       1. This index uses the `standard` index mode
-    **Supported values**
 
     The `index.mode` setting supports the following values:
        - `null`:   Default value (same as `standard`).
        -  `standard`:   Standard indexing with default settings.
        -  `lookup`: Index that can be used for [LOOKUP JOIN](/reference/query-languages/esql/esql-lookup-join.md) in ES|QL. Limited to 1 shard.
        - `time_series`:   *(data streams only)* Index mode optimized for storage of metrics. For more information, see [Time series index settings](time-series.md).
-       - `logsdb`: *(data streams only)* Index mode optimized for [logs](docs-content://manage-data/data-store/data-streams/logs-data-stream.md).
+       - `logsdb`: Index mode optimized for [logs](docs-content://manage-data/data-store/data-streams/logs-data-stream.md).
+       - `vectordb_document` {applies_to}`stack: ga 9.5` {applies_to}`serverless: ga`: Index mode optimized for vector search use cases. Applies settings and defaults tuned for indexing, merging, and searching dense vector data. For details, see [Index modes for vector search](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-index-modes).
+       - `columnar`: {applies_to}`stack: preview 9.5+`  {applies_to}`serverless: preview` Index mode that turns {{es}} into a full analytical and search columnar store. Fields are stored once as doc values with no inverted index or BKD tree by default. For more information, refer to [Columnar index mode](/reference/elasticsearch/columnar/index.md).
+       - `logsdb_columnar`: {applies_to}`stack: preview 9.5+`  {applies_to}`serverless: preview` Columnar index mode with logging-oriented defaults, including a default `@timestamp` mapping. For more information, refer to [Columnar index mode](/reference/elasticsearch/columnar/index.md).
 
 $$$routing-partition-size$$$ `index.routing_partition_size`
 :   The number of shards a custom routing value can go to. Defaults to 1 and can only be set at index creation time. This value must be less than the `index.number_of_routing_shards` unless the `index.number_of_routing_shards` value is also 1. for more details about how this setting is used, refer to [](/reference/elasticsearch/mapping-reference/mapping-routing-field.md#routing-index-partition).
@@ -117,7 +118,21 @@ $$$index-shard-check-on-startup$$$ `index.shard.check_on_startup`
 
 :::::
 
+$$$index-disable-sequence-numbers$$$ `index.disable_sequence_numbers`
+:   ::::{warning}
+    This setting is experimental and might be changed or removed in a future release. Available in {{serverless-full}} and {{stack}} 9.4+.
+    ::::
 
+    Controls whether the index maintains sequence numbers for document operations. When set to `true`, sequence numbers are not available, trading some consistency guarantees for reduced storage overhead. Defaults to `false`. This setting can only be set at index creation time and cannot be changed afterwards. Requires `index.seq_no.index_options` to be set to `doc_values_only`.
+
+    Disabling sequence numbers introduces the following limitations:
+
+    * **No [optimistic concurrency control](/reference/elasticsearch/rest-apis/optimistic-concurrency-control.md)**: The `if_seq_no` and `if_primary_term` parameters cannot be used with [index](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-index) or [bulk](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-bulk) requests.
+    * **Sentinel values in responses**: [Index](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-index), [bulk](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-bulk), [get](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-get), and [search](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search) responses return sentinel values for `_seq_no` and `_primary_term` instead of real sequence numbers.
+    * **Updates not supported**: Single-document [update](/reference/elasticsearch/rest-apis/update-document.md) operations and update actions within [bulk](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-bulk) requests are not supported and will be rejected.
+    * **Weaker consistency for update-by-query and delete-by-query**: [Update by query](/reference/elasticsearch/rest-apis/update-by-query-api.md) and [delete by query](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-delete-by-query) operations proceed without sequence number-based conflict detection. This means concurrent modifications to documents during these operations may be silently overwritten rather than triggering version conflicts.
+    * **`_seq_no` field not queryable**: Queries, filters, and sorts on the `_seq_no` field are not supported.
+    * **`random_score` requires an explicit `field`**: The [`random_score`](/reference/query-languages/query-dsl/query-dsl-function-score-query.md) function cannot fall back to using `_seq_no` as a source of randomness. A `field` parameter must be specified explicitly.
 
 
 ## Dynamic index settings [dynamic-index-settings]

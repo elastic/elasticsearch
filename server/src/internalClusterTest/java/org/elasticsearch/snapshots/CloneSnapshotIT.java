@@ -48,6 +48,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -855,7 +856,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertAcked(clone1, clone2);
     }
 
-    public void testRemoveFailedCloneFromCSWithoutIO() throws Exception {
+    public void testFinalizeFailedClone() throws Exception {
         final String masterNode = internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNode();
         final String repoName = "test-repo";
@@ -872,13 +873,34 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         awaitNumberOfSnapshotsInProgress(1);
         waitForBlock(masterNode, repoName);
         unblockNode(repoName, masterNode);
-        expectThrows(SnapshotException.class, cloneFuture);
+        safeGet(cloneFuture);
         awaitNoMoreRunningOperations();
-        assertAllSnapshotsSuccessful(getRepositoryData(repoName), 1);
-        assertAcked(startDeleteSnapshot(repoName, sourceSnapshot).get());
+        final var repositoryData = getRepositoryData(repoName);
+        final var snapshotIds = repositoryData.getSnapshotIds();
+        assertThat(snapshotIds, hasSize(2));
+        assertThat(snapshotIds.stream().map(SnapshotId::getName).toList(), containsInAnyOrder(sourceSnapshot, targetSnapshot));
+        assertThat(
+            repositoryData.getSnapshotState(
+                snapshotIds.stream()
+                    .filter(snapshotId -> snapshotId.getName().equals(sourceSnapshot))
+                    .findFirst()
+                    .orElseThrow(AssertionError::new)
+            ),
+            is(SnapshotState.SUCCESS)
+        );
+        assertThat(
+            repositoryData.getSnapshotState(
+                snapshotIds.stream()
+                    .filter(snapshotId -> snapshotId.getName().equals(targetSnapshot))
+                    .findFirst()
+                    .orElseThrow(AssertionError::new)
+            ),
+            is(SnapshotState.PARTIAL)
+        );
+        assertAcked(startDeleteSnapshots(repoName, List.of(sourceSnapshot, targetSnapshot), masterNode).get());
     }
 
-    public void testRemoveFailedCloneFromCSWithQueuedSnapshotInProgress() throws Exception {
+    public void testFinalizeFailedCloneWithQueuedSnapshotInProgress() throws Exception {
         // single threaded master snapshot pool so we can selectively fail part of a clone by letting it run shard by shard
         final String masterNode = internalCluster().startMasterOnlyNode(
             Settings.builder().put("thread_pool.snapshot.core", 1).put("thread_pool.snapshot.max", 1).build()
@@ -915,13 +937,26 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         waitForBlock(masterNode, repoName);
         unblockNode(repoName, masterNode);
         final ActionFuture<CreateSnapshotResponse> fullSnapshotFuture2 = startFullSnapshot(repoName, "full-snapshot-2");
-        expectThrows(SnapshotException.class, cloneFuture);
+        safeGet(cloneFuture);
         unblockNode(repoName, dataNode);
         awaitNoMoreRunningOperations();
         assertSuccessful(fullSnapshotFuture1);
         assertSuccessful(fullSnapshotFuture2);
-        assertAllSnapshotsSuccessful(getRepositoryData(repoName), 3);
-        assertAcked(startDeleteSnapshot(repoName, sourceSnapshot).get());
+        final var repositoryData = getRepositoryData(repoName);
+        final var successfulSnapshotIds = repositoryData.getSnapshotIds()
+            .stream()
+            .filter(snapshotId -> repositoryData.getSnapshotState(snapshotId) == SnapshotState.SUCCESS)
+            .toList();
+        assertThat(successfulSnapshotIds, hasSize(3));
+        final var partialSnapshotIds = repositoryData.getSnapshotIds()
+            .stream()
+            .filter(snapshotId -> repositoryData.getSnapshotState(snapshotId) == SnapshotState.PARTIAL)
+            .toList();
+        assertThat(partialSnapshotIds, hasSize(1));
+        assertThat(partialSnapshotIds.getFirst().getName(), is(targetSnapshot));
+        assertAcked(
+            startDeleteSnapshots(repoName, List.of(sourceSnapshot, "full-snapshot-1", "full-snapshot-2", targetSnapshot), masterNode).get()
+        );
     }
 
     public void testCloneAfterFailedShardSnapshot() throws Exception {

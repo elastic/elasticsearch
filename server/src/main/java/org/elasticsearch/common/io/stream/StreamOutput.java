@@ -1176,6 +1176,19 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
+     * Writes a possibly-{@code null} collection of {@link NamedWriteable} objects which can then be read using {@link
+     * StreamInput#readOptionalNamedWriteableCollectionAsList}.
+     */
+    public void writeOptionalNamedWriteableCollection(@Nullable Collection<? extends NamedWriteable> list) throws IOException {
+        if (list == null) {
+            writeBoolean(false);
+        } else {
+            writeBoolean(true);
+            writeCollection(list, StreamOutput::writeNamedWriteable);
+        }
+    }
+
+    /**
      * Writes an enum with type {@code E} in terms of the value of its ordinal. Enums serialized like this must have a corresponding test
      * which uses {@code EnumSerializationTestUtils#assertEnumSerialization} to fix the wire protocol.
      */

@@ -257,7 +257,7 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
 
     def "merge conflicts in latest files can be regenerated"() {
         given:
-        file("myserver/src/main/resources/transport/latest/9.2.csv").text =
+        file("myserver/src/main/resources/transport/upper_bounds/9.2.csv").text =
             """
             <<<<<<< HEAD
             existing_92,8123000
@@ -266,6 +266,7 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
             >>>>>> name
             """.strip()
         referableAndReferencedTransportVersion("second_tv", "8123000")
+        assert file("myserver/src/main/resources/transport/upper_bounds/9.2.csv").text.contains("<<<<<<<")
 
         when:
         def result = runGenerateAndValidateTask("--name=second_tv", ).build()
@@ -324,7 +325,8 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         referableAndReferencedTransportVersion("latest_tv", "8124000,8012002")
         transportVersionUpperBound("9.2", "latest_tv", "8124000")
         transportVersionUpperBound("9.1", "latest_tv", "8012002")
-        execute("git commit -a -m added")
+        execute("git add .")
+        execute("git commit -m added")
         execute("git checkout -b mybranch")
 
         when:

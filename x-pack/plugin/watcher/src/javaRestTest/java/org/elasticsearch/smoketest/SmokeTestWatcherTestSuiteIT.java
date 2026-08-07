@@ -50,9 +50,18 @@ public class SmokeTestWatcherTestSuiteIT extends WatcherRestTestCase {
         ObjectPath stats = ObjectPath.createFromResponse(statsResponse);
         String address = stats.evaluate("nodes." + masterNode + ".http.publish_address");
         assertThat(address, is(notNullValue()));
-        String[] splitAddress = address.split(":", 2);
-        String host = splitAddress[0];
-        int port = Integer.parseInt(splitAddress[1]);
+        String host;
+        int port;
+        // Handle IPv6 addresses in [host]:port format
+        if (address.startsWith("[")) {
+            int closingBracket = address.indexOf(']');
+            host = address.substring(1, closingBracket);
+            port = Integer.parseInt(address.substring(closingBracket + 2));
+        } else {
+            String[] splitAddress = address.split(":", 2);
+            host = splitAddress[0];
+            port = Integer.parseInt(splitAddress[1]);
+        }
 
         // put watch
         try (XContentBuilder builder = jsonBuilder()) {
@@ -98,8 +107,11 @@ public class SmokeTestWatcherTestSuiteIT extends WatcherRestTestCase {
             indexWatch(watchId, builder);
         }
 
-        // check watch count
-        assertWatchCount(1);
+        // check watch count — wrap in assertBusy because when the .watches index is created for the
+        // first time, the WatcherLifeCycleService detects the new shard allocation and triggers a
+        // reload (pauseExecution + async reloadInner). During the pause window the watch count is 0;
+        // it becomes 1 once reloadInner finishes loading watches from the index.
+        assertBusy(() -> assertWatchCount(1));
 
         // check watch history
         ObjectPath objectPath = getWatchHistoryEntry(watchId);

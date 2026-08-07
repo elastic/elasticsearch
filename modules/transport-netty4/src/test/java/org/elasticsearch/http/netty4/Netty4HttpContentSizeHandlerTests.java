@@ -33,6 +33,7 @@ import io.netty.handler.codec.http.LastHttpContent;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
+import java.util.List;
 
 public class Netty4HttpContentSizeHandlerTests extends ESTestCase {
 
@@ -73,7 +74,7 @@ public class Netty4HttpContentSizeHandlerTests extends ESTestCase {
         readSniffer = new ReadSniffer();
         channel = new EmbeddedChannel();
         channel.config().setAutoRead(false);
-        channel.pipeline().addLast(decoder, readSniffer, new Netty4HttpContentSizeHandler(decoder, MAX_CONTENT_LENGTH));
+        channel.pipeline().addLast(decoder, readSniffer, new Netty4HttpContentSizeHandler(MAX_CONTENT_LENGTH));
     }
 
     public void testDecodingFailurePassThrough() {
@@ -157,79 +158,117 @@ public class Netty4HttpContentSizeHandlerTests extends ESTestCase {
         resp.release();
     }
 
+    private static void assertTooLargeResponseClosesConnection(FullHttpResponse resp, EmbeddedChannel channel) {
+        assertEquals(HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE, resp.status());
+        assertEquals(HttpHeaderValues.CLOSE.toString(), resp.headers().get(HttpHeaderNames.CONNECTION));
+        assertFalse("should close channel", channel.isOpen());
+    }
+
     /**
      * Assert that handler returns 413 Request Entity Too Large for oversized request
-     * and does not close channel if following content is not present.
+     * and closes the connection.
      */
     public void testEntityTooLarge() {
-        for (var i = 0; i < REPS; i++) {
-            var sendRequest = httpRequest();
-            HttpUtil.set100ContinueExpected(sendRequest, true);
-            HttpUtil.setContentLength(sendRequest, OVERSIZED_LENGTH);
-            channel.writeInbound(encode(sendRequest, LastHttpContent.EMPTY_LAST_CONTENT));
-            var resp = (FullHttpResponse) channel.readOutbound();
-            assertEquals(HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE, resp.status());
-            assertNull("request should not pass", channel.readInbound());
-            assertTrue("should not close channel", channel.isOpen());
-            assertEquals("must read from channel", i + 1, readSniffer.readCount);
-            resp.release();
-        }
+        var sendRequest = httpRequest();
+        HttpUtil.set100ContinueExpected(sendRequest, true);
+        HttpUtil.setContentLength(sendRequest, OVERSIZED_LENGTH);
+        channel.writeInbound(encode(sendRequest, LastHttpContent.EMPTY_LAST_CONTENT));
+        var resp = (FullHttpResponse) channel.readOutbound();
+        assertTooLargeResponseClosesConnection(resp, channel);
+        assertNull("request should not pass", channel.readInbound());
+        assertEquals("must read from channel", 1, readSniffer.readCount);
+        resp.release();
     }
 
     /**
      * Mixed load of oversized and normal requests with Exepct:100-Continue.
      */
     public void testMixedContent() {
-        var expectReadCnt = 0;
         for (int i = 0; i < REPS; i++) {
             var isOversized = randomBoolean();
             var sendRequest = httpRequest();
             HttpUtil.set100ContinueExpected(sendRequest, true);
             if (isOversized) {
-                expectReadCnt++;
                 HttpUtil.setContentLength(sendRequest, OVERSIZED_LENGTH);
                 channel.writeInbound(encode(sendRequest));
                 var resp = (FullHttpResponse) channel.readOutbound();
-                assertEquals(HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE, resp.status());
-                channel.writeInbound(encode(LastHttpContent.EMPTY_LAST_CONTENT)); // terminate
+                assertTooLargeResponseClosesConnection(resp, channel);
                 assertNull(channel.readInbound());
                 resp.release();
-            } else {
-                var normalSize = between(1, MAX_CONTENT_LENGTH);
-                HttpUtil.setContentLength(sendRequest, normalSize);
-                channel.writeInbound(encode(sendRequest));
-                var resp = (FullHttpResponse) channel.readOutbound();
-                assertEquals(HttpResponseStatus.CONTINUE, resp.status());
-                resp.release();
-                var sendContent = lastHttpContent(normalSize);
-                channel.writeInbound(encode(sendContent));
-                var recvRequest = (HttpRequest) channel.readInbound();
-                var recvContent = (LastHttpContent) channel.readInbound();
-                assertEquals("content length header should match", normalSize, HttpUtil.getContentLength(recvRequest));
-                assertFalse("should remove expect header", HttpUtil.is100ContinueExpected(recvRequest));
-                assertEquals("actual content size should match", normalSize, recvContent.content().readableBytes());
-                recvContent.release();
+                return; // channel is closed, no more to do
             }
-            assertEquals(expectReadCnt, readSniffer.readCount);
+
+            var normalSize = between(1, MAX_CONTENT_LENGTH);
+            HttpUtil.setContentLength(sendRequest, normalSize);
+            channel.writeInbound(encode(sendRequest));
+            var resp = (FullHttpResponse) channel.readOutbound();
+            assertEquals(HttpResponseStatus.CONTINUE, resp.status());
+            resp.release();
+            var sendContent = lastHttpContent(normalSize);
+            channel.writeInbound(encode(sendContent));
+            var recvRequest = (HttpRequest) channel.readInbound();
+            var recvContent = (LastHttpContent) channel.readInbound();
+            assertEquals("content length header should match", normalSize, HttpUtil.getContentLength(recvRequest));
+            assertFalse("should remove expect header", HttpUtil.is100ContinueExpected(recvRequest));
+            assertEquals("actual content size should match", normalSize, recvContent.content().readableBytes());
+            recvContent.release();
+            assertEquals(0, readSniffer.readCount);
         }
     }
 
     /**
-     * Assert that handler returns 413 Request Entity Too Large and skip following content.
+     * Assert that handler returns 413 Request Entity Too Large, skips following content, and closes the connection.
      */
     public void testEntityTooLargeWithContentWithoutExpect() {
-        for (int i = 0; i < REPS; i++) {
-            var sendRequest = httpRequest();
-            HttpUtil.setContentLength(sendRequest, OVERSIZED_LENGTH);
-            var unexpectedContent = lastHttpContent(OVERSIZED_LENGTH);
-            channel.writeInbound(encode(sendRequest, unexpectedContent));
-            var resp = (FullHttpResponse) channel.readOutbound();
-            assertEquals(HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE, resp.status());
-            resp.release();
-            assertNull("request and content should not pass", channel.readInbound());
-            assertTrue("should not close channel", channel.isOpen());
-            assertEquals("expect two reads per loop, one for request and one for content", (i + 1) * 2, readSniffer.readCount);
+        var sendRequest = httpRequest();
+        HttpUtil.setContentLength(sendRequest, OVERSIZED_LENGTH);
+        var unexpectedContent = lastHttpContent(OVERSIZED_LENGTH);
+        channel.writeInbound(encode(sendRequest, unexpectedContent));
+        var resp = (FullHttpResponse) channel.readOutbound();
+        assertTooLargeResponseClosesConnection(resp, channel);
+        resp.release();
+        assertNull("request and content should not pass", channel.readInbound());
+        assertEquals("expect two reads, one for request and one for content", 2, readSniffer.readCount);
+    }
+
+    /**
+     * Oversized Expect requests must not repurpose owed body bytes as a new HTTP request when coalesced on the wire.
+     */
+    public void testEntityTooLargeExpectDoesNotParseSmuggledRequestCoalesced() {
+        var sendRequest = httpRequest();
+        HttpUtil.set100ContinueExpected(sendRequest, true);
+        HttpUtil.setContentLength(sendRequest, OVERSIZED_LENGTH);
+        var followUpRequest = httpRequest();
+        HttpUtil.setContentLength(followUpRequest, 0);
+
+        var coalesced = Unpooled.compositeBuffer();
+        for (var httpRequest : List.of(sendRequest, followUpRequest)) {
+            var encoder = new EmbeddedChannel(new HttpRequestEncoder());
+            httpRequest.headers().set(HttpHeaderNames.HOST, "localhost");
+            encoder.writeOutbound(httpRequest);
+            while (encoder.outboundMessages().isEmpty() == false) {
+                coalesced.addComponent(true, encoder.readOutbound());
+            }
         }
+        channel.writeInbound(coalesced);
+        var resp = (FullHttpResponse) channel.readOutbound();
+        assertTooLargeResponseClosesConnection(resp, channel);
+        assertNull("smuggled request must not pass downstream", channel.readInbound());
+        resp.release();
+    }
+
+    /**
+     * Oversized Expect requests close the connection once the 413 is sent.
+     */
+    public void testEntityTooLargeExpectDoesNotParseSmuggledRequestAfterResponse() {
+        var sendRequest = httpRequest();
+        HttpUtil.set100ContinueExpected(sendRequest, true);
+        HttpUtil.setContentLength(sendRequest, OVERSIZED_LENGTH);
+        channel.writeInbound(encode(sendRequest));
+        var resp = (FullHttpResponse) channel.readOutbound();
+        assertTooLargeResponseClosesConnection(resp, channel);
+        assertNull("request must not pass downstream", channel.readInbound());
+        resp.release();
     }
 
     /**

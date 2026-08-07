@@ -165,7 +165,7 @@ public class HistogramUnionState implements Releasable, Accountable {
 
     public void add(HistogramUnionState other) {
         if (other.exponentialHistogramState != null) {
-            getOrInitializeExponentialHistogramState().addWithoutUpscaling(other.exponentialHistogramState.histogram());
+            getOrInitializeExponentialHistogramState().add(other.exponentialHistogramState.histogram());
             invalidateCachedCombinedState();
         }
         if (other.tDigestState != null) {
@@ -380,7 +380,7 @@ public class HistogramUnionState implements Releasable, Accountable {
         }
         if (combinedState == null) {
             combinedState = ExponentialHistogramState.create(breaker);
-            combinedState.addWithoutUpscaling(exponentialHistogramState.histogram());
+            combinedState.add(exponentialHistogramState.histogram());
             try (
                 ReleasableExponentialHistogram converted = TDigestToExponentialHistogramConverter.convert(
                     new CentroidIterator(tDigestState.centroids()),
@@ -409,7 +409,7 @@ public class HistogramUnionState implements Releasable, Accountable {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (o instanceof HistogramUnionState == false) return false;
 
         HistogramUnionState that = (HistogramUnionState) o;
 

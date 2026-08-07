@@ -89,8 +89,10 @@ public abstract class AbstractStringWithIgnoreAboveRollingUpgradeTestCase extend
             }
         }
 
+        // STATS BY message returns one row per distinct message, so compare against distinct messages
+        List<String> messages = getMessages(dataStreamName).stream().distinct().toList();
+
         // block loaders do not return ignored fields, so we need to filter out all generated messages that would've been ignored
-        List<String> messages = getMessages(dataStreamName);
         List<String> expectedMessages = ignoreAbove.isSet()
             ? messages.stream().filter(msg -> ignoreAbove.isIgnored(msg) == false).toList()
             : messages;

@@ -1,3 +1,6 @@
+# Nimbus OAuth2/OIDC SDK makes outbound HTTP calls to IdP token endpoints via java.net.URL
+oauth2.oidc.sdk:
+  - outbound_network
 com.google.api.client:
   - set_https_connection_properties
   - outbound_network
@@ -24,3 +27,10 @@ io.netty.transport:
   - manage_threads
   - outbound_network
   - inbound_network
+# Azure Identity uses azure-core-http-netty which uses reactor-netty for HTTP; reactor-netty creates event-loop
+# threads and calls Thread.setDaemon, so these modules need manage_threads
+# see https://github.com/elastic/elasticsearch/issues/128046
+reactor.core:
+  - manage_threads
+reactor.netty.core:
+  - manage_threads

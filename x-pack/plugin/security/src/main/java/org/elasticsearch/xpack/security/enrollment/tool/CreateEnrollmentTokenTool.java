@@ -11,8 +11,8 @@ import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 
 import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.cli.terminal.Terminal;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.CheckedFunction;

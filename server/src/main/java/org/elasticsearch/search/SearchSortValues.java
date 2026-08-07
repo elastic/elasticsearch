@@ -43,7 +43,14 @@ public class SearchSortValues implements ToXContentFragment, Writeable {
         this.rawSortValues = rawSortValues;
         this.formattedSortValues = new Object[rawSortValues.length];
         for (int i = 0; i < rawSortValues.length; ++i) {
-            final Object v = sortValueFormats[i].formatSortValue(rawSortValues[i]);
+            final Object v;
+            try {
+                v = sortValueFormats[i].formatSortValue(rawSortValues[i]);
+            } catch (UnsupportedOperationException e) {
+                throw new IllegalArgumentException(
+                    "Field with doc value format [" + sortValueFormats[i].getWriteableName() + "] does not support sorting"
+                );
+            }
             assert v == null || v instanceof String || v instanceof Number || v instanceof Boolean || v instanceof Map
                 : v + " was not formatted";
             formattedSortValues[i] = v;
@@ -62,6 +69,21 @@ public class SearchSortValues implements ToXContentFragment, Writeable {
     private SearchSortValues(Object[] formattedSortValues, Object[] rawSortValues) {
         this.formattedSortValues = formattedSortValues;
         this.rawSortValues = rawSortValues;
+    }
+
+    /**
+     * Build sort values from pre-formatted and raw arrays. Use this when the formatted values
+     * were produced with the correct per-field format (e.g. from a shard hit) and must not be
+     * re-formatted with a single format like RAW, which would fail for non-UTF-8 BytesRefs
+     * (e.g. version field).
+     */
+    public static SearchSortValues fromFormattedAndRaw(Object[] formattedSortValues, Object[] rawSortValues) {
+        Objects.requireNonNull(formattedSortValues);
+        Objects.requireNonNull(rawSortValues);
+        if (formattedSortValues.length != rawSortValues.length) {
+            throw new IllegalArgumentException("formattedSortValues and rawSortValues must have the same length");
+        }
+        return new SearchSortValues(formattedSortValues, rawSortValues);
     }
 
     @Override

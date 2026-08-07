@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import org.elasticsearch.xpack.esql.datasources.ExternalFailures;
+
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
@@ -29,20 +31,48 @@ import java.util.Map;
  * Implementations typically reuse a FormatReader (e.g., ParquetFormatReader)
  * for actual data reading after planning which files to read.
  */
-public interface TableCatalog extends Closeable {
+public interface TableCatalog extends ExternalSourceFactory, Closeable {
 
     String catalogType();
 
     boolean canHandle(String path);
 
+    /**
+     * @param config configuration map. Values are typed as {@code Object}: secret values may arrive
+     * as {@link org.elasticsearch.common.settings.SecureString}, non-secrets retain their underlying
+     * type ({@code String}, {@code Integer}, {@code Long}, {@code Boolean}). Use
+     * {@code Objects.toString(config.get(key), null)} or pattern-match on type — casting directly
+     * to {@code String} will throw {@link ClassCastException} on non-String values.
+     */
     SourceMetadata metadata(String tablePath, Map<String, Object> config) throws IOException;
 
+    /**
+     * @param config configuration map; see {@link #metadata(String, Map)} for typing rules.
+     */
     List<DataFile> planScan(String tablePath, Map<String, Object> config, List<Object> predicates) throws IOException;
 
+    @Override
+    default String type() {
+        return catalogType();
+    }
+
+    @Override
+    default SourceMetadata resolveMetadata(String location, Map<String, Object> config) {
+        try {
+            return metadata(location, config);
+        } catch (IOException e) {
+            // Types the catalog's I/O failure as client-caused and keeps its diagnosis rather than replacing it with
+            // a constant. Same rule as FileSourceFactory#resolveMetadata.
+            throw new IllegalArgumentException(ExternalFailures.resolutionFailureMessage(location, e), e);
+        }
+    }
+
+    @Override
     default FilterPushdownSupport filterPushdownSupport() {
         return null;
     }
 
+    @Override
     default SourceOperatorFactoryProvider operatorFactory() {
         return null;
     }

@@ -412,7 +412,7 @@ public final class MlTasks {
 
     /**
      * The job tasks that do not have an assignment as determined by
-     * {@link PersistentTasksClusterService#needsReassignment(PersistentTasksCustomMetadata.Assignment, DiscoveryNodes)}
+     * {@link PersistentTasksClusterService#isUnassignedOrMisassigned(PersistentTasksCustomMetadata.Assignment, DiscoveryNodes)}
      *
      * @param tasks Persistent tasks. If null an empty set is returned.
      * @param nodes The cluster nodes
@@ -426,7 +426,7 @@ public final class MlTasks {
             return Collections.emptyList();
         }
 
-        return tasks.findTasks(JOB_TASK_NAME, task -> PersistentTasksClusterService.needsReassignment(task.getAssignment(), nodes));
+        return tasks.findTasks(JOB_TASK_NAME, task -> PersistentTasksClusterService.isUnassignedOrMisassigned(task.getAssignment(), nodes));
     }
 
     /**
@@ -463,7 +463,7 @@ public final class MlTasks {
 
     /**
      * The datafeed tasks that do not have an assignment as determined by
-     * {@link PersistentTasksClusterService#needsReassignment(PersistentTasksCustomMetadata.Assignment, DiscoveryNodes)}
+     * {@link PersistentTasksClusterService#isUnassignedOrMisassigned(PersistentTasksCustomMetadata.Assignment, DiscoveryNodes)}
      *
      * @param tasks Persistent tasks. If null an empty set is returned.
      * @param nodes The cluster nodes
@@ -477,7 +477,10 @@ public final class MlTasks {
             return Collections.emptyList();
         }
 
-        return tasks.findTasks(DATAFEED_TASK_NAME, task -> PersistentTasksClusterService.needsReassignment(task.getAssignment(), nodes));
+        return tasks.findTasks(
+            DATAFEED_TASK_NAME,
+            task -> PersistentTasksClusterService.isUnassignedOrMisassigned(task.getAssignment(), nodes)
+        );
     }
 
     public static MemoryTrackedTaskState getMemoryTrackedTaskState(PersistentTasksCustomMetadata.PersistentTask<?> task) {

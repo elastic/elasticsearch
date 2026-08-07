@@ -15,42 +15,42 @@ package org.elasticsearch.xpack.esql.plan.logical;
  * <p>
  * For the most part, such commands can be thought of to be operating on a row-by-row basis. A more formal definition is that this command
  * can be run on data nodes and this sequence
- *  <pre>{@code
+ *  {@snippet lang="esql" :
  *  ... LIMIT X | MY_COMMAND
- *  }</pre>
+ *  }
  *  is safe to be replaced by this sequence
- *  <pre>{@code
+ *  {@snippet lang="esql" :
  *  ... local LIMIT X | MY_COMMAND | LIMIT X
- *  }</pre>
+ *  }
  *  where "local" means that it's correct to apply the limit only on the data node, without a corresponding reduction on the coordinator.
  *  See {@link Limit#local()}.
  *  <p>
  *  We also require the same condition to hold for {@code TopN}, that is, the following are equivalent
- *  <pre>{@code
+ *  {@snippet lang="esql" :
  *  ... TOP N [field1, ..., fieldN] | MY_COMMAND
  *  ... local TOP N [field1, ..., fieldN] | MY_COMMAND | TOP N [field1, ..., fieldN]
- *  }</pre>
+ *  }
  *  as long as MY_COMMAND preserves the columns that we order by.
  *  <p>
  *  Most commands that satisfy this will also satisfy the simpler (but stronger) conditions that the following are equivalent:
- *  <pre>{@code
+ *  {@snippet lang="esql" :
  *  ... LIMIT X | MY_COMMAND
  *  ... MY_COMMAND | LIMIT X
- *
+ *  }
  *  and
- *
+ *  {@snippet lang="esql" :
  * ... TOP N [field1, ..., fieldN] | MY_COMMAND
  * ... | MY_COMMAND | TOP N [field1, ..., fieldN]
- *  }</pre>
+ *  }
  *  <p>
  *  It is not true, for example, for WHERE:
- *  <pre>{@code
+ *  {@snippet lang="esql" :
  *  ... TOP X [field] | WHERE side="dark"
- *  }</pre>
+ *  }
  *  If the first X rows do not contain any "dark" rows, the result is empty, however if we switch:
- *  <pre>{@code
+ *  {@snippet lang="esql" :
  *  ... local TOP X [field] | WHERE side="dark" | TOP X [field]
- *  }</pre>
+ *  }
  *  and we have N nodes, then the first N*X rows may contain "dark" rows, and the final result is not empty in this case.
  */
 public interface Streaming {}

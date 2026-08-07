@@ -7,7 +7,8 @@
 
 package org.elasticsearch.compute.lucene.read;
 
-import org.apache.lucene.util.IOSupplier;
+import org.apache.lucene.util.IOFunction;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
@@ -16,15 +17,18 @@ import java.util.function.Consumer;
 /**
  * A {@link BlockLoader.ColumnAtATimeReader} that immediately closes the reader after it is used.
  */
-public record ColumnAtATimeReaderWithoutReuse(IOSupplier<BlockLoader.ColumnAtATimeReader> supplier, Consumer<BlockLoader.Reader> track)
-    implements
-        BlockLoader.ColumnAtATimeReader {
+public record ColumnAtATimeReaderWithoutReuse(
+    CircuitBreaker breaker,
+    IOFunction<CircuitBreaker, BlockLoader.ColumnAtATimeReader> fn,
+    Consumer<BlockLoader.Reader> track
+) implements BlockLoader.ColumnAtATimeReader {
     @Override
     public BlockLoader.Block read(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset, boolean nullsFiltered)
         throws IOException {
-        BlockLoader.ColumnAtATimeReader reader = supplier.get();
-        track.accept(reader);
-        return reader.read(factory, docs, offset, nullsFiltered);
+        try (BlockLoader.ColumnAtATimeReader reader = fn.apply(breaker)) {
+            track.accept(reader);
+            return reader.read(factory, docs, offset, nullsFiltered);
+        }
     }
 
     @Override
@@ -32,4 +36,7 @@ public record ColumnAtATimeReaderWithoutReuse(IOSupplier<BlockLoader.ColumnAtATi
         // There's no state preserved to reuse
         return true;
     }
+
+    @Override
+    public void close() {}
 }

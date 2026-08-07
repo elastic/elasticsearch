@@ -8,8 +8,10 @@
 package org.elasticsearch.xpack.transform.transforms;
 
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.security.cloud.PersistedCloudCredential;
 import org.elasticsearch.xpack.core.transform.transforms.AuthorizationState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.junit.After;
@@ -17,6 +19,8 @@ import org.junit.Before;
 
 import java.time.Instant;
 
+import static org.elasticsearch.xpack.core.security.cloud.CloudCredentialTestUtils.randomPersistedCloudCredential;
+import static org.elasticsearch.xpack.core.security.cloud.CloudCredentialTestUtils.randomPlaintextPersistedCloudCredential;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -179,5 +183,100 @@ public class TransformContextTests extends ESTestCase {
         Instant from = Instant.ofEpochMilli(randomLongBetween(0, 1_000_000_000_000L));
         TransformContext context = new TransformContext(TransformTaskState.STARTED, null, 0, from, listener);
         assertThat(context.from(), is(equalTo(from)));
+    }
+
+    public void testProjectIdDefaultsToDefault() {
+        var context = new TransformContext(TransformTaskState.STARTED, null, 0, listener);
+        assertThat(context.projectId(), is(equalTo(ProjectId.DEFAULT)));
+    }
+
+    public void testProjectIdExplicit() {
+        ProjectId projectId = ProjectId.fromId("myproject123");
+        var context = new TransformContext(TransformTaskState.STARTED, null, 0, null, listener, projectId);
+        assertThat(context.projectId(), is(equalTo(projectId)));
+    }
+
+    public void testSearchMetricsRoundTrip() {
+        var context = new TransformContext(TransformTaskState.STARTED, null, 0, listener);
+        assertThat("no search has completed yet", context.getUiamAuth(), is(nullValue()));
+        assertThat("no search has completed yet", context.getLastSearchCrossProject(), is(nullValue()));
+
+        context.recordSearchMetrics(true, false);
+        assertThat(context.getUiamAuth(), is(equalTo(Boolean.TRUE)));
+        assertThat(context.getLastSearchCrossProject(), is(equalTo(Boolean.FALSE)));
+
+        // each search overwrites; values stay current after _update / routing changes
+        context.recordSearchMetrics(false, true);
+        assertThat(context.getUiamAuth(), is(equalTo(Boolean.FALSE)));
+        assertThat(context.getLastSearchCrossProject(), is(equalTo(Boolean.TRUE)));
+    }
+
+    public void testReplacePersistedCredentialReturnsDisplaced() {
+        var context = new TransformContext(TransformTaskState.STARTED, null, 0, listener);
+        assertThat(context.getPersistedCloudCredential(), is(nullValue()));
+
+        var first = randomPersistedCloudCredential();
+        assertThat(context.replacePersistedCredential(first), is(nullValue()));
+        assertThat(context.getPersistedCloudCredential(), is(sameInstance(first)));
+
+        var second = randomPersistedCloudCredential();
+        // replace returns the displaced credential; the caller is responsible for revoking it
+        assertThat(context.replacePersistedCredential(second), is(sameInstance(first)));
+        assertThat(context.getPersistedCloudCredential(), is(sameInstance(second)));
+    }
+
+    public void testCloseClearsActive() {
+        var context = new TransformContext(TransformTaskState.STARTED, null, 0, listener);
+        var active = randomPlaintextPersistedCloudCredential();
+        context.replacePersistedCredential(active);
+
+        context.close();
+
+        assertThat(context.getPersistedCloudCredential(), is(nullValue()));
+        // SecureString was closed; subsequent length() throws
+        expectThrows(IllegalStateException.class, () -> active.internalApiKey().length());
+    }
+
+    public void testReplacePersistedCredentialIsAtomicUnderContention() throws Exception {
+        // Concurrent credential swaps (e.g. the indexer's onStart credential reconciliation racing
+        // against a future tear-down) must never leak a credential. With a plain volatile + r/m/w,
+        // two threads could both see the same prior value and both write theirs, leaking one new
+        // credential. AtomicReference#getAndSet closes that window; this test stresses the
+        // contract by asserting that every credential we set is accounted for (either currently
+        // held or returned to one of the callers as displaced).
+        var context = new TransformContext(TransformTaskState.STARTED, null, 0, listener);
+        int threadCount = 16;
+        int perThread = 100;
+        var inputs = java.util.Collections.synchronizedList(new java.util.ArrayList<PersistedCloudCredential>(threadCount * perThread));
+        var displaced = java.util.Collections.synchronizedList(new java.util.ArrayList<PersistedCloudCredential>(threadCount * perThread));
+        var start = new java.util.concurrent.CountDownLatch(1);
+        var done = new java.util.concurrent.CountDownLatch(threadCount);
+        for (int t = 0; t < threadCount; t++) {
+            new Thread(() -> {
+                try {
+                    start.await();
+                    for (int i = 0; i < perThread; i++) {
+                        var next = randomPersistedCloudCredential();
+                        inputs.add(next);
+                        PersistedCloudCredential prev = context.replacePersistedCredential(next);
+                        if (prev != null) {
+                            displaced.add(prev);
+                        }
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                } finally {
+                    done.countDown();
+                }
+            }).start();
+        }
+        start.countDown();
+        assertTrue("threads timed out", done.await(30, java.util.concurrent.TimeUnit.SECONDS));
+
+        // Every input must be either still held or have been returned to some caller as displaced — no leaks.
+        var held = context.getPersistedCloudCredential();
+        int expected = threadCount * perThread;
+        int accounted = displaced.size() + (held == null ? 0 : 1);
+        assertThat(accounted, equalTo(expected));
     }
 }

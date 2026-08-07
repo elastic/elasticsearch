@@ -33,9 +33,7 @@ public record GoogleVertexAiRerankRequestTaskSettings(@Nullable Integer topN) {
             validationException
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new GoogleVertexAiRerankRequestTaskSettings(topN);
     }

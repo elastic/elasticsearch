@@ -134,6 +134,9 @@ setup:
             settings:
               number_of_shards: 1
   - do:
+      indices.refresh:
+        index: test_a_unmapped
+  - do:
       search:
         index: test_a_unmapped
         body:

@@ -29,15 +29,22 @@ final class SslFileUtil {
     }
 
     static SslConfigException ioException(String fileType, List<Path> paths, IOException cause) {
-        return ioException(fileType, paths, cause, null);
+        return ioException(fileType, paths, cause, null, null);
     }
 
     static SslConfigException ioException(String fileType, List<Path> paths, IOException cause, String detail) {
+        return ioException(fileType, paths, cause, detail, null);
+    }
+
+    static SslConfigException ioException(String fileType, List<Path> paths, IOException cause, String detail, Path basePath) {
         if (cause instanceof FileNotFoundException || cause instanceof NoSuchFileException) {
             return fileNotFound(fileType, paths, cause);
         }
         if (cause instanceof AccessDeniedException) {
             return accessDenied(fileType, paths, (AccessDeniedException) cause);
+        }
+        if (isNotEntitled(cause)) {
+            return innerAccessControlFailure(fileType, paths, cause, basePath);
         }
         String message = "cannot read configured " + fileType;
         if (paths.isEmpty() == false) {
@@ -117,6 +124,15 @@ final class SslFileUtil {
         }
 
         return new SslConfigException(message, cause);
+    }
+
+    private static boolean isNotEntitled(IOException ioe) {
+        for (Throwable cause = ioe.getCause(); cause != null; cause = cause.getCause()) {
+            if (cause.getClass().getName().equals("org.elasticsearch.entitlement.bridge.NotEntitledException")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean hasCause(Class<? extends Throwable> exceptionType, Throwable exception) {

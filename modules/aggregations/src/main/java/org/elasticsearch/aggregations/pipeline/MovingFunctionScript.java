@@ -19,6 +19,16 @@ import java.util.Map;
  * so that we can expose a number of pre-baked moving functions like min, max, movavg, etc
  */
 public abstract class MovingFunctionScript {
+    private Runnable cancellationCheck = null;
+
+    public void _setCancellationCheck(Runnable cancellationCheck) {
+        this.cancellationCheck = cancellationCheck;
+    }
+
+    public Runnable _getCancellationCheck() {
+        return cancellationCheck;
+    }
+
     /**
      * @param params The user-provided parameters
      * @param values The values in the window that we are moving a function across

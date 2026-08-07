@@ -520,7 +520,12 @@ public class DesiredBalanceReconciler {
 
                     final var routingNode = routingNodes.node(shardRouting.currentNodeId());
                     final var canRemainDecision = allocation.deciders().canRemain(shardRouting, routingNode, allocation);
-                    if (canRemainDecision.type() != Decision.Type.NO && canRemainDecision.type() != Decision.Type.NOT_PREFERRED) {
+                    final BalancedShardsAllocator.MoveType moveType;
+                    if (canRemainDecision.type() == Decision.Type.NO) {
+                        moveType = BalancedShardsAllocator.MoveType.CANNOT_REMAIN;
+                    } else if (canRemainDecision.type() == Decision.Type.NOT_PREFERRED) {
+                        moveType = BalancedShardsAllocator.MoveType.NOT_PREFERRED;
+                    } else {
                         // If movement is throttled, a future reconciliation round will see a resolution. For now, leave it alone.
                         continue;
                     }
@@ -537,8 +542,9 @@ public class DesiredBalanceReconciler {
                             shardRouting,
                             moveTarget.getId(),
                             allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
-                            "move",
-                            allocation.changes()
+                            moveType.reason(),
+                            allocation.changes(),
+                            moveType.recoveryPriority()
                         );
                         iterator.dePrioritizeNode(shardRouting.currentNodeId());
                         moveOrdering.recordAllocation(shardRouting.currentNodeId());
@@ -632,8 +638,9 @@ public class DesiredBalanceReconciler {
                             shardRouting,
                             rebalanceTarget.getId(),
                             allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
-                            "rebalance",
-                            allocation.changes()
+                            BalancedShardsAllocator.MoveType.REBALANCE.reason(),
+                            allocation.changes(),
+                            BalancedShardsAllocator.MoveType.REBALANCE.recoveryPriority()
                         );
                         iterator.dePrioritizeNode(shardRouting.currentNodeId());
                         moveOrdering.recordAllocation(shardRouting.currentNodeId());

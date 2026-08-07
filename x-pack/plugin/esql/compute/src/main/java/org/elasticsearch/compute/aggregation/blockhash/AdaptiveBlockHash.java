@@ -62,8 +62,8 @@ abstract class AdaptiveBlockHash extends BlockHash {
     protected abstract void prepareForLookup(Page page);
 
     @Override
-    public final Block[] getKeys() {
-        return current.getKeys();
+    public final Block[] getKeys(IntVector selected) {
+        return current.getKeys(selected);
     }
 
     @Override

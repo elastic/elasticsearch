@@ -12,17 +12,20 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.RetryableAction;
 import org.elasticsearch.action.support.TransportActions;
-import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.action.shard.NoLongerPrimaryShardException;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -435,7 +438,7 @@ public class ReplicationOperation<
                     )
                 );
             } else {
-                assert failure instanceof ShardStateAction.NoLongerPrimaryShardException : failure;
+                assert failure instanceof NoLongerPrimaryShardException : failure;
                 threadPool.executor(ThreadPool.Names.WRITE).execute(new AbstractRunnable() {
                     @Override
                     protected void doRun() {
@@ -689,17 +692,40 @@ public class ReplicationOperation<
     }
 
     public static final class RetryOnPrimaryException extends ElasticsearchException {
+        private static final TransportVersion OPERATION_APPLIED_ON_PRIMARY = TransportVersion.fromName(
+            "retry_on_primary_flag_possible_execution"
+        );
+        private final boolean possiblyExecutedOnPrimary;
+
         public RetryOnPrimaryException(ShardId shardId, String msg) {
             this(shardId, msg, null);
         }
 
         RetryOnPrimaryException(ShardId shardId, String msg, Throwable cause) {
+            this(shardId, msg, cause, true);
+        }
+
+        RetryOnPrimaryException(ShardId shardId, String msg, Throwable cause, boolean possiblyExecutedOnPrimary) {
             super(msg, cause);
             setShard(shardId);
+            this.possiblyExecutedOnPrimary = possiblyExecutedOnPrimary;
         }
 
         public RetryOnPrimaryException(StreamInput in) throws IOException {
             super(in);
+            possiblyExecutedOnPrimary = in.getTransportVersion().supports(OPERATION_APPLIED_ON_PRIMARY) ? in.readBoolean() : true;
+        }
+
+        @Override
+        protected void writeTo(StreamOutput out, Writeable.Writer<Throwable> nestedExceptionsWriter) throws IOException {
+            super.writeTo(out, nestedExceptionsWriter);
+            if (out.getTransportVersion().supports(OPERATION_APPLIED_ON_PRIMARY)) {
+                out.writeBoolean(possiblyExecutedOnPrimary);
+            }
+        }
+
+        public boolean possiblyExecutedOnPrimary() {
+            return possiblyExecutedOnPrimary;
         }
     }
 
@@ -720,5 +746,4 @@ public class ReplicationOperation<
          * */
         void runPostReplicationActions(ActionListener<Void> listener);
     }
-
 }

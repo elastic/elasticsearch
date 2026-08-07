@@ -18,7 +18,6 @@ import org.elasticsearch.inference.TopNProvider;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -55,9 +54,7 @@ public class IbmWatsonxRerankTaskSettings implements TaskSettings, TopNProvider 
             validationException
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return of(topNDocumentsOnly, returnDocuments, truncateInputTokens);
     }
@@ -185,7 +182,7 @@ public class IbmWatsonxRerankTaskSettings implements TaskSettings, TopNProvider 
 
     @Override
     public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
-        IbmWatsonxRerankTaskSettings updatedSettings = IbmWatsonxRerankTaskSettings.fromMap(new HashMap<>(newSettings));
+        IbmWatsonxRerankTaskSettings updatedSettings = IbmWatsonxRerankTaskSettings.fromMap(newSettings);
         return IbmWatsonxRerankTaskSettings.of(this, updatedSettings);
     }
 }

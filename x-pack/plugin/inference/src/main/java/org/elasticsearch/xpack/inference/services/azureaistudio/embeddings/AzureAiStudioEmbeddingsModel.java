@@ -75,7 +75,7 @@ public class AzureAiStudioEmbeddingsModel extends AzureAiStudioModel {
             AzureAiStudioEmbeddingsServiceSettings.fromMap(serviceSettings, context),
             AzureAiStudioEmbeddingsTaskSettings.fromMap(taskSettings),
             chunkingSettings,
-            DefaultSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets, context)
         );
     }
 

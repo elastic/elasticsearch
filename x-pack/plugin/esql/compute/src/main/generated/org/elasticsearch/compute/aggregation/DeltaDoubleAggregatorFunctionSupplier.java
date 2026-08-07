@@ -36,7 +36,7 @@ public final class DeltaDoubleAggregatorFunctionSupplier implements AggregatorFu
   @Override
   public DeltaDoubleGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return DeltaDoubleGroupingAggregatorFunction.create(channels, driverContext);
+    return new DeltaDoubleGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override

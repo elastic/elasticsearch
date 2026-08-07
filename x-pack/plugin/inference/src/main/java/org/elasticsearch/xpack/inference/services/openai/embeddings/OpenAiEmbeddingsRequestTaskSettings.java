@@ -42,9 +42,7 @@ public record OpenAiEmbeddingsRequestTaskSettings(@Nullable String user) {
 
         String user = extractOptionalString(map, USER, ModelConfigurations.TASK_SETTINGS, validationException);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new OpenAiEmbeddingsRequestTaskSettings(user);
     }

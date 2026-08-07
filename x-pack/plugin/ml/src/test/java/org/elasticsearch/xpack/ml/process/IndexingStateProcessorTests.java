@@ -14,6 +14,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.core.ReleasableRef;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -124,10 +125,11 @@ public class IndexingStateProcessorTests extends ESTestCase {
     }
 
     public void testStateRead_StateDocumentUpdated() throws IOException {
-        testStateRead(
-            SearchHits.unpooled(new SearchHit[] { SearchResponseUtils.searchHitFromMap(Map.of("_index", ".ml-state-dummy")) }, null, 0.0f),
-            ".ml-state-dummy"
-        );
+        SearchHit hit = SearchResponseUtils.searchHitFromMap(Map.of("_index", ".ml-state-dummy"));
+        SearchHits searchHits = new SearchHits(new SearchHit[] { hit }, null, 0.0f);
+        try (var searchHitsRef = ReleasableRef.of(searchHits)) {
+            testStateRead(searchHitsRef.get(), ".ml-state-dummy");
+        }
     }
 
     public void testStateReadGivenConsecutiveZeroBytes() throws IOException {

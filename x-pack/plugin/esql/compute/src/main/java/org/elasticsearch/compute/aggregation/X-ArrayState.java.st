@@ -83,8 +83,8 @@ $endif$
         trackGroupId(groupId);
     }
 
-$if(long)$
-    void increment(int groupId, long value) {
+$if(long||double)$
+    void increment(int groupId, $type$ value) {
         ensureCapacity(groupId);
         values.increment(groupId, value);
         trackGroupId(groupId);

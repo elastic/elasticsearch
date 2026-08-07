@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.promql.function.FunctionType;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.List;
@@ -36,18 +37,18 @@ import java.util.List;
  * These functions operate on the value of each time series without changing the set of series or their labels.
  */
 public final class ValueTransformationFunction extends PromqlFunctionCall {
-    public ValueTransformationFunction(Source source, LogicalPlan child, String functionName, List<Expression> parameters) {
-        super(source, child, functionName, parameters);
+    public ValueTransformationFunction(Source source, LogicalPlan child, PromqlFunctionDefinition definition, List<Expression> parameters) {
+        super(source, child, definition, parameters);
     }
 
     @Override
     protected NodeInfo<PromqlFunctionCall> info() {
-        return NodeInfo.create(this, ValueTransformationFunction::new, child(), functionName(), parameters());
+        return NodeInfo.create(this, ValueTransformationFunction::new, child(), definition(), parameters());
     }
 
     @Override
     public ValueTransformationFunction replaceChild(LogicalPlan newChild) {
-        return new ValueTransformationFunction(source(), newChild, functionName(), parameters());
+        return new ValueTransformationFunction(source(), newChild, definition(), parameters());
     }
 
     @Override

@@ -23,6 +23,8 @@ import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.termvectors.TermVectorsService;
@@ -33,6 +35,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Performs the get operation.
@@ -103,6 +106,23 @@ public class TransportTermVectorsAction extends TransportSingleShardAction<TermV
     protected void resolveRequest(ProjectState state, InternalRequest request) {
         // update the routing (request#index here is possibly an alias or a parent)
         request.request().routing(state.metadata().resolveIndexRouting(request.request().routing(), request.request().index()));
+        requireSliceRoutingWhenEnabled(state, request.request(), request.concreteIndex());
+    }
+
+    private static void requireSliceRoutingWhenEnabled(ProjectState state, TermVectorsRequest request, String concreteIndex) {
+        if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false) {
+            return;
+        }
+        final boolean sliceEnabled = Optional.ofNullable(state.metadata().index(concreteIndex))
+            .map(metadata -> IndexSettings.SLICE_ENABLED.get(metadata.getSettings()))
+            .orElse(false);
+        SliceIndexing.validateSliceRoutingRequirement(
+            sliceEnabled,
+            request.isRoutingFromSlice(),
+            request.routing(),
+            "term vectors request",
+            request.index()
+        );
     }
 
     @Override
@@ -112,11 +132,20 @@ public class TransportTermVectorsAction extends TransportSingleShardAction<TermV
         IndexShard indexShard = indexService.getShard(shardId.id());
         if (request.realtime()) { // it's a realtime request which is not subject to refresh cycles
             if (stateless) {
-                // Ensure that the document is searchable before we execute the term vectors request
+                // Ensure that the document is searchable before we execute the term vectors request.
+                //
+                // It is very important to pass the SplitShardCountSummary through here.
+                // This summary reflects the decision of the coordinator to route this request to the source shard.
+                // It is possible that the document now belongs to the target shard
+                // and if so we need to fix that routing decision on the coordinator.
+                // We are NOT interested in the state of the search shard node (where we currently are)
+                // and should not create a new summary here.
                 final var ensureDocsSearchableRequest = new EnsureDocsSearchableAction.EnsureDocsSearchableRequest(
                     request.index(),
                     shardId.id(),
-                    new String[] { request.id() }
+                    new String[] { request.id() },
+                    new String[] { request.routing() },
+                    request.getSplitShardCountSummary()
                 );
                 ensureDocsSearchableRequest.setParentTask(clusterService.localNode().getId(), request.getParentTask().getId());
                 client.executeLocally(

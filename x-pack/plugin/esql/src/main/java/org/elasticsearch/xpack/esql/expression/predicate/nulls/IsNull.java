@@ -11,8 +11,8 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -44,6 +44,7 @@ public class IsNull extends UnaryScalarFunction implements EvaluatorMapper, Nega
         operator = "IS NULL",
         returnType = {
             "double",
+            "flattened",
             "integer",
             "long",
             "date_nanos",
@@ -63,6 +64,7 @@ public class IsNull extends UnaryScalarFunction implements EvaluatorMapper, Nega
             description = "Value to check. It can be a single- or multi-valued column or an expression.",
             type = {
                 "double",
+                "flattened",
                 "integer",
                 "long",
                 "date_nanos",

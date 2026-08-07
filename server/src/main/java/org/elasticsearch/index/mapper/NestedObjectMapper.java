@@ -77,7 +77,60 @@ public class NestedObjectMapper extends ObjectMapper {
         }
 
         @Override
+        void merge(ObjectMapper.Builder mergeWith, MapperMergeContext objectMergeContext, String fullPath) {
+            if (mergeWith instanceof NestedObjectMapper.Builder nestedMergeWith) {
+                MapperService.MergeReason reason = objectMergeContext.getMapperBuilderContext().getMergeReason();
+                if (reason == MapperService.MergeReason.INDEX_TEMPLATE) {
+                    if (nestedMergeWith.includeInParent.explicit()) {
+                        this.includeInParent = nestedMergeWith.includeInParent;
+                    }
+                    if (nestedMergeWith.includeInRoot.explicit()) {
+                        this.includeInRoot = nestedMergeWith.includeInRoot;
+                    }
+                } else {
+                    if (this.includeInParent.value() != nestedMergeWith.includeInParent.value()) {
+                        throw new MapperException("the [include_in_parent] parameter can't be updated on a nested object mapping");
+                    }
+                    if (this.includeInRoot.value() != nestedMergeWith.includeInRoot.value()) {
+                        throw new MapperException("the [include_in_root] parameter can't be updated on a nested object mapping");
+                    }
+                }
+                super.merge(mergeWith, objectMergeContext, fullPath);
+            } else {
+                MapperErrors.throwNestedMappingConflictError(fullPath);
+            }
+        }
+
+        @Override
+        ObjectMapper.Builder newEmptyBuilder() {
+            NestedObjectMapper.Builder builder = new NestedObjectMapper.Builder(
+                leafName(),
+                indexCreatedVersion,
+                bitSetProducer,
+                indexSettings
+            );
+            builder.enabled = this.enabled;
+            builder.subobjects = this.subobjects;
+            builder.dynamic = this.dynamic;
+            builder.sourceKeepMode = this.sourceKeepMode;
+            builder.includeInRoot = this.includeInRoot;
+            builder.includeInParent = this.includeInParent;
+            return builder;
+        }
+
+        @Override
         public NestedObjectMapper build(MapperBuilderContext context) {
+            // Columnar supports a single level of nesting: a deeper nested level would break the aligned array column
+            // its children form. Outside columnar, multiple levels are fine. The context is a NestedMapperBuilderContext
+            // exactly when this nested object sits inside another one; columnar mode comes from the index settings since
+            // context.isStrictColumnar() is not propagated into nested contexts.
+            if (context instanceof NestedMapperBuilderContext && indexSettings != null && indexSettings.getMode().isStrictColumnar()) {
+                throw new IllegalArgumentException(
+                    "nested object ["
+                        + context.buildFullName(leafName())
+                        + "] is nested inside another nested object, but columnar index modes support only a single level of nesting"
+                );
+            }
             boolean parentIncludedInRoot = this.includeInRoot.value();
             final Query parentTypeFilter;
             if (context instanceof NestedMapperBuilderContext nc) {
@@ -128,6 +181,7 @@ public class NestedObjectMapper extends ObjectMapper {
                 fullPath,
                 buildMappers(nestedContext),
                 enabled,
+                subobjects,
                 dynamic,
                 sourceKeepMode,
                 includeInParent,
@@ -145,15 +199,16 @@ public class NestedObjectMapper extends ObjectMapper {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext)
             throws MapperParsingException {
-            if (parseSubobjects(node).explicit()) {
-                throw new MapperParsingException("Nested type [" + name + "] does not support [subobjects] parameter");
-            }
             NestedObjectMapper.Builder builder = new NestedObjectMapper.Builder(
                 name,
                 parserContext.indexVersionCreated(),
                 parserContext::bitSetProducer,
                 parserContext.getIndexSettings()
             );
+            // A nested field inherits its [subobjects] from the index/root default (flat in columnar mode), unless the
+            // nested field overrides it explicitly. This must be resolved before parsing the nested field's properties,
+            // since it governs whether dotted child names are flattened or expanded into intermediate objects.
+            builder.subobjects = parseSubobjects(node, parserContext);
             parseNested(name, node, builder);
             parseObjectFields(node, parserContext, builder);
             return builder;
@@ -226,6 +281,7 @@ public class NestedObjectMapper extends ObjectMapper {
         String fullPath,
         Map<String, Mapper> mappers,
         Explicit<Boolean> enabled,
+        Explicit<Subobjects> subobjects,
         ObjectMapper.Dynamic dynamic,
         Optional<SourceKeepMode> sourceKeepMode,
         Explicit<Boolean> includeInParent,
@@ -236,7 +292,7 @@ public class NestedObjectMapper extends ObjectMapper {
         Function<Query, BitSetProducer> bitsetProducer,
         IndexSettings indexSettings
     ) {
-        super(name, fullPath, enabled, Defaults.SUBOBJECTS, sourceKeepMode, dynamic, mappers);
+        super(name, fullPath, enabled, subobjects, sourceKeepMode, dynamic, mappers);
         this.parentTypeFilter = parentTypeFilter;
         this.nestedTypePath = nestedTypePath;
         this.nestedTypeFilter = nestedTypeFilter;
@@ -287,7 +343,9 @@ public class NestedObjectMapper extends ObjectMapper {
     public ObjectMapper.Builder newBuilder(IndexVersion indexVersionCreated) {
         NestedObjectMapper.Builder builder = new NestedObjectMapper.Builder(leafName(), indexVersionCreated, bitsetProducer, indexSettings);
         builder.enabled = enabled;
+        builder.subobjects = subobjects;
         builder.dynamic = dynamic;
+        builder.sourceKeepMode = sourceKeepMode;
         builder.includeInRoot = includeInRoot;
         builder.includeInParent = includeInParent;
         return builder;
@@ -300,6 +358,7 @@ public class NestedObjectMapper extends ObjectMapper {
             fullPath(),
             Map.of(),
             enabled,
+            subobjects,
             dynamic,
             sourceKeepMode,
             includeInParent,
@@ -316,6 +375,10 @@ public class NestedObjectMapper extends ObjectMapper {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(leafName());
         builder.field("type", CONTENT_TYPE);
+        // Only an explicit override is serialized; the inherited default is re-derived from the root on parse.
+        if (subobjects.explicit()) {
+            builder.field("subobjects", subobjects.value() == Subobjects.ENABLED);
+        }
         if (includeInParent.explicit() && includeInParent.value()) {
             builder.field("include_in_parent", includeInParent.value());
         }
@@ -333,80 +396,6 @@ public class NestedObjectMapper extends ObjectMapper {
         }
         serializeMappers(builder, params);
         return builder.endObject();
-    }
-
-    @Override
-    public ObjectMapper merge(Mapper mergeWith, MapperMergeContext parentMergeContext) {
-        if ((mergeWith instanceof NestedObjectMapper) == false) {
-            MapperErrors.throwNestedMappingConflictError(mergeWith.fullPath());
-        }
-        NestedObjectMapper mergeWithObject = (NestedObjectMapper) mergeWith;
-
-        final MapperService.MergeReason reason = parentMergeContext.getMapperBuilderContext().getMergeReason();
-        var mergeResult = MergeResult.build(this, mergeWithObject, parentMergeContext);
-        Explicit<Boolean> incInParent = this.includeInParent;
-        Explicit<Boolean> incInRoot = this.includeInRoot;
-        if (reason == MapperService.MergeReason.INDEX_TEMPLATE) {
-            if (mergeWithObject.includeInParent.explicit()) {
-                incInParent = mergeWithObject.includeInParent;
-            }
-            if (mergeWithObject.includeInRoot.explicit()) {
-                incInRoot = mergeWithObject.includeInRoot;
-            }
-        } else {
-            if (includeInParent.value() != mergeWithObject.includeInParent.value()) {
-                throw new MapperException("the [include_in_parent] parameter can't be updated on a nested object mapping");
-            }
-            if (includeInRoot.value() != mergeWithObject.includeInRoot.value()) {
-                throw new MapperException("the [include_in_root] parameter can't be updated on a nested object mapping");
-            }
-        }
-        MapperBuilderContext parentBuilderContext = parentMergeContext.getMapperBuilderContext();
-        if (parentBuilderContext instanceof NestedMapperBuilderContext nc) {
-            if (nc.parentIncludedInRoot && incInParent.value()) {
-                incInRoot = Explicit.IMPLICIT_FALSE;
-            }
-        } else {
-            if (incInParent.value()) {
-                incInRoot = Explicit.IMPLICIT_FALSE;
-            }
-        }
-        return new NestedObjectMapper(
-            leafName(),
-            fullPath(),
-            mergeResult.mappers(),
-            mergeResult.enabled(),
-            mergeResult.dynamic(),
-            mergeResult.sourceKeepMode(),
-            incInParent,
-            incInRoot,
-            parentTypeFilter,
-            nestedTypePath,
-            nestedTypeFilter,
-            bitsetProducer,
-            indexSettings
-        );
-    }
-
-    @Override
-    protected MapperMergeContext createChildContext(MapperMergeContext mapperMergeContext, String name) {
-        MapperBuilderContext mapperBuilderContext = mapperMergeContext.getMapperBuilderContext();
-        boolean parentIncludedInRoot = this.includeInRoot.value();
-        if (mapperBuilderContext instanceof NestedMapperBuilderContext == false) {
-            parentIncludedInRoot |= this.includeInParent.value();
-        }
-        return mapperMergeContext.createChildContext(
-            new NestedMapperBuilderContext(
-                mapperBuilderContext.buildFullName(name),
-                mapperBuilderContext.isSourceSynthetic(),
-                mapperBuilderContext.isDataStream(),
-                mapperBuilderContext.parentObjectContainsDimensions(),
-                nestedTypeFilter,
-                parentIncludedInRoot,
-                mapperBuilderContext.getDynamic(dynamic),
-                mapperBuilderContext.getMergeReason()
-            )
-        );
     }
 
     @Override
@@ -441,7 +430,12 @@ public class NestedObjectMapper extends ObjectMapper {
     }
 
     @Override
-    SourceLoader.SyntheticFieldLoader syntheticFieldLoader(SourceFilter filter, Collection<Mapper> mappers, boolean isFragment) {
+    SourceLoader.SyntheticFieldLoader syntheticFieldLoader(
+        SourceFilter filter,
+        Collection<Mapper> mappers,
+        boolean isFragment,
+        boolean columnarStored
+    ) {
         // IgnoredSourceFieldMapper integration takes care of writing the source for nested objects that enabled store_array_source.
         if (sourceKeepMode.orElse(SourceKeepMode.NONE) == SourceKeepMode.ALL) {
             // IgnoredSourceFieldMapper integration takes care of writing the source for the nested object.
@@ -450,9 +444,9 @@ public class NestedObjectMapper extends ObjectMapper {
 
         SourceLoader sourceLoader = new SourceLoader.Synthetic(
             filter,
-            () -> super.syntheticFieldLoader(filter, mappers, true),
+            () -> super.syntheticFieldLoader(filter, mappers, true, columnarStored),
             NOOP,
-            IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings.getIndexVersionCreated())
+            IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings)
         );
         // Some synthetic source use cases require using _ignored_source field
         var requiredStoredFields = IgnoredSourceFieldMapper.ensureLoaded(sourceLoader.requiredStoredFields(), indexSettings);
@@ -472,9 +466,17 @@ public class NestedObjectMapper extends ObjectMapper {
         private final Supplier<BitSetProducer> parentBitSetProducer;
         private final Query childFilter;
 
+        // Read-time (real segment) reconstruction state: children are doc-ids found via a child scorer.
         private LeafStoredFieldLoader leafStoredFieldLoader;
         private SourceLoader.Leaf leafSourceLoader;
         private final List<Integer> children = new ArrayList<>();
+
+        // Index-time columnar_stored reconstruction state: children are the in-memory child documents, found by
+        // parent-pointer match against the document tree, each reconstructed with its own single-document reader.
+        private boolean columnar;
+        private ColumnarSourceWriter.ReusableColumnarStoredLeafReader columnarChildReader;
+        private SourceLoader.Leaf columnarChildLeaf;
+        private final List<LuceneDocument> columnarChildren = new ArrayList<>();
 
         private NestedSyntheticFieldLoader(
             org.elasticsearch.index.fieldvisitor.StoredFieldLoader storedFieldLoader,
@@ -490,6 +492,34 @@ public class NestedObjectMapper extends ObjectMapper {
 
         @Override
         public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
+            // columnar_stored materializes the blob at index time from the in-memory document tree, which is not a
+            // searchable segment. Detect that reader and reconstruct children from the document tree instead of a
+            // child scorer + parent bitset. (At read time the root takes the pre-computed-blob shortcut, so this loader
+            // is only ever reached during the index-time write here.)
+            if (leafReader instanceof ColumnarSourceWriter.ReusableColumnarStoredLeafReader parentReader) {
+                this.columnar = true;
+                this.columnarChildren.clear();
+                this.columnarChildReader = new ColumnarSourceWriter.ReusableColumnarStoredLeafReader();
+                this.columnarChildLeaf = sourceLoader.leaf(columnarChildReader, ColumnarSourceWriter.DOC_IDS);
+                return parentDoc -> {
+                    columnarChildren.clear();
+                    LuceneDocument parent = parentReader.currentDoc();
+                    for (LuceneDocument doc : parentReader.allDocs()) {
+                        // Every document of this nested field within the parent being reconstructed. Under
+                        // subobjects:false an object sub-field/array inside the nested field is materialized as its own
+                        // documents, parented to a nested child rather than the parent directly, so membership is by
+                        // nested path plus subtree descent - not a direct parent-pointer match, which would miss those
+                        // deeper documents. allDocs is in shard-index order (each child before its parent), so this
+                        // preserves array order across all of them.
+                        if (NestedObjectMapper.this.fullPath().equals(doc.getPath()) && descendsFrom(doc, parent)) {
+                            columnarChildren.add(doc);
+                        }
+                    }
+                    return columnarChildren.isEmpty() == false;
+                };
+            }
+
+            this.columnar = false;
             this.children.clear();
             this.leafStoredFieldLoader = storedFieldLoader.getLoader(leafReader.getContext(), null);
             this.leafSourceLoader = sourceLoader.leaf(leafReader, null);
@@ -518,11 +548,26 @@ public class NestedObjectMapper extends ObjectMapper {
 
         @Override
         public boolean hasValue() {
-            return children.size() > 0;
+            return columnar ? columnarChildren.isEmpty() == false : children.size() > 0;
         }
 
         @Override
         public void write(XContentBuilder b) throws IOException {
+            if (columnar) {
+                assert columnarChildren.isEmpty() == false;
+                if (columnarChildren.size() == 1) {
+                    b.field(leafName());
+                    writeColumnarChild(columnarChildren.get(0), b);
+                } else {
+                    b.startArray(leafName());
+                    for (LuceneDocument child : columnarChildren) {
+                        writeColumnarChild(child, b);
+                    }
+                    b.endArray();
+                }
+                return;
+            }
+
             assert (children != null && children.size() > 0);
             if (children.size() == 1) {
                 b.field(leafName());
@@ -538,6 +583,28 @@ public class NestedObjectMapper extends ObjectMapper {
             }
         }
 
+        private void writeColumnarChild(LuceneDocument child, XContentBuilder b) throws IOException {
+            columnarChildReader.repopulate(child);
+            // A fresh loader per child: every child reuses DOC_ID (0), and a reused loader would skip re-reading stored fields.
+            var childStoredLoader = storedFieldLoader.getLoader(columnarChildReader.getContext(), ColumnarSourceWriter.DOC_IDS);
+            childStoredLoader.advanceTo(ColumnarSourceWriter.DOC_ID);
+            columnarChildLeaf.write(childStoredLoader, ColumnarSourceWriter.DOC_ID, b);
+        }
+
+        /**
+         * Whether {@code doc} is a descendant of {@code ancestor}, following parent pointers. Used to gather every
+         * document belonging to a nested field's subtree, including the deeper documents that {@code subobjects:false}
+         * creates for object sub-fields and arrays inside the nested field.
+         */
+        private static boolean descendsFrom(LuceneDocument doc, LuceneDocument ancestor) {
+            for (LuceneDocument current = doc.getParent(); current != null; current = current.getParent()) {
+                if (current == ancestor) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
         @Override
         public String fieldName() {
             return NestedObjectMapper.this.fullPath();
@@ -546,6 +613,7 @@ public class NestedObjectMapper extends ObjectMapper {
         @Override
         public void reset() {
             children.clear();
+            columnarChildren.clear();
         }
     }
 

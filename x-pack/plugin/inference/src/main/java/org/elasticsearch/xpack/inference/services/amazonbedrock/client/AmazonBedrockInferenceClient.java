@@ -25,7 +25,6 @@ import software.amazon.awssdk.services.bedrockruntime.model.InvokeModelResponse;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
@@ -37,8 +36,6 @@ import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockMod
 import org.reactivestreams.FlowAdapters;
 import org.slf4j.LoggerFactory;
 
-import java.security.AccessController;
-import java.security.PrivilegedExceptionAction;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
@@ -159,28 +156,25 @@ public class AmazonBedrockInferenceClient extends AmazonBedrockBaseClient {
         var serviceSettings = model.getServiceSettings();
 
         try {
-            SpecialPermission.check();
-            return AccessController.doPrivileged((PrivilegedExceptionAction<BedrockRuntimeAsyncClient>) () -> {
-                var credentials = AwsBasicCredentials.create(secretSettings.accessKey().toString(), secretSettings.secretKey().toString());
-                var credentialsProvider = StaticCredentialsProvider.create(credentials);
-                var clientConfig = timeout == null
-                    ? NettyNioAsyncHttpClient.builder().connectionTimeout(DEFAULT_CLIENT_TIMEOUT_MS)
-                    : NettyNioAsyncHttpClient.builder().connectionTimeout(Duration.ofMillis(timeout.millis()));
-                var override = ClientOverrideConfiguration.builder()
-                    // disable profileFile, user credentials will always come from the configured Model Secrets
-                    .defaultProfileFileSupplier(ProfileFile.aggregator()::build)
-                    .defaultProfileFile(ProfileFile.aggregator().build())
-                    // each model request retries at most once, limit the impact a request can have on other request's availability
-                    .retryPolicy(retryPolicy -> retryPolicy.numRetries(1))
-                    .retryStrategy(retryStrategy -> retryStrategy.maxAttempts(1))
-                    .build();
-                return BedrockRuntimeAsyncClient.builder()
-                    .credentialsProvider(credentialsProvider)
-                    .region(Region.of(serviceSettings.region()))
-                    .httpClientBuilder(clientConfig)
-                    .overrideConfiguration(override)
-                    .build();
-            });
+            var credentials = AwsBasicCredentials.create(secretSettings.accessKey().toString(), secretSettings.secretKey().toString());
+            var credentialsProvider = StaticCredentialsProvider.create(credentials);
+            var clientConfig = timeout == null
+                ? NettyNioAsyncHttpClient.builder().connectionTimeout(DEFAULT_CLIENT_TIMEOUT_MS)
+                : NettyNioAsyncHttpClient.builder().connectionTimeout(Duration.ofMillis(timeout.millis()));
+            var override = ClientOverrideConfiguration.builder()
+                // disable profileFile, user credentials will always come from the configured Model Secrets
+                .defaultProfileFileSupplier(ProfileFile.aggregator()::build)
+                .defaultProfileFile(ProfileFile.aggregator().build())
+                // each model request retries at most once, limit the impact a request can have on other request's availability
+                .retryPolicy(retryPolicy -> retryPolicy.numRetries(1))
+                .retryStrategy(retryStrategy -> retryStrategy.maxAttempts(1))
+                .build();
+            return BedrockRuntimeAsyncClient.builder()
+                .credentialsProvider(credentialsProvider)
+                .region(Region.of(serviceSettings.region()))
+                .httpClientBuilder(clientConfig)
+                .overrideConfiguration(override)
+                .build();
         } catch (BedrockRuntimeException amazonBedrockRuntimeException) {
             throw new ElasticsearchException(
                 Strings.format("failed to create AmazonBedrockRuntime client: [%s]", amazonBedrockRuntimeException.getMessage()),

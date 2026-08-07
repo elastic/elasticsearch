@@ -10,7 +10,13 @@ package org.elasticsearch.xpack.inference.services.googlevertexai.request.comple
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.completion.ContentObject.ContentObjectText;
+import org.elasticsearch.inference.completion.ContentObjects;
+import org.elasticsearch.inference.completion.ContentString;
+import org.elasticsearch.inference.completion.Message;
+import org.elasticsearch.inference.completion.ToolChoice.ToolChoiceObject;
+import org.elasticsearch.inference.completion.ToolChoice.ToolChoiceString;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -60,6 +66,8 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
 
     private final UnifiedChatInput unifiedChatInput;
     private final ThinkingConfig thinkingConfig;
+    @Nullable
+    private final Integer taskMaxTokens;
 
     private static final String USER_ROLE = "user";
     private static final String MODEL_ROLE = "model";
@@ -71,8 +79,17 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
     private static final String SYSTEM_INSTRUCTION = "systemInstruction";
 
     public GoogleVertexAiUnifiedChatCompletionRequestEntity(UnifiedChatInput unifiedChatInput, ThinkingConfig thinkingConfig) {
+        this(unifiedChatInput, thinkingConfig, null);
+    }
+
+    public GoogleVertexAiUnifiedChatCompletionRequestEntity(
+        UnifiedChatInput unifiedChatInput,
+        ThinkingConfig thinkingConfig,
+        @Nullable Integer taskMaxTokens
+    ) {
         this.unifiedChatInput = Objects.requireNonNull(unifiedChatInput);
         this.thinkingConfig = Objects.requireNonNull(thinkingConfig);
+        this.taskMaxTokens = taskMaxTokens;
     }
 
     private String messageRoleToGoogleVertexAiSupportedRole(String messageRole) {
@@ -97,11 +114,19 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
         throw new ElasticsearchStatusException(errorMessage, RestStatus.BAD_REQUEST);
     }
 
-    private void validateAndAddContentObjectsToBuilder(XContentBuilder builder, UnifiedCompletionRequest.ContentObjects contentObjects)
-        throws IOException {
+    private void validateAndAddContentObjectsToBuilder(XContentBuilder builder, ContentObjects contentObjects) throws IOException {
 
         for (var contentObject : contentObjects.contentObjects()) {
-            if (contentObject.type().equals(TEXT) == false) {
+            if (contentObject instanceof ContentObjectText contentObjectText) {
+                if (contentObjectText.text().isEmpty()) {
+                    return; // VertexAI API does not support empty text parts
+                }
+
+                // We are only supporting Text messages for now
+                builder.startObject();
+                builder.field(TEXT, contentObjectText.text());
+                builder.endObject();
+            } else {
                 var errorMessage = format(
                     "Type [%s] not supported by Google VertexAI ChatCompletion. Supported types: [text]",
                     contentObject.type()
@@ -109,14 +134,6 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
                 throw new ElasticsearchStatusException(errorMessage, RestStatus.BAD_REQUEST);
             }
 
-            if (contentObject.text().isEmpty()) {
-                return; // VertexAI API does not support empty text parts
-            }
-
-            // We are only supporting Text messages for now
-            builder.startObject();
-            builder.field(TEXT, contentObject.text());
-            builder.endObject();
         }
 
     }
@@ -148,7 +165,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
         {
             builder.startArray(PARTS);
             for (var systemMessage : systemMessages) {
-                if (systemMessage.content() instanceof UnifiedCompletionRequest.ContentString contentString) {
+                if (systemMessage.content() instanceof ContentString contentString) {
                     if (contentString.content().isEmpty()) {
                         var errorMessage = "System message cannot be empty for Google Vertex AI";
                         throw new ElasticsearchStatusException(errorMessage, RestStatus.BAD_REQUEST);
@@ -156,11 +173,19 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
                     builder.startObject();
                     builder.field(TEXT, contentString.content());
                     builder.endObject();
-                } else if (systemMessage.content() instanceof UnifiedCompletionRequest.ContentObjects contentObjects) {
+                } else if (systemMessage.content() instanceof ContentObjects contentObjects) {
                     for (var contentObject : contentObjects.contentObjects()) {
-                        builder.startObject();
-                        builder.field(TEXT, contentObject.text());
-                        builder.endObject();
+                        if (contentObject instanceof ContentObjectText contentObjectText) {
+                            builder.startObject();
+                            builder.field(TEXT, contentObjectText.text());
+                            builder.endObject();
+                        } else {
+                            var errorMessage = format(
+                                "Type [%s] not supported by Google VertexAI ChatCompletion. Supported types: [text]",
+                                contentObject.type()
+                            );
+                            throw new ElasticsearchStatusException(errorMessage, RestStatus.BAD_REQUEST);
+                        }
                     }
                 } else {
                     var errorMessage = "Only text system instructions are supported for Vertex AI";
@@ -177,7 +202,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
         var messages = unifiedChatInput.getRequest().messages();
 
         builder.startArray(CONTENTS);
-        for (UnifiedCompletionRequest.Message message : messages) {
+        for (Message message : messages) {
             if (message.role().equalsIgnoreCase(SYSTEM_ROLE)) {
                 // System messages are built in another method
                 continue;
@@ -187,16 +212,16 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
             builder.field(ROLE, messageRoleToGoogleVertexAiSupportedRole(message.role()));
             builder.startArray(PARTS);
             {
-                if (message.content() instanceof UnifiedCompletionRequest.ContentString) {
-                    UnifiedCompletionRequest.ContentString contentString = (UnifiedCompletionRequest.ContentString) message.content();
+                if (message.content() instanceof ContentString) {
+                    ContentString contentString = (ContentString) message.content();
                     // VertexAI does not support empty text parts
                     if (contentString.content().isEmpty() == false) {
                         builder.startObject();
                         builder.field(TEXT, contentString.content());
                         builder.endObject();
                     }
-                } else if (message.content() instanceof UnifiedCompletionRequest.ContentObjects) {
-                    UnifiedCompletionRequest.ContentObjects contentObjects = (UnifiedCompletionRequest.ContentObjects) message.content();
+                } else if (message.content() instanceof ContentObjects) {
+                    ContentObjects contentObjects = (ContentObjects) message.content();
                     validateAndAddContentObjectsToBuilder(builder, contentObjects);
                 }
 
@@ -267,12 +292,12 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
     private void buildToolConfig(XContentBuilder builder) throws IOException {
         var request = unifiedChatInput.getRequest();
 
-        UnifiedCompletionRequest.ToolChoiceObject toolChoice;
-        if (request.toolChoice() instanceof UnifiedCompletionRequest.ToolChoiceObject) {
-            UnifiedCompletionRequest.ToolChoiceObject toolChoiceObject = (UnifiedCompletionRequest.ToolChoiceObject) request.toolChoice();
+        ToolChoiceObject toolChoice;
+        if (request.toolChoice() instanceof ToolChoiceObject) {
+            ToolChoiceObject toolChoiceObject = (ToolChoiceObject) request.toolChoice();
             toolChoice = toolChoiceObject;
-        } else if (request.toolChoice() instanceof UnifiedCompletionRequest.ToolChoiceString) {
-            UnifiedCompletionRequest.ToolChoiceString toolChoiceString = (UnifiedCompletionRequest.ToolChoiceString) request.toolChoice();
+        } else if (request.toolChoice() instanceof ToolChoiceString) {
+            ToolChoiceString toolChoiceString = (ToolChoiceString) request.toolChoice();
             if (toolChoiceString.value().equals(TOOL_MODE_AUTO)) {
                 return;
             }
@@ -318,9 +343,20 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
     private void buildGenerationConfig(XContentBuilder builder) throws IOException {
         var request = unifiedChatInput.getRequest();
 
+        // Fall back to the configured task-settings maxTokens when the per-request value is null,
+        // so endpoint-level configuration isn't silently ignored. Use an explicit if/else (not a
+        // ternary) to avoid Java unboxing both Long and Integer to a primitive, which would NPE on
+        // the unused branch when one side is null.
+        final Number maxOutputTokens;
+        if (request.maxCompletionTokens() != null) {
+            maxOutputTokens = request.maxCompletionTokens();
+        } else {
+            maxOutputTokens = taskMaxTokens;
+        }
+
         boolean hasAnyConfig = request.stop() != null
             || request.temperature() != null
-            || request.maxCompletionTokens() != null
+            || maxOutputTokens != null
             || request.topP() != null
             || thinkingConfig.isEmpty() == false;
 
@@ -336,8 +372,8 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
         if (request.temperature() != null) {
             builder.field(TEMPERATURE, request.temperature());
         }
-        if (request.maxCompletionTokens() != null) {
-            builder.field(MAX_OUTPUT_TOKENS, request.maxCompletionTokens());
+        if (maxOutputTokens != null) {
+            builder.field(MAX_OUTPUT_TOKENS, maxOutputTokens);
         }
         if (request.topP() != null) {
             builder.field(TOP_P, request.topP());

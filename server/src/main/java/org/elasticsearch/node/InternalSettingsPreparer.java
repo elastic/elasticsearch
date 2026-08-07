@@ -159,7 +159,7 @@ public class InternalSettingsPreparer {
             }
         }
         for (String forcedSetting : forcedSettings) {
-            String value = output.remove(forcedSetting);
+            String value = output.removeAndGet(forcedSetting);
             output.put(forcedSetting.substring("force.".length()), value);
         }
     }

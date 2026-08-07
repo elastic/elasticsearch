@@ -22,7 +22,7 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
      * Sub-logger intended to show only changes made by the rules. Intended for debugging.
      *
      * Enable it like this for the respective optimizers and the analyzer, resp. all inheritors of this class:
-     * <pre>{@code
+     * {@snippet lang="text":
      * PUT localhost:9200/_cluster/settings
      *
      * {
@@ -34,7 +34,7 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
      *     "logger.org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer.changes": "TRACE"
      *   }
      * }
-     * }</pre>
+     * }
      */
     private final Logger changeLog = LogManager.getLogger(getClass().getName() + ".changes");
 

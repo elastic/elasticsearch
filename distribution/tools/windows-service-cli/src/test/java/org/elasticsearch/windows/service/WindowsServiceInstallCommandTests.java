@@ -111,7 +111,7 @@ public class WindowsServiceInstallCommandTests extends WindowsServiceCliTestCase
                 options,
                 containsInAnyOrder(
                     "-Dcli.name=windows-service-daemon",
-                    "-Dcli.libs=lib/tools/server-cli,lib/tools/windows-service-cli",
+                    "-Dcli.libs=lib/tools/server-cli,lib/tools/server-launcher,lib/tools/windows-service-cli",
                     String.join(";", expectedOptions)
                 )
             );

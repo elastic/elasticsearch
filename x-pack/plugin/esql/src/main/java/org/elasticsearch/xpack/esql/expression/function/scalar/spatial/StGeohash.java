@@ -16,11 +16,13 @@ import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.expression.ConstantEvaluators;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashBoundedPredicate;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -30,6 +32,7 @@ import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
@@ -43,12 +46,13 @@ import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.St
 /**
  * Calculates the geohash of geo_point geometries.
  */
-public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
+public class StGeohash extends SpatialGridFunction implements EvaluatorMapper, AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "StGeohash",
         StGeohash::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(StGeohash.class).ternary(StGeohash::new).name("st_geohash");
 
     /**
      * When checking grid cells with bounds, we need to check if the cell is valid (intersects with the bounds).
@@ -116,11 +120,16 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
         returnType = "geohash",
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") },
+        briefSummary = "Calculates the geohash of the supplied geo_point at the specified precision.",
         description = """
             Calculates the `geohash` of the supplied geo_point at the specified precision.
-            The result is long encoded. Use [TO_STRING](#esql-to_string) to convert the result to a string,
-            [TO_LONG](#esql-to_long) to convert it to a `long`, or [TO_GEOSHAPE](#esql-to_geoshape) to calculate
-            the `geo_shape` bounding geometry.
+            The result is long encoded.
+            Use [`TO_STRING`](/reference/query-languages/esql/functions-operators/type-conversion-functions/to_string.md)
+            to convert the result to a string,
+            [`TO_LONG`](/reference/query-languages/esql/functions-operators/type-conversion-functions/to_long.md)
+            to convert it to a `long`, or
+            [`TO_GEOSHAPE`](/reference/query-languages/esql/functions-operators/type-conversion-functions/to_geoshape.md)
+            to calculate the `geo_shape` bounding geometry.
 
             These functions are related to the [`geo_grid` query](/reference/query-languages/query-dsl/query-dsl-geo-grid-query.md)
             and the [`geohash_grid` aggregation](/reference/aggregations/search-aggregations-bucket-geohashgrid-aggregation.md).""",
@@ -134,12 +143,13 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
             type = { "geo_point" },
             description = "Expression of type `geo_point`. If `null`, the function returns `null`."
         ) Expression field,
-        @Param(name = "precision", type = { "integer" }, description = """
+        @Param(name = "precision", type = { "integer" }, hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT), description = """
             Expression of type `integer`. If `null`, the function returns `null`.
             Valid values are between [1 and 12](https://en.wikipedia.org/wiki/Geohash).""") Expression precision,
-        @Param(name = "bounds", type = { "geo_shape" }, description = """
-            Optional bounds to filter the grid tiles, a `geo_shape` of type `BBOX`.
-            Use [`ST_ENVELOPE`](#esql-st_envelope) if the `geo_shape` is of any other type.""", optional = true) Expression bounds
+        @Param(name = "bounds", type = { "geo_shape" }, hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT), description = """
+            Optional bounds to filter the grid tiles, a `geo_shape` of type `BBOX`. Use
+            [`ST_ENVELOPE`](/reference/query-languages/esql/functions-operators/spatial-functions/st_envelope.md)
+            if the `geo_shape` is of any other type.""", optional = true) Expression bounds
     ) {
         this(source, field, precision, bounds, false);
     }
@@ -180,7 +190,7 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         if (parameter().foldable() == false) {
             throw new IllegalArgumentException("precision must be foldable");
         }
@@ -188,7 +198,11 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
             if (bounds.foldable() == false) {
                 throw new IllegalArgumentException("bounds must be foldable");
             }
-            GeoBoundingBox bbox = asGeoBoundingBox(bounds.fold(toEvaluator.foldCtx()));
+            Object boundsValue = bounds.fold(toEvaluator.foldCtx());
+            if (boundsValue == null) {
+                return ConstantEvaluators.CONSTANT_NULL_FACTORY;
+            }
+            GeoBoundingBox bbox = asGeoBoundingBox(boundsValue);
             int precision = (int) parameter.fold(toEvaluator.foldCtx());
             GeoHashBoundedGrid.Factory bounds = new GeoHashBoundedGrid.Factory(precision, bbox);
             return spatialDocValues
@@ -209,11 +223,18 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
     @Override
     public Object fold(FoldContext ctx) {
         var point = (BytesRef) spatialField().fold(ctx);
+        if (point == null) {
+            return null;
+        }
         int precision = (int) parameter().fold(ctx);
         if (bounds() == null) {
             return unboundedGrid.calculateGridId(GEO.wkbAsPoint(point), precision);
         } else {
-            GeoBoundingBox bbox = asGeoBoundingBox(bounds().fold(ctx));
+            Object boundsValue = bounds().fold(ctx);
+            if (boundsValue == null) {
+                return null;
+            }
+            GeoBoundingBox bbox = asGeoBoundingBox(boundsValue);
             GeoHashBoundedGrid bounds = new GeoHashBoundedGrid(precision, bbox);
             long gridId = bounds.calculateGridId(GEO.wkbAsPoint(point));
             return gridId < 0 ? null : gridId;

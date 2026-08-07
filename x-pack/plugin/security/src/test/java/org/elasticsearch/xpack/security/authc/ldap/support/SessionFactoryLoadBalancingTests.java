@@ -24,7 +24,6 @@ import org.elasticsearch.mocksocket.MockServerSocket;
 import org.elasticsearch.mocksocket.MockSocket;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -79,7 +78,7 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
             final int numberOfIterations = randomIntBetween(1, 5);
             for (int iteration = 0; iteration < numberOfIterations; iteration++) {
                 for (int i = 0; i < numberOfLdapServers; i++) {
-                    try (LDAPConnection connection = LdapUtils.privilegedConnect(testSessionFactory.getServerSet()::getConnection)) {
+                    try (LDAPConnection connection = testSessionFactory.getServerSet().getConnection()) {
                         assertThat(connection.getConnectedPort(), is(ldapServers[i].getListenPort()));
                     }
                 }
@@ -161,9 +160,7 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
                     LDAPConnection connection = null;
                     try {
                         do {
-                            final LDAPConnection finalConnection = LdapUtils.privilegedConnect(
-                                testSessionFactory.getServerSet()::getConnection
-                            );
+                            final LDAPConnection finalConnection = testSessionFactory.getServerSet().getConnection();
                             connection = finalConnection;
                             final int connectedPort = finalConnection.getConnectedPort();
                             logger.debug("established connection with port [{}] expected port [{}]", connectedPort, expectedPort);
@@ -233,7 +230,7 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
         socket.setReuseAddress(true); // allow binding even if the previous socket is in timed wait state.
         socket.setSoLinger(true, 0); // close immediately as we are not writing anything here.
         socket.bind(new InetSocketAddress(localAddress, localPort));
-        SocketAccess.doPrivileged(() -> socket.connect(new InetSocketAddress(remoteAddress, remotePort)));
+        socket.connect(new InetSocketAddress(remoteAddress, remotePort));
         return socket;
     }
 
@@ -245,7 +242,7 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
         // first test that there is no round robin stuff going on
         final int firstPort = ldapServers[0].getListenPort();
         for (int i = 0; i < numberOfLdapServers; i++) {
-            try (LDAPConnection connection = LdapUtils.privilegedConnect(testSessionFactory.getServerSet()::getConnection)) {
+            try (LDAPConnection connection = testSessionFactory.getServerSet().getConnection()) {
                 assertThat(connection.getConnectedPort(), is(firstPort));
             }
         }
@@ -319,9 +316,7 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
                 LDAPConnection connection = null;
                 try {
                     do {
-                        final LDAPConnection finalConnection = LdapUtils.privilegedConnect(
-                            testSessionFactory.getServerSet()::getConnection
-                        );
+                        final LDAPConnection finalConnection = testSessionFactory.getServerSet().getConnection();
                         connection = finalConnection;
                         logger.debug(
                             "established connection with port [{}] expected port [{}]",

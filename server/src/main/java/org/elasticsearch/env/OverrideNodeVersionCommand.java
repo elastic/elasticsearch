@@ -13,7 +13,7 @@ import joptsimple.OptionSet;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cli.terminal.Terminal;
 import org.elasticsearch.cluster.coordination.ElasticsearchNodeCommand;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 

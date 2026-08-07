@@ -14,7 +14,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
@@ -28,6 +27,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.inference.ModelConfigurations.SERVICE_SETTINGS;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalSecureString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredSecureString;
 
 public class GoogleVertexAiSecretSettings implements SecretSettings {
@@ -47,13 +48,11 @@ public class GoogleVertexAiSecretSettings implements SecretSettings {
         SecureString secureServiceAccountJson = extractRequiredSecureString(
             map,
             SERVICE_ACCOUNT_JSON,
-            ModelSecrets.SECRET_SETTINGS,
+            SERVICE_SETTINGS,
             validationException
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new GoogleVertexAiSecretSettings(secureServiceAccountJson);
     }
@@ -110,7 +109,19 @@ public class GoogleVertexAiSecretSettings implements SecretSettings {
 
     @Override
     public SecretSettings newSecretSettings(Map<String, Object> newSecrets) {
-        return GoogleVertexAiSecretSettings.fromMap(new HashMap<>(newSecrets));
+        var validationException = new ValidationException();
+        var extractedServiceAccountJson = extractOptionalSecureString(
+            newSecrets,
+            SERVICE_ACCOUNT_JSON,
+            SERVICE_SETTINGS,
+            validationException
+        );
+        validationException.throwIfValidationErrorsExist();
+
+        if (extractedServiceAccountJson == null || extractedServiceAccountJson.equals(serviceAccountJson)) {
+            return this;
+        }
+        return new GoogleVertexAiSecretSettings(extractedServiceAccountJson);
     }
 
     public static class Configuration {

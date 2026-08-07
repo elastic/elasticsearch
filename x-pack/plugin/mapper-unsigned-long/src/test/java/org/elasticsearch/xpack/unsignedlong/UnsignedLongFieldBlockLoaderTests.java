@@ -11,6 +11,7 @@ import org.elasticsearch.datageneration.FieldType;
 import org.elasticsearch.index.mapper.NumberFieldBlockLoaderTestCase;
 import org.elasticsearch.plugins.Plugin;
 
+import java.math.BigDecimal;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -28,6 +29,24 @@ public class UnsignedLongFieldBlockLoaderTests extends NumberFieldBlockLoaderTes
         // See mapper implementation.
         var unsigned = value.longValue();
         return unsigned ^ MASK_2_63;
+    }
+
+    /**
+     * Override this since unsigned longs parse strings differently compared to other numeric field mappers.
+     */
+    @Override
+    protected Number tryParseString(String s) {
+        try {
+            return Long.parseUnsignedLong(s);
+        } catch (NumberFormatException ex1) {
+            try {
+                BigDecimal bd = new BigDecimal(s);
+                return bd.toBigIntegerExact();
+            } catch (NumberFormatException | ArithmeticException ex2) {
+                // not a valid number
+                return null;
+            }
+        }
     }
 
     @Override

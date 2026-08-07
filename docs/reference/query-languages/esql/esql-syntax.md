@@ -11,12 +11,22 @@ mapped_pages:
 
 ## Query structure [esql-basic-syntax]
 
-An {{esql}} query is composed of a [source command](/reference/query-languages/esql/esql-commands.md) followed by an optional series of [processing commands](/reference/query-languages/esql/esql-commands.md), separated by a pipe character: `|`. For example:
+An {{esql}} query can optionally start with [query directives](/reference/query-languages/esql/directives/directives.md) to define query settings and general behavior. After any directives, a query is composed of a [source command](/reference/query-languages/esql/esql-commands.md) followed by an optional series of [processing commands](/reference/query-languages/esql/esql-commands.md), separated by a pipe character: `|`. For example:
 
 ```esql
+query-directive
 source-command
 | processing-command1
 | processing-command2
+```
+
+For example, this query sets the `time_zone` directive, then retrieves and filters logs:
+
+```esql
+SET time_zone = "America/New_York";
+FROM logs
+| WHERE host.name == "my-host"
+| KEEP @timestamp, host.name, message
 ```
 
 The result of a query is the table produced by the final processing command.
@@ -24,10 +34,23 @@ The result of a query is the table produced by the final processing command.
 For an overview of all supported commands, functions, and operators, refer to [Commands](/reference/query-languages/esql/esql-commands.md) and [Functions and operators](/reference/query-languages/esql/esql-functions-operators.md).
 
 ::::{note}
-For readability, this documentation puts each processing command on a new line. However, you can write an {{esql}} query as a single line. The following query is identical to the previous one:
+For readability, this documentation puts each processing command on a new line. However, you can write an {{esql}} query as a single line:
 
 ```esql
-source-command | processing-command1 | processing-command2
+SET time_zone = "America/New_York"; FROM logs | WHERE host.name == "my-host" | KEEP @timestamp, host.name, message
+```
+
+::::
+
+::::{note}
+In many cases, the {{esql}} optimizer makes the exact order of processing commands irrelevant. For example, the following two queries are optimized and executed the same:
+
+```esql
+FROM idx | EVAL x = 2*y | WHERE y > 0
+```
+
+```esql
+FROM idx | WHERE y > 0 | EVAL x = 2*y
 ```
 
 ::::
@@ -59,7 +82,7 @@ FROM index
 
 ### Literals [esql-literals]
 
-{{esql}} currently supports numeric and string literals.
+{{esql}} currently supports numeric and string literals. String literals can also be implicitly converted to other types such as dates, IPs, and versions. Refer to [Implicit casting](/reference/query-languages/esql/esql-implicit-casting.md) for details.
 
 
 #### String literals [esql-string-literals]
@@ -99,6 +122,16 @@ The integer numeric literals are implicitly converted to the `integer`, `long` o
 The floating point literals are implicitly converted the `double` type.
 
 To obtain constant values of different types, use one of the numeric [conversion functions](/reference/query-languages/esql/functions-operators/type-conversion-functions.md).
+
+
+### Cast operator (`::`) [esql-cast-operator]
+
+The `::` operator provides a concise syntax for type conversion, as an alternative to the `TO_<type>` [conversion functions](/reference/query-languages/esql/functions-operators/type-conversion-functions.md):
+
+:::{include} _snippets/generated/x-pack-esql/operators/examples/cast.md
+:::
+
+For the full list of supported types, refer to [Cast (`::`)](/reference/query-languages/esql/functions-operators/operators.md#esql-cast-operator).
 
 
 ### Comments [esql-comments]
@@ -141,7 +174,7 @@ Timespan literals are not whitespace sensitive. These expressions are all valid:
 
 ### Function named parameters [esql-function-named-params]
 
-Some functions like [match](/reference/query-languages/esql/functions-operators/search-functions.md#esql-match) use named parameters to provide additional options.
+Some functions like [match](/reference/query-languages/esql/functions-operators/search-functions/match.md) use named parameters to provide additional options.
 
 Named parameters allow specifying name value pairs, using the following syntax:
 
@@ -149,7 +182,7 @@ Named parameters allow specifying name value pairs, using the following syntax:
 
 Valid value types are strings, numbers and booleans.
 
-An example using [match](/reference/query-languages/esql/functions-operators/search-functions.md#esql-match):
+An example using [match](/reference/query-languages/esql/functions-operators/search-functions/match.md):
 
 ```console
 POST /_query

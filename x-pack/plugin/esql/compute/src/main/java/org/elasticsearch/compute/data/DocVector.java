@@ -324,16 +324,43 @@ public final class DocVector extends AbstractVector implements Vector {
     }
 
     @Override
-    public DocVector filter(boolean mayContainDuplicates, int... positions) {
+    public DocVector slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        IntVector slicedShards = null;
+        IntVector slicedSegments = null;
+        IntVector slicedDocs = null;
+        DocVector result = null;
+        try {
+            slicedShards = shards.slice(beginInclusive, endExclusive);
+            slicedSegments = segments.slice(beginInclusive, endExclusive);
+            slicedDocs = docs.slice(beginInclusive, endExclusive);
+            Config config = config();
+            if (mayContainDuplicates) {
+                config.mayContainDuplicates();
+            }
+            result = new DocVector(refCounteds, slicedShards, slicedSegments, slicedDocs, config);
+            return result;
+        } finally {
+            if (result == null) {
+                Releasables.closeExpectNoException(slicedShards, slicedSegments, slicedDocs);
+            }
+        }
+    }
+
+    @Override
+    public DocVector filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
         mayContainDuplicates |= this.mayContainDuplicates;
         IntVector filteredShards = null;
         IntVector filteredSegments = null;
         IntVector filteredDocs = null;
         DocVector result = null;
         try {
-            filteredShards = shards.filter(mayContainDuplicates, positions);
-            filteredSegments = segments.filter(mayContainDuplicates, positions);
-            filteredDocs = docs.filter(mayContainDuplicates, positions);
+            filteredShards = shards.filter(mayContainDuplicates, positions, offset, length);
+            filteredSegments = segments.filter(mayContainDuplicates, positions, offset, length);
+            filteredDocs = docs.filter(mayContainDuplicates, positions, offset, length);
             Config config = config();
             if (mayContainDuplicates) {
                 config.mayContainDuplicates();
@@ -345,6 +372,11 @@ public final class DocVector extends AbstractVector implements Vector {
                 Releasables.closeExpectNoException(filteredShards, filteredSegments, filteredDocs);
             }
         }
+    }
+
+    @Override
+    public DocVector filter(boolean mayContainDuplicates, int... positions) {
+        return filter(mayContainDuplicates, positions, 0, positions.length);
     }
 
     @Override
@@ -383,6 +415,11 @@ public final class DocVector extends AbstractVector implements Vector {
     @Override
     public ElementType elementType() {
         return ElementType.DOC;
+    }
+
+    @Override
+    public int valueMaxByteSize() {
+        return 3 * Integer.BYTES;
     }
 
     @Override

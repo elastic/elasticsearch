@@ -80,7 +80,6 @@ public class LifecyclePolicyUsageCalculator {
             // Find the index template with the highest priority that matches this data stream's name.
             String indexTemplate = MetadataIndexTemplateService.findV2TemplateFromSortedList(project, indexTemplates, dataStream, false);
             if (indexTemplate == null) {
-                assert false : "Data stream [" + dataStream + "] has no matching template";
                 continue;
             }
             final var policyName = templateToPolicy.get(indexTemplate);

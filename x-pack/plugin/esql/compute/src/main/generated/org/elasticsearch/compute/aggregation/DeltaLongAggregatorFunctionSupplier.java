@@ -36,7 +36,7 @@ public final class DeltaLongAggregatorFunctionSupplier implements AggregatorFunc
   @Override
   public DeltaLongGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return DeltaLongGroupingAggregatorFunction.create(channels, driverContext);
+    return new DeltaLongGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override

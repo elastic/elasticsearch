@@ -1,0 +1,7 @@
+area: Security
+issues:
+ - 152582
+pr: 152610
+summary: Prevent stale roles from being cached when a role cache invalidation
+  races with an in-flight role resolution
+type: bug

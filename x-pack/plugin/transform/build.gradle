@@ -1,5 +1,6 @@
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 esplugin {
   name = 'transform'
   description = 'A plugin to transform data'
@@ -18,12 +19,23 @@ dependencies {
   testImplementation project(":test:x-content")
 
   internalClusterTestImplementation project(":modules:reindex")
+
+  yamlRestTestImplementation project(':test:yaml-rest-runner')
+  yamlRestTestImplementation(testArtifact(project(xpackModule('core'))))
 }
 
 restResources {
   restApi {
     include '*'
   }
+}
+
+artifacts {
+  restXpackTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
+}
+
+tasks.named('yamlRestTest') {
+  usesDefaultDistribution("transform yaml rest tests require the default distribution")
 }
 
 addQaCheckDependencies(project)

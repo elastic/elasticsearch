@@ -347,7 +347,9 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
             false,
             false,
             false,
-            false
+            false,
+            PluginDescriptor.DeploymentTarget.ALL,
+            Collections.emptyList()
         );
         final PluginRuntimeInfo pluginRuntimeInfo = new PluginRuntimeInfo(pluginDescriptor);
         when(mockPluginsAndModules.getPluginInfos()).thenReturn(List.of(pluginRuntimeInfo));
@@ -406,7 +408,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
             true,
             RecoverySource.ExistingStoreRecoverySource.INSTANCE,
             unassignedInfo,
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
         );
 
         final ShardStats mockShardStats = mock(ShardStats.class);
@@ -585,7 +588,11 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                     "built_in_tokenizers": [],
                     "built_in_filters": [],
                     "built_in_analyzers": [],
-                    "synonyms": {}
+                    "synonyms": {},
+                    "multiple_synonym_graph_filters": {
+                      "analyzer_count": 0,
+                      "index_count": 0
+                    }
                   },
                   "versions": [],
                   "search": {
@@ -699,6 +706,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                       "classname": "_plugin_class",
                       "extended_plugins": [],
                       "has_native_controller": false,
+                      "native_controller_enabled_settings": [],
                       "licensed": false,
                       "is_official": false
                     }
@@ -744,7 +752,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                         "primary_rejections": 0,
                         "replica_rejections": 0,
                         "primary_document_rejections": 0,
-                        "large_operation_rejections":0
+                        "large_operation_rejections": 0
                       },
                       "limit_in_bytes": 0
                     }

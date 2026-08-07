@@ -1,5 +1,10 @@
 setup:
+  - requires:
+      test_runner_features: [ "allowed_warnings" ]
   - do:
+      allowed_warnings:
+        - "Parameter [confidence_interval] in [index_options] for dense_vector field [vector] is deprecated and will be removed in a future version"
+        - "Parameter [confidence_interval] in [index_options] for dense_vector field [another_vector] is deprecated and will be removed in a future version"
       indices.create:
         index: hnsw_byte_quantized
         body:
@@ -17,6 +22,7 @@ setup:
                 similarity: l2_norm
                 index_options:
                   type: int4_hnsw
+                  confidence_interval: 0.0
               another_vector:
                 type: dense_vector
                 dims: 4
@@ -24,6 +30,7 @@ setup:
                 similarity: l2_norm
                 index_options:
                   type: int4_hnsw
+                  confidence_interval: 0.0
 
   - do:
       index:
@@ -244,7 +251,10 @@ setup:
   - length: {hits.hits: 0}
 ---
 "Knn search with mip":
+  - requires:
+      test_runner_features: [ "allowed_warnings" ]
   - do:
+      allowed_warnings: ["Parameter [confidence_interval] in [index_options] for dense_vector field [vector] is deprecated and will be removed in a future version"]
       indices.create:
         index: mip
         body:
@@ -262,6 +272,7 @@ setup:
                 similarity: max_inner_product
                 index_options:
                   type: int4_hnsw
+                  confidence_interval: 0.0
 
   - do:
       index:
@@ -401,6 +412,8 @@ setup:
                   type: int4_hnsw
 ---
 "Test create, merge, and search cosine":
+  - requires:
+      test_runner_features: [ "allowed_warnings" ]
   - do:
       indices.create:
         index: hnsw_byte_quantized_merge_cosine
@@ -409,6 +422,7 @@ setup:
             index:
               number_of_shards: 1
   - do:
+      allowed_warnings: ["Parameter [confidence_interval] in [index_options] for dense_vector field [embedding] is deprecated and will be removed in a future version"]
       indices.put_mapping:
         index: hnsw_byte_quantized_merge_cosine
         body:
@@ -419,8 +433,10 @@ setup:
               similarity: cosine
               index_options:
                 type: int4_hnsw
+                confidence_interval: 0.0
 
   - do:
+      allowed_warnings: ["Parameter [confidence_interval] in [index_options] for dense_vector field [embedding] is deprecated and will be removed in a future version"]
       index:
         index: hnsw_byte_quantized_merge_cosine
         id: "1"
@@ -429,35 +445,42 @@ setup:
 
   # Flush in order to provoke a merge later
   - do:
+      allowed_warnings: ["Parameter [confidence_interval] in [index_options] for dense_vector field [embedding] is deprecated and will be removed in a future version"]
       indices.flush: { }
 
   - do:
+      allowed_warnings: ["Parameter [confidence_interval] in [index_options] for dense_vector field [embedding] is deprecated and will be removed in a future version"]
       index:
         index: hnsw_byte_quantized_merge_cosine
         id: "2"
         body:
-          embedding: [0.0, 0.0, 0.0, 1.0, 1.0, 0.5]
+          embedding: [0.0, 0.0, 0.0, 1.0, 1.0, 1.0]
 
   # Flush in order to provoke a merge later
   - do:
+      allowed_warnings: ["Parameter [confidence_interval] in [index_options] for dense_vector field [embedding] is deprecated and will be removed in a future version"]
       indices.flush: { }
 
   - do:
+      allowed_warnings: ["Parameter [confidence_interval] in [index_options] for dense_vector field [embedding] is deprecated and will be removed in a future version"]
       index:
         index: hnsw_byte_quantized_merge_cosine
         id: "3"
         body:
-          embedding: [0.0, 0.0, 0.0, 0.0, 0.0, 10.5]
+          embedding: [0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
 
   - do:
+      allowed_warnings: ["Parameter [confidence_interval] in [index_options] for dense_vector field [embedding] is deprecated and will be removed in a future version"]
       indices.forcemerge:
         index: hnsw_byte_quantized_merge_cosine
         max_num_segments: 1
 
   - do:
+      allowed_warnings: ["Parameter [confidence_interval] in [index_options] for dense_vector field [embedding] is deprecated and will be removed in a future version"]
       indices.refresh: {}
 
   - do:
+      allowed_warnings: ["Parameter [confidence_interval] in [index_options] for dense_vector field [embedding] is deprecated and will be removed in a future version"]
       search:
         index: hnsw_byte_quantized_merge_cosine
         body:
@@ -465,7 +488,7 @@ setup:
           query:
             knn:
               field: embedding
-              query_vector: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+              query_vector: [0.5, 0.5, 0.5, 0.5, 0.5, 1.0]
               num_candidates: 10
 
   - length: { hits.hits: 3 }
@@ -474,6 +497,8 @@ setup:
   - match: { hits.hits.2._id: "3"}
 ---
 "Test create, merge, and search dot_product":
+  - requires:
+      test_runner_features: [ "allowed_warnings" ]
   - do:
       indices.create:
         index: hnsw_byte_quantized_merge_dot_product
@@ -482,6 +507,7 @@ setup:
             index:
               number_of_shards: 1
   - do:
+      allowed_warnings: ["Parameter [confidence_interval] in [index_options] for dense_vector field [embedding] is deprecated and will be removed in a future version"]
       indices.put_mapping:
         index: hnsw_byte_quantized_merge_dot_product
         body:
@@ -492,8 +518,10 @@ setup:
               similarity: dot_product
               index_options:
                 type: int4_hnsw
+                confidence_interval: 0.0
 
   - do:
+      allowed_warnings: ["Parameter [confidence_interval] in [index_options] for dense_vector field [embedding] is deprecated and will be removed in a future version"]
       index:
         index: hnsw_byte_quantized_merge_dot_product
         id: "1"
@@ -502,9 +530,11 @@ setup:
 
   # Flush in order to provoke a merge later
   - do:
+      allowed_warnings: ["Parameter [confidence_interval] in [index_options] for dense_vector field [embedding] is deprecated and will be removed in a future version"]
       indices.flush: { }
 
   - do:
+      allowed_warnings: ["Parameter [confidence_interval] in [index_options] for dense_vector field [embedding] is deprecated and will be removed in a future version"]
       index:
         index: hnsw_byte_quantized_merge_dot_product
         id: "2"
@@ -513,9 +543,11 @@ setup:
 
   # Flush in order to provoke a merge later
   - do:
+      allowed_warnings: ["Parameter [confidence_interval] in [index_options] for dense_vector field [embedding] is deprecated and will be removed in a future version"]
       indices.flush: { }
 
   - do:
+      allowed_warnings: ["Parameter [confidence_interval] in [index_options] for dense_vector field [embedding] is deprecated and will be removed in a future version"]
       index:
         index: hnsw_byte_quantized_merge_dot_product
         id: "3"
@@ -523,14 +555,17 @@ setup:
           embedding: [-0.6, -0.8]
 
   - do:
+      allowed_warnings: ["Parameter [confidence_interval] in [index_options] for dense_vector field [embedding] is deprecated and will be removed in a future version"]
       indices.forcemerge:
         index: hnsw_byte_quantized_merge_dot_product
         max_num_segments: 1
 
   - do:
+      allowed_warnings: ["Parameter [confidence_interval] in [index_options] for dense_vector field [embedding] is deprecated and will be removed in a future version"]
       indices.refresh: {}
 
   - do:
+      allowed_warnings: ["Parameter [confidence_interval] in [index_options] for dense_vector field [embedding] is deprecated and will be removed in a future version"]
       search:
         index: hnsw_byte_quantized_merge_dot_product
         body:
@@ -549,7 +584,7 @@ setup:
 "Vector rescoring has the same scoring as exact search for kNN section":
   - requires:
       reason: 'Quantized vector rescoring is required'
-      test_runner_features: [capabilities]
+      test_runner_features: [capabilities, "close_to"]
       capabilities:
         - method: GET
           path: /_search
@@ -597,12 +632,14 @@ setup:
 
   # Compare scores as hit IDs may change depending on how things are distributed
   - match: { hits.total: 3 }
-  - match: { hits.hits.0._score: $rescore_score0 }
-  - match: { hits.hits.1._score: $rescore_score1 }
-  - match: { hits.hits.2._score: $rescore_score2 }
+  - close_to: { hits.hits.0._score: { value: $rescore_score0, error: 1E-10 } }
+  - close_to: { hits.hits.1._score: { value: $rescore_score1, error: 1E-10 } }
+  - close_to: { hits.hits.2._score: { value: $rescore_score2, error: 1E-10 } }
 
 ---
 "Test odd dimensions fail indexing":
+  - requires:
+      test_runner_features: [ "allowed_warnings" ]
   - do:
       catch: bad_request
       indices.create:
@@ -618,6 +655,7 @@ setup:
                   type: int4_hnsw
 
   - do:
+      allowed_warnings: ["Parameter [confidence_interval] in [index_options] for dense_vector field [vector] is deprecated and will be removed in a future version"]
       indices.create:
         index: dynamic_dim_hnsw_quantized
         body:
@@ -629,6 +667,7 @@ setup:
                 similarity: l2_norm
                 index_options:
                   type: int4_hnsw
+                  confidence_interval: 0.0
 
   - do:
       catch: bad_request
@@ -638,6 +677,7 @@ setup:
           vector: [1.0, 2.0, 3.0, 4.0, 5.0]
 
   - do:
+      allowed_warnings: ["Parameter [confidence_interval] in [index_options] for dense_vector field [vector] is deprecated and will be removed in a future version"]
       index:
         index: dynamic_dim_hnsw_quantized
         body:
@@ -647,9 +687,12 @@ setup:
   - requires:
       cluster_features: ["mapper.dense_vector.rescore_vector"]
       reason: Needs rescore_vector feature
+  - requires:
+      test_runner_features: [ "allowed_warnings", "close_to" ]
   - skip:
       features: "headers"
   - do:
+      allowed_warnings: ["Parameter [confidence_interval] in [index_options] for dense_vector field [vector] is deprecated and will be removed in a future version"]
       indices.create:
         index: int4_rescore_hnsw
         body:
@@ -664,6 +707,7 @@ setup:
                 similarity: max_inner_product
                 index_options:
                   type: int4_hnsw
+                  confidence_interval: 0.0
                   rescore_vector:
                     oversample: 1.5
 
@@ -714,16 +758,19 @@ setup:
 
   # Compare scores as hit IDs may change depending on how things are distributed
   - match: { hits.total: 3 }
-  - match: { hits.hits.0._score: $rescore_score0 }
-  - match: { hits.hits.1._score: $rescore_score1 }
-  - match: { hits.hits.2._score: $rescore_score2 }
+  - close_to: { hits.hits.0._score: { value: $rescore_score0, error: 1E-10 } }
+  - close_to: { hits.hits.1._score: { value: $rescore_score1, error: 1E-10 } }
+  - close_to: { hits.hits.2._score: { value: $rescore_score2, error: 1E-10 } }
 ---
 "Test index configured rescore vector updateable and settable to 0":
   - requires:
       cluster_features: ["mapper.dense_vector.rescore_zero_vector"]
       reason: Needs rescore_zero_vector feature
+  - requires:
+      test_runner_features: [ "allowed_warnings" ]
 
   - do:
+      allowed_warnings: ["Parameter [confidence_interval] in [index_options] for dense_vector field [vector] is deprecated and will be removed in a future version"]
       indices.create:
         index: int4_rescore_0_hnsw
         body:
@@ -736,10 +783,12 @@ setup:
                 type: dense_vector
                 index_options:
                   type: int4_hnsw
+                  confidence_interval: 0.0
                   rescore_vector:
                     oversample: 0
 
   - do:
+      allowed_warnings: ["Parameter [confidence_interval] in [index_options] for dense_vector field [vector] is deprecated and will be removed in a future version"]
       indices.create:
         index: int4_rescore_update_hnsw
         body:
@@ -752,10 +801,12 @@ setup:
                 type: dense_vector
                 index_options:
                   type: int4_hnsw
+                  confidence_interval: 0.0
                   rescore_vector:
                     oversample: 1
 
   - do:
+      allowed_warnings: ["Parameter [confidence_interval] in [index_options] for dense_vector field [vector] is deprecated and will be removed in a future version"]
       indices.put_mapping:
         index: int4_rescore_update_hnsw
         body:
@@ -764,6 +815,7 @@ setup:
               type: dense_vector
               index_options:
                 type: int4_hnsw
+                confidence_interval: 0.0
                 rescore_vector:
                   oversample: 0
 
@@ -777,9 +829,12 @@ setup:
   - requires:
       cluster_features: ["mapper.dense_vector.rescore_zero_vector"]
       reason: Needs rescore_zero_vector feature
+  - requires:
+      test_runner_features: [ "allowed_warnings" ]
   - skip:
       features: "headers"
   - do:
+      allowed_warnings: ["Parameter [confidence_interval] in [index_options] for dense_vector field [vector] is deprecated and will be removed in a future version"]
       indices.create:
         index: int4_rescore_zero_hnsw
         body:
@@ -794,6 +849,7 @@ setup:
                 dims: 4
                 index_options:
                   type: int4_hnsw
+                  confidence_interval: 0.0
                   rescore_vector:
                     oversample: 0
 
@@ -848,6 +904,7 @@ setup:
   - set: { hits.hits.2._score: override_score2 }
 
   - do:
+      allowed_warnings: ["Parameter [confidence_interval] in [index_options] for dense_vector field [vector] is deprecated and will be removed in a future version"]
       indices.put_mapping:
         index: int4_rescore_zero_hnsw
         body:
@@ -858,6 +915,7 @@ setup:
               dims: 4
               index_options:
                 type: int4_hnsw
+                confidence_interval: 0.0
                 rescore_vector:
                   oversample: 2
 
@@ -880,6 +938,7 @@ setup:
   - set: { hits.hits.2._score: default_rescore2 }
 
   - do:
+      allowed_warnings: ["Parameter [confidence_interval] in [index_options] for dense_vector field [vector] is deprecated and will be removed in a future version"]
       indices.put_mapping:
         index: int4_rescore_zero_hnsw
         body:
@@ -890,6 +949,7 @@ setup:
               dims: 4
               index_options:
                 type: int4_hnsw
+                confidence_interval: 0.0
                 rescore_vector:
                   oversample: 0
 

@@ -136,9 +136,7 @@ public abstract class NvidiaServiceSettings extends FilteredXContentObject imple
         var validationException = new ValidationException();
         var commonServiceSettings = extractNvidiaCommonServiceSettings(map, context, validationException);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return factory.apply(commonServiceSettings);
     }
@@ -157,7 +155,7 @@ public abstract class NvidiaServiceSettings extends FilteredXContentObject imple
     ) {
         var model = ServiceUtils.extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
         var uri = ServiceUtils.extractOptionalUri(map, URL, validationException);
-        var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, NvidiaService.NAME, context);
+        var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, context);
         return new NvidiaCommonServiceSettings(model, uri, rateLimitSettings);
     }
 

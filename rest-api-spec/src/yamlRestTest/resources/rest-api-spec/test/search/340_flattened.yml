@@ -240,3 +240,465 @@ setup:
           fields: [ { "field" : "flattened.non_existing_field" } ]
 
   - is_false: hits.hits.0.fields
+
+---
+"Test flattened field with mapped properties":
+  - requires:
+      cluster_features: ["mapper.flattened.mapped_subfields"]
+      reason: "mapped properties on flattened fields"
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              labels:
+                type: flattened
+                properties:
+                  host.name:
+                    type: keyword
+                  status_code:
+                    type: long
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "index": { "_id": "1" } }'
+          - '{ "labels": { "host": { "name": "server-a" }, "status_code": 200, "region": "us-east-1" } }'
+          - '{ "index": { "_id": "2" } }'
+          - '{ "labels": { "host": { "name": "server-b" }, "status_code": 503, "region": "eu-west-1" } }'
+
+  - match: { errors: false }
+
+  # Term query on mapped keyword property
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            term:
+              labels.host.name: server-a
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "1" }
+
+  # Range query on mapped long property
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            range:
+              labels.status_code:
+                gte: 500
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "2" }
+
+  # Term query on unmapped key still works as flattened
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            term:
+              labels.region: us-east-1
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "1" }
+
+  # Sort on mapped keyword property
+  - do:
+      search:
+        index: test
+        body:
+          sort: [ { labels.host.name: asc } ]
+
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.1._id: "2" }
+
+  # Sort on mapped long property
+  - do:
+      search:
+        index: test
+        body:
+          sort: [ { labels.status_code: desc } ]
+
+  - match: { hits.hits.0._id: "2" }
+  - match: { hits.hits.1._id: "1" }
+
+---
+"Test flattened mapped subfields with aggregations":
+  - requires:
+      cluster_features: ["mapper.flattened.mapped_subfields"]
+      reason: "mapped subfields on flattened fields"
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              labels:
+                type: flattened
+                properties:
+                  env:
+                    type: keyword
+                  priority:
+                    type: long
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "index": { "_id": "1" } }'
+          - '{ "labels": { "env": "prod", "priority": 1 } }'
+          - '{ "index": { "_id": "2" } }'
+          - '{ "labels": { "env": "prod", "priority": 3 } }'
+          - '{ "index": { "_id": "3" } }'
+          - '{ "labels": { "env": "staging", "priority": 2 } }'
+
+  - match: { errors: false }
+
+  # Terms aggregation on mapped keyword
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            envs:
+              terms:
+                field: labels.env
+
+  - length: { aggregations.envs.buckets: 2 }
+  - match: { aggregations.envs.buckets.0.key: prod }
+  - match: { aggregations.envs.buckets.0.doc_count: 2 }
+  - match: { aggregations.envs.buckets.1.key: staging }
+  - match: { aggregations.envs.buckets.1.doc_count: 1 }
+
+  # Stats aggregation on mapped long
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            priority_stats:
+              stats:
+                field: labels.priority
+
+  - match: { aggregations.priority_stats.count: 3 }
+  - match: { aggregations.priority_stats.min: 1.0 }
+  - match: { aggregations.priority_stats.max: 3.0 }
+
+---
+"Test flattened mapped subfields with synthetic source":
+  - requires:
+      cluster_features: ["mapper.flattened.mapped_subfields"]
+      reason: "mapped subfields on flattened fields"
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              labels:
+                type: flattened
+                properties:
+                  host.name:
+                    type: keyword
+                  status_code:
+                    type: long
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        body:
+          labels:
+            host:
+              name: server-a
+            status_code: 200
+            region: us-east-1
+        refresh: true
+
+  - do:
+      search:
+        index: test
+
+  - match: { hits.hits.0._source.labels.region: us-east-1 }
+  - match: { hits.hits.0._source.labels.host\.name: server-a }
+  - match: { hits.hits.0._source.labels.status_code: 200 }
+
+---
+"Test flattened mapped subfields serialization in mapping":
+  - requires:
+      cluster_features: ["mapper.flattened.mapped_subfields"]
+      reason: "mapped subfields on flattened fields"
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              labels:
+                type: flattened
+                properties:
+                  host.name:
+                    type: keyword
+                  count:
+                    type: long
+
+  - do:
+      indices.get_mapping:
+        index: test
+
+  - match: { test.mappings.properties.labels.type: flattened }
+  - match: { test.mappings.properties.labels.properties.host\.name.type: keyword }
+  - match: { test.mappings.properties.labels.properties.count.type: long }
+
+---
+"Test flattened mapped sub-field as index sort field":
+  - requires:
+      cluster_features: ["mapper.flattened.mapped_subfields"]
+      reason: "mapped subfields on flattened fields"
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              sort.field: labels.priority
+              sort.order: asc
+          mappings:
+            properties:
+              labels:
+                type: flattened
+                properties:
+                  priority:
+                    type: long
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "index": { "_id": "1" } }'
+          - '{ "labels": { "priority": 3, "name": "low" } }'
+          - '{ "index": { "_id": "2" } }'
+          - '{ "labels": { "priority": 1, "name": "high" } }'
+          - '{ "index": { "_id": "3" } }'
+          - '{ "labels": { "priority": 2, "name": "medium" } }'
+  - match: { errors: false }
+
+  # force merge to guarantee sort order
+  - do:
+      indices.forcemerge:
+        index: test
+        max_num_segments: 1
+  - do:
+      indices.refresh:
+        index: test
+  - do:
+      search:
+        index: test
+        body:
+          sort: _doc
+
+  - match: { hits.hits.0._id: "2" }
+  - match: { hits.hits.1._id: "3" }
+  - match: { hits.hits.2._id: "1" }
+
+---
+"Test flattened passthrough sub-fields resolve at root":
+  - requires:
+      cluster_features: ["mapper.flattened.passthrough"]
+      reason: "passthrough support on flattened fields"
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              labels:
+                type: flattened
+                passthrough:
+                  priority: 10
+                properties:
+                  status:
+                    type: keyword
+                  count:
+                    type: long
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "index": { "_id": "1" } }'
+          - '{ "labels": { "status": "active", "count": 3, "region": "us-east-1" } }'
+          - '{ "index": { "_id": "2" } }'
+          - '{ "labels": { "status": "inactive", "count": 7, "region": "eu-west-1" } }'
+          - '{ "index": { "_id": "3" } }'
+          - '{ "labels": { "status": "active", "count": 1 } }'
+  - match: { errors: false }
+
+  # term query on passthrough sub-field resolves at root
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            term:
+              status: "active"
+          sort: count
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.1._id: "1" }
+
+  # range query on long passthrough sub-field at root
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            range:
+              count:
+                gte: 3
+  - match: { hits.total.value: 2 }
+
+  # untyped key is still accessible via prefixed path
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            term:
+              labels.region: "us-east-1"
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "1" }
+
+---
+"Test flattened passthrough priority: higher priority wins":
+  - requires:
+      cluster_features: ["mapper.flattened.passthrough"]
+      reason: "passthrough support on flattened fields"
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              labels:
+                type: flattened
+                passthrough:
+                  priority: 5
+                properties:
+                  env:
+                    type: keyword
+              resource.attributes:
+                type: passthrough
+                priority: 10
+                properties:
+                  env:
+                    type: keyword
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "index": { "_id": "1" } }'
+          - '{ "labels": { "env": "staging" }, "resource.attributes": { "env": "production" } }'
+          - '{ "index": { "_id": "2" } }'
+          - '{ "labels": { "env": "staging" } }'
+  - match: { errors: false }
+
+  # root "env" resolves to resource.attributes.env (priority 10 > 5)
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            term:
+              env: "production"
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "1" }
+
+  # querying via the full flattened path still works
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            term:
+              labels.env: "staging"
+  - match: { hits.total.value: 2 }
+
+---
+"Test flattened passthrough: root concrete field wins over passthrough alias":
+  - requires:
+      cluster_features: ["mapper.flattened.passthrough"]
+      reason: "passthrough support on flattened fields"
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              status:
+                type: keyword
+              labels:
+                type: flattened
+                passthrough:
+                  priority: 10
+                properties:
+                  status:
+                    type: keyword
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "index": { "_id": "1" } }'
+          - '{ "status": "root-value", "labels": { "status": "passthrough-value" } }'
+          - '{ "index": { "_id": "2" } }'
+          - '{ "labels": { "status": "passthrough-value" } }'
+  - match: { errors: false }
+
+  # term on root "status" finds only the doc with a concrete root value
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            term:
+              status: "root-value"
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "1" }
+
+  # "passthrough-value" is not reachable via the root alias — full path required
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            term:
+              status: "passthrough-value"
+  - match: { hits.total.value: 0 }
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            term:
+              labels.status: "passthrough-value"
+  - match: { hits.total.value: 2 }

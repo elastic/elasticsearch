@@ -146,24 +146,18 @@ final class IntBlockHash extends BlockHash {
     }
 
     @Override
-    public IntBlock[] getKeys() {
-        if (seenNull) {
-            final int size = Math.toIntExact(hash.size() + 1);
-            final int[] keys = new int[size];
-            for (int i = 1; i < size; i++) {
-                keys[i] = (int) hash.get(i - 1);
+    public IntBlock[] getKeys(IntVector selected) {
+        try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(selected.getPositionCount())) {
+            for (int i = 0; i < selected.getPositionCount(); i++) {
+                int groupId = selected.getInt(i);
+                if (groupId == 0) {
+                    builder.appendNull();
+                } else {
+                    builder.appendInt((int) hash.get(groupId - 1));
+                }
             }
-            BitSet nulls = new BitSet(1);
-            nulls.set(0);
-            return new IntBlock[] {
-                blockFactory.newIntArrayBlock(keys, keys.length, null, nulls, Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING) };
+            return new IntBlock[] { builder.build() };
         }
-        final int size = Math.toIntExact(hash.size());
-        final int[] keys = new int[size];
-        for (int i = 0; i < size; i++) {
-            keys[i] = (int) hash.get(i);
-        }
-        return new IntBlock[] { blockFactory.newIntArrayVector(keys, keys.length).asBlock() };
     }
 
     @Override

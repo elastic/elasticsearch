@@ -1,0 +1,2 @@
+Project[[$$Positions$${r}#0, language_code{f}#1]]
+\_ParameterizedQuery[[_doc{f}#2, $$Positions$${r}#0, language_code{f}#1],[MatchConfig[fieldName=languages, channel=0, type=INTEGER]],languages{f}#3 == language_code{f}#1,false]

@@ -13,32 +13,32 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToString}.
+ * {@link ExpressionEvaluator} implementation for {@link ToString}.
  * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class ToStringFromGeoGridEvaluator extends AbstractConvertFunction.AbstractEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ToStringFromGeoGridEvaluator.class);
 
-  private final EvalOperator.ExpressionEvaluator gridId;
+  private final ExpressionEvaluator gridId;
 
   private final DataType dataType;
 
-  public ToStringFromGeoGridEvaluator(Source source, EvalOperator.ExpressionEvaluator gridId,
-      DataType dataType, DriverContext driverContext) {
+  public ToStringFromGeoGridEvaluator(Source source, ExpressionEvaluator gridId, DataType dataType,
+      DriverContext driverContext) {
     super(driverContext, source);
     this.gridId = gridId;
     this.dataType = dataType;
   }
 
   @Override
-  public EvalOperator.ExpressionEvaluator next() {
+  public ExpressionEvaluator next() {
     return gridId;
   }
 
@@ -114,15 +114,14 @@ public final class ToStringFromGeoGridEvaluator extends AbstractConvertFunction.
     return baseRamBytesUsed;
   }
 
-  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  public static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory gridId;
+    private final ExpressionEvaluator.Factory gridId;
 
     private final DataType dataType;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory gridId,
-        DataType dataType) {
+    public Factory(Source source, ExpressionEvaluator.Factory gridId, DataType dataType) {
       this.source = source;
       this.gridId = gridId;
       this.dataType = dataType;

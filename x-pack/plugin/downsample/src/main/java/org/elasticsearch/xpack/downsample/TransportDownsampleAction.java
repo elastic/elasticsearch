@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.metadata.RerouteBehavior;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
@@ -281,7 +282,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         }
 
         // Assert source index is a time_series index
-        if (IndexSettings.MODE.get(sourceIndexMetadata.getSettings()) != IndexMode.TIME_SERIES) {
+        if (IndexSettings.MODE.get(sourceIndexMetadata.getSettings()).isTsdb() == false) {
             recordInvalidConfigurationMetrics(startTime);
             listener.onFailure(
                 new ElasticsearchException(
@@ -1017,6 +1018,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                     true,
                     // Copy index metadata from source index to downsample index
                     (builder, indexMetadata) -> builder.put(copyIndexMetadata(sourceIndexMetadata, indexMetadata, indexScopedSettings)),
+                    RerouteBehavior.PERFORM_REROUTE,
                     delegate.reroute()
                 );
             }

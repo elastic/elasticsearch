@@ -34,6 +34,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -84,7 +85,8 @@ public class ILMHistoryStoreTests extends ESTestCase {
             clusterService,
             threadPool,
             client,
-            NamedXContentRegistry.EMPTY
+            NamedXContentRegistry.EMPTY,
+            new FeatureService(List.of())
         );
         ClusterState state = clusterService.state();
         projectId = randomProjectIdOrDefault();

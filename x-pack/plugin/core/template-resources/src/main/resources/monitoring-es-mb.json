@@ -2020,6 +2020,14 @@
                   "ignore_above": 1024,
                   "type": "keyword"
                 },
+                "mode": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                },
+                "codec": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                },
                 "recovery": {
                   "properties": {
                     "stop_time": {
@@ -2757,6 +2765,71 @@
                       "properties": {
                         "count": {
                           "type": "long"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "security": {
+              "properties": {
+                "stats": {
+                  "properties": {
+                    "dls": {
+                      "properties": {
+                        "cache": {
+                          "properties": {
+                            "entries": {
+                              "properties": {
+                                "count": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "memory": {
+                              "properties": {
+                                "bytes": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "hits": {
+                              "properties": {
+                                "count": {
+                                  "type": "long"
+                                },
+                                "time": {
+                                  "properties": {
+                                    "ms": {
+                                      "type": "long"
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            "misses": {
+                              "properties": {
+                                "count": {
+                                  "type": "long"
+                                },
+                                "time": {
+                                  "properties": {
+                                    "ms": {
+                                      "type": "long"
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            "evictions": {
+                              "properties": {
+                                "count": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
                         }
                       }
                     }
@@ -3698,6 +3771,14 @@
             "index": {
               "type": "alias",
               "path": "elasticsearch.index.name"
+            },
+            "mode": {
+              "type": "alias",
+              "path": "elasticsearch.index.mode"
+            },
+            "codec": {
+              "type": "alias",
+              "path": "elasticsearch.index.codec"
             },
             "primaries": {
               "properties": {

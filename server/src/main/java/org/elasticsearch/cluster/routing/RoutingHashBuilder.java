@@ -111,7 +111,7 @@ public class RoutingHashBuilder {
         }
     }
 
-    private void addHash(String path, BytesRef value) {
+    void addHash(String path, BytesRef value) {
         hashes.add(new NameAndHash(new BytesRef(path), IndexRouting.ExtractFromSource.hash(value), hashes.size()));
     }
 

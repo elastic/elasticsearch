@@ -10,17 +10,19 @@ package org.elasticsearch.xpack.inference.services.azureaistudio.request;
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundCompletionRequest;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionModel;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Objects;
 
-public class AzureAiStudioChatCompletionRequest extends AzureAiStudioRequest {
+public class AzureAiStudioChatCompletionRequest extends AzureAiStudioRequest implements OutboundCompletionRequest {
     private final List<String> input;
     private final AzureAiStudioChatCompletionModel completionModel;
     private final boolean stream;
@@ -37,7 +39,7 @@ public class AzureAiStudioChatCompletionRequest extends AzureAiStudioRequest {
     }
 
     @Override
-    public HttpRequest createHttpRequest() {
+    public void createHttpRequest(ActionListener<HttpRequest> listener) {
         HttpPost httpPost = new HttpPost(this.uri);
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(Strings.toString(createRequestEntity()).getBytes(StandardCharsets.UTF_8));
@@ -46,11 +48,11 @@ public class AzureAiStudioChatCompletionRequest extends AzureAiStudioRequest {
         httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
         setAuthHeader(httpPost, completionModel);
 
-        return new HttpRequest(httpPost, getInferenceEntityId());
+        listener.onResponse(new HttpRequest(httpPost, getInferenceEntityId()));
     }
 
     @Override
-    public Request truncate() {
+    public OutboundRequest truncate() {
         // no truncation
         return this;
     }

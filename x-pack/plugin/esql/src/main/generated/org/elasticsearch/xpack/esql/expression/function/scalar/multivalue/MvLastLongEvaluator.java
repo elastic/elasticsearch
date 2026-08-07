@@ -10,17 +10,17 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link MvLast}.
+ * {@link ExpressionEvaluator} implementation for {@link MvLast}.
  * This class is generated. Edit {@code MvEvaluatorImplementer} instead.
  */
 public final class MvLastLongEvaluator extends AbstractMultivalueFunction.AbstractEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(MvLastLongEvaluator.class);
 
-  public MvLastLongEvaluator(EvalOperator.ExpressionEvaluator field, DriverContext driverContext) {
+  public MvLastLongEvaluator(ExpressionEvaluator field, DriverContext driverContext) {
     super(driverContext, field);
   }
 
@@ -76,10 +76,10 @@ public final class MvLastLongEvaluator extends AbstractMultivalueFunction.Abstra
     return BASE_RAM_BYTES_USED + field.baseRamBytesUsed();
   }
 
-  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
-    private final EvalOperator.ExpressionEvaluator.Factory field;
+  public static class Factory implements ExpressionEvaluator.Factory {
+    private final ExpressionEvaluator.Factory field;
 
-    public Factory(EvalOperator.ExpressionEvaluator.Factory field) {
+    public Factory(ExpressionEvaluator.Factory field) {
       this.field = field;
     }
 

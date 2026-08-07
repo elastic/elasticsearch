@@ -10,7 +10,7 @@
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
 import org.apache.lucene.index.FieldInfo;
-import org.apache.lucene.index.FloatVectorValues;
+import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
@@ -22,13 +22,13 @@ import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.index.codec.vectors.GenericFlatVectorReaders;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.cluster.NeighborQueue;
+import org.elasticsearch.search.vectors.ESAcceptDocs;
 import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
 import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 
-import static org.apache.lucene.codecs.lucene102.Lucene102BinaryQuantizedVectorsFormat.QUERY_BITS;
 import static org.apache.lucene.index.VectorSimilarityFunction.COSINE;
 import static org.elasticsearch.index.codec.vectors.BQVectorUtils.discretize;
 import static org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer.DEFAULT_LAMBDA;
@@ -39,10 +39,24 @@ import static org.elasticsearch.simdvec.ESVectorUtil.transposeHalfByte;
  * Default implementation of {@link IVFVectorsReader}. It scores the posting lists centroids using
  * brute force and then scores the top ones using the posting list.
  */
-public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
+public class ES920DiskBBQVectorsReader extends IVFVectorsReader<IVFVectorsReader.FieldEntry> {
+
+    // QUERY_BITS value copied from Lucene102BinaryQuantizedVectorsFormat where it became package private
+    private static final byte QUERY_BITS = 4;
 
     ES920DiskBBQVectorsReader(SegmentReadState state, GenericFlatVectorReaders.LoadFlatVectorsReader getFormatReader) throws IOException {
-        super(state, getFormatReader);
+        super(
+            state,
+            getFormatReader,
+            ES920DiskBBQVectorsFormat.NAME,
+            ES920DiskBBQVectorsFormat.CENTROID_EXTENSION,
+            ES920DiskBBQVectorsFormat.CLUSTER_EXTENSION,
+            ES920DiskBBQVectorsFormat.IVF_META_EXTENSION,
+            ES920DiskBBQVectorsFormat.VERSION_START,
+            ES920DiskBBQVectorsFormat.VERSION_CURRENT,
+            ES920DiskBBQVectorsFormat.VERSION_DIRECT_IO,
+            ES920DiskBBQVectorsFormat.DYNAMIC_VISIT_RATIO
+        );
     }
 
     public CentroidIterator getPostingListPrefetchIterator(CentroidIterator centroidIterator, IndexInput postingListSlice)
@@ -55,13 +69,15 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
         FieldInfo fieldInfo,
         int numCentroids,
         IndexInput centroids,
-        float[] targetQuery,
+        QueryTarget queryTarget,
         IndexInput postingListSlice,
         AcceptDocs acceptDocs,
         float approximateCost,
-        FloatVectorValues values,
+        KnnVectorValues values,
         float visitRatio
     ) throws IOException {
+        assert queryTarget instanceof QueryTarget.FloatQuery : "older codecs do not support byte vectors";
+        float[] targetQuery = ((QueryTarget.FloatQuery) queryTarget).vector();
         final FieldEntry fieldEntry = fields.get(fieldInfo.number);
         final float globalCentroidDp = fieldEntry.globalCentroidDp();
         final OptimizedScalarQuantizer scalarQuantizer = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction());
@@ -361,11 +377,15 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
     @Override
     public PostingVisitor getPostingVisitor(
         FieldInfo fieldInfo,
+        KnnVectorValues values,
         IndexInput indexInput,
-        float[] target,
+        QueryTarget queryTarget,
         Bits acceptDocs,
-        IndexInput centroidSlice
+        IndexInput centroidSlice,
+        ESAcceptDocs esAcceptDocs
     ) throws IOException {
+        assert queryTarget instanceof QueryTarget.FloatQuery : "older codecs do not support byte vectors";
+        float[] target = ((QueryTarget.FloatQuery) queryTarget).vector();
         FieldEntry entry = fields.get(fieldInfo.number);
         // max postings list size, no longer utilized
         indexInput.readVInt();
@@ -623,6 +643,16 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
             }
             return scoredDocs;
         }
+    }
+
+    @Override
+    public CentroidData<?> readCentroidData(String fieldName) {
+        // The 9.2.0 (ES920) on-disk layout interleaves centroid bytes with per-posting-list
+        // metadata, which would require a bespoke streaming reader to surface here. Since the
+        // adaptive merge strategy tolerates per-segment nulls (segments without priors simply
+        // contribute their vector counts to the coverage-aware concatenation budget), we skip
+        // exposing priors for 9.2 indices and let those segments age out via normal merges.
+        return null;
     }
 
 }

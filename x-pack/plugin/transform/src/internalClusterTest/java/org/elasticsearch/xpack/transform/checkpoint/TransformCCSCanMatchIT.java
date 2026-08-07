@@ -11,9 +11,11 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.features.TransportResetFeatureStateAction;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -22,7 +24,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
@@ -37,12 +38,14 @@ import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.BaseAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
-import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
@@ -52,14 +55,19 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.transform.MockDeprecatedAggregationBuilder;
 import org.elasticsearch.xpack.core.transform.MockDeprecatedQueryBuilder;
 import org.elasticsearch.xpack.core.transform.TransformNamedXContentProvider;
+import org.elasticsearch.xpack.core.transform.action.DeleteTransformAction;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
 import org.elasticsearch.xpack.core.transform.action.GetTransformStatsAction;
 import org.elasticsearch.xpack.core.transform.action.PutTransformAction;
 import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
+import org.elasticsearch.xpack.core.transform.action.StopTransformAction;
+import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
 import org.elasticsearch.xpack.core.transform.transforms.QueryConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfigUpdate;
 import org.elasticsearch.xpack.core.transform.transforms.TransformStats;
 import org.elasticsearch.xpack.core.transform.transforms.latest.LatestConfig;
 import org.elasticsearch.xpack.transform.LocalStateTransform;
@@ -68,6 +76,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -81,9 +90,11 @@ import java.util.concurrent.TimeUnit;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.core.ClientHelper.TRANSFORM_ORIGIN;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class TransformCCSCanMatchIT extends AbstractMultiClustersTestCase {
@@ -236,28 +247,12 @@ public class TransformCCSCanMatchIT extends AbstractMultiClustersTestCase {
     }
 
     public void testGetCheckpointAction_MatchAllQuery() throws InterruptedException {
-        final var threadContext = client().threadPool().getThreadContext();
         testGetCheckpointAction(
-            threadContext,
-            CheckpointClient.local(client()),
+            client().threadPool().getThreadContext(),
             null,
-            new String[] { "local_*" },
+            new String[] { REMOTE_CLUSTER + ":remote_*", "local_*" },
             QueryBuilders.matchAllQuery(),
-            Set.of("local_old_index", "local_new_index")
-        );
-        testGetCheckpointAction(
-            threadContext,
-            CheckpointClient.remote(
-                client().getRemoteClusterClient(
-                    REMOTE_CLUSTER,
-                    EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                    RemoteClusterService.DisconnectedStrategy.RECONNECT_IF_DISCONNECTED
-                )
-            ),
-            REMOTE_CLUSTER,
-            new String[] { "remote_*" },
-            QueryBuilders.matchAllQuery(),
-            Set.of("remote_old_index", "remote_new_index")
+            Set.of(REMOTE_CLUSTER + ":remote_old_index", REMOTE_CLUSTER + ":remote_new_index", "local_old_index", "local_new_index")
         );
     }
 
@@ -265,7 +260,6 @@ public class TransformCCSCanMatchIT extends AbstractMultiClustersTestCase {
         final var threadContext = client().threadPool().getThreadContext();
         testGetCheckpointAction(
             threadContext,
-            CheckpointClient.local(client()),
             null,
             new String[] { "local_*" },
             QueryBuilders.rangeQuery("@timestamp").from(timestamp),
@@ -273,17 +267,10 @@ public class TransformCCSCanMatchIT extends AbstractMultiClustersTestCase {
         );
         testGetCheckpointAction(
             threadContext,
-            CheckpointClient.remote(
-                client().getRemoteClusterClient(
-                    REMOTE_CLUSTER,
-                    EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                    RemoteClusterService.DisconnectedStrategy.RECONNECT_IF_DISCONNECTED
-                )
-            ),
             REMOTE_CLUSTER,
-            new String[] { "remote_*" },
+            new String[] { REMOTE_CLUSTER + ":remote_*" },
             QueryBuilders.rangeQuery("@timestamp").from(timestamp),
-            Set.of("remote_new_index")
+            Set.of(REMOTE_CLUSTER + ":remote_new_index")
         );
     }
 
@@ -291,7 +278,6 @@ public class TransformCCSCanMatchIT extends AbstractMultiClustersTestCase {
         final var threadContext = client().threadPool().getThreadContext();
         testGetCheckpointAction(
             threadContext,
-            CheckpointClient.local(client()),
             null,
             new String[] { "local_*" },
             QueryBuilders.rangeQuery("@timestamp").from(100_000_000),
@@ -299,15 +285,8 @@ public class TransformCCSCanMatchIT extends AbstractMultiClustersTestCase {
         );
         testGetCheckpointAction(
             threadContext,
-            CheckpointClient.remote(
-                client().getRemoteClusterClient(
-                    REMOTE_CLUSTER,
-                    EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                    RemoteClusterService.DisconnectedStrategy.RECONNECT_IF_DISCONNECTED
-                )
-            ),
             REMOTE_CLUSTER,
-            new String[] { "remote_*" },
+            new String[] { REMOTE_CLUSTER + ":remote_*" },
             QueryBuilders.rangeQuery("@timestamp").from(100_000_000),
             Set.of()
         );
@@ -315,7 +294,6 @@ public class TransformCCSCanMatchIT extends AbstractMultiClustersTestCase {
 
     private void testGetCheckpointAction(
         ThreadContext threadContext,
-        CheckpointClient client,
         String cluster,
         String[] indices,
         QueryBuilder query,
@@ -326,23 +304,146 @@ public class TransformCCSCanMatchIT extends AbstractMultiClustersTestCase {
             IndicesOptions.LENIENT_EXPAND_OPEN,
             query,
             cluster,
-            TIMEOUT
+            TIMEOUT,
+            null,
+            false
         );
 
         CountDownLatch latch = new CountDownLatch(1);
         SetOnce<GetCheckpointAction.Response> finalResponse = new SetOnce<>();
         SetOnce<Exception> finalException = new SetOnce<>();
-        ClientHelper.executeAsyncWithOrigin(threadContext, TRANSFORM_ORIGIN, request, ActionListener.wrap(response -> {
-            finalResponse.set(response);
-            latch.countDown();
-        }, e -> {
-            finalException.set(e);
-            latch.countDown();
-        }), client::getCheckpoint);
+        ClientHelper.executeAsyncWithOrigin(
+            threadContext,
+            TRANSFORM_ORIGIN,
+            request,
+            ActionListener.<GetCheckpointAction.Response>wrap(response -> {
+                finalResponse.set(response);
+                latch.countDown();
+            }, e -> {
+                finalException.set(e);
+                latch.countDown();
+            }),
+            (r, l) -> client().execute(GetCheckpointAction.INSTANCE, r, l)
+        );
         latch.await(10, TimeUnit.SECONDS);
 
         assertThat(finalException.get(), is(nullValue()));
         assertThat("Response was: " + finalResponse.get(), finalResponse.get().getCheckpoints().keySet(), is(equalTo(expectedIndices)));
+    }
+
+    /**
+     * Verifies that GetCheckpointAction honours {@code skip_unavailable} when a remote cluster leg fails.
+     * <ul>
+     *   <li>{@code skip_unavailable=false} (non-default) — checkpoint must fail so the transform retries
+     *       rather than producing a checkpoint over partial data (regression guard for #84090 fix).</li>
+     *   <li>{@code skip_unavailable=true} (default) — checkpoint must succeed with local indices only;
+     *       the failed remote cluster is omitted.</li>
+     * </ul>
+     */
+    public void testGetCheckpointAction_RemoteClusterUnavailable() throws Exception {
+        final ThreadContext threadContext = client().threadPool().getThreadContext();
+        final String[] sourceIndices = new String[] { REMOTE_CLUSTER + ":remote_*", "local_*" };
+
+        // Inject a transport-level failure for GetCheckpoint requests on all remote-cluster nodes.
+        List<MockTransportService> remoteMockServices = new ArrayList<>();
+        for (TransportService ts : cluster(REMOTE_CLUSTER).getInstances(TransportService.class)) {
+            MockTransportService mts = (MockTransportService) ts;
+            mts.addRequestHandlingBehavior(
+                GetCheckpointAction.NAME,
+                (handler, request, channel, task) -> channel.sendResponse(new ElasticsearchException("simulated remote checkpoint failure"))
+            );
+            remoteMockServices.add(mts);
+        }
+        try {
+            // skip_unavailable=false: the failed remote leg must propagate — checkpoint fails.
+            setRemoteClusterSkipUnavailable(false);
+            {
+                final GetCheckpointAction.Request request = new GetCheckpointAction.Request(
+                    sourceIndices,
+                    IndicesOptions.LENIENT_EXPAND_OPEN,
+                    null,
+                    null,
+                    TIMEOUT,
+                    null,
+                    false
+                );
+                CountDownLatch latch = new CountDownLatch(1);
+                SetOnce<Exception> exRef = new SetOnce<>();
+                SetOnce<GetCheckpointAction.Response> respRef = new SetOnce<>();
+                ClientHelper.executeAsyncWithOrigin(
+                    threadContext,
+                    TRANSFORM_ORIGIN,
+                    request,
+                    ActionListener.<GetCheckpointAction.Response>wrap(r -> {
+                        respRef.set(r);
+                        latch.countDown();
+                    }, e -> {
+                        exRef.set(e);
+                        latch.countDown();
+                    }),
+                    (r, l) -> client().execute(GetCheckpointAction.INSTANCE, r, l)
+                );
+                assertTrue("timed out waiting for checkpoint response", latch.await(10, TimeUnit.SECONDS));
+                assertThat(
+                    "checkpoint over unavailable skip_unavailable=false remote must fail (see #84090)",
+                    exRef.get(),
+                    is(notNullValue())
+                );
+                assertThat(respRef.get(), is(nullValue()));
+            }
+
+            // skip_unavailable=true (default): the failed remote leg is tolerated; local checkpoint succeeds.
+            setRemoteClusterSkipUnavailable(true);
+            {
+                final GetCheckpointAction.Request request = new GetCheckpointAction.Request(
+                    sourceIndices,
+                    IndicesOptions.LENIENT_EXPAND_OPEN,
+                    null,
+                    null,
+                    TIMEOUT,
+                    null,
+                    false
+                );
+                CountDownLatch latch = new CountDownLatch(1);
+                SetOnce<Exception> exRef = new SetOnce<>();
+                SetOnce<GetCheckpointAction.Response> respRef = new SetOnce<>();
+                ClientHelper.executeAsyncWithOrigin(
+                    threadContext,
+                    TRANSFORM_ORIGIN,
+                    request,
+                    ActionListener.<GetCheckpointAction.Response>wrap(r -> {
+                        respRef.set(r);
+                        latch.countDown();
+                    }, e -> {
+                        exRef.set(e);
+                        latch.countDown();
+                    }),
+                    (r, l) -> client().execute(GetCheckpointAction.INSTANCE, r, l)
+                );
+                assertTrue("timed out waiting for checkpoint response", latch.await(10, TimeUnit.SECONDS));
+                assertThat("checkpoint over unavailable skip_unavailable=true remote must succeed", exRef.get(), is(nullValue()));
+                assertThat(respRef.get(), is(notNullValue()));
+                // Failed remote cluster is omitted; only local index keys may appear.
+                assertThat(
+                    respRef.get().getCheckpoints().keySet().stream().filter(k -> k.startsWith(REMOTE_CLUSTER + ":")).toList(),
+                    is(empty())
+                );
+            }
+        } finally {
+            remoteMockServices.forEach(MockTransportService::clearAllRules);
+            setRemoteClusterSkipUnavailable(null); // restore default
+        }
+    }
+
+    private void setRemoteClusterSkipUnavailable(Boolean skipUnavailable) {
+        Settings.Builder settings = skipUnavailable != null
+            ? Settings.builder().put("cluster.remote." + REMOTE_CLUSTER + ".skip_unavailable", skipUnavailable)
+            : Settings.builder().putNull("cluster.remote." + REMOTE_CLUSTER + ".skip_unavailable");
+        client(LOCAL_CLUSTER).admin()
+            .cluster()
+            .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .setPersistentSettings(settings)
+            .get();
     }
 
     public void testTransformLifecycle_MatchAllQuery() throws Exception {
@@ -357,7 +458,19 @@ public class TransformCCSCanMatchIT extends AbstractMultiClustersTestCase {
         testTransformLifecycle(QueryBuilders.rangeQuery("@timestamp").from(100_000_000), 0);
     }
 
+    public void testTransformLifecycle_WithExcludedRemoteCluster() throws Exception {
+        testTransformLifecycle(
+            new String[] { "local_*", "*:remote_*", "-" + REMOTE_CLUSTER + ":*" },
+            QueryBuilders.matchAllQuery(),
+            localOldDocs + localNewDocs
+        );
+    }
+
     private void testTransformLifecycle(QueryBuilder query, long expectedHitCount) throws Exception {
+        testTransformLifecycle(new String[] { "local_*", "*:remote_*" }, query, expectedHitCount);
+    }
+
+    private void testTransformLifecycle(String[] sourceIndices, QueryBuilder query, long expectedHitCount) throws Exception {
         String transformId = "test-transform-lifecycle";
         {
             QueryConfig queryConfig;
@@ -367,7 +480,7 @@ public class TransformCCSCanMatchIT extends AbstractMultiClustersTestCase {
             }
             TransformConfig transformConfig = TransformConfig.builder()
                 .setId(transformId)
-                .setSource(new SourceConfig(new String[] { "local_*", "*:remote_*" }, queryConfig, Map.of(), null))
+                .setSource(new SourceConfig(sourceIndices, queryConfig, Map.of(), null))
                 .setDest(new DestConfig(transformId + "-dest", null, null))
                 .setLatestConfig(new LatestConfig(List.of("position"), "@timestamp"))
                 .build();
@@ -392,6 +505,72 @@ public class TransformCCSCanMatchIT extends AbstractMultiClustersTestCase {
         });
     }
 
+    public void testUpdateTransformCreatesDestIndexWhenRunningAndDestMissingWithRemoteSource() throws Exception {
+        String transformId = "test-ccs-transform-update-dest";
+        String destIndex = transformId + "-dest";
+
+        // Create a continuous transform sourced from both local and remote indices (CCS).
+        // ZERO delay ensures the already-indexed documents are included in the first checkpoint.
+        TransformConfig transformConfig = TransformConfig.builder()
+            .setId(transformId)
+            .setSource(new SourceConfig(new String[] { "local_*", "*:remote_*" }, QueryConfig.matchAll(), Map.of(), null))
+            .setDest(new DestConfig(destIndex, null, null))
+            .setFrequency(TimeValue.timeValueMinutes(1))
+            .setSyncConfig(new TimeSyncConfig("@timestamp", TimeValue.ZERO))
+            .setLatestConfig(new LatestConfig(List.of("position"), "@timestamp"))
+            .build();
+
+        client().execute(PutTransformAction.INSTANCE, new PutTransformAction.Request(transformConfig, false, TIMEOUT)).actionGet(TIMEOUT);
+        client().execute(StartTransformAction.INSTANCE, new StartTransformAction.Request(transformId, null, TIMEOUT)).actionGet(TIMEOUT);
+
+        // Wait for the first checkpoint to create the destination index.
+        assertBusy(
+            () -> assertThat(
+                "dest index should be created after the first checkpoint",
+                cluster(LOCAL_CLUSTER).clusterService().state().metadata().getProject().index(destIndex),
+                is(notNullValue())
+            )
+        );
+
+        // Delete the destination index to simulate it going missing while the transform is still running.
+        client(LOCAL_CLUSTER).admin().indices().delete(new DeleteIndexRequest(destIndex)).actionGet(TIMEOUT);
+        assertThat(cluster(LOCAL_CLUSTER).clusterService().state().metadata().getProject().index(destIndex), is(nullValue()));
+
+        // Update the transform. A description change ensures we go through updateTransformConfiguration
+        // (an EMPTY update against a current-version config returns NONE early without touching the dest index).
+        client().execute(
+            UpdateTransformAction.INSTANCE,
+            new UpdateTransformAction.Request(
+                new TransformConfigUpdate(null, null, null, null, "post-delete-update", null, null, null),
+                transformId,
+                false,
+                TIMEOUT
+            )
+        ).actionGet(TIMEOUT);
+
+        // The update should have invoked resolveSourceIndicesAndCreateDestIfNeeded, which calls ResolveIndexAction
+        // to resolve the remote CCS source indices and then recreates the destination index.
+        assertThat(
+            "update should have recreated the destination index using ResolveIndexAction for CCS source resolution",
+            cluster(LOCAL_CLUSTER).clusterService().state().metadata().getProject().index(destIndex),
+            is(notNullValue())
+        );
+
+        // Cleanup
+        stopTransform(transformId);
+        deleteTransform(transformId);
+    }
+
+    private void stopTransform(String transformId) {
+        client().execute(StopTransformAction.INSTANCE, new StopTransformAction.Request(transformId, true, true, TIMEOUT, false, false))
+            .actionGet(TIMEOUT);
+    }
+
+    private void deleteTransform(String transformId) {
+        client().execute(DeleteTransformAction.INSTANCE, new DeleteTransformAction.Request(transformId, true, false, TIMEOUT))
+            .actionGet(TIMEOUT);
+    }
+
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         return namedXContentRegistry;
@@ -405,7 +584,10 @@ public class TransformCCSCanMatchIT extends AbstractMultiClustersTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins(String clusterAlias) {
         return CollectionUtils.appendToCopy(
-            CollectionUtils.appendToCopy(super.nodePlugins(clusterAlias), LocalStateTransform.class),
+            CollectionUtils.appendToCopy(
+                CollectionUtils.appendToCopy(super.nodePlugins(clusterAlias), LocalStateTransform.class),
+                ReindexPlugin.class
+            ),
             ExposingTimestampEnginePlugin.class
         );
     }

@@ -16,26 +16,36 @@ import org.hamcrest.Matcher;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 
-// TODO: rework these tests to mock jvm option finder so they can run with security manager, no forking needed
 public class MachineDependentHeapTests extends ESTestCase {
 
     public void testDefaultHeapSize() throws Exception {
         MachineDependentHeap heap = new MachineDependentHeap();
-        List<String> options = heap.determineHeapSettings(Settings.EMPTY, systemMemoryInGigabytes(8), Collections.emptyList());
+        List<String> options = heap.determineHeapSettings(
+            Settings.EMPTY,
+            systemMemoryInGigabytes(8),
+            noHeapSpecifiedOptions(),
+            Collections.emptyList()
+        );
         assertThat(options, containsInAnyOrder("-Xmx4096m", "-Xms4096m"));
     }
 
     public void testUserPassedHeapArgs() throws Exception {
         var systemMemoryInfo = systemMemoryInGigabytes(8);
         MachineDependentHeap heap = new MachineDependentHeap();
-        List<String> options = heap.determineHeapSettings(Settings.EMPTY, systemMemoryInfo, List.of("-Xmx4g"));
+        List<String> options = heap.determineHeapSettings(
+            Settings.EMPTY,
+            systemMemoryInfo,
+            maxHeapSpecifiedOptions(),
+            Collections.emptyList()
+        );
         assertThat(options, empty());
 
-        options = heap.determineHeapSettings(Settings.EMPTY, systemMemoryInfo, List.of("-Xms4g"));
+        options = heap.determineHeapSettings(Settings.EMPTY, systemMemoryInfo, minHeapSpecifiedOptions(), Collections.emptyList());
         assertThat(options, empty());
     }
 
@@ -44,10 +54,15 @@ public class MachineDependentHeapTests extends ESTestCase {
     public void testOddUserPassedHeapArgs() throws Exception {
         var systemMemoryInfo = systemMemoryInGigabytes(8);
         MachineDependentHeap heap = new MachineDependentHeap();
-        List<String> options = heap.determineHeapSettings(Settings.EMPTY, systemMemoryInfo, List.of("-Xmx409m"));
+        List<String> options = heap.determineHeapSettings(
+            Settings.EMPTY,
+            systemMemoryInfo,
+            maxHeapSpecifiedOptions(),
+            Collections.emptyList()
+        );
         assertThat(options, empty());
 
-        options = heap.determineHeapSettings(Settings.EMPTY, systemMemoryInfo, List.of("-Xms409m"));
+        options = heap.determineHeapSettings(Settings.EMPTY, systemMemoryInfo, minHeapSpecifiedOptions(), Collections.emptyList());
         assertThat(options, empty());
     }
 
@@ -94,8 +109,46 @@ public class MachineDependentHeapTests extends ESTestCase {
         SystemMemoryInfo systemMemoryInfo = systemMemoryInGigabytes(memoryInGigabytes);
         MachineDependentHeap machineDependentHeap = new MachineDependentHeap();
         Settings nodeSettings = Settings.builder().putList("node.roles", roles).build();
-        List<String> heapOptions = machineDependentHeap.determineHeapSettings(nodeSettings, systemMemoryInfo, Collections.emptyList());
+        List<String> heapOptions = machineDependentHeap.determineHeapSettings(
+            nodeSettings,
+            systemMemoryInfo,
+            noHeapSpecifiedOptions(),
+            Collections.emptyList()
+        );
         assertThat(heapOptions, optionsMatcher);
+    }
+
+    private static Map<String, JvmOption> noHeapSpecifiedOptions() {
+        return Map.of(
+            "MaxHeapSize",
+            new JvmOption("0", "default"),
+            "MinHeapSize",
+            new JvmOption("0", "default"),
+            "InitialHeapSize",
+            new JvmOption("0", "default")
+        );
+    }
+
+    private static Map<String, JvmOption> maxHeapSpecifiedOptions() {
+        return Map.of(
+            "MaxHeapSize",
+            new JvmOption("4294967296", "command line"),
+            "MinHeapSize",
+            new JvmOption("0", "default"),
+            "InitialHeapSize",
+            new JvmOption("0", "default")
+        );
+    }
+
+    private static Map<String, JvmOption> minHeapSpecifiedOptions() {
+        return Map.of(
+            "MaxHeapSize",
+            new JvmOption("0", "default"),
+            "MinHeapSize",
+            new JvmOption("4294967296", "command line"),
+            "InitialHeapSize",
+            new JvmOption("0", "default")
+        );
     }
 
     private static SystemMemoryInfo systemMemoryInGigabytes(double gigabytes) {

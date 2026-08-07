@@ -113,6 +113,6 @@ public class KeyedFilter extends UnaryPlan {
             && Objects.equals(timestamp, other.timestamp)
             && Objects.equals(tiebreaker, other.tiebreaker)
             && Objects.equals(child(), other.child())
-            && isMissingEventFilter == isMissingEventFilter;
+            && isMissingEventFilter == other.isMissingEventFilter;
     }
 }

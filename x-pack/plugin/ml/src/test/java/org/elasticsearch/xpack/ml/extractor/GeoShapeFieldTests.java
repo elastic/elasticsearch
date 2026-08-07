@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.extractor;
 
+import org.elasticsearch.core.ReleasableRef;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.test.SearchHitBuilder;
@@ -24,19 +25,20 @@ public class GeoShapeFieldTests extends ESTestCase {
 
         SearchHit hit = new SearchHitBuilder(42).setSource("{\"geo\":{\"type\":\"point\", \"coordinates\": [" + lon + ", " + lat + "]}}")
             .build();
+        try (var hitRef = ReleasableRef.of(hit)) {
+            ExtractedField geo = new GeoShapeField("geo");
 
-        ExtractedField geo = new GeoShapeField("geo");
-
-        assertThat(geo.value(hit, new SourceSupplier(hit)), equalTo(expected));
-        assertThat(geo.getName(), equalTo("geo"));
-        assertThat(geo.getSearchField(), equalTo("geo"));
-        assertThat(geo.getTypes(), contains("geo_shape"));
-        assertThat(geo.getMethod(), equalTo(ExtractedField.Method.SOURCE));
-        assertThat(geo.supportsFromSource(), is(true));
-        assertThat(geo.newFromSource(), sameInstance(geo));
-        expectThrows(UnsupportedOperationException.class, () -> geo.getDocValueFormat());
-        assertThat(geo.isMultiField(), is(false));
-        expectThrows(UnsupportedOperationException.class, () -> geo.getParentField());
+            assertThat(geo.value(hitRef.get(), new SourceSupplier(hitRef.get())), equalTo(expected));
+            assertThat(geo.getName(), equalTo("geo"));
+            assertThat(geo.getSearchField(), equalTo("geo"));
+            assertThat(geo.getTypes(), contains("geo_shape"));
+            assertThat(geo.getMethod(), equalTo(ExtractedField.Method.SOURCE));
+            assertThat(geo.supportsFromSource(), is(true));
+            assertThat(geo.newFromSource(), sameInstance(geo));
+            expectThrows(UnsupportedOperationException.class, () -> geo.getDocValueFormat());
+            assertThat(geo.isMultiField(), is(false));
+            expectThrows(UnsupportedOperationException.class, () -> geo.getParentField());
+        }
     }
 
     public void testWKTFormat() {
@@ -45,35 +47,41 @@ public class GeoShapeFieldTests extends ESTestCase {
         String[] expected = new String[] { lat + "," + lon };
 
         SearchHit hit = new SearchHitBuilder(42).setSource("{\"geo\":\"POINT (" + lon + " " + lat + ")\"}").build();
+        try (var hitRef = ReleasableRef.of(hit)) {
+            ExtractedField geo = new GeoShapeField("geo");
 
-        ExtractedField geo = new GeoShapeField("geo");
-
-        assertThat(geo.value(hit, new SourceSupplier(hit)), equalTo(expected));
-        assertThat(geo.getName(), equalTo("geo"));
-        assertThat(geo.getSearchField(), equalTo("geo"));
-        assertThat(geo.getTypes(), contains("geo_shape"));
-        assertThat(geo.getMethod(), equalTo(ExtractedField.Method.SOURCE));
-        assertThat(geo.supportsFromSource(), is(true));
-        assertThat(geo.newFromSource(), sameInstance(geo));
-        expectThrows(UnsupportedOperationException.class, () -> geo.getDocValueFormat());
-        assertThat(geo.isMultiField(), is(false));
-        expectThrows(UnsupportedOperationException.class, () -> geo.getParentField());
+            assertThat(geo.value(hitRef.get(), new SourceSupplier(hitRef.get())), equalTo(expected));
+            assertThat(geo.getName(), equalTo("geo"));
+            assertThat(geo.getSearchField(), equalTo("geo"));
+            assertThat(geo.getTypes(), contains("geo_shape"));
+            assertThat(geo.getMethod(), equalTo(ExtractedField.Method.SOURCE));
+            assertThat(geo.supportsFromSource(), is(true));
+            assertThat(geo.newFromSource(), sameInstance(geo));
+            expectThrows(UnsupportedOperationException.class, () -> geo.getDocValueFormat());
+            assertThat(geo.isMultiField(), is(false));
+            expectThrows(UnsupportedOperationException.class, () -> geo.getParentField());
+        }
     }
 
     public void testMissing() {
         SearchHit hit = new SearchHitBuilder(42).addField("a_keyword", "bar").build();
+        try (var hitRef = ReleasableRef.of(hit)) {
+            ExtractedField geo = new GeoShapeField("missing");
 
-        ExtractedField geo = new GeoShapeField("missing");
-
-        assertThat(geo.value(hit, new SourceSupplier(hit)), equalTo(new Object[0]));
+            assertThat(geo.value(hitRef.get(), new SourceSupplier(hitRef.get())), equalTo(new Object[0]));
+        }
     }
 
     public void testArray() {
         SearchHit hit = new SearchHitBuilder(42).setSource("{\"geo\":[1,2]}").build();
+        try (var hitRef = ReleasableRef.of(hit)) {
+            ExtractedField geo = new GeoShapeField("geo");
 
-        ExtractedField geo = new GeoShapeField("geo");
-
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> geo.value(hit, new SourceSupplier(hit)));
-        assertThat(e.getMessage(), equalTo("Unexpected values for a geo_shape field: [1, 2]"));
+            IllegalStateException e = expectThrows(
+                IllegalStateException.class,
+                () -> geo.value(hitRef.get(), new SourceSupplier(hitRef.get()))
+            );
+            assertThat(e.getMessage(), equalTo("Unexpected values for a geo_shape field: [1, 2]"));
+        }
     }
 }

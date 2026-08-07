@@ -77,9 +77,7 @@ public class ElasticInferenceServiceDenseEmbeddingsServiceSettings extends Filte
             validationException
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new ElasticInferenceServiceDenseEmbeddingsServiceSettings(modelId, similarity, dims, maxInputTokens);
     }

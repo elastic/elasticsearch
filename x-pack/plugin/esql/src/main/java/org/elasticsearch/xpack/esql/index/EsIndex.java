@@ -18,18 +18,12 @@ public record EsIndex(
     Map<String, EsField> mapping, // keyed by field names
     Map<String, IndexMode> indexNameWithModes,
     Map<String, List<String>> originalIndices, // keyed by cluster alias
-    Map<String, List<String>> concreteIndices, // keyed by cluster alias
-    Set<String> partiallyUnmappedFields
+    Map<String, List<String>> concreteIndices // keyed by cluster alias
 ) {
 
     public EsIndex {
         assert name != null;
         assert mapping != null;
-        assert partiallyUnmappedFields != null;
-    }
-
-    public boolean isPartiallyUnmappedField(String fieldName) {
-        return partiallyUnmappedFields.contains(fieldName);
     }
 
     public Set<String> concreteQualifiedIndices() {

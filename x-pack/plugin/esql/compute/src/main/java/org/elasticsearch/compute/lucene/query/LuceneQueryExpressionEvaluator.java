@@ -16,19 +16,19 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 
 import java.io.IOException;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} to run a Lucene {@link Query} during
+ * {@link ExpressionEvaluator} to run a Lucene {@link Query} during
  * the compute engine's normal execution, yielding matches/does not match into
  * a {@link BooleanVector}.
  * @see LuceneQueryScoreEvaluator
  */
-public class LuceneQueryExpressionEvaluator extends LuceneQueryEvaluator<BooleanBlock.Builder> implements EvalOperator.ExpressionEvaluator {
+public class LuceneQueryExpressionEvaluator extends LuceneQueryEvaluator<BooleanBlock.Builder> implements ExpressionEvaluator {
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(LuceneQueryExpressionEvaluator.class);
 
     LuceneQueryExpressionEvaluator(BlockFactory blockFactory, IndexedByShardId<ShardConfig> shards) {
@@ -70,9 +70,9 @@ public class LuceneQueryExpressionEvaluator extends LuceneQueryEvaluator<Boolean
         return BASE_RAM_BYTES_USED;
     }
 
-    public record Factory(IndexedByShardId<ShardConfig> shardConfigs) implements EvalOperator.ExpressionEvaluator.Factory {
+    public record Factory(IndexedByShardId<ShardConfig> shardConfigs) implements ExpressionEvaluator.Factory {
         @Override
-        public EvalOperator.ExpressionEvaluator get(DriverContext context) {
+        public ExpressionEvaluator get(DriverContext context) {
             return new LuceneQueryExpressionEvaluator(context.blockFactory(), shardConfigs);
         }
     }

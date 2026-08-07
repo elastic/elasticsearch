@@ -18,19 +18,36 @@ import java.util.Map;
  * <p>
  * Results are returned as a map of node ID to estimated heap usage in bytes
  *
- * @see EstimatedHeapUsage
+ * @see NodeHeapMetrics
  */
 public interface EstimatedHeapUsageCollector {
 
     /**
      * This will be used when there is no EstimatedHeapUsageCollector available
      */
-    EstimatedHeapUsageCollector EMPTY = listener -> listener.onResponse(Map.of());
+    EstimatedHeapUsageCollector EMPTY = new EstimatedHeapUsageCollector() {
+        @Override
+        public void collectClusterHeapUsage(ActionListener<Map<String, NodeHeapEstimates>> listener) {
+            listener.onResponse(Map.of());
+        }
+
+        @Override
+        public void collectShardHeapUsage(ActionListener<ShardHeapUsageEstimates> listener) {
+            listener.onResponse(ShardHeapUsageEstimates.empty());
+        }
+    };
 
     /**
      * Collect the estimated heap usage for every node in the cluster
      *
      * @param listener The listener which will receive the results
      */
-    void collectClusterHeapUsage(ActionListener<Map<String, Long>> listener);
+    void collectClusterHeapUsage(ActionListener<Map<String, NodeHeapEstimates>> listener);
+
+    /**
+     * Collects the estimated heap usage for every shard in the cluster.
+     *
+     * @param listener The listener which will receive the results
+     */
+    void collectShardHeapUsage(ActionListener<ShardHeapUsageEstimates> listener);
 }

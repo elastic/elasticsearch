@@ -2,26 +2,6 @@ version: 9.3.0
 released: true
 generated: 2026-02-03T16:30:41.317830115Z
 changelogs:
-  - pr: []
-    summary: Introduces a guided UI flow in Kibana to connect self-managed clusters to Elastic Cloud-hosted services like AutoOps and the Elastic Inference Service.
-    area: Management
-    type: feature
-    issues: []
-    highlight:
-      notable: true
-      title: New Cloud Connect UI for self-managed installations
-      body: "Adds Cloud Connect functionality to Kibana, which allows you to use cloud solutions like AutoOps and Elastic Inference Service in your self-managed Elasticsearch clusters."
-      pr: []
-  - pr: []
-    summary: Elastic Inference Service now adds new AI/ML models dynamically, independent of stack release cycles.
-    area: Machine Learning
-    type: feature
-    issues: []
-    highlight:
-      notable: true
-      title: Independent AI/ML model delivery
-      body: "Elastic will regularly be adding new AI/ML models from 9.3 onwards which will appear as pre-configured inference endpoints in Elasticsearch. See the [Elastic Inference Service](https://www.elastic.co/docs/explore-analyze/elastic-inference/eis) page for more details."
-      pr: []
   - pr: 122491
     summary: Add CEF processor to Ingest node
     area: Ingest Node

@@ -11,7 +11,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.util.Map;
+import java.util.HashMap;
 
 public class EmptyTaskSettingsTests extends AbstractWireSerializingTestCase<EmptyTaskSettings> {
 
@@ -21,7 +21,7 @@ public class EmptyTaskSettingsTests extends AbstractWireSerializingTestCase<Empt
 
     public void testUpdatedTaskSettings() {
         EmptyTaskSettings initialSettings = createRandom();
-        EmptyTaskSettings updatedSettings = (EmptyTaskSettings) initialSettings.updatedTaskSettings(Map.of());
+        EmptyTaskSettings updatedSettings = (EmptyTaskSettings) initialSettings.updatedTaskSettings(new HashMap<>());
         assertEquals(EmptyTaskSettings.INSTANCE, updatedSettings);
     }
 

@@ -8,14 +8,19 @@ import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
+import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 import java.util.List;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
+import org.elasticsearch.compute.data.ConstantDoubleVector;
+import org.elasticsearch.compute.data.DoubleArrayVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.arrow.DoubleArrowBufVector;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -33,16 +38,10 @@ public final class MaxDoubleAggregatorFunction implements AggregatorFunction {
 
   private final List<Integer> channels;
 
-  public MaxDoubleAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      DoubleState state) {
+  MaxDoubleAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static MaxDoubleAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new MaxDoubleAggregatorFunction(driverContext, channels, new DoubleState(MaxDoubleAggregator.init()));
+    this.state = new DoubleState(MaxDoubleAggregator.init());
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -69,6 +68,18 @@ public final class MaxDoubleAggregatorFunction implements AggregatorFunction {
     DoubleBlock vBlock = page.getBlock(channels.get(0));
     DoubleVector vVector = vBlock.asVector();
     if (vVector == null) {
+      if (vBlock.areAllValuesNull()) {
+        /*
+         * All values are null so we can skip processing this block.
+         * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+         *       being fast without this. Likely the branch predictor is kicking
+         *       in there. But we do this anyway, just so we don't have to trust
+         *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+         *       always have long sequences of ConstantNullBlock. And this code
+         *       shows readers we've thought about this.
+         */
+        return;
+      }
       addRawBlock(vBlock, mask);
       return;
     }
@@ -79,6 +90,18 @@ public final class MaxDoubleAggregatorFunction implements AggregatorFunction {
     DoubleBlock vBlock = page.getBlock(channels.get(0));
     DoubleVector vVector = vBlock.asVector();
     if (vVector == null) {
+      if (vBlock.areAllValuesNull()) {
+        /*
+         * All values are null so we can skip processing this block.
+         * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+         *       being fast without this. Likely the branch predictor is kicking
+         *       in there. But we do this anyway, just so we don't have to trust
+         *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+         *       always have long sequences of ConstantNullBlock. And this code
+         *       shows readers we've thought about this.
+         */
+        return;
+      }
       addRawBlock(vBlock);
       return;
     }
@@ -86,6 +109,37 @@ public final class MaxDoubleAggregatorFunction implements AggregatorFunction {
   }
 
   private void addRawVector(DoubleVector vVector) {
+    if (vVector.getClass() == DoubleArrayVector.class) {
+      DoubleArrayVector specialized = (DoubleArrayVector) vVector;
+      state.seen(true);
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        double vValue = specialized.getDouble(valuesPosition);
+        state.doubleValue(MaxDoubleAggregator.combine(state.doubleValue(), vValue));
+      }
+      return;
+    }
+    if (vVector.getClass() == DoubleArrowBufVector.class) {
+      DoubleArrowBufVector specialized = (DoubleArrowBufVector) vVector;
+      MemorySegment bulkSegment = specialized.valuesSegment();
+      int bulkCount = specialized.getPositionCount();
+      double bulkAcc = state.doubleValue();
+      for (int p = 0; p < bulkCount; p++) {
+        double vValue = bulkSegment.getAtIndex(ValueLayout.JAVA_DOUBLE_UNALIGNED, p);
+        bulkAcc = MaxDoubleAggregator.combine(bulkAcc, vValue);
+      }
+      state.doubleValue(bulkAcc);
+      state.seen(true);
+      return;
+    }
+    if (vVector.getClass() == ConstantDoubleVector.class) {
+      ConstantDoubleVector specialized = (ConstantDoubleVector) vVector;
+      state.seen(true);
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        double vValue = specialized.getDouble(valuesPosition);
+        state.doubleValue(MaxDoubleAggregator.combine(state.doubleValue(), vValue));
+      }
+      return;
+    }
     state.seen(true);
     for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
       double vValue = vVector.getDouble(valuesPosition);
@@ -94,6 +148,46 @@ public final class MaxDoubleAggregatorFunction implements AggregatorFunction {
   }
 
   private void addRawVector(DoubleVector vVector, BooleanVector mask) {
+    if (vVector.getClass() == DoubleArrayVector.class) {
+      DoubleArrayVector specialized = (DoubleArrayVector) vVector;
+      state.seen(true);
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        if (mask.getBoolean(valuesPosition) == false) {
+          continue;
+        }
+        double vValue = specialized.getDouble(valuesPosition);
+        state.doubleValue(MaxDoubleAggregator.combine(state.doubleValue(), vValue));
+      }
+      return;
+    }
+    if (vVector.getClass() == DoubleArrowBufVector.class) {
+      DoubleArrowBufVector specialized = (DoubleArrowBufVector) vVector;
+      MemorySegment bulkSegment = specialized.valuesSegment();
+      int bulkCount = specialized.getPositionCount();
+      double bulkAcc = state.doubleValue();
+      for (int p = 0; p < bulkCount; p++) {
+        if (mask.getBoolean(p) == false) {
+          continue;
+        }
+        double vValue = bulkSegment.getAtIndex(ValueLayout.JAVA_DOUBLE_UNALIGNED, p);
+        bulkAcc = MaxDoubleAggregator.combine(bulkAcc, vValue);
+      }
+      state.doubleValue(bulkAcc);
+      state.seen(true);
+      return;
+    }
+    if (vVector.getClass() == ConstantDoubleVector.class) {
+      ConstantDoubleVector specialized = (ConstantDoubleVector) vVector;
+      state.seen(true);
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        if (mask.getBoolean(valuesPosition) == false) {
+          continue;
+        }
+        double vValue = specialized.getDouble(valuesPosition);
+        state.doubleValue(MaxDoubleAggregator.combine(state.doubleValue(), vValue));
+      }
+      return;
+    }
     state.seen(true);
     for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
       if (mask.getBoolean(valuesPosition) == false) {
@@ -145,12 +239,30 @@ public final class MaxDoubleAggregatorFunction implements AggregatorFunction {
     assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
     Block maxUncast = page.getBlock(channels.get(0));
     if (maxUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     DoubleVector max = ((DoubleBlock) maxUncast).asVector();
     assert max.getPositionCount() == 1;
     Block seenUncast = page.getBlock(channels.get(1));
     if (seenUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     BooleanVector seen = ((BooleanBlock) seenUncast).asVector();

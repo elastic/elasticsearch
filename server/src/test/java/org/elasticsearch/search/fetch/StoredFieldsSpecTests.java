@@ -153,6 +153,66 @@ public class StoredFieldsSpecTests extends ESTestCase {
         assertThat(spec.sourcePaths(), empty());
     }
 
+    public void testRequiredStoredFieldsDoesNotAddIgnoredSource() {
+        var noSourcePaths = new StoredFieldsSpec(
+            true,
+            false,
+            Set.of("f"),
+            IgnoredSourceFieldMapper.IgnoredSourceFormat.LEGACY_SINGLE_IGNORED_SOURCE,
+            Set.of()
+        );
+        assertThat(noSourcePaths.requiredStoredFields(), equalTo(Set.of("f")));
+
+        var noIgnoredSource = new StoredFieldsSpec(
+            true,
+            false,
+            Set.of("f"),
+            IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE,
+            Set.of("path")
+        );
+        assertThat(noIgnoredSource.requiredStoredFields(), equalTo(Set.of("f")));
+
+        var docValuesFormat = new StoredFieldsSpec(
+            true,
+            false,
+            Set.of("f"),
+            IgnoredSourceFieldMapper.IgnoredSourceFormat.DOC_VALUES_IGNORED_SOURCE,
+            Set.of("path")
+        );
+        assertThat(docValuesFormat.requiredStoredFields(), equalTo(Set.of("f")));
+    }
+
+    public void testRequiredStoredFieldsStoredFormatsAddIgnoredSource() {
+        var legacy = new StoredFieldsSpec(
+            true,
+            false,
+            Set.of("my_field"),
+            IgnoredSourceFieldMapper.IgnoredSourceFormat.LEGACY_SINGLE_IGNORED_SOURCE,
+            Set.of("path")
+        );
+        assertThat(legacy.requiredStoredFields(), containsInAnyOrder("my_field", IgnoredSourceFieldMapper.NAME));
+
+        var coalesced = new StoredFieldsSpec(
+            true,
+            false,
+            Set.of("my_field"),
+            IgnoredSourceFieldMapper.IgnoredSourceFormat.COALESCED_SINGLE_IGNORED_SOURCE,
+            Set.of("path")
+        );
+        assertThat(coalesced.requiredStoredFields(), containsInAnyOrder("my_field", IgnoredSourceFieldMapper.NAME));
+    }
+
+    public void testRequiredStoredFieldsLegacyFormatEmptyStoredFields() {
+        var spec = new StoredFieldsSpec(
+            true,
+            false,
+            Set.of(),
+            IgnoredSourceFieldMapper.IgnoredSourceFormat.LEGACY_SINGLE_IGNORED_SOURCE,
+            Set.of("path")
+        );
+        assertThat(spec.requiredStoredFields(), equalTo(Set.of(IgnoredSourceFieldMapper.NAME)));
+    }
+
     private static SearchContext searchContext(SearchSourceBuilder sourceBuilder) {
         SearchContext sc = mock(SearchContext.class);
         when(sc.fetchSourceContext()).thenReturn(sourceBuilder.fetchSource());

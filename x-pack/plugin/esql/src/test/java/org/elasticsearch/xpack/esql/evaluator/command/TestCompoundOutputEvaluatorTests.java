@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.esql.evaluator.command;
 
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -112,86 +112,78 @@ public class TestCompoundOutputEvaluatorTests extends AbstractCompoundOutputEval
     public void testMatchingOutput() {
         List<String> requestedFields = List.of("field_a", "field_b", "field_c");
         List<String> input = List.of("field_a:valueA-field_b:2-field_c:valueC");
-        List<Object[]> expected = toExpected(new Object[] { "valueA", 2, "valueC" });
+        List<?> expected = List.of("valueA", 2, "valueC");
         evaluateAndCompare(input, requestedFields, expected);
     }
 
     public void testPartialFieldsRequested_1() {
         List<String> requestedFields = List.of("field_a", "field_b");
         List<String> input = List.of("field_a:valueA-field_b:2-field_c:valueC");
-        List<Object[]> expected = toExpected(new Object[] { "valueA", 2 });
+        List<?> expected = List.of("valueA", 2);
         evaluateAndCompare(input, requestedFields, expected);
     }
 
     public void testPartialFieldsRequested_2() {
         List<String> requestedFields = List.of("field_b");
         List<String> input = List.of("field_a:valueA-field_b:2-field_c:valueC");
-        List<Object[]> expected = toExpected(new Object[] { 2 });
+        List<?> expected = List.of(2);
         evaluateAndCompare(input, requestedFields, expected);
     }
 
     public void testUnsupportedField() {
         List<String> requestedFields = List.of("field_a", "field_b", "field_c");
         List<String> input = List.of("field_a:valueA-field_b:2-field_c:valueC-extra_field:extraValue");
-        List<Object[]> expected = toExpected(new Object[] { "valueA", 2, "valueC" });
+        List<?> expected = List.of("valueA", 2, "valueC");
         evaluateAndCompare(input, requestedFields, expected);
     }
 
     public void testMissingField_1() {
         List<String> requestedFields = List.of("field_a", "field_b", "field_c");
         List<String> input = List.of("field_b:2-field_c:valueC");
-        List<Object[]> expected = toExpected(new Object[] { null, 2, "valueC" });
+        List<?> expected = Arrays.asList(null, 2, "valueC");
         evaluateAndCompare(input, requestedFields, expected);
     }
 
     public void testMissingField_2() {
         List<String> requestedFields = List.of("field_a", "field_b", "field_c");
         List<String> input = List.of("foo:1-field_b:2-bar:3");
-        List<Object[]> expected = toExpected(new Object[] { null, 2, null });
+        List<?> expected = Arrays.asList(null, 2, null);
         evaluateAndCompare(input, requestedFields, expected);
     }
 
     public void testMissingField_3() {
         List<String> requestedFields = List.of("field_a", "field_b", "field_c");
         List<String> input = List.of("foo:1-bar:2-field_b:3-baz:4-field_c:valueC");
-        List<Object[]> expected = toExpected(new Object[] { null, 3, "valueC" });
+        List<?> expected = Arrays.asList(null, 3, "valueC");
         evaluateAndCompare(input, requestedFields, expected);
     }
 
     public void testAllMissingFields() {
         List<String> requestedFields = List.of("field_a", "field_b", "field_c");
         List<String> input = List.of("field_d:2-field_e:valueE");
-        List<Object[]> expected = toExpected(new Object[] { null, null, null });
+        List<?> expected = Arrays.asList(null, null, null);
         evaluateAndCompare(input, requestedFields, expected);
     }
 
     public void testWrongFieldType() {
         List<String> requestedFields = List.of("field_a", "field_b", "field_c");
         List<String> input = List.of("field_a:1-field_c:valueC");
-        List<Object[]> expected = toExpected(new Object[] { null, null, null });
+        List<?> expected = Arrays.asList(null, null, null);
         evaluateAndCompare(input, requestedFields, expected);
     }
 
     public void testKnownAndUnknownFields() {
         List<String> requestedFields = List.of("field_a", "field_b", "unknown_field");
         List<String> input = List.of("field_a:valueA-field_b:2-field_c:valueC");
-        List<Object[]> expected = toExpected(new Object[] { "valueA", 2, null });
+        List<?> expected = Arrays.asList("valueA", 2, null);
         evaluateAndCompare(input, requestedFields, expected);
     }
 
     public void testOnlyUnknownFields() {
         List<String> requestedFields = List.of("unknown_field_a", "unknown_field_b");
         List<String> input = List.of("field_a:valueA-field_b:2-field_c:valueC");
-        List<Object[]> expected = toExpected(new Object[] { null, null });
+        List<?> expected = Arrays.asList(null, null);
         evaluateAndCompare(input, requestedFields, expected);
-    }
-
-    private List<Object[]> toExpected(Object[] expected) {
-        List<Object[]> result = new ArrayList<>(expected.length);
-        for (Object o : expected) {
-            result.add(new Object[] { o });
-        }
-        return result;
     }
 
     /*****************************************************************************************************

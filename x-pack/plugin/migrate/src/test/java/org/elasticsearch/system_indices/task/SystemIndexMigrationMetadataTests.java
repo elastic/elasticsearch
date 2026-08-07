@@ -28,7 +28,6 @@ import org.elasticsearch.persistent.ClusterPersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasks;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksExecutorRegistry;
-import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -115,12 +114,9 @@ public class SystemIndexMigrationMetadataTests extends ESTestCase {
 
         final var clusterService = mock(ClusterService.class);
         when(clusterService.threadPool()).thenReturn(mock(ThreadPool.class));
-        final var healthNodeTaskExecutor = HealthNodeTaskExecutor.create(
-            clusterService,
-            mock(PersistentTasksService.class),
-            Settings.EMPTY,
-            ClusterSettings.createBuiltInClusterSettings()
-        );
+        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
+        when(clusterService.getClusterSettings()).thenReturn(ClusterSettings.createBuiltInClusterSettings());
+        final var healthNodeTaskExecutor = new HealthNodeTaskExecutor(clusterService);
         final var systemIndexMigrationExecutor = new SystemIndexMigrationExecutor(
             mock(Client.class),
             clusterService,

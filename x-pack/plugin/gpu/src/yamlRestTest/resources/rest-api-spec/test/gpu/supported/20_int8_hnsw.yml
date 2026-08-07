@@ -1,0 +1,119 @@
+---
+# Uses well-separated vectors (matching the CPU int8_hnsw test in 41_knn_search_byte_quantized.yml)
+# to avoid quantization noise swapping result orderings on small datasets.
+# Single shard avoids tiny per-shard segments where CAGRA graph parameters get
+# clamped to near-trivial values.
+"Test GPU vector operations":
+
+  - requires:
+      cluster_features: [ "vectors.indexing.use_gpu" ]
+      reason: "A cluster should have a GPU plugin to run these tests"
+
+  - do:
+      indices.create:
+        index: my_vectors
+        body:
+          mappings:
+            properties:
+              vector:
+                type: dense_vector
+                dims: 5
+                similarity: l2_norm
+                index_options:
+                  type: int8_hnsw
+          settings:
+            index.number_of_shards: 1
+            index.refresh_interval: -1
+  - match: { error: null }
+
+  - do:
+      bulk:
+        index: my_vectors
+        refresh: true
+        body:
+          - index:
+              _id: "1"
+          - vector: [230.0, 300.33, -34.8988, 15.555, -200.0]
+          - index:
+              _id: "2"
+          - vector: [-0.5, 100.0, -13, 14.8, -156.0]
+          - index:
+              _id: "3"
+          - vector: [0.5, 111.3, -13.0, 14.8, -156.0]
+  - match: { errors: false }
+
+  # Search before force merge
+  - do:
+      search:
+        index: my_vectors
+        body:
+          knn:
+            field: vector
+            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+            k: 2
+            num_candidates: 3
+  - match: { hits.hits.0._id: "2" }
+  - match: { hits.hits.1._id: "3" }
+
+  # Delete a doc and force merge
+  - do:
+      delete:
+        index: my_vectors
+        id: "1"
+        refresh: true
+  - match: { result: "deleted" }
+
+  - do:
+      indices.forcemerge:
+        index: my_vectors
+        max_num_segments: 1
+
+  - do:
+      search:
+        index: my_vectors
+        body:
+          knn:
+            field: vector
+            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+            k: 2
+            num_candidates: 3
+  - match: { hits.hits.0._id: "2" }
+  - match: { hits.hits.1._id: "3" }
+
+  # Re-index doc 3 with a vector close to doc 1's original, then force merge
+  - do:
+      index:
+        index: my_vectors
+        id: "3"
+        refresh: true
+        body:
+          vector: [230.0, 300.33, -34.8988, 15.555, -200.0]
+
+  - do:
+      indices.forcemerge:
+        index: my_vectors
+        max_num_segments: 1
+
+  - do:
+      search:
+        index: my_vectors
+        body:
+          knn:
+            field: vector
+            query_vector: [230.0, 300.33, -34.8988, 15.555, -200.0]
+            k: 2
+            num_candidates: 3
+  - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.1._id: "2" }
+
+  - do:
+      search:
+        index: my_vectors
+        body:
+          knn:
+            field: vector
+            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+            k: 2
+            num_candidates: 3
+  - match: { hits.hits.0._id: "2" }
+  - match: { hits.hits.1._id: "3" }

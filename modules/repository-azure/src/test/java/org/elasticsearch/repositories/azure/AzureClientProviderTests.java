@@ -26,7 +26,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 public class AzureClientProviderTests extends ESTestCase {
-    private static final AzureClientProvider.RequestMetricsHandler NOOP_HANDLER = (purpose, method, url, metrics) -> {};
+    private static final AzureClientProvider.RequestMetricsHandler NOOP_HANDLER = (purpose, request, metrics) -> {};
 
     private ThreadPool threadPool;
     private AzureClientProvider azureClientProvider;

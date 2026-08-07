@@ -47,6 +47,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.StringSortScript;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser.ValueType;
@@ -272,6 +273,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         }
 
         SearchLookup searchLookup = context.lookup();
+        final Runnable cancellationCheck = (context.searcher() instanceof ContextIndexSearcher cis) ? cis::checkCancelled : null;
         switch (type) {
             case STRING -> {
                 final StringSortScript.Factory factory = context.compile(script, StringSortScript.CONTEXT);
@@ -285,6 +287,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                     protected SortedBinaryDocValues getValues(LeafReaderContext context) throws IOException {
                         // we may see the same leaf context multiple times, and each time we need to refresh the doc values doc reader
                         StringSortScript leafScript = searchScript.newInstance(new DocValuesDocReader(searchLookup, context));
+                        leafScript._setCancellationCheck(cancellationCheck);
                         if (searchScript.needs_score()) {
                             leafScripts.put(context.id(), leafScript);
                         }
@@ -343,6 +346,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                     protected SortedNumericDoubleValues getValues(LeafReaderContext context) throws IOException {
                         // we may see the same leaf context multiple times, and each time we need to refresh the doc values doc reader
                         NumberSortScript leafScript = numberSortScriptFactory.newInstance(new DocValuesDocReader(searchLookup, context));
+                        leafScript._setCancellationCheck(cancellationCheck);
                         if (numberSortScriptFactory.needs_score()) {
                             leafScripts.put(context.id(), leafScript);
                         }
@@ -405,6 +409,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                     protected SortedBinaryDocValues getValues(LeafReaderContext context) throws IOException {
                         // we may see the same leaf context multiple times, and each time we need to refresh the doc values doc reader
                         BytesRefSortScript leafScript = searchScript.newInstance(new DocValuesDocReader(searchLookup, context));
+                        leafScript._setCancellationCheck(cancellationCheck);
                         if (searchScript.needs_score()) {
                             leafScripts.put(context.id(), leafScript);
                         }

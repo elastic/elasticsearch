@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.view;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.local.LocalClusterStateRequest;
@@ -37,7 +38,7 @@ public class GetViewAction extends ActionType<GetViewAction.Response> {
     public static final String NAME = EsqlViewActionNames.ESQL_GET_VIEW_ACTION_NAME;
 
     private static final IndicesOptions VIEW_INDICES_OPTIONS = IndicesOptions.builder()
-        .wildcardOptions(IndicesOptions.WildcardOptions.builder().resolveViews(true))
+        .indexAbstractionOptions(IndicesOptions.IndexAbstractionOptions.builder().resolveViews(true).build())
         .concreteTargetOptions(ERROR_WHEN_UNAVAILABLE_TARGETS)
         .build();
 
@@ -47,6 +48,7 @@ public class GetViewAction extends ActionType<GetViewAction.Response> {
 
     public static class Request extends LocalClusterStateRequest implements IndicesRequest.Replaceable {
         private String[] indices;
+        private ResolvedIndexExpressions resolvedIndexExpressions;
 
         public Request(TimeValue masterNodeTimeout) {
             super(masterNodeTimeout);
@@ -84,6 +86,16 @@ public class GetViewAction extends ActionType<GetViewAction.Response> {
         @Override
         public int hashCode() {
             return Arrays.hashCode(indices);
+        }
+
+        @Override
+        public void setResolvedIndexExpressions(ResolvedIndexExpressions expressions) {
+            this.resolvedIndexExpressions = expressions;
+        }
+
+        @Override
+        public ResolvedIndexExpressions getResolvedIndexExpressions() {
+            return this.resolvedIndexExpressions;
         }
     }
 

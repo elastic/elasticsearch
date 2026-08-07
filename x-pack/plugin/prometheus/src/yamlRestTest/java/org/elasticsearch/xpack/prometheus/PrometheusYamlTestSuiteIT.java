@@ -14,7 +14,6 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
@@ -32,7 +31,6 @@ public class PrometheusYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         .user(USER, PASS)
         .keystore("bootstrap.password", "x-pack-test-password")
         .setting("xpack.license.self_generated.type", "trial")
-        .feature(FeatureFlag.PROMETHEUS_FEATURE_FLAG)
         .build();
 
     public PrometheusYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {

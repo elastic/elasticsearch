@@ -11,6 +11,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.session.RowView;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -23,6 +24,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 
 /**
  * Extracts rows from an array of {@link SearchHit}.
@@ -36,60 +39,84 @@ class SearchHitRowSet extends ResultRowSet<HitExtractor> {
     private final int[] indexPerLevel;
     private final int remainingLimit;
 
+    private final AtomicBoolean hitsReleased = new AtomicBoolean(false);
+
     private int row = 0;
 
     SearchHitRowSet(List<HitExtractor> exts, BitSet mask, int sizeRequested, int limit, SearchResponse response) {
         super(exts, mask);
 
-        this.hits = response.getHits().asUnpooled();
+        this.hits = response.getHits();
+        this.hits.mustIncRef();
+        try {
+            // Since the results might contain nested docs, the iteration is similar to that of Aggregation
+            // namely it discovers the nested docs and then, for iteration, increments the deepest level first
+            // and eventually carries that over to the top level
 
-        // Since the results might contain nested docs, the iteration is similar to that of Aggregation
-        // namely it discovers the nested docs and then, for iteration, increments the deepest level first
-        // and eventually carries that over to the top level
-
-        String innerHit = null;
-        Set<String> innerHits = new LinkedHashSet<>();
-        for (HitExtractor ex : exts) {
-            if (ex.hitName() != null) {
-                innerHits.add(ex.hitName());
-                if (innerHit == null) {
-                    innerHit = ex.hitName();
+            String innerHit = null;
+            Set<String> innerHits = new LinkedHashSet<>();
+            for (HitExtractor ex : exts) {
+                if (ex.hitName() != null) {
+                    innerHits.add(ex.hitName());
+                    if (innerHit == null) {
+                        innerHit = ex.hitName();
+                    }
                 }
             }
-        }
 
-        int sz = hits.getHits().length;
+            int sz = hits.getHits().length;
 
-        int maxDepth = 0;
-        if (innerHits.isEmpty() == false) {
-            if (innerHits.size() > 1) {
-                throw new SqlIllegalArgumentException("Multi-nested docs not yet supported {}", innerHits);
-            }
-            maxDepth = 1;
-
-            sz = 0;
-            for (SearchHit hit : hits) {
-                Map<String, SearchHit[]> innerHitsPerPath = new HashMap<>(innerHits.size());
-                for (String ih : innerHits) {
-                    SearchHit[] sh = getAllInnerHits(hit, ih);
-                    innerHitsPerPath.put(ih, sh);
-                    sz += sh.length;
+            int maxDepth = 0;
+            if (innerHits.isEmpty() == false) {
+                if (innerHits.size() > 1) {
+                    throw new SqlIllegalArgumentException("Multi-nested docs not yet supported {}", innerHits);
                 }
-                flatInnerHits.put(hit, innerHitsPerPath);
-            }
-        }
-        // page size
-        size = limit < 0 ? sz : Math.min(sz, limit);
-        indexPerLevel = new int[maxDepth + 1];
-        this.innerHit = innerHit;
+                maxDepth = 1;
 
-        // compute remaining limit (only if the limit is specified - that is, positive).
-        int remaining = limit < 0 ? limit : limit - size;
-        // either the search returned fewer records than requested or the limit is exhausted
-        if (size < sizeRequested || remaining == 0) {
-            remainingLimit = 0;
-        } else {
-            remainingLimit = remaining;
+                sz = 0;
+                for (SearchHit hit : hits) {
+                    Map<String, SearchHit[]> innerHitsPerPath = new HashMap<>(innerHits.size());
+                    for (String ih : innerHits) {
+                        SearchHit[] sh = getAllInnerHits(hit, ih);
+                        innerHitsPerPath.put(ih, sh);
+                        sz += sh.length;
+                    }
+                    flatInnerHits.put(hit, innerHitsPerPath);
+                }
+            }
+            // page size
+            size = limit < 0 ? sz : Math.min(sz, limit);
+            indexPerLevel = new int[maxDepth + 1];
+            this.innerHit = innerHit;
+
+            // compute remaining limit (only if the limit is specified - that is, positive).
+            int remaining = limit < 0 ? limit : limit - size;
+            // either the search returned fewer records than requested or the limit is exhausted
+            if (size < sizeRequested || remaining == 0) {
+                remainingLimit = 0;
+            } else {
+                remainingLimit = remaining;
+            }
+        } catch (Throwable t) {
+            this.hits.decRef();
+            throw t;
+        }
+    }
+
+    void releaseSearchHits() {
+        if (hitsReleased.compareAndSet(false, true)) {
+            hits.decRef();
+        }
+    }
+
+    @Override
+    public void forEachRow(Consumer<? super RowView> action) {
+        try {
+            for (boolean hasRows = hasCurrentRow(); hasRows; hasRows = advanceRow()) {
+                action.accept(this);
+            }
+        } finally {
+            releaseSearchHits();
         }
     }
 

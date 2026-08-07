@@ -33,8 +33,8 @@ public class NodeGpuStatsResponse extends BaseNodeResponse {
         super(node);
         this.gpuSupported = gpuSupported;
         this.gpuSettingEnabled = gpuSettingEnabled;
-        this.gpuUsageCount = gpuUsageCount;
-        this.totalGpuMemoryInBytes = totalGpuMemoryInBytes;
+        this.gpuUsageCount = checkNonNegative(gpuUsageCount, "gpuUsageCount");
+        this.totalGpuMemoryInBytes = checkNonNegative(totalGpuMemoryInBytes, "totalGpuMemoryInBytes");
         this.gpuName = gpuName;
     }
 
@@ -80,5 +80,12 @@ public class NodeGpuStatsResponse extends BaseNodeResponse {
 
     public String getGpuName() {
         return gpuName;
+    }
+
+    private static long checkNonNegative(long value, String name) {
+        if (value < 0) {
+            throw new IllegalArgumentException(name + " must be non-negative, got [" + value + "]");
+        }
+        return value;
     }
 }

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.googlevertexai.embeddings;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -18,7 +19,6 @@ import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -54,9 +54,7 @@ public class GoogleVertexAiEmbeddingsTaskSettings implements TaskSettings {
         );
 
         Boolean autoTruncate = extractOptionalBoolean(map, AUTO_TRUNCATE, validationException);
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new GoogleVertexAiEmbeddingsTaskSettings(autoTruncate, inputType);
     }
@@ -165,9 +163,12 @@ public class GoogleVertexAiEmbeddingsTaskSettings implements TaskSettings {
 
     @Override
     public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
-        GoogleVertexAiEmbeddingsRequestTaskSettings updatedSettings = GoogleVertexAiEmbeddingsRequestTaskSettings.fromMap(
-            new HashMap<>(newSettings)
-        );
+        GoogleVertexAiEmbeddingsRequestTaskSettings updatedSettings = GoogleVertexAiEmbeddingsRequestTaskSettings.fromMap(newSettings);
         return of(this, updatedSettings);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 }

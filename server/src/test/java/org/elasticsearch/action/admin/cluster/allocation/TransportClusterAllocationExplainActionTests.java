@@ -12,9 +12,7 @@ package org.elasticsearch.action.admin.cluster.allocation;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.project.DefaultProjectResolver;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
@@ -24,7 +22,6 @@ import org.elasticsearch.transport.TransportService;
 import org.junit.After;
 import org.junit.Before;
 
-import java.util.List;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.is;
@@ -35,10 +32,8 @@ public class TransportClusterAllocationExplainActionTests extends ESTestCase {
     private ClusterService clusterService;
     private TransportService transportService;
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initServices() throws Exception {
         threadPool = new TestThreadPool(TransportClusterAllocationExplainActionTests.class.getName());
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
         transportService = new CapturingTransport().createTransportService(
@@ -55,8 +50,6 @@ public class TransportClusterAllocationExplainActionTests extends ESTestCase {
             threadPool,
             new ActionFilters(Set.of()),
             () -> ClusterInfo.EMPTY,
-            EmptySnapshotsInfoService.INSTANCE,
-            new AllocationDeciders(List.of()),
             null,
             DefaultProjectResolver.INSTANCE
         );
@@ -69,10 +62,8 @@ public class TransportClusterAllocationExplainActionTests extends ESTestCase {
         );
     }
 
-    @Override
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void closeServices() throws Exception {
         threadPool.shutdown();
         clusterService.close();
         transportService.close();

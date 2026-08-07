@@ -12,14 +12,43 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * Limits the number of output rows. Generally written like {@code | LIMIT 10}.
+ * <p>
+ *     If a page fits in the limit then it is returned as is:
+ * </p>
+ * {@snippet lang="txt" :
+ *    | LIMIT 1000
+ * ┌────┬────┐   ┌────┬────┐
+ * │  a │  b │   │  a │  b │
+ * ├────┼────┤   ├────┼────┤
+ * │  1 │  1 │   │  1 │  1 │
+ * │  2 │  2 │ ⟶ │  2 │  2 │
+ * │  3 │  3 │   │  3 │  3 │
+ * │  4 │  4 │   │  4 │  4 │
+ * └────┴────┘   └────┴────┘
+ * }
+ * <p>
+ *     If it is longer then we keep the as many rows as we need
+ * </p>
+ * {@snippet lang="txt" :
+ *    | LIMIT 2
+ * ┌────┬────┐   ┌────┬────┐
+ * │  a │  b │   │  a │  b │
+ * ├────┼────┤   ├────┼────┤
+ * │  9 │  9 │   │  9 │  9 │
+ * │ 10 │ 10 │ ⟶ │ 10 │ 10 │
+ * │ 11 │ 11 │   └────┴────┘
+ * │ 12 │ 12 │
+ * └────┴────┘
+ * }
+ */
 public class LimitOperator implements Operator {
 
     /**
@@ -37,7 +66,7 @@ public class LimitOperator implements Operator {
      */
     private long rowsEmitted;
 
-    private Page lastInput;
+    private Page nextOutput;
 
     private final Limiter limiter;
     private boolean finished;
@@ -66,22 +95,22 @@ public class LimitOperator implements Operator {
 
     @Override
     public boolean needsInput() {
-        return finished == false && lastInput == null && limiter.remaining() > 0;
+        return finished == false && nextOutput == null && limiter.remaining() > 0;
     }
 
     @Override
     public void addInput(Page page) {
-        assert lastInput == null : "has pending input page";
-        rowsReceived += page.getPositionCount();
-
-        final int acceptedRows = limiter.tryAccumulateHits(page.getPositionCount());
-        if (acceptedRows == 0) {
+        try {
+            assert nextOutput == null : "has pending input page";
+            rowsReceived += page.getPositionCount();
+            final int acceptedRows = limiter.tryAccumulateHits(page.getPositionCount());
+            if (acceptedRows == 0) {
+                assert isFinished();
+            } else {
+                nextOutput = page.slice(0, acceptedRows);
+            }
+        } finally {
             page.releaseBlocks();
-            assert isFinished();
-        } else if (acceptedRows < page.getPositionCount()) {
-            lastInput = truncatePage(page, acceptedRows);
-        } else {
-            lastInput = page;
         }
     }
 
@@ -92,45 +121,23 @@ public class LimitOperator implements Operator {
 
     @Override
     public boolean isFinished() {
-        return lastInput == null && (finished || limiter.remaining() == 0);
+        return nextOutput == null && (finished || limiter.remaining() == 0);
     }
 
     @Override
     public boolean canProduceMoreDataWithoutExtraInput() {
-        return lastInput != null;
+        return nextOutput != null;
     }
 
     @Override
     public Page getOutput() {
-        if (lastInput == null) {
+        if (nextOutput == null) {
             return null;
         }
-        final Page result = lastInput;
-        lastInput = null;
+        final Page result = nextOutput;
+        nextOutput = null;
         pagesProcessed++;
         rowsEmitted += result.getPositionCount();
-        return result;
-    }
-
-    private static Page truncatePage(Page page, int upTo) {
-        int[] filter = new int[upTo];
-        for (int i = 0; i < upTo; i++) {
-            filter[i] = i;
-        }
-        final Block[] blocks = new Block[page.getBlockCount()];
-        Page result = null;
-        try {
-            for (int b = 0; b < blocks.length; b++) {
-                blocks[b] = page.getBlock(b).filter(false, filter);
-            }
-            result = new Page(blocks);
-        } finally {
-            if (result == null) {
-                Releasables.closeExpectNoException(page::releaseBlocks, Releasables.wrap(blocks));
-            } else {
-                page.releaseBlocks();
-            }
-        }
         return result;
     }
 
@@ -141,8 +148,8 @@ public class LimitOperator implements Operator {
 
     @Override
     public void close() {
-        if (lastInput != null) {
-            lastInput.releaseBlocks();
+        if (nextOutput != null) {
+            nextOutput.releaseBlocks();
         }
     }
 

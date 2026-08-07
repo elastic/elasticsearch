@@ -1,0 +1,4 @@
+SET unmapped_fields="load"; FROM employees
+| EVAL a = 1
+| EVAL x = a + b::DOUBLE
+| EVAL y = b::DOUBLE + c::DOUBLE

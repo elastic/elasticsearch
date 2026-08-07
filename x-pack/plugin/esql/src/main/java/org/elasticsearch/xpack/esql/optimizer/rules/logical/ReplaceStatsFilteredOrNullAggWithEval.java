@@ -18,10 +18,17 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Absent;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AbsentOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.CountApproximate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinct;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinctOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.CountOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.FromPartial;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Present;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.PresentOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.ToPartial;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -128,19 +135,54 @@ public class ReplaceStatsFilteredOrNullAggWithEval extends OptimizerRules.Optimi
     }
 
     public static boolean shouldReplace(AggregateFunction aggFunction) {
-        return hasFalseFilter(aggFunction) || DataType.isNull(aggFunction.field().dataType());
+        if (hasFalseFilter(aggFunction)) {
+            return true;
+        }
+        /*
+         * Look for aggregations operating on `null`. If they are wrapped in FROM_PARTIAL
+         * or TO_PARTIAL, then unwrap them and operate on the internal agg.
+         */
+        if (aggFunction instanceof ToPartial toPartial && toPartial.function() instanceof AggregateFunction inner) {
+            return DataType.isNull(inner.field().dataType());
+        }
+        return DataType.isNull(unwrapFromPartial(aggFunction).field().dataType());
     }
 
     private static boolean hasFalseFilter(AggregateFunction aggFunction) {
         return aggFunction.hasFilter() && aggFunction.filter() instanceof Literal literal && Boolean.FALSE.equals(literal.value());
     }
 
+    /**
+     * If {@code aggFunction} is a {@link FromPartial} whose inner function is an {@link AggregateFunction},
+     * returns that inner function; otherwise returns {@code aggFunction} itself.
+     */
+    private static AggregateFunction unwrapFromPartial(AggregateFunction aggFunction) {
+        if (aggFunction instanceof FromPartial fromPartial && fromPartial.function() instanceof AggregateFunction inner) {
+            return inner;
+        }
+        return aggFunction;
+    }
+
     public static Object mapNullToValue(AggregateFunction aggFunction) {
-        return switch (aggFunction) {
+        if (aggFunction instanceof ToPartial) {
+            /*
+             * The intermediate partial-state value is irrelevant; Phase 2's FromPartial will be replaced
+             * by the correct constant via its own shouldReplace/mapNullToValue call.
+             */
+            return null;
+        }
+        // For FromPartial, the correct return value depends on the inner (wrapped) aggregate type.
+        AggregateFunction effective = unwrapFromPartial(aggFunction);
+        return switch (effective) {
             case Count ignored -> 0L;
+            case CountApproximate ignored -> 0.0;
+            case CountOverTime ignored -> 0L;
             case CountDistinct ignored -> 0L;
+            case CountDistinctOverTime ignored -> 0L;
             case Absent ignored -> true;
+            case AbsentOverTime ignored -> true;
             case Present ignored -> false;
+            case PresentOverTime ignored -> false;
             default -> null;
         };
     }

@@ -11,6 +11,7 @@ package org.elasticsearch.common.util;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Streams;
 
@@ -82,6 +83,17 @@ final class BigByteArray extends AbstractBigByteArray implements ByteArray {
             } while (ref.length < len);
             return true;
         }
+    }
+
+    @Override
+    public PagedBytesCursor get(long index, int len, PagedBytesCursor scratch) {
+        assert index + len <= size();
+        if (len == 0) {
+            scratch.init(BytesRef.EMPTY_BYTES, 0, 0);
+            return scratch;
+        }
+        scratch.init(pages, pageIdx(index), idxInPage(index), len, true);
+        return scratch;
     }
 
     @Override

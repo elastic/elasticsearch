@@ -66,9 +66,7 @@ public class SearchableSnapshotsTSDBSyntheticIdIntegTests extends BaseFrozenSear
     private Collection<String> deletedDocIds;
 
     @Before
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    public void createTestSnapshot() throws Exception {
         createRepository(REPOSITORY, FsRepository.TYPE);
         assertAcked(syntheticIdIndex(INDEX));
         int initialNumberOfDocuments = scaledRandomIntBetween(20, 2_000);
@@ -150,12 +148,10 @@ public class SearchableSnapshotsTSDBSyntheticIdIntegTests extends BaseFrozenSear
     }
 
     @After
-    @Override
-    public void tearDown() throws Exception {
+    public void cleanupTestSnapshot() throws Exception {
         assertAcked(indicesAdmin().prepareDelete("mounted-*"));
         assertAcked(clusterAdmin().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, REPOSITORY, SNAPSHOT).get());
         assertAcked(clusterAdmin().prepareDeleteRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, REPOSITORY));
-        super.tearDown();
     }
 
     /**
@@ -163,8 +159,6 @@ public class SearchableSnapshotsTSDBSyntheticIdIntegTests extends BaseFrozenSear
      * having them all together in one test cuts execution a lot.
      */
     public void testSearchableSnapshot() throws IOException {
-        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
-
         // Index exists
         assertTrue("Expected index [" + MOUNTED_INDEX + "] to exist, but did not", indexExists(MOUNTED_INDEX));
 

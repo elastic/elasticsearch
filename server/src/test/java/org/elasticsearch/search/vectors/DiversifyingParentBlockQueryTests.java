@@ -22,15 +22,15 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
-import java.util.TreeMap;
 
 import static org.apache.lucene.index.VectorSimilarityFunction.EUCLIDEAN;
+import static org.elasticsearch.index.codec.vectors.VectorTestUtils.randomFloatVector;
 import static org.hamcrest.Matchers.closeTo;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class DiversifyingParentBlockQueryTests extends MapperServiceTestCase {
@@ -71,10 +71,10 @@ public class DiversifyingParentBlockQueryTests extends MapperServiceTestCase {
 
         int numQueries = randomIntBetween(1, 3);
         float[][] queries = new float[numQueries][];
-        List<TreeMap<Float, String>> expectedTopDocs = new ArrayList<>();
+        List<Map<String, Float>> expectedTopDocs = new ArrayList<>();
         for (int i = 0; i < numQueries; i++) {
-            queries[i] = randomVector(dims);
-            expectedTopDocs.add(new TreeMap<>(Comparator.reverseOrder()));
+            queries[i] = randomFloatVector(dims);
+            expectedTopDocs.add(new HashMap<>());
         }
 
         withLuceneIndex(mapperService, iw -> {
@@ -83,16 +83,18 @@ public class DiversifyingParentBlockQueryTests extends MapperServiceTestCase {
                 int numVectors = randomIntBetween(0, 5);
                 float[][] vectors = new float[numVectors][];
                 for (int j = 0; j < numVectors; j++) {
-                    vectors[j] = randomVector(dims);
+                    vectors[j] = randomFloatVector(dims);
                 }
 
-                for (int k = 0; k < numQueries; k++) {
-                    float maxScore = Float.MIN_VALUE;
-                    for (int j = 0; j < numVectors; j++) {
-                        float score = EUCLIDEAN.compare(vectors[j], queries[k]);
-                        maxScore = Math.max(score, maxScore);
+                if (numVectors > 0) {
+                    for (int k = 0; k < numQueries; k++) {
+                        float maxScore = Float.MIN_VALUE;
+                        for (int j = 0; j < numVectors; j++) {
+                            float score = EUCLIDEAN.compare(vectors[j], queries[k]);
+                            maxScore = Math.max(score, maxScore);
+                        }
+                        expectedTopDocs.get(k).put(Integer.toString(i), maxScore);
                     }
-                    expectedTopDocs.get(k).put(maxScore, Integer.toString(i));
                 }
 
                 SourceToParse source = randomSource(Integer.toString(i), vectors);
@@ -130,11 +132,11 @@ public class DiversifyingParentBlockQueryTests extends MapperServiceTestCase {
                 var nestedQuery = new ToParentBlockJoinQuery(knnQuery, bitSetproducer, ScoreMode.Total);
                 var topDocs = searcher.search(nestedQuery, 10);
                 for (var doc : topDocs.scoreDocs) {
-                    var entry = expectedTopDocs.get(i).pollFirstEntry();
-                    assertNotNull(entry);
-                    assertThat((double) doc.score, closeTo(entry.getKey(), 1e-5));
                     var storedDoc = storedFields.document(doc.doc, Set.of("id"));
-                    assertThat(storedDoc.getField("id").binaryValue().utf8ToString(), equalTo(entry.getValue()));
+                    var docId = storedDoc.getField("id").binaryValue().utf8ToString();
+                    var expectedScore = expectedTopDocs.get(i).get(docId);
+                    assertNotNull("unexpected doc id: " + docId, expectedScore);
+                    assertThat((double) doc.score, closeTo(expectedScore, 1e-5));
                 }
             }
         });
@@ -154,13 +156,5 @@ public class DiversifyingParentBlockQueryTests extends MapperServiceTestCase {
             builder.endObject();
             return new SourceToParse(id, BytesReference.bytes(builder), XContentType.JSON);
         }
-    }
-
-    private float[] randomVector(int dim) {
-        float[] vector = new float[dim];
-        for (int i = 0; i < vector.length; i++) {
-            vector[i] = randomFloat();
-        }
-        return vector;
     }
 }

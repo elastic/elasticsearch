@@ -116,4 +116,20 @@ public class NeighborQueueTests extends ESTestCase {
         assertEquals("Neighbors[0]", new NeighborQueue(2, false).toString());
     }
 
+    public void testPopRawAndAddRawReturnsRawWhenNewTop() {
+        NeighborQueue nn = new NeighborQueue(2, false);
+        long first = nn.encode(1, 1.0f);
+        long second = nn.encode(2, 2.0f);
+        nn.insertWithOverflow(first);
+        nn.insertWithOverflow(second);
+
+        long newTop = nn.encode(3, 0.5f);
+        assertTrue(newTop < nn.peek());
+
+        long result = nn.popRawAndAddRaw(newTop);
+        assertEquals(newTop, result);
+        assertEquals(2, nn.size());
+        assertEquals(first, nn.peek());
+    }
+
 }

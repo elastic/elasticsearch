@@ -13,9 +13,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.network.CIDRUtils;
 import org.elasticsearch.compute.ann.Evaluator;
-import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
@@ -27,6 +27,9 @@ import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
@@ -57,18 +60,23 @@ import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isStri
  * <p>
  * Example: `| eval cidr="10.0.0.0/8" | where cidr_match(ip_field, "127.0.0.1/30", cidr)`
  */
-public class CIDRMatch extends EsqlScalarFunction implements TranslationAware.SingleValueTranslationAware {
+public class CIDRMatch extends EsqlScalarFunction implements TranslationAware.SingleValueTranslationAware, AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "CIDRMatch",
         CIDRMatch::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(CIDRMatch.class)
+        .unaryVariadic(CIDRMatch::new)
+        .name("cidr_match");
 
     private final Expression ipField;
     private final List<Expression> matches;
 
     @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = "boolean",
+        briefSummary = "Returns true if the provided IP is contained in one of the provided CIDR blocks.",
         description = "Returns true if the provided IP is contained in one of the provided CIDR blocks.",
         examples = @Example(file = "ip", tag = "cdirMatchMultipleArgs")
     )
@@ -126,7 +134,7 @@ public class CIDRMatch extends EsqlScalarFunction implements TranslationAware.Si
         return new CIDRMatchEvaluator.Factory(
             source(),
             ipEvaluatorSupplier,
-            matches.stream().map(toEvaluator::apply).toArray(EvalOperator.ExpressionEvaluator.Factory[]::new)
+            matches.stream().map(toEvaluator::apply).toArray(ExpressionEvaluator.Factory[]::new)
         );
     }
 

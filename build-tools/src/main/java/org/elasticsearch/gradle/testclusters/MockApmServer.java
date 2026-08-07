@@ -9,6 +9,16 @@
 
 package org.elasticsearch.gradle.testclusters;
 
+import io.grpc.Server;
+import io.grpc.ServerBuilder;
+import io.grpc.stub.StreamObserver;
+import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceRequest;
+import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceResponse;
+import io.opentelemetry.proto.collector.metrics.v1.MetricsServiceGrpc;
+import io.opentelemetry.proto.collector.trace.v1.ExportTraceServiceRequest;
+import io.opentelemetry.proto.collector.trace.v1.ExportTraceServiceResponse;
+import io.opentelemetry.proto.collector.trace.v1.TraceServiceGrpc;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -48,6 +58,9 @@ import javax.annotation.concurrent.NotThreadSafe;
  * can be used as a basic APM server for testing.
  * <p>
  * The HTTP server used is the JDK embedded com.sun.net.httpserver
+ * <p>
+ * Note: automated integration tests use {@code RecordingApmServer} (in {@code test/external-modules/apm-integration}),
+ * not this class.
  */
 @NotThreadSafe
 public class MockApmServer {
@@ -60,6 +73,7 @@ public class MockApmServer {
     private final Pattern transactionExcludesFilter;
 
     private HttpServer instance;
+    private Server grpcInstance;
 
     public MockApmServer(String metricFilter, String transactionFilter, String transactionExcludesFilter) {
         this.metricFilter = createWildcardPattern(metricFilter);
@@ -93,6 +107,9 @@ public class MockApmServer {
         server.start();
         instance = server;
         logger.lifecycle("MockApmServer started on port " + server.getAddress().getPort());
+
+        grpcInstance = ServerBuilder.forPort(0).addService(new GrpcMetricsService()).addService(new GrpcTraceService()).build().start();
+        logger.lifecycle("MockApmServer gRPC (OTLP metrics + traces) started on port " + grpcInstance.getPort());
     }
 
     public int getPort() {
@@ -100,6 +117,13 @@ public class MockApmServer {
             throw new IllegalStateException("MockApmServer not started");
         }
         return instance.getAddress().getPort();
+    }
+
+    public int getGrpcPort() {
+        if (grpcInstance == null) {
+            throw new IllegalStateException("MockApmServer not started");
+        }
+        return grpcInstance.getPort();
     }
 
     /**
@@ -110,6 +134,10 @@ public class MockApmServer {
             logger.lifecycle("stopping apm server");
             instance.stop(1);
             instance = null;
+        }
+        if (grpcInstance != null) {
+            grpcInstance.shutdownNow();
+            grpcInstance = null;
         }
     }
 
@@ -207,6 +235,46 @@ public class MockApmServer {
                     }
                 }
             }
+        }
+    }
+
+    class GrpcMetricsService extends MetricsServiceGrpc.MetricsServiceImplBase {
+        @Override
+        public void export(ExportMetricsServiceRequest request, StreamObserver<ExportMetricsServiceResponse> responseObserver) {
+            try {
+                logOtlpMetrics(request);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            responseObserver.onNext(ExportMetricsServiceResponse.getDefaultInstance());
+            responseObserver.onCompleted();
+        }
+    }
+
+    private void logOtlpMetrics(ExportMetricsServiceRequest metrics) {
+        for (var resourceMetrics : metrics.getResourceMetricsList()) {
+            var samples = new ArrayList<String>();
+            for (var scopeMetrics : resourceMetrics.getScopeMetricsList()) {
+                for (var metric : scopeMetrics.getMetricsList()) {
+                    String name = metric.getName();
+                    if (metricFilter != null && metricFilter.matcher(name).matches() == false) {
+                        continue;
+                    }
+                    samples.add(metric.toString());
+                }
+            }
+            if (samples.isEmpty() == false) {
+                logger.lifecycle("OTLP Metricset:\n{}", String.join("\n", samples));
+            }
+        }
+    }
+
+    class GrpcTraceService extends TraceServiceGrpc.TraceServiceImplBase {
+        @Override
+        public void export(ExportTraceServiceRequest request, StreamObserver<ExportTraceServiceResponse> responseObserver) {
+            logger.lifecycle("OTLP Spans:\n{}", request);
+            responseObserver.onNext(ExportTraceServiceResponse.getDefaultInstance());
+            responseObserver.onCompleted();
         }
     }
 }

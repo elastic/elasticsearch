@@ -227,7 +227,6 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/40134")
     public void testMultipleSimultaneousJobCreations() {
 
         int numJobs = randomIntBetween(4, 7);
@@ -257,13 +256,15 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         }
 
         // Assert that the mappings contain all the additional fields: field1, field2, field3, etc.
-        String sharedResultsIndex = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT;
-        GetMappingsRequest request = new GetMappingsRequest(TEST_REQUEST_TIMEOUT).indices(sharedResultsIndex);
+        String sharedResultsPattern = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX
+            + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT
+            + "*";
+        GetMappingsRequest request = new GetMappingsRequest(TEST_REQUEST_TIMEOUT).indices(sharedResultsPattern);
         GetMappingsResponse response = client().execute(GetMappingsAction.INSTANCE, request).actionGet();
         Map<String, MappingMetadata> indexMappings = response.getMappings();
         assertNotNull(indexMappings);
-        MappingMetadata typeMappings = indexMappings.get(sharedResultsIndex);
-        assertNotNull("expected " + sharedResultsIndex + " in " + indexMappings, typeMappings);
+        assertFalse("expected at least one index matching " + sharedResultsPattern, indexMappings.isEmpty());
+        MappingMetadata typeMappings = indexMappings.values().iterator().next();
         Map<String, Object> mappings = typeMappings.getSourceAsMap();
         assertNotNull(mappings);
         @SuppressWarnings("unchecked")
@@ -804,8 +805,12 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
                 {"job_id":"other_job","snapshot_id":"11", "snapshot_doc_count":1,"retain":false}""", XContentType.JSON)
             .get();
 
-        indicesAdmin().prepareRefresh(AnomalyDetectorsIndex.jobStateIndexPattern(), AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*")
-            .get();
+        indicesAdmin().prepareRefresh(
+            Strings.concatStringArrays(
+                AnomalyDetectorsIndex.jobStateIndexPatterns(),
+                new String[] { AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*" }
+            )
+        ).get();
 
         PlainActionFuture<QueryPage<ModelSnapshot>> future = new PlainActionFuture<>();
         jobProvider.modelSnapshots(jobId, 0, 4, "9", "15", "", false, "snap_2,snap_1", null, future::onResponse, future::onFailure);
@@ -907,9 +912,13 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         indexQuantiles(quantiles);
 
         indicesAdmin().prepareRefresh(
-            MlMetaIndex.indexName(),
-            AnomalyDetectorsIndex.jobStateIndexPattern(),
-            AnomalyDetectorsIndex.jobResultsAliasedName(jobId)
+            Strings.concatStringArrays(
+                new String[] { MlMetaIndex.indexName() },
+                Strings.concatStringArrays(
+                    AnomalyDetectorsIndex.jobStateIndexPatterns(),
+                    new String[] { AnomalyDetectorsIndex.jobResultsAliasedName(jobId) }
+                )
+            )
         ).get();
 
         AutodetectParams params = getAutodetectParams(job.build(new Date()));
@@ -1058,7 +1067,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         }
         BulkResponse response = bulkRequest.get();
         if (response.hasFailures()) {
-            throw new IllegalStateException(Strings.toString(response));
+            throw new IllegalStateException(Strings.toTruncatedString(response));
         }
     }
 

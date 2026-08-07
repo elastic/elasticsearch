@@ -7,10 +7,17 @@
 
 package org.elasticsearch.xpack.inference.services.elastic.completion;
 
+import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.completion.ContentString;
+import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
+import org.elasticsearch.xpack.inference.services.settings.ImmutableEmptyTaskSettings;
 
 import java.util.List;
 
@@ -22,7 +29,7 @@ public class ElasticInferenceServiceCompletionModelTests extends ESTestCase {
         var originalModel = createModel("url", "model_id", TaskType.COMPLETION);
 
         var request = new UnifiedCompletionRequest(
-            List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("message"), "user", null, null)),
+            List.of(new Message(new ContentString("message"), "user", null, null)),
             "new_model_id",
             null,
             null,
@@ -65,7 +72,7 @@ public class ElasticInferenceServiceCompletionModelTests extends ESTestCase {
 
     public void testGetInferenceEntityId() {
         var inferenceEntityId = "test-id";
-        var model = new ElasticInferenceServiceCompletionModel(
+        var model = createModel(
             inferenceEntityId,
             TaskType.COMPLETION,
             new ElasticInferenceServiceCompletionServiceSettings("my-model-id"),
@@ -87,10 +94,48 @@ public class ElasticInferenceServiceCompletionModelTests extends ESTestCase {
     }
 
     public static ElasticInferenceServiceCompletionModel createModel(String url, String modelId, TaskType taskType) {
-        return new ElasticInferenceServiceCompletionModel(
+        return createModel(
             "id",
             taskType,
             new ElasticInferenceServiceCompletionServiceSettings(modelId),
+            ElasticInferenceServiceComponents.of(url)
+        );
+    }
+
+    public static ElasticInferenceServiceCompletionModel createModel(
+        String inferenceEntityId,
+        TaskType taskType,
+        ElasticInferenceServiceCompletionServiceSettings serviceSettings,
+        ElasticInferenceServiceComponents elasticInferenceServiceComponents
+    ) {
+        return new ElasticInferenceServiceCompletionModel(
+            inferenceEntityId,
+            taskType,
+            serviceSettings,
+            elasticInferenceServiceComponents,
+            null,
+            ImmutableEmptyTaskSettings.INSTANCE
+        );
+    }
+
+    public static ElasticInferenceServiceCompletionModel createModel(
+        String url,
+        String inferenceId,
+        String modelId,
+        TaskType taskType,
+        TaskSettings taskSettings
+    ) {
+        return new ElasticInferenceServiceCompletionModel(
+            new ModelConfigurations(
+                inferenceId,
+                taskType,
+                ElasticInferenceService.NAME,
+                new ElasticInferenceServiceCompletionServiceSettings(modelId),
+                taskSettings,
+                null,
+                null
+            ),
+            ModelSecrets.emptySecrets(),
             ElasticInferenceServiceComponents.of(url)
         );
     }

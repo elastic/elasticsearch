@@ -4,8 +4,9 @@ products:
 max_toc_depth: 2
 exclude:
   - README.md
+  - AGENTS.md
   - internal/*
-  - reference/query-languages/esql/kibana/docs/**
+  - reference/query-languages/esql/kibana/**
   - reference/query-languages/esql/README.md
 cross_links:
   - beats
@@ -37,6 +38,9 @@ subs:
   api-path-parms-title:   "Path parameters"
   api-request-body-title:   "Request body"
   api-examples-title:   "Examples"
+  cps:   "cross-project search"
+  cps-init:   "CPS"
+  cps-cap:   "Cross-project search"
   ecloud:   "Elastic Cloud"
   ess:   "Elasticsearch Service"
   ece:   "Elastic Cloud Enterprise"

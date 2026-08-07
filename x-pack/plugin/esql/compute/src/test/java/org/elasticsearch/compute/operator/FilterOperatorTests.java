@@ -14,6 +14,7 @@ import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.compute.test.operator.blocksource.SequenceBooleanBlockSourceOperator;
@@ -27,6 +28,7 @@ import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class FilterOperatorTests extends OperatorTestCase {
     @Override
@@ -34,7 +36,7 @@ public class FilterOperatorTests extends OperatorTestCase {
         return new TupleLongLongBlockSourceOperator(blockFactory, LongStream.range(0, end).mapToObj(l -> Tuple.tuple(l, end - l)));
     }
 
-    record SameLastDigit(DriverContext context, int lhs, int rhs) implements EvalOperator.ExpressionEvaluator {
+    record SameLastDigit(DriverContext context, int lhs, int rhs) implements ExpressionEvaluator {
         @Override
         public Block eval(Page page) {
             LongVector lhsVector = page.<LongBlock>getBlock(0).asVector();
@@ -62,10 +64,10 @@ public class FilterOperatorTests extends OperatorTestCase {
 
     @Override
     protected Operator.OperatorFactory simple(SimpleOptions options) {
-        return new FilterOperator.FilterOperatorFactory(new EvalOperator.ExpressionEvaluator.Factory() {
+        return new FilterOperator.FilterOperatorFactory(new ExpressionEvaluator.Factory() {
 
             @Override
-            public EvalOperator.ExpressionEvaluator get(DriverContext context) {
+            public ExpressionEvaluator get(DriverContext context) {
                 return new SameLastDigit(context, 0, 1);
             }
 
@@ -112,6 +114,22 @@ public class FilterOperatorTests extends OperatorTestCase {
 
     public void testNoResults() {
         assertSimple(driverContext(), 3);
+    }
+
+    /**
+     * {@link FilterOperator#toString()} is read by the {@link Driver} on every status update.
+     * Recomputing the (often deep) evaluator-tree string each time can dominate CPU. Verify that
+     * the same {@code String} instance is returned across calls so the description is computed
+     * at most once per operator.
+     */
+    public void testToStringIsCached() {
+        DriverContext ctx = driverContext();
+        try (FilterOperator op = new FilterOperator(new SameLastDigit(ctx, 3, 7))) {
+            String first = op.toString();
+            String second = op.toString();
+            assertThat(first, equalTo("FilterOperator[evaluator=SameLastDigit[lhs=3, rhs=7]]"));
+            assertThat(second, sameInstance(first));
+        }
     }
 
     public void testReadFromBlock() {

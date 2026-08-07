@@ -215,6 +215,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     public static final String STATELESS_SHARD_UPLOAD_PREWARMING_THREAD_NAME = "stateless_upload_prewarm";
     public static final String SEARCHABLE_SNAPSHOTS_CACHE_FETCH_ASYNC_THREAD_NAME = "searchable_snapshots_cache_fetch_async";
     public static final String SEARCHABLE_SNAPSHOTS_CACHE_PREWARMING_THREAD_NAME = "searchable_snapshots_cache_prewarming";
+    public static final String STATELESS_BLOB_COPY_THREAD_NAME = "stateless_blob_copy";
 
     /**
      * Prefix for the name of the root {@link RepositoryData} blob.
@@ -2459,7 +2460,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             STATELESS_SHARD_PREWARMING_THREAD_NAME,
             STATELESS_SHARD_UPLOAD_PREWARMING_THREAD_NAME,
             SEARCHABLE_SNAPSHOTS_CACHE_FETCH_ASYNC_THREAD_NAME,
-            SEARCHABLE_SNAPSHOTS_CACHE_PREWARMING_THREAD_NAME
+            SEARCHABLE_SNAPSHOTS_CACHE_PREWARMING_THREAD_NAME,
+            STATELESS_BLOB_COPY_THREAD_NAME
         );
     }
 
@@ -3469,7 +3471,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     private void doSnapshotShard(SnapshotShardContext context) {
-        blobStoreSnapshotMetrics.shardSnapshotStarted();
+        blobStoreSnapshotMetrics.shardSnapshotStarted(context.status(), threadPool.absoluteTimeInMillis());
         context.addListener(ActionListener.running(() -> blobStoreSnapshotMetrics.shardSnapshotCompleted(context.status())));
         if (isReadOnly()) {
             context.onFailure(new RepositoryException(metadata.name(), "cannot snapshot shard on a readonly repository"));
@@ -3544,11 +3546,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 indexCommitPointFiles = new ArrayList<>();
                 final Collection<String> fileNames;
                 final Store.MetadataSnapshot metadataFromStore;
-                try (Releasable ignored = context.withCommitRef()) {
-                    // TODO apparently we don't use the MetadataSnapshot#.recoveryDiff(...) here but we should
-                    metadataFromStore = context.metadataSnapshot();
-                    fileNames = context.fileNames();
-                }
+                // TODO apparently we don't use the MetadataSnapshot#.recoveryDiff(...) here but we should
+                metadataFromStore = context.metadataSnapshot();
+                fileNames = context.fileNames();
                 for (String fileName : fileNames) {
                     ensureNotAborted(shardId, snapshotId, snapshotStatus, fileName);
 
@@ -4340,6 +4340,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     @Override
                     public int read() throws IOException {
                         checkAborted();
+                        fileReader.maybeReleaseCommitRef();
                         final long beforeReadNanos = System.nanoTime();
                         int value = super.read();
                         totalTimeSpendReadingInNanos.addAndGet(System.nanoTime() - beforeReadNanos);
@@ -4349,6 +4350,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     @Override
                     public int read(byte[] b, int off, int len) throws IOException {
                         checkAborted();
+                        fileReader.maybeReleaseCommitRef();
                         final long beforeReadNanos = System.nanoTime();
                         int amountRead = super.read(b, off, len);
                         totalTimeSpendReadingInNanos.addAndGet(System.nanoTime() - beforeReadNanos);

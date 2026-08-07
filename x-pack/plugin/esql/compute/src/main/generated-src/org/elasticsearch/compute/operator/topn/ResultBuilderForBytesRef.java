@@ -69,6 +69,11 @@ class ResultBuilderForBytesRef implements ResultBuilder {
     }
 
     @Override
+    public long estimatedBytes() {
+        return builder.estimatedBytes();
+    }
+
+    @Override
     public String toString() {
         return "ResultBuilderForBytesRef[inKey=" + inKey + "]";
     }

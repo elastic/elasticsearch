@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.ExceptionUtils;
 import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -58,7 +59,7 @@ public abstract class DateTimeArithmeticOperation extends DenseVectorArithmeticO
         BinaryEvaluator longs,
         BinaryEvaluator ulongs,
         BinaryEvaluator doubles,
-        BinaryEvaluator denseVectors,
+        DenseVectorBinaryEvaluator denseVectors,
         DatetimeArithmeticEvaluator millisEvaluator,
         DatetimeArithmeticEvaluator nanosEvaluator
     ) {
@@ -74,7 +75,7 @@ public abstract class DateTimeArithmeticOperation extends DenseVectorArithmeticO
         BinaryEvaluator longs,
         BinaryEvaluator ulongs,
         BinaryEvaluator doubles,
-        BinaryEvaluator denseVectors,
+        DenseVectorBinaryEvaluator denseVectors,
         DatetimeArithmeticEvaluator millisEvaluator,
         DatetimeArithmeticEvaluator nanosEvaluator
     ) throws IOException {
@@ -179,7 +180,7 @@ public abstract class DateTimeArithmeticOperation extends DenseVectorArithmeticO
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        ZoneId zoneId = configuration().zoneId();
+        ZoneId zoneId = QuerySettings.TIME_ZONE.get(configuration().resolvedSettings());
         if (dataType() == DATETIME) {
             // One of the arguments has to be a datetime and the other a temporal amount.
             Expression datetimeArgument;

@@ -10,11 +10,14 @@ package org.elasticsearch.xpack.inference.services.mistral.request.embeddings;
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundDenseEmbeddingRequest;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.services.mistral.embeddings.MistralEmbeddingsModel;
 
 import java.net.URI;
@@ -22,7 +25,7 @@ import java.nio.charset.StandardCharsets;
 
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
 
-public class MistralEmbeddingsRequest implements Request {
+public class MistralEmbeddingsRequest implements OutboundDenseEmbeddingRequest {
     private final URI uri;
     private final MistralEmbeddingsModel embeddingsModel;
     private final String inferenceEntityId;
@@ -38,7 +41,7 @@ public class MistralEmbeddingsRequest implements Request {
     }
 
     @Override
-    public HttpRequest createHttpRequest() {
+    public void createHttpRequest(ActionListener<HttpRequest> listener) {
         HttpPost httpPost = new HttpPost(this.uri);
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
@@ -50,7 +53,7 @@ public class MistralEmbeddingsRequest implements Request {
         httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
         httpPost.setHeader(createAuthBearerHeader(embeddingsModel.getSecretSettings().apiKey()));
 
-        return new HttpRequest(httpPost, getInferenceEntityId());
+        listener.onResponse(new HttpRequest(httpPost, getInferenceEntityId()));
     }
 
     @Override
@@ -59,7 +62,7 @@ public class MistralEmbeddingsRequest implements Request {
     }
 
     @Override
-    public Request truncate() {
+    public OutboundRequest truncate() {
         var truncatedInput = truncator.truncate(truncationResult.input());
         return new MistralEmbeddingsRequest(truncator, truncatedInput, embeddingsModel);
     }
@@ -72,5 +75,10 @@ public class MistralEmbeddingsRequest implements Request {
     @Override
     public String getInferenceEntityId() {
         return inferenceEntityId;
+    }
+
+    @Override
+    public TaskType getTaskType() {
+        return embeddingsModel.getTaskType();
     }
 }

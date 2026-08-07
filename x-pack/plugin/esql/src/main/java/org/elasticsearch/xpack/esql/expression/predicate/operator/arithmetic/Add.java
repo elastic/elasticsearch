@@ -12,6 +12,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -34,8 +36,9 @@ import static org.elasticsearch.xpack.esql.core.util.DateUtils.asMillis;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAddExact;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation.OperationSymbol.ADD;
 
-public class Add extends DateTimeArithmeticOperation implements BinaryComparisonInversible {
+public class Add extends DateTimeArithmeticOperation implements BinaryComparisonInversible, AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Add", Add::new);
+    public static final String OP_NAME = "Add";
 
     private final Configuration configuration;
 
@@ -97,7 +100,7 @@ public class Add extends DateTimeArithmeticOperation implements BinaryComparison
             AddLongsEvaluator.Factory::new,
             AddUnsignedLongsEvaluator.Factory::new,
             AddDoublesEvaluator.Factory::new,
-            DenseVectorsEvaluator.AddFactory::new,
+            ADD_DENSE_VECTOR_EVALUATOR,
             AddDatetimesEvaluator.Factory::new,
             AddDateNanosEvaluator.Factory::new
         );
@@ -112,7 +115,7 @@ public class Add extends DateTimeArithmeticOperation implements BinaryComparison
             AddLongsEvaluator.Factory::new,
             AddUnsignedLongsEvaluator.Factory::new,
             AddDoublesEvaluator.Factory::new,
-            DenseVectorsEvaluator.AddFactory::new,
+            ADD_DENSE_VECTOR_EVALUATOR,
             AddDatetimesEvaluator.Factory::new,
             AddDateNanosEvaluator.Factory::new
         );
@@ -208,4 +211,29 @@ public class Add extends DateTimeArithmeticOperation implements BinaryComparison
     public Add withConfiguration(Configuration configuration) {
         return new Add(source(), left(), right(), configuration);
     }
+
+    private static float addDenseVectorElements(float lhs, float rhs) {
+        return NumericUtils.asFiniteNumber(lhs + rhs);
+    }
+
+    private static final DenseVectorBinaryEvaluator ADD_DENSE_VECTOR_EVALUATOR = new DenseVectorBinaryEvaluator() {
+        @Override
+        public ExpressionEvaluator.Factory vectorsOperation(
+            Source source,
+            ExpressionEvaluator.Factory lhs,
+            ExpressionEvaluator.Factory rhs
+        ) {
+            return new DenseVectorsEvaluator.Factory(source, lhs, rhs, Add::addDenseVectorElements, OP_NAME);
+        }
+
+        @Override
+        public ExpressionEvaluator.Factory scalarVectorOperation(Source source, float lhs, ExpressionEvaluator.Factory rhs) {
+            return new DenseVectorScalarEvaluator.Factory(source, lhs, rhs, Add::addDenseVectorElements, OP_NAME);
+        }
+
+        @Override
+        public ExpressionEvaluator.Factory vectorScalarOperation(Source source, ExpressionEvaluator.Factory lhs, float rhs) {
+            return new DenseVectorScalarEvaluator.Factory(source, lhs, rhs, Add::addDenseVectorElements, OP_NAME);
+        }
+    };
 }

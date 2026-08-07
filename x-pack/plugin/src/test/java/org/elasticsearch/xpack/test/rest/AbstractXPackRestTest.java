@@ -45,7 +45,7 @@ import static java.util.Collections.singletonMap;
 
 /** Runs rest tests against external cluster */
 // TODO: Remove this timeout increase once this test suite is broken up
-@TimeoutSuite(millis = 60 * TimeUnits.MINUTE)
+@TimeoutSuite(millis = 90 * TimeUnits.MINUTE)
 public abstract class AbstractXPackRestTest extends ESClientYamlSuiteTestCase {
     private static final String BASIC_AUTH_VALUE = basicAuthHeaderValue(
         "x_pack_rest_user",
@@ -146,6 +146,10 @@ public abstract class AbstractXPackRestTest extends ESClientYamlSuiteTestCase {
     private void clearMlState() throws Exception {
         if (isMachineLearningTest()) {
             new MlRestTestStateCleaner(logger, adminClient()).resetFeatures();
+            // _features/_reset can enqueue async cluster-state updates (e.g. inference
+            // endpoint cache invalidation via ClearInferenceEndpointCacheAction). Drain
+            // them here so the subsequent waitForPendingTasks does not race with them.
+            waitForClusterUpdates();
         }
     }
 

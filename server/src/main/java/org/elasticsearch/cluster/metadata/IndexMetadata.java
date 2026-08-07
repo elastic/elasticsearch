@@ -3427,10 +3427,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         }
         size += RamUsageEstimator.sizeOf(primaryTerms);
         size += RamUsageEstimator.sizeOfMap(inSyncAllocationIds);
-        size += ramBytesUsedByAccountableMap(aliases);
+        size += MetadataRamEstimators.ramBytesUsedByAccountableMap(aliases);
         size += RamUsageEstimator.sizeOfMap(customData);
-        size += ramBytesUsedByAccountableMap(inferenceFields);
-        size += ramBytesUsedByAccountableMap(rolloverInfos);
+        size += MetadataRamEstimators.ramBytesUsedByAccountableMap(inferenceFields);
+        size += MetadataRamEstimators.ramBytesUsedByAccountableMap(rolloverInfos);
         size += ramBytesUsedByTransportVersion(transportVersion);
         size += RamUsageEstimator.shallowSizeOf(state);
         size += RamUsageEstimator.sizeOfCollection(routingPaths);
@@ -3463,22 +3463,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return RamUsageEstimator.shallowSizeOf(index) + RamUsageEstimator.sizeOf(index.getName()) + RamUsageEstimator.sizeOf(
             index.getUUID()
         );
-    }
-
-    /**
-     * Sizes a map whose values are {@link Accountable}, summing the map's shallow size, each entry's shallow size and key string, and each
-     * value's recursive {@link Accountable#ramBytesUsed()}.
-     */
-    private static <T extends Accountable> long ramBytesUsedByAccountableMap(Map<String, T> map) {
-        long size = RamUsageEstimator.shallowSizeOf(map);
-        long entryShallowSize = -1L;
-        for (Map.Entry<String, T> entry : map.entrySet()) {
-            if (entryShallowSize == -1L) {
-                entryShallowSize = RamUsageEstimator.shallowSizeOf(entry);
-            }
-            size += entryShallowSize + RamUsageEstimator.sizeOf(entry.getKey()) + entry.getValue().ramBytesUsed();
-        }
-        return RamUsageEstimator.alignObjectSize(size);
     }
 
     private static long ramBytesUsedByFilters(@Nullable DiscoveryNodeFilters filters) {

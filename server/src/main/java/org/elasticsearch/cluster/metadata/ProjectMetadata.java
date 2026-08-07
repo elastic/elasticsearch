@@ -62,7 +62,6 @@ import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -225,29 +224,8 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         long size = BASE_RAM_BYTES_USED;
         size += RamUsageEstimator.shallowSizeOf(id);
         size += RamUsageEstimator.shallowSizeOf(oldestIndexVersion);
-        // Sum index metadata, counting each shared MappingMetadata instance only once (indices commonly share a deduplicated mapping).
-        size += RamUsageEstimator.shallowSizeOf(indices);
-        long indexEntryShallowSize = -1L;
-        Set<MappingMetadata> countedMappings = Collections.newSetFromMap(new IdentityHashMap<>());
-        for (Map.Entry<String, IndexMetadata> entry : indices.entrySet()) {
-            if (indexEntryShallowSize == -1L) {
-                indexEntryShallowSize = RamUsageEstimator.shallowSizeOf(entry);
-            }
-            size += indexEntryShallowSize + RamUsageEstimator.sizeOf(entry.getKey()) + entry.getValue().ramBytesUsed();
-            MappingMetadata mapping = entry.getValue().mapping();
-            if (mapping != null && countedMappings.add(mapping) == false) {
-                size -= mapping.ramBytesUsed();
-            }
-        }
-        // Sum templates.
-        size += RamUsageEstimator.shallowSizeOf(templates);
-        long templateEntryShallowSize = -1L;
-        for (Map.Entry<String, IndexTemplateMetadata> entry : templates.entrySet()) {
-            if (templateEntryShallowSize == -1L) {
-                templateEntryShallowSize = RamUsageEstimator.shallowSizeOf(entry);
-            }
-            size += templateEntryShallowSize + RamUsageEstimator.sizeOf(entry.getKey()) + entry.getValue().ramBytesUsed();
-        }
+        size += MetadataRamEstimators.ramBytesUsedByIndexMetadataMap(indices);
+        size += MetadataRamEstimators.ramBytesUsedByAccountableMap(templates);
         return RamUsageEstimator.alignObjectSize(size);
     }
 

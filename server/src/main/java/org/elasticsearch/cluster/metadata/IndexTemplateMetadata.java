@@ -152,33 +152,9 @@ public class IndexTemplateMetadata implements SimpleDiffable<IndexTemplateMetada
         size += RamUsageEstimator.shallowSizeOf(version);
         size += RamUsageEstimator.sizeOfCollection(patterns);
         size += settings.estimatedRamBytesUsed();
-        size += ramBytesUsedByMappings(mappings);
-        size += ramBytesUsedByAliases(aliases);
+        size += MetadataRamEstimators.ramBytesUsedByAccountableMap(mappings);
+        size += MetadataRamEstimators.ramBytesUsedByAccountableMap(aliases);
         return size;
-    }
-
-    private static long ramBytesUsedByMappings(Map<String, CompressedXContent> mappings) {
-        long size = RamUsageEstimator.shallowSizeOf(mappings);
-        long entryShallowSize = -1L;
-        for (Map.Entry<String, CompressedXContent> entry : mappings.entrySet()) {
-            if (entryShallowSize == -1L) {
-                entryShallowSize = RamUsageEstimator.shallowSizeOf(entry);
-            }
-            size += entryShallowSize + RamUsageEstimator.sizeOf(entry.getKey()) + entry.getValue().ramBytesUsed();
-        }
-        return RamUsageEstimator.alignObjectSize(size);
-    }
-
-    private static long ramBytesUsedByAliases(Map<String, AliasMetadata> aliases) {
-        long size = RamUsageEstimator.shallowSizeOf(aliases);
-        long entryShallowSize = -1L;
-        for (Map.Entry<String, AliasMetadata> entry : aliases.entrySet()) {
-            if (entryShallowSize == -1L) {
-                entryShallowSize = RamUsageEstimator.shallowSizeOf(entry);
-            }
-            size += entryShallowSize + RamUsageEstimator.sizeOf(entry.getKey()) + entry.getValue().ramBytesUsed();
-        }
-        return RamUsageEstimator.alignObjectSize(size);
     }
 
     public Map<String, AliasMetadata> getAliases() {

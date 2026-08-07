@@ -17,7 +17,6 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.AbstractAccountableFieldsTestCase;
 
 import java.io.IOException;
-import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -103,22 +102,8 @@ public class ProjectMetadataRamBytesUsedTests extends AbstractAccountableFieldsT
         long size = RamUsageEstimator.shallowSizeOfInstance(ProjectMetadata.class);
         size += RamUsageEstimator.shallowSizeOf(project.id());
         size += RamUsageEstimator.shallowSizeOf(project.oldestIndexVersion());
-        size += RamUsageEstimator.shallowSizeOf(project.indices());
-        long indexEntryShallowSize = -1L;
-        for (Map.Entry<String, IndexMetadata> entry : project.indices().entrySet()) {
-            if (indexEntryShallowSize == -1L) {
-                indexEntryShallowSize = RamUsageEstimator.shallowSizeOf(entry);
-            }
-            size += indexEntryShallowSize + RamUsageEstimator.sizeOf(entry.getKey()) + entry.getValue().ramBytesUsed();
-        }
-        size += RamUsageEstimator.shallowSizeOf(project.templates());
-        long templateEntryShallowSize = -1L;
-        for (Map.Entry<String, IndexTemplateMetadata> entry : project.templates().entrySet()) {
-            if (templateEntryShallowSize == -1L) {
-                templateEntryShallowSize = RamUsageEstimator.shallowSizeOf(entry);
-            }
-            size += templateEntryShallowSize + RamUsageEstimator.sizeOf(entry.getKey()) + entry.getValue().ramBytesUsed();
-        }
+        size += MetadataRamEstimators.ramBytesUsedByAccountableMap(project.indices());
+        size += MetadataRamEstimators.ramBytesUsedByAccountableMap(project.templates());
         return RamUsageEstimator.alignObjectSize(size);
     }
 }

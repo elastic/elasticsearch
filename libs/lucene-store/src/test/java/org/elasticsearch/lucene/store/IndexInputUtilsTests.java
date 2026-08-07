@@ -6,7 +6,7 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
-package org.elasticsearch.simdvec.internal;
+package org.elasticsearch.lucene.store;
 
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterIndexInput;
@@ -18,10 +18,10 @@ import org.apache.lucene.store.MemorySegmentAccessInput;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.elasticsearch.common.lucene.store.DirectAccessIndexInput;
 import org.elasticsearch.core.DirectAccessInput;
-import org.elasticsearch.simdvec.AbstractVectorTestCase;
-import org.elasticsearch.simdvec.IndexInputUtils;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 import java.util.Arrays;
@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.not;
  * {@link DirectAccessInput} (byte-buffer), and plain {@link IndexInput}
  * (heap-copy fallback).
  */
-public class IndexInputUtilsTests extends AbstractVectorTestCase {
+public class IndexInputUtilsTests extends ESTestCase {
 
     private static final String FILE_NAME = "test.bin";
 
@@ -96,46 +96,27 @@ public class IndexInputUtilsTests extends AbstractVectorTestCase {
         }
     }
 
-    // -- constructor validation tests -----------------------------------------
+    // -- checkInputType tests -------------------------------------------------
 
-    public void testES92ConstructorAcceptsPlainInput() throws Exception {
-        byte[] data = randomByteArrayOfLength(256);
-        try (Directory dir = new NIOFSDirectory(createTempDir())) {
-            writeData(dir, data);
-            try (IndexInput in = dir.openInput(FILE_NAME, IOContext.DEFAULT)) {
-                new MemorySegmentES92NativeInt7VectorsScorer(in, 64, 16);
-            }
-        }
-    }
-
-    public void testES92ConstructorAcceptsMMapInput() throws Exception {
-        byte[] data = randomByteArrayOfLength(256);
-        try (Directory dir = new MMapDirectory(createTempDir())) {
-            writeData(dir, data);
-            try (IndexInput in = dir.openInput(FILE_NAME, IOContext.DEFAULT)) {
-                new MemorySegmentES92NativeInt7VectorsScorer(in, 64, 16);
-            }
-        }
-    }
-
-    public void testES92ConstructorAcceptsDirectAccessInput() throws Exception {
-        byte[] data = randomByteArrayOfLength(256);
-        try (Directory dir = new NIOFSDirectory(createTempDir())) {
-            writeData(dir, data);
-            try (IndexInput rawIn = dir.openInput(FILE_NAME, IOContext.DEFAULT)) {
-                IndexInput in = new DirectAccessIndexInput("dai", rawIn, data);
-                new MemorySegmentES92NativeInt7VectorsScorer(in, 64, 16);
-            }
-        }
-    }
-
-    public void testES92ConstructorRejectsUnwrappedFilterIndexInput() throws Exception {
-        byte[] data = randomByteArrayOfLength(256);
+    public void testCheckInputTypeRejectsOpaqueFilterIndexInput() throws Exception {
+        byte[] data = randomByteArrayOfLength(64);
         try (Directory dir = new NIOFSDirectory(createTempDir())) {
             writeData(dir, data);
             try (IndexInput rawIn = dir.openInput(FILE_NAME, IOContext.DEFAULT)) {
                 IndexInput wrapped = new FilterIndexInput("plain-wrapper", rawIn) {};
-                expectThrows(IllegalArgumentException.class, () -> new MemorySegmentES92NativeInt7VectorsScorer(wrapped, 64, 16));
+                var e = expectThrows(IllegalArgumentException.class, () -> IndexInputUtils.checkInputType(wrapped));
+                assertTrue(e.getMessage().contains("does not implement MemorySegmentAccessInput or DirectAccessInput"));
+            }
+        }
+    }
+
+    public void testCheckInputTypeAcceptsUnwrappedInput() throws Exception {
+        byte[] data = randomByteArrayOfLength(64);
+        try (Directory dir = new NIOFSDirectory(createTempDir())) {
+            writeData(dir, data);
+            try (IndexInput in = dir.openInput(FILE_NAME, IOContext.DEFAULT)) {
+                assertThat(in, not(instanceOf(FilterIndexInput.class)));
+                IndexInputUtils.checkInputType(in); // does not throw
             }
         }
     }
@@ -174,7 +155,7 @@ public class IndexInputUtilsTests extends AbstractVectorTestCase {
                 assertThat(in, not(instanceOf(MemorySegmentAccessInput.class)));
                 assertThat(in, not(instanceOf(DirectAccessInput.class)));
                 long[] offsets = { 0, 64, 128, 192 };
-                boolean result = IndexInputUtils.withSliceAddresses(in, offsets, 64, 4, new AddressesScratch()::get, a -> {
+                boolean result = IndexInputUtils.withSliceAddresses(in, offsets, 64, 4, IndexInputUtilsTests::addressesScratch, a -> {
                     fail("action should not be called for plain IndexInput");
                 });
                 assertFalse(result);
@@ -188,7 +169,7 @@ public class IndexInputUtilsTests extends AbstractVectorTestCase {
         for (int i = 0; i < count; i++) {
             offsets[i] = (long) i * sliceLen * 2;
         }
-        boolean result = IndexInputUtils.withSliceAddresses(in, offsets, sliceLen, count, new AddressesScratch()::get, a -> {
+        boolean result = IndexInputUtils.withSliceAddresses(in, offsets, sliceLen, count, IndexInputUtilsTests::addressesScratch, a -> {
             for (int i = 0; i < count; i++) {
                 MemorySegment addr = a.getAtIndex(ValueLayout.ADDRESS, i);
                 assertTrue("address should be non-null", addr != MemorySegment.NULL);
@@ -231,6 +212,11 @@ public class IndexInputUtilsTests extends AbstractVectorTestCase {
         });
         assertArrayEquals(Arrays.copyOfRange(expectedData, firstChunk + secondChunk, expectedData.length), result3);
         assertEquals(expectedData.length, in.getFilePointer());
+    }
+
+    /** Stands in for the reusable pointer-array scratch buffer that production callers own. */
+    private static MemorySegment addressesScratch(int count) {
+        return Arena.ofAuto().allocate((long) count * ValueLayout.ADDRESS.byteSize(), ValueLayout.ADDRESS.byteAlignment());
     }
 
     private static void writeData(Directory dir, byte[] data) throws IOException {

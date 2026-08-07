@@ -29,17 +29,16 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
-import org.elasticsearch.xpack.esql.core.querydsl.query.RangeQuery;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Options;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
+import org.elasticsearch.xpack.esql.expression.predicate.Range;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
-import org.elasticsearch.xpack.versionfield.Version;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -51,25 +50,14 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
-import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
-import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
-import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
-import static org.elasticsearch.xpack.esql.expression.Foldables.literalValueOf;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_NANOS_FORMATTER;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateWithTypeToString;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.ipToString;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.versionToString;
 
 /**
  * Shared base for {@link MvGreater} and {@link MvLess}: any-value one-sided comparison, two-valued
- * (null/empty → {@code false}), Lucene {@link RangeQuery} pushdown.
+ * (null/empty → {@code false}), Lucene range pushdown.
  */
 public abstract class MvCompare extends EsqlScalarFunction implements OptionalArgument, TranslationAware {
 
-    static final String SUPPORTED_TYPES = "date_nanos, datetime, double, integer, ip, keyword, long, text, unsigned_long or version";
+    static final String SUPPORTED_TYPES = "date, date_nanos, double, integer, ip, keyword, long, text, unsigned_long or version";
 
     public static final String INCLUDE_BOUND = "include_bound";
     public static final Map<String, DataType> ALLOWED_OPTIONS = Map.of(INCLUDE_BOUND, DataType.BOOLEAN);
@@ -344,38 +332,16 @@ public abstract class MvCompare extends EsqlScalarFunction implements OptionalAr
 
     @Override
     public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
-        // Bare one-sided RangeQuery (any-value over MV). Exact types keep real inclusivity;
-        // RECHECK types push inclusive so mapper rounding cannot drop a restore-able row.
+        // Reuse Range's per-type bound formatting (dates, ip, version, unsigned_long). One-sided:
+        // open end is Literal.NULL. Exact types keep real inclusivity; RECHECK types push inclusive
+        // so mapper rounding cannot drop a restore-able row. Bare RangeQuery = any-value over MV.
         boolean exact = isExactRangeType();
         boolean include = exact ? includeBound() : true;
         Expression pushBound = widenZeroBound(bound);
-        Object value = literalValueOf(pushBound);
-        String format = null;
-        DataType dataType = field.dataType();
-        if (dataType == DataType.DATETIME) {
-            value = dateWithTypeToString((Long) value, pushBound.dataType());
-            format = DEFAULT_DATE_TIME_FORMATTER.pattern();
-        } else if (dataType == DATE_NANOS) {
-            value = dateWithTypeToString((Long) value, pushBound.dataType());
-            format = DEFAULT_DATE_NANOS_FORMATTER.pattern();
-        } else if (dataType == IP) {
-            if (value instanceof BytesRef bytesRef) {
-                value = ipToString(bytesRef);
-            }
-        } else if (dataType == VERSION) {
-            if (value instanceof BytesRef bytesRef) {
-                value = versionToString(bytesRef);
-            } else if (value instanceof Version version) {
-                value = versionToString(version);
-            }
-        } else if (dataType == UNSIGNED_LONG && value instanceof Long ul) {
-            value = unsignedLongAsNumber(ul);
-        }
-        String name = handler.nameOf(field);
         if (greater) {
-            return new RangeQuery(source(), name, value, include, null, false, format, null);
+            return new Range(source(), field, pushBound, include, Literal.NULL, false, null).asQuery(pushdownPredicates, handler);
         }
-        return new RangeQuery(source(), name, null, false, value, include, format, null);
+        return new Range(source(), field, Literal.NULL, false, pushBound, include, null).asQuery(pushdownPredicates, handler);
     }
 
     /**

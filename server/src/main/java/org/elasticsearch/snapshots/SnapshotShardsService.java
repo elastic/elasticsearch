@@ -682,10 +682,14 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
      * Generates an identifier from the current state of a shard that can be used to detect whether a shard's contents
      * have changed between two snapshots.
      * A shard is assumed to have unchanged contents if its global- and local checkpoint are equal, its maximum
-     * sequence number has not changed and its history- and force-merge-uuid have not changed.
+     * sequence number has not changed, its history- and force-merge-uuid have not changed, and (when present in the
+     * commit) its number of shards has not changed.
      * The method returns {@code null} if global and local checkpoint are different for a shard since no safe unique
      * shard state id can be used in this case because of the possibility of a primary failover leading to different
      * shard content for the same sequence number on a subsequent snapshot.
+     * <p>
+     * {@link Engine#NUMBER_OF_SHARDS_KEY} is appended only when present so commits created before that key was
+     * introduced keep the legacy three-part identifier until their next flush.
      *
      * @param indexShard          Shard
      * @param snapshotIndexCommit IndexCommit for shard
@@ -699,11 +703,16 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
         if (maxSeqNo != seqNumInfo.localCheckpoint() || maxSeqNo != indexShard.getLastSyncedGlobalCheckpoint()) {
             return null;
         }
-        return userCommitData.get(Engine.HISTORY_UUID_KEY)
+        final String shardStateId = userCommitData.get(Engine.HISTORY_UUID_KEY)
             + "-"
             + userCommitData.getOrDefault(Engine.FORCE_MERGE_UUID_KEY, "na")
             + "-"
             + maxSeqNo;
+        final String numberOfShards = userCommitData.get(Engine.NUMBER_OF_SHARDS_KEY);
+        if (numberOfShards != null) {
+            return shardStateId + "-" + numberOfShards;
+        }
+        return shardStateId;
     }
 
     /**

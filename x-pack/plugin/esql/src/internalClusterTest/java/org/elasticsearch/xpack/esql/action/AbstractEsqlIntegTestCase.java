@@ -158,8 +158,8 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(EsqlPlugin.QUERY_ALLOW_PARTIAL_RESULTS.getKey(), false)
-            // Federation is opt-in for users; enable it for every ES|QL integration test so the external data source and
-            // dataset suites run. The default-off surface is covered by the federation REST ITs.
+            // Federation is only on by default in snapshot builds; set it here so the external data source and dataset
+            // suites run in a release build too. The unavailable surface is covered by the federation REST ITs.
             .put(Federation.FEDERATION_ENABLED.getKey(), true)
             .build();
     }

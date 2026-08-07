@@ -193,6 +193,22 @@ public class MatchPhraseRuntimeSearchEvaluatorTests extends AbstractRuntimeSearc
         assertArrayEquals(new Boolean[] { false }, result);
     }
 
+    public void testTextWithOptionsPhraseCannotSpanValues() {
+        Boolean[] result = evaluate(runtimeMatchPhraseWithOptions("brown fox", mapOptions("slop", "0")), factory -> {
+            return bytesRefBlock(factory, builder -> {
+                builder.beginPositionEntry();
+                builder.appendBytesRef(new BytesRef("a brown")); // "brown" ends this value...
+                builder.appendBytesRef(new BytesRef("fox b"));   // ..."fox" starts the next: not a phrase
+                builder.endPositionEntry();
+                builder.beginPositionEntry();
+                builder.appendBytesRef(new BytesRef("a brown fox"));
+                builder.appendBytesRef(new BytesRef("nothing here"));
+                builder.endPositionEntry();
+            });
+        });
+        assertArrayEquals(new Boolean[] { false, true }, result);
+    }
+
     public void testTextWithZeroTermsQueryNoneAndNoTokensUsesConstantFalse() {
         MatchPhrase matchPhrase = runtimeMatchPhraseWithOptions("! ! !", mapOptions("zero_terms_query", "none"));
         assertThat(matchPhrase.toEvaluator(toEvaluator()), instanceOf(ConstantEvaluators.CONSTANT_FALSE_FACTORY.getClass()));
@@ -206,6 +222,33 @@ public class MatchPhraseRuntimeSearchEvaluatorTests extends AbstractRuntimeSearc
     public void testTextWithZeroTermsQueryAllMatchesEverything() {
         Boolean[] result = evaluatePhraseWithOptions("", mapOptions("zero_terms_query", "all"), "a brown fox", "the lazy dog");
         assertArrayEquals(new Boolean[] { true, true }, result);
+    }
+
+    public void testTextWithWhitespaceAnalyzerIsCaseSensitive() {
+        // The whitespace analyzer does not lowercase, unlike the standard analyzer.
+        Boolean[] result = evaluatePhraseWithOptions(
+            "Brown Fox",
+            mapOptions("analyzer", "whitespace"),
+            "the Brown Fox runs",
+            "the brown fox runs"
+        );
+        assertArrayEquals(new Boolean[] { true, false }, result);
+    }
+
+    public void testTextWithKeywordAnalyzerMatchesWholeValueOnly() {
+        // The keyword analyzer emits the whole value as a single token, so the phrase must equal the entire value.
+        Boolean[] result = evaluatePhraseWithOptions("brown fox", mapOptions("analyzer", "keyword"), "brown fox", "a brown fox");
+        assertArrayEquals(new Boolean[] { true, false }, result);
+    }
+
+    public void testTextWithAnalyzerAndSlopCombined() {
+        Boolean[] result = evaluatePhraseWithOptions(
+            "Brown Fox",
+            mapOptions("analyzer", "whitespace", "slop", "1"),
+            "the Brown quick Fox",
+            "the brown quick fox"
+        );
+        assertArrayEquals(new Boolean[] { true, false }, result);
     }
 
     public void testTextWithBoostDoesNotChangeMatching() {

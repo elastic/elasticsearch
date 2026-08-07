@@ -22,6 +22,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.logging.LogManager;
@@ -78,7 +79,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
      */
     private final AtomicLong submittedObsoleteRegionsEvictionTasks = new AtomicLong();
 
-    private final boolean timestampBackfillEnabled;
+    private final boolean hasTimestampField;
 
     public SearchDirectory(
         StatelessSharedBlobCacheService cacheService,
@@ -91,15 +92,27 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
         this.cacheBlobReaderService = cacheBlobReaderService;
         this.objectStoreUploadTracker = objectStoreUploadTracker;
         this.generationalFilesTermAndGens = new HashMap<>();
-        this.timestampBackfillEnabled = hasTimestampField && cacheService.isCacheBoostPreferenceEnabled();
+        this.hasTimestampField = hasTimestampField;
     }
 
     /**
-     * Whether BCC metadata reads should stamp {@link SharedBlobCacheService#BACKFILL_IN_PROGRESS_TIMESTAMP} and be backfilled after
-     * parsing.
+     * Whether this shard is time-based, i.e. its index has a {@code @timestamp} field.
+     */
+    public boolean hasTimestampField() {
+        return hasTimestampField;
+    }
+
+    /**
+     * Whether BCC metadata reads on this shard should stamp {@link SharedBlobCacheService#BACKFILL_IN_PROGRESS_TIMESTAMP} and be backfilled
+     * after parsing. Requires a time-based index and the metadata-read timestamp backfill setting to be enabled.
      */
     public boolean timestampBackfillEnabled() {
-        return timestampBackfillEnabled;
+        return hasTimestampField && cacheService.isMetadataTimestampBackfillEnabled();
+    }
+
+    @Override
+    public long fallbackRegionTimestampMillis() {
+        return hasTimestampField ? SharedBlobCacheService.MINIMAL_CACHE_TIMESTAMP : SharedBlobCacheService.UNKNOWN_TIMESTAMP;
     }
 
     /**
@@ -117,12 +130,10 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
      *                            stamped with {@link SharedBlobCacheService#MINIMAL_CACHE_TIMESTAMP};
      */
     public void backfillMetadataReadTimestamps(Map<FileCacheKey, Long> timestampByCacheKey, boolean clearOrphans) {
-        if (timestampBackfillEnabled() == false) {
-            return;
-        }
         if (clearOrphans == false && timestampByCacheKey.isEmpty()) {
             return;
         }
+        final long startTime = System.nanoTime();
         cacheService.backfillRegionTimestamps(shardId, key -> {
             assert key.shardId().equals(shardId) : key.shardId() + " != " + shardId;
             Long timestampMillis = timestampByCacheKey.get(key);
@@ -135,6 +146,15 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
             }
             return clearOrphans ? SharedBlobCacheService.MINIMAL_CACHE_TIMESTAMP : null;
         });
+        if (logger.isDebugEnabled()) {
+            logger.debug(
+                "{} backfilled [{}] timestamps (clearOrphans=[{}]) in [{}]",
+                shardId,
+                timestampByCacheKey.size(),
+                clearOrphans,
+                TimeValue.timeValueNanos(System.nanoTime() - startTime)
+            );
+        }
     }
 
     /**
@@ -439,7 +459,8 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
             fileName,
             blobFile,
             BlobCacheMetrics.CachePopulationReason.CacheMiss,
-            cacheService.getShardReadThreadPoolExecutor()
+            cacheService.getShardReadThreadPoolExecutor(),
+            false
         );
     }
 
@@ -450,7 +471,8 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
             blobFile.blobName(),
             blobFile,
             BlobCacheMetrics.CachePopulationReason.Warming,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            true
         );
     }
 
@@ -470,7 +492,8 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
             blobFile.blobName(),
             blobFile,
             BlobCacheMetrics.CachePopulationReason.OnlinePrewarming,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            true
         );
     }
 
@@ -490,7 +513,8 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
             blobFile.blobName(),
             blobFile,
             BlobCacheMetrics.CachePopulationReason.PreFetchingNewCommit,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            true
         );
     }
 
@@ -498,7 +522,8 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
         String fileName,
         BlobFile blobFile,
         BlobCacheMetrics.CachePopulationReason cachePopulationReason,
-        Executor executor
+        Executor executor,
+        boolean speculativeFill
     ) {
         return cacheBlobReaderService.getCacheBlobReader(
             shardId,
@@ -509,7 +534,8 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
             totalBytesWarmedFromIndexing::add,
             cachePopulationReason,
             executor,
-            fileName
+            fileName,
+            speculativeFill
         );
     }
 
@@ -519,15 +545,23 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
         throw new UnsupportedOperationException("SearchDirectory does not support warming directory clones");
     }
 
-    /**
-     * Stamps unknown regions with {@link SharedBlobCacheService#BACKFILL_IN_PROGRESS_TIMESTAMP} on time-based shards only.
-     */
-    @Override
-    public BlobStoreCacheDirectory createNewBlobStoreCacheDirectoryForMetadataRead() {
-        return createNewInstance(blobContainer.get());
+    /// Creates a metadata-read directory that stamps regions according to `timestampBackfillEnabled`.
+    /// Caller should ensure that `backfillMetadataReadTimestamps` is called after the reads are done if backfill was enabled.
+    public BlobStoreCacheDirectory createMetadataReadDirectory(boolean timestampBackfillEnabled) {
+        return createNewInstance(blobContainer.get(), timestampBackfillEnabled);
     }
 
-    private BlobStoreCacheDirectory createNewInstance(@Nullable LongFunction<BlobContainer> blobContainerFunction) {
+    /// Default implementation with timestamp backfill disabled. For timestamp enabled metadata reads an intermediate directory should be
+    /// created with [#createMetadataReadDirectory(boolean)] and then another directory via [#createPerBccMetadataReadDirectory].
+    @Override
+    public BlobStoreCacheDirectory createPerBccMetadataReadDirectory() {
+        return createMetadataReadDirectory(false);
+    }
+
+    private BlobStoreCacheDirectory createNewInstance(
+        @Nullable LongFunction<BlobContainer> blobContainerFunction,
+        boolean timestampBackfillEnabled
+    ) {
         return new BlobStoreCacheDirectory(
             cacheService,
             shardId,
@@ -536,25 +570,34 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
             blobContainerFunction
         ) {
             @Override
-            protected long unknownRegionTimestampMillis() {
-                return SearchDirectory.this.timestampBackfillEnabled()
+            protected long fallbackRegionTimestampMillis() {
+                return timestampBackfillEnabled
                     ? SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP
-                    : SharedBlobCacheService.UNKNOWN_TIMESTAMP;
+                    : SearchDirectory.this.fallbackRegionTimestampMillis();
             }
 
             @Override
             protected CacheBlobReader getCacheBlobReader(String fileName, BlobFile blobFile) {
+                // feeds CacheFileReader (demand reads a warming thread blocks on): accounted as warming, but must bypass
+                // the fill-memory budget to avoid queuing behind the speculative region fetches
                 return SearchDirectory.this.getCacheBlobReader(
                     fileName,
                     blobFile,
                     BlobCacheMetrics.CachePopulationReason.Warming,
-                    getCacheService().getShardReadThreadPoolExecutor()
+                    getCacheService().getShardReadThreadPoolExecutor(),
+                    false
                 );
             }
 
             @Override
             public CacheBlobReader getCacheBlobReaderForWarming(BlobFile blobFile) {
-                return getCacheBlobReader(blobFile.blobName(), blobFile);
+                return SearchDirectory.this.getCacheBlobReader(
+                    blobFile.blobName(),
+                    blobFile,
+                    BlobCacheMetrics.CachePopulationReason.Warming,
+                    getCacheService().getShardReadThreadPoolExecutor(),
+                    true
+                );
             }
 
             @Override
@@ -563,9 +606,11 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
                 throw new UnsupportedOperationException("SearchDirectory does not support warming directory clones");
             }
 
+            /// @return the [BlobStoreCacheDirectory] for a single BCC metadata read through cache that inherits parent's
+            /// fallbackRegionTimestampMillis value.
             @Override
-            public BlobStoreCacheDirectory createNewBlobStoreCacheDirectoryForMetadataRead() {
-                return SearchDirectory.this.createNewInstance(this::getBlobContainer);
+            public BlobStoreCacheDirectory createPerBccMetadataReadDirectory() {
+                return SearchDirectory.this.createNewInstance(this::getBlobContainer, timestampBackfillEnabled);
             }
         };
     }

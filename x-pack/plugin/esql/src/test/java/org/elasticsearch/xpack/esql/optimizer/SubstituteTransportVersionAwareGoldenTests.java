@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
  */
 public class SubstituteTransportVersionAwareGoldenTests extends GoldenTestCase {
     private static final String ESQL_SUM_LONG_OVERFLOW_FIX = "esql_sum_long_overflow_fix";
+    private static final String ESQL_CIDR_MATCH_MV_IN_RANGE = "esql_cidr_match_mv_in_range";
 
     @ParametersFactory(argumentFormatting = "%1$s")
     public static Iterable<Object[]> parameters() {
@@ -43,5 +44,26 @@ public class SubstituteTransportVersionAwareGoldenTests extends GoldenTestCase {
             FROM employees
             | STATS sum_a = SUM(languages.long), sum_b = SUM(emp_no) BY emp_no
             """).since(Sum.ESQL_SUM_LONG_OVERFLOW_FIX).run();
+    }
+
+    /**
+     * Older transport: {@code CIDR_MATCH} stays a scalar. Newer: lowers to {@code MV_IN_RANGE} with the CIDR
+     * block expanded to inclusive IP bounds.
+     */
+    public void testCidrMatchLowersToMvInRange() {
+        builder("""
+            FROM all_types
+            | WHERE cidr_match(ip, "10.0.0.0/8")
+            """).expectationChangesAt(ESQL_CIDR_MATCH_MV_IN_RANGE).run();
+    }
+
+    /**
+     * Variadic form becomes an {@code OR} of {@code MV_IN_RANGE}s once the transport version supports the lowering.
+     */
+    public void testCidrMatchMultiBlockLowersToOrOfMvInRange() {
+        builder("""
+            FROM all_types
+            | WHERE cidr_match(ip, "10.0.0.0/8", "192.168.0.0/16")
+            """).expectationChangesAt(ESQL_CIDR_MATCH_MV_IN_RANGE).run();
     }
 }

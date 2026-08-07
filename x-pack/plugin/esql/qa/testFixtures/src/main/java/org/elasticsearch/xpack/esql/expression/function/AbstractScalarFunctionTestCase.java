@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.FilterUnsupportedTemporality;
+import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvDifference;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
@@ -108,6 +109,7 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
         TimeSeriesWithout.class,
 
         // Explicitly null-tolerant evaluator: @Evaluator(allNullsIsNull = false).
+        CIDRMatch.class, // CIDR_MATCH(NULL, "10.0.0.0/8") = false (any-value / two-valued)
         FilterUnsupportedTemporality.class
     );
 

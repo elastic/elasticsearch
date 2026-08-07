@@ -1,0 +1,2 @@
+FROM all_types
+| WHERE cidr_match(ip, "10.0.0.0/8")

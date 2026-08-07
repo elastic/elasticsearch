@@ -18,11 +18,15 @@ import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTe
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
+import org.hamcrest.Matcher;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 @FunctionName("cidr_match")
 public class CIDRMatchTests extends AbstractScalarFunctionTestCase {
@@ -32,7 +36,6 @@ public class CIDRMatchTests extends AbstractScalarFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-
         var suppliers = List.of(
             new TestCaseSupplier(
                 List.of(DataType.IP, DataType.KEYWORD),
@@ -41,7 +44,7 @@ public class CIDRMatchTests extends AbstractScalarFunctionTestCase {
                         new TestCaseSupplier.TypedData(EsqlDataTypeConverter.stringToIP("192.168.0.10"), DataType.IP, "ip"),
                         new TestCaseSupplier.TypedData(new BytesRef("192.168.0.0/16"), DataType.KEYWORD, "cidrs")
                     ),
-                    "CIDRMatchEvaluator[ip=Attribute[channel=0], cidrs=[Attribute[channel=1]]]",
+                    "CIDRMatchEvaluator[ip=Attribute[channel=0], cidr=Attribute[channel=1]]",
                     DataType.BOOLEAN,
                     equalTo(true)
                 )
@@ -53,7 +56,7 @@ public class CIDRMatchTests extends AbstractScalarFunctionTestCase {
                         new TestCaseSupplier.TypedData(EsqlDataTypeConverter.stringToIP("192.168.0.10"), DataType.IP, "ip"),
                         new TestCaseSupplier.TypedData(new BytesRef("192.168.0.0/16"), DataType.TEXT, "cidrs")
                     ),
-                    "CIDRMatchEvaluator[ip=Attribute[channel=0], cidrs=[Attribute[channel=1]]]",
+                    "CIDRMatchEvaluator[ip=Attribute[channel=0], cidr=Attribute[channel=1]]",
                     DataType.BOOLEAN,
                     equalTo(true)
                 )
@@ -65,7 +68,7 @@ public class CIDRMatchTests extends AbstractScalarFunctionTestCase {
                         new TestCaseSupplier.TypedData(EsqlDataTypeConverter.stringToIP("192.168.0.10"), DataType.IP, "ip"),
                         new TestCaseSupplier.TypedData(new BytesRef("10.0.0.0/16"), DataType.KEYWORD, "cidrs")
                     ),
-                    "CIDRMatchEvaluator[ip=Attribute[channel=0], cidrs=[Attribute[channel=1]]]",
+                    "CIDRMatchEvaluator[ip=Attribute[channel=0], cidr=Attribute[channel=1]]",
                     DataType.BOOLEAN,
                     equalTo(false)
                 )
@@ -77,18 +80,59 @@ public class CIDRMatchTests extends AbstractScalarFunctionTestCase {
                         new TestCaseSupplier.TypedData(EsqlDataTypeConverter.stringToIP("192.168.0.10"), DataType.IP, "ip"),
                         new TestCaseSupplier.TypedData(new BytesRef("10.0.0.0/16"), DataType.TEXT, "cidrs")
                     ),
-                    "CIDRMatchEvaluator[ip=Attribute[channel=0], cidrs=[Attribute[channel=1]]]",
+                    "CIDRMatchEvaluator[ip=Attribute[channel=0], cidr=Attribute[channel=1]]",
                     DataType.BOOLEAN,
                     equalTo(false)
                 )
             )
         );
 
-        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
+        return parameterSuppliersFromTypedData(
+            anyNullIsFalse(randomizeBytesRefsOffset(suppliers), (nullPosition, nullValueDataType, original) -> original.expectedType(), (
+                nullPosition,
+                nullData,
+                original) -> original)
+        );
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
         return new CIDRMatch(source, args.get(0), List.of(args.get(1)));
+    }
+
+    @Override
+    protected Matcher<Object> allNullsMatcher() {
+        return equalTo(false);
+    }
+
+    /**
+     * Two-valued: null IP or CIDR (same declared types) yields {@code false}, never null.
+     * Null-<em>typed</em> signatures are skipped — {@code isIPAndExact} rejects {@code NULL}.
+     */
+    private static List<TestCaseSupplier> anyNullIsFalse(
+        List<TestCaseSupplier> testCaseSuppliers,
+        ExpectedType expectedType,
+        ExpectedEvaluatorToString evaluatorToString
+    ) {
+        List<TestCaseSupplier> suppliers = new ArrayList<>(testCaseSuppliers);
+        for (TestCaseSupplier original : testCaseSuppliers) {
+            for (int typeIndex = 0; typeIndex < original.types().size(); typeIndex++) {
+                int nullPosition = typeIndex;
+                suppliers.add(new TestCaseSupplier("null in " + nullPosition + ": " + original.name(), original.types(), () -> {
+                    TestCaseSupplier.TestCase originalTestCase = original.get();
+                    List<TestCaseSupplier.TypedData> typeDataWithNull = new ArrayList<>(originalTestCase.getData());
+                    var data = typeDataWithNull.get(nullPosition);
+                    typeDataWithNull.set(nullPosition, data.withData(data.isMultiRow() ? Collections.singletonList(null) : null));
+                    TestCaseSupplier.TypedData nulledData = originalTestCase.getData().get(nullPosition);
+                    return new TestCaseSupplier.TestCase(
+                        typeDataWithNull,
+                        evaluatorToString.evaluatorToString(nullPosition, nulledData, originalTestCase.evaluatorToString()),
+                        expectedType.expectedType(nullPosition, DataType.BOOLEAN, originalTestCase),
+                        is(false)
+                    );
+                }));
+            }
+        }
+        return suppliers;
     }
 }

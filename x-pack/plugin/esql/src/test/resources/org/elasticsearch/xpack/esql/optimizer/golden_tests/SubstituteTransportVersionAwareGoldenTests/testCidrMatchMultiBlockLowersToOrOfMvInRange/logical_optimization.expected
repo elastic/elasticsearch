@@ -1,0 +1,3 @@
+Limit[1000[INTEGER],false,false]
+\_Filter[MVINRANGE(ip{f}#0,[0 0 0 0 0 0 0 0 0 0 ff ff a 0 0 0][IP],[0 0 0 0 0 0 0 0 0 0 ff ff a ff ff ff][IP]) OR MVINRANGE(ip{f}#0,[0 0 0 0 0 0 0 0 0 0 ff ff c0 a8 0 0][IP],[0 0 0 0 0 0 0 0 0 0 ff ff c0 a8 ff ff][IP])]
+  \_EsRelation[all_types][!alias_integer, boolean{f}#1, byte{f}#2, constant_keyword-foo{f}#3, date{f}#4, date_nanos{f}#5, dense_vector{f}#6, double{f}#7, float{f}#8, half_float{f}#9, integer{f}#10, ip{f}#0, keyword{f}#11, long{f}#12, scaled_float{f}#13, semantic_text{f}#14, short{f}#15, text{f}#16, unsigned_long{f}#17, version{f}#18, wildcard{f}#19]

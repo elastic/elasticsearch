@@ -12,5 +12,6 @@ FROM hosts
 | --- | --- | --- | --- |
 | eth1 | beta | 127.0.0.1 | 127.0.0.2 |
 | eth0 | gamma | fe80::cae2:65ff:fece:feb9 | 127.0.0.3 |
+| eth1 | epsilon | null | [127.0.0.1, 127.0.0.2, 127.0.0.3] |
 
 

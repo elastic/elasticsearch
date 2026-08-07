@@ -4,22 +4,18 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.ip;
 
-import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
-import java.util.Arrays;
+import java.util.function.Function;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
-import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
@@ -34,40 +30,31 @@ public final class CIDRMatchEvaluator implements ExpressionEvaluator {
 
   private final ExpressionEvaluator ip;
 
-  private final ExpressionEvaluator[] cidrs;
+  private final ExpressionEvaluator cidr;
+
+  private final BytesRef ipScratch;
+
+  private final BytesRef cidrScratch;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public CIDRMatchEvaluator(Source source, ExpressionEvaluator ip, ExpressionEvaluator[] cidrs,
-      DriverContext driverContext) {
+  public CIDRMatchEvaluator(Source source, ExpressionEvaluator ip, ExpressionEvaluator cidr,
+      BytesRef ipScratch, BytesRef cidrScratch, DriverContext driverContext) {
     this.source = source;
     this.ip = ip;
-    this.cidrs = cidrs;
+    this.cidr = cidr;
+    this.ipScratch = ipScratch;
+    this.cidrScratch = cidrScratch;
     this.driverContext = driverContext;
   }
 
   @Override
   public Block eval(Page page) {
     try (BytesRefBlock ipBlock = (BytesRefBlock) ip.eval(page)) {
-      BytesRefBlock[] cidrsBlocks = new BytesRefBlock[cidrs.length];
-      try (Releasable cidrsRelease = Releasables.wrap(cidrsBlocks)) {
-        for (int i = 0; i < cidrsBlocks.length; i++) {
-          cidrsBlocks[i] = (BytesRefBlock)cidrs[i].eval(page);
-        }
-        BytesRefVector ipVector = ipBlock.asVector();
-        if (ipVector == null) {
-          return eval(page.getPositionCount(), ipBlock, cidrsBlocks);
-        }
-        BytesRefVector[] cidrsVectors = new BytesRefVector[cidrs.length];
-        for (int i = 0; i < cidrsBlocks.length; i++) {
-          cidrsVectors[i] = cidrsBlocks[i].asVector();
-          if (cidrsVectors[i] == null) {
-            return eval(page.getPositionCount(), ipBlock, cidrsBlocks);
-          }
-        }
-        return eval(page.getPositionCount(), ipVector, cidrsVectors).asBlock();
+      try (BytesRefBlock cidrBlock = (BytesRefBlock) cidr.eval(page)) {
+        return eval(page.getPositionCount(), ipBlock, cidrBlock);
       }
     }
   }
@@ -76,73 +63,14 @@ public final class CIDRMatchEvaluator implements ExpressionEvaluator {
   public long baseRamBytesUsed() {
     long baseRamBytesUsed = BASE_RAM_BYTES_USED;
     baseRamBytesUsed += ip.baseRamBytesUsed();
-    for (ExpressionEvaluator e : cidrs) {
-      baseRamBytesUsed += e.baseRamBytesUsed();
-    }
+    baseRamBytesUsed += cidr.baseRamBytesUsed();
     return baseRamBytesUsed;
   }
 
-  public BooleanBlock eval(int positionCount, BytesRefBlock ipBlock, BytesRefBlock[] cidrsBlocks) {
+  public BooleanBlock eval(int positionCount, BytesRefBlock ipBlock, BytesRefBlock cidrBlock) {
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
-      BytesRef ipScratch = new BytesRef();
-      BytesRef[] cidrsValues = new BytesRef[cidrs.length];
-      BytesRef[] cidrsScratch = new BytesRef[cidrs.length];
-      for (int i = 0; i < cidrs.length; i++) {
-        cidrsScratch[i] = new BytesRef();
-      }
       position: for (int p = 0; p < positionCount; p++) {
-        switch (ipBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
-          case 1:
-              break;
-          default:
-              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-              result.appendNull();
-              continue position;
-        }
-        for (int i = 0; i < cidrsBlocks.length; i++) {
-          switch (cidrsBlocks[i].getValueCount(p)) {
-            case 0:
-                result.appendNull();
-                continue position;
-            case 1:
-                break;
-            default:
-                warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-                result.appendNull();
-                continue position;
-          }
-        }
-        BytesRef ip = ipBlock.getBytesRef(ipBlock.getFirstValueIndex(p), ipScratch);
-        // unpack cidrsBlocks into cidrsValues
-        for (int i = 0; i < cidrsBlocks.length; i++) {
-          int o = cidrsBlocks[i].getFirstValueIndex(p);
-          cidrsValues[i] = cidrsBlocks[i].getBytesRef(o, cidrsScratch[i]);
-        }
-        result.appendBoolean(CIDRMatch.process(ip, cidrsValues));
-      }
-      return result.build();
-    }
-  }
-
-  public BooleanVector eval(int positionCount, BytesRefVector ipVector,
-      BytesRefVector[] cidrsVectors) {
-    try(BooleanVector.FixedBuilder result = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
-      BytesRef ipScratch = new BytesRef();
-      BytesRef[] cidrsValues = new BytesRef[cidrs.length];
-      BytesRef[] cidrsScratch = new BytesRef[cidrs.length];
-      for (int i = 0; i < cidrs.length; i++) {
-        cidrsScratch[i] = new BytesRef();
-      }
-      position: for (int p = 0; p < positionCount; p++) {
-        BytesRef ip = ipVector.getBytesRef(p, ipScratch);
-        // unpack cidrsVectors into cidrsValues
-        for (int i = 0; i < cidrsVectors.length; i++) {
-          cidrsValues[i] = cidrsVectors[i].getBytesRef(p, cidrsScratch[i]);
-        }
-        result.appendBoolean(p, CIDRMatch.process(ip, cidrsValues));
+        result.appendBoolean(CIDRMatch.process(p, ipBlock, cidrBlock, this.ipScratch, this.cidrScratch));
       }
       return result.build();
     }
@@ -150,12 +78,12 @@ public final class CIDRMatchEvaluator implements ExpressionEvaluator {
 
   @Override
   public String toString() {
-    return "CIDRMatchEvaluator[" + "ip=" + ip + ", cidrs=" + Arrays.toString(cidrs) + "]";
+    return "CIDRMatchEvaluator[" + "ip=" + ip + ", cidr=" + cidr + "]";
   }
 
   @Override
   public void close() {
-    Releasables.closeExpectNoException(ip, () -> Releasables.close(cidrs));
+    Releasables.closeExpectNoException(ip, cidr);
   }
 
   private Warnings warnings() {
@@ -170,24 +98,30 @@ public final class CIDRMatchEvaluator implements ExpressionEvaluator {
 
     private final ExpressionEvaluator.Factory ip;
 
-    private final ExpressionEvaluator.Factory[] cidrs;
+    private final ExpressionEvaluator.Factory cidr;
 
-    public Factory(Source source, ExpressionEvaluator.Factory ip,
-        ExpressionEvaluator.Factory[] cidrs) {
+    private final Function<DriverContext, BytesRef> ipScratch;
+
+    private final Function<DriverContext, BytesRef> cidrScratch;
+
+    public Factory(Source source, ExpressionEvaluator.Factory ip, ExpressionEvaluator.Factory cidr,
+        Function<DriverContext, BytesRef> ipScratch,
+        Function<DriverContext, BytesRef> cidrScratch) {
       this.source = source;
       this.ip = ip;
-      this.cidrs = cidrs;
+      this.cidr = cidr;
+      this.ipScratch = ipScratch;
+      this.cidrScratch = cidrScratch;
     }
 
     @Override
     public CIDRMatchEvaluator get(DriverContext context) {
-      ExpressionEvaluator[] cidrs = Arrays.stream(this.cidrs).map(a -> a.get(context)).toArray(ExpressionEvaluator[]::new);
-      return new CIDRMatchEvaluator(source, ip.get(context), cidrs, context);
+      return new CIDRMatchEvaluator(source, ip.get(context), cidr.get(context), ipScratch.apply(context), cidrScratch.apply(context), context);
     }
 
     @Override
     public String toString() {
-      return "CIDRMatchEvaluator[" + "ip=" + ip + ", cidrs=" + Arrays.toString(cidrs) + "]";
+      return "CIDRMatchEvaluator[" + "ip=" + ip + ", cidr=" + cidr + "]";
     }
   }
 }

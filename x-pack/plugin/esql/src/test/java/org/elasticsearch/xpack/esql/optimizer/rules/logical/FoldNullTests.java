@@ -35,7 +35,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateExtract;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateFormat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateParse;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
-import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
@@ -163,8 +162,6 @@ public class FoldNullTests extends ESTestCase {
         assertNullLiteral(foldNull(new Cos(EMPTY, NULL)));
         // string functions
         assertNullLiteral(foldNull(new LTrim(EMPTY, NULL)));
-        // ip
-        assertNullLiteral(foldNull(new CIDRMatch(EMPTY, NULL, List.of(NULL))));
         // conversion
         assertNullLiteral(foldNull(new ToString(EMPTY, NULL, TEST_CFG)));
     }

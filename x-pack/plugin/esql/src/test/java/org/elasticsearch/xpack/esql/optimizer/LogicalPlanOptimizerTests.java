@@ -78,10 +78,12 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.ExtractHistogramComponent;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.HistogramPercentile;
+import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAvg;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvDedupe;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMedian;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
@@ -11718,5 +11720,71 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             testAnalyzer.query("PROMQL step=5m avg(rate(network.total_bytes_in[5m])) by (cluster)")
         );
         assertNotNull(plan);
+    }
+
+    /**
+     * Foldable {@code CIDR_MATCH} lowers onto {@code MV_IN_RANGE} with the CIDR block expanded to inclusive IP bounds.
+     */
+    public void testCidrMatchLowersToMvInRange() {
+        LogicalPlan plan = logicalOptimizerWithLatestVersion.optimize(
+            typesAnalyzer().query("FROM types | WHERE cidr_match(ip, \"10.0.0.0/8\")")
+        );
+        Holder<MvInRange> found = new Holder<>();
+        plan.forEachExpressionDown(MvInRange.class, found::set);
+        assertNotNull(found.get());
+        assertThat(found.get().lower(), equalTo(new Literal(found.get().lower().source(), StringUtils.parseIP("10.0.0.0"), DataType.IP)));
+        assertThat(
+            found.get().upper(),
+            equalTo(new Literal(found.get().upper().source(), StringUtils.parseIP("10.255.255.255"), DataType.IP))
+        );
+        Holder<CIDRMatch> cidr = new Holder<>();
+        plan.forEachExpressionDown(CIDRMatch.class, cidr::set);
+        assertNull(cidr.get());
+    }
+
+    /**
+     * Variadic foldable {@code CIDR_MATCH} becomes an {@code OR} of one {@code MV_IN_RANGE} per block.
+     */
+    public void testCidrMatchMultiBlockLowersToOrOfMvInRange() {
+        LogicalPlan plan = logicalOptimizerWithLatestVersion.optimize(
+            typesAnalyzer().query("FROM types | WHERE cidr_match(ip, \"10.0.0.0/8\", \"192.168.0.0/16\")")
+        );
+        Holder<Or> found = new Holder<>();
+        plan.forEachExpressionDown(Or.class, found::set);
+        assertNotNull(found.get());
+        assertThat(found.get().left(), instanceOf(MvInRange.class));
+        assertThat(found.get().right(), instanceOf(MvInRange.class));
+    }
+
+    /**
+     * Below the transport version that introduced the lowering, {@code CIDR_MATCH} is left untouched.
+     */
+    public void testCidrMatchNotLoweredOnOldTransportVersion() {
+        var oldVersion = TransportVersionUtils.getPreviousVersion(CIDRMatch.ESQL_CIDR_MATCH_MV_IN_RANGE);
+        var oldVersionOptimizer = new LogicalPlanOptimizer(
+            new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), oldVersion)
+        );
+        var plan = oldVersionOptimizer.optimize(
+            typesAnalyzer().minimumTransportVersion(oldVersion).query("FROM types | WHERE cidr_match(ip, \"10.0.0.0/8\")")
+        );
+        Holder<CIDRMatch> found = new Holder<>();
+        plan.forEachExpressionDown(CIDRMatch.class, found::set);
+        assertNotNull(found.get());
+        Holder<MvInRange> mv = new Holder<>();
+        plan.forEachExpressionDown(MvInRange.class, mv::set);
+        assertNull(mv.get());
+    }
+
+    /**
+     * A non-foldable CIDR block keeps the scalar {@code CIDR_MATCH} (no lowering).
+     */
+    public void testCidrMatchNonFoldableBlockNotLowered() {
+        LogicalPlan plan = logicalOptimizerWithLatestVersion.optimize(typesAnalyzer().query("FROM types | WHERE cidr_match(ip, keyword)"));
+        Holder<CIDRMatch> found = new Holder<>();
+        plan.forEachExpressionDown(CIDRMatch.class, found::set);
+        assertNotNull(found.get());
+        Holder<MvInRange> mv = new Holder<>();
+        plan.forEachExpressionDown(MvInRange.class, mv::set);
+        assertNull(mv.get());
     }
 }

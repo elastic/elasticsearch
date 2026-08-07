@@ -65,7 +65,7 @@ public final class IngestSettings {
      */
     public static final Setting<ByteSizeValue> MAX_TOTAL_METADATA_SIZE = Setting.byteSizeSetting(
         "ingest.pipeline.max_total_metadata_size",
-        ByteSizeValue.ofMb(50),
+        ByteSizeValue.ofMb(25),
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );

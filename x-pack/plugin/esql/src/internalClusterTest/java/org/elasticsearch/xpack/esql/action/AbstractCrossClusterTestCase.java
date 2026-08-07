@@ -12,6 +12,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.operator.DriverTaskRunner;
@@ -21,11 +22,13 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.test.FailingFieldPlugin;
+import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.esql.plugin.TransportEsqlQueryAction;
 import org.junit.After;
 import org.junit.Before;
 
@@ -79,7 +82,11 @@ public abstract class AbstractCrossClusterTestCase extends AbstractMultiClusters
 
     @Override
     protected Settings nodeSettings() {
-        return Settings.builder().put(super.nodeSettings()).put(EsqlPlugin.QUERY_ALLOW_PARTIAL_RESULTS.getKey(), false).build();
+        return Settings.builder()
+            .put(super.nodeSettings())
+            .put(EsqlPlugin.QUERY_ALLOW_PARTIAL_RESULTS.getKey(), false)
+            .put(ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING, TimeValue.timeValueSeconds(10))
+            .build();
     }
 
     public static class InternalExchangePlugin extends Plugin {
@@ -88,7 +95,7 @@ public abstract class AbstractCrossClusterTestCase extends AbstractMultiClusters
             return List.of(
                 Setting.timeSetting(
                     ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING,
-                    TimeValue.timeValueSeconds(30),
+                    TimeValue.timeValueSeconds(10),
                     Setting.Property.NodeScope
                 )
             );
@@ -125,6 +132,26 @@ public abstract class AbstractCrossClusterTestCase extends AbstractMultiClusters
         SimplePauseFieldPlugin.release();
         FailingPauseFieldPlugin.release();
         CrossClusterAsyncQueryIT.CountingPauseFieldPlugin.release();
+    }
+
+    @After
+    public void ensureExchangesAreReleased() throws Exception {
+        for (Map.Entry<String, InternalTestCluster> entry : clusters().entrySet()) {
+            String clusterAlias = entry.getKey();
+            InternalTestCluster testCluster = entry.getValue();
+            for (String node : testCluster.getNodeNames()) {
+                TransportEsqlQueryAction esqlQueryAction = testCluster.getInstance(TransportEsqlQueryAction.class, node);
+                ExchangeService exchangeService = esqlQueryAction.exchangeService();
+                assertBusy(() -> {
+                    if (exchangeService.lifecycleState() == Lifecycle.State.STARTED) {
+                        assertTrue(
+                            "Leftover exchanges " + exchangeService + " on node " + node + " in cluster " + clusterAlias,
+                            exchangeService.isEmpty()
+                        );
+                    }
+                }, 60, TimeUnit.SECONDS);
+            }
+        }
     }
 
     protected void assertClusterInfoSuccess(EsqlExecutionInfo.Cluster cluster, int numShards) {

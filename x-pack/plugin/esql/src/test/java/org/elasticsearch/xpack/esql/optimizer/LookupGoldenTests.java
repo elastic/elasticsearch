@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
@@ -24,6 +27,15 @@ import static org.elasticsearch.xpack.esql.analysis.Analyzer.ESQL_LOOKUP_JOIN_FU
  */
 public class LookupGoldenTests extends GoldenTestCase {
     private static final EnumSet<Stage> STAGES = EnumSet.of(Stage.LOOKUP_LOGICAL_OPTIMIZATION, Stage.LOOKUP_PHYSICAL_OPTIMIZATION);
+
+    @ParametersFactory(argumentFormatting = "%1$s")
+    public static Iterable<Object[]> parameters() {
+        return goldenModes();
+    }
+
+    public LookupGoldenTests(@Name("mode") String mode) {
+        super(mode);
+    }
 
     /**
      * Simple lookup with no filters.
@@ -117,7 +129,7 @@ public class LookupGoldenTests extends GoldenTestCase {
             FROM employees
             | RENAME first_name as first_left, last_name as last_left
             | LOOKUP JOIN test_lookup ON first_left == first_name AND last_name == "Facello"
-            """).stages(STAGES).transportVersion(ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION).run();
+            """).stages(STAGES).since(ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION).run();
     }
 
     /**
@@ -136,7 +148,7 @@ public class LookupGoldenTests extends GoldenTestCase {
             FROM employees
             | RENAME first_name as first_left
             | LOOKUP JOIN test_lookup ON first_left == first_name AND MATCH(job, "engineer")
-            """).stages(STAGES).transportVersion(ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION).run();
+            """).stages(STAGES).since(ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION).run();
     }
 
     /**
@@ -262,7 +274,7 @@ public class LookupGoldenTests extends GoldenTestCase {
             FROM employees
             | LOOKUP JOIN languages_lookup ON languages == language_code AND language_name == "English"
             | WHERE LENGTH(language_name) > 3
-            """).stages(STAGES).transportVersion(ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION).run();
+            """).stages(STAGES).since(ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION).run();
     }
 
     /**
@@ -280,6 +292,6 @@ public class LookupGoldenTests extends GoldenTestCase {
             FROM employees
             | LOOKUP JOIN languages_lookup ON languages == language_code
             | DROP language_name
-            """).stages(STAGES).searchStats(stats).transportVersion(ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION).run();
+            """).stages(STAGES).searchStats(stats).since(ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION).run();
     }
 }

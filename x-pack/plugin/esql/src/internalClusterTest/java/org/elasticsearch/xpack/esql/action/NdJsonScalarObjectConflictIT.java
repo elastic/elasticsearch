@@ -47,16 +47,16 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
 
 /**
- * End-to-end reproduction of elastic/esql-planning#1028, run through a real {@code FROM <dataset>}
+ * End-to-end reproduction of the NDJSON scalar/object shape-conflict handling, run through a real {@code FROM <dataset>}
  * query (planner + execution + client response), not just the reader-level unit tests in
  * {@code NdJsonPageIteratorTests}/{@code NdJsonPageDecoderTests}. A field ("user") that is a scalar in
  * some sampled NDJSON records and a JSON object in others must, per {@link ErrorPolicy}: fail the query
- * under the default strict policy with an actionable client-visible error, or null-fill just that field
- * and surface a client-visible {@code Warning} under a non-strict policy, while the rest of the record
- * (and the other rows) still return normally. This proves the reader's {@code ErrorPolicy} routing and
+ * under the default strict policy with an actionable client-visible error; drop the conflicting record
+ * whole under {@code skip_row}; or null-fill just that field under {@code null_field} — each surfacing a
+ * client-visible {@code Warning} under the non-strict modes, with the other rows returning normally. This
+ * proves the reader's {@code ErrorPolicy} routing and
  * {@code SkipWarnings} actually propagate all the way to the client through
  * {@code AsyncExternalSourceOperator} and the transport response, not just to a hand-bound test
  * {@code ThreadContext} (mirroring {@code FromDatasetIT} and {@code WarningsIT}).
@@ -124,7 +124,7 @@ public class NdJsonScalarObjectConflictIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * The exact repro shape from elastic/esql-planning#1028: {@code user} is a plain string in most
+     * The exact repro shape: {@code user} is a plain string in most
      * records but a nested object in one of them. Scalar-first-wins schema inference resolves {@code user}
      * to {@code KEYWORD}, so the object-valued record is the one that hits the shape conflict at decode
      * time. Registers a data source and two datasets over the same fixture — {@code strict_ds} with the
@@ -192,15 +192,13 @@ public class NdJsonScalarObjectConflictIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * Non-strict policy ({@code error_mode: skip_row}, set on {@code lenient_ds}): the conflicting
-     * record's {@code user} column is null-filled and the rest of that record (and every other row)
-     * still returns, instead of failing the whole query or dropping the row outright —
-     * elastic/esql-planning#1028 notes the conflict path already decodes the rest of the record. The
-     * query runs through a chosen coordinator and we read that node's accumulated response
-     * {@code Warning} headers, proving the warning recorded by the reader propagates all the way to
-     * the client.
+     * Non-strict policy ({@code error_mode: skip_row}, set on {@code lenient_ds}): the conflicting record is
+     * dropped whole and every other row still returns — {@code skip_row} means "skip the row", and error_mode
+     * governs the outcome the same for an inferred or a declared schema ({@code null_field} keeps the record and
+     * nulls just the cell instead). The query runs through a chosen coordinator and we read that node's accumulated
+     * response {@code Warning} headers, proving the warning recorded by the reader propagates to the client.
      */
-    public void testSkipRowPolicyNullFillsAndWarnsClient() throws Exception {
+    public void testSkipRowPolicyDropsRecordAndWarnsClient() throws Exception {
         EsqlQueryRequest request = syncEsqlQueryRequest("FROM lenient_ds | KEEP event, user | SORT event");
 
         DiscoveryNode coordinator = randomFrom(clusterService().state().nodes().stream().toList());
@@ -237,13 +235,11 @@ public class NdJsonScalarObjectConflictIT extends AbstractEsqlIntegTestCase {
         assertThat(columns.get().get(1).name(), equalTo("user"));
 
         List<List<Object>> rows = values.get();
-        assertThat("all three records must still return, just [user] is null for the conflicting one", rows.size(), equalTo(3));
+        assertThat("the object-valued record is dropped whole under skip_row; the two scalar records remain", rows.size(), equalTo(2));
         assertThat(((Number) rows.get(0).get(0)).intValue(), equalTo(1));
         assertThat(rows.get(0).get(1), equalTo("alice"));
-        assertThat("the conflicting record's [event] sibling column must survive", ((Number) rows.get(1).get(0)).intValue(), equalTo(2));
-        assertThat("the conflicting record's [user] must be null-filled, not the whole row dropped", rows.get(1).get(1), nullValue());
-        assertThat(((Number) rows.get(2).get(0)).intValue(), equalTo(3));
-        assertThat(rows.get(2).get(1), equalTo("carol"));
+        assertThat(((Number) rows.get(1).get(0)).intValue(), equalTo(3));
+        assertThat(rows.get(1).get(1), equalTo("carol"));
 
         assertTrue(
             "client must receive a Warning naming the conflicting field, got: " + warnings,

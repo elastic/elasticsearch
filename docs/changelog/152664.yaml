@@ -1,5 +1,0 @@
-area: Search
-issues: []
-pr: 152664
-summary: Trivial hardening of data uri validation
-type: bug

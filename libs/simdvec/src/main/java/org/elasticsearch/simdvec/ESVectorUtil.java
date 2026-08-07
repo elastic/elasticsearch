@@ -119,29 +119,45 @@ public class ESVectorUtil {
      * L2-normalizes the prefix {@code v[0..length)} in place. Elements at indices {@code length} and
      * beyond are left unchanged. A zero prefix is a no-op; unlike {@link VectorUtil#l2normalize(float[])},
      * this method does not throw on a zero vector.
+     * @return the squared normalization factor
      */
-    public static void l2Normalize(float[] v, int length) {
-        l2Normalize(v, 0, length);
+    public static float l2Normalize(float[] v, int length) {
+        return l2Normalize(v, 0, length);
     }
 
     /**
      * L2-normalizes {@code v[offset:offset + length)} in place. Elements outside the range are left
      * unchanged. A zero range is a no-op.
+     * @return the squared normalization factor
      */
-    public static void l2Normalize(float[] v, int offset, int length) {
+    public static float l2Normalize(float[] v, int offset, int length) {
         if (length <= 0) {
-            return;
+            return 0;
         }
         Objects.checkFromIndexSize(offset, length, v.length);
-        IMPL.l2Normalize(v, offset, length);
+        return IMPL.l2Normalize(v, offset, length);
     }
 
-    /** L2-normalizes all components of {@code v} in place. */
-    public static void l2Normalize(float[] v) {
-        l2Normalize(v, 0, v.length);
+    /**
+     * L2-normalizes all components of {@code v} in place.
+     * @return the squared normalization factor
+     */
+    public static float l2Normalize(float[] v) {
+        return l2Normalize(v, 0, v.length);
     }
 
     public static float squareDistance(float[] a, float[] b) {
+        if (a.length != b.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible: " + a.length + "!= " + b.length);
+        }
+        return IMPL.squareDistance(a, b);
+    }
+
+    /**
+     * Computes the squared Euclidean distance between a byte vector and a float vector.
+     * Each byte element is implicitly widened to float for the computation.
+     */
+    public static float squareDistance(byte[] a, float[] b) {
         if (a.length != b.length) {
             throw new IllegalArgumentException("vector dimensions incompatible: " + a.length + "!= " + b.length);
         }
@@ -415,6 +431,14 @@ public class ESVectorUtil {
                 throw new RuntimeException(e);
             }
         }
+    }
+
+    /**
+     * Hamming similarity between two equal-length bit vectors, matching Lucene's
+     * {@code FlatBitVectorsScorer}: {@code (numBits - xorBitCount) / numBits}.
+     */
+    public static float hammingScore(byte[] a, byte[] b) {
+        return ((a.length * Byte.SIZE) - VectorUtil.xorBitCount(a, b)) / (float) (a.length * Byte.SIZE);
     }
 
     /** AND bit count striding over 4 bytes at a time. */

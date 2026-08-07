@@ -47,10 +47,9 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
 
 /**
- * End-to-end reproduction of elastic/esql-planning#1050, the cross-file completion of #1028: a
+ * End-to-end reproduction of the cross-file scalar/object shape-conflict handling: a
  * field that is a scalar leaf in one file's schema and a nested object (dotted-prefix parent) in
  * another's must reconcile to a single shape under the default {@code UNION_BY_NAME} schema
  * resolution, with the losing file's records routed through the same {@code ErrorPolicy}
@@ -122,7 +121,7 @@ public class NdJsonCrossFileScalarObjectConflictIT extends AbstractEsqlIntegTest
     }
 
     /**
-     * The exact repro shape from esql-planning#1050: {@code a.ndjson}'s {@code user} is a plain
+     * The exact cross-file repro shape: {@code a.ndjson}'s {@code user} is a plain
      * string, {@code b.ndjson}'s is a nested object. Lexicographic glob ordering (see
      * {@code GlobExpander}) makes {@code a.ndjson} the first file, so first-shape-wins schema
      * reconciliation resolves {@code user} to {@code KEYWORD} and {@code b.ndjson} is the one that
@@ -188,7 +187,7 @@ public class NdJsonCrossFileScalarObjectConflictIT extends AbstractEsqlIntegTest
      * silently return {@code with_user=1} rather than failing — the correctness bug this fix
      * closes. With the fix, the family collapses to {@code a.ndjson}'s scalar shape, so
      * {@code b.ndjson}'s now-pinned scalar {@code user} attribute hits its real object value and
-     * fails per elastic/esql-planning#1028's decode-time shape-conflict handling — mirroring
+     * fails per the decode-time shape-conflict handling — mirroring
      * {@link NdJsonScalarObjectConflictIT#testStrictPolicyFailsOnScalarObjectConflict}.
      */
     public void testDefaultSettingsFailsOnCrossFileScalarObjectConflict() {
@@ -200,15 +199,14 @@ public class NdJsonCrossFileScalarObjectConflictIT extends AbstractEsqlIntegTest
     }
 
     /**
-     * Non-strict policy ({@code error_mode: skip_row}, set on {@code lenient_ds}): {@code
-     * b.ndjson}'s {@code user} column is null-filled — not the row or the whole file dropped —
-     * {@code a.ndjson}'s row is unaffected, and the client receives a {@code Warning} naming the
-     * conflict. Nothing silently vanishes, end to end, not just at the reconciliation-unit level.
-     * The query runs through a chosen coordinator and we read that node's accumulated response
-     * {@code Warning} headers, proving the warning recorded by the reader propagates all the way
-     * to the client.
+     * Non-strict policy ({@code error_mode: skip_row}, set on {@code lenient_ds}): {@code b.ndjson}'s conflicting
+     * record is dropped whole — not null-filled — while {@code a.ndjson}'s row is unaffected, and the client
+     * receives a {@code Warning} naming the conflict. Nothing silently vanishes, end to end. error_mode governs the
+     * outcome the same for an inferred or a declared schema; {@code null_field} would keep the record and null the
+     * cell instead. The query runs through a chosen coordinator and we read that node's accumulated response
+     * {@code Warning} headers, proving the warning recorded by the reader propagates all the way to the client.
      */
-    public void testSkipRowPolicyNullFillsAndWarnsClient() throws Exception {
+    public void testSkipRowPolicyDropsRecordAndWarnsClient() throws Exception {
         EsqlQueryRequest request = syncEsqlQueryRequest("FROM lenient_ds | KEEP event, user | SORT event");
 
         DiscoveryNode coordinator = randomFrom(clusterService().state().nodes().stream().toList());
@@ -245,11 +243,9 @@ public class NdJsonCrossFileScalarObjectConflictIT extends AbstractEsqlIntegTest
         assertThat(columns.get().get(1).name(), equalTo("user"));
 
         List<List<Object>> rows = values.get();
-        assertThat("both files' rows must still return, just [user] is null for the conflicting one", rows.size(), equalTo(2));
+        assertThat("b.ndjson's object-valued record is dropped whole under skip_row; only a.ndjson's row remains", rows.size(), equalTo(1));
         assertThat(((Number) rows.get(0).get(0)).intValue(), equalTo(1));
         assertThat(rows.get(0).get(1), equalTo("alice"));
-        assertThat("b.ndjson's [event] sibling column must survive", ((Number) rows.get(1).get(0)).intValue(), equalTo(2));
-        assertThat("b.ndjson's [user] must be null-filled, not the whole row dropped", rows.get(1).get(1), nullValue());
 
         assertTrue(
             "client must receive a Warning naming the conflicting field, got: " + warnings,

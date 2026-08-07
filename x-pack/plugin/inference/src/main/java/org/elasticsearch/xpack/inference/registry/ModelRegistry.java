@@ -1069,31 +1069,6 @@ public class ModelRegistry implements ClusterStateListener {
         );
     }
 
-    /**
-     * Returns true if the model registry contains the provided inference entity id. This includes both preconfigured and user created
-     * inference endpoints.
-     * @param inferenceEntityId the id to search for
-     * @return true if we find a match and false if not
-     */
-    private boolean containsInferenceEndpointId(String inferenceEntityId) {
-        // This checks an in memory cache local to the node. The cache should be the same across all nodes as it is populated in the
-        // inference plugin on boot up (excluding an upgrade scenario where the plugins could be different).
-        // This primarily holds endpoints registered by the ElasticsearchInternalService
-        if (defaultConfigIds.containsKey(inferenceEntityId)) {
-            return true;
-        }
-
-        // This checks the cluster state for user created endpoints as well as EIS preconfigured endpoints
-        if (lastMetadata.get() != null) {
-            var project = lastMetadata.get().getProject(ProjectId.DEFAULT);
-            var state = ModelRegistryClusterStateMetadata.fromState(project);
-            var allInferenceIds = state.getInferenceIds();
-            return allInferenceIds.contains(inferenceEntityId);
-        }
-
-        return false;
-    }
-
     public boolean isReady() {
         if (lastMetadata.get() == null) {
             return false;

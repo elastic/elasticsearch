@@ -270,7 +270,11 @@ public class SchemaAdaptingIteratorTests extends ESTestCase {
 
     public void testMemoryCleanupOnFailure() {
         List<Attribute> unified = List.of(attr("a", DataType.INTEGER), attr("b", DataType.LONG));
-        ColumnMapping mapping = new ColumnMapping(new int[] { 0, 1 }, new DataType[] { null, DataType.DATE_NANOS });
+        // VERSION is the cast target because this test only needs *a* failing cast: it pins that the blocks built
+        // before the failure are released, not any particular pair's support status. VERSION is not a declarable
+        // type and has no coercion arm, so it cannot drift into the supported set and quietly stop failing — which
+        // is exactly what happened to the INTEGER -> DATE_NANOS pair this used to rely on.
+        ColumnMapping mapping = new ColumnMapping(new int[] { 0, 1 }, new DataType[] { null, DataType.VERSION });
 
         IntBlock intBlock1 = blockFactory.newConstantIntBlockWith(1, 2);
         IntBlock intBlock2 = blockFactory.newConstantIntBlockWith(2, 2);

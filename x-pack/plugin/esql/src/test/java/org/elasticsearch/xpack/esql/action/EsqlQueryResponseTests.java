@@ -110,6 +110,7 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateNanosT
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.longToUnsignedLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.parseDateRange;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.parseDoubleRange;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToGeo;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToIP;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToSpatial;
@@ -348,6 +349,16 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                         randomDoubles(valueCount).toArray()
                     );
                     expBuilder.append(histo);
+                }
+                case DOUBLE_RANGE -> {
+                    double first = randomDouble();
+                    double second;
+                    do {
+                        second = randomDouble();
+                    } while (first == second);
+                    BlockLoader.DoubleRangeBuilder rangeBuilder = (BlockLoader.DoubleRangeBuilder) builder;
+                    rangeBuilder.from().appendDouble(Math.min(first, second));
+                    rangeBuilder.to().appendDouble(Math.max(first, second));
                 }
                 case TDIGEST -> ((TDigestBlockBuilder) builder).appendTDigest(EsqlTestUtils.randomTDigest());
                 case HISTOGRAM -> ((BytesRefBlock.Builder) builder).appendBytesRef(EsqlTestUtils.randomHistogram());
@@ -1726,6 +1737,12 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                         var ll = parseDateRange(value.toString(), ZoneOffset.UTC);
                         b.from().appendLong(ll.from());
                         b.to().appendLong(ll.to());
+                    }
+                    case DOUBLE_RANGE -> {
+                        BlockLoader.DoubleRangeBuilder b = (BlockLoader.DoubleRangeBuilder) builder;
+                        var range = parseDoubleRange(value.toString());
+                        b.from().appendDouble(range.from());
+                        b.to().appendDouble(range.to());
                     }
                     case TDIGEST -> {
                         TDigestBlockBuilder tDigestBlockBuilder = (TDigestBlockBuilder) builder;

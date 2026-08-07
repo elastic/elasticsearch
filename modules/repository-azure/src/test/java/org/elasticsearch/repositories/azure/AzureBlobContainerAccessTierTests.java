@@ -294,7 +294,8 @@ public class AzureBlobContainerAccessTierTests extends ESTestCase {
             blobName,
             blobSize,
             (offset, length) -> new ByteArrayInputStream(data, Math.toIntExact(offset), Math.toIntExact(length)),
-            false
+            false,
+            Runnable::run
         );
 
         asserAccessTier(dataAccessTier, blobName);

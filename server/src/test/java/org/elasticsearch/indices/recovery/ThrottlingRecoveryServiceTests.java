@@ -14,9 +14,11 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.project.AbstractProjectResolver;
 import org.elasticsearch.cluster.project.DefaultProjectResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
@@ -24,6 +26,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
@@ -40,34 +43,44 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.indices.recovery.ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class ThrottlingRecoveryServiceTests extends ESTestCase {
     private static TestThreadPool threadPool;
+    private static DiscoveryNode localNode;
+    private static DiscoveryNode sourceNode;
+    private static DiscoveryNode targetNode;
     private RecoveryStats stats = new RecoveryStats();
 
     @BeforeClass
     public static void init() throws Exception {
         threadPool = new TestThreadPool(ThrottlingRecoveryServiceTests.class.getSimpleName());
+        localNode = DiscoveryNodeUtils.create("local-node");
+        sourceNode = DiscoveryNodeUtils.create("source");
+        targetNode = DiscoveryNodeUtils.create("target");
     }
 
     @AfterClass
@@ -76,7 +89,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
     }
 
     @After
-    public void verifyStats() {
+    public void verifyNoOutstandingRecoveriesInStats() {
         // recovery stats counters should always be back to 0 at the end of tests
         assertTrue(stats.noCurrentRecoveries());
         stats = new RecoveryStats();
@@ -99,12 +112,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final var projectId2 = randomUniqueProjectId();
         final var projectId3 = randomUniqueProjectId();
 
-        final var service = new ThrottlingRecoveryService(
-            threadPool,
-            multiProjectResolver,
-            newClusterService(1),
-            RecoverySchedulingListener.NOOP
-        );
+        final var service = newStartedService(threadPool, multiProjectResolver, newClusterService(1));
 
         final var firstRecoveryRunning = new CountDownLatch(1);
         final var firstRecoveryProceed = new CountDownLatch(1);
@@ -173,12 +181,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
     public void testSynchronousTaskRunsOnProvidedThreadPoolAndNotifiesUserListener() {
         // Use real threads instead of DeterministicTaskQueue to verify actual threading behavior below
         final var recoveryType = randomFrom(RecoverySource.Type.values());
-        final var service = new ThrottlingRecoveryService(
-            threadPool,
-            DefaultProjectResolver.INSTANCE,
-            newClusterService(1),
-            RecoverySchedulingListener.NOOP
-        );
+        final var service = newStartedService(threadPool, DefaultProjectResolver.INSTANCE, newClusterService(1));
         final var callerThread = Thread.currentThread();
         final var executionThread = new AtomicReference<Thread>();
         final var consumerReturned = new CountDownLatch(1);
@@ -213,12 +216,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
     /// Asynchronous task: consumer returns before the scheduling listener receives a terminal callback.
     public void testAsynchronousTaskListenerNotificationAfterConsumerReturns() {
         // Use real threads instead of DeterministicTaskQueue to be able to use safeAwait below
-        final var service = new ThrottlingRecoveryService(
-            threadPool,
-            DefaultProjectResolver.INSTANCE,
-            newClusterService(1),
-            RecoverySchedulingListener.NOOP
-        );
+        final var service = newStartedService(threadPool, DefaultProjectResolver.INSTANCE, newClusterService(1));
         final var consumerReturned = new CountDownLatch(1);
         final var recoveryDone = new CountDownLatch(1);
         final var userListener = new RecoveryListener() {
@@ -256,11 +254,10 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
     public void testMaxConcurrencyBoundWithAsynchronousTasks() {
         final var taskQueue = new DeterministicTaskQueue();
         final int maxConcurrentRecoveries = between(2, 5);
-        final var service = new ThrottlingRecoveryService(
+        final var service = newStartedService(
             taskQueue.getThreadPool(),
             DefaultProjectResolver.INSTANCE,
-            newClusterService(maxConcurrentRecoveries),
-            RecoverySchedulingListener.NOOP
+            newClusterService(maxConcurrentRecoveries)
         );
         final var running = new AtomicInteger();
         final var completed = new AtomicInteger();
@@ -336,12 +333,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
     public void testIncreasingMaxConcurrentRecoveriesStartsPendingTasks() {
         final var taskQueue = new DeterministicTaskQueue();
         final var clusterService = newClusterService(2);
-        final var service = new ThrottlingRecoveryService(
-            taskQueue.getThreadPool(),
-            DefaultProjectResolver.INSTANCE,
-            clusterService,
-            RecoverySchedulingListener.NOOP
-        );
+        final var service = newStartedService(taskQueue.getThreadPool(), DefaultProjectResolver.INSTANCE, clusterService);
         final var started = new AtomicInteger();
 
         for (int i = 0; i < 10; i++) {
@@ -376,12 +368,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
     public void testDecreasingMaxConcurrentRecoveriesDefersQueueWithoutCancellingRunningTasks() {
         final var taskQueue = new DeterministicTaskQueue();
         final var clusterService = newClusterService(3);
-        final var service = new ThrottlingRecoveryService(
-            taskQueue.getThreadPool(),
-            DefaultProjectResolver.INSTANCE,
-            clusterService,
-            RecoverySchedulingListener.NOOP
-        );
+        final var service = newStartedService(taskQueue.getThreadPool(), DefaultProjectResolver.INSTANCE, clusterService);
         final var started = new AtomicInteger();
         final var done = new AtomicInteger();
 
@@ -452,12 +439,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
 
     public void testFifoWhenThrottledToOneConcurrentWithSynchronousCompletion() {
         final var taskQueue = new DeterministicTaskQueue();
-        final var service = new ThrottlingRecoveryService(
-            taskQueue.getThreadPool(),
-            DefaultProjectResolver.INSTANCE,
-            newClusterService(1),
-            RecoverySchedulingListener.NOOP
-        );
+        final var service = newStartedService(taskQueue.getThreadPool(), DefaultProjectResolver.INSTANCE, newClusterService(1));
         final int total = between(10, 20);
         final var completionOrder = new CopyOnWriteArrayList<Integer>();
 
@@ -503,12 +485,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
 
     public void testFailureTriggersNextQueuedRecovery() {
         final var taskQueue = new DeterministicTaskQueue();
-        final var service = new ThrottlingRecoveryService(
-            taskQueue.getThreadPool(),
-            DefaultProjectResolver.INSTANCE,
-            newClusterService(1),
-            RecoverySchedulingListener.NOOP
-        );
+        final var service = newStartedService(taskQueue.getThreadPool(), DefaultProjectResolver.INSTANCE, newClusterService(1));
 
         final var listener1 = new TestCaptureResultListener(ExpectedRecoveryOutcome.FAILED);
         service.enqueue(ProjectId.DEFAULT, listener1, newRecoveryState(), UUIDs.randomBase64UUID(), stats, ignored -> {
@@ -528,12 +505,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
 
     public void testRecoveryAbortedTriggersNextQueuedRecovery() {
         final var taskQueue = new DeterministicTaskQueue();
-        final var service = new ThrottlingRecoveryService(
-            taskQueue.getThreadPool(),
-            DefaultProjectResolver.INSTANCE,
-            newClusterService(1),
-            RecoverySchedulingListener.NOOP
-        );
+        final var service = newStartedService(taskQueue.getThreadPool(), DefaultProjectResolver.INSTANCE, newClusterService(1));
 
         final var listener1 = new TestCaptureResultListener(ExpectedRecoveryOutcome.ABORTED);
         service.enqueue(
@@ -557,12 +529,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
 
     public void testCloseAbortsQueuedButNotDispatchedRecoveries() {
         final var taskQueue = new DeterministicTaskQueue();
-        final var service = new ThrottlingRecoveryService(
-            taskQueue.getThreadPool(),
-            DefaultProjectResolver.INSTANCE,
-            newClusterService(1),
-            RecoverySchedulingListener.NOOP
-        );
+        final var service = newStartedService(taskQueue.getThreadPool(), DefaultProjectResolver.INSTANCE, newClusterService(1));
 
         final var runningTaskDispatched = new AtomicBoolean();
         final var listener1 = new TestCaptureResultListener(ExpectedRecoveryOutcome.COMPLETED);
@@ -597,12 +564,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
 
     public void testEnqueueAfterCloseImmediatelyAborts() {
         final var taskQueue = new DeterministicTaskQueue();
-        final var service = new ThrottlingRecoveryService(
-            taskQueue.getThreadPool(),
-            DefaultProjectResolver.INSTANCE,
-            newClusterService(1),
-            RecoverySchedulingListener.NOOP
-        );
+        final var service = newStartedService(taskQueue.getThreadPool(), DefaultProjectResolver.INSTANCE, newClusterService(1));
         service.close();
 
         final var listener = new TestCaptureResultListener(ExpectedRecoveryOutcome.ABORTED);
@@ -620,12 +582,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
 
     public void testRecordedCancellationAppliedAtEnqueueTime() {
         final var taskQueue = new DeterministicTaskQueue();
-        final var service = new ThrottlingRecoveryService(
-            taskQueue.getThreadPool(),
-            DefaultProjectResolver.INSTANCE,
-            newClusterService(10),
-            RecoverySchedulingListener.NOOP
-        );
+        final var service = newStartedService(taskQueue.getThreadPool(), DefaultProjectResolver.INSTANCE, newClusterService(10));
         final var shardId = new ShardId(randomIndexName(), UUIDs.randomBase64UUID(), 0);
         final var allocationId = UUIDs.randomBase64UUID();
 
@@ -645,14 +602,44 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         ensureListenersWereNotified(listener);
     }
 
+    /// A recorded cancellation must persist across multiple [ThrottlingRecoveryService#enqueue] attempts for the same
+    /// allocation ID, until pruned by [#clusterChanged].
+    public void testRecordedCancellationPersistsForSubsequentEnqueueAttempts() {
+        final var taskQueue = new DeterministicTaskQueue();
+        final var service = newStartedService(taskQueue.getThreadPool(), DefaultProjectResolver.INSTANCE, newClusterService(10));
+        final var shardId = new ShardId(randomIndexName(), UUIDs.randomBase64UUID(), 0);
+        final var allocationId = UUIDs.randomBase64UUID();
+
+        assertTrue(service.cancelRecoveries(Map.of(allocationId, shardId)).isEmpty());
+
+        final var listener1 = new TestCaptureResultListener(ExpectedRecoveryOutcome.CANCELLED_IN_QUEUE);
+        service.enqueue(
+            ProjectId.DEFAULT,
+            listener1,
+            newRecoveryState(shardId),
+            allocationId,
+            stats,
+            ignored -> fail("first enqueue attempt should have been rejected due to recorded cancellation")
+        );
+
+        final var listener2 = new TestCaptureResultListener(ExpectedRecoveryOutcome.CANCELLED_IN_QUEUE);
+        service.enqueue(
+            ProjectId.DEFAULT,
+            listener2,
+            newRecoveryState(shardId),
+            allocationId,
+            stats,
+            ignored -> fail("second enqueue attempt should also have been rejected")
+        );
+
+        taskQueue.runAllTasks();
+        assertThat(service.currentQueueSize(), equalTo(0));
+        ensureListenersWereNotified(listener1, listener2);
+    }
+
     public void testCancellationAppliedWhenTaskInPendingQueue() {
         final var taskQueue = new DeterministicTaskQueue();
-        final var service = new ThrottlingRecoveryService(
-            taskQueue.getThreadPool(),
-            DefaultProjectResolver.INSTANCE,
-            newClusterService(1),
-            RecoverySchedulingListener.NOOP
-        );
+        final var service = newStartedService(taskQueue.getThreadPool(), DefaultProjectResolver.INSTANCE, newClusterService(1));
         final var shardId1 = new ShardId("index1", UUIDs.randomBase64UUID(), 0);
         final var allocationId1 = UUIDs.randomBase64UUID();
         final var shardId2 = new ShardId("index2", UUIDs.randomBase64UUID(), 0);
@@ -666,6 +653,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                 () -> listener.onRecoveryFailure(new RecoveryCancelledException(shardId1, null, null), true)
             );
         });
+        taskQueue.runAllRunnableTasks();
 
         final var listener2 = new TestCaptureResultListener(ExpectedRecoveryOutcome.CANCELLED_IN_QUEUE);
         service.enqueue(
@@ -682,51 +670,10 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         ensureListenersWereNotified(listener1, listener2);
     }
 
-    public void testStaleRecordedEntryRemovedOnClusterStateChangeWithLocalNodeNull() {
-        final var taskQueue = new DeterministicTaskQueue();
-        final var service = new ThrottlingRecoveryService(
-            taskQueue.getThreadPool(),
-            DefaultProjectResolver.INSTANCE,
-            newClusterService(10),
-            RecoverySchedulingListener.NOOP
-        );
-        final var shardId = new ShardId(randomIndexName(), UUIDs.randomBase64UUID(), 0);
-        final var allocationId = UUIDs.randomBase64UUID();
-
-        assertTrue(service.cancelRecoveries(Map.of(allocationId, shardId)).isEmpty());
-
-        final var event = mock(ClusterChangedEvent.class);
-        final var state = mock(ClusterState.class);
-        final var routingNodes = mock(RoutingNodes.class);
-        when(event.state()).thenReturn(state);
-        when(state.getRoutingNodes()).thenReturn(routingNodes);
-        when(routingNodes.node(anyString())).thenReturn(null);
-        service.clusterChanged(event);
-
-        final var recoveryState = newRecoveryState(shardId);
-        final var listener = new TestCaptureResultListener(ExpectedRecoveryOutcome.COMPLETED);
-        service.enqueue(
-            ProjectId.DEFAULT,
-            listener,
-            recoveryState,
-            allocationId,
-            stats,
-            l -> l.onRecoveryDone(recoveryState, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY)
-        );
-        taskQueue.runAllRunnableTasks();
-        assertThat(service.currentQueueSize(), equalTo(0));
-        ensureListenersWereNotified(listener);
-    }
-
     public void testStaleRecordedEntryRemovedOnClusterStateChangeWithShardRelocated() {
         final var taskQueue = new DeterministicTaskQueue();
         final var clusterService = newClusterService(10);
-        final var service = new ThrottlingRecoveryService(
-            taskQueue.getThreadPool(),
-            DefaultProjectResolver.INSTANCE,
-            clusterService,
-            RecoverySchedulingListener.NOOP
-        );
+        final var service = newStartedService(taskQueue.getThreadPool(), DefaultProjectResolver.INSTANCE, clusterService);
         final var staleShardId = new ShardId(randomIndexName(), UUIDs.randomBase64UUID(), 0);
         final var staleAllocationId = UUIDs.randomBase64UUID();
         final var retainedShardId = new ShardId(randomIndexName(), UUIDs.randomBase64UUID(), 0);
@@ -778,63 +725,10 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         ensureListenersWereNotified(staleListener, retainedListener);
     }
 
-    public void testPendingRecoveryDiscardedWhenLocalNodeRemoved() {
-        final var taskQueue = new DeterministicTaskQueue();
-        final var clusterService = newClusterService(1);
-        final var service = new ThrottlingRecoveryService(
-            taskQueue.getThreadPool(),
-            DefaultProjectResolver.INSTANCE,
-            clusterService,
-            RecoverySchedulingListener.NOOP
-        );
-
-        final var blockerShardId = new ShardId(randomIndexName(), UUIDs.randomBase64UUID(), 0);
-        final var blockerListener = new TestCaptureResultListener(ExpectedRecoveryOutcome.CANCELLED_STARTED);
-        service.enqueue(ProjectId.DEFAULT, blockerListener, newRecoveryState(blockerShardId), UUIDs.randomBase64UUID(), stats, listener -> {
-            // occupies the sole concurrency slot
-            taskQueue.scheduleAt(
-                taskQueue.getCurrentTimeMillis() + 100,
-                () -> listener.onRecoveryFailure(new RecoveryCancelledException(blockerShardId, null, null), true)
-            );
-        });
-
-        final var shardId = new ShardId(randomIndexName(), UUIDs.randomBase64UUID(), 0);
-        final var allocationId = UUIDs.randomBase64UUID();
-
-        final var listener = new TestCaptureResultListener(ExpectedRecoveryOutcome.CANCELLED_IN_QUEUE);
-        service.enqueue(
-            ProjectId.DEFAULT,
-            listener,
-            newRecoveryState(shardId),
-            allocationId,
-            stats,
-            ignored -> fail("task should have been cancelled")
-        );
-        assertThat(service.currentQueueSize(), equalTo(1));
-
-        // Simulate this node leaving the cluster's data nodes entirely (e.g. it's shutting down).
-        final var event = mock(ClusterChangedEvent.class);
-        final var state = mock(ClusterState.class);
-        final var routingNodes = mock(RoutingNodes.class);
-        when(event.state()).thenReturn(state);
-        when(state.getRoutingNodes()).thenReturn(routingNodes);
-        when(routingNodes.node(clusterService.localNode().getId())).thenReturn(null);
-        service.clusterChanged(event);
-
-        taskQueue.runAllTasks();
-        assertThat(service.currentQueueSize(), equalTo(0));
-        ensureListenersWereNotified(blockerListener, listener);
-    }
-
     public void testPendingRecoveryDiscardedWhenAllocationIdChangesWhileQueued() {
         final var taskQueue = new DeterministicTaskQueue();
         final var clusterService = newClusterService(1);
-        final var service = new ThrottlingRecoveryService(
-            taskQueue.getThreadPool(),
-            DefaultProjectResolver.INSTANCE,
-            clusterService,
-            RecoverySchedulingListener.NOOP
-        );
+        final var service = newStartedService(taskQueue.getThreadPool(), DefaultProjectResolver.INSTANCE, clusterService);
 
         final var blockerShardId = new ShardId(randomIndexName(), UUIDs.randomBase64UUID(), 0);
         final var blockerListener = new TestCaptureResultListener(ExpectedRecoveryOutcome.CANCELLED_STARTED);
@@ -845,6 +739,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                 () -> listener.onRecoveryFailure(new RecoveryCancelledException(blockerShardId, null, null), true)
             );
         });
+        taskQueue.runAllRunnableTasks();
 
         final var shardId = new ShardId(randomIndexName(), UUIDs.randomBase64UUID(), 0);
         final var oldAllocationId = UUIDs.randomBase64UUID();
@@ -883,12 +778,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
 
     public void testCancelRecoveryReturnsEmptyWhenNoLongerInQueue() {
         final var taskQueue = new DeterministicTaskQueue();
-        final var service = new ThrottlingRecoveryService(
-            taskQueue.getThreadPool(),
-            DefaultProjectResolver.INSTANCE,
-            newClusterService(10),
-            RecoverySchedulingListener.NOOP
-        );
+        final var service = newStartedService(taskQueue.getThreadPool(), DefaultProjectResolver.INSTANCE, newClusterService(10));
         final var shardId = new ShardId(randomIndexName(), UUIDs.randomBase64UUID(), 0);
         final var allocationId = UUIDs.randomBase64UUID();
         final var recoveryState = newRecoveryState(shardId);
@@ -923,12 +813,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
 
         final var maxConcurrency = new AtomicInteger(between(1, 20));
         final var clusterService = newClusterService(maxConcurrency.get());
-        final var service = new ThrottlingRecoveryService(
-            taskQueue.getThreadPool(),
-            DefaultProjectResolver.INSTANCE,
-            clusterService,
-            RecoverySchedulingListener.NOOP
-        );
+        final var service = newStartedService(taskQueue.getThreadPool(), DefaultProjectResolver.INSTANCE, clusterService);
 
         final var recoveryState = newRecoveryState();
         final var running = new AtomicInteger();
@@ -1005,13 +890,13 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                 );
                 taskQueue.runAllRunnableTasks();
                 while (randomBoolean() && taskQueue.hasDeferredTasks()) {
-                    if (service.isClosed()) {
+                    if (service.lifecycleState() != Lifecycle.State.STARTED) {
                         assertThat(service.currentQueueSize(), equalTo(0));
                     }
                     taskQueue.advanceTime();
                     taskQueue.runAllRunnableTasks();
                 }
-                if (service.isClosed()) {
+                if (service.lifecycleState() != Lifecycle.State.STARTED) {
                     assertThat(service.currentQueueSize(), equalTo(0));
                 }
             }
@@ -1033,12 +918,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final int initialMaxConcurrentRecoveries = between(1, 20);
         final var clusterService = newClusterService(initialMaxConcurrentRecoveries);
         final var peakLimit = new AtomicInteger(initialMaxConcurrentRecoveries);
-        final var throttlingRecoveryService = new ThrottlingRecoveryService(
-            threadPool,
-            DefaultProjectResolver.INSTANCE,
-            clusterService,
-            RecoverySchedulingListener.NOOP
-        );
+        final var throttlingRecoveryService = newStartedService(threadPool, DefaultProjectResolver.INSTANCE, clusterService);
 
         final var currentMaxConcurrentRecoveries = new AtomicInteger(peakLimit.get());
         final var runningOrPending = new AtomicInteger();
@@ -1228,6 +1108,187 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         }
     }
 
+    public void testGateBlocksAllRecoveriesUntilItAllows() {
+        final var taskQueue = new DeterministicTaskQueue();
+        // A blocking gate holds every recovery back until it flips to run.
+        final var gateDecision = new AtomicReference<>(RecoveryGate.Decision.block(randomIdentifier(), randomAlphaOfLengthBetween(5, 30)));
+        final RecoveryGate gate = gateDecision::get;
+        final var service = new ThrottlingRecoveryService(
+            taskQueue.getThreadPool(),
+            DefaultProjectResolver.INSTANCE,
+            newClusterService(Integer.MAX_VALUE), // plenty of slots, so only the gate can hold recoveries back
+            RecoverySchedulingListener.NOOP,
+            new RecoveryGateMonitor(() -> List.of(gate), taskQueue.getThreadPool())
+        );
+        service.start();
+
+        final var started = new AtomicInteger();
+        final int count = between(2, 5);
+        for (int i = 0; i < count; i++) {
+            service.enqueue(ProjectId.DEFAULT, RecoveryListener.NOOP, newRecoveryState(), UUIDs.randomBase64UUID(), stats, listener -> {
+                started.incrementAndGet();
+                listener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
+            });
+        }
+
+        taskQueue.runAllRunnableTasks();
+        assertThat("gate should hold every recovery back", started.get(), equalTo(0));
+        assertThat(service.currentQueueSize(), equalTo(count));
+
+        // Conditions improve: the periodic recheck notices the gate now allows recoveries and wakes the scheduler.
+        gateDecision.set(RecoveryGate.Decision.RUN);
+        taskQueue.advanceTime();
+        taskQueue.runAllRunnableTasks();
+        assertThat(started.get(), equalTo(count));
+        assertThat(service.currentQueueSize(), equalTo(0));
+    }
+
+    public void testEmptyGateDispatchesImmediately() {
+        final var taskQueue = new DeterministicTaskQueue();
+        final var service = new ThrottlingRecoveryService(
+            taskQueue.getThreadPool(),
+            DefaultProjectResolver.INSTANCE,
+            newClusterService(Integer.MAX_VALUE),
+            RecoverySchedulingListener.NOOP,
+            monitorWithNoGates(taskQueue.getThreadPool())
+        );
+        service.start();
+        final var started = new AtomicInteger();
+        final int count = between(1, 100);
+        for (int i = 0; i < count; i++) {
+            service.enqueue(ProjectId.DEFAULT, RecoveryListener.NOOP, newRecoveryState(), UUIDs.randomBase64UUID(), stats, listener -> {
+                started.incrementAndGet();
+                listener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
+            });
+        }
+        taskQueue.runAllRunnableTasks();
+        assertThat(started.get(), equalTo(count));
+        assertThat(service.currentQueueSize(), equalTo(0));
+    }
+
+    public void testGateBlockedTimeIsReported() {
+        final var taskQueue = new DeterministicTaskQueue();
+
+        final var blockedGate = new AtomicReference<String>();
+        final var blockedCount = new AtomicInteger();
+        final var unblockedCount = new AtomicInteger();
+        final var reportedBlockedMillis = new AtomicLong(-1);
+        final RecoverySchedulingListener listener = new RecoverySchedulingListener() {
+            @Override
+            public void onRecoveriesBlocked(String gateName) {
+                blockedGate.set(gateName);
+                blockedCount.incrementAndGet();
+            }
+
+            @Override
+            public void onRecoveriesUnblocked(long blockedTimeMillis) {
+                unblockedCount.incrementAndGet();
+                reportedBlockedMillis.set(blockedTimeMillis);
+            }
+        };
+        final String gateName = randomIdentifier();
+        final var gateDecision = new AtomicReference<>(RecoveryGate.Decision.block(gateName, randomAlphaOfLengthBetween(5, 30)));
+        final RecoveryGate gate = gateDecision::get;
+        final var recoveryGateMonitor = new RecoveryGateMonitor(() -> List.of(gate), taskQueue.getThreadPool());
+        final var service = new ThrottlingRecoveryService(
+            taskQueue.getThreadPool(),
+            DefaultProjectResolver.INSTANCE,
+            newClusterService(Integer.MAX_VALUE), // plenty of slots, so only the gate can hold recoveries back
+            listener,
+            recoveryGateMonitor
+        );
+        service.start();
+
+        final long blockedSince = taskQueue.getCurrentTimeMillis();
+        final var started = new AtomicInteger();
+        final int count = between(1, 100);
+        for (int i = 0; i < count; i++) {
+            service.enqueue(ProjectId.DEFAULT, RecoveryListener.NOOP, newRecoveryState(), UUIDs.randomBase64UUID(), stats, l -> {
+                started.incrementAndGet();
+                l.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
+            });
+        }
+        taskQueue.runAllRunnableTasks();
+        assertThat(started.get(), equalTo(0));
+        // The block is reported exactly once (on the first dispatch attempt), naming the responsible gate.
+        assertThat(blockedCount.get(), equalTo(1));
+        assertThat(blockedGate.get(), equalTo(gateName));
+        assertThat(unblockedCount.get(), equalTo(0));
+
+        // Stay blocked across a few periodic rechecks: nothing new is reported.
+        for (int i = between(0, 3); i > 0; i--) {
+            taskQueue.advanceTime();
+            taskQueue.runAllRunnableTasks();
+        }
+        assertThat(blockedCount.get(), equalTo(1));
+        assertThat(unblockedCount.get(), equalTo(0));
+        assertTrue("Rechecks task should exists", taskQueue.hasDeferredTasks());
+
+        // The gate allows recoveries again: the next recheck notices, dispatches everything, and reports the blocked duration.
+        gateDecision.set(RecoveryGate.Decision.RUN);
+        taskQueue.advanceTime();
+        taskQueue.runAllRunnableTasks();
+
+        assertThat(started.get(), equalTo(count));
+        assertThat(unblockedCount.get(), equalTo(1));
+        assertThat(reportedBlockedMillis.get(), equalTo(taskQueue.getCurrentTimeMillis() - blockedSince));
+        assertFalse("No more scheduled tasks", taskQueue.hasAnyTasks());
+    }
+
+    /// Hammers the service from multiple real threads while the gate flaps, to catch races between dispatch, the monitor's
+    /// evaluations, and the resume callback: a missed wake-up leaves recoveries queued (the latch below never opens) and a deadlock
+    /// hangs the test. Unlike the deterministic tests above, this uses a real thread pool.
+    public void testConcurrentEnqueuesWithFlappingGateEventuallyDispatchEverything() throws Exception {
+        final var gateDecision = new AtomicReference<>(RecoveryGate.Decision.RUN);
+        final RecoveryGate gate = gateDecision::get;
+        final var service = new ThrottlingRecoveryService(
+            threadPool,
+            DefaultProjectResolver.INSTANCE,
+            newClusterService(randomBoolean() ? Integer.MAX_VALUE : between(1, 5)),
+            RecoverySchedulingListener.NOOP,
+            new RecoveryGateMonitor(() -> List.of(gate), threadPool)
+        );
+        service.start();
+
+        final int enqueueThreads = between(4, 10);
+        final int recoveriesPerThread = between(20, 100);
+        final int totalRecoveries = enqueueThreads * recoveriesPerThread;
+        // Test randomness is bound to the main thread, so pre-compute everything random the worker threads need.
+        final List<RecoveryState> recoveryStates = new ArrayList<>(totalRecoveries);
+        for (int i = 0; i < totalRecoveries; i++) {
+            recoveryStates.add(newRecoveryState());
+        }
+        final Random flapperRandom = new Random(randomLong());
+
+        final var allCompleted = new CountDownLatch(totalRecoveries);
+        final var enqueued = new AtomicInteger();
+        startInParallel(enqueueThreads + 1, threadIndex -> {
+            if (threadIndex == 0) {
+                // Flap the gate while the other threads enqueue, then settle on RUN.
+                while (enqueued.get() < totalRecoveries) {
+                    gateDecision.set(
+                        flapperRandom.nextBoolean() ? RecoveryGate.Decision.RUN : RecoveryGate.Decision.block("flapper", "concurrency test")
+                    );
+                    Thread.yield();
+                }
+                gateDecision.set(RecoveryGate.Decision.RUN);
+            } else {
+                for (int i = 0; i < recoveriesPerThread; i++) {
+                    final RecoveryState recoveryState = recoveryStates.get((threadIndex - 1) * recoveriesPerThread + i);
+                    service.enqueue(ProjectId.DEFAULT, RecoveryListener.NOOP, recoveryState, UUIDs.randomBase64UUID(), stats, l -> {
+                        l.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
+                        allCompleted.countDown();
+                    });
+                    enqueued.incrementAndGet();
+                }
+            }
+        });
+
+        // Whatever interleaving happened, once the gate settles on RUN every recovery must dispatch and complete.
+        safeAwait(allCompleted);
+        assertThat(service.currentQueueSize(), equalTo(0));
+    }
+
     private static ClusterService newClusterService(int maxConcurrentRecoveries) {
         ClusterService clusterService = mock(ClusterService.class);
         Settings settings = Settings.builder()
@@ -1235,8 +1296,29 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             .build();
         ClusterSettings clusterSettings = new ClusterSettings(settings, Set.of(INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING));
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
-        when(clusterService.localNode()).thenReturn(DiscoveryNodeUtils.create("local-node"));
+        when(clusterService.localNode()).thenReturn(localNode);
         return clusterService;
+    }
+
+    private static ThrottlingRecoveryService newStartedService(
+        ThreadPool threadPool,
+        ProjectResolver projectResolver,
+        ClusterService clusterService
+    ) {
+        final var service = new ThrottlingRecoveryService(
+            threadPool,
+            projectResolver,
+            clusterService,
+            RecoverySchedulingListener.NOOP,
+            monitorWithNoGates(threadPool)
+        );
+        service.start();
+        return service;
+    }
+
+    /// A [RecoveryGateMonitor] with no gates: the decision never transitions, so the change listener never fires.
+    private static RecoveryGateMonitor monitorWithNoGates(ThreadPool threadPool) {
+        return new RecoveryGateMonitor(() -> List.of(), threadPool);
     }
 
     private static RecoveryState newRecoveryState() {
@@ -1272,6 +1354,6 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                 );
             }
         );
-        return new RecoveryState(routing, DiscoveryNodeUtils.create("source"), DiscoveryNodeUtils.create("target"));
+        return new RecoveryState(routing, sourceNode, targetNode);
     }
 }

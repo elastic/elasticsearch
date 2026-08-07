@@ -358,7 +358,7 @@ public class CustomRequestTests extends ESTestCase {
             ),
             model
         );
-        var exception = expectThrows(IllegalStateException.class, () -> RequestTests.getHttpRequestSync(request));
+        var exception = expectThrows(IllegalArgumentException.class, () -> RequestTests.getHttpRequestSync(request));
         assertThat(
             exception.getMessage(),
             is(
@@ -510,7 +510,7 @@ public class CustomRequestTests extends ESTestCase {
         );
 
         var exception = expectThrows(
-            IllegalStateException.class,
+            IllegalArgumentException.class,
             () -> new CustomRequest(
                 RerankParameters.of(
                     new QueryAndDocsInputs(InferenceString.ofText("query string"), InferenceString.fromStringList(List.of("abc", "123")))

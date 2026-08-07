@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.qa.rest;
 import org.elasticsearch.Version;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.CsvSpecReader;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.CsvSpecReader.DatasetSource;
@@ -27,6 +28,8 @@ import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.S3RequestLog;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
+import org.junit.rules.RuleChain;
+import org.junit.rules.TestRule;
 
 import java.io.IOException;
 import java.net.URL;
@@ -177,17 +180,31 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         return parameterizedTests;
     }
 
-    @ClassRule
     public static DataSourcesS3HttpFixture s3Fixture = new DataSourcesS3HttpFixture();
 
     // Anonymous form: migrated specs read every backend via FROM <dataset> with auth=anonymous, so the
     // Azure fixture must serve unauthenticated reads (the S3/GCS fixtures already do). No shared-key
     // secret is stored, so these suites need no cluster encryption key.
-    @ClassRule
     public static DataSourcesAzureHttpFixture azureFixture = new DataSourcesAzureHttpFixture(true);
 
-    @ClassRule
     public static DataSourcesGcsHttpFixture gcsFixture = new DataSourcesGcsHttpFixture();
+
+    /**
+     * Builds a {@link ClassRule} that starts object-store fixtures before the test cluster. Without an
+     * explicit order, JUnit may boot the cluster while fixtures are not yet listening and external reads
+     * fail with transient {@code Connection is closed} errors (especially on Azure).
+     */
+    protected static TestRule chainFixturesBeforeCluster(ElasticsearchCluster cluster) {
+        return RuleChain.outerRule(s3Fixture).around(gcsFixture).around(azureFixture).around(cluster);
+    }
+
+    /**
+     * Like {@link #chainFixturesBeforeCluster(ElasticsearchCluster)} but runs {@code outer} first (e.g.
+     * an {@code assumeFalse} guard) before bringing up fixtures and the cluster.
+     */
+    protected static TestRule chainOuterRuleBeforeFixturesAndCluster(TestRule outer, ElasticsearchCluster cluster) {
+        return RuleChain.outerRule(outer).around(s3Fixture).around(gcsFixture).around(azureFixture).around(cluster);
+    }
 
     /** Cached path to local fixtures directory */
     private static Path localFixturesPath;

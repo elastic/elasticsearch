@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.security.authz;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
@@ -4091,7 +4090,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         assertThat(notAccessibleIndexExpression.localExpressions().indices(), empty());
         assertThat(notAccessibleIndexExpression.localExpressions().localIndexResolutionResult(), equalTo(CONCRETE_RESOURCE_UNAUTHORIZED));
         assertThat(
-            notAccessibleIndexExpression.localExpressions().exception().getMessage(),
+            request.getResolvedIndexExpressions().authorizationFailureTemplate(),
             equalTo(
                 "action [indices:data/read/search] is unauthorized for user [user]"
                     + " with effective roles [partial-access-role] on indices [-*], "
@@ -4131,7 +4130,22 @@ public class AuthorizationServiceTests extends ESTestCase {
         ProjectId projectId = randomUniqueProjectId();
         String type = randomFrom("elasticsearch", "security", "observability");
         String org = randomAlphaOfLength(10);
-        Map<String, String> tags = Map.of("_id", projectId.id(), "_type", type, "_organization", org, "_alias", alias);
+        String provider = randomAlphaOfLength(10);
+        String region = randomAlphaOfLength(10);
+        Map<String, String> tags = Map.of(
+            "_id",
+            projectId.id(),
+            "_type",
+            type,
+            "_organization",
+            org,
+            "_alias",
+            alias,
+            "_csp",
+            provider,
+            "_region",
+            region
+        );
         ProjectTags projectTags = new ProjectTags(tags);
         return new ProjectRoutingInfo(projectId, type, alias, org, projectTags);
     }
@@ -4178,20 +4192,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     ) {
         return new ResolvedIndexExpression(
             original,
-            new ResolvedIndexExpression.LocalExpressions(localExpressions, localIndexResolutionResult, null),
-            Set.of()
-        );
-    }
-
-    private static ResolvedIndexExpression resolvedIndexExpression(
-        String original,
-        Set<String> localExpressions,
-        ResolvedIndexExpression.LocalIndexResolutionResult localIndexResolutionResult,
-        ElasticsearchException exception
-    ) {
-        return new ResolvedIndexExpression(
-            original,
-            new ResolvedIndexExpression.LocalExpressions(localExpressions, localIndexResolutionResult, exception),
+            new ResolvedIndexExpression.LocalExpressions(localExpressions, localIndexResolutionResult),
             Set.of()
         );
     }

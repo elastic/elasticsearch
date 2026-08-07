@@ -62,22 +62,25 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.stateless.StatelessComponents;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
+import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.engine.SearchEngine;
 import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static java.util.stream.Collectors.toUnmodifiableMap;
 import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.indices.recovery.StatelessUnpromotableRelocationAction.TYPE;
 import static org.elasticsearch.search.SearchService.PIT_RELOCATION_ENABLED;
@@ -177,8 +180,12 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
 
             assert indexShard.indexSettings().getIndexMetadata().isSearchableSnapshot() == false;
 
-            SubscribableListener.newForked(indexShard::preRecovery).andThenApply(unused -> {
+            SubscribableListener.<Void>newForked(l -> {
+                indexShard.ensureRecoveryNotCancelled();
+                indexShard.preRecovery(l);
+            }).andThenApply(unused -> {
                 logger.trace("{} preparing unpromotable shard for recovery", recoveryTarget.shardId());
+                indexShard.ensureRecoveryNotCancelled();
                 indexShard.prepareForIndexRecovery();
                 // Skip unnecessary intermediate stages
                 recoveryState.setStage(RecoveryState.Stage.VERIFY_INDEX);
@@ -269,7 +276,7 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
                     throw new IllegalStateException("Expected SearchEngine but got: " + engine.getClass());
                 }
                 final String segmentsFileName = pitContextInfo.segmentsFileName;
-                Map<String, BlobLocation> metadata = pitContextInfo.metadata();
+                Map<String, BlobFileRanges> metadata = pitContextInfo.metadata();
 
                 // we need to acquire the searcher for the exact commit point that the PIT was opened against
                 // the engine does this asynchronously because we need to synchronize with ongoing commit updates
@@ -387,12 +394,12 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
 
     private void getOpenPITContextInfos(ShardId shardId, ActionListener<PITHandoffResponse> listener) {
         List<PitReaderContext> activeContexts = searchService.getActivePITContexts(shardId);
-        logger.info("getting pit context infos for shard {}. Active contexts: {}", shardId, activeContexts.size());
+        logger.debug("getting pit context infos for shard {}. Active contexts: {}", shardId, activeContexts.size());
         List<OpenPITContextInfo> pitContextInfos = Collections.synchronizedList(new ArrayList<>(activeContexts.size()));
         AtomicLong warningCounter = new AtomicLong();
 
         try (var listeners = new RefCountingListener(listener.map(r -> {
-            logger.info("returning {} context infos for shard {}. Warnings: {}", pitContextInfos.size(), shardId, warningCounter.get());
+            logger.debug("returning {} context infos for shard {}. Warnings: {}", pitContextInfos.size(), shardId, warningCounter.get());
             return new PITHandoffResponse(pitContextInfos);
         }))) {
             for (PitReaderContext context : activeContexts) {
@@ -425,14 +432,14 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
             final IndexCommit indexCommit = reader.getIndexCommit();
             final SearchDirectory searchDirectory = SearchDirectory.unwrapDirectory(reader.directory());
 
-            final var luceneCommitPointBlobLocation = searchDirectory.getBlobLocationForFile(indexCommit.getSegmentsFileName());
-            assert luceneCommitPointBlobLocation != null : "commit point [" + indexCommit + "] not found in search directory";
-            final var bccTermAndGen = luceneCommitPointBlobLocation.getBatchedCompoundCommitTermAndGeneration();
+            final var luceneCommitPointMetadata = searchDirectory.getBlobFileRangesForFile(indexCommit.getSegmentsFileName());
+            assert luceneCommitPointMetadata != null : "commit point [" + indexCommit + "] not found in search directory";
+            final var bccTermAndGen = luceneCommitPointMetadata.getBatchedCompoundCommitTermAndGeneration();
             final var bccBlobName = BatchedCompoundCommit.blobNameFromGeneration(bccTermAndGen.generation());
-            final Collection<String> commitFileNames = indexCommit.getFileNames();
+            final var metadataFromSearchDirectory = searchDirectory.getBlobFileRangesForFiles(indexCommit.getFileNames());
 
             recoveryExecutor.execute(ActionRunnable.wrap(listener, (innerListener) -> {
-                final Map<String, BlobLocation> metadata;
+                final Map<String, BlobFileRanges> metadata;
                 if (searchDirectory.isBccUploaded(bccTermAndGen)) {
                     // Fetch the CC header from the object store to get the canonical blob locations.
                     // This is preferred over SearchDirectory#metadata because generational files
@@ -441,27 +448,34 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
                     final var bccIterator = objectStoreService.readBatchedCompoundCommitFromStoreIncrementally(
                         shardId,
                         bccTermAndGen,
-                        new BlobMetadata(bccBlobName, luceneCommitPointBlobLocation.offset())
+                        new BlobMetadata(bccBlobName, luceneCommitPointMetadata.fileOffset())
                     );
-                    Map<String, BlobLocation> fromStore = null;
+                    Map<String, BlobFileRanges> metadataFromStore = null;
                     while (bccIterator.hasNext()) {
                         var statelessCompoundCommit = bccIterator.next();
                         if (statelessCompoundCommit.generation() == indexCommit.getGeneration()) {
-                            fromStore = statelessCompoundCommit.commitFiles();
+                            assert statelessCompoundCommit.commitFiles().keySet().equals(Set.copyOf(indexCommit.getFileNames()))
+                                : format(
+                                    "CC generation [%d] file set %s does not match index commit file set %s",
+                                    statelessCompoundCommit.generation(),
+                                    statelessCompoundCommit.commitFiles().keySet(),
+                                    indexCommit.getFileNames()
+                                );
+                            metadataFromStore = overrideBlobFileRangesTimestamp(metadataFromSearchDirectory, statelessCompoundCommit);
                             break;
                         }
                     }
-                    if (fromStore == null) {
+                    if (metadataFromStore == null) {
                         throw new IllegalStateException("commit [" + indexCommit + "] not found in object store");
                     }
-                    metadata = fromStore;
+                    metadata = metadataFromStore;
                 } else {
                     // The BCC has not been uploaded to the object store yet (e.g. the commit was
                     // created by a flush-by-refresh). Fall back to the SearchDirectory's file metadata.
                     logger.debug(
                         () -> format("BCC blob [%s] not yet uploaded for shard [%s], using SearchDirectory metadata", bccBlobName, shardId)
                     );
-                    metadata = searchDirectory.getBlobLocationForFiles(commitFileNames);
+                    metadata = metadataFromSearchDirectory;
                 }
                 innerListener.onResponse(
                     Optional.of(
@@ -486,6 +500,33 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
         }
     }
 
+    /// Builds the [BlobFileRanges] map for all files in a compound commit, to be handed off to the target node during PIT relocation.
+    ///
+    /// For each file the method prefers the [BlobFileRanges] already held by the local [SearchDirectory] when its recorded
+    /// [BlobLocation] matches the canonical location in the CC. That entry may carry replicated byte ranges that allow the target node
+    /// to warm the header and footer of a segment from the first region of the blob, avoiding an extra seek. When the SearchDirectory entry
+    /// points to a different location (e.g. a generational file written by an earlier CC in the same BCC), the canonical
+    /// location from the CC is used directly, stamped with the CC's own timestamp so the target node can make informed cache-eviction
+    /// decisions.
+    private static Map<String, BlobFileRanges> overrideBlobFileRangesTimestamp(
+        final Map<String, BlobFileRanges> metadataFromSearchDirectory,
+        final StatelessCompoundCommit statelessCompoundCommit
+    ) {
+        final var ccTimestamp = statelessCompoundCommit.getTimestampFieldValueRange();
+        return statelessCompoundCommit.commitFiles().entrySet().stream().collect(toUnmodifiableMap(Map.Entry::getKey, e -> {
+            final String fileName = e.getKey();
+            final BlobLocation fileLocation = e.getValue();
+            final BlobFileRanges fileRanges = metadataFromSearchDirectory.get(fileName);
+            assert fileRanges != null : "search directory does not track '" + fileName + "' file";
+            if (fileRanges.blobLocation().equals(fileLocation)) {
+                return fileRanges; // originating CC, preserved in SearchDirectory
+            }
+            assert StatelessCompoundCommit.isGenerationalFile(fileName)
+                : "non-generational file '" + fileName + "' has a different blob location in the SearchDirectory vs the CC";
+            return new BlobFileRanges(fileLocation, ccTimestamp);
+        }));
+    }
+
     static class RelocationHandoffResponse extends ActionResponse {
 
         private final PITHandoffResponse pitHandoffResponse;
@@ -496,6 +537,11 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
 
         RelocationHandoffResponse(StreamInput in) throws IOException {
             this.pitHandoffResponse = new PITHandoffResponse(in);
+        }
+
+        // visible for testing
+        List<OpenPITContextInfo> getOpenPITContextInfos() {
+            return pitHandoffResponse.getOpenPITContextInfos();
         }
 
         @Override
@@ -530,12 +576,16 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
         "resharding_metadata_in_pit_relocation"
     );
 
+    private static final TransportVersion BLOB_FILE_RANGES_IN_PIT_RELOCATION = TransportVersion.fromName(
+        "blob_file_ranges_in_pit_relocation"
+    );
+
     static class OpenPITContextInfo implements Writeable {
         private final ShardId shardId;
         private final String segmentsFileName;
         private final long keepAlive;
         private final SearchContextIdForNode contextId;
-        private final Map<String, BlobLocation> metadata;
+        private final Map<String, BlobFileRanges> metadata;
         private final OpenPITReshardingState reshardingState;
 
         OpenPITContextInfo(StreamInput in) throws IOException {
@@ -543,7 +593,11 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
             segmentsFileName = in.readString();
             keepAlive = in.readVLong();
             contextId = new SearchContextIdForNode(in);
-            metadata = in.readMap(StreamInput::readString, BlobLocation::readFromTransport);
+            if (in.getTransportVersion().supports(BLOB_FILE_RANGES_IN_PIT_RELOCATION)) {
+                metadata = in.readMap(StreamInput::readString, BlobFileRanges::new);
+            } else {
+                metadata = in.readMap(StreamInput::readString, si -> new BlobFileRanges(BlobLocation.readFromTransport(si)));
+            }
             if (in.getTransportVersion().supports(RESHARDING_METADATA_IN_PIT_RELOCATION)) {
                 reshardingState = new OpenPITReshardingState(in);
             } else {
@@ -556,7 +610,7 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
             String segmentsFileName,
             long keepAlive,
             SearchContextIdForNode contextId,
-            Map<String, BlobLocation> metadata,
+            Map<String, BlobFileRanges> metadata,
             OpenPITReshardingState reshardingState
         ) {
             this.shardId = shardId;
@@ -573,7 +627,11 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
             out.writeString(segmentsFileName);
             out.writeVLong(keepAlive);
             contextId.writeTo(out);
-            out.writeMap(metadata, StreamOutput::writeString, StreamOutput::writeWriteable);
+            if (out.getTransportVersion().supports(BLOB_FILE_RANGES_IN_PIT_RELOCATION)) {
+                out.writeMap(metadata, StreamOutput::writeString, StreamOutput::writeWriteable);
+            } else {
+                out.writeMap(metadata, StreamOutput::writeString, (o, ranges) -> ranges.blobLocation().writeTo(o));
+            }
             if (out.getTransportVersion().supports(RESHARDING_METADATA_IN_PIT_RELOCATION)) {
                 reshardingState.writeTo(out);
             }
@@ -613,7 +671,7 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
             return contextId;
         }
 
-        public Map<String, BlobLocation> metadata() {
+        public Map<String, BlobFileRanges> metadata() {
             return metadata;
         }
 

@@ -24,4 +24,14 @@ public class BlobLocationTestUtils {
     public static BlobFileRanges createBlobFileRanges(long primaryTerm, long generation, long offset, long fileLength) {
         return new BlobFileRanges(createBlobLocation(primaryTerm, generation, offset, fileLength));
     }
+
+    public static BlobFileRanges createBlobFileRanges(
+        long primaryTerm,
+        long generation,
+        long offset,
+        long fileLength,
+        StatelessCompoundCommit.TimestampFieldValueRange timestampRange
+    ) {
+        return new BlobFileRanges(createBlobLocation(primaryTerm, generation, offset, fileLength), timestampRange);
+    }
 }

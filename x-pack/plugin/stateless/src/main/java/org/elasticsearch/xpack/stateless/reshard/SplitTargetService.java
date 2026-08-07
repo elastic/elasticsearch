@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingState;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -110,6 +111,14 @@ public class SplitTargetService {
     }
 
     public void startSplitTargetShardRecovery(IndexShard indexShard, IndexMetadata indexMetadata, ActionListener<Void> recoveryListener) {
+        RecoverySource recoverySource = indexShard.recoveryState().getRecoverySource();
+        // We should never see `EMPTY_STORE` recovery here because target shards should be using state copied from the source shard
+        // meaning it's either `RESHARD_SPLIT` or `EXISTING_STORE`.
+        // Target shards can also be relocated with `PEER`.
+        if (recoverySource.getType() == RecoverySource.Type.EMPTY_STORE) {
+            throw new IllegalStateException("Unexpected recovery type for resharding split target shard: " + recoverySource.getType());
+        }
+
         ShardId shardId = indexShard.shardId();
 
         assert indexMetadata.getReshardingMetadata() != null;

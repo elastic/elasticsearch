@@ -274,13 +274,29 @@ public abstract class LuceneOperator extends SourceOperator {
 
     protected void additionalClose() { /* Override this method to add any additional cleanup logic if needed */ }
 
+    protected boolean shouldStopCollecting() {
+        return false;
+    }
+
+    protected Weight wrapSliceWeight(ShardContext shardContext, Weight weight) throws IOException {
+        return weight;
+    }
+
     LuceneScorer getCurrentOrLoadNextScorer() {
         if (doneCollecting) {
+            return null;
+        }
+        if (shouldStopCollecting()) {
+            doneCollecting = true;
             return null;
         }
         for (;;) {
             SubscribableListener<Void> sliceBlocked = null;
             while (currentScorer == null || currentScorer.isDone()) {
+                if (shouldStopCollecting()) {
+                    doneCollecting = true;
+                    return null;
+                }
                 if (currentSlice == null || sliceIndex >= currentSlice.numLeaves()) {
                     sliceIndex = 0;
                     currentSlice = sliceQueue.nextSlice(currentSlice);
@@ -294,13 +310,18 @@ public abstract class LuceneOperator extends SourceOperator {
                 final PartialLeafReaderContext partialLeaf = currentSlice.getLeaf(sliceIndex++);
                 logger.trace("Starting {}", partialLeaf);
                 final LeafReaderContext leaf = partialLeaf.leafReaderContext();
+                final Weight sliceWeight;
+                try {
+                    sliceWeight = wrapSliceWeight(currentSlice.shardContext(), currentSlice.weight());
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
                 if (currentScorer == null // First time
                     || currentScorer.leafReaderContext() != leaf // Moved to a new leaf
-                    || currentScorer.weight != currentSlice.weight() // Moved to a new query
+                    || currentScorer.weight != sliceWeight // Moved to a new query or filter
                 ) {
-                    final Weight weight = currentSlice.weight();
-                    processedQueries.add(Status.queryString(weight.getQuery()));
-                    currentScorer = new LuceneScorer(currentSlice.shardContext(), weight, currentSlice.tags(), leaf);
+                    processedQueries.add(Status.queryString(sliceWeight.getQuery()));
+                    currentScorer = new LuceneScorer(currentSlice.shardContext(), sliceWeight, currentSlice.tags(), leaf);
                     sliceBlocked = currentSlice.leafBlockedOnCaching(currentScorer.leafReaderContext());
                     if (sliceBlocked == null || sliceBlocked.isDone()) {
                         currentScorer.reinitialize();

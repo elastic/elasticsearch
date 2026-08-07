@@ -825,7 +825,9 @@ public class LocalExecutionPlanner {
             TopNOperator.GlobalTopKMergeConfig globalTopKMerge = null;
             if (minCompetitive == null && luceneMinCompetitivePilot != null) {
                 minCompetitive = luceneMinCompetitivePilot.supplier();
-                if (context.plannerSettings.minCompetitiveGlobalMergeEnabled() && luceneMinCompetitivePilot.globalTopK() != null) {
+                if (context.plannerSettings.minCompetitiveGlobalMergeEnabled()
+                    && luceneMinCompetitivePilot.globalTopK() != null
+                    && common.limit > 1) {
                     globalTopKMerge = new TopNOperator.GlobalTopKMergeConfig(
                         luceneMinCompetitivePilot.globalTopK(),
                         context.plannerSettings.minCompetitiveGlobalMergeBatchPages()

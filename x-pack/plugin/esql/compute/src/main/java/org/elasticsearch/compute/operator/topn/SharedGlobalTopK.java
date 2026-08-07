@@ -115,14 +115,21 @@ public final class SharedGlobalTopK extends SideChannel {
             return false;
         }
         BytesRef worstKept = globalQueue.top().keys.bytesRefView();
+        boolean allNullUnderNullsFirst = markNoFurtherCandidatesIfSaturatedNulls(worstKept);
         if (minCompetitive.offer(worstKept)) {
             publishCount++;
-            if (minCompetitive.configs().size() == 1) {
-                SharedMinCompetitive.KeyConfig config = minCompetitive.configs().getFirst();
-                if (config.nullsFirst() && worstKept.length > 0 && worstKept.bytes[worstKept.offset] == SMALL_NULL) {
-                    minCompetitive.markNoFurtherCandidates();
-                }
-            }
+            return true;
+        }
+        return allNullUnderNullsFirst;
+    }
+
+    private boolean markNoFurtherCandidatesIfSaturatedNulls(BytesRef worstKept) {
+        if (minCompetitive.configs().size() != 1) {
+            return false;
+        }
+        SharedMinCompetitive.KeyConfig config = minCompetitive.configs().getFirst();
+        if (config.nullsFirst() && worstKept.length > 0 && worstKept.bytes[worstKept.offset] == SMALL_NULL) {
+            minCompetitive.markNoFurtherCandidates();
             return true;
         }
         return false;

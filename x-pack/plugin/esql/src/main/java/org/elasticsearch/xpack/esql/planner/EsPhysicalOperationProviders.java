@@ -577,7 +577,17 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             Query q = minCompetitiveQueries.buildMinCompetitiveQuery(page);
             return q.rewrite(executionContext.searcher());
         };
-        return new MinCompetitiveQuery.Factory(pilot.supplier(), buildMinCompetitiveQuery);
+        MinCompetitiveQuery.BuildPrimaryFilterQuery buildPrimaryFilterQuery = ctx -> {
+            SearchExecutionContext executionContext = ((DefaultShardContext) ctx).ctx;
+            EsMinCompetitiveQueries minCompetitiveQueries = new EsMinCompetitiveQueries(
+                pilot.supplier(),
+                pilot.sortFieldName(),
+                executionContext
+            );
+            Query q = minCompetitiveQueries.buildMissingTimestampPrimaryFilter();
+            return q.rewrite(executionContext.searcher());
+        };
+        return new MinCompetitiveQuery.Factory(pilot.supplier(), buildMinCompetitiveQuery, buildPrimaryFilterQuery);
     }
 
     /**

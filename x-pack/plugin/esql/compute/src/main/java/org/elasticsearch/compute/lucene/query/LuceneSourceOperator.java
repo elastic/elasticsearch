@@ -450,6 +450,19 @@ public class LuceneSourceOperator extends LuceneOperator {
     }
 
     @Override
+    protected boolean shouldStopCollecting() {
+        return minCompetitiveQuery != null && minCompetitiveQuery.noFurtherCandidates();
+    }
+
+    @Override
+    protected Weight wrapSliceWeight(ShardContext shardContext, Weight weight) throws IOException {
+        if (minCompetitiveQuery == null) {
+            return weight;
+        }
+        return minCompetitiveQuery.wrapSliceWeight(shardContext, weight);
+    }
+
+    @Override
     public boolean isFinished() {
         return doneCollecting || limiter.remaining() == 0;
     }
@@ -462,6 +475,10 @@ public class LuceneSourceOperator extends LuceneOperator {
     @Override
     public Page getCheckedOutput() throws IOException {
         if (isFinished()) {
+            return null;
+        }
+        if (shouldStopCollecting()) {
+            doneCollecting = true;
             return null;
         }
         long start = System.nanoTime();

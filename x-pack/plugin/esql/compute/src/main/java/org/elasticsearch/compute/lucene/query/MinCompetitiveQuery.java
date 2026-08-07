@@ -8,6 +8,8 @@
 package org.elasticsearch.compute.lucene.query;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -43,20 +45,38 @@ import java.util.Objects;
 public class MinCompetitiveQuery implements Releasable {
     private static final Logger log = LogManager.getLogger(MinCompetitiveQuery.class);
 
-    public record Factory(SharedMinCompetitive.Supplier minCompetitive, BuildMinCompetitiveQuery queryFunction) {
-        public MinCompetitiveQuery build(BlockFactory blockFactory) {
-            return new MinCompetitiveQuery(blockFactory, minCompetitive.get(), queryFunction);
-        }
-    }
-
     @FunctionalInterface
     public interface BuildMinCompetitiveQuery {
         Query build(ShardContext ctx, Page page) throws IOException;
     }
 
+    /**
+     * Optional filter ANDed with the slice's primary query once {@link SharedMinCompetitive#noFurtherCandidates()} is set.
+     */
+    @FunctionalInterface
+    public interface BuildPrimaryFilterQuery {
+        Query build(ShardContext ctx) throws IOException;
+    }
+
+    public record Factory(
+        SharedMinCompetitive.Supplier minCompetitive,
+        BuildMinCompetitiveQuery queryFunction,
+        @Nullable BuildPrimaryFilterQuery primaryFilterFunction
+    ) {
+        public Factory(SharedMinCompetitive.Supplier minCompetitive, BuildMinCompetitiveQuery queryFunction) {
+            this(minCompetitive, queryFunction, null);
+        }
+
+        public MinCompetitiveQuery build(BlockFactory blockFactory) {
+            return new MinCompetitiveQuery(blockFactory, minCompetitive.get(), queryFunction, primaryFilterFunction);
+        }
+    }
+
     private final BlockFactory blockFactory;
     private final SharedMinCompetitive minCompetitive;
     private final BuildMinCompetitiveQuery buildMinCompetitiveQuery;
+    @Nullable
+    private final BuildPrimaryFilterQuery buildPrimaryFilterQuery;
     private PerIndex perIndex;
     private DocIdSetIterator disi;
 
@@ -64,21 +84,43 @@ public class MinCompetitiveQuery implements Releasable {
     private int matchAll;
     private int matchNone;
     private int greaterThanMinCompetitive;
+    private int primaryFilterApplied;
 
     private long updateNanos;
 
     private MinCompetitiveQuery(
         BlockFactory blockFactory,
         SharedMinCompetitive minCompetitive,
-        BuildMinCompetitiveQuery buildMinCompetitiveQuery
+        BuildMinCompetitiveQuery buildMinCompetitiveQuery,
+        @Nullable BuildPrimaryFilterQuery buildPrimaryFilterQuery
     ) {
         this.blockFactory = blockFactory;
         this.minCompetitive = minCompetitive;
         this.buildMinCompetitiveQuery = buildMinCompetitiveQuery;
+        this.buildPrimaryFilterQuery = buildPrimaryFilterQuery;
     }
 
     public DocIdSetIterator disi() {
         return disi;
+    }
+
+    public boolean noFurtherCandidates() {
+        return minCompetitive.noFurtherCandidates();
+    }
+
+    public Weight wrapSliceWeight(ShardContext ctx, Weight baseWeight) throws IOException {
+        if (buildPrimaryFilterQuery == null || minCompetitive.noFurtherCandidates() == false) {
+            return baseWeight;
+        }
+        Query filter = buildPrimaryFilterQuery.build(ctx);
+        if (filter instanceof MatchAllDocsQuery) {
+            return baseWeight;
+        }
+        Query combined = new BooleanQuery.Builder().add(baseWeight.getQuery(), BooleanClause.Occur.FILTER)
+            .add(filter, BooleanClause.Occur.FILTER)
+            .build();
+        primaryFilterApplied++;
+        return combined.createWeight(ctx.searcher(), ScoreMode.COMPLETE_NO_SCORES, 1.0F);
     }
 
     public void update(ShardContext ctx, LeafReaderContext leaf) throws IOException {
@@ -88,6 +130,10 @@ public class MinCompetitiveQuery implements Releasable {
     }
 
     private DocIdSetIterator updatedDisi(ShardContext ctx, LeafReaderContext leaf) throws IOException {
+        if (minCompetitive.noFurtherCandidates()) {
+            matchNone++;
+            return DocIdSetIterator.empty();
+        }
         return perIndex(ctx).perMinValue(minCompetitive.get(blockFactory)).perLeaf(leaf).disi();
     }
 
@@ -99,7 +145,7 @@ public class MinCompetitiveQuery implements Releasable {
     }
 
     public Status status() {
-        return new Status(changedValue, matchAll, matchNone, greaterThanMinCompetitive, updateNanos);
+        return new Status(changedValue, matchAll, matchNone, greaterThanMinCompetitive, primaryFilterApplied, updateNanos);
     }
 
     @Override
@@ -140,6 +186,10 @@ public class MinCompetitiveQuery implements Releasable {
         }
 
         private Query buildMinCompetitiveQuery(Page value) throws IOException {
+            if (minCompetitive.noFurtherCandidates()) {
+                matchNone++;
+                return Queries.NO_DOCS_INSTANCE;
+            }
             if (value == null) {
                 matchAll++;
                 return Queries.ALL_DOCS_INSTANCE;
@@ -199,12 +249,16 @@ public class MinCompetitiveQuery implements Releasable {
         }
     }
 
-    public record Status(int changedValue, int matchAll, int matchNone, int greaterThanMinCompetitive, long updateNanos)
-        implements
-            Writeable,
-            ToXContentObject {
+    public record Status(
+        int changedValue,
+        int matchAll,
+        int matchNone,
+        int greaterThanMinCompetitive,
+        int primaryFilterApplied,
+        long updateNanos
+    ) implements Writeable, ToXContentObject {
         public static Status readFrom(StreamInput in) throws IOException {
-            return new Status(in.readVInt(), in.readVInt(), in.readVInt(), in.readVInt(), in.readVLong());
+            return new Status(in.readVInt(), in.readVInt(), in.readVInt(), in.readVInt(), in.readVInt(), in.readVLong());
         }
 
         @Override
@@ -213,6 +267,7 @@ public class MinCompetitiveQuery implements Releasable {
             out.writeVInt(matchAll);
             out.writeVInt(matchNone);
             out.writeVInt(greaterThanMinCompetitive);
+            out.writeVInt(primaryFilterApplied);
             out.writeVLong(updateNanos);
         }
 
@@ -223,6 +278,7 @@ public class MinCompetitiveQuery implements Releasable {
             builder.field("match_all", matchAll);
             builder.field("match_none", matchNone);
             builder.field("greater_than_min_competitive", greaterThanMinCompetitive);
+            builder.field("primary_filter_applied", primaryFilterApplied);
             builder.field("update_nanos", updateNanos);
             if (builder.humanReadable()) {
                 builder.field("update_time", TimeValue.timeValueNanos(updateNanos));

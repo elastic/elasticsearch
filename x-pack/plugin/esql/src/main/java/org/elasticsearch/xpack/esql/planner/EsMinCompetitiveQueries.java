@@ -38,6 +38,16 @@ public class EsMinCompetitiveQueries {
         return new ConstantScoreQuery(query);
     }
 
+    /**
+     * Pilot: once global top-K is saturated with nulls under {@code NULLS FIRST}, narrow the primary Lucene scan.
+     */
+    public Query buildMissingTimestampPrimaryFilter() {
+        if (minCompetitive.keyConfigs().getFirst().nullsFirst() == false) {
+            return Queries.ALL_DOCS_INSTANCE;
+        }
+        return notExists();
+    }
+
     private Query forNull() {
         if (minCompetitive.keyConfigs().getFirst().nullsFirst()) {
             if (minCompetitive.keyConfigs().size() == 1) {

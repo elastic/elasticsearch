@@ -20,14 +20,16 @@ import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 
+import java.util.Objects;
+
 abstract class AbstractStatelessRecoveryListener {
 
     protected final ObjectStoreService objectStoreService;
     private final ProjectResolver projectResolver;
 
     AbstractStatelessRecoveryListener(final ObjectStoreService objectStoreService, final ProjectResolver projectResolver) {
-        this.objectStoreService = objectStoreService;
-        this.projectResolver = projectResolver;
+        this.objectStoreService = Objects.requireNonNull(objectStoreService);
+        this.projectResolver = Objects.requireNonNull(projectResolver);
     }
 
     BlobContainer initializeBlobContainer(final IndexShard indexShard, final Store store) {

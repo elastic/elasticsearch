@@ -18,9 +18,15 @@ import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.commits.ClosedShardService;
 import org.elasticsearch.xpack.stateless.utils.SearchShardSizeCollector;
 
+import java.util.Objects;
 import java.util.function.BooleanSupplier;
 import java.util.function.Predicate;
 
+/// [IndexEventListener] that manages shard lifecycle on stateless search nodes.
+///
+/// Tracks shard sizes via [SearchShardSizeCollector], notifies [org.elasticsearch.xpack.stateless.commits.ClosedShardService]
+/// on store close, and drives cache eviction and demotion when index regions are deleted or shards are closed.
+/// Cache operations are skipped when the node is shutting down to avoid unnecessary work during termination.
 class StatelessSearchNodeLifecycleListener implements IndexEventListener {
 
     private final SearchShardSizeCollector searchShardSizeCollector;
@@ -38,12 +44,12 @@ class StatelessSearchNodeLifecycleListener implements IndexEventListener {
         ClosedShardService closedShardService,
         BooleanSupplier isNodeShuttingDown
     ) {
-        this.searchShardSizeCollector = searchShardSizeCollector;
-        this.sharedBlobCacheService = sharedBlobCacheService;
-        this.indicesService = indicesService;
-        this.closedShardService = closedShardService;
-        this.clusterService = clusterService;
-        this.isNodeShuttingDown = isNodeShuttingDown;
+        this.searchShardSizeCollector = Objects.requireNonNull(searchShardSizeCollector);
+        this.sharedBlobCacheService = Objects.requireNonNull(sharedBlobCacheService);
+        this.indicesService = Objects.requireNonNull(indicesService);
+        this.closedShardService = Objects.requireNonNull(closedShardService);
+        this.clusterService = Objects.requireNonNull(clusterService);
+        this.isNodeShuttingDown = Objects.requireNonNull(isNodeShuttingDown);
     }
 
     @Override

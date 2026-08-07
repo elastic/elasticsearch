@@ -26,8 +26,14 @@ import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicator;
 import org.elasticsearch.xpack.stateless.snapshots.SnapshotsCommitService;
 
+import java.util.Objects;
 import java.util.concurrent.Executor;
 
+/// [IndexEventListener] that manages shard lifecycle on stateless index nodes.
+///
+/// Registers each shard with the [org.elasticsearch.xpack.stateless.commits.StatelessCommitService] and
+/// [org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicator] on creation and cleans up those
+/// registrations on close or deletion. Also, coordinates snapshot commit release and hollow shard tracking.
 class StatelessIndexNodeLifecycleListener implements IndexEventListener {
 
     private static final Logger logger = LogManager.getLogger(StatelessIndexNodeLifecycleListener.class);
@@ -44,11 +50,11 @@ class StatelessIndexNodeLifecycleListener implements IndexEventListener {
         Executor commitSuccessExecutor,
         HollowShardsService hollowShardsService
     ) {
-        this.statelessCommitService = statelessCommitService;
-        this.localTranslogReplicator = localTranslogReplicator;
-        this.snapshotsCommitService = snapshotsCommitService;
-        this.commitSuccessExecutor = commitSuccessExecutor;
-        this.hollowShardsService = hollowShardsService;
+        this.statelessCommitService = Objects.requireNonNull(statelessCommitService);
+        this.localTranslogReplicator = Objects.requireNonNull(localTranslogReplicator);
+        this.snapshotsCommitService = Objects.requireNonNull(snapshotsCommitService);
+        this.commitSuccessExecutor = Objects.requireNonNull(commitSuccessExecutor);
+        this.hollowShardsService = Objects.requireNonNull(hollowShardsService);
     }
 
     @Override

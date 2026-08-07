@@ -326,6 +326,31 @@ events:double | pod:keyword | time_bucket:datetime
 
 ;
 
+delta_narrow_window
+required_capability: ts_command_v0
+required_capability: delta_ts_agg
+required_capability: fix_window_filter_bucket_child
+// Window (30s) narrower than the bucket (1m): WindowFilter keeps only samples in the trailing 30s of each bucket.
+TS k8s
+| STATS cost_change=sum(delta(network.cost[30s])) BY time_bucket = bucket(@timestamp,1minute)
+| EVAL cost_change = round(cost_change, 6)
+| KEEP cost_change, time_bucket
+| SORT cost_change DESC, time_bucket DESC | LIMIT 10;
+
+cost_change:double | time_bucket:datetime
+21.746528          | 2024-05-10T00:09:00.000Z
+10.6875            | 2024-05-10T00:15:00.000Z
+6.75               | 2024-05-10T00:08:00.000Z
+5.03125            | 2024-05-10T00:00:00.000Z
+4.402174           | 2024-05-10T00:16:00.000Z
+1.6875             | 2024-05-10T00:02:00.000Z
+1.125              | 2024-05-10T00:13:00.000Z
+-0.375             | 2024-05-10T00:11:00.000Z
+-2.371711          | 2024-05-10T00:05:00.000Z
+-3.115809          | 2024-05-10T00:19:00.000Z
+
+;
+
 delta_all_value_types_promql
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2

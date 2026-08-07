@@ -125,6 +125,7 @@ public final class AsymmetricHashingScorer {
         for (int j = 0; j < nDims; j++) {
             float qt = queryTransformed[j];
             sumAll += qt;
+            // TODO: this is a more general form of ESVectorUtil.ipFloatBit
             int byteIdx = j >>> 3;
             int bitIdx = 7 - (j & 7);
             for (int p = 0; p < bitsPerDim; p++) {

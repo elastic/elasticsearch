@@ -82,7 +82,7 @@ public class PackAsBinaryBenchmark {
     @Benchmark
     public void packAsBinary(Blackhole bh) {
         for (int i = 0; i < numVectors; i++) {
-            impl.packAsBinary(qVectors[i], packed);
+            impl.pack1BitValues(qVectors[i], packed);
             bh.consume(packed);
         }
     }

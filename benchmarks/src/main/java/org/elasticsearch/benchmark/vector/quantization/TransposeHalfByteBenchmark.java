@@ -82,7 +82,7 @@ public class TransposeHalfByteBenchmark {
     @Benchmark
     public void transposeHalfByte(Blackhole bh) {
         for (int i = 0; i < numVectors; i++) {
-            impl.transposeHalfByte(qVectors[i], packed);
+            impl.stride4BitValues(qVectors[i], packed);
             bh.consume(packed);
         }
     }

@@ -261,25 +261,6 @@ public final class AsymmetricHashingQuantizer {
     }
 
     /**
-     * Transposes W from (originalDim x nDims) to (nDims x originalDim).
-     * The transposed layout enables SIMD-friendly row-wise dot products during encoding.
-     *
-     * @param w the projection matrix, shape (originalDim, nDims)
-     * @return the transposed matrix, shape (nDims, originalDim)
-     */
-    static float[][] transposeW(float[][] w) {
-        int originalDim = w.length;
-        int nDims = w[0].length;
-        float[][] wT = new float[nDims][originalDim];
-        for (int i = 0; i < originalDim; i++) {
-            for (int j = 0; j < nDims; j++) {
-                wT[j][i] = w[i][j];
-            }
-        }
-        return wT;
-    }
-
-    /**
      * Encodes vectors using the trained projection matrix W.
      *
      * @param vectors all vectors, shape (nVectors, originalDim)

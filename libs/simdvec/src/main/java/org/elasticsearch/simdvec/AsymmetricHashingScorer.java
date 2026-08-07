@@ -134,23 +134,36 @@ public final class AsymmetricHashingScorer {
      * @return packed bytes, length bitsPerDim * ceil(nDims/8)
      */
     public static byte[] packMultiBitCodes(float[] codes, int bitsPerDim) {
+        // TODO: convert this into a single ESVectorUtil method
         int nDims = codes.length;
         int planeBytes = (nDims + 7) >>> 3;
-        byte[] packed = new byte[bitsPerDim * planeBytes];
         int numLevels = 1 << bitsPerDim;
         float offset = (numLevels - 1) / 2.0f;
-        for (int j = 0; j < nDims; j++) {
-            int unsigned = Math.round(codes[j] + offset);
-            if (unsigned < 0) unsigned = 0;
-            if (unsigned >= numLevels) unsigned = numLevels - 1;
-            int byteIdx = j >>> 3;
-            int bitIdx = 7 - (j & 7); // MSB-first
-            for (int p = 0; p < bitsPerDim; p++) {
-                if ((unsigned & (1 << p)) != 0) {
-                    packed[p * planeBytes + byteIdx] |= (byte) (1 << bitIdx);
+
+        int[] rounded = new int[nDims];
+        for (int i = 0; i < nDims; i++) {
+            rounded[i] = Math.clamp(Math.round(codes[i] + offset), 0, numLevels - 1);
+        }
+
+        byte[] packed = new byte[bitsPerDim * planeBytes];
+        switch (bitsPerDim) {
+            case 1 -> ESVectorUtil.pack1BitValues(rounded, packed);
+            case 2 -> ESVectorUtil.stride2BitValues(rounded, packed);
+            case 3 -> {
+                // TODO: optimized implementation for 3 bits
+                for (int j = 0; j < nDims; j++) {
+                    int byteIdx = j >>> 3;
+                    int bitIdx = 7 - (j & 7); // MSB-first
+                    for (int p = 0; p < 3; p++) {
+                        if ((rounded[j] & (1 << p)) != 0) {
+                            packed[p * planeBytes + byteIdx] |= (byte) (1 << bitIdx);
+                        }
+                    }
                 }
             }
+            case 4 -> ESVectorUtil.stride4BitValues(rounded, packed);
         }
+
         return packed;
     }
 
@@ -191,6 +204,7 @@ public final class AsymmetricHashingScorer {
         for (int j = 0; j < nDims; j++) {
             float qt = queryTransformedForCluster[j];
             sumAll += qt;
+            // TODO: this is a more general form of ESVectorUtil.ipFloatBit
             int byteIdx = j >>> 3;
             int bitIdx = 7 - (j & 7);
             for (int p = 0; p < bitsPerDim; p++) {
@@ -203,7 +217,7 @@ public final class AsymmetricHashingScorer {
         // unsigned dot = sum_p (2^p * planeSums[p]); centered dot = unsigned dot - centerOffset * sumAll
         double dot = -centerOffset * sumAll;
         for (int p = 0; p < bitsPerDim; p++) {
-            dot += (1 << p) * planeSums[p];
+            dot = Math.fma(1 << p, planeSums[p], dot);
         }
         return (float) dot * scale + queryDotCentroid + offset;
     }

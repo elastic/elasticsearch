@@ -64,7 +64,7 @@ public final class AshProjectionMatrix {
      */
     public float[][] wT() {
         if (wT == null) {
-            wT = transposeMatrix(w);
+            wT = transposeMatrix(w, originalDim, nDims);
         }
         return wT;
     }
@@ -72,9 +72,7 @@ public final class AshProjectionMatrix {
     /**
      * Transposes a matrix from (rows x cols) to (cols x rows).
      */
-    private static float[][] transposeMatrix(float[][] m) {
-        int rows = m.length;
-        int cols = m[0].length;
+    static float[][] transposeMatrix(float[][] m, int rows, int cols) {
         float[][] t = new float[cols][rows];
         for (int i = 0; i < rows; i++) {
             for (int j = 0; j < cols; j++) {

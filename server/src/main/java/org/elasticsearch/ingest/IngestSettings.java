@@ -58,10 +58,10 @@ public final class IngestSettings {
     );
 
     /**
-     * The maximum combined serialized size of <em>all</em> ingest pipelines. Per-pipeline and per-count limits do not bound the aggregate --
-     * many pipelines each just under the per-pipeline limit can still accumulate enough data in the cluster state to destabilize the cluster
-     * (cluster state is held in heap on every node and re-serialized on every update). This caps that aggregate. It is only enforced when
-     * creating a new pipeline, so existing pipelines above the limit continue to work.
+     * The maximum combined serialized size of <em>all</em> ingest pipelines. Per-pipeline and per-count limits do not bound the aggregate
+     * -- many pipelines each just under the per-pipeline limit can still accumulate enough data in the cluster state to destabilize the
+     * cluster (cluster state is held in heap on every node and re-serialized on every update). This caps that aggregate. It is only
+     * enforced when creating a new pipeline, so existing pipelines above the limit continue to work.
      */
     public static final Setting<ByteSizeValue> MAX_TOTAL_METADATA_SIZE = Setting.byteSizeSetting(
         "ingest.pipeline.max_total_metadata_size",

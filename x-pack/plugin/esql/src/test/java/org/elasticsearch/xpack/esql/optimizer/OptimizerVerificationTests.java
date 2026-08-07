@@ -1073,38 +1073,54 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
     }
 
     /**
-     * Regression test for https://github.com/elastic/elasticsearch/issues/155979 where src_ip_local was
-     * disappearing from the plan in the logical optimizations
+     * Regression test for https://github.com/elastic/elasticsearch/issues/155979 where ip
+     * ended up as unresolved in the logical plan optimizations
      */
-    public void testOrCidrMatchOrNotPruned() {
+    public void testOrCidrMatchNotPruned() {
         var testAnalyzer = analyzer().addIndex("hosts", "mapping-hosts.json");
         optimize(testAnalyzer.query("""
             FROM hosts
-            | EVAL ip = CASE(
-                   CIDR_MATCH(ip0, "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16") OR ip0 == "127.0.0.1"::ip,
-                   TO_STRING(ip0), null)
+            | EVAL ip = CASE(CIDR_MATCH(ip0, "10.0.0.0/8") OR ip0 == "127.0.0.1"::ip, TO_STRING(ip0), null)
             """));
     }
 
     /**
-     * Regression test for https://github.com/elastic/elasticsearch/issues/155979 where src_ip_local was
-     * disappearing from the plan in the logical optimizations
+     * Regression test for https://github.com/elastic/elasticsearch/issues/155979 where ip
+     * disappeared from the plan in the logical optimizations
      */
-    public void testOrCidrMatchOrNotPruned2() {
+    public void testOrCidrMatchNotPruned2() {
         var testAnalyzer = analyzer().addIndex("hosts", "mapping-hosts.json");
         optimize(testAnalyzer.query("""
             FROM hosts
-            | EVAL ip = CASE(
-                      CIDR_MATCH(ip0, "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16") OR ip0 == "127.0.0.1"::ip,
-                      TO_STRING(ip0), null),
-                   host_local = CASE(
-                       host == "localhost",
-                       host, null),
-                   field = CASE(
-                       ip IS NOT NULL, "a",
-                       host_local IS NOT NULL, "b",
-                       "unknown")
+            | EVAL ip = CASE(CIDR_MATCH(ip0, "10.0.0.0/8") OR ip0 == "127.0.0.1"::ip, TO_STRING(ip0), null),
+                   field = CASE(ip IS NOT NULL, "a", "b")
             | STATS count = COUNT(*) BY field
+            """));
+    }
+
+    public void testOrCidrMatchWithInNotPruned() {
+        var testAnalyzer = analyzer().addIndex("hosts", "mapping-hosts.json");
+        optimize(testAnalyzer.query("""
+            FROM hosts
+            | EVAL ip = CASE(CIDR_MATCH(ip0, "10.0.0.0/8") OR ip0 IN ("127.0.0.1"::ip, "192.168.1.1"::ip), TO_STRING(ip0), null)
+            """));
+    }
+
+    public void testOrCidrMatchWithInNotPruned2() {
+        var testAnalyzer = analyzer().addIndex("hosts", "mapping-hosts.json");
+        optimize(testAnalyzer.query("""
+            FROM hosts
+            | EVAL ip = CASE(CIDR_MATCH(ip0, "10.0.0.0/8") OR ip0 IN ("127.0.0.1"::ip, "192.168.1.1"::ip), TO_STRING(ip0), null),
+                   field = CASE(ip IS NOT NULL, "a", "b")
+            | STATS count = COUNT(*) BY field
+            """));
+    }
+
+    public void testOrCidrMatchWithMixedTypeInNotPruned() {
+        var testAnalyzer = analyzer().addIndex("hosts", "mapping-hosts.json");
+        optimize(testAnalyzer.query("""
+            FROM hosts
+            | EVAL ip = CASE(CIDR_MATCH(ip0, "10.0.0.0/8") OR ip0 IN ("127.0.0.1"::ip, "192.168.1.1"), TO_STRING(ip0), null)
             """));
     }
 }

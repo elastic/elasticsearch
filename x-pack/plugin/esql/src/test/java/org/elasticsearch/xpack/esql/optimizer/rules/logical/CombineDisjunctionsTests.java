@@ -316,4 +316,33 @@ public class CombineDisjunctionsTests extends ESTestCase {
             assertEquals(DataType.KEYWORD, match.dataType());
         }
     }
+
+    public void testCombineIpInIntoCidrMatchUsesKeywordType() {
+        FieldAttribute ipField = getFieldAttribute("ip_field", DataType.IP);
+
+        BytesRef cidrPattern = new BytesRef("10.0.0.0/8");
+        List<Expression> cidrPatterns = List.of(new Literal(EMPTY, cidrPattern, DataType.KEYWORD));
+
+        BytesRef encodedIp1 = new BytesRef(InetAddressPoint.encode(InetAddresses.forString("127.0.0.1")));
+        BytesRef encodedIp2 = new BytesRef(InetAddressPoint.encode(InetAddresses.forString("192.168.1.1")));
+        Literal ipLiteral1 = new Literal(EMPTY, encodedIp1, DataType.IP);
+        Literal ipLiteral2 = new Literal(EMPTY, encodedIp2, DataType.IP);
+        In ipIn = new In(EMPTY, ipField, List.of(ipLiteral1, ipLiteral2));
+
+        // CIDRMatch(ipField, "10.0.0.0/8") OR ipField IN (127.0.0.1::ip, 192.168.1.1::ip)
+        CIDRMatch cidrMatch = new CIDRMatch(EMPTY, ipField, cidrPatterns);
+        Or or = new Or(EMPTY, cidrMatch, ipIn);
+
+        Expression result = combineDisjunctions(or);
+        assertEquals(CIDRMatch.class, result.getClass());
+        CIDRMatch combined = (CIDRMatch) result;
+        // CIDRMatch(ipField, "10.0.0.0/8", "127.0.0.1", "192.168.1.1")
+        assertTrue(result.resolved());
+        assertEquals(ipField, combined.ipField());
+        assertEquals(3, combined.matches().size());
+
+        for (Expression match : combined.matches()) {
+            assertEquals(DataType.KEYWORD, match.dataType());
+        }
+    }
 }

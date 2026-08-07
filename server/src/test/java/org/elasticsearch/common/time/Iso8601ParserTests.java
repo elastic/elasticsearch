@@ -70,6 +70,34 @@ public class Iso8601ParserTests extends ESTestCase {
         assertThat(defaultParser().tryParse("2023-01-01T12:00:00Europe/Paris+0400", null), hasError(19));
     }
 
+    public void testConfigurableDateTimeSeparator() {
+        // A parser configured with a space separator parses 'yyyy-MM-dd HH:mm:ss' (the layout used by date fields)
+        Iso8601Parser spaceParser = new Iso8601Parser(
+            Set.of(YEAR, MONTH_OF_YEAR, DAY_OF_MONTH, HOUR_OF_DAY, MINUTE_OF_HOUR, SECOND_OF_MINUTE),
+            false,
+            SECOND_OF_MINUTE,
+            BOTH,
+            FORBIDDEN,
+            Map.of(),
+            ' '
+        );
+        assertThat(spaceParser.tryParse("2023-06-20 15:48:09", null), hasResult(new DateTime(2023, 6, 20, 15, 48, 9, 0, null, null)));
+        // the standard 'T' separator is rejected at the date/time boundary when the parser expects a space
+        assertThat(spaceParser.tryParse("2023-06-20T15:48:09", null), hasError(10));
+
+        // and conversely, a 'T' parser rejects a space at the boundary
+        Iso8601Parser tParser = new Iso8601Parser(
+            Set.of(YEAR, MONTH_OF_YEAR, DAY_OF_MONTH, HOUR_OF_DAY, MINUTE_OF_HOUR, SECOND_OF_MINUTE),
+            false,
+            SECOND_OF_MINUTE,
+            BOTH,
+            FORBIDDEN,
+            Map.of()
+        );
+        assertThat(tParser.tryParse("2023-06-20 15:48:09", null), hasError(10));
+        assertThat(tParser.tryParse("2023-06-20T15:48:09", null), hasResult(new DateTime(2023, 6, 20, 15, 48, 9, 0, null, null)));
+    }
+
     public void testOutOfRange() {
         assertThat(defaultParser().tryParse("2023-13-12", null), hasError(5));
         assertThat(defaultParser().tryParse("2023-12-32", null), hasError(8));

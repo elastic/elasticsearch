@@ -607,3 +607,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search.highlight/70_number_of_fragments/negative number_of_fragments should FAIL}
   issue: https://github.com/elastic/elasticsearch/issues/155977
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecChangePointIT
+  method: test {csv-spec:change_point.values int column with all nulls}
+  issue: https://github.com/elastic/elasticsearch/issues/155124

@@ -196,6 +196,21 @@ public class TransformContextTests extends ESTestCase {
         assertThat(context.projectId(), is(equalTo(projectId)));
     }
 
+    public void testSearchMetricsRoundTrip() {
+        var context = new TransformContext(TransformTaskState.STARTED, null, 0, listener);
+        assertThat("no search has completed yet", context.getUiamAuth(), is(nullValue()));
+        assertThat("no search has completed yet", context.getLastSearchCrossProject(), is(nullValue()));
+
+        context.recordSearchMetrics(true, false);
+        assertThat(context.getUiamAuth(), is(equalTo(Boolean.TRUE)));
+        assertThat(context.getLastSearchCrossProject(), is(equalTo(Boolean.FALSE)));
+
+        // each search overwrites; values stay current after _update / routing changes
+        context.recordSearchMetrics(false, true);
+        assertThat(context.getUiamAuth(), is(equalTo(Boolean.FALSE)));
+        assertThat(context.getLastSearchCrossProject(), is(equalTo(Boolean.TRUE)));
+    }
+
     public void testReplacePersistedCredentialReturnsDisplaced() {
         var context = new TransformContext(TransformTaskState.STARTED, null, 0, listener);
         assertThat(context.getPersistedCloudCredential(), is(nullValue()));

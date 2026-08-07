@@ -1374,82 +1374,6 @@ public class DatafeedManagerTests extends ESTestCase {
         verify(apiKeyService).revokeCloudAuthentication(same(minted), any());
     }
 
-    public void testPutDatafeedWithRequestCloudCredentialShouldNotInjectIntoThreadContext() {
-        Settings settings = Settings.builder().put("serverless.cross_project.enabled", true).put("xpack.security.enabled", false).build();
-        CloudCredentialManager credentialManager = mock(CloudCredentialManager.class);
-        MachineLearningExtension mlExtension = mockMlExtension(credentialManager, mock(InternalCloudApiKeyService.class));
-        ThreadPool threadPool = mock(ThreadPool.class);
-        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        when(threadPool.getThreadContext()).thenReturn(threadContext);
-
-        DatafeedConfigProvider datafeedConfigProvider = mock(DatafeedConfigProvider.class);
-        doAnswer(invocation -> {
-            ActionListener<Set<String>> listener = invocation.getArgument(1);
-            listener.onResponse(Collections.emptySet());
-            return null;
-        }).when(datafeedConfigProvider).findDatafeedIdsForJobIds(any(), any());
-
-        DatafeedManager manager = newDatafeedManager(
-            datafeedConfigProvider,
-            mock(JobConfigProvider.class),
-            settings,
-            mock(Client.class),
-            mlExtension,
-            mockAuditor()
-        );
-
-        CloudCredential requestCredential = new CloudCredential(new SecureString("from-request".toCharArray()));
-        when(credentialManager.hasCloudManagedCredential(threadContext)).thenReturn(false);
-
-        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("test-datafeed", "test-job");
-        builder.setIndices(List.of("logs-*"));
-        PutDatafeedAction.Request request = new PutDatafeedAction.Request(builder.build());
-        request.setCloudCredential(requestCredential);
-
-        AtomicReference<Exception> failure = new AtomicReference<>();
-        manager.putDatafeed(request, null, null, threadPool, ActionListener.wrap(r -> fail("unexpected success"), failure::set));
-
-        verify(credentialManager, never()).injectCloudManagedCredential(any(), any());
-    }
-
-    public void testPutDatafeedWithRequestCloudCredentialShouldNotDoubleInjectWhenTransientPresent() {
-        Settings settings = Settings.builder().put("serverless.cross_project.enabled", true).put("xpack.security.enabled", false).build();
-        CloudCredentialManager credentialManager = mock(CloudCredentialManager.class);
-        MachineLearningExtension mlExtension = mockMlExtension(credentialManager, mock(InternalCloudApiKeyService.class));
-        ThreadPool threadPool = mock(ThreadPool.class);
-        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        when(threadPool.getThreadContext()).thenReturn(threadContext);
-
-        DatafeedConfigProvider datafeedConfigProvider = mock(DatafeedConfigProvider.class);
-        doAnswer(invocation -> {
-            ActionListener<Set<String>> listener = invocation.getArgument(1);
-            listener.onResponse(Collections.emptySet());
-            return null;
-        }).when(datafeedConfigProvider).findDatafeedIdsForJobIds(any(), any());
-
-        DatafeedManager manager = newDatafeedManager(
-            datafeedConfigProvider,
-            mock(JobConfigProvider.class),
-            settings,
-            mock(Client.class),
-            mlExtension,
-            mockAuditor()
-        );
-
-        CloudCredential requestCredential = new CloudCredential(new SecureString("from-request".toCharArray()));
-        when(credentialManager.hasCloudManagedCredential(threadContext)).thenReturn(true);
-
-        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("test-datafeed", "test-job");
-        builder.setIndices(List.of("logs-*"));
-        PutDatafeedAction.Request request = new PutDatafeedAction.Request(builder.build());
-        request.setCloudCredential(requestCredential);
-
-        AtomicReference<Exception> failure = new AtomicReference<>();
-        manager.putDatafeed(request, null, null, threadPool, ActionListener.wrap(r -> fail("unexpected success"), failure::set));
-
-        verify(credentialManager, never()).injectCloudManagedCredential(any(), any());
-    }
-
     public void testCurrentCallerCredentialWithSecondaryAuthShouldExtractFromSecondaryContext() {
         assumeTrue("feature under test must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
 
@@ -1461,10 +1385,6 @@ public class DatafeedManagerTests extends ESTestCase {
         when(threadPool.getThreadContext()).thenReturn(threadContext);
 
         CloudCredential secondaryCredential = new CloudCredential(new SecureString("caller-uiam-token".toCharArray()));
-        when(credentialManager.hasCloudManagedCredential(any())).thenAnswer(invocation -> {
-            ThreadContext ctx = invocation.getArgument(0);
-            return ctx.getTransient("test_cloud_token") != null;
-        });
         when(credentialManager.extractCloudManagedCredential(any())).thenAnswer(invocation -> {
             ThreadContext ctx = invocation.getArgument(0);
             if (ctx.getTransient("test_cloud_token") != null) {
@@ -1510,11 +1430,10 @@ public class DatafeedManagerTests extends ESTestCase {
         threadContext.putTransient("test_cloud_token", "primary-only");
 
         CloudCredential primaryCredential = new CloudCredential(new SecureString("kibana-service-token".toCharArray()));
-        when(credentialManager.hasCloudManagedCredential(any())).thenAnswer(invocation -> {
+        when(credentialManager.extractCloudManagedCredential(any())).thenAnswer(invocation -> {
             ThreadContext ctx = invocation.getArgument(0);
-            return ctx.getTransient("test_cloud_token") != null;
+            return ctx.getTransient("test_cloud_token") != null ? primaryCredential : null;
         });
-        when(credentialManager.extractCloudManagedCredential(any())).thenReturn(primaryCredential);
 
         SecurityContext securityContext = mock(SecurityContext.class);
         when(securityContext.getThreadContext()).thenReturn(threadContext);

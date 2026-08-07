@@ -72,4 +72,20 @@ describe("renderMarkdown / severity", () => {
     expect(severity({ batches: [], perTest: [], totals: { iterations: 1, realFailures: 0, suiteTimeoutMarkers: 1, successfulCases: 0 } })).toBe("warning");
     expect(severity({ batches: [], perTest: [], totals: { iterations: 1, realFailures: 0, suiteTimeoutMarkers: 0, successfulCases: 1 } })).toBe("success");
   });
+
+  test("a compile-gate failure is a warning (orange), not a false-green", () => {
+    const clean = { batches: [], perTest: [], totals: { iterations: 0, realFailures: 0, suiteTimeoutMarkers: 0, successfulCases: 0 } };
+    // Without the gate signal the empty report would read as success.
+    expect(severity(clean)).toBe("success");
+    expect(severity(clean, true)).toBe("warning");
+  });
+
+  test("renders the compile-gate notice and does not read as a clean pass when buildFailed", () => {
+    const clean = { batches: [], perTest: [], totals: { iterations: 0, realFailures: 0, suiteTimeoutMarkers: 0, successfulCases: 0 } };
+    const md = renderMarkdown(clean, true);
+    expect(md).toContain("failed to compile");
+    expect(md).toContain("re-runs were skipped");
+    // The banner is absent unless the gate actually failed.
+    expect(renderMarkdown(clean)).not.toContain("failed to compile");
+  });
 });

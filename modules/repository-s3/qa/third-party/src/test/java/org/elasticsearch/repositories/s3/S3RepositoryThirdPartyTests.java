@@ -265,7 +265,8 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
                 sourceBlobContainer,
                 sourceBlobName,
                 destinationBlobName,
-                blobBytes.length()
+                blobBytes.length(),
+                null
             );
 
             return destinationBlobContainer.readBlob(randomPurpose(), destinationBlobName).readAllBytes();
@@ -292,7 +293,8 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
                 (S3BlobContainer) sourceBlobContainer,
                 sourceBlobName,
                 destinationBlobName,
-                blobBytes.length()
+                blobBytes.length(),
+                null
             );
 
             return destinationBlobContainer.readBlob(randomPurpose(), destinationBlobName).readAllBytes();
@@ -381,7 +383,7 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
 
                     // single-object server-side copy (source is small, so it stays below the multipart-copy threshold)
                     final var copyName = randomIdentifier();
-                    blobContainer.copyBlob(purpose, blobContainer, singlePartName, copyName, singlePartBytes.length());
+                    blobContainer.copyBlob(purpose, blobContainer, singlePartName, copyName, singlePartBytes.length(), null);
                     assertStorageClass(blobStore, blobContainer, copyName, expectedStorageClass, "server-side copy", purpose);
                 }
             } finally {

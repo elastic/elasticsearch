@@ -52,6 +52,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
@@ -109,6 +110,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -923,7 +925,8 @@ public class ObjectStoreServiceTests extends ESTestCase {
                         BlobContainer sourceBlobContainer,
                         String sourceBlobName,
                         String blobName,
-                        long blobSize
+                        long blobSize,
+                        @Nullable Executor executor
                     ) throws IOException {
                         blobCopyCount.updateAndGet(count -> {
                             count++;
@@ -1000,7 +1003,8 @@ public class ObjectStoreServiceTests extends ESTestCase {
                         BlobContainer sourceBlobContainer,
                         String sourceBlobName,
                         String blobName,
-                        long blobSize
+                        long blobSize,
+                        @Nullable Executor executor
                     ) throws IOException {
                         // always fail last blob
                         if (blobsToCopy.decrementAndGet() == 0 || randomBoolean()) {
@@ -1010,7 +1014,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
                                 throw copyFailureRE;
                             }
                         }
-                        innerContainer.copyBlob(purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize);
+                        innerContainer.copyBlob(purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize, executor);
                     }
                 };
             }

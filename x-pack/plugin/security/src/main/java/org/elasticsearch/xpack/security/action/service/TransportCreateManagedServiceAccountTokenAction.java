@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.core.security.action.service.CreateManagedService
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenRequest;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.support.ManagedServiceAccountIdValidator;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 
 public class TransportCreateManagedServiceAccountTokenAction extends HandledTransportAction<
@@ -55,8 +56,13 @@ public class TransportCreateManagedServiceAccountTokenAction extends HandledTran
         final Authentication authentication = securityContext.getAuthentication();
         if (authentication == null) {
             listener.onFailure(new IllegalStateException("authentication is required"));
-        } else {
-            serviceAccountService.createIndexToken(authentication, request, listener);
+            return;
         }
+        final String namespaceError = ManagedServiceAccountIdValidator.validateNamespace(request.getNamespace());
+        if (namespaceError != null) {
+            listener.onFailure(new IllegalArgumentException(namespaceError));
+            return;
+        }
+        serviceAccountService.createIndexToken(authentication, request, listener);
     }
 }

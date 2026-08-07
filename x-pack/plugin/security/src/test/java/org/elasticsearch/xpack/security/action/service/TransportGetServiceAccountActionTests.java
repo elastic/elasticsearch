@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.security.action.service;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.tasks.Task;
@@ -16,13 +17,17 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountRequest;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountResponse;
 import org.elasticsearch.xpack.core.security.action.service.ServiceAccountInfo;
+import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 
 public class TransportGetServiceAccountActionTests extends ESTestCase {
@@ -32,9 +37,16 @@ public class TransportGetServiceAccountActionTests extends ESTestCase {
     @Before
     public void init() {
         TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
+        ServiceAccountService serviceAccountService = mock(ServiceAccountService.class);
+        doAnswer(invocation -> {
+            ActionListener<List<ServiceAccountInfo>> listener = invocation.getArgument(2);
+            listener.onResponse(List.of());
+            return null;
+        }).when(serviceAccountService).getManagedAccountInfos(any(), any(), any());
         transportGetServiceAccountAction = new TransportGetServiceAccountAction(
             transportService,
-            new ActionFilters(Collections.emptySet())
+            new ActionFilters(Collections.emptySet()),
+            serviceAccountService
         );
     }
 

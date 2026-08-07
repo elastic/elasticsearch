@@ -17,8 +17,10 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xpack.core.security.action.service.CreateManagedServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenRequest;
+import org.elasticsearch.xpack.core.security.support.ManagedServiceAccountIdValidator;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
@@ -50,24 +52,21 @@ public class RestCreateServiceAccountTokenAction extends SecurityBaseRestHandler
 
     @Override
     protected RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
-        String tokenName = request.param("name");
-        if (Strings.isNullOrEmpty(tokenName)) {
-            tokenName = "token_" + UUIDs.base64UUID();
-        }
-        final CreateServiceAccountTokenRequest createServiceAccountTokenRequest = new CreateServiceAccountTokenRequest(
-            request.param("namespace"),
-            request.param("service"),
-            tokenName
-        );
-        final String refreshPolicy = request.param("refresh");
-        if (refreshPolicy != null) {
-            createServiceAccountTokenRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.parse(refreshPolicy));
-        }
-
-        return channel -> client.execute(
-            CreateServiceAccountTokenAction.INSTANCE,
-            createServiceAccountTokenRequest,
-            new RestToXContentListener<>(channel)
-        );
+        final String tokenName = Strings.isNullOrEmpty(request.param("name")) ? "token_" + UUIDs.base64UUID() : request.param("name");
+        return channel -> {
+            final CreateServiceAccountTokenRequest createServiceAccountTokenRequest = new CreateServiceAccountTokenRequest(
+                request.param("namespace"),
+                request.param("service"),
+                tokenName
+            );
+            final String refreshPolicy = request.param("refresh");
+            if (refreshPolicy != null) {
+                createServiceAccountTokenRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.parse(refreshPolicy));
+            }
+            final var action = ManagedServiceAccountIdValidator.BUILTIN_NAMESPACE.equals(request.param("namespace"))
+                ? CreateServiceAccountTokenAction.INSTANCE
+                : CreateManagedServiceAccountTokenAction.INSTANCE;
+            client.execute(action, createServiceAccountTokenRequest, new RestToXContentListener<>(channel));
+        };
     }
 }

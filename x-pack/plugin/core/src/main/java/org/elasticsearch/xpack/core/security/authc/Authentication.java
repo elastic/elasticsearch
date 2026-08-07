@@ -542,6 +542,16 @@ public final class Authentication implements ToXContentObject {
         return effectiveSubject.getType() == Subject.Type.SERVICE_ACCOUNT;
     }
 
+    public boolean isManagedServiceAccount() {
+        return isServiceAccount()
+            && Boolean.TRUE.equals(getEffectiveSubject().getUser().metadata().get(ServiceAccountSettings.MANAGED_SERVICE_ACCOUNT_FIELD));
+    }
+
+    public boolean isBuiltInServiceAccount() {
+        return isServiceAccount()
+            && Boolean.TRUE.equals(getEffectiveSubject().getUser().metadata().get(ServiceAccountSettings.BUILTIN_SERVICE_ACCOUNT_FIELD));
+    }
+
     /**
      * Whether the effective user is an API key, this including a simple API key authentication
      * or a token created by the API key.
@@ -1037,7 +1047,9 @@ public final class Authentication implements ToXContentObject {
         checkNoInternalUser(authenticatingSubject, "Token");
         if (Subject.Type.SERVICE_ACCOUNT == authenticatingSubject.getType()) {
             checkNoDomain(authenticatingRealm, "Service account");
-            checkNoRole(authenticatingSubject, "Service account");
+            if (false == isManagedServiceAccount()) {
+                checkNoRole(authenticatingSubject, "Service account");
+            }
             checkNoRunAs(this, "Service account");
         } else {
             if (Subject.Type.API_KEY == authenticatingSubject.getType()) {

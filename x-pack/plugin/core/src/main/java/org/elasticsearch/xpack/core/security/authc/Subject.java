@@ -112,7 +112,13 @@ public class Subject {
         return switch (type) {
             case CLOUD_API_KEY, USER -> buildRoleReferencesForUser(anonymousUser);
             case API_KEY -> buildRoleReferencesForApiKey();
-            case SERVICE_ACCOUNT -> new RoleReferenceIntersection(new RoleReference.ServiceAccountRoleReference(user.principal()));
+            case SERVICE_ACCOUNT -> {
+                if (Boolean.TRUE.equals(user.metadata().get(ServiceAccountSettings.MANAGED_SERVICE_ACCOUNT_FIELD))) {
+                    yield new RoleReferenceIntersection(new RoleReference.NamedRoleReference(user.roles()));
+                } else {
+                    yield new RoleReferenceIntersection(new RoleReference.ServiceAccountRoleReference(user.principal()));
+                }
+            }
             case CROSS_CLUSTER_ACCESS -> buildRoleReferencesForCrossClusterAccess();
         };
     }

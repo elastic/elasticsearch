@@ -91,7 +91,8 @@ public class ServiceAccountServiceTests extends ESTestCase {
                 List.of(fileServiceAccountTokenStore, indexServiceAccountTokenStore),
                 threadPool.getThreadContext()
             ),
-            indexServiceAccountTokenStore
+            indexServiceAccountTokenStore,
+            null
         );
     }
 
@@ -382,11 +383,19 @@ public class ServiceAccountServiceTests extends ESTestCase {
                 randomAlphaOfLengthBetween(3, 8)
             );
             mockLog.addExpectation(
-                new MockLog.SeenEventExpectation(
-                    "non-elastic service account",
+                new MockLog.UnseenEventExpectation(
+                    "non-elastic service account uses managed path",
                     ServiceAccountService.class.getName(),
                     Level.DEBUG,
                     "only [elastic] service accounts are supported, but received [" + accountId1.asPrincipal() + "]"
+                )
+            );
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "non-elastic service account unsupported without managed store",
+                    ServiceAccountService.class.getName(),
+                    Level.DEBUG,
+                    "managed service account [" + accountId1.asPrincipal() + "] is not supported in this configuration"
                 )
             );
             final SecureString secret = new SecureString(randomAlphaOfLength(20).toCharArray());
@@ -408,10 +417,11 @@ public class ServiceAccountServiceTests extends ESTestCase {
             mockLog.assertAllExpectationsMatched();
 
             // Unknown elastic service name
-            final ServiceAccountId accountId2 = new ServiceAccountId(
-                ElasticServiceAccounts.NAMESPACE,
-                randomValueOtherThan("fleet-server", () -> randomAlphaOfLengthBetween(3, 8))
-            );
+            String unknownServiceName;
+            do {
+                unknownServiceName = randomAlphaOfLengthBetween(3, 8);
+            } while (ServiceAccountService.isBuiltInServiceAccountPrincipal(ElasticServiceAccounts.NAMESPACE + "/" + unknownServiceName));
+            final ServiceAccountId accountId2 = new ServiceAccountId(ElasticServiceAccounts.NAMESPACE, unknownServiceName);
             mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "unknown elastic service name",
@@ -603,16 +613,20 @@ public class ServiceAccountServiceTests extends ESTestCase {
     public void testCreateIndexTokenWillDelegate() {
         final Authentication authentication = AuthenticationTestHelper.builder().serviceAccount().build();
         final CreateServiceAccountTokenRequest request = mock(CreateServiceAccountTokenRequest.class);
+        when(request.getNamespace()).thenReturn(ElasticServiceAccounts.NAMESPACE);
+        when(request.getServiceName()).thenReturn("fleet-server");
         final ActionListener<CreateServiceAccountTokenResponse> future = new PlainActionFuture<>();
         serviceAccountService.createIndexToken(authentication, request, future);
-        verify(indexServiceAccountTokenStore).createToken(eq(authentication), eq(request), eq(future));
+        verify(indexServiceAccountTokenStore).createBuiltInToken(eq(authentication), eq(request), eq(future));
     }
 
     public void testDeleteIndexTokenWillDelegate() {
         final DeleteServiceAccountTokenRequest request = mock(DeleteServiceAccountTokenRequest.class);
+        when(request.getNamespace()).thenReturn(ElasticServiceAccounts.NAMESPACE);
+        when(request.getServiceName()).thenReturn("fleet-server");
         final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
         serviceAccountService.deleteIndexToken(request, future);
-        verify(indexServiceAccountTokenStore).deleteToken(eq(request), eq(future));
+        verify(indexServiceAccountTokenStore).deleteBuiltInToken(eq(request), eq(future));
     }
 
     public void testFindTokensFor() {

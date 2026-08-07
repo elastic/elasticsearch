@@ -201,7 +201,7 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
         // created
         responseProviderHolder.set((r, l) -> l.onResponse(createSingleBulkResponse()));
         final PlainActionFuture<CreateServiceAccountTokenResponse> future1 = new PlainActionFuture<>();
-        store.createToken(authentication, request, future1);
+        store.createBuiltInToken(authentication, request, future1);
         final BulkRequest bulkRequest = (BulkRequest) requestHolder.get();
         assertThat(bulkRequest.requests(), hasSize(1));
         final IndexRequest indexRequest = (IndexRequest) bulkRequest.requests().get(0);
@@ -232,7 +232,7 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
         final Exception exception = mock(Exception.class);
         responseProviderHolder.set((r, l) -> l.onFailure(exception));
         final PlainActionFuture<CreateServiceAccountTokenResponse> future3 = new PlainActionFuture<>();
-        store.createToken(authentication, request, future3);
+        store.createBuiltInToken(authentication, request, future3);
         final ExecutionException e3 = expectThrows(ExecutionException.class, () -> future3.get());
         assertThat(e3.getCause(), is(exception));
     }
@@ -248,7 +248,7 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
             )
         );
         final PlainActionFuture<CreateServiceAccountTokenResponse> future = new PlainActionFuture<>();
-        store.createToken(authentication, request, future);
+        store.createBuiltInToken(authentication, request, future);
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, future::actionGet);
         assertThat(
             e.getMessage(),
@@ -338,7 +338,7 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
             "token1"
         );
         final PlainActionFuture<Boolean> future1 = new PlainActionFuture<>();
-        store.deleteToken(deleteServiceAccountTokenRequest1, future1);
+        store.deleteBuiltInToken(deleteServiceAccountTokenRequest1, future1);
         assertThat(future1.actionGet(), is(true));
         assertThat(cacheCleared.get(), is(true));
 
@@ -349,7 +349,7 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
             randomAlphaOfLengthBetween(3, 8)
         );
         final PlainActionFuture<Boolean> future2 = new PlainActionFuture<>();
-        store.deleteToken(deleteServiceAccountTokenRequest2, future2);
+        store.deleteBuiltInToken(deleteServiceAccountTokenRequest2, future2);
         assertThat(future2.actionGet(), is(false));
 
         // Invalid service account
@@ -359,7 +359,7 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
             "token1"
         );
         final PlainActionFuture<Boolean> future3 = new PlainActionFuture<>();
-        store.deleteToken(deleteServiceAccountTokenRequest3, future3);
+        store.deleteBuiltInToken(deleteServiceAccountTokenRequest3, future3);
         assertThat(future3.actionGet(), is(false));
     }
 
@@ -376,12 +376,12 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
         assertThat(future1.actionGet(), equalTo(List.of()));
 
         final DeleteServiceAccountTokenRequest deleteServiceAccountTokenRequest = new DeleteServiceAccountTokenRequest(
-            randomAlphaOfLengthBetween(3, 8),
-            randomAlphaOfLengthBetween(3, 8),
+            ElasticServiceAccounts.NAMESPACE,
+            "fleet-server",
             randomAlphaOfLengthBetween(3, 8)
         );
         final PlainActionFuture<Boolean> future2 = new PlainActionFuture<>();
-        store.deleteToken(deleteServiceAccountTokenRequest, future2);
+        store.deleteBuiltInToken(deleteServiceAccountTokenRequest, future2);
         assertThat(future2.actionGet(), is(false));
 
         // Index exists but not available
@@ -401,7 +401,7 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
         assertThat(e3, is(e));
 
         final PlainActionFuture<Boolean> future4 = new PlainActionFuture<>();
-        store.deleteToken(deleteServiceAccountTokenRequest, future4);
+        store.deleteBuiltInToken(deleteServiceAccountTokenRequest, future4);
         final ElasticsearchException e4 = expectThrows(ElasticsearchException.class, future4::actionGet);
         assertThat(e4, is(e));
     }

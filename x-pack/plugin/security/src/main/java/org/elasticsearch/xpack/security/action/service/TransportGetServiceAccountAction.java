@@ -22,12 +22,21 @@ import org.elasticsearch.xpack.core.security.action.service.ServiceAccountInfo;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 import java.util.function.Predicate;
 
 public class TransportGetServiceAccountAction extends HandledTransportAction<GetServiceAccountRequest, GetServiceAccountResponse> {
 
+    private final ServiceAccountService serviceAccountService;
+
     @Inject
-    public TransportGetServiceAccountAction(TransportService transportService, ActionFilters actionFilters) {
+    public TransportGetServiceAccountAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        ServiceAccountService serviceAccountService
+    ) {
         super(
             GetServiceAccountAction.NAME,
             transportService,
@@ -35,23 +44,31 @@ public class TransportGetServiceAccountAction extends HandledTransportAction<Get
             GetServiceAccountRequest::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
+        this.serviceAccountService = serviceAccountService;
     }
 
     @Override
     protected void doExecute(Task task, GetServiceAccountRequest request, ActionListener<GetServiceAccountResponse> listener) {
-        Predicate<ServiceAccount> filter = Predicates.always();
+        Predicate<ServiceAccount> builtInFilter = Predicates.always();
         if (request.getNamespace() != null) {
-            filter = filter.and(v -> v.id().namespace().equals(request.getNamespace()));
+            builtInFilter = builtInFilter.and(v -> v.id().namespace().equals(request.getNamespace()));
         }
         if (request.getServiceName() != null) {
-            filter = filter.and(v -> v.id().serviceName().equals(request.getServiceName()));
+            builtInFilter = builtInFilter.and(v -> v.id().serviceName().equals(request.getServiceName()));
         }
-        final ServiceAccountInfo[] serviceAccountInfos = ServiceAccountService.getServiceAccounts()
+        final List<ServiceAccountInfo> builtInInfos = ServiceAccountService.getBuiltInServiceAccounts()
             .values()
             .stream()
-            .filter(filter)
-            .map(v -> new ServiceAccountInfo(v.id().asPrincipal(), v.roleDescriptor()))
-            .toArray(ServiceAccountInfo[]::new);
-        listener.onResponse(new GetServiceAccountResponse(serviceAccountInfos));
+            .filter(builtInFilter)
+            .map(v -> ServiceAccountInfo.builtIn(v.id().asPrincipal(), v.roleDescriptor()))
+            .toList();
+
+        serviceAccountService.getManagedAccountInfos(request.getNamespace(), request.getServiceName(), ActionListener.wrap(managedInfos -> {
+            final List<ServiceAccountInfo> allInfos = new ArrayList<>(builtInInfos.size() + managedInfos.size());
+            allInfos.addAll(builtInInfos);
+            allInfos.addAll(managedInfos);
+            allInfos.sort(Comparator.comparing(ServiceAccountInfo::getPrincipal));
+            listener.onResponse(new GetServiceAccountResponse(allInfos.toArray(ServiceAccountInfo[]::new)));
+        }, listener::onFailure));
     }
 }

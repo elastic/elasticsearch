@@ -15,14 +15,13 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
-import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenAction;
+import org.elasticsearch.xpack.core.security.action.service.CreateManagedServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenRequest;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.support.ManagedServiceAccountIdValidator;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 
-public class TransportCreateServiceAccountTokenAction extends HandledTransportAction<
+public class TransportCreateManagedServiceAccountTokenAction extends HandledTransportAction<
     CreateServiceAccountTokenRequest,
     CreateServiceAccountTokenResponse> {
 
@@ -30,14 +29,14 @@ public class TransportCreateServiceAccountTokenAction extends HandledTransportAc
     private final SecurityContext securityContext;
 
     @Inject
-    public TransportCreateServiceAccountTokenAction(
+    public TransportCreateManagedServiceAccountTokenAction(
         TransportService transportService,
         ActionFilters actionFilters,
         ServiceAccountService serviceAccountService,
         SecurityContext securityContext
     ) {
         super(
-            CreateServiceAccountTokenAction.NAME,
+            CreateManagedServiceAccountTokenAction.NAME,
             transportService,
             actionFilters,
             CreateServiceAccountTokenRequest::new,
@@ -56,14 +55,6 @@ public class TransportCreateServiceAccountTokenAction extends HandledTransportAc
         final Authentication authentication = securityContext.getAuthentication();
         if (authentication == null) {
             listener.onFailure(new IllegalStateException("authentication is required"));
-        } else if (ManagedServiceAccountIdValidator.BUILTIN_NAMESPACE.equals(request.getNamespace()) == false) {
-            listener.onFailure(
-                new IllegalArgumentException(
-                    "built-in service account token creation only supports the ["
-                        + ManagedServiceAccountIdValidator.BUILTIN_NAMESPACE
-                        + "] namespace"
-                )
-            );
         } else {
             serviceAccountService.createIndexToken(authentication, request, listener);
         }

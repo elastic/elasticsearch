@@ -36,7 +36,7 @@ public class GetServiceAccountResponseTests extends AbstractWireSerializingTestC
         final String principal = randomPrincipal();
         return new GetServiceAccountResponse(
             randomBoolean()
-                ? new ServiceAccountInfo[] { new ServiceAccountInfo(principal, getRoleDescriptorFor(principal)) }
+                ? new ServiceAccountInfo[] { ServiceAccountInfo.builtIn(principal, getRoleDescriptorFor(principal)) }
                 : new ServiceAccountInfo[0]
         );
     }
@@ -46,7 +46,7 @@ public class GetServiceAccountResponseTests extends AbstractWireSerializingTestC
         if (instance.getServiceAccountInfos().length == 0) {
             final String principal = randomPrincipal();
             return new GetServiceAccountResponse(
-                new ServiceAccountInfo[] { new ServiceAccountInfo(principal, getRoleDescriptorFor(principal)) }
+                new ServiceAccountInfo[] { ServiceAccountInfo.builtIn(principal, getRoleDescriptorFor(principal)) }
             );
         } else {
             return new GetServiceAccountResponse(new ServiceAccountInfo[0]);

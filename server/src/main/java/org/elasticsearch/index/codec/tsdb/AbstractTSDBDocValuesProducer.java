@@ -610,7 +610,22 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         private final DirectMonotonicReader docOffsets;
         private final IndexInput compressedData;
         private final IndexInput readAhead;
+        /**
+         * Tracks which block is currently materialized in {@link #uncompressedBlock}. Serves two
+         * purposes: (1) cache key — {@link #decode} skips decompression when the requested doc is
+         * already in the buffer; (2) lower-bound hint for the binary search in
+         * {@link #findAndUpdateBlock}. Set to {@code -1} after a {@link #decodeBulk} call, because
+         * the bulk fast-path decompresses directly into its own buffer and leaves
+         * {@code uncompressedBlock} stale.
+         */
         private long lastBlockId = -1;
+        /**
+         * Lower-bound hint for the binary search in {@link #decodeBulk}: tracks the last block
+         * index that {@code decodeBulk} processed. Kept separate from {@link #lastBlockId} because
+         * the bulk fast-path does not land data in {@link #uncompressedBlock}, so {@code lastBlockId}
+         * cannot serve double duty as a search hint after a fast-path bulk read.
+         */
+        private long lastBulkBlockId = -1;
         private final int[] uncompressedDocStarts;
         private final int biggestUncompressedBlockSize;
         // Lazily allocated to avoid eagerly over-consuming memory under a large query fan-out or a single outlier block
@@ -898,7 +913,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
 
         void decodeBulk(int numBlocks, int firstDocId, int lastDocId, int count, BlockLoader.SingletonBytesRefBuilder builder)
             throws IOException {
-            final long firstBlockId = findBlock(firstDocId, numBlocks, lastBlockId == -1 ? 0 : lastBlockId);
+            final long firstBlockId = findBlock(firstDocId, numBlocks, lastBulkBlockId < 0 ? 0 : lastBulkBlockId);
             final long endBlockId = findBlock(lastDocId, numBlocks, firstBlockId);
             final int bufferSize = computeMultipleBlockBufferSize(firstBlockId, endBlockId);
 
@@ -906,37 +921,49 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
             final int[] offsetBuffer = new int[count + 1];
             int valuesBufferIndex = 0;
             final byte[] valuesBuffer = new byte[bufferSize];
+            // Reused across blocks; bytes stays as valuesBuffer since valuesBuffer.length >= any
+            // single block's fullBlockLength (bufferSize is their sum), so ArrayUtil.growNoCopy
+            // never reallocates it and bytes.offset is preserved into decompressDirect.
+            final BytesRef workRef = new BytesRef(valuesBuffer);
 
+            int sentinel = 0;
             for (long blockId = firstBlockId; blockId <= endBlockId; blockId++) {
                 int blockStartDocId = (int) docOffsets.get(blockId);
                 int blockEndDocId = (int) docOffsets.get(blockId + 1);
                 int numDocsInBlock = blockEndDocId - blockStartDocId;
-                if (blockId != lastBlockId) {
-                    decompressBlock(blockId, numDocsInBlock);
+
+                var header = decompressOffsets(blockId, numDocsInBlock);
+                int fullBlockLength = uncompressedDocStarts[numDocsInBlock];
+
+                // Decompress directly into valuesBuffer at valuesBufferIndex. decompressDirect writes
+                // at bytes.offset, so no intermediate buffer or arraycopy is needed.
+                if (header.isCompressed()) {
+                    workRef.offset = valuesBufferIndex;
+                    workRef.length = fullBlockLength;
+                    decompressor.decompress(compressedData, fullBlockLength, 0, fullBlockLength, workRef);
+                } else {
+                    // Currently this will not happen in production, because compression mode is always zstd and
+                    // block compression is always enabled in production code.
+                    // Only TsdbDocValueBwcTests.testMixedIndexDocValueBinaryPerBlockCompression test will trigger this branch.
+                    compressedData.readBytes(valuesBuffer, valuesBufferIndex, fullBlockLength);
                 }
 
                 int startDocId = blockId == firstBlockId ? firstDocId : blockStartDocId;
                 int endDocId = blockId == endBlockId ? lastDocId + 1 : blockEndDocId;
-                int offsetStart = uncompressedDocStarts[startDocId - blockStartDocId];
-                int offsetEnd = uncompressedDocStarts[endDocId - blockStartDocId];
 
+                int blockBase = valuesBufferIndex;
                 for (int docId = startDocId; docId < endDocId; docId++) {
-                    int index = docId - blockStartDocId;
-                    int offset = valuesBufferIndex + uncompressedDocStarts[index] - offsetStart;
-                    offsetBuffer[offsetBufferIndex++] = offset;
+                    offsetBuffer[offsetBufferIndex++] = blockBase + uncompressedDocStarts[docId - blockStartDocId];
                 }
+                // The final iteration's value becomes the sentinel offsetBuffer[count].
+                sentinel = blockBase + uncompressedDocStarts[endDocId - blockStartDocId];
 
-                int length = offsetEnd - offsetStart;
-                System.arraycopy(uncompressedBlock, offsetStart, valuesBuffer, valuesBufferIndex, length);
-                valuesBufferIndex += length;
+                valuesBufferIndex += fullBlockLength;
             }
-            offsetBuffer[offsetBufferIndex] = valuesBufferIndex;
-
-            lastBlockId = endBlockId;
-
-            // TODO: This sets state for the decode(...), we should look into removing this.
-            startDocNumForBlock = docOffsets.get(endBlockId);
-            limitDocNumForBlock = docOffsets.get(endBlockId + 1);
+            offsetBuffer[offsetBufferIndex] = sentinel;
+            // uncompressedBlock was bypassed: invalidate it so a subsequent decode() re-decompresses.
+            lastBlockId = -1;
+            lastBulkBlockId = endBlockId;
 
             assert count == offsetBufferIndex;
             builder.appendBytesRefs(valuesBuffer, offsetBuffer);

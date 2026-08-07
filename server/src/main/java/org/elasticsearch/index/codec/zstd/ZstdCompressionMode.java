@@ -133,9 +133,16 @@ public class ZstdCompressionMode extends CompressionMode {
             return offset == 0 && length == originalLength;
         }
 
-        /** Decompress directly into bytes.bytes, then set offset/length view. */
+        /**
+         * Decompress directly into bytes.bytes, writing at bytes.offset rather than index 0.
+         * Callers that want the output at bytes.bytes[0] set bytes.offset = 0 before calling
+         * (which all existing callers do). Callers that need the output at an arbitrary position
+         * set bytes.offset to that position before calling; bytes.bytes must be large enough that
+         * bytes.bytes.length >= bytes.offset + origLen so that ArrayUtil.growNoCopy does not
+         * reallocate the array and discard the caller-supplied offset.
+         */
         void decompressDirect(DataInput in, int cLen, int origLen, int off, int len, BytesRef bytes) throws IOException {
-            MemorySegment dst = MemorySegment.ofArray(bytes.bytes).asSlice(0, origLen);
+            MemorySegment dst = MemorySegment.ofArray(bytes.bytes).asSlice(bytes.offset, origLen);
             int decompressedLen = decompressInput(in, cLen, dst);
             checkLength(decompressedLen, origLen, in);
             bytes.offset = off;

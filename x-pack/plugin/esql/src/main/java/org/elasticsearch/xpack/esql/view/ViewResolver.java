@@ -9,9 +9,11 @@ package org.elasticsearch.xpack.esql.view;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ResolvedIndexExpression;
+import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.RemoteClusterClient;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.View;
@@ -28,7 +30,10 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.action.EsqlFetchRemoteViewsAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveViewAction;
 import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
 import org.elasticsearch.xpack.esql.core.util.Holder;
@@ -191,7 +196,13 @@ public class ViewResolver {
         // A Holder (not a plain boolean) because it is written from inside the async resolution callbacks; cross-thread visibility is
         // provided by the ActionListener plumbing, the same way the viewQueries map threaded through these callbacks is.
         Holder<Boolean> hasInSubquery = new Holder<>(false);
-        boolean noViews = viewsFeatureEnabled() == false || getMetadata().views().isEmpty();
+        // When REMOTE_VIEW_RESOLUTION is enabled, a plan that references cluster-prefixed patterns
+        // (e.g. "cluster-a:my-view") may have matching views on the remote cluster even if there are
+        // no local views. Only skip view resolution when there are no local views AND no cross-cluster
+        // patterns that could resolve remotely.
+        boolean noLocalViews = viewsFeatureEnabled() == false || getMetadata().views().isEmpty();
+        boolean noViews = noLocalViews
+            && (EsqlCapabilities.Cap.REMOTE_VIEW_RESOLUTION.isEnabled() == false || hasCrossClusterPatterns(plan) == false);
         if (noViews && InSubqueryResolver.hasInSubqueryInFilter(plan) == false) {
             listener.onResponse(new ViewResolutionResult(plan, viewQueries, false));
             return;
@@ -544,8 +555,16 @@ public class ViewResolver {
                             }
                         }
                     }
+                    // For remote views (name contains a cluster prefix), qualify all
+                    // UnresolvedRelation index patterns in the view body so that field-caps
+                    // and the analyser route them to the correct remote cluster.
+                    String viewClusterAlias = RemoteClusterAware.splitIndexName(view.name()).clusterAlias();
+                    LogicalPlan viewBody = resolve(view, parser, viewQueries);
+                    if (viewClusterAlias != null) {
+                        viewBody = qualifyWithCluster(viewBody, viewClusterAlias);
+                    }
                     replaceViews(
-                        resolve(view, parser, viewQueries),
+                        viewBody,
                         projectRouting,
                         parser,
                         branchSeenViews,
@@ -833,7 +852,159 @@ public class ViewResolver {
         EsqlResolveViewAction.Request request,
         ActionListener<EsqlResolveViewAction.Response> listener
     ) {
-        client.execute(EsqlResolveViewAction.TYPE, request, new ThreadedActionListener<>(executor, listener));
+        if (EsqlCapabilities.Cap.REMOTE_VIEW_RESOLUTION.isEnabled() == false) {
+            client.execute(EsqlResolveViewAction.TYPE, request, new ThreadedActionListener<>(executor, listener));
+            return;
+        }
+
+        // Collect any cluster-prefixed patterns so we can fan them out to the remote clusters.
+        Map<String, List<String>> remotePatternsByCluster = new LinkedHashMap<>();
+        for (String pattern : request.indices()) {
+            var split = RemoteClusterAware.splitIndexName(pattern);
+            if (split.clusterAlias() != null) {
+                remotePatternsByCluster.computeIfAbsent(split.clusterAlias(), k -> new ArrayList<>()).add(split.indexExpression());
+            }
+        }
+
+        if (remotePatternsByCluster.isEmpty()) {
+            // No remote patterns; delegate to local-only resolution.
+            client.execute(EsqlResolveViewAction.TYPE, request, new ThreadedActionListener<>(executor, listener));
+            return;
+        }
+
+        // Fire the local request and all remote requests eagerly so they run in parallel.
+        SubscribableListener<EsqlResolveViewAction.Response> localFuture = SubscribableListener.newForked(
+            l -> client.execute(EsqlResolveViewAction.TYPE, request, new ThreadedActionListener<>(executor, l))
+        );
+        Map<String, SubscribableListener<EsqlFetchRemoteViewsAction.Response>> remoteFutures = new LinkedHashMap<>();
+        for (Map.Entry<String, List<String>> entry : remotePatternsByCluster.entrySet()) {
+            String clusterAlias = entry.getKey();
+            String[] unqualifiedPatterns = entry.getValue().toArray(String[]::new);
+            remoteFutures.put(clusterAlias, SubscribableListener.newForked(l -> {
+                RemoteClusterClient remoteClient = client.getRemoteClusterClient(
+                    clusterAlias,
+                    executor,
+                    RemoteClusterService.DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE
+                );
+                remoteClient.execute(
+                    EsqlFetchRemoteViewsAction.REMOTE_TYPE,
+                    new EsqlFetchRemoteViewsAction.Request(unqualifiedPatterns),
+                    l
+                );
+            }));
+        }
+
+        // Collect remote responses sequentially (all requests are already running in parallel).
+        // Per-cluster failures are absorbed: if a remote cluster is unavailable during view fetch
+        // the pattern passes through to field-caps, which enforces skip_unavailable semantics there.
+        Map<String, EsqlFetchRemoteViewsAction.Response> remoteResponses = new LinkedHashMap<>();
+        SubscribableListener<Void> collector = SubscribableListener.newForked(l -> l.onResponse(null));
+        for (Map.Entry<String, SubscribableListener<EsqlFetchRemoteViewsAction.Response>> entry : remoteFutures.entrySet()) {
+            String clusterAlias = entry.getKey();
+            SubscribableListener<EsqlFetchRemoteViewsAction.Response> remoteFuture = entry.getValue();
+            collector = collector.andThen((l, ignored) -> remoteFuture.addListener(ActionListener.wrap(resp -> {
+                remoteResponses.put(clusterAlias, resp);
+                l.onResponse(null);
+            }, ex -> {
+                log.warn("Failed to fetch remote views from [{}], skipping: {}", clusterAlias, ex.getMessage());
+                l.onResponse(null);
+            })));
+        }
+
+        // Once all remote responses are collected, wait for local and merge everything.
+        collector.<EsqlResolveViewAction.Response>andThen(
+            (l, ignored) -> localFuture.addListener(
+                l.delegateFailureAndWrap(
+                    (l2, localResp) -> l2.onResponse(mergeViewResponses(localResp, remoteResponses, remotePatternsByCluster))
+                )
+            )
+        ).addListener(listener);
+    }
+
+    /**
+     * Merges local view resolution results with views fetched from remote clusters.
+     * <p>
+     * For each remote cluster pattern (e.g. {@code "cluster1:my-view"}) that matched a view on the
+     * remote cluster, the local {@link ResolvedIndexExpression} for that pattern (which the local
+     * resolver marks as {@code CONCRETE_RESOURCE_NOT_VISIBLE} because no local index has that name)
+     * is replaced with a {@code SUCCESS} entry whose {@code indices} set contains the cluster-qualified
+     * view name (e.g. {@code "cluster1:my-view"}). Remote views are added to the merged view array
+     * under their qualified names so the downstream expansion loop can resolve them.
+     * <p>
+     * Remote patterns that matched no views are left unchanged ({@code CONCRETE_RESOURCE_NOT_VISIBLE}),
+     * so {@link #buildOrderedSubqueries} passes them through to field-caps as unresolved patterns.
+     */
+    // Visible for testing
+    static EsqlResolveViewAction.Response mergeViewResponses(
+        EsqlResolveViewAction.Response localResponse,
+        Map<String, EsqlFetchRemoteViewsAction.Response> remoteResponses,
+        Map<String, List<String>> remotePatternsByCluster
+    ) {
+        if (remoteResponses.isEmpty()) {
+            return localResponse;
+        }
+
+        // For each cluster, map each unqualified pattern to the set of view names it matched.
+        Map<String, Map<String, Set<String>>> clusterPatternToViewNames = new LinkedHashMap<>();
+        List<View> allViews = new ArrayList<>(Arrays.asList(localResponse.views()));
+
+        for (Map.Entry<String, EsqlFetchRemoteViewsAction.Response> entry : remoteResponses.entrySet()) {
+            String clusterAlias = entry.getKey();
+            View[] remoteViews = entry.getValue().views();
+            List<String> unqualifiedPatterns = remotePatternsByCluster.get(clusterAlias);
+            Map<String, Set<String>> patternToViewNames = new LinkedHashMap<>();
+
+            for (View remoteView : remoteViews) {
+                boolean matchedAnyPattern = false;
+                for (String pattern : unqualifiedPatterns) {
+                    if (Regex.simpleMatch(pattern, remoteView.name())) {
+                        patternToViewNames.computeIfAbsent(pattern, k -> new LinkedHashSet<>()).add(remoteView.name());
+                        matchedAnyPattern = true;
+                    }
+                }
+                // Only include views that matched a requested pattern; unmatched views from the remote
+                // cluster are irrelevant to the current query and including them would cause false
+                // circular-reference errors if the view name happens to be visited again during recursion.
+                if (matchedAnyPattern) {
+                    allViews.add(new View(clusterAlias + ":" + remoteView.name(), remoteView.query()));
+                }
+            }
+            clusterPatternToViewNames.put(clusterAlias, patternToViewNames);
+        }
+
+        // Rebuild ResolvedIndexExpressions, replacing NOT_VISIBLE entries for remote patterns where we found views.
+        List<ResolvedIndexExpression> mergedExprs = new ArrayList<>();
+        for (ResolvedIndexExpression expr : localResponse.getResolvedIndexExpressions().expressions()) {
+            var split = RemoteClusterAware.splitIndexName(expr.original());
+            if (split.clusterAlias() != null) {
+                Map<String, Set<String>> patternToViewNames = clusterPatternToViewNames.get(split.clusterAlias());
+                if (patternToViewNames != null) {
+                    Set<String> matchedViews = patternToViewNames.get(split.indexExpression());
+                    if (matchedViews != null && matchedViews.isEmpty() == false) {
+                        Set<String> qualifiedNames = matchedViews.stream()
+                            .map(v -> split.clusterAlias() + ":" + v)
+                            .collect(Collectors.toCollection(LinkedHashSet::new));
+                        mergedExprs.add(
+                            new ResolvedIndexExpression(
+                                expr.original(),
+                                new ResolvedIndexExpression.LocalExpressions(
+                                    qualifiedNames,
+                                    ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS
+                                ),
+                                Set.of()
+                            )
+                        );
+                        continue;
+                    }
+                }
+            }
+            mergedExprs.add(expr);
+        }
+
+        return new EsqlResolveViewAction.Response(
+            allViews.toArray(View[]::new),
+            new ResolvedIndexExpressions(mergedExprs, localResponse.getResolvedIndexExpressions().authorizationFailureTemplate())
+        );
     }
 
     protected record OriginViewsResolution(boolean resolveLocalViews, @Nullable String originProjectAlias) {}
@@ -1009,6 +1180,46 @@ public class ViewResolver {
             }
         }
         return false;
+    }
+
+    /**
+     * Returns {@code true} if any {@link UnresolvedRelation} in the plan has at least one
+     * cluster-prefixed index pattern (e.g. {@code "cluster-a:logs-*"}). Used to decide whether
+     * remote view fetching is worth attempting even when the local cluster has no views.
+     */
+    private static boolean hasCrossClusterPatterns(LogicalPlan plan) {
+        for (UnresolvedRelation ur : plan.collect(UnresolvedRelation.class)) {
+            for (String pattern : ur.indexPattern().indexPattern().split(",")) {
+                if (RemoteClusterAware.splitIndexName(pattern.trim()).clusterAlias() != null) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Rewrites every {@link UnresolvedRelation} in {@code plan} by prepending {@code clusterAlias:}
+     * to any index pattern that does not already carry a cluster prefix. Used when expanding a remote
+     * view so that the indices referenced by the view body are routed to the originating cluster
+     * rather than the local cluster.
+     */
+    static LogicalPlan qualifyWithCluster(LogicalPlan plan, String clusterAlias) {
+        return plan.transformDown(UnresolvedRelation.class, ur -> {
+            String[] parts = ur.indexPattern().indexPattern().split(",");
+            String[] qualified = Arrays.stream(parts).map(p -> {
+                var split = RemoteClusterAware.splitIndexName(p);
+                return split.clusterAlias() != null ? p : clusterAlias + ":" + p;
+            }).toArray(String[]::new);
+            return new UnresolvedRelation(
+                ur.source(),
+                new IndexPattern(ur.indexPattern().source(), String.join(",", qualified)),
+                ur.frozen(),
+                ur.metadataFields(),
+                ur.indexMode(),
+                ur.unresolvedMessage()
+            );
+        });
     }
 
 }

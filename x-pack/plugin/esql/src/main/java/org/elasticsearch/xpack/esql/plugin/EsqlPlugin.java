@@ -76,6 +76,7 @@ import org.elasticsearch.xpack.esql.EsqlUsageTransportAction;
 import org.elasticsearch.xpack.esql.action.EsqlAsyncGetResultAction;
 import org.elasticsearch.xpack.esql.action.EsqlAsyncStopAction;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.action.EsqlFetchRemoteViewsAction;
 import org.elasticsearch.xpack.esql.action.EsqlGetQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlListQueriesAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
@@ -658,6 +659,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             new ActionHandler(XPackUsageFeatureAction.ESQL, EsqlUsageTransportAction.class),
             new ActionHandler(XPackInfoFeatureAction.ESQL, EsqlInfoTransportAction.class),
             new ActionHandler(EsqlResolveFieldsAction.TYPE, EsqlResolveFieldsAction.class),
+            new ActionHandler(EsqlFetchRemoteViewsAction.TYPE, EsqlFetchRemoteViewsAction.class),
             new ActionHandler(EsqlSearchShardsAction.TYPE, EsqlSearchShardsAction.class),
             new ActionHandler(EsqlAsyncStopAction.INSTANCE, TransportEsqlAsyncStopAction.class),
             new ActionHandler(EsqlListQueriesAction.INSTANCE, TransportEsqlListQueriesAction.class),

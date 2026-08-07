@@ -466,9 +466,6 @@ tests:
 - class: org.elasticsearch.compute.operator.topn.GroupedTopNOperatorTests
   method: testRandomMultipleColumns
   issue: https://github.com/elastic/elasticsearch/issues/155019
-- class: org.elasticsearch.xpack.inference.integration.SemanticIndexOptionsIT
-  method: testValidateIndexOptionsWithBasicLicense
-  issue: https://github.com/elastic/elasticsearch/issues/155026
 - class: org.elasticsearch.compute.aggregation.BulkArrowAggregationTests
   method: testSumIntOverArrowBufferMasked
   issue: https://github.com/elastic/elasticsearch/issues/153586

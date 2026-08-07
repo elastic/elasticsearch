@@ -74,6 +74,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.recovery.FailureStrategy;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryCancelledException;
@@ -932,11 +933,20 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     ) {
         try {
             logger.debug("{} creating shard with primary term [{}], iteration [{}]", shardRouting.shardId(), primaryTerm, iteration);
+            AllocatedIndex<? extends Shard> allocatedIndex = indicesService.indexService(shardRouting.index());
+            assert allocatedIndex != null;
+            IndexEventListener eventListener = allocatedIndex.getIndexEventListener();
+            ShardRecoveryListener recoveryListener = new ShardRecoveryListener(
+                shardRouting,
+                primaryTerm,
+                originalState.version(),
+                eventListener
+            );
             indicesService.createShard(
                 originalState.metadata().projectFor(shardRouting.index()).id(),
                 shardRouting,
                 recoveryTargetService,
-                new ShardRecoveryListener(shardRouting, primaryTerm, originalState.version()),
+                recoveryListener,
                 repositoriesService,
                 failedShardHandler,
                 this::updateGlobalCheckpointForShard,
@@ -1206,11 +1216,18 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
          * The cluster state version under which this shard creation started.
          */
         private final long creationClusterStateVersion;
+        private final IndexEventListener eventListener;
 
-        private ShardRecoveryListener(final ShardRouting shardRouting, final long primaryTerm, final long creationClusterStateVersion) {
+        private ShardRecoveryListener(
+            final ShardRouting shardRouting,
+            final long primaryTerm,
+            final long creationClusterStateVersion,
+            IndexEventListener eventListener
+        ) {
             this.shardRouting = shardRouting;
             this.primaryTerm = primaryTerm;
             this.creationClusterStateVersion = creationClusterStateVersion;
+            this.eventListener = eventListener;
         }
 
         @Override
@@ -1230,7 +1247,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         }
 
         @Override
-        public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
+        public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
             RecoveryClusterStateDelay.ensureClusterStateVersion(
                 creationClusterStateVersion,
                 clusterService,
@@ -1238,7 +1255,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 threadPool.getThreadContext(),
                 ActionListener.noop(),
                 listener -> {
-                    handleRecoveryFailure(shardRouting, sendShardFailure, primaryTerm, e);
+                    handleRecoveryFailure(shardRouting, failureStrategy, primaryTerm, e, eventListener);
                     listener.onResponse(null);
                 }
             );
@@ -1253,25 +1270,131 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     }
 
     // package-private for testing
-    synchronized void handleRecoveryFailure(ShardRouting shardRouting, boolean sendShardFailure, long primaryTerm, Exception failure) {
+    synchronized void handleRecoveryFailure(
+        ShardRouting shardRouting,
+        FailureStrategy failureStrategy,
+        long primaryTerm,
+        Exception failure,
+        IndexEventListener eventListener
+    ) {
         try {
+            ClusterState state = clusterService.state();
             CloseUtils.executeDirectly(
                 l -> failAndRemoveShard(
                     shardRouting,
                     primaryTerm,
-                    sendShardFailure,
+                    failureStrategy.sendShardFailure(),
                     "failed recovery",
                     failure,
-                    clusterService.state(),
+                    state,
                     EsExecutors.DIRECT_EXECUTOR_SERVICE,
                     l
                 )
             );
+            if (failureStrategy.retry()) {
+                eventListener.beforeIndexShardRecoveryRetry(shardRouting.shardId());
+                logger.debug("{} retry recovery for shard", shardRouting.shardId());
+                // Fork onto cluster state applier thread to retry attempt to create shard
+                clusterService.getClusterApplierService()
+                    .runOnApplierThread(
+                        "retry recovery " + shardRouting.shardId(),
+                        Priority.NORMAL,
+                        currentState -> validateCreateShardRetry(shardRouting, currentState, new ActionListener<>() {
+                            @Override
+                            public void onResponse(Boolean success) {
+                                if (Boolean.TRUE.equals(success)) {
+                                    // Retry with current routing instead of retryRouting to be on the safe side
+                                    createShard(shardRouting, currentState);
+                                }
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                failAndRemoveShard(
+                                    shardRouting,
+                                    primaryTerm,
+                                    true,
+                                    "failed to retry create shard",
+                                    e,
+                                    state,
+                                    shardCloseExecutor,
+                                    ActionListener.noop() // did not create the shard, so don't need to wait for it to close
+                                );
+                            }
+                        }),
+                        ActionListener.noop()
+                    );
+            }
         } catch (Exception e) {
             // should not be possible
             final var wrappedException = new IllegalStateException("unexpected failure in handleRecoveryFailure on " + shardRouting, e);
             logger.error(wrappedException.getMessage(), e);
             assert false : e;
+        }
+    }
+
+    private void validateCreateShardRetry(ShardRouting retryRouting, ClusterState state, ActionListener<Boolean> listener) {
+        try {
+            // Running on cluster state applier thread
+            assert ThreadPool.assertCurrentThreadPool(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME);
+            RoutingNode localNode = state.getRoutingNodes().node(state.nodes().getLocalNodeId());
+            ShardId shardId = retryRouting.shardId();
+            Index index = retryRouting.index();
+
+            // Ignore retry if shard is no longer allocated to this node or the allocation id has changed
+            ShardRouting currentRouting = localNode.getByShardId(shardId);
+            if (currentRouting == null
+                || currentRouting.isSameAllocation(retryRouting) == false
+                || currentRouting.initializing() == false) {
+                logger.debug(
+                    "{} gave up while retrying shard creation because the old routing [{}] is not same as new routing [{}]",
+                    shardId,
+                    retryRouting,
+                    currentRouting
+                );
+                listener.onResponse(false);
+                return;
+            }
+
+            // Ignore retry if shard has been marked as failed
+            if (failedShardsCache.containsKey(shardId)) {
+                logger.debug("{} gave up while retrying shard creation because shard has already been failed", shardId);
+                listener.onResponse(false);
+                return;
+            }
+
+            // Expect index metadata to be present
+            IndexMetadata indexMetadata = state.metadata().projectFor(index).index(index);
+            if (indexMetadata == null) {
+                final var message = "index metadata unexpectedly not found for " + retryRouting;
+                assert false : message;
+                listener.onFailure(new ElasticsearchException(message));
+                return;
+            }
+
+            // Expect index service to exist
+            final var indexService = indicesService.indexService(index);
+            if (indexService == null) {
+                final var message = "index service unexpectedly not found for " + retryRouting;
+                assert false : message;
+                listener.onFailure(new ElasticsearchException(message));
+                return;
+            }
+
+            // Ignore retry if someone else has already recreated the shard
+            if (indexService.getShardOrNull(shardId.id()) != null) {
+                logger.debug("{} gave up while retrying shard creation because shard has been recreated by someone else", shardId);
+                listener.onResponse(false);
+                return;
+            }
+
+            listener.onResponse(true);
+        } catch (Exception e) {
+            // should not be possible
+            final var wrappedException = new IllegalStateException("unexpected failure in validateCreateShardRetry on " + retryRouting, e);
+            logger.error(wrappedException.getMessage(), e);
+            assert false : e;
+            listener.onFailure(e);
         }
     }
 
@@ -1438,6 +1561,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
          * Returns the index settings of this index.
          */
         IndexSettings getIndexSettings();
+
+        /**
+         * Returns the {@link IndexEventListener} for this index
+         */
+        IndexEventListener getIndexEventListener();
 
         /**
          * Updates the metadata of this index. Changes become visible through {@link #getIndexSettings()}.

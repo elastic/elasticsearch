@@ -123,6 +123,7 @@ import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
+import org.elasticsearch.indices.recovery.FailureStrategy;
 import org.elasticsearch.indices.recovery.RecoveryCancelledException;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryListener;
@@ -190,6 +191,7 @@ import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBui
 import static org.elasticsearch.common.lucene.Lucene.cleanLuceneIndex;
 import static org.elasticsearch.index.IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+import static org.elasticsearch.indices.recovery.FailureStrategySelector.DEFAULT;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.closeTo;
@@ -1727,7 +1729,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 new InternalEngineFactory(),
                 NOOP_GCP_SYNCER,
                 RetentionLeaseSyncer.EMPTY,
-                EMPTY_EVENT_LISTENER
+                IndexEventListener.NOOP
             );
             AtomicBoolean failureCallbackTriggered = new AtomicBoolean(false);
             shard.addShardFailureCallback((ig) -> failureCallbackTriggered.set(true));
@@ -2860,7 +2862,7 @@ public class IndexShardTests extends IndexShardTestCase {
             shard.getEngineFactory(),
             shard.getGlobalCheckpointSyncer(),
             shard.getRetentionLeaseSyncer(),
-            EMPTY_EVENT_LISTENER
+            IndexEventListener.NOOP
         );
         DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
         newShard.markAsRecovering("store", new RecoveryState(newShard.routingEntry(), localNode, null));
@@ -2993,7 +2995,7 @@ public class IndexShardTests extends IndexShardTestCase {
             new InternalEngineFactory(),
             NOOP_GCP_SYNCER,
             RetentionLeaseSyncer.EMPTY,
-            EMPTY_EVENT_LISTENER
+            IndexEventListener.NOOP
         );
 
         recoverShardFromStore(newShard);
@@ -3127,7 +3129,7 @@ public class IndexShardTests extends IndexShardTestCase {
             new InternalEngineFactory(),
             NOOP_GCP_SYNCER,
             RetentionLeaseSyncer.EMPTY,
-            EMPTY_EVENT_LISTENER
+            IndexEventListener.NOOP
         );
 
         recoverShardFromStore(newShard);
@@ -3151,7 +3153,7 @@ public class IndexShardTests extends IndexShardTestCase {
         recoverReplica(
             replica,
             primary,
-            (shard, discoveryNode) -> new RecoveryTarget(shard, discoveryNode, 0L, null, null, recoveryListener) {
+            (shard, discoveryNode) -> new RecoveryTarget(shard, discoveryNode, 0L, null, null, recoveryListener, DEFAULT) {
                 @Override
                 public void indexTranslogOperations(
                     final List<Translog.Operation> operations,
@@ -3279,7 +3281,7 @@ public class IndexShardTests extends IndexShardTestCase {
         recoverReplica(
             replica,
             primary,
-            (shard, discoveryNode) -> new RecoveryTarget(shard, discoveryNode, 0L, null, null, recoveryListener) {
+            (shard, discoveryNode) -> new RecoveryTarget(shard, discoveryNode, 0L, null, null, recoveryListener, DEFAULT) {
                 @Override
                 public void indexTranslogOperations(
                     final List<Translog.Operation> operations,
@@ -3336,7 +3338,7 @@ public class IndexShardTests extends IndexShardTestCase {
         recoverReplica(
             replica,
             primary,
-            (shard, discoveryNode) -> new RecoveryTarget(shard, discoveryNode, 0L, null, null, recoveryListener) {
+            (shard, discoveryNode) -> new RecoveryTarget(shard, discoveryNode, 0L, null, null, recoveryListener, DEFAULT) {
                 // we're only checking that listeners are called when the engine is open, before there is no point
                 @Override
                 public void prepareForTranslogOperations(int totalTranslogOps, ActionListener<Void> listener) {
@@ -4080,7 +4082,7 @@ public class IndexShardTests extends IndexShardTestCase {
             indexShard.engineFactory,
             indexShard.getGlobalCheckpointSyncer(),
             indexShard.getRetentionLeaseSyncer(),
-            EMPTY_EVENT_LISTENER
+            IndexEventListener.NOOP
         );
 
         try (var mockLog = MockLog.capture(IndexShard.class)) {
@@ -4166,7 +4168,7 @@ public class IndexShardTests extends IndexShardTestCase {
             indexShard.engineFactory,
             indexShard.getGlobalCheckpointSyncer(),
             indexShard.getRetentionLeaseSyncer(),
-            EMPTY_EVENT_LISTENER
+            IndexEventListener.NOOP
         );
 
         final IndexShardRecoveryException exception1 = expectThrows(
@@ -4199,7 +4201,7 @@ public class IndexShardTests extends IndexShardTestCase {
             indexShard.engineFactory,
             indexShard.getGlobalCheckpointSyncer(),
             indexShard.getRetentionLeaseSyncer(),
-            EMPTY_EVENT_LISTENER
+            IndexEventListener.NOOP
         );
 
         final IndexShardRecoveryException exception2 = expectThrows(
@@ -4252,7 +4254,7 @@ public class IndexShardTests extends IndexShardTestCase {
             indexShard.engineFactory,
             indexShard.getGlobalCheckpointSyncer(),
             indexShard.getRetentionLeaseSyncer(),
-            EMPTY_EVENT_LISTENER
+            IndexEventListener.NOOP
         );
 
         Store.MetadataSnapshot storeFileMetadatas = newShard.snapshotStoreMetadata();
@@ -6023,7 +6025,7 @@ public class IndexShardTests extends IndexShardTestCase {
             new InternalEngineFactory(),
             NOOP_GCP_SYNCER,
             RetentionLeaseSyncer.EMPTY,
-            EMPTY_EVENT_LISTENER,
+            IndexEventListener.NOOP,
             fakeClock,
             Collections.emptyList(),
             // Use a listener to advance the fake clock once per indexing operation:
@@ -6079,7 +6081,7 @@ public class IndexShardTests extends IndexShardTestCase {
             }
 
             @Override
-            public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
+            public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
                 assert false : "Unexpected failure";
             }
 
@@ -6088,34 +6090,40 @@ public class IndexShardTests extends IndexShardTestCase {
                 assert false : "Unexpected abort";
             }
         };
-        recoverReplica(replicaShard, primary, (r, sourceNode) -> new RecoveryTarget(r, sourceNode, 0L, null, null, recoveryListener) {
-            @Override
-            public void indexTranslogOperations(
-                List<Translog.Operation> operations,
-                int totalTranslogOps,
-                long maxSeenAutoIdTimestampOnPrimary,
-                long maxSeqNoOfDeletesOrUpdatesOnPrimary,
-                RetentionLeases retentionLeases,
-                long mappingVersionOnPrimary,
-                ActionListener<Long> listener
-            ) {
-                try {
-                    barrier.await(10, TimeUnit.SECONDS);
-                    assertTrue(concurrentIndexingFinished.await(10, TimeUnit.SECONDS));
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
+        recoverReplica(
+            replicaShard,
+            primary,
+            (r, sourceNode) -> new RecoveryTarget(r, sourceNode, 0L, null, null, recoveryListener, DEFAULT) {
+                @Override
+                public void indexTranslogOperations(
+                    List<Translog.Operation> operations,
+                    int totalTranslogOps,
+                    long maxSeenAutoIdTimestampOnPrimary,
+                    long maxSeqNoOfDeletesOrUpdatesOnPrimary,
+                    RetentionLeases retentionLeases,
+                    long mappingVersionOnPrimary,
+                    ActionListener<Long> listener
+                ) {
+                    try {
+                        barrier.await(10, TimeUnit.SECONDS);
+                        assertTrue(concurrentIndexingFinished.await(10, TimeUnit.SECONDS));
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                    super.indexTranslogOperations(
+                        operations,
+                        totalTranslogOps,
+                        maxSeenAutoIdTimestampOnPrimary,
+                        maxSeqNoOfDeletesOrUpdatesOnPrimary,
+                        retentionLeases,
+                        mappingVersionOnPrimary,
+                        listener
+                    );
                 }
-                super.indexTranslogOperations(
-                    operations,
-                    totalTranslogOps,
-                    maxSeenAutoIdTimestampOnPrimary,
-                    maxSeqNoOfDeletesOrUpdatesOnPrimary,
-                    retentionLeases,
-                    mappingVersionOnPrimary,
-                    listener
-                );
-            }
-        }, true, true);
+            },
+            true,
+            true
+        );
         recoveryFinishedLatch.await();
 
         fakeClock.setTickLength(TimeValue.ZERO);
@@ -6174,7 +6182,7 @@ public class IndexShardTests extends IndexShardTestCase {
             new InternalEngineFactory(),
             NOOP_GCP_SYNCER,
             RetentionLeaseSyncer.EMPTY,
-            EMPTY_EVENT_LISTENER,
+            IndexEventListener.NOOP,
             fakeClock,
             Collections.emptyList(),
             // Use a listener to advance the fake clock once per indexing operation:

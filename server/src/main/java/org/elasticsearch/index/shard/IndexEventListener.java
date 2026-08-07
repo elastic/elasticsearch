@@ -29,6 +29,7 @@ import org.elasticsearch.indices.cluster.IndexRemovalReason;
  * </p>
  */
 public interface IndexEventListener {
+    IndexEventListener NOOP = new IndexEventListener() {};
 
     /**
      * Called when the shard routing has changed state.
@@ -191,6 +192,14 @@ public interface IndexEventListener {
     default void afterIndexShardRecovery(IndexShard indexShard, ActionListener<Void> listener) {
         listener.onResponse(null);
     }
+
+    /**
+     * Called before an index shard recovery retry attempt is made. Only called on retry attempts, not on the first recovery attempt.
+     * At this point, the shard has been removed and not yet recreated.
+     *
+     * @param shardId the shard ID for the retry attempt
+     */
+    default void beforeIndexShardRecoveryRetry(ShardId shardId) {}
 
     /**
      * Called after the raw files have been restored from the repository but any other recovery processing has happened

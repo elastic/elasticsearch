@@ -23,6 +23,7 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
+import org.elasticsearch.indices.recovery.FailureStrategy;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryListener;
 import org.elasticsearch.indices.recovery.RecoveryState;
@@ -110,8 +111,8 @@ class PostRecoveryMerger {
             }
 
             @Override
-            public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
-                recoveryListener.onRecoveryFailure(e, sendShardFailure);
+            public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
+                recoveryListener.onRecoveryFailure(e, failureStrategy);
             }
 
             @Override

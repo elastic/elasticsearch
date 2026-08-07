@@ -25,6 +25,8 @@ import org.elasticsearch.test.MockLog;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SILENT;
+import static org.elasticsearch.indices.recovery.FailureStrategySelector.DEFAULT;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RecoveriesCollectionTests extends ESIndexLevelReplicationTestCase {
@@ -109,7 +111,7 @@ public class RecoveriesCollectionTests extends ESIndexLevelReplicationTestCase {
                 (collection, shardId, recoveryId) -> () -> collection.failRecovery(
                     recoveryId,
                     new RecoveryFailedException(fakeRecoveryState(), "failed", new RuntimeException("cause")),
-                    false
+                    FAIL_SILENT
                 ),
                 " failing recovery from"
             );
@@ -149,7 +151,7 @@ public class RecoveriesCollectionTests extends ESIndexLevelReplicationTestCase {
         final DiscoveryNode rNode = getDiscoveryNode(shard.routingEntry().currentNodeId());
         shard.markAsRecovering("remote", new RecoveryState(shard.routingEntry(), sourceNode, rNode));
         shard.prepareForIndexRecovery();
-        return collection.startRecovery(shard, sourceNode, 0L, null, listener, null);
+        return collection.startRecovery(shard, sourceNode, 0L, null, listener, DEFAULT, null);
     }
 
     private static RecoveryState fakeRecoveryState() {

@@ -337,9 +337,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecK8sTimeseriesIT
   method: test {csv-spec:k8s-timeseries.firstAndLastWithNullSort}
   issue: https://github.com/elastic/elasticsearch/issues/153565
-- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryIT
-  method: testRemoteFailureInlinestats
-  issue: https://github.com/elastic/elasticsearch/issues/153576
 - class: org.elasticsearch.geometry.utils.CircleUtilsTests
   method: testCreateRegularGeoShapePolygon
   issue: https://github.com/elastic/elasticsearch/issues/153600
@@ -469,15 +466,9 @@ tests:
 - class: org.elasticsearch.compute.operator.topn.GroupedTopNOperatorTests
   method: testRandomMultipleColumns
   issue: https://github.com/elastic/elasticsearch/issues/155019
-- class: org.elasticsearch.xpack.inference.integration.SemanticIndexOptionsIT
-  method: testValidateIndexOptionsWithBasicLicense
-  issue: https://github.com/elastic/elasticsearch/issues/155026
 - class: org.elasticsearch.compute.aggregation.BulkArrowAggregationTests
   method: testSumIntOverArrowBufferMasked
   issue: https://github.com/elastic/elasticsearch/issues/153586
-- class: org.elasticsearch.xpack.stateless.objectstore.gc.StaleTranslogsGCIT
-  method: testIsolatedNodeDoesNotDeleteTranslogs
-  issue: https://github.com/elastic/elasticsearch/issues/155130
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecStatsIT
   method: test {csv-spec:stats.sumWithOverflowGroupingRow}
   issue: https://github.com/elastic/elasticsearch/issues/153434
@@ -544,9 +535,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:stats_earliest_latest.latest long by timestamp}
   issue: https://github.com/elastic/elasticsearch/issues/155670
-- class: org.elasticsearch.xpack.stateless.objectstore.S3ObjectStoreTests
-  method: testUploadIndicesDataWithRetries
-  issue: https://github.com/elastic/elasticsearch/issues/155680
 - class: org.elasticsearch.packaging.test.EnrollmentProcessTests
   method: test10ArchiveAutoFormCluster
   issue: https://github.com/elastic/elasticsearch/issues/155685
@@ -589,21 +577,30 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecApproximationBucketIncludeEmptyBucketsIT
   method: test {csv-spec:bucket_include_empty_buckets.Large number of buckets doesn't OOM - stats}
   issue: https://github.com/elastic/elasticsearch/issues/155921
-- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
-  method: test {yaml=search.highlight/70_number_of_fragments/number_of_fragments at the maximum should SUCCEED}
-  issue: https://github.com/elastic/elasticsearch/issues/155969
-- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
-  method: test {yaml=search.highlight/70_number_of_fragments/negative number_of_fragments should FAIL}
-  issue: https://github.com/elastic/elasticsearch/issues/155970
-- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
-  method: test {yaml=search.highlight/70_number_of_fragments/number_of_fragments above the maximum should FAIL}
-  issue: https://github.com/elastic/elasticsearch/issues/155972
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=search.highlight/70_number_of_fragments/negative number_of_fragments should FAIL}
-  issue: https://github.com/elastic/elasticsearch/issues/155977
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=search.highlight/70_number_of_fragments/number_of_fragments above the maximum should FAIL}
-  issue: https://github.com/elastic/elasticsearch/issues/155980
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardDisruptionIT
   method: testReshardWithDisruption
   issue: https://github.com/elastic/elasticsearch/issues/156004
+- class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
+  method: testRelocatingTaskIsNotCancelledOnShutdownTimeout
+  issue: https://github.com/elastic/elasticsearch/issues/155593
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecUnmappedNullifyIT
+  method: test {csv-spec:unmapped-nullify.statsNullifiedFirst}
+  issue: https://github.com/elastic/elasticsearch/issues/156026
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecUnmappedNullifyIT
+  method: test {csv-spec:unmapped-nullify.statsNullifiedLast}
+  issue: https://github.com/elastic/elasticsearch/issues/156027
+- class: org.elasticsearch.exponentialhistogram.RankAccuracyTests
+  method: testRandomDistribution
+  issue: https://github.com/elastic/elasticsearch/issues/156057
+- class: org.elasticsearch.xpack.esql.action.ExternalCsvHivePartitionedIT
+  method: testHivePartitionShadowWarningReachesClient
+  issue: https://github.com/elastic/elasticsearch/issues/153780
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecK8sTimeseriesLastOverTimeIT
+  method: test {csv-spec:k8s-timeseries-last-over-time.last_over_time_of_event}
+  issue: https://github.com/elastic/elasticsearch/issues/156131
+- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
+  method: test {yaml=indices.sort/40_high_cardinality/Index sort on high cardinality keyword field - mixed single and multi values}
+  issue: https://github.com/elastic/elasticsearch/issues/156132
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecK8sTimeseriesFirstOverTimeIT
+  method: test {csv-spec:k8s-timeseries-first-over-time.first_over_time_of_event}
+  issue: https://github.com/elastic/elasticsearch/issues/156159

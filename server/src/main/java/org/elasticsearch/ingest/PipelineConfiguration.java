@@ -208,6 +208,10 @@ public final class PipelineConfiguration implements SimpleDiffable<PipelineConfi
      * materializing the serialized form, so that even an oversized pipeline does not cause a large allocation here. The result is memoized
      * (this class is immutable) so that summing the size across all pipelines on every pipeline creation does not repeatedly walk the whole
      * config on the master. Used to bound both a single pipeline and the aggregate size of all stored pipelines in the cluster state.
+     * <p>
+     * This is a measure of how much cluster state a pipeline accounts for, not a prediction of what {@link #writeTo(StreamOutput)} will
+     * emit to a given peer: {@code configForTransport} drops the system properties that the peer's transport version does not understand,
+     * so a peer older than {@code pipeline_tracking_info} is sent fewer bytes than this reports. Don't reuse it for wire accounting.
      */
     public long serializedSizeInBytes() {
         long size = serializedSize;
@@ -227,6 +231,10 @@ public final class PipelineConfiguration implements SimpleDiffable<PipelineConfi
      * As {@link #serializedSizeInBytes()}, but measuring a pipeline id and a raw config map that have not been made into a
      * {@link PipelineConfiguration}. This lets the put path size-check a pipeline straight off the map it already parsed, without paying
      * for the defensive deep copy that constructing a {@link PipelineConfiguration} would perform. The map is only read, never retained.
+     * <p>
+     * The map is measured exactly as given, with no transport-version filtering applied. That is consistent with
+     * {@link #serializedSizeInBytes()}, which measures at the current transport version, where {@code configForTransport} is a no-op;
+     * filtering only comes into play when writing to an older peer.
      */
     static long serializedSizeInBytes(String id, Map<String, Object> config) {
         try (CountingStreamOutput out = new CountingStreamOutput()) {

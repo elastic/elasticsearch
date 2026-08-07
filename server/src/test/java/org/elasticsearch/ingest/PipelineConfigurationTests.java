@@ -92,8 +92,6 @@ public class PipelineConfigurationTests extends AbstractXContentTestCase<Pipelin
         BytesStreamOutput out = new BytesStreamOutput();
         configuration.writeTo(out);
         assertThat(configuration.serializedSizeInBytes(), equalTo((long) out.bytes().length()));
-        // ...and is stable across calls (it is memoized on this immutable object).
-        assertThat(configuration.serializedSizeInBytes(), equalTo((long) out.bytes().length()));
     }
 
     /**

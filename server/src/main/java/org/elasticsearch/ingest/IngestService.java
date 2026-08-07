@@ -601,7 +601,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
         // Check the limits before asking every node in the cluster for its ingest info: this check needs nothing from that response, so
         // running it first means abusive input is rejected without provoking a cluster-wide fan-out.
-        validatePipelineSize(projectId, request.getId(), pipelineSize, limits);
+        validatePipelineLimits(projectId, request.getId(), pipelineSize, limits);
 
         nodeInfoListener.accept(listener.delegateFailureAndWrap((l, nodeInfos) -> {
             validatePipelineRequest(projectId, request, nodeInfos, config);
@@ -629,7 +629,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      *
      * @param pipelineSize the serialized size of the pipeline being put, measured by the caller before the config map was consumed
      */
-    void validatePipelineSize(ProjectId projectId, String pipelineId, long pipelineSize, IngestSettings.PipelineLimits limits) {
+    void validatePipelineLimits(ProjectId projectId, String pipelineId, long pipelineSize, IngestSettings.PipelineLimits limits) {
         final IngestMetadata ingestMetadata = state.metadata().getProject(projectId).custom(IngestMetadata.TYPE);
         final Map<String, PipelineConfiguration> existingPipelines = ingestMetadata == null ? Map.of() : ingestMetadata.getPipelines();
         validatePipelineLimits(pipelineId, pipelineSize, existingPipelines, limits);

@@ -597,7 +597,7 @@ public class IngestServiceTests extends ESTestCase {
         IngestService ingestService = createWithProcessors();
         Map<String, PipelineConfiguration> existing = new HashMap<>();
         for (int i = 0; i < 3; i++) {
-            existing.put("existing_" + i, randomPipelineConfiguration("existing_" + i));
+            existing.put("existing_" + i, getTestPipelineConfiguration("existing_" + i));
         }
         var projectId = applyClusterStateWithPipelines(ingestService, existing);
 
@@ -617,7 +617,7 @@ public class IngestServiceTests extends ESTestCase {
 
     public void testValidatePipelineExceedsMaxTotalMetadataSize() {
         IngestService ingestService = createWithProcessors();
-        PipelineConfiguration existing = randomPipelineConfiguration("existing");
+        PipelineConfiguration existing = getTestPipelineConfiguration("existing");
         var projectId = applyClusterStateWithPipelines(ingestService, Map.of("existing", existing));
 
         PutPipelineRequest request = putJsonPipelineRequest("_new", """
@@ -820,7 +820,7 @@ public class IngestServiceTests extends ESTestCase {
         ByteSizeValue maxTotalSize
     ) {
         Map<String, Object> config = XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2();
-        ingestService.validatePipelineSize(
+        ingestService.validatePipelineLimits(
             projectId,
             request.getId(),
             PipelineConfiguration.serializedSizeInBytes(request.getId(), config),
@@ -846,7 +846,7 @@ public class IngestServiceTests extends ESTestCase {
         return projectId;
     }
 
-    private static PipelineConfiguration randomPipelineConfiguration(String id) {
+    private static PipelineConfiguration getTestPipelineConfiguration(String id) {
         return new PipelineConfiguration(id, new BytesArray("""
             {"processors": [{"set" : {"field": "_field", "value": "_value"}}]}"""), XContentType.JSON);
     }

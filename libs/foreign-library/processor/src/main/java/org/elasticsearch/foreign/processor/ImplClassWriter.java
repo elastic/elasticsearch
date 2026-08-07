@@ -90,6 +90,7 @@ class ImplClassWriter {
     private static final ClassDesc CD_LinkerAdapter = ClassDesc.of("org.elasticsearch.foreign.adapter.LinkerAdapter"); // not a dependency
     private static final ClassDesc CD_LoaderHelper = ClassDesc.of(LoaderHelper.class.getName());
     private static final ClassDesc CD_Objects = ClassDesc.of("java.util.Objects");
+    private static final ClassDesc CD_Math = ClassDesc.of("java.lang.Math");
     private static final ClassDesc CD_IllegalArgumentException = ClassDesc.of("java.lang.IllegalArgumentException");
 
     /**
@@ -100,6 +101,7 @@ class ImplClassWriter {
 
     private static final MethodTypeDesc MTD_byteSize = MethodTypeDesc.of(CD_long);
     private static final MethodTypeDesc MTD_checkFromIndexSize = MethodTypeDesc.of(CD_long, CD_long, CD_long, CD_long);
+    private static final MethodTypeDesc MTD_ceilDiv = MethodTypeDesc.of(CD_long, CD_long, CD_long);
     private static final MethodTypeDesc MTD_desiredAssertionStatus = MethodTypeDesc.of(CD_boolean);
     private static final MethodTypeDesc MTD_FunctionDescriptor_ofVoid = MethodTypeDesc.of(CD_FunctionDescriptor, CD_MemoryLayoutArray);
     private static final MethodTypeDesc MTD_FunctionDescriptor_of = MethodTypeDesc.of(
@@ -148,8 +150,8 @@ class ImplClassWriter {
         // Generate $Pack for record structs and $Impl for interface structs
         for (StructModel struct : model.structs()) {
             switch (struct) {
-                case StructRecordModel r -> packWriter.generate(model, r, sourceElement);
-                case StructInterfaceModel i -> structImplWriter.generate(model, i, sourceElement);
+                case StructRecordModel r -> packWriter.generate(model, struct, sourceElement);
+                case StructInterfaceModel i -> structImplWriter.generate(model, struct, sourceElement);
             }
         }
 
@@ -512,11 +514,7 @@ class ImplClassWriter {
         emitLongParamLoad(cb, paramTypes.get(check.countParamIndex()), slots[check.countParamIndex()]);
         cb.ldc((long) check.elementBits());
         cb.lmul();
-        // ceil(count * elementBits / 8): round the bit count up to whole bytes via (bits + 7) / 8
-        cb.ldc(7L);
-        cb.ladd();
-        cb.ldc(8L);
-        cb.ldiv();
+        emitCeilDivBy8(cb);
         emitCheckFromIndexSize(cb, slots[check.segParamIndex()]);
         if (check.aligned()) {
             emitAlignmentAssert(cb, generatedDesc, slots[check.segParamIndex()], check.elementBits() / 8);
@@ -540,14 +538,10 @@ class ImplClassWriter {
         // fromIndex arg for checkFromIndexSize
         cb.lconst_0();
 
-        // ceil(cols * elementBits / 8): round the per-row bit count up to whole bytes via (bits + 7) / 8
         emitLongParamLoad(cb, paramTypes.get(check.colsParamIndex()), slots[check.colsParamIndex()]);
         cb.ldc((long) check.elementBits());
         cb.lmul();
-        cb.ldc(7L);
-        cb.ladd();
-        cb.ldc(8L);
-        cb.ldiv();
+        emitCeilDivBy8(cb);
         if (check.hasPaddingBytes()) {
             emitPaddingBytesRelationalCheck(cb, paramTypes, slots, check);
             emitLongParamLoad(cb, paramTypes.get(check.paddingBytesParamIndex()), slots[check.paddingBytesParamIndex()]);
@@ -579,6 +573,12 @@ class ImplClassWriter {
         cb.invokespecial(CD_IllegalArgumentException, "<init>", MethodTypeDesc.of(CD_void, CD_String));
         cb.athrow();
         cb.labelBinding(paddingOk);
+    }
+
+    /** Converts a bit count on the stack into a whole-byte count, rounding up: {@code Math.ceilDiv(bits, 8)}. */
+    private static void emitCeilDivBy8(CodeBuilder cb) {
+        cb.ldc(8L);
+        cb.invokestatic(CD_Math, "ceilDiv", MTD_ceilDiv);
     }
 
     /** Stack on entry: {@code [0L, size]}. Pushes {@code segment.byteSize()}, calls the check, discards the result. */
@@ -631,7 +631,7 @@ class ImplClassWriter {
     /**
      * Generates a method body that marshals {@code String} parameters to native memory before the call.
      * Opens a confined {@code Arena} per call, allocates each {@code String} param via
-     * {@code MemorySegmentUtil.allocateString}, and closes the arena in both normal and exception paths.
+     * {@code MemorySegmentAdapter.allocateString}, and closes the arena in both normal and exception paths.
      *
      * <p>Local variable layout (slots):
      * <ul>
@@ -667,7 +667,7 @@ class ImplClassWriter {
         code.astore(arenaSlot);
 
         code.trying(tryBlock -> {
-            // Marshal each String param: MemorySegment $sN = MemorySegmentUtil.allocateString(arena, strN)
+            // Marshal each String param: MemorySegment $sN = MemorySegmentAdapter.allocateString(arena, strN)
             int slot = 1;
             int marshaledSlot = arenaSlot + 1;
             for (NativeType paramType : paramTypes) {
@@ -864,7 +864,8 @@ class ImplClassWriter {
             return;
         }
 
-        // Resolve the target struct and its array field from the model
+        // Resolve the target struct and its array field from the model. Only field shape is used
+        // below, which is platform-independent.
         StructModel targetStruct = model.structs()
             .stream()
             .filter(s -> s.simpleName().equals(nm.structReturnSimpleName()))

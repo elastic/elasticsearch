@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.PackDimsAgg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
@@ -176,6 +177,14 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
 
     @Override
     protected LogicalPlan rule(TimeSeriesAggregate inputAggregate, AnalyzerContext context) {
+        LogicalPlan translated = translate(inputAggregate, context);
+        if (translated == inputAggregate) {
+            return translated;
+        }
+        return usePackDimsAgg(translated, context);
+    }
+
+    LogicalPlan translate(TimeSeriesAggregate inputAggregate, AnalyzerContext context) {
         if (inputAggregate.resolved() == false) {
             return inputAggregate;
         }
@@ -292,7 +301,19 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
             if (group instanceof Attribute || group instanceof Alias) {
                 NamedExpression g = (NamedExpression) group;
                 if (timeBucket != null && g.id().equals(timeBucket.id())) {
-                    addBucket(g instanceof Attribute ? timeBucket.toAttribute() : timeBucket, g, firstPassGroupings, secondPassGroupings);
+                    var firstPassBucket = g instanceof Attribute ? timeBucket.toAttribute() : timeBucket;
+                    // use different name for bucket in the first pass if conflict
+                    if (firstPassBucket instanceof Alias alias
+                        && aggregate.child().output().stream().anyMatch(a -> a.name().equals(alias.name()))) {
+                        firstPassBucket = new Alias(
+                            timeBucket.source(),
+                            Attribute.rawTemporaryName(timeBucket.name(), "time_bucket"),
+                            Alias.unwrap(firstPassBucket),
+                            firstPassBucket.id()
+                        );
+                    }
+                    firstPassGroupings.add(firstPassBucket);
+                    secondPassGroupings.add(new Alias(group.source(), g.name(), firstPassBucket.toAttribute(), g.id()));
                 } else {
                     var unwrapped = Alias.unwrap(g);
                     if (unwrapped instanceof Attribute a) {
@@ -422,16 +443,6 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
             }
             return aggFunc;
         }).transformExpressionsUp(FilteredExpression.class, FilteredExpression::surrogate);
-    }
-
-    private void addBucket(
-        NamedExpression timeBucket,
-        NamedExpression group,
-        List<Expression> firstPassGroupings,
-        List<Expression> secondPassGroupings
-    ) {
-        firstPassGroupings.add(timeBucket);
-        secondPassGroupings.add(new Alias(group.source(), group.name(), timeBucket.toAttribute(), group.id()));
     }
 
     private void addAttribute(
@@ -647,4 +658,28 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
         });
     }
 
+    static LogicalPlan usePackDimsAgg(LogicalPlan plan, AnalyzerContext context) {
+        if (context.minimumVersion().supports(PackDimsAgg.PACK_DIMS_AGG_VERSION) == false) {
+            return plan;
+        }
+        return plan.transformDown(PackDims.class, packDims -> {
+            if (packDims.child() instanceof TimeSeriesAggregate aggs) {
+                List<NamedExpression> newAggregates = new ArrayList<>();
+                List<Attribute> dims = new ArrayList<>();
+                for (NamedExpression agg : aggs.aggregates()) {
+                    if (agg instanceof Alias alias && alias.child() instanceof AggregateFunction fn) {
+                        if (fn instanceof DimensionValues dv) {
+                            dims.add((Attribute) dv.field());
+                        } else {
+                            newAggregates.add(agg);
+                        }
+                    }
+                }
+                Attribute packed = packDims.packed();
+                newAggregates.add(new Alias(packDims.source(), packed.name(), PackDimsAgg.create(aggs.source(), dims), packed.id()));
+                return aggs.with(aggs.child(), aggs.groupings(), mergeExpressions(newAggregates, aggs.groupings()));
+            }
+            return packDims;
+        });
+    }
 }

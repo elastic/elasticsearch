@@ -89,7 +89,8 @@ public enum ReferenceDocs {
     DELETE_INDEX_BLOCK,
     ARCHIVED_SETTINGS,
     MACHINE_LEARNING_SETTINGS,
-    SEARCH_TASK_WATCHDOG
+    SEARCH_TASK_WATCHDOG,
+    BOOTSTRAP_CHECK_TIKA_SERVER
     // this comment keeps the ';' on the next line so every entry above has a trailing ',' which makes the diff for adding new links cleaner
     ;
 

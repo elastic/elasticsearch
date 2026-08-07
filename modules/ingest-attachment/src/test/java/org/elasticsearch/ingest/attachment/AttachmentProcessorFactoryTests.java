@@ -31,7 +31,13 @@ import static org.hamcrest.core.Is.is;
 
 public class AttachmentProcessorFactoryTests extends ESTestCase {
 
-    private final AttachmentProcessor.Factory factory = new AttachmentProcessor.Factory(Settings.EMPTY, new SetOnce<>());
+    private static SetOnce<ExtractionBackend> localBackend() {
+        SetOnce<ExtractionBackend> ref = new SetOnce<>();
+        ref.set(new LocalExtractionBackend());
+        return ref;
+    }
+
+    private final AttachmentProcessor.Factory factory = new AttachmentProcessor.Factory(Settings.EMPTY, new SetOnce<>(), localBackend());
 
     public void testBuildDefaults() throws Exception {
         Map<String, Object> config = new HashMap<>();

@@ -150,22 +150,30 @@ public class PkiRealmTests extends ESTestCase {
         final String publicKeyFingerprint = MessageDigests.toHexString(
             MessageDigests.sha256().digest(leafCertificate.getPublicKey().getEncoded())
         );
-        final ExpressionRoleMapping certificateMapping = ExpressionRoleMapping.parse("certificate-fingerprint", new BytesArray(Strings.format("""
-            roles:
-            - certificate_role
-            rules:
-              field:
-                metadata.pki_cert_fingerprint: "%s"
-            enabled: true
-            """, certificateFingerprint)), XContentType.YAML);
-        final ExpressionRoleMapping publicKeyMapping = ExpressionRoleMapping.parse("public-key-fingerprint", new BytesArray(Strings.format("""
-            roles:
-            - public_key_role
-            rules:
-              field:
-                metadata.pki_public_key_fingerprint: "%s"
-            enabled: true
-            """, publicKeyFingerprint)), XContentType.YAML);
+        final ExpressionRoleMapping certificateMapping = ExpressionRoleMapping.parse(
+            "certificate-fingerprint",
+            new BytesArray(Strings.format("""
+                roles:
+                - certificate_role
+                rules:
+                  field:
+                    metadata.pki_cert_fingerprint: "%s"
+                enabled: true
+                """, certificateFingerprint)),
+            XContentType.YAML
+        );
+        final ExpressionRoleMapping publicKeyMapping = ExpressionRoleMapping.parse(
+            "public-key-fingerprint",
+            new BytesArray(Strings.format("""
+                roles:
+                - public_key_role
+                rules:
+                  field:
+                    metadata.pki_public_key_fingerprint: "%s"
+                enabled: true
+                """, publicKeyFingerprint)),
+            XContentType.YAML
+        );
         final List<ExpressionRoleMapping> mappings = List.of(certificateMapping, publicKeyMapping);
         final PkiRealm realm = buildRealm(buildRoleMapper(mappings), globalSettings);
 

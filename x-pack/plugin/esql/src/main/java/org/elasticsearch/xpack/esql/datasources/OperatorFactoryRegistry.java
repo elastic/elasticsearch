@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.spi.Connector;
 import org.elasticsearch.xpack.esql.datasources.spi.ConnectorFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.QueryRequest;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorFactoryProvider;
@@ -82,12 +83,19 @@ public class OperatorFactoryRegistry {
                 Object targetObj = context.config().get("target");
                 String target = targetObj != null ? targetObj.toString() : context.path().toString();
                 // QueryRequest carries the still-encrypted config; connectors take secrets from open(), not request.config().
+                // context.pushedFilter() is the opaque connector-specific filter built during local physical
+                // optimization (populated for external sources by LocalExecutionPlanner) — null when nothing was
+                // pushed. Threading it here is what makes WHERE pushdown reachable by the connector's operator. The
+                // rowLimit slot preserves its prior value (NO_LIMIT): LIMIT pushdown for connectors is out of scope
+                // for this WHERE-pushdown change and is left exactly as before.
                 QueryRequest request = new QueryRequest(
                     target,
                     projectedColumns,
                     context.attributes(),
                     context.config(),
                     context.batchSize(),
+                    FormatReader.NO_LIMIT,
+                    context.pushedFilter(),
                     null
                 );
                 return new AsyncConnectorSourceOperatorFactory(connector, request, context.maxBufferSize(), executor, context.sliceQueue());

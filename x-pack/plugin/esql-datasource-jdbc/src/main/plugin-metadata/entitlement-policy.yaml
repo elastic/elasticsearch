@@ -1,0 +1,14 @@
+# Each entry below has a concrete justification; do not add entitlements speculatively.
+ALL-UNNAMED:
+  # outbound_network: JDBC drivers open TCP/TLS sockets to the configured database (postgresql/redshift/...).
+  # Without this, Driver.connect() throws NotEntitledException on Socket creation.
+  - outbound_network
+  # manage_threads: most JDBC drivers (and the HikariCP pool) spawn helper threads (e.g. Postgres NIO, pool
+  # housekeeping). Without this, the first call into the driver/pool fails inside Thread.start() with a
+  # NotEntitledException.
+  - manage_threads
+  # create_class_loader: JdbcDriverRegistry.fromDirectory instantiates a child URLClassLoader that loads
+  # user-supplied driver JARs from plugins/esql-datasource-jdbc/drivers/ in isolation. Without this, the
+  # URLClassLoader constructor throws (observed: NotEntitledException, class JdbcDriverRegistry, entitlement
+  # [create_class_loader]).
+  - create_class_loader

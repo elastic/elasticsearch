@@ -16,9 +16,9 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChoice;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunk;
-import org.elasticsearch.xpack.core.inference.results.completion.Choice;
-import org.elasticsearch.xpack.core.inference.results.completion.ToolCall;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionToolCall;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiUnifiedChatCompletionParser;
 
 import java.io.IOException;
@@ -80,18 +80,18 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
             assertEquals(20, chunk.usage().promptTokens());
             assertEquals(70, chunk.usage().totalTokens());
 
-            List<Choice> choices = chunk.choices();
+            List<ChatCompletionChoice> choices = chunk.choices();
             assertEquals(1, choices.size());
-            Choice choice = choices.get(0);
+            ChatCompletionChoice choice = choices.get(0);
             assertEquals("example_content", choice.message().content());
             assertNull(choice.message().refusal());
             assertEquals("assistant", choice.message().role());
             assertEquals("stop", choice.finishReason());
             assertEquals(0, choice.index());
 
-            List<ToolCall> toolCalls = choice.message().toolCalls();
+            List<ChatCompletionToolCall> toolCalls = choice.message().toolCalls();
             assertEquals(1, toolCalls.size());
-            ToolCall toolCall = toolCalls.get(0);
+            ChatCompletionToolCall toolCall = toolCalls.get(0);
             assertEquals(1, toolCall.index());
             assertEquals("tool_call_id", toolCall.id());
             assertEquals("example_function_name", toolCall.function().name());
@@ -154,11 +154,11 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
             assertEquals("chat.completion.chunk", chunk.object());
             assertNull(chunk.usage());
 
-            List<Choice> choices = chunk.choices();
+            List<ChatCompletionChoice> choices = chunk.choices();
             assertEquals(2, choices.size());
 
             // First choice assertions
-            Choice firstChoice = choices.get(0);
+            ChatCompletionChoice firstChoice = choices.get(0);
             assertNull(firstChoice.message().content());
             assertNull(firstChoice.message().refusal());
             assertEquals("assistant", firstChoice.message().role());
@@ -167,16 +167,16 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
             assertEquals(0, firstChoice.index());
 
             // Second choice assertions
-            Choice secondChoice = choices.get(1);
+            ChatCompletionChoice secondChoice = choices.get(1);
             assertEquals("example_content", secondChoice.message().content());
             assertEquals("example_refusal", secondChoice.message().refusal());
             assertEquals("user", secondChoice.message().role());
             assertEquals("stop", secondChoice.finishReason());
             assertEquals(1, secondChoice.index());
 
-            List<ToolCall> toolCalls = secondChoice.message().toolCalls();
+            List<ChatCompletionToolCall> toolCalls = secondChoice.message().toolCalls();
             assertEquals(1, toolCalls.size());
-            ToolCall toolCall = toolCalls.get(0);
+            ChatCompletionToolCall toolCall = toolCalls.get(0);
             assertEquals(1, toolCall.index());
             assertNull(toolCall.id());
             assertEquals("example_function_name", toolCall.function().name());
@@ -229,21 +229,21 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
             assertThat(chunk.object(), is("chat.completion.chunk"));
             assertNull(chunk.usage());
 
-            List<Choice> choices = chunk.choices();
+            List<ChatCompletionChoice> choices = chunk.choices();
             assertThat(choices.size(), is(1));
 
             // First choice assertions
-            Choice firstChoice = choices.get(0);
+            ChatCompletionChoice firstChoice = choices.get(0);
             assertNull(firstChoice.message().content());
             assertNull(firstChoice.message().refusal());
             assertThat(firstChoice.message().role(), is("assistant"));
             assertNull(firstChoice.finishReason());
             assertThat(firstChoice.index(), is(0));
 
-            List<ToolCall> toolCalls = firstChoice.message().toolCalls();
+            List<ChatCompletionToolCall> toolCalls = firstChoice.message().toolCalls();
             assertThat(toolCalls.size(), is(1));
 
-            ToolCall toolCall = toolCalls.get(0);
+            ChatCompletionToolCall toolCall = toolCalls.get(0);
             assertThat(toolCall.index(), is(0));
             assertThat(toolCall.id(), is("8f7c27be-6803-48e6-bba4-8cdcbcd2ff9a"));
             assertThat(toolCall.type(), is("function"));
@@ -302,9 +302,9 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
             assertNotNull(chunk.usage().completionTokenDetails().reasoningTokens());
             assertEquals(reasoningTokens, (int) chunk.usage().completionTokenDetails().reasoningTokens());
 
-            List<Choice> choices = chunk.choices();
+            List<ChatCompletionChoice> choices = chunk.choices();
             assertEquals(1, choices.size());
-            Choice choice = choices.get(0);
+            ChatCompletionChoice choice = choices.get(0);
             assertEquals(choiceContent, choice.message().content());
             assertNull(choice.message().refusal());
             assertEquals(choiceRole, choice.message().role());
@@ -331,9 +331,9 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
             assertEquals(choiceFinishReason, choice.finishReason());
             assertEquals(choiceIndex, choice.index());
 
-            List<ToolCall> toolCalls = choice.message().toolCalls();
+            List<ChatCompletionToolCall> toolCalls = choice.message().toolCalls();
             assertEquals(1, toolCalls.size());
-            ToolCall toolCall = toolCalls.get(0);
+            ChatCompletionToolCall toolCall = toolCalls.get(0);
             assertEquals(toolCallIndex, toolCall.index());
             assertEquals(toolCallId, toolCall.id());
             assertEquals(toolCallFunctionName, toolCall.function().name());
@@ -370,9 +370,9 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
             assertEquals("chat.completion.chunk", chunk.object());
             assertNull(chunk.usage());
 
-            List<Choice> choices = chunk.choices();
+            List<ChatCompletionChoice> choices = chunk.choices();
             assertEquals(1, choices.size());
-            Choice choice = choices.get(0);
+            ChatCompletionChoice choice = choices.get(0);
             assertNull(choice.message().content());
             assertNull(choice.message().refusal());
             assertNull(choice.message().role());

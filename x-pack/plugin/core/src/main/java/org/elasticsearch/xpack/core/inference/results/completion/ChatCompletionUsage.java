@@ -35,13 +35,13 @@ import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.USAG
 /**
  * Usage statistics for a unified chat completion response.
  *
- * <p>The {@link #writeTo}/{@link #Usage(StreamInput)} pair preserves the streaming
+ * <p>The {@link #writeTo}/{@link #ChatCompletionUsage(StreamInput)} pair preserves the streaming
  * wire-format gates ({@code CHAT_COMPLETION_CACHE_WRITE_TOKENS_SUPPORT_ADDED},
  * {@code INFERENCE_CACHED_TOKENS}, {@code CHAT_COMPLETION_REASONING_SUPPORT_ADDED})
  * verbatim so that the shared class does not alter the byte-level format that shipped
  * with the streaming path.
  */
-public record Usage(
+public record ChatCompletionUsage(
     int completionTokens,
     int promptTokens,
     int totalTokens,
@@ -49,11 +49,11 @@ public record Usage(
     @Nullable CompletionTokenDetails completionTokenDetails
 ) implements Writeable {
 
-    public Usage(int completionTokens, int promptTokens, int totalTokens) {
+    public ChatCompletionUsage(int completionTokens, int promptTokens, int totalTokens) {
         this(completionTokens, promptTokens, totalTokens, null, null);
     }
 
-    public Usage(StreamInput in) throws IOException {
+    public ChatCompletionUsage(StreamInput in) throws IOException {
         this(
             in.readInt(),
             in.readInt(),

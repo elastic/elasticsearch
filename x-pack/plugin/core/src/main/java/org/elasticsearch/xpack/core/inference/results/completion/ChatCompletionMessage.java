@@ -30,32 +30,39 @@ import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.ROLE
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TOOL_CALLS_FIELD;
 
 /**
- * The message (or delta, in streaming) within a {@link Choice}.
+ * The message (or delta, in streaming) within a {@link ChatCompletionChoice}.
  *
- * <p>Field order: {@code content, refusal, role, tool_calls, reasoning, reasoning_details}.
+ * <p>Component and wire order: {@code content, refusal, role, toolCalls, reasoning, reasoningDetails}.
  *
  * <p>XContent is emitted as a named object under {@code messageFieldName} — either
  * {@code "message"} for non-streaming responses or {@code "delta"} for streaming SSE chunks.
+ *
+ * <p>XContent field order: {@code content, refusal, role, reasoning, tool_calls, reasoning_details}.
  */
-public record Message(
+public record ChatCompletionMessage(
     @Nullable String content,
     @Nullable String refusal,
     @Nullable String role,
-    @Nullable List<ToolCall> toolCalls,
+    @Nullable List<ChatCompletionToolCall> toolCalls,
     @Nullable String reasoning,
     @Nullable List<ReasoningDetail> reasoningDetails
 ) implements Writeable {
 
-    public Message(@Nullable String content, @Nullable String refusal, @Nullable String role, @Nullable List<ToolCall> toolCalls) {
+    public ChatCompletionMessage(
+        @Nullable String content,
+        @Nullable String refusal,
+        @Nullable String role,
+        @Nullable List<ChatCompletionToolCall> toolCalls
+    ) {
         this(content, refusal, role, toolCalls, null, null);
     }
 
-    public Message(StreamInput in) throws IOException {
+    public ChatCompletionMessage(StreamInput in) throws IOException {
         this(
             in.readOptionalString(),
             in.readOptionalString(),
             in.readOptionalString(),
-            in.readOptionalCollectionAsList(ToolCall::new),
+            in.readOptionalCollectionAsList(ChatCompletionToolCall::new),
             in.getTransportVersion().supports(CHAT_COMPLETION_REASONING_SUPPORT_ADDED) ? in.readOptionalString() : null,
             in.getTransportVersion().supports(CHAT_COMPLETION_REASONING_SUPPORT_ADDED)
                 ? in.readOptionalNamedWriteableCollectionAsList(ReasoningDetail.class)
@@ -66,8 +73,6 @@ public record Message(
     /**
      * Emits {@code startObject(messageFieldName) ... endObject}, where
      * {@code messageFieldName} is either {@code "delta"} (streaming) or {@code "message"} (non-streaming).
-     *
-     * <p>Field order: {@code content, refusal, role, reasoning, tool_calls, reasoning_details}.
      */
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params, String messageFieldName) {
         var xContent = Iterators.concat(

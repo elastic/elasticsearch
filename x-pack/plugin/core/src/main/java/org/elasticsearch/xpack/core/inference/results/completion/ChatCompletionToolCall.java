@@ -29,16 +29,16 @@ import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.INDE
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TYPE_FIELD;
 
 /**
- * A tool call within a {@link Message}.
+ * A tool call within a {@link ChatCompletionMessage}.
  *
  * <p>Field order: {@code index, id, function, type}.
  */
-public record ToolCall(int index, @Nullable String id, @Nullable Function function, @Nullable String type)
+public record ChatCompletionToolCall(int index, @Nullable String id, @Nullable Function function, @Nullable String type)
     implements
         ChunkedToXContentObject,
         Writeable {
 
-    public ToolCall(StreamInput in) throws IOException {
+    public ChatCompletionToolCall(StreamInput in) throws IOException {
         this(in.readInt(), in.readOptionalString(), in.readOptional(Function::new), in.readOptionalString());
     }
 

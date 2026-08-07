@@ -14,11 +14,11 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChoice;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunk;
-import org.elasticsearch.xpack.core.inference.results.completion.Choice;
-import org.elasticsearch.xpack.core.inference.results.completion.Message;
-import org.elasticsearch.xpack.core.inference.results.completion.ToolCall;
-import org.elasticsearch.xpack.core.inference.results.completion.Usage;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionMessage;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionToolCall;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionUsage;
 import org.elasticsearch.xpack.inference.common.DelegatingProcessor;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEvent;
 
@@ -180,9 +180,9 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
         var completionTokens = extractMandatoryInteger(usageMap, OUTPUT_TOKENS_FIELD);
         var totalTokens = completionTokens + promptTokens;
 
-        var usage = new Usage(completionTokens, promptTokens, totalTokens);
-        var message = new Message(null, null, role, null);
-        var choice = new Choice(message, finishReason, 0);
+        var usage = new ChatCompletionUsage(completionTokens, promptTokens, totalTokens);
+        var message = new ChatCompletionMessage(null, null, role, null);
+        var choice = new ChatCompletionChoice(message, finishReason, 0);
         var chunk = new ChatCompletionChunk(id, List.of(choice), model, null, usage);
 
         return Stream.of(chunk);
@@ -207,7 +207,7 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
      *     "index": 0,
      *     "content_block": {
      *         "type": "tool_use",
-     *         "id": "toulu_vrtx_01FeQCP5fWgjDfP2SDEtcdJF",
+     *         "id": "toolu_vrtx_01FeQCP5fWgjDfP2SDEtcdJF",
      *         "name": "get_weather",
      *         "input": {}
      *     }
@@ -222,22 +222,22 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
         var index = extractMandatoryInteger(outerMap, INDEX_FIELD);
         var contentBlockMap = extractInnerStringObjectMap(outerMap, CONTENT_BLOCK_FIELD);
         var type = extractMandatoryString(contentBlockMap, TYPE_FIELD);
-        Message message;
+        ChatCompletionMessage message;
         if (type.equals(TEXT_TYPE)) {
             var text = extractMandatoryString(contentBlockMap, TEXT_FIELD);
-            message = new Message(text, null, null, null, null, null);
+            message = new ChatCompletionMessage(text, null, null, null, null, null);
         } else if (type.equals(TOOL_USE_TYPE)) {
             var id = extractMandatoryString(contentBlockMap, ID_FIELD);
             var name = extractMandatoryString(contentBlockMap, NAME_FIELD);
             var input = extractOptionalField(contentBlockMap, INPUT_FIELD, Object.class);
-            var function = new ToolCall.Function(input != null ? input.toString() : null, name);
-            var toolCall = new ToolCall(0, id, function, null);
-            message = new Message(null, null, null, List.of(toolCall));
+            var function = new ChatCompletionToolCall.Function(input != null ? input.toString() : null, name);
+            var toolCall = new ChatCompletionToolCall(0, id, function, null);
+            message = new ChatCompletionMessage(null, null, null, List.of(toolCall));
         } else {
             logger.debug("Unknown content block start type [{}] for line [{}].", type, outerMap);
             return Stream.empty();
         }
-        var choice = new Choice(message, null, index);
+        var choice = new ChatCompletionChoice(message, null, index);
         var chunk = new ChatCompletionChunk(null, List.of(choice), null, null, null);
         return Stream.of(chunk);
     }
@@ -274,21 +274,21 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
         var index = extractMandatoryInteger(outerMap, INDEX_FIELD);
         var deltaMap = extractInnerStringObjectMap(outerMap, DELTA_FIELD);
         var type = extractMandatoryString(deltaMap, TYPE_FIELD);
-        Message message;
+        ChatCompletionMessage message;
         if (type.equals(TEXT_DELTA_TYPE)) {
             var text = extractMandatoryString(deltaMap, TEXT_FIELD);
-            message = new Message(text, null, null, null, null, null);
+            message = new ChatCompletionMessage(text, null, null, null, null, null);
         } else if (type.equals(INPUT_JSON_DELTA_TYPE)) {
             var partialJson = extractMandatoryString(deltaMap, PARTIAL_JSON_FIELD);
-            var function = new ToolCall.Function(partialJson, null);
-            var toolCall = new ToolCall(0, null, function, null);
-            message = new Message(null, null, null, List.of(toolCall), null, null);
+            var function = new ChatCompletionToolCall.Function(partialJson, null);
+            var toolCall = new ChatCompletionToolCall(0, null, function, null);
+            message = new ChatCompletionMessage(null, null, null, List.of(toolCall), null, null);
         } else {
             logger.debug("Unknown content block delta type [{}] for line [{}].", type, outerMap);
             return Stream.empty();
         }
 
-        var choice = new Choice(message, null, index);
+        var choice = new ChatCompletionChoice(message, null, index);
         var chunk = new ChatCompletionChunk(null, List.of(choice), null, null, null);
 
         return Stream.of(chunk);
@@ -338,9 +338,9 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
     }
 
     private static ChatCompletionChunk buildChatCompletionChunk(int totalTokens, @Nullable String finishReason) {
-        var usage = new Usage(totalTokens, 0, totalTokens);
-        var message = new Message(null, null, null, null, null, null);
-        var choice = new Choice(message, finishReason, 0);
+        var usage = new ChatCompletionUsage(totalTokens, 0, totalTokens);
+        var message = new ChatCompletionMessage(null, null, null, null, null, null);
+        var choice = new ChatCompletionChoice(message, finishReason, 0);
         return new ChatCompletionChunk(null, List.of(choice), null, null, usage);
     }
 

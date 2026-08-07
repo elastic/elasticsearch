@@ -51,14 +51,24 @@ import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.OBJE
  *       {@code StreamingUnifiedChatCompletionResults.Results}.</li>
  * </ul>
  */
-public record ChatCompletionChunk(String id, @Nullable List<Choice> choices, String model, String object, @Nullable Usage usage)
-    implements
-        InferenceServiceResults {
+public record ChatCompletionChunk(
+    String id,
+    @Nullable List<ChatCompletionChoice> choices,
+    String model,
+    String object,
+    @Nullable ChatCompletionUsage usage
+) implements InferenceServiceResults {
 
     public static final String NAME = "chat_completion_chunk";
 
     public ChatCompletionChunk(StreamInput in) throws IOException {
-        this(in.readString(), in.readOptionalCollectionAsList(Choice::new), in.readString(), in.readString(), in.readOptional(Usage::new));
+        this(
+            in.readString(),
+            in.readOptionalCollectionAsList(ChatCompletionChoice::new),
+            in.readString(),
+            in.readString(),
+            in.readOptional(ChatCompletionUsage::new)
+        );
     }
 
     @Override

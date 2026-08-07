@@ -25,12 +25,12 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChoice;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunk;
-import org.elasticsearch.xpack.core.inference.results.completion.Choice;
-import org.elasticsearch.xpack.core.inference.results.completion.Message;
-import org.elasticsearch.xpack.core.inference.results.completion.ToolCall;
-import org.elasticsearch.xpack.core.inference.results.completion.Usage;
-import org.elasticsearch.xpack.core.inference.results.completion.Usage.PromptTokensDetails;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionMessage;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionToolCall;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionUsage;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionUsage.PromptTokensDetails;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.translation.ChatCompletionRole;
 
 import java.util.ArrayDeque;
@@ -217,13 +217,16 @@ class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreami
      * @return a stream of ChatCompletionChunk
      */
     private Stream<ChatCompletionChunk> handleMessageStart(MessageStartEvent event) {
-        var message = new Message(null, null, getRole(event), null);
-        var choice = new Choice(message, null, 0);
+        var message = new ChatCompletionMessage(null, null, getRole(event), null);
+        var choice = new ChatCompletionChoice(message, null, 0);
         var chunk = createChatCompletionChunk(List.of(choice), null);
         return Stream.of(chunk);
     }
 
-    private ChatCompletionChunk createChatCompletionChunk(@Nullable List<Choice> choices, @Nullable Usage usage) {
+    private ChatCompletionChunk createChatCompletionChunk(
+        @Nullable List<ChatCompletionChoice> choices,
+        @Nullable ChatCompletionUsage usage
+    ) {
         return new ChatCompletionChunk(conversationId, choices, modelId, CHAT_COMPLETION_CHUNK_OBJECT, usage);
     }
 
@@ -241,8 +244,8 @@ class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreami
      */
     private Stream<ChatCompletionChunk> handleMessageStop(MessageStopEvent event) {
         var finishReason = handleFinishReason(event.stopReason());
-        var message = new Message(null, null, null, null);
-        var choice = new Choice(message, finishReason, 0);
+        var message = new ChatCompletionMessage(null, null, null, null);
+        var choice = new ChatCompletionChoice(message, finishReason, 0);
         var chunk = createChatCompletionChunk(List.of(choice), null);
         return Stream.of(chunk);
     }
@@ -273,10 +276,10 @@ class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreami
      * @param start the ContentBlockStart data
      * @return a ToolCall
      */
-    private ToolCall handleToolUseStart(ContentBlockStart start) {
+    private ChatCompletionToolCall handleToolUseStart(ContentBlockStart start) {
         var toolUse = start.toolUse();
-        var function = new ToolCall.Function(null, toolUse.name());
-        return new ToolCall(0, toolUse.toolUseId(), function, FUNCTION_TYPE);
+        var function = new ChatCompletionToolCall.Function(null, toolUse.name());
+        return new ChatCompletionToolCall(0, toolUse.toolUseId(), function, FUNCTION_TYPE);
     }
 
     /**
@@ -286,10 +289,10 @@ class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreami
      * @param delta the ContentBlockDelta data
      * @return a ToolCall
      */
-    private ToolCall handleToolUseDelta(ContentBlockDelta delta) {
+    private ChatCompletionToolCall handleToolUseDelta(ContentBlockDelta delta) {
         var toolUse = delta.toolUse();
-        var function = new ToolCall.Function(toolUse.input(), null);
-        return new ToolCall(0, null, function, FUNCTION_TYPE);
+        var function = new ChatCompletionToolCall.Function(toolUse.input(), null);
+        return new ChatCompletionToolCall(0, null, function, FUNCTION_TYPE);
     }
 
     /**
@@ -303,7 +306,7 @@ class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreami
 
         if (ContentBlockStart.Type.TOOL_USE == type) {
             var toolCall = handleToolUseStart(event.start());
-            var message = new Message(
+            var message = new ChatCompletionMessage(
                 null,
                 null,
                 // The model is requesting a tool be executed, so we set the role to assistant. The "tool" role is reserved for actual
@@ -311,7 +314,7 @@ class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreami
                 ChatCompletionRole.ASSISTANT.toString(),
                 List.of(toolCall)
             );
-            var choice = new Choice(message, null, index);
+            var choice = new ChatCompletionChoice(message, null, index);
             var chunk = createChatCompletionChunk(List.of(choice), null);
             return Stream.of(chunk);
         }
@@ -331,17 +334,17 @@ class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreami
         var content = event.delta().text();
 
         var message = switch (type) {
-            case ContentBlockDelta.Type.TEXT -> new Message(content, null, null, null, null, null);
+            case ContentBlockDelta.Type.TEXT -> new ChatCompletionMessage(content, null, null, null, null, null);
             case ContentBlockDelta.Type.TOOL_USE -> {
                 var toolCall = handleToolUseDelta(event.delta());
-                yield new Message(content, null, null, List.of(toolCall), null, null);
+                yield new ChatCompletionMessage(content, null, null, List.of(toolCall), null, null);
             }
             default -> {
                 logger.debug("unknown content block delta type [{}].", type);
                 throw new IllegalArgumentException("unknown content block delta type [" + type + "]");
             }
         };
-        var choice = new Choice(message, null, event.contentBlockIndex());
+        var choice = new ChatCompletionChoice(message, null, event.contentBlockIndex());
 
         var chunk = createChatCompletionChunk(List.of(choice), null);
         return Stream.of(chunk);
@@ -359,7 +362,7 @@ class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreami
         return Stream.of(chunk);
     }
 
-    private static Usage getUsage(ConverseStreamMetadataEvent event) {
+    private static ChatCompletionUsage getUsage(ConverseStreamMetadataEvent event) {
         var inputTokens = event.usage().inputTokens();
         var outputTokens = event.usage().outputTokens();
         var totalTokens = event.usage().totalTokens();
@@ -370,6 +373,6 @@ class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreami
         var promptTokens = inputTokens + Objects.requireNonNullElse(cacheReadTokens, 0) + Objects.requireNonNullElse(cacheWriteTokens, 0);
         var promptTokensDetails = PromptTokensDetails.ofNullable(cacheReadTokens, cacheWriteTokens);
 
-        return new Usage(outputTokens, promptTokens, totalTokens, promptTokensDetails, null);
+        return new ChatCompletionUsage(outputTokens, promptTokens, totalTokens, promptTokensDetails, null);
     }
 }

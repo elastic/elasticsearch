@@ -17,12 +17,12 @@ import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.inference.completion.ReasoningDetail;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChoice;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunk;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunkTests;
-import org.elasticsearch.xpack.core.inference.results.completion.Choice;
-import org.elasticsearch.xpack.core.inference.results.completion.Message;
-import org.elasticsearch.xpack.core.inference.results.completion.ToolCall;
-import org.elasticsearch.xpack.core.inference.results.completion.Usage;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionMessage;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionToolCall;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionUsage;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
 import java.io.IOException;
@@ -138,12 +138,19 @@ public class StreamingUnifiedChatCompletionResultsTests extends AbstractBWCWireS
         var chunk = new ChatCompletionChunk(
             "chunk1",
             List.of(
-                new Choice(
-                    new Message(
+                new ChatCompletionChoice(
+                    new ChatCompletionMessage(
                         "example_content",
                         "example_refusal",
                         "assistant",
-                        List.of(new ToolCall(1, "tool1", new ToolCall.Function("example_arguments", "example_function"), "function")),
+                        List.of(
+                            new ChatCompletionToolCall(
+                                1,
+                                "tool1",
+                                new ChatCompletionToolCall.Function("example_arguments", "example_function"),
+                                "function"
+                            )
+                        ),
                         includeReasoning ? "some_reasoning" : null,
                         includeReasoning
                             ? List.of(
@@ -175,12 +182,12 @@ public class StreamingUnifiedChatCompletionResultsTests extends AbstractBWCWireS
             ),
             "example_model",
             "example_object",
-            new Usage(
+            new ChatCompletionUsage(
                 10,
                 5,
                 15,
-                includeCachedTokens ? new Usage.PromptTokensDetails(20, 25) : null,
-                includeReasoning ? new Usage.CompletionTokenDetails(25) : null
+                includeCachedTokens ? new ChatCompletionUsage.PromptTokensDetails(20, 25) : null,
+                includeReasoning ? new ChatCompletionUsage.CompletionTokenDetails(25) : null
             )
         );
 
@@ -248,12 +255,19 @@ public class StreamingUnifiedChatCompletionResultsTests extends AbstractBWCWireS
             }
             """;
 
-        var choice = new Choice(
-            new Message(
+        var choice = new ChatCompletionChoice(
+            new ChatCompletionMessage(
                 "example_content",
                 "example_refusal",
                 "assistant",
-                List.of(new ToolCall(1, "tool1", new ToolCall.Function("example_arguments", "example_function"), "function")),
+                List.of(
+                    new ChatCompletionToolCall(
+                        1,
+                        "tool1",
+                        new ChatCompletionToolCall.Function("example_arguments", "example_function"),
+                        "function"
+                    )
+                ),
                 "some_reasoning",
                 List.of(
                     new ReasoningDetail.EncryptedReasoningDetail(
@@ -302,7 +316,12 @@ public class StreamingUnifiedChatCompletionResultsTests extends AbstractBWCWireS
             }
             """;
 
-        var toolCall = new ToolCall(1, "tool1", new ToolCall.Function("example_arguments", "example_function"), "function");
+        var toolCall = new ChatCompletionToolCall(
+            1,
+            "tool1",
+            new ChatCompletionToolCall.Function("example_arguments", "example_function"),
+            "function"
+        );
 
         XContentBuilder builder = JsonXContent.contentBuilder();
         toolCall.toXContentChunked(null).forEachRemaining(xContent -> {

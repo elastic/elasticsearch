@@ -11,7 +11,7 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
-import org.elasticsearch.xpack.core.inference.results.completion.Usage;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionUsage;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEvent;
 import org.hamcrest.Matchers;
 
@@ -219,7 +219,7 @@ public class AnthropicChatCompletionStreamingProcessorTests extends ESTestCase {
         assertThat(choices.getFirst().message().content(), Matchers.is(content));
     }
 
-    private static void assertUsage(Usage usage, int completion, int prompt, int total) {
+    private static void assertUsage(ChatCompletionUsage usage, int completion, int prompt, int total) {
         assertThat(usage.completionTokens(), is(completion));
         assertThat(usage.promptTokens(), is(prompt));
         assertThat(usage.totalTokens(), is(total));

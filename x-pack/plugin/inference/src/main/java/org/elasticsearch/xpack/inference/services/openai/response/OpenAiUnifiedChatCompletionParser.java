@@ -7,21 +7,24 @@
 
 package org.elasticsearch.xpack.inference.services.openai.response;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.completion.ReasoningDetail;
 import org.elasticsearch.xcontent.AbstractObjectParser;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChoice;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunk;
-import org.elasticsearch.xpack.core.inference.results.completion.Choice;
-import org.elasticsearch.xpack.core.inference.results.completion.Message;
-import org.elasticsearch.xpack.core.inference.results.completion.ToolCall;
-import org.elasticsearch.xpack.core.inference.results.completion.Usage;
-import org.elasticsearch.xpack.core.inference.results.completion.Usage.CompletionTokenDetails;
-import org.elasticsearch.xpack.core.inference.results.completion.Usage.PromptTokensDetails;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionMessage;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionToolCall;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionUsage;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionUsage.CompletionTokenDetails;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionUsage.PromptTokensDetails;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -78,15 +81,15 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 public final class OpenAiUnifiedChatCompletionParser {
 
     /**
-     * Sentinel value stored in {@link ToolCall#index()} when the field was absent in the JSON.
+     * Sentinel value stored in {@link ChatCompletionToolCall#index()} when the field was absent in the JSON.
      * Replaced by the positional index in {@link #parseToolCallsWithPositionalIndex}.
      */
     private static final int UNSET_INDEX = -1;
 
-    private static final ConstructingObjectParser<ToolCall.Function, Void> FUNCTION_PARSER;
+    private static final ConstructingObjectParser<ChatCompletionToolCall.Function, Void> FUNCTION_PARSER;
     private static final ConstructingObjectParser<CompletionTokenDetails, Void> COMPLETION_TOKENS_DETAILS_PARSER;
     private static final ConstructingObjectParser<PromptTokensDetails, Void> PROMPT_TOKENS_DETAILS_PARSER;
-    private static final ConstructingObjectParser<Usage, Void> USAGE_PARSER;
+    private static final ConstructingObjectParser<ChatCompletionUsage, Void> USAGE_PARSER;
 
     private static final ConstructingObjectParser<ChatCompletionChunk, Void> STREAMING_PARSER;
     private static final ConstructingObjectParser<ChatCompletionChunk, Void> NON_STREAMING_PARSER;
@@ -95,7 +98,7 @@ public final class OpenAiUnifiedChatCompletionParser {
         FUNCTION_PARSER = new ConstructingObjectParser<>(
             FUNCTION_FIELD,
             true,
-            args -> new ToolCall.Function((String) args[0], (String) args[1])
+            args -> new ChatCompletionToolCall.Function((String) args[0], (String) args[1])
         );
         FUNCTION_PARSER.declareString(optionalConstructorArg(), new ParseField(FUNCTION_ARGUMENTS_FIELD));
         FUNCTION_PARSER.declareStringOrNull(optionalConstructorArg(), new ParseField(FUNCTION_NAME_FIELD));
@@ -118,12 +121,23 @@ public final class OpenAiUnifiedChatCompletionParser {
         USAGE_PARSER = new ConstructingObjectParser<>(
             USAGE_FIELD,
             true,
-            args -> new Usage((int) args[0], (int) args[1], (int) args[2], (PromptTokensDetails) args[3], (CompletionTokenDetails) args[4])
+            args -> new ChatCompletionUsage(
+                (int) args[0],
+                (int) args[1],
+                (int) args[2],
+                (PromptTokensDetails) args[3],
+                (CompletionTokenDetails) args[4]
+            )
         );
         USAGE_PARSER.declareInt(constructorArg(), new ParseField(COMPLETION_TOKENS_FIELD));
         USAGE_PARSER.declareInt(constructorArg(), new ParseField(PROMPT_TOKENS_FIELD));
         USAGE_PARSER.declareInt(constructorArg(), new ParseField(TOTAL_TOKENS_FIELD));
-        USAGE_PARSER.declareObject(optionalConstructorArg(), PROMPT_TOKENS_DETAILS_PARSER, new ParseField(PROMPT_TOKENS_DETAILS_FIELD));
+        USAGE_PARSER.declareObjectOrNull(
+            optionalConstructorArg(),
+            PROMPT_TOKENS_DETAILS_PARSER,
+            null,
+            new ParseField(PROMPT_TOKENS_DETAILS_FIELD)
+        );
         USAGE_PARSER.declareObjectOrNull(
             optionalConstructorArg(),
             COMPLETION_TOKENS_DETAILS_PARSER,
@@ -151,10 +165,10 @@ public final class OpenAiUnifiedChatCompletionParser {
             true,
             args -> new ChatCompletionChunk(
                 (String) args[0],
-                (List<Choice>) args[1],
+                (List<ChatCompletionChoice>) args[1],
                 Objects.requireNonNullElse((String) args[2], ""),
                 Objects.requireNonNullElse((String) args[3], ""),
-                (Usage) args[4]
+                (ChatCompletionUsage) args[4]
             )
         );
         parser.declareString(constructorArg(), new ParseField(ID_FIELD));
@@ -165,14 +179,14 @@ public final class OpenAiUnifiedChatCompletionParser {
         return parser;
     }
 
-    private static ConstructingObjectParser<Choice, Void> buildChoiceParser(
+    private static ConstructingObjectParser<ChatCompletionChoice, Void> buildChoiceParser(
         String contentFieldName,
-        ConstructingObjectParser<Message, Void> messageParser
+        ConstructingObjectParser<ChatCompletionMessage, Void> messageParser
     ) {
-        var parser = new ConstructingObjectParser<Choice, Void>(
+        var parser = new ConstructingObjectParser<ChatCompletionChoice, Void>(
             CHOICES_FIELD,
             true,
-            args -> new Choice((Message) args[0], (String) args[1], (int) args[2])
+            args -> new ChatCompletionChoice((ChatCompletionMessage) args[0], (String) args[1], (int) args[2])
         );
         parser.declareObject(constructorArg(), messageParser, new ParseField(contentFieldName));
         parser.declareStringOrNull(optionalConstructorArg(), new ParseField(FINISH_REASON_FIELD));
@@ -181,18 +195,18 @@ public final class OpenAiUnifiedChatCompletionParser {
     }
 
     @SuppressWarnings("unchecked")
-    private static ConstructingObjectParser<Message, Void> buildMessageParser(
-        ConstructingObjectParser<ToolCall, Void> toolCallParser,
+    private static ConstructingObjectParser<ChatCompletionMessage, Void> buildMessageParser(
+        ConstructingObjectParser<ChatCompletionToolCall, Void> toolCallParser,
         boolean indexRequired
     ) {
-        var parser = new ConstructingObjectParser<Message, Void>(
+        var parser = new ConstructingObjectParser<ChatCompletionMessage, Void>(
             "message_delta",
             true,
-            args -> new Message(
+            args -> new ChatCompletionMessage(
                 (String) args[0],
                 (String) args[1],
                 (String) args[2],
-                (List<ToolCall>) args[3],
+                (List<ChatCompletionToolCall>) args[3],
                 (String) args[4],
                 (List<ReasoningDetail>) args[5]
             )
@@ -222,14 +236,14 @@ public final class OpenAiUnifiedChatCompletionParser {
         return parser;
     }
 
-    private static ConstructingObjectParser<ToolCall, Void> buildToolCallParser(boolean indexRequired) {
-        var parser = new ConstructingObjectParser<ToolCall, Void>(
+    private static ConstructingObjectParser<ChatCompletionToolCall, Void> buildToolCallParser(boolean indexRequired) {
+        var parser = new ConstructingObjectParser<ChatCompletionToolCall, Void>(
             TOOL_CALLS_FIELD,
             true,
-            args -> new ToolCall(
+            args -> new ChatCompletionToolCall(
                 args[0] == null ? UNSET_INDEX : (int) args[0],
                 (String) args[1],
-                (ToolCall.Function) args[2],
+                (ChatCompletionToolCall.Function) args[2],
                 (String) args[3]
             )
         );
@@ -245,19 +259,47 @@ public final class OpenAiUnifiedChatCompletionParser {
     }
 
     /**
-     * Parses a {@code tool_calls} array, replacing any {@link #UNSET_INDEX} with the element's position.
+     * Intermediate holder used by the non-streaming parser so that a missing {@code index} is
+     * representable as {@code null}.
+     */
+    private record ParsedToolCall(@Nullable Integer index, String id, ChatCompletionToolCall.Function function, String type) {}
+
+    /**
+     * Parses a {@code tool_calls} array, assigning positional indices when none are declared.
+     *
+     * <ul>
+     *   <li>All indices absent → numbered {@code 0..n-1}.</li>
+     *   <li>All indices present → declared values honored.</li>
+     *   <li>Mixed → {@link XContentParseException} (ambiguous merge order).</li>
+     * </ul>
+     *
      * A fresh counter starts at 0 for each call, so numbering restarts per-choice.
      */
-    private static List<ToolCall> parseToolCallsWithPositionalIndex(
+    private static List<ChatCompletionToolCall> parseToolCallsWithPositionalIndex(
         XContentParser parser,
-        ConstructingObjectParser<ToolCall, Void> toolCallParser
+        ConstructingObjectParser<ChatCompletionToolCall, Void> toolParser
     ) throws IOException {
         var position = new AtomicInteger();
-        return AbstractObjectParser.parseArray(parser, null, (itemParser, ctx) -> {
-            var pos = position.getAndIncrement();
-            var toolCall = toolCallParser.parse(itemParser, null);
-            return toolCall.index() == UNSET_INDEX ? new ToolCall(pos, toolCall.id(), toolCall.function(), toolCall.type()) : toolCall;
+        var parsed = new ArrayList<ParsedToolCall>();
+        AbstractObjectParser.parseArray(parser, null, (itemParser, ctx) -> {
+            var raw = toolParser.parse(itemParser, null);
+            var declaredIndex = raw.index() == UNSET_INDEX ? null : (Integer) raw.index();
+            parsed.add(new ParsedToolCall(declaredIndex, raw.id(), raw.function(), raw.type()));
+            return null;
         });
+
+        var allAbsent = parsed.stream().allMatch(p -> p.index() == null);
+        var allPresent = parsed.stream().allMatch(p -> p.index() != null);
+        if (allAbsent == false && allPresent == false) {
+            throw new XContentParseException(
+                "tool_calls array mixes elements with and without 'index'; cannot assign positional indices unambiguously"
+            );
+        }
+
+        return parsed.stream().map(p -> {
+            var idx = p.index() == null ? position.getAndIncrement() : p.index();
+            return new ChatCompletionToolCall(idx, p.id(), p.function(), p.type());
+        }).toList();
     }
 
     private OpenAiUnifiedChatCompletionParser() {}

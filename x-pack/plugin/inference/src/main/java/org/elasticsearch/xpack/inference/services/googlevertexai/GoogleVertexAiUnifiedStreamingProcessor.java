@@ -20,11 +20,11 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChoice;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunk;
-import org.elasticsearch.xpack.core.inference.results.completion.Choice;
-import org.elasticsearch.xpack.core.inference.results.completion.Message;
-import org.elasticsearch.xpack.core.inference.results.completion.ToolCall;
-import org.elasticsearch.xpack.core.inference.results.completion.Usage;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionMessage;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionToolCall;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionUsage;
 import org.elasticsearch.xpack.inference.common.DelegatingProcessor;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEvent;
 
@@ -103,16 +103,16 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
     }
 
     public static class GoogleVertexAiChatCompletionChunkParser {
-        private static @Nullable Usage usageMetadataToChunk(@Nullable UsageMetadata usage) {
+        private static @Nullable ChatCompletionUsage usageMetadataToChunk(@Nullable UsageMetadata usage) {
             if (usage == null) {
                 return null;
             }
-            return new Usage(usage.candidatesTokenCount(), usage.promptTokenCount(), usage.totalTokenCount());
+            return new ChatCompletionUsage(usage.candidatesTokenCount(), usage.promptTokenCount(), usage.totalTokenCount());
         }
 
-        private static Choice candidateToChoice(Candidate candidate) {
+        private static ChatCompletionChoice candidateToChoice(Candidate candidate) {
             var contentTextBuilder = new StringBuilder();
-            List<ToolCall> toolCalls = new ArrayList<>();
+            List<ChatCompletionToolCall> toolCalls = new ArrayList<>();
 
             String role = null;
 
@@ -128,9 +128,9 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
                     }
                     if (part.functionCall() != null) {
                         var fc = part.functionCall();
-                        var function = new ToolCall.Function(fc.args(), fc.name());
+                        var function = new ChatCompletionToolCall.Function(fc.args(), fc.name());
                         toolCalls.add(
-                            new ToolCall(
+                            new ChatCompletionToolCall(
                                 0, // No explicit ID from VertexAI so we use 0
                                 function.name(), // VertexAI does not provide an id for the function call so we use the name
                                 function,
@@ -141,11 +141,16 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
                 }
             }
 
-            List<ToolCall> finalToolCalls = toolCalls.isEmpty() ? null : toolCalls;
+            List<ChatCompletionToolCall> finalToolCalls = toolCalls.isEmpty() ? null : toolCalls;
 
-            var message = new Message(contentTextBuilder.isEmpty() ? null : contentTextBuilder.toString(), null, role, finalToolCalls);
+            var message = new ChatCompletionMessage(
+                contentTextBuilder.isEmpty() ? null : contentTextBuilder.toString(),
+                null,
+                role,
+                finalToolCalls
+            );
 
-            return new Choice(message, candidate.finishReason(), candidate.index());
+            return new ChatCompletionChoice(message, candidate.finishReason(), candidate.index());
         }
 
         @SuppressWarnings("unchecked")
@@ -159,7 +164,7 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
                 var responseId = (String) args[3];
 
                 var candidatesIsEmpty = candidates == null || candidates.isEmpty();
-                List<Choice> choices = candidatesIsEmpty
+                List<ChatCompletionChoice> choices = candidatesIsEmpty
                     ? Collections.emptyList()
                     : candidates.stream().map(GoogleVertexAiChatCompletionChunkParser::candidateToChoice).toList();
 

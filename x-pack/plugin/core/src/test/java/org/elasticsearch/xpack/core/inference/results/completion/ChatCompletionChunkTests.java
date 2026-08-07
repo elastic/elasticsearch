@@ -33,40 +33,37 @@ import static org.hamcrest.Matchers.is;
  */
 public class ChatCompletionChunkTests extends AbstractBWCWireSerializationTestCase<ChatCompletionChunk> {
     public static ChatCompletionChunk randomChatCompletionChunk() {
-        var randomOptionalString = new java.util.function.Supplier<String>() {
-            @Override
-            public String get() {
-                return randomBoolean() ? null : randomAlphanumericOfLength(5);
-            }
-        };
         return new ChatCompletionChunk(
             randomAlphanumericOfLength(5),
             randomBoolean()
                 ? null
                 : randomList(
                     randomInt(5),
-                    () -> new Choice(
-                        new Message(
-                            randomOptionalString.get(),
-                            randomOptionalString.get(),
-                            randomOptionalString.get(),
+                    () -> new ChatCompletionChoice(
+                        new ChatCompletionMessage(
+                            randomAlphaOfLengthOrNull(5),
+                            randomAlphaOfLengthOrNull(5),
+                            randomAlphaOfLengthOrNull(5),
                             randomBoolean()
                                 ? null
                                 : randomList(
                                     randomInt(5),
-                                    () -> new ToolCall(
+                                    () -> new ChatCompletionToolCall(
                                         randomInt(5),
-                                        randomOptionalString.get(),
+                                        randomAlphaOfLengthOrNull(5),
                                         randomBoolean()
                                             ? null
-                                            : new ToolCall.Function(randomOptionalString.get(), randomOptionalString.get()),
-                                        randomOptionalString.get()
+                                            : new ChatCompletionToolCall.Function(
+                                                randomAlphaOfLengthOrNull(5),
+                                                randomAlphaOfLengthOrNull(5)
+                                            ),
+                                        randomAlphaOfLengthOrNull(5)
                                     )
                                 ),
-                            randomOptionalString.get(),
+                            randomAlphaOfLengthOrNull(5),
                             randomBoolean() ? null : randomList(randomInt(5), ReasoningDetailTests::randomReasoningDetail)
                         ),
-                        randomOptionalString.get(),
+                        randomAlphaOfLengthOrNull(5),
                         randomInt(5)
                     )
                 ),
@@ -74,19 +71,19 @@ public class ChatCompletionChunkTests extends AbstractBWCWireSerializationTestCa
             randomAlphanumericOfLength(5),
             randomBoolean()
                 ? null
-                : new Usage(
+                : new ChatCompletionUsage(
                     randomInt(5),
                     randomInt(5),
                     randomInt(5),
-                    randomBoolean() ? new Usage.PromptTokensDetails(randomInt(5), randomInt(5)) : null,
-                    randomBoolean() ? new Usage.CompletionTokenDetails(randomNonNegativeIntOrNull()) : null
+                    randomBoolean() ? new ChatCompletionUsage.PromptTokensDetails(randomInt(5), randomInt(5)) : null,
+                    randomBoolean() ? new ChatCompletionUsage.CompletionTokenDetails(randomNonNegativeIntOrNull()) : null
                 )
         );
     }
 
     /**
      * Truncates fields that would not survive serialization to an older transport version.
-     * Mirrors the gating in {@link Usage#writeTo} and {@link Message#writeTo}.
+     * Mirrors the gating in {@link ChatCompletionUsage#writeTo} and {@link ChatCompletionMessage#writeTo}.
      * Exposed so that {@code StreamingUnifiedChatCompletionResultsTests.mutateInstanceForVersion} can delegate.
      */
     public static ChatCompletionChunk downgrade(ChatCompletionChunk instance, TransportVersion version) {
@@ -96,8 +93,8 @@ public class ChatCompletionChunkTests extends AbstractBWCWireSerializationTestCa
         if (version.supports(CHAT_COMPLETION_REASONING_SUPPORT_ADDED) == false && choices != null) {
             choices = choices.stream()
                 .map(
-                    choice -> new Choice(
-                        new Message(
+                    choice -> new ChatCompletionChoice(
+                        new ChatCompletionMessage(
                             choice.message().content(),
                             choice.message().refusal(),
                             choice.message().role(),
@@ -118,7 +115,7 @@ public class ChatCompletionChunkTests extends AbstractBWCWireSerializationTestCa
                 // the old wire format only carries cachedTokens; without it the whole details object collapses to null
                 promptTokensDetails = promptTokensDetails.cachedTokens() == null
                     ? null
-                    : new Usage.PromptTokensDetails(promptTokensDetails.cachedTokens(), null);
+                    : new ChatCompletionUsage.PromptTokensDetails(promptTokensDetails.cachedTokens(), null);
             }
 
             if (version.supports(INFERENCE_CACHED_TOKENS) == false) {
@@ -129,7 +126,7 @@ public class ChatCompletionChunkTests extends AbstractBWCWireSerializationTestCa
                 completionTokenDetails = null;
             }
 
-            usage = new Usage(
+            usage = new ChatCompletionUsage(
                 usage.completionTokens(),
                 usage.promptTokens(),
                 usage.totalTokens(),
@@ -163,7 +160,11 @@ public class ChatCompletionChunkTests extends AbstractBWCWireSerializationTestCa
             );
             case 1 -> new ChatCompletionChunk(
                 instance.id(),
-                randomList(1, 3, () -> new Choice(new Message(randomAlphanumericOfLength(5), null, null, null), null, 0)),
+                randomList(
+                    1,
+                    3,
+                    () -> new ChatCompletionChoice(new ChatCompletionMessage(randomAlphanumericOfLength(5), null, null, null), null, 0)
+                ),
                 instance.model(),
                 instance.object(),
                 instance.usage()
@@ -180,7 +181,7 @@ public class ChatCompletionChunkTests extends AbstractBWCWireSerializationTestCa
                 instance.choices(),
                 instance.model(),
                 instance.object(),
-                instance.usage() == null ? new Usage(1, 2, 3) : null
+                instance.usage() == null ? new ChatCompletionUsage(1, 2, 3) : null
             );
             default -> throw new AssertionError("unexpected case");
         };
@@ -200,12 +201,14 @@ public class ChatCompletionChunkTests extends AbstractBWCWireSerializationTestCa
         var completion = new ChatCompletionChunk(
             "chatcmpl-123",
             List.of(
-                new Choice(
-                    new Message(
+                new ChatCompletionChoice(
+                    new ChatCompletionMessage(
                         "Hello!",
                         null,
                         "assistant",
-                        List.of(new ToolCall(0, "call_abc", new ToolCall.Function("{}", "get_weather"), "function"))
+                        List.of(
+                            new ChatCompletionToolCall(0, "call_abc", new ChatCompletionToolCall.Function("{}", "get_weather"), "function")
+                        )
                     ),
                     "tool_calls",
                     0
@@ -213,7 +216,7 @@ public class ChatCompletionChunkTests extends AbstractBWCWireSerializationTestCa
             ),
             "gpt-4o",
             "chat.completion",
-            new Usage(12, 9, 21)
+            new ChatCompletionUsage(12, 9, 21)
         );
 
         assertThat(toXContentNonStreaming(completion), is(XContentHelper.stripWhitespace("""
@@ -254,7 +257,7 @@ public class ChatCompletionChunkTests extends AbstractBWCWireSerializationTestCa
     public void testToXContentChunked_MinimalResponse() throws IOException {
         var completion = new ChatCompletionChunk(
             "chatcmpl-456",
-            List.of(new Choice(new Message("Hi", null, "assistant", null), "stop", 0)),
+            List.of(new ChatCompletionChoice(new ChatCompletionMessage("Hi", null, "assistant", null), "stop", 0)),
             "gpt-4o-mini",
             "chat.completion",
             null

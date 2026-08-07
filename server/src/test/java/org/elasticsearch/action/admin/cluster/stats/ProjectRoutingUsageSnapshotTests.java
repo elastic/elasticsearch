@@ -139,57 +139,6 @@ public class ProjectRoutingUsageSnapshotTests extends AbstractWireSerializingTes
     }
 
     // -----------------------------------------------------------------------
-    // ProjectRoutingUsageHolder failure-recording methods
-    // -----------------------------------------------------------------------
-
-    public void testRecordSearchFailure_noOp_when_hasLinkedProjects_false() {
-        ProjectRoutingUsageHolder holder = new ProjectRoutingUsageHolder();
-        holder.recordSearchProjectRoutingFailure(false);
-        assertThat(holder.getSnapshot(), equalTo(new ProjectRoutingUsageSnapshot()));
-    }
-
-    public void testRecordSearchFailure_increments_queries_and_queries_project_routing_and_failures() {
-        ProjectRoutingUsageHolder holder = new ProjectRoutingUsageHolder();
-        holder.recordSearchProjectRoutingFailure(true);
-        ProjectRoutingUsageSnapshot snap = holder.getSnapshot();
-        assertThat(snap.getSearchQueriesTotal(), equalTo(1L));
-        assertThat(snap.getSearchWithProjectRouting(), equalTo(1L));
-        assertThat(snap.getSearchProjectRoutingFailures(), equalTo(1L));
-        // mode sub-counters must remain at zero
-        assertThat(snap.getSearchWithAliasOrigin(), equalTo(0L));
-        assertThat(snap.getSearchWithAliasWildcard(), equalTo(0L));
-        assertThat(snap.getSearchWithCustomTags(), equalTo(0L));
-        assertThat(snap.getSearchWithNamedExpression(), equalTo(0L));
-        // esql counters untouched
-        assertThat(snap.getEsqlQueriesTotal(), equalTo(0L));
-        assertThat(snap.getEsqlProjectRoutingFailures(), equalTo(0L));
-    }
-
-    public void testRecordEsqlFailure_noOp_when_hasLinkedProjects_false() {
-        ProjectRoutingUsageHolder holder = new ProjectRoutingUsageHolder();
-        holder.recordEsqlProjectRoutingFailure(false);
-        assertThat(holder.getSnapshot(), equalTo(new ProjectRoutingUsageSnapshot()));
-    }
-
-    public void testRecordEsqlFailure_increments_queries_and_queries_project_routing_and_failures() {
-        ProjectRoutingUsageHolder holder = new ProjectRoutingUsageHolder();
-        holder.recordEsqlProjectRoutingFailure(true);
-        ProjectRoutingUsageSnapshot snap = holder.getSnapshot();
-        assertThat(snap.getEsqlQueriesTotal(), equalTo(1L));
-        assertThat(snap.getEsqlWithProjectRouting(), equalTo(1L));
-        assertThat(snap.getEsqlProjectRoutingFailures(), equalTo(1L));
-        // mode sub-counters must remain at zero
-        assertThat(snap.getEsqlWithAliasOrigin(), equalTo(0L));
-        assertThat(snap.getEsqlWithAliasWildcard(), equalTo(0L));
-        assertThat(snap.getEsqlWithCustomTags(), equalTo(0L));
-        assertThat(snap.getEsqlWithNamedExpression(), equalTo(0L));
-        assertThat(snap.getEsqlWithSet(), equalTo(0L));
-        // search counters untouched
-        assertThat(snap.getSearchQueriesTotal(), equalTo(0L));
-        assertThat(snap.getSearchProjectRoutingFailures(), equalTo(0L));
-    }
-
-    // -----------------------------------------------------------------------
     // toXContent suppression rules
     // -----------------------------------------------------------------------
 

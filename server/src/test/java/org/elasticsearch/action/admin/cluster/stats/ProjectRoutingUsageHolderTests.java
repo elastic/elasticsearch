@@ -16,9 +16,8 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class ProjectRoutingUsageHolderTests extends ESTestCase {
 
-    private static ProjectRoutingRequestInfo info(boolean aliasOrigin, boolean aliasWildcard, boolean namedExpr, String... tags) {
-        boolean usedCustomTags = java.util.Arrays.stream(tags).anyMatch(t -> t.startsWith("_") == false);
-        return new ProjectRoutingRequestInfo(usedCustomTags, namedExpr, aliasWildcard, aliasOrigin);
+    private static ProjectRoutingRequestInfo info(boolean aliasOrigin, boolean aliasWildcard, boolean namedExpr, boolean customTags) {
+        return new ProjectRoutingRequestInfo(customTags, namedExpr, aliasWildcard, aliasOrigin);
     }
 
     // -----------------------------------------------------------------------
@@ -27,7 +26,7 @@ public class ProjectRoutingUsageHolderTests extends ESTestCase {
 
     public void testNoLinkedProjects_searchIsNoOp() {
         ProjectRoutingUsageHolder holder = new ProjectRoutingUsageHolder();
-        holder.recordSearch(info(true, true, true, "mytag"), false);
+        holder.recordSearch(info(true, true, true, true), false);
         holder.recordSearch(null, false);
 
         ProjectRoutingUsageSnapshot snap = holder.getSnapshot();
@@ -37,7 +36,7 @@ public class ProjectRoutingUsageHolderTests extends ESTestCase {
 
     public void testNoLinkedProjects_esqlIsNoOp() {
         ProjectRoutingUsageHolder holder = new ProjectRoutingUsageHolder();
-        holder.recordEsql(info(true, true, true, "mytag"), true, false);
+        holder.recordEsql(info(true, true, true, true), true, false);
         holder.recordEsql(null, true, false);
 
         ProjectRoutingUsageSnapshot snap = holder.getSnapshot();
@@ -97,7 +96,7 @@ public class ProjectRoutingUsageHolderTests extends ESTestCase {
 
     public void testSearch_aliasOriginFlag() {
         ProjectRoutingUsageHolder holder = new ProjectRoutingUsageHolder();
-        holder.recordSearch(info(true, false, false, "_alias"), true);
+        holder.recordSearch(info(true, false, false, false), true);
 
         ProjectRoutingUsageSnapshot snap = holder.getSnapshot();
         assertThat(snap.getSearchWithProjectRouting(), equalTo(1L));
@@ -107,7 +106,7 @@ public class ProjectRoutingUsageHolderTests extends ESTestCase {
 
     public void testSearch_aliasWildcardFlag() {
         ProjectRoutingUsageHolder holder = new ProjectRoutingUsageHolder();
-        holder.recordSearch(info(false, true, false, "_alias"), true);
+        holder.recordSearch(info(false, true, false, false), true);
 
         ProjectRoutingUsageSnapshot snap = holder.getSnapshot();
         assertThat(snap.getSearchWithAliasWildcard(), equalTo(1L));
@@ -116,7 +115,7 @@ public class ProjectRoutingUsageHolderTests extends ESTestCase {
 
     public void testSearch_namedExpressionFlag() {
         ProjectRoutingUsageHolder holder = new ProjectRoutingUsageHolder();
-        holder.recordSearch(info(false, false, true, "_alias"), true);
+        holder.recordSearch(info(false, false, true, false), true);
 
         ProjectRoutingUsageSnapshot snap = holder.getSnapshot();
         assertThat(snap.getSearchWithNamedExpression(), equalTo(1L));
@@ -124,35 +123,21 @@ public class ProjectRoutingUsageHolderTests extends ESTestCase {
     }
 
     // -----------------------------------------------------------------------
-    // custom-tag detection: names starting with '_' are predefined
+    // custom-tag flag
     // -----------------------------------------------------------------------
 
-    public void testSearch_predefinedTagsOnly() {
+    public void testSearch_noCustomTags() {
         ProjectRoutingUsageHolder holder = new ProjectRoutingUsageHolder();
-        holder.recordSearch(info(false, false, false, "_alias", "_region", "_csp"), true);
+        holder.recordSearch(info(false, false, false, false), true);
 
         assertThat(holder.getSnapshot().getSearchWithCustomTags(), equalTo(0L));
     }
 
-    public void testSearch_singleCustomTag() {
+    public void testSearch_withCustomTags() {
         ProjectRoutingUsageHolder holder = new ProjectRoutingUsageHolder();
-        holder.recordSearch(info(false, false, false, "mytag"), true);
+        holder.recordSearch(info(false, false, false, true), true);
 
         assertThat(holder.getSnapshot().getSearchWithCustomTags(), equalTo(1L));
-    }
-
-    public void testSearch_mixedPredefinedAndCustom() {
-        ProjectRoutingUsageHolder holder = new ProjectRoutingUsageHolder();
-        holder.recordSearch(info(false, false, false, "_alias", "mytag"), true);
-
-        assertThat(holder.getSnapshot().getSearchWithCustomTags(), equalTo(1L));
-    }
-
-    public void testSearch_emptyTagList() {
-        ProjectRoutingUsageHolder holder = new ProjectRoutingUsageHolder();
-        holder.recordSearch(info(false, false, false /* no tags */), true);
-
-        assertThat(holder.getSnapshot().getSearchWithCustomTags(), equalTo(0L));
     }
 
     // -----------------------------------------------------------------------
@@ -171,7 +156,7 @@ public class ProjectRoutingUsageHolderTests extends ESTestCase {
 
     public void testEsql_setClauseWithInfo() {
         ProjectRoutingUsageHolder holder = new ProjectRoutingUsageHolder();
-        holder.recordEsql(info(false, false, false, "_alias"), true, true);
+        holder.recordEsql(info(false, false, false, false), true, true);
 
         ProjectRoutingUsageSnapshot snap = holder.getSnapshot();
         assertThat(snap.getEsqlWithSet(), equalTo(1L));
@@ -180,14 +165,14 @@ public class ProjectRoutingUsageHolderTests extends ESTestCase {
 
     public void testEsql_noSetClause() {
         ProjectRoutingUsageHolder holder = new ProjectRoutingUsageHolder();
-        holder.recordEsql(info(true, false, false, "_alias"), false, true);
+        holder.recordEsql(info(true, false, false, false), false, true);
 
         assertThat(holder.getSnapshot().getEsqlWithSet(), equalTo(0L));
     }
 
     public void testEsql_subCounterFlags() {
         ProjectRoutingUsageHolder holder = new ProjectRoutingUsageHolder();
-        holder.recordEsql(info(true, false, true, "_alias", "custom"), false, true);
+        holder.recordEsql(info(true, false, true, true), false, true);
 
         ProjectRoutingUsageSnapshot snap = holder.getSnapshot();
         assertThat(snap.getEsqlWithProjectRouting(), equalTo(1L));
@@ -198,15 +183,66 @@ public class ProjectRoutingUsageHolderTests extends ESTestCase {
     }
 
     // -----------------------------------------------------------------------
+    // Failure-recording methods
+    // -----------------------------------------------------------------------
+
+    public void testRecordSearchFailure_noOp_when_hasLinkedProjects_false() {
+        ProjectRoutingUsageHolder holder = new ProjectRoutingUsageHolder();
+        holder.recordSearchProjectRoutingFailure(false);
+        assertThat(holder.getSnapshot(), equalTo(new ProjectRoutingUsageSnapshot()));
+    }
+
+    public void testRecordSearchFailure_increments_queries_and_queries_project_routing_and_failures() {
+        ProjectRoutingUsageHolder holder = new ProjectRoutingUsageHolder();
+        holder.recordSearchProjectRoutingFailure(true);
+        ProjectRoutingUsageSnapshot snap = holder.getSnapshot();
+        assertThat(snap.getSearchQueriesTotal(), equalTo(1L));
+        assertThat(snap.getSearchWithProjectRouting(), equalTo(1L));
+        assertThat(snap.getSearchProjectRoutingFailures(), equalTo(1L));
+        // mode sub-counters must remain at zero
+        assertThat(snap.getSearchWithAliasOrigin(), equalTo(0L));
+        assertThat(snap.getSearchWithAliasWildcard(), equalTo(0L));
+        assertThat(snap.getSearchWithCustomTags(), equalTo(0L));
+        assertThat(snap.getSearchWithNamedExpression(), equalTo(0L));
+        // esql counters untouched
+        assertThat(snap.getEsqlQueriesTotal(), equalTo(0L));
+        assertThat(snap.getEsqlProjectRoutingFailures(), equalTo(0L));
+    }
+
+    public void testRecordEsqlFailure_noOp_when_hasLinkedProjects_false() {
+        ProjectRoutingUsageHolder holder = new ProjectRoutingUsageHolder();
+        holder.recordEsqlProjectRoutingFailure(false);
+        assertThat(holder.getSnapshot(), equalTo(new ProjectRoutingUsageSnapshot()));
+    }
+
+    public void testRecordEsqlFailure_increments_queries_and_queries_project_routing_and_failures() {
+        ProjectRoutingUsageHolder holder = new ProjectRoutingUsageHolder();
+        holder.recordEsqlProjectRoutingFailure(true);
+        ProjectRoutingUsageSnapshot snap = holder.getSnapshot();
+        assertThat(snap.getEsqlQueriesTotal(), equalTo(1L));
+        assertThat(snap.getEsqlWithProjectRouting(), equalTo(1L));
+        assertThat(snap.getEsqlProjectRoutingFailures(), equalTo(1L));
+        // mode sub-counters must remain at zero
+        assertThat(snap.getEsqlWithAliasOrigin(), equalTo(0L));
+        assertThat(snap.getEsqlWithAliasWildcard(), equalTo(0L));
+        assertThat(snap.getEsqlWithCustomTags(), equalTo(0L));
+        assertThat(snap.getEsqlWithNamedExpression(), equalTo(0L));
+        assertThat(snap.getEsqlWithSet(), equalTo(0L));
+        // search counters untouched
+        assertThat(snap.getSearchQueriesTotal(), equalTo(0L));
+        assertThat(snap.getSearchProjectRoutingFailures(), equalTo(0L));
+    }
+
+    // -----------------------------------------------------------------------
     // Accumulation across multiple calls
     // -----------------------------------------------------------------------
 
     public void testSearch_accumulatesCorrectly() {
         ProjectRoutingUsageHolder holder = new ProjectRoutingUsageHolder();
-        holder.recordSearch(null, true);                                   // total only
-        holder.recordSearch(info(true, false, false, "_alias"), true);     // + with_project_routing, alias_origin
-        holder.recordSearch(info(false, false, true, "_alias"), true);     // + with_project_routing, named_expr
-        holder.recordSearch(info(false, false, false, "custom"), false);   // gated out — hasLinkedProjects=false
+        holder.recordSearch(null, true);                                    // total only
+        holder.recordSearch(info(true, false, false, false), true);         // + with_project_routing, alias_origin
+        holder.recordSearch(info(false, false, true, false), true);         // + with_project_routing, named_expr
+        holder.recordSearch(info(false, false, false, true), false);        // gated out — hasLinkedProjects=false
 
         ProjectRoutingUsageSnapshot snap = holder.getSnapshot();
         assertThat(snap.getSearchQueriesTotal(), equalTo(3L));

@@ -540,7 +540,6 @@ public class ActionModule extends AbstractModule {
         );
         this.restExtension = restExtension;
         this.clusterService = clusterService;
-
     }
 
     private static <T> T getRestServerComponent(

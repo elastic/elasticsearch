@@ -13,7 +13,8 @@ package org.elasticsearch.search.crossproject;
  * Carries per-request project routing metadata from the resolver chain to the transport actions for telemetry recording.
  * Populated by the serverless cross-project resolver and attached to {@link TargetProjects}.
  *
- * @param usedCustomTags true when the routing expression referenced at least one custom tag (a tag whose name does not start with {@code _})
+ * @param usedCustomTags true when the routing expression referenced at least one custom tag (a tag whose name does not
+ *                       start with {@code _})
  * @param usedNamedExpression true when the request used a named-expression ({@code @name}) reference
  * @param usedAliasWildcard true when the expression was exactly {@code _alias:*}
  * @param usedAliasOrigin true when the expression was exactly {@code _alias:_origin}

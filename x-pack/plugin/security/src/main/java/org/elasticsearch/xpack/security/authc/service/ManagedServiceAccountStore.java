@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.core.security.support.ManagedServiceAccountIdVali
 import org.elasticsearch.xpack.core.security.support.NativeRealmValidationUtil;
 import org.elasticsearch.xpack.core.security.support.Validation;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
+import org.elasticsearch.xpack.security.support.InvalidationCountingCacheWrapper;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager.IndexState;
 
@@ -97,7 +98,7 @@ public class ManagedServiceAccountStore implements CacheInvalidatorRegistry.Cach
     private final ClusterService clusterService;
     private final Settings settings;
     @Nullable
-    private final Cache<String, CachedAccount> accountCache;
+    private final InvalidationCountingCacheWrapper<String, CachedAccount> accountCache;
 
     @SuppressWarnings("this-escape")
     public ManagedServiceAccountStore(
@@ -113,10 +114,12 @@ public class ManagedServiceAccountStore implements CacheInvalidatorRegistry.Cach
         this.clusterService = clusterService;
         final TimeValue ttl = CACHE_TTL_SETTING.get(settings);
         if (ttl.getNanos() > 0) {
-            accountCache = CacheBuilder.<String, CachedAccount>builder()
-                .setExpireAfterWrite(ttl)
-                .setMaximumWeight(CACHE_MAX_ACCOUNTS_SETTING.get(settings))
-                .build();
+            accountCache = new InvalidationCountingCacheWrapper<>(
+                CacheBuilder.<String, CachedAccount>builder()
+                    .setExpireAfterWrite(ttl)
+                    .setMaximumWeight(CACHE_MAX_ACCOUNTS_SETTING.get(settings))
+                    .build()
+            );
         } else {
             accountCache = null;
         }
@@ -137,13 +140,19 @@ public class ManagedServiceAccountStore implements CacheInvalidatorRegistry.Cach
                 return;
             }
         }
-        loadAccountFromIndex(projectId, principal, listener);
+        final long invalidationCount = accountCache != null ? accountCache.getInvalidationCount() : 0;
+        loadAccountFromIndex(projectId, principal, invalidationCount, listener);
     }
 
-    private void loadAccountFromIndex(ProjectId projectId, String principal, ActionListener<ManagedServiceAccount> listener) {
+    private void loadAccountFromIndex(
+        ProjectId projectId,
+        String principal,
+        long invalidationCount,
+        ActionListener<ManagedServiceAccount> listener
+    ) {
         final IndexState projectSecurityIndex = securityIndex.forCurrentProject();
         if (projectSecurityIndex.indexExists() == false) {
-            cacheAccount(projectId, principal, null);
+            cacheAccount(projectId, principal, null, invalidationCount);
             listener.onResponse(null);
             return;
         }
@@ -157,15 +166,24 @@ public class ManagedServiceAccountStore implements CacheInvalidatorRegistry.Cach
                 .request();
             executeAsyncWithOrigin(client, SECURITY_ORIGIN, TransportGetAction.TYPE, getRequest, ActionListener.wrap(response -> {
                 final ManagedServiceAccount account = response.isExists() ? parseAccountDocument(principal, response.getSource()) : null;
-                cacheAccount(projectId, principal, account);
+                cacheAccount(projectId, principal, account, invalidationCount);
                 listener.onResponse(account);
             }, listener::onFailure));
         });
     }
 
-    private void cacheAccount(ProjectId projectId, String principal, @Nullable ManagedServiceAccount account) {
+    private void cacheAccount(
+        ProjectId projectId,
+        String principal,
+        @Nullable ManagedServiceAccount account,
+        long invalidationCount
+    ) {
         if (accountCache != null) {
-            accountCache.put(cacheKeyForPrincipal(projectId, principal), CachedAccount.of(account));
+            accountCache.putIfNoInvalidationSince(
+                cacheKeyForPrincipal(projectId, principal),
+                CachedAccount.of(account),
+                invalidationCount
+            );
         }
     }
 
@@ -350,7 +368,7 @@ public class ManagedServiceAccountStore implements CacheInvalidatorRegistry.Cach
     @Override
     public void invalidate(Collection<String> keys) {
         if (accountCache != null) {
-            keys.forEach(accountCache::invalidate);
+            accountCache.invalidate(keys);
         }
     }
 
@@ -363,7 +381,7 @@ public class ManagedServiceAccountStore implements CacheInvalidatorRegistry.Cach
 
     // package private for testing
     @Nullable
-    Cache<String, CachedAccount> getAccountCache() {
+    InvalidationCountingCacheWrapper<String, CachedAccount> getAccountCache() {
         return accountCache;
     }
 

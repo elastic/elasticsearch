@@ -41,6 +41,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -135,6 +136,48 @@ public class ManagedServiceAccountStoreTests extends ESTestCase {
         assertThat(getRequestCount.get(), equalTo(1));
 
         activeProject.set(project2);
+        assertThat(getAccountRoles(), equalTo(List.of(ROLE_B)));
+        assertThat(getRequestCount.get(), equalTo(2));
+    }
+
+    public void testCacheDoesNotRestoreAccountAfterInvalidationDuringLoad() throws Exception {
+        final CountDownLatch releaseGet = new CountDownLatch(1);
+        responseProvider.set((request, listener) -> {
+            try {
+                releaseGet.await();
+                respondToGet(
+                    request,
+                    Map.of(activeProject.get(), validAccountDocument(PRINCIPAL, List.of(ROLE_A), true)),
+                    listener
+                );
+            } catch (Exception e) {
+                listener.onFailure(e);
+            }
+        });
+
+        final PlainActionFuture<ManagedServiceAccount> firstLoad = new PlainActionFuture<>();
+        final Thread loadingThread = new Thread(() -> store.getByPrincipal(PRINCIPAL, firstLoad));
+        loadingThread.start();
+        assertBusy(() -> assertThat(getRequestCount.get(), equalTo(1)));
+
+        store.invalidate(List.of(ManagedServiceAccountStore.cacheKeyForPrincipal(activeProject.get(), PRINCIPAL)));
+        releaseGet.countDown();
+        loadingThread.join();
+
+        assertThat(firstLoad.get().roles(), equalTo(List.of(ROLE_A)));
+        assertNull(store.getAccountCache().get(ManagedServiceAccountStore.cacheKeyForPrincipal(activeProject.get(), PRINCIPAL)));
+
+        responseProvider.set((request, listener) -> {
+            try {
+                respondToGet(
+                    request,
+                    Map.of(activeProject.get(), validAccountDocument(PRINCIPAL, List.of(ROLE_B), true)),
+                    listener
+                );
+            } catch (IOException e) {
+                listener.onFailure(e);
+            }
+        });
         assertThat(getAccountRoles(), equalTo(List.of(ROLE_B)));
         assertThat(getRequestCount.get(), equalTo(2));
     }

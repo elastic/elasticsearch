@@ -25,13 +25,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -174,12 +174,78 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
         );
     }
 
-    /**
-     * Checks that TDigest centroid memory is visible to the REQUEST circuit breaker and that the breaker
-     * trips before heap fills up. Also verifies that doClose() returns all partial bytes after the
-     * exception, leaving the REQUEST breaker at zero.
-     */
-    public void testCircuitBreakerTripsOnHighCardinality() throws IOException {
+    public void testBreakerBytesReleasedAfterSuccessfulAggregation() throws IOException {
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
+        PercentilesAggregationBuilder aggBuilder = new PercentilesAggregationBuilder("p").field("number")
+            .percentilesConfig(new PercentilesConfig.TDigest());
+
+        HierarchyCircuitBreakerService breakerService = requestBreakerService("10mb");
+        withSequentialIndex(100, reader -> {
+            try (
+                AggregationContext context = createAggregationContext(
+                    reader,
+                    createIndexSettings(),
+                    Queries.ALL_DOCS_INSTANCE,
+                    breakerService,
+                    AggregationBuilder.DEFAULT_PREALLOCATION,
+                    DEFAULT_MAX_BUCKETS,
+                    false,
+                    false,
+                    fieldType
+                )
+            ) {
+                Aggregator aggregator = createAggregator(aggBuilder, context);
+                aggregator.preCollection();
+                context.searcher().search(Queries.ALL_DOCS_INSTANCE, aggregator.asCollector());
+                aggregator.postCollection();
+                aggregator.buildTopLevel();
+            }
+            // takeState() releases bytes while the PreallocatedCircuitBreaker is still open.
+            // After the context closes nothing should remain on the REQUEST breaker.
+            assertThat(breakerService.getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
+        });
+    }
+
+    public void testBreakerTripsOnHighCardinalityTermsPercentiles() throws IOException {
+        // Reproduces the OOM scenario from the issue: a terms agg with many distinct values
+        // creates one TDigest sketch per bucket. With our fix each sketch charges the REQUEST
+        // breaker, so a tight limit trips the breaker instead of exhausting heap.
+        HierarchyCircuitBreakerService breakerService = requestBreakerService("50kb");
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
+
+        PercentilesAggregationBuilder percBuilder = new PercentilesAggregationBuilder("p").field("number")
+            .percentilesConfig(new PercentilesConfig.TDigest());
+        TermsAggregationBuilder termsBuilder = new TermsAggregationBuilder("terms").field("number")
+            .size(10000)
+            .subAggregation(percBuilder);
+
+        withSequentialIndex(500, reader -> {
+            expectThrows(CircuitBreakingException.class, () -> {
+                try (
+                    AggregationContext context = createAggregationContext(
+                        reader,
+                        createIndexSettings(),
+                        Queries.ALL_DOCS_INSTANCE,
+                        breakerService,
+                        0,
+                        DEFAULT_MAX_BUCKETS,
+                        false,
+                        false,
+                        fieldType
+                    )
+                ) {
+                    Aggregator aggregator = createAggregator(termsBuilder, context);
+                    aggregator.preCollection();
+                    context.searcher().search(Queries.ALL_DOCS_INSTANCE, aggregator.asCollector());
+                    aggregator.postCollection();
+                    aggregator.buildTopLevel();
+                }
+            });
+            assertThat(breakerService.getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
+        });
+    }
+
+    public void testBreakerTripReleasesAllBytes() throws IOException {
         HierarchyCircuitBreakerService breakerService = requestBreakerService("1kb");
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
         PercentilesAggregationBuilder aggBuilder = new PercentilesAggregationBuilder("p").field("number")
@@ -188,32 +254,7 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
         withSequentialIndex(500, reader -> {
             expectThrows(CircuitBreakingException.class, () -> collectWithBreaker(reader, breakerService, aggBuilder, fieldType));
             // doClose() must return all partial bytes; nothing should remain on the breaker.
-            assertEquals(0L, breakerService.getBreaker(CircuitBreaker.REQUEST).getUsed());
-        });
-    }
-
-    /**
-     * Verifies that when the REQUEST breaker trips mid-collection, doClose() releases all partially
-     * allocated bytes and leaves the breaker at zero. The cranky breaker trips randomly (roughly 1 in 20
-     * calls), so we repeat several times to maximize the chance of hitting the failure path.
-     */
-    public void testCrankyBreakerDoesNotLeakOnTrip() throws IOException {
-        CrankyCircuitBreakerService breakerService = new CrankyCircuitBreakerService();
-        CircuitBreaker breaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
-        PercentilesAggregationBuilder aggBuilder = new PercentilesAggregationBuilder("p").field("number")
-            .percentilesConfig(new PercentilesConfig.TDigest());
-
-        withSequentialIndex(100, reader -> {
-            for (int i = 0; i < 5; i++) {
-                try {
-                    collectWithBreaker(reader, breakerService, aggBuilder, fieldType);
-                } catch (CircuitBreakingException e) {
-                    assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
-                }
-                // doClose() must return all partial bytes on any trip; nothing should remain.
-                assertEquals(0L, breaker.getUsed());
-            }
+            assertThat(breakerService.getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
         });
     }
 

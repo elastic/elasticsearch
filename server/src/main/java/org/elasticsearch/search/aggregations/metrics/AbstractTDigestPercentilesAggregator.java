@@ -12,6 +12,7 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.apache.lucene.search.DoubleValues;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
@@ -110,9 +111,12 @@ abstract class AbstractTDigestPercentilesAggregator extends NumericMetricsAggreg
      * Breaker bytes are returned to {@code context.breaker()} here, while the aggregation context
      * is still open. {@link org.elasticsearch.search.aggregations.InternalAggregation} has no close
      * lifecycle, so the breaker is already closed by the time the result is serialized.
-     * {@link #doClose()} will not touch the returned state.
+     * {@link #doClose()} will not touch the returned state. Returns {@code null} if the bucket
+     * ordinal was never collected (no documents matched that bucket), or if the state was already
+     * removed by a prior call.
      */
-    protected HistogramUnionState takeState(long bucketOrd) {
+    @Nullable
+    protected final HistogramUnionState takeState(long bucketOrd) {
         if (bucketOrd >= states.size()) {
             return null;
         }
@@ -128,20 +132,15 @@ abstract class AbstractTDigestPercentilesAggregator extends NumericMetricsAggreg
     @Override
     protected void doClose() {
         // Closes states not handed off via takeState() — the failure path where collection was
-        // aborted before buildAggregation ran. Null guard: the breaker may trip in the constructor
-        // before states is assigned.
-        if (states != null) {
-            try {
-                for (long i = 0; i < states.size(); i++) {
-                    HistogramUnionState state = states.get(i);
-                    if (state != null) {
-                        Releasables.closeWhileHandlingException(state);
-                    }
-                }
-            } finally {
-                Releasables.close(states);
-            }
+        // aborted before buildAggregation ran. states can be null if the breaker trips in the
+        // constructor before the field is assigned.
+        if (states == null) {
+            return;
         }
+        for (long i = 0; i < states.size(); i++) {
+            Releasables.closeWhileHandlingException(states.get(i));
+        }
+        Releasables.close(states);
     }
 
 }

@@ -49,6 +49,15 @@ public class SqlParser {
 
     private static final Logger log = LogManager.getLogger(SqlParser.class);
 
+    /**
+     * Maximum number of characters in an SQL query. Antlr may parse the entire
+     * query into tokens to make the choices, buffering the world. There's a lot we
+     * can do in the grammar to prevent that, but let's be paranoid and assume we'll
+     * fail at preventing antlr from slurping in the world. Instead, let's make sure
+     * that the world just isn't that big.
+     */
+    public static final int MAX_LENGTH = 1_000_000;
+
     private final boolean DEBUG = false;
 
     /**
@@ -128,6 +137,9 @@ public class SqlParser {
         Function<SqlBaseParser, ParserRuleContext> parseFunction,
         BiFunction<AstBuilder, ParserRuleContext, T> visitor
     ) {
+        if (sql.length() > MAX_LENGTH) {
+            throw new ParsingException("SQL statement is too large [{} characters > {}]", sql.length(), MAX_LENGTH);
+        }
         try {
             ParserPipeline pipeline = createParserPipeline(sql, params);
 

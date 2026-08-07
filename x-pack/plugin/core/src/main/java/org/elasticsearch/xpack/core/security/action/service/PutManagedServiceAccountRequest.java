@@ -56,7 +56,10 @@ public class PutManagedServiceAccountRequest extends UntypedActionRequest {
     }
 
     private PutManagedServiceAccountRequest(List<String> roles, Boolean enabled) {
-        this(null, null, roles, enabled == null || enabled);
+        this.namespace = null;
+        this.serviceName = null;
+        this.roles = List.copyOf(Objects.requireNonNull(roles, "roles cannot be null"));
+        this.enabled = enabled == null || enabled;
     }
 
     public PutManagedServiceAccountRequest(StreamInput in) throws IOException {

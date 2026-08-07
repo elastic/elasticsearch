@@ -1,0 +1,189 @@
+---
+setup:
+  - skip:
+      features: headers
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+  - do:
+      security.put_role:
+        name: "managed_yaml_monitor"
+        body: >
+          {
+            "cluster": ["monitor"]
+          }
+
+  - do:
+      security.put_role:
+        name: "managed_yaml_api_key"
+        body: >
+          {
+            "cluster": ["manage_own_api_key"]
+          }
+
+---
+teardown:
+  - do:
+      security.delete_service_token:
+        namespace: yaml_poc
+        service: worker_1
+        name: token-1
+        ignore: 404
+
+  - do:
+      security.delete_service_token:
+        namespace: yaml_poc
+        service: worker_1
+        name: token-after-recreate
+        ignore: 404
+
+  - do:
+      security.delete_managed_service_account:
+        namespace: yaml_poc
+        service: worker_1
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "managed_yaml_monitor"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "managed_yaml_api_key"
+        ignore: 404
+
+---
+"Test managed service accounts lifecycle":
+  - do:
+      security.put_managed_service_account:
+        namespace: yaml_poc
+        service: worker_1
+        body: >
+          {
+            "roles": ["managed_yaml_monitor"],
+            "enabled": true
+          }
+  - match: { created: true }
+
+  - do:
+      security.get_service_accounts:
+        namespace: yaml_poc
+        service: worker_1
+  - length: { '': 1 }
+  - match:
+      "yaml_poc/worker_1":
+        managed: true
+        roles: ["managed_yaml_monitor"]
+        enabled: true
+
+  - do:
+      security.create_service_token:
+        namespace: yaml_poc
+        service: worker_1
+        name: token-1
+  - is_true: created
+  - match: { "token.name": "token-1" }
+  - set: { "token.value": managed_service_token }
+
+  - do:
+      headers:
+        Authorization: Bearer ${managed_service_token}
+      security.authenticate: {}
+  - match: { username: "yaml_poc/worker_1" }
+  - match: { roles: ["managed_yaml_monitor"] }
+  - match: { full_name: "Managed service account - yaml_poc/worker_1" }
+  - match: { metadata._managed_service_account: true }
+
+  - do:
+      headers:
+        Authorization: Bearer ${managed_service_token}
+      security.has_privileges:
+        user: null
+        body: >
+          {
+            "cluster": ["monitor", "manage_own_api_key"]
+          }
+  - match: { "cluster.monitor": true }
+  - match: { "cluster.manage_own_api_key": false }
+  - match: { has_all_requested: false }
+
+  - do:
+      security.put_managed_service_account:
+        namespace: yaml_poc
+        service: worker_1
+        body: >
+          {
+            "roles": ["managed_yaml_api_key"],
+            "enabled": true
+          }
+  - match: { created: false }
+
+  - do:
+      headers:
+        Authorization: Bearer ${managed_service_token}
+      security.authenticate: {}
+  - match: { roles: ["managed_yaml_api_key"] }
+
+  - do:
+      headers:
+        Authorization: Bearer ${managed_service_token}
+      security.has_privileges:
+        user: null
+        body: >
+          {
+            "cluster": ["monitor", "manage_own_api_key"]
+          }
+  - match: { "cluster.monitor": false }
+  - match: { "cluster.manage_own_api_key": true }
+  - match: { has_all_requested: false }
+
+  - do:
+      security.delete_managed_service_account:
+        namespace: yaml_poc
+        service: worker_1
+  - match: { found: true }
+
+  - do:
+      catch: unauthorized
+      headers:
+        Authorization: Bearer ${managed_service_token}
+      security.authenticate: {}
+
+  - do:
+      security.put_managed_service_account:
+        namespace: yaml_poc
+        service: worker_1
+        body: >
+          {
+            "roles": ["managed_yaml_monitor"],
+            "enabled": true
+          }
+  - match: { created: true }
+
+  - do:
+      catch: unauthorized
+      headers:
+        Authorization: Bearer ${managed_service_token}
+      security.authenticate: {}
+
+  - do:
+      security.create_service_token:
+        namespace: yaml_poc
+        service: worker_1
+        name: token-after-recreate
+  - set: { "token.value": managed_service_token_recreated }
+
+  - do:
+      headers:
+        Authorization: Bearer ${managed_service_token_recreated}
+      security.authenticate: {}
+  - match: { username: "yaml_poc/worker_1" }
+
+  - do:
+      catch: unauthorized
+      headers:
+        Authorization: Bearer ${managed_service_token}
+      security.authenticate: {}

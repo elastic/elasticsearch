@@ -55,6 +55,7 @@ import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.lucene.Lucene;
@@ -74,9 +75,13 @@ import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
+import org.elasticsearch.index.store.StoreFileMetadata;
+import org.elasticsearch.index.store.StoreFileMetadataDirectory;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
@@ -1461,6 +1466,12 @@ public final class RestoreService implements ClusterStateApplier {
                 if (snapshotIndexMetadata.getCompatibilityVersion().isLegacyIndexVersion()) {
                     // adapt index metadata so that it can be understood by current version
                     snapshotIndexMetadata = convertLegacyIndex(snapshotIndexMetadata, currentState, indicesService);
+                } else {
+                    snapshotIndexMetadata = prepareForReadOnlyRestore(
+                        snapshotIndexMetadata,
+                        minIndexCompatibilityVersion,
+                        minReadOnlyIndexCompatibilityVersion
+                    );
                 }
                 try {
                     snapshotIndexMetadata = indexMetadataVerifier.verifyIndexMetadata(
@@ -1796,6 +1807,76 @@ public final class RestoreService implements ClusterStateApplier {
             );
             listener.clusterStateUpdate().onResponse(new RestoreCompletionResponse(restoreUUID, snapshot, restoreInfo));
         }
+    }
+
+    /**
+     * Returns {@code true} when an index requires read-only restore preparation: it is read-only compatible but not
+     * fully supported by this cluster, and has not been previously marked as verified read-only. Legacy indices whose
+     * compatibility version predates the read-only compatible range are excluded — they are handled by
+     * {@link #convertLegacyIndex} instead.
+     */
+    private static boolean needsReadOnlyRestorePreparation(
+        IndexMetadata indexMetadata,
+        IndexVersion minIndexCompatibilityVersion,
+        IndexVersion minReadOnlyIndexCompatibilityVersion
+    ) {
+        return indexMetadata.getCompatibilityVersion().isLegacyIndexVersion() == false
+            && MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.get(indexMetadata.getSettings()) == false
+            && IndexMetadataVerifier.isFullySupportedVersion(indexMetadata, minIndexCompatibilityVersion) == false
+            && IndexMetadataVerifier.isReadOnlyCompatible(
+                indexMetadata,
+                minIndexCompatibilityVersion,
+                minReadOnlyIndexCompatibilityVersion
+            );
+    }
+
+    /**
+     * Reads the {@link SequenceNumbers#LOCAL_CHECKPOINT_KEY} and {@link SequenceNumbers#MAX_SEQ_NO} values from the
+     * Lucene commit captured by a shard snapshot. No segment data files are downloaded — the small files Lucene needs
+     * to construct {@code SegmentInfos} ({@code segments_N} and per-segment {@code .si} files) are already inlined in
+     * the snapshot manifest's file metadata (see {@link StoreFileMetadata#hashEqualsContents()}).
+     */
+    static SequenceNumbers.CommitInfo readShardSnapshotCommitInfo(
+        BlobStoreRepository repository,
+        IndexId indexId,
+        int shardId,
+        SnapshotId snapshotId
+    ) throws IOException {
+        final BlobContainer shardContainer = repository.shardContainer(indexId, shardId);
+        final BlobStoreIndexShardSnapshot shardSnapshot = repository.loadShardSnapshot(shardContainer, snapshotId);
+        final Map<String, StoreFileMetadata> files = shardSnapshot.indexFiles()
+            .stream()
+            .map(BlobStoreIndexShardSnapshot.FileInfo::metadata)
+            .filter(StoreFileMetadata::hashEqualsContents)
+            .collect(Collectors.toMap(StoreFileMetadata::name, Function.identity()));
+        try (var directory = new StoreFileMetadataDirectory(files)) {
+            return SequenceNumbers.loadSeqNoInfoFromLuceneCommit(Lucene.readSegmentInfos(directory).userData.entrySet());
+        }
+    }
+
+    /**
+     * Prepares a read-only compatible index for restoration by automatically adding the write block and marking it as
+     * verified read-only. This handles the case where a snapshot was created on an older version (e.g. 7.x) without
+     * going through the intermediate upgrade step (e.g. 8.x) that would normally set these flags via the add-block API.
+     * <p>
+     * Only applies when {@link #needsReadOnlyRestorePreparation} returns {@code true}.
+     */
+    static IndexMetadata prepareForReadOnlyRestore(
+        IndexMetadata indexMetadata,
+        IndexVersion minIndexCompatibilityVersion,
+        IndexVersion minReadOnlyIndexCompatibilityVersion
+    ) {
+        if (needsReadOnlyRestorePreparation(indexMetadata, minIndexCompatibilityVersion, minReadOnlyIndexCompatibilityVersion)) {
+            return IndexMetadata.builder(indexMetadata)
+                .settings(
+                    Settings.builder()
+                        .put(indexMetadata.getSettings())
+                        .put(IndexMetadata.SETTING_BLOCKS_WRITE, true)
+                        .put(MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.getKey(), true)
+                )
+                .build();
+        }
+        return indexMetadata;
     }
 
     /// Converts a legacy index (created before [org.elasticsearch.index.IndexVersions#MINIMUM_READONLY_COMPATIBLE])

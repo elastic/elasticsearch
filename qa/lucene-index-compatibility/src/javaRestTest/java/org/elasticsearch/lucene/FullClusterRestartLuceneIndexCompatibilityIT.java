@@ -9,10 +9,17 @@
 
 package org.elasticsearch.lucene;
 
+import org.elasticsearch.client.Request;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.test.cluster.util.Version;
+import org.elasticsearch.test.rest.ObjectPath;
+
+import java.io.IOException;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_READ_ONLY_BLOCK;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_WRITE_BLOCK;
@@ -370,5 +377,169 @@ public class FullClusterRestartLuceneIndexCompatibilityIT extends FullClusterRes
             logger.debug("--> deleting index [{}]", index);
             deleteIndex(index);
         }
+    }
+
+    /**
+     * Creates an index on N-2 and takes a snapshot on N-2 (without marking as read-only first),
+     * then restores the snapshot directly on N. This reproduces the scenario reported in
+     * <a href="https://github.com/elastic/elasticsearch/issues/145141">#145141</a> where restoring
+     * a 7.x snapshot on 9.x fails because the verified_read_only flag was never set.
+     */
+    public void testRestoreSnapshotCreatedOnOldVersion() throws Exception {
+        final String repository = suffix("repository");
+        final String snapshot = suffix("snapshot");
+        final String index = suffix("index");
+        final int numDocs = 1543;
+
+        if (isFullyUpgradedTo(VERSION_MINUS_2)) {
+            logger.debug("--> registering repository [{}]", repository);
+            registerRepository(client(), repository, FsRepository.TYPE, true, repositorySettings());
+
+            logger.debug("--> creating index [{}]", index);
+            createIndex(
+                client(),
+                index,
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+            );
+
+            logger.debug("--> indexing [{}] docs in [{}]", numDocs, index);
+            indexDocs(index, numDocs);
+
+            logger.debug("--> creating snapshot [{}] on N-2 without read-only block", snapshot);
+            createSnapshot(client(), repository, snapshot, true);
+
+            logger.debug("--> deleting index [{}]", index);
+            deleteIndex(index);
+            return;
+        }
+
+        if (isFullyUpgradedTo(VERSION_MINUS_1)) {
+            // snapshot was already created on N-2; nothing to do on N-1
+            return;
+        }
+
+        if (isFullyUpgradedTo(VERSION_CURRENT)) {
+            var restoredIndex = suffix("index-restored-from-old");
+            logger.debug("--> restoring snapshot [{}] created on N-2 as [{}]", snapshot, restoredIndex);
+            restoreIndex(repository, snapshot, index, restoredIndex);
+            ensureGreen(restoredIndex);
+
+            assertIndexSetting(restoredIndex, VERIFIED_READ_ONLY_SETTING, is(true));
+            assertThat(indexBlocks(restoredIndex), contains(INDEX_WRITE_BLOCK));
+            assertThat(indexVersion(restoredIndex), equalTo(VERSION_MINUS_2));
+            assertDocCount(client(), restoredIndex, numDocs);
+
+            updateRandomIndexSettings(restoredIndex);
+            updateRandomMappings(restoredIndex);
+
+            logger.debug("--> adding replica to test peer-recovery");
+            updateIndexSettings(restoredIndex, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1));
+            ensureGreen(restoredIndex);
+
+            logger.debug("--> closing restored index [{}]", restoredIndex);
+            closeIndex(restoredIndex);
+            ensureGreen(restoredIndex);
+
+            logger.debug("--> re-opening restored index [{}]", restoredIndex);
+            openIndex(restoredIndex);
+            ensureGreen(restoredIndex);
+
+            assertDocCount(client(), restoredIndex, numDocs);
+
+            logger.debug("--> deleting restored index [{}]", restoredIndex);
+            deleteIndex(restoredIndex);
+        }
+    }
+
+    /**
+     * Creates an index on N-2, runs concurrent indexing threads while taking a snapshot, then
+     * restores the snapshot on N. Concurrent writes give the snapshot a chance to capture a
+     * Lucene commit where {@code local_checkpoint < max_seq_no}; when this occurs,
+     * {@code Store#checkAndPatchLocalCheckpoint()} repairs the discrepancy during read-only
+     * restore via {@code RestoreService.prepareForReadOnlyRestore()}. The test passes in both
+     * scenarios: regardless of whether a gap was captured, {@code local_checkpoint == max_seq_no} must
+     * hold after restore.
+     */
+    public void testRestoreCheckpointPatch() throws Exception {
+        final String repository = suffix("repository");
+        final String snapshot = suffix("snapshot");
+        final String index = suffix("index");
+        final int numThreads = 2;
+
+        if (isFullyUpgradedTo(VERSION_MINUS_2)) {
+            logger.debug("--> registering repository [{}]", repository);
+            registerRepository(client(), repository, FsRepository.TYPE, true, repositorySettings());
+
+            logger.debug("--> creating index [{}]", index);
+            createIndex(
+                client(),
+                index,
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build()
+            );
+            ensureGreen(index);
+
+            final AtomicBoolean keepIndexing = new AtomicBoolean(true);
+            final CountDownLatch firstRequestDone = new CountDownLatch(numThreads);
+            runInParallel(numThreads + 1, taskIndex -> {
+                if (taskIndex == 0) {
+                    try {
+                        assertTrue(firstRequestDone.await(60, TimeUnit.SECONDS));
+                        createSnapshot(client(), repository, snapshot, true);
+                    } catch (Exception e) {
+                        throw new AssertionError(e);
+                    } finally {
+                        keepIndexing.set(false);
+                    }
+                } else {
+                    boolean counted = false;
+                    while (keepIndexing.get()) {
+                        var req = new Request("PUT", "/" + index + "/_doc/" + taskIndex);
+                        req.setJsonEntity("{\"f\": 1}");
+                        try {
+                            client().performRequest(req);
+                        } catch (IOException e) {
+                            throw new AssertionError(e);
+                        }
+                        if (counted == false) {
+                            firstRequestDone.countDown();
+                            counted = true;
+                        }
+                    }
+                }
+            });
+
+            // Delete the live index so no 7.x index remains in the cluster state during upgrade.
+            deleteIndex(index);
+            return;
+        }
+
+        if (isFullyUpgradedTo(VERSION_CURRENT)) {
+            var restoredIndex = suffix("index-restored");
+            logger.debug("--> restoring snapshot [{}] as [{}]", snapshot, restoredIndex);
+            restoreIndex(repository, snapshot, index, restoredIndex);
+            ensureGreen(restoredIndex);
+
+            long[] seqNo = readPrimaryShardSeqNoStats(restoredIndex);
+            assertThat(
+                "restored index [" + restoredIndex + "] must have local_checkpoint == max_seq_no after read-only restore",
+                seqNo[1],
+                equalTo(seqNo[0])
+            );
+
+            logger.debug("--> deleting restored index [{}]", restoredIndex);
+            deleteIndex(restoredIndex);
+        }
+    }
+
+    /** Returns {@code [max_seq_no, local_checkpoint]} from the primary shard of {@code indexName}. */
+    private long[] readPrimaryShardSeqNoStats(String indexName) throws IOException {
+        var request = new Request("GET", "/" + indexName + "/_stats");
+        request.addParameter("level", "shards");
+        var path = ObjectPath.createFromResponse(client().performRequest(request));
+        Number msn = path.evaluate("indices." + indexName + ".shards.0.0.seq_no.max_seq_no");
+        Number lcp = path.evaluate("indices." + indexName + ".shards.0.0.seq_no.local_checkpoint");
+        assertNotNull("max_seq_no must not be null for [" + indexName + "]", msn);
+        assertNotNull("local_checkpoint must not be null for [" + indexName + "]", lcp);
+        return new long[] { msn.longValue(), lcp.longValue() };
     }
 }

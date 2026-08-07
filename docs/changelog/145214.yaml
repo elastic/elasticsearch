@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 145141
+pr: 145214
+summary: Fix snapshot restore of N-2 indices that skipped the N-1 upgrade step
+type: bug

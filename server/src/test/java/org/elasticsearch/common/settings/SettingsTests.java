@@ -135,6 +135,23 @@ public class SettingsTests extends ESTestCase {
         assertTrue(names.contains("baz"));
     }
 
+    public void testGetWarnsWhenReadingListAsString() {
+        Settings settings = Settings.builder().putList("value", "one", "two").build();
+
+        assertThat(settings.get("value"), equalTo("[one, two]"));
+        assertWarnings(
+            "[value] setting is configured as a list but is being read as a string. This behavior is deprecated and will be removed in a future release. "
+                + "Configure a single value instead."
+        );
+    }
+
+    public void testGetAsListDoesNotWarnWhenReadingList() {
+        Settings settings = Settings.builder().putList("value", "one", "two").build();
+
+        assertThat(settings.getAsList("value"), contains("one", "two"));
+        assertWarnings();
+    }
+
     public void testThatArraysAreOverriddenCorrectly() throws IOException {
         // overriding a single value with an array
         Settings settings = Settings.builder()
@@ -236,6 +253,10 @@ public class SettingsTests extends ESTestCase {
             .build();
         assertThat(settings.get("value.data"), is("1"));
         assertThat(settings.get("value"), is("[4, 5]"));
+        assertWarnings(
+            "[value] setting is configured as a list but is being read as a string. This behavior is deprecated and will be removed in a future release. "
+                + "Configure a single value instead."
+        );
     }
 
     public void testPrefixNormalization() {

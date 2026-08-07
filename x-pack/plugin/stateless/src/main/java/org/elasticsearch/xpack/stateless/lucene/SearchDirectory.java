@@ -40,9 +40,12 @@ import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.OptionalLong;
 import java.util.Set;
@@ -453,13 +456,48 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
         return currentCommit.get();
     }
 
+    /**
+     * Returns a best-effort view of the {@link BlobFileRanges} for files belonging to the current commit only,
+     * excluding files retained solely by open PIT readers or other older readers.
+     *
+     * <p>This method reads {@code currentCommit} and {@code currentMetadata} without synchronization.
+     * Reading the commit first is deliberate: {@link #updateCommit} writes metadata before commit,
+     * so the reverse read order guarantees that metadata contains at least all files referenced by
+     * the snapshotted commit. A concurrent {@link #retainFiles} call could still remove files
+     * belonging to the snapshotted commit from metadata if a newer commit has been processed and no
+     * reader holds the old files, causing some entries to be missing from the result. The effect is
+     * a transiently smaller cache-size estimation. In practice this is benign: only obsolete files
+     * are affected, the estimation is per-shard, and the autoscaler applies a stabilization window
+     * of 30 minutes or more before acting on scale-down signals. Callers use this for best-effort
+     * cache sizing, not correctness-critical decisions.
+     *
+     * @return the file ranges for the current commit, or an empty collection if no commit has been received yet
+     */
+    public Collection<BlobFileRanges> getCurrentCommitBlobFileRanges() {
+        final var commit = getCurrentCommit();
+        final var metadata = currentMetadata;
+        if (commit == null) {
+            return List.of();
+        }
+        final var commitFileNames = commit.commitFiles().keySet();
+        final var result = new ArrayList<BlobFileRanges>(commitFileNames.size());
+        for (String fileName : commitFileNames) {
+            final var blobFileRanges = metadata.get(fileName);
+            if (blobFileRanges != null) {
+                result.add(blobFileRanges);
+            }
+        }
+        return Collections.unmodifiableList(result);
+    }
+
     @Override
     public CacheBlobReader getCacheBlobReader(String fileName, BlobFile blobFile) {
         return getCacheBlobReader(
             fileName,
             blobFile,
             BlobCacheMetrics.CachePopulationReason.CacheMiss,
-            cacheService.getShardReadThreadPoolExecutor()
+            cacheService.getShardReadThreadPoolExecutor(),
+            false
         );
     }
 
@@ -470,7 +508,8 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
             blobFile.blobName(),
             blobFile,
             BlobCacheMetrics.CachePopulationReason.Warming,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            true
         );
     }
 
@@ -490,7 +529,8 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
             blobFile.blobName(),
             blobFile,
             BlobCacheMetrics.CachePopulationReason.OnlinePrewarming,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            true
         );
     }
 
@@ -510,7 +550,8 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
             blobFile.blobName(),
             blobFile,
             BlobCacheMetrics.CachePopulationReason.PreFetchingNewCommit,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            true
         );
     }
 
@@ -518,7 +559,8 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
         String fileName,
         BlobFile blobFile,
         BlobCacheMetrics.CachePopulationReason cachePopulationReason,
-        Executor executor
+        Executor executor,
+        boolean speculativeFill
     ) {
         return cacheBlobReaderService.getCacheBlobReader(
             shardId,
@@ -529,7 +571,8 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
             totalBytesWarmedFromIndexing::add,
             cachePopulationReason,
             executor,
-            fileName
+            fileName,
+            speculativeFill
         );
     }
 
@@ -572,17 +615,26 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
 
             @Override
             protected CacheBlobReader getCacheBlobReader(String fileName, BlobFile blobFile) {
+                // feeds CacheFileReader (demand reads a warming thread blocks on): accounted as warming, but must bypass
+                // the fill-memory budget to avoid queuing behind the speculative region fetches
                 return SearchDirectory.this.getCacheBlobReader(
                     fileName,
                     blobFile,
                     BlobCacheMetrics.CachePopulationReason.Warming,
-                    getCacheService().getShardReadThreadPoolExecutor()
+                    getCacheService().getShardReadThreadPoolExecutor(),
+                    false
                 );
             }
 
             @Override
             public CacheBlobReader getCacheBlobReaderForWarming(BlobFile blobFile) {
-                return getCacheBlobReader(blobFile.blobName(), blobFile);
+                return SearchDirectory.this.getCacheBlobReader(
+                    blobFile.blobName(),
+                    blobFile,
+                    BlobCacheMetrics.CachePopulationReason.Warming,
+                    getCacheService().getShardReadThreadPoolExecutor(),
+                    true
+                );
             }
 
             @Override

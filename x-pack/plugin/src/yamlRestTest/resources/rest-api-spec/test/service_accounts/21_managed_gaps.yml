@@ -17,6 +17,14 @@ setup:
 
   - do:
       security.put_role:
+        name: "managed_yaml_api_key"
+        body: >
+          {
+            "cluster": ["manage_own_api_key"]
+          }
+
+  - do:
+      security.put_role:
         name: "service_account_admin"
         body: >
           {
@@ -63,6 +71,20 @@ teardown:
         ignore: 404
 
   - do:
+      security.delete_service_token:
+        namespace: yaml_poc
+        service: union_worker
+        name: union-token
+        ignore: 404
+
+  - do:
+      security.delete_service_token:
+        namespace: yaml_poc
+        service: missing_role_worker
+        name: missing-role-token
+        ignore: 404
+
+  - do:
       security.delete_managed_service_account:
         namespace: yaml_poc
         service: gap_worker
@@ -81,6 +103,18 @@ teardown:
         ignore: 404
 
   - do:
+      security.delete_managed_service_account:
+        namespace: yaml_poc
+        service: union_worker
+        ignore: 404
+
+  - do:
+      security.delete_managed_service_account:
+        namespace: yaml_poc
+        service: missing_role_worker
+        ignore: 404
+
+  - do:
       security.delete_user:
         username: "service_account_admin_user"
         ignore: 404
@@ -88,6 +122,16 @@ teardown:
   - do:
       security.delete_role:
         name: "service_account_admin"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "managed_yaml_api_key"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "managed_yaml_missing_role"
         ignore: 404
 
   - do:
@@ -268,3 +312,99 @@ teardown:
           }
   - match: { "cluster.monitor": false }
   - match: { "cluster.manage_own_api_key": true }
+
+---
+"Test two named roles union privileges":
+  - do:
+      security.put_managed_service_account:
+        namespace: yaml_poc
+        service: union_worker
+        body: >
+          {
+            "roles": ["managed_yaml_monitor", "managed_yaml_api_key"],
+            "enabled": true
+          }
+
+  - do:
+      security.create_service_token:
+        namespace: yaml_poc
+        service: union_worker
+        name: union-token
+  - set: { "token.value": union_service_token }
+
+  - do:
+      headers:
+        Authorization: Bearer ${union_service_token}
+      security.authenticate: {}
+  - match: { username: "yaml_poc/union_worker" }
+
+  - do:
+      headers:
+        Authorization: Bearer ${union_service_token}
+      security.has_privileges:
+        user: null
+        body: >
+          {
+            "cluster": ["monitor", "manage_own_api_key"]
+          }
+  - match: { "cluster.monitor": true }
+  - match: { "cluster.manage_own_api_key": true }
+  - match: { has_all_requested: true }
+
+---
+"Test missing assigned role":
+  - do:
+      security.put_managed_service_account:
+        namespace: yaml_poc
+        service: missing_role_worker
+        body: >
+          {
+            "roles": ["managed_yaml_missing_role"],
+            "enabled": true
+          }
+
+  - do:
+      security.create_service_token:
+        namespace: yaml_poc
+        service: missing_role_worker
+        name: missing-role-token
+  - set: { "token.value": missing_role_service_token }
+
+  - do:
+      headers:
+        Authorization: Bearer ${missing_role_service_token}
+      security.authenticate: {}
+  - match: { username: "yaml_poc/missing_role_worker" }
+  - match: { roles: ["managed_yaml_missing_role"] }
+
+  - do:
+      headers:
+        Authorization: Bearer ${missing_role_service_token}
+      security.has_privileges:
+        user: null
+        body: >
+          {
+            "cluster": ["monitor"]
+          }
+  - match: { "cluster.monitor": false }
+  - match: { has_all_requested: false }
+
+  - do:
+      security.put_role:
+        name: "managed_yaml_missing_role"
+        body: >
+          {
+            "cluster": ["monitor"]
+          }
+
+  - do:
+      headers:
+        Authorization: Bearer ${missing_role_service_token}
+      security.has_privileges:
+        user: null
+        body: >
+          {
+            "cluster": ["monitor"]
+          }
+  - match: { "cluster.monitor": true }
+  - match: { has_all_requested: true }

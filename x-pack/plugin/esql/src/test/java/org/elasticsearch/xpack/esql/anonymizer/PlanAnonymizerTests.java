@@ -154,7 +154,7 @@ public class PlanAnonymizerTests extends ESTestCase {
             IndexMode.STANDARD,
             Map.of(),
             Map.of(),
-            Map.of(INDEX, new IndexProperties(IndexMode.STANDARD)),
+            Map.of(INDEX, new IndexProperties(IndexMode.STANDARD, 0)),
             List.<Attribute>of(attr)
         );
         org.elasticsearch.xpack.esql.plan.logical.NamedSubquery ns = new org.elasticsearch.xpack.esql.plan.logical.NamedSubquery(
@@ -183,7 +183,7 @@ public class PlanAnonymizerTests extends ESTestCase {
             IndexMode.STANDARD,
             Map.of(),
             Map.of(),
-            Map.of(INDEX, new IndexProperties(IndexMode.STANDARD)),
+            Map.of(INDEX, new IndexProperties(IndexMode.STANDARD, 0)),
             List.<Attribute>of(attr)
         );
         java.util.LinkedHashMap<String, LogicalPlan> namedSubqueries = new java.util.LinkedHashMap<>();
@@ -221,7 +221,7 @@ public class PlanAnonymizerTests extends ESTestCase {
             IndexMode.STANDARD,
             Map.of(),
             Map.of(),
-            Map.of(INDEX, new IndexProperties(IndexMode.STANDARD)),
+            Map.of(INDEX, new IndexProperties(IndexMode.STANDARD, 0)),
             List.<Attribute>of(attr)
         );
         LogicalPlan plan = new Limit(Source.EMPTY, new Literal(Source.EMPTY, 10, DataType.INTEGER), rel);
@@ -257,7 +257,7 @@ public class PlanAnonymizerTests extends ESTestCase {
             IndexMode.STANDARD,
             Map.of(),
             Map.of(),
-            Map.of(INDEX, new IndexProperties(IndexMode.STANDARD)),
+            Map.of(INDEX, new IndexProperties(IndexMode.STANDARD, 0)),
             List.<Attribute>of(attr)
         );
 
@@ -304,7 +304,7 @@ public class PlanAnonymizerTests extends ESTestCase {
             IndexMode.STANDARD,
             Map.of(),
             Map.of(),
-            Map.of(INDEX, new IndexProperties(IndexMode.STANDARD)),
+            Map.of(INDEX, new IndexProperties(IndexMode.STANDARD, 0)),
             List.<Attribute>of(outer)
         );
         LogicalPlan plan = new Limit(Source.EMPTY, new Literal(Source.EMPTY, 10, DataType.INTEGER), rel);
@@ -342,7 +342,7 @@ public class PlanAnonymizerTests extends ESTestCase {
             IndexMode.STANDARD,
             Map.of(),
             Map.of(),
-            Map.of(INDEX, new IndexProperties(IndexMode.STANDARD)),
+            Map.of(INDEX, new IndexProperties(IndexMode.STANDARD, 0)),
             List.<Attribute>of(attr)
         );
         LogicalPlan plan = new Limit(Source.EMPTY, new Literal(Source.EMPTY, 10, DataType.INTEGER), rel);
@@ -376,7 +376,7 @@ public class PlanAnonymizerTests extends ESTestCase {
             IndexMode.STANDARD,
             Map.of(),
             Map.of(),
-            Map.of(INDEX, new IndexProperties(IndexMode.STANDARD)),
+            Map.of(INDEX, new IndexProperties(IndexMode.STANDARD, 0)),
             List.<Attribute>of(salary)
         );
         org.elasticsearch.xpack.esql.core.expression.Alias alias = new org.elasticsearch.xpack.esql.core.expression.Alias(
@@ -411,7 +411,7 @@ public class PlanAnonymizerTests extends ESTestCase {
             IndexMode.STANDARD,
             Map.of(),
             Map.of(),
-            Map.of(INDEX, new IndexProperties(IndexMode.STANDARD)),
+            Map.of(INDEX, new IndexProperties(IndexMode.STANDARD, 0)),
             List.<Attribute>of(attr)
         );
         org.elasticsearch.xpack.esql.plan.logical.Enrich enrich = new org.elasticsearch.xpack.esql.plan.logical.Enrich(
@@ -452,7 +452,7 @@ public class PlanAnonymizerTests extends ESTestCase {
             IndexMode.STANDARD,
             Map.of(),
             Map.of(),
-            Map.of(INDEX, new IndexProperties(IndexMode.STANDARD)),
+            Map.of(INDEX, new IndexProperties(IndexMode.STANDARD, 0)),
             List.<Attribute>of(input)
         );
         Dissect.Parser parser = new Dissect.Parser(pattern, appendSeparator, new DissectParser(pattern, appendSeparator));
@@ -485,7 +485,7 @@ public class PlanAnonymizerTests extends ESTestCase {
             IndexMode.STANDARD,
             Map.of(),
             Map.of(),
-            Map.of(INDEX, new IndexProperties(IndexMode.STANDARD)),
+            Map.of(INDEX, new IndexProperties(IndexMode.STANDARD, 0)),
             List.<Attribute>of(input)
         );
         Grok.Parser parser = Grok.pattern(Source.EMPTY, pattern);
@@ -514,7 +514,7 @@ public class PlanAnonymizerTests extends ESTestCase {
             IndexMode.STANDARD,
             Map.of(),
             Map.of(),
-            Map.of(INDEX, new IndexProperties(IndexMode.STANDARD)),
+            Map.of(INDEX, new IndexProperties(IndexMode.STANDARD, 0)),
             List.of(attr)
         );
     }
@@ -628,7 +628,7 @@ public class PlanAnonymizerTests extends ESTestCase {
             IndexMode.STANDARD,
             Map.of(),
             Map.of(),
-            Map.of("employees", new IndexProperties(IndexMode.STANDARD)),
+            Map.of("employees", new IndexProperties(IndexMode.STANDARD, 0)),
             List.of(attr)
         );
         assertFalse(
@@ -641,8 +641,8 @@ public class PlanAnonymizerTests extends ESTestCase {
         String c1 = "logs-2026-01";
         String c2 = "logs-2026-02";
         java.util.LinkedHashMap<String, IndexProperties> resolved = new java.util.LinkedHashMap<>();
-        resolved.put(c1, new IndexProperties(IndexMode.STANDARD));
-        resolved.put(c2, new IndexProperties(IndexMode.STANDARD));
+        resolved.put(c1, new IndexProperties(IndexMode.STANDARD, 0));
+        resolved.put(c2, new IndexProperties(IndexMode.STANDARD, 0));
         EsRelation expanded = new EsRelation(Source.EMPTY, pattern, IndexMode.STANDARD, Map.of(), Map.of(), resolved, List.of(attr));
 
         assertTrue("identity must show the resolved block", expanded.nodeString().contains("[" + c1 + "=STANDARD, " + c2 + "=STANDARD]"));
@@ -703,7 +703,7 @@ public class PlanAnonymizerTests extends ESTestCase {
             IndexMode.STANDARD,
             Map.of(),
             Map.of(),
-            Map.of(INDEX, new IndexProperties(IndexMode.STANDARD)),
+            Map.of(INDEX, new IndexProperties(IndexMode.STANDARD, 0)),
             List.<Attribute>of(urlAttr)
         );
         EsField outField = new EsField(sensitiveOutputName, DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE);
@@ -796,7 +796,7 @@ public class PlanAnonymizerTests extends ESTestCase {
             IndexMode.STANDARD,
             Map.of(),
             Map.of(),
-            Map.of(sensitiveIndex, new IndexProperties(IndexMode.STANDARD)),
+            Map.of(sensitiveIndex, new IndexProperties(IndexMode.STANDARD, 0)),
             attrs
         );
 
@@ -856,7 +856,7 @@ public class PlanAnonymizerTests extends ESTestCase {
             IndexMode.STANDARD,
             Map.of(),
             Map.of(),
-            Map.of(INDEX, new IndexProperties(IndexMode.STANDARD)),
+            Map.of(INDEX, new IndexProperties(IndexMode.STANDARD, 0)),
             List.<Attribute>of(attr)
         );
         LogicalPlan plan = new Limit(Source.EMPTY, new Literal(Source.EMPTY, 10, DataType.INTEGER), relation);
@@ -1008,7 +1008,7 @@ public class PlanAnonymizerTests extends ESTestCase {
             IndexMode.STANDARD,
             Map.of(),
             Map.of(),
-            Map.of(INDEX, new IndexProperties(IndexMode.STANDARD)),
+            Map.of(INDEX, new IndexProperties(IndexMode.STANDARD, 0)),
             List.<Attribute>of(email, orderTotal, retryCount)
         );
 

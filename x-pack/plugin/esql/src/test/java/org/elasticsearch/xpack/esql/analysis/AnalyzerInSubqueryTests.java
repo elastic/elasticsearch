@@ -700,7 +700,12 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         EsIndex index = new EsIndex(
             "union_index*",
             Map.of("id", idField, "name", nameField),
-            Map.of("union_index_1", new IndexProperties(IndexMode.STANDARD), "union_index_2", new IndexProperties(IndexMode.STANDARD)),
+            Map.of(
+                "union_index_1",
+                new IndexProperties(IndexMode.STANDARD, 0),
+                "union_index_2",
+                new IndexProperties(IndexMode.STANDARD, 0)
+            ),
             Map.of(),
             Map.of()
         );

@@ -36,12 +36,7 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
     private final boolean canMatch;
     private final transient TransportVersion originVersion;
     private final IndexMode indexMode;
-    /**
-     * The total number of primary shards configured for this index, as returned by the data node
-     * that handled the fetch. Zero when the value is unavailable (e.g. when communicating with
-     * nodes that pre-date {@link #NUMBER_OF_SHARDS_VERSION}).
-     */
-    private final int numberOfShards;
+    private final int numberOfShards;  // 0 indicates that the value is unavailable
 
     public FieldCapabilitiesIndexResponse(
         String indexName,
@@ -107,29 +102,17 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
 
     private static void collectCompressedResponses(StreamInput input, int groups, ArrayList<FieldCapabilitiesIndexResponse> responses)
         throws IOException {
-        final boolean hasShardCounts = input.getTransportVersion().supports(NUMBER_OF_SHARDS_VERSION);
         final CompressedGroup[] compressedGroups = new CompressedGroup[groups];
         for (int i = 0; i < groups; i++) {
-            final String[] indices;
-            final int[] numberOfShardsPerIndex;
-            if (hasShardCounts) {
-                // Indices and their per-index shard counts are written interleaved:
-                // [count] [indexName0] [shards0] [indexName1] [shards1] ...
-                final int n = input.readVInt();
-                indices = new String[n];
-                numberOfShardsPerIndex = new int[n];
-                for (int j = 0; j < n; j++) {
-                    indices[j] = input.readString();
-                    numberOfShardsPerIndex[j] = input.readVInt();
-                }
-            } else {
-                indices = input.readStringArray();
-                numberOfShardsPerIndex = new int[indices.length]; // all zeros (unknown)
-            }
+            final String[] indices = input.readStringArray();
+            final int[] numberOfShardsPerIndex = (input.getTransportVersion().supports(NUMBER_OF_SHARDS_VERSION))
+                ? input.readIntArray()
+                : new int[indices.length];
             final IndexMode indexMode = IndexMode.readFrom(input);
             final String mappingHash = input.readString();
             compressedGroups[i] = new CompressedGroup(indices, numberOfShardsPerIndex, indexMode, mappingHash, input.readIntArray());
         }
+
         final IndexFieldCapabilities[] ifcLookup = input.readArray(IndexFieldCapabilities::readFrom, IndexFieldCapabilities[]::new);
         for (CompressedGroup compressedGroup : compressedGroups) {
             final Map<String, IndexFieldCapabilities> ifc = Maps.newMapWithExpectedSize(compressedGroup.fields.length);
@@ -152,18 +135,6 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
         }
     }
 
-    private static void collectResponsesLegacyFormat(StreamInput input, int groups, ArrayList<FieldCapabilitiesIndexResponse> responses)
-        throws IOException {
-        for (int i = 0; i < groups; i++) {
-            final List<String> indices = input.readStringCollectionAsList();
-            final String mappingHash = input.readString();
-            final Map<String, IndexFieldCapabilities> ifc = input.readMap(IndexFieldCapabilities::readFrom);
-            for (String index : indices) {
-                responses.add(new FieldCapabilitiesIndexResponse(index, mappingHash, ifc, true, IndexMode.STANDARD));
-            }
-        }
-    }
-
     static void writeList(StreamOutput output, List<FieldCapabilitiesIndexResponse> responses) throws IOException {
         Map<String, List<FieldCapabilitiesIndexResponse>> groupedResponsesMap = new HashMap<>();
         final List<FieldCapabilitiesIndexResponse> ungroupedResponses = new ArrayList<>();
@@ -179,32 +150,13 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
         writeCompressedResponses(output, groupedResponsesMap);
     }
 
-    private static void writeResponsesLegacyFormat(
-        StreamOutput output,
-        Map<String, List<FieldCapabilitiesIndexResponse>> groupedResponsesMap
-    ) throws IOException {
-        output.writeCollection(groupedResponsesMap.values(), (o, fieldCapabilitiesIndexResponses) -> {
-            o.writeCollection(fieldCapabilitiesIndexResponses, (oo, r) -> oo.writeString(r.indexName));
-            var first = fieldCapabilitiesIndexResponses.get(0);
-            o.writeString(first.indexMappingHash);
-            o.writeMap(first.responseMap, StreamOutput::writeWriteable);
-        });
-    }
-
     private static void writeCompressedResponses(StreamOutput output, Map<String, List<FieldCapabilitiesIndexResponse>> groupedResponsesMap)
         throws IOException {
-        final boolean writeShardCounts = output.getTransportVersion().supports(NUMBER_OF_SHARDS_VERSION);
         final Map<IndexFieldCapabilities, Integer> fieldDedupMap = new LinkedHashMap<>();
         output.writeCollection(groupedResponsesMap.values(), (o, fieldCapabilitiesIndexResponses) -> {
-            if (writeShardCounts) {
-                // Write indices and their per-index shard counts interleaved so a reader can pair them.
-                o.writeVInt(fieldCapabilitiesIndexResponses.size());
-                for (FieldCapabilitiesIndexResponse r : fieldCapabilitiesIndexResponses) {
-                    o.writeString(r.indexName);
-                    o.writeVInt(r.numberOfShards);
-                }
-            } else {
-                o.writeCollection(fieldCapabilitiesIndexResponses, (oo, r) -> oo.writeString(r.indexName));
+            o.writeCollection(fieldCapabilitiesIndexResponses, (oo, r) -> oo.writeString(r.indexName));
+            if (output.getTransportVersion().supports(NUMBER_OF_SHARDS_VERSION)) {
+                o.writeCollection(fieldCapabilitiesIndexResponses, (oo, r) -> oo.writeInt(r.numberOfShards));
             }
             var first = fieldCapabilitiesIndexResponses.get(0);
             IndexMode.writeTo(first.indexMode, o);

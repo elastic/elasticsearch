@@ -11684,7 +11684,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var mixedIndex = new EsIndex(
             "*",
             mapping,
-            Map.of("ts_index", new IndexProperties(IndexMode.TIME_SERIES), "standard_index", new IndexProperties(IndexMode.STANDARD)),
+            Map.of("ts_index", new IndexProperties(IndexMode.TIME_SERIES, 0), "standard_index", new IndexProperties(IndexMode.STANDARD, 0)),
             Map.of(),
             Map.of()
         );

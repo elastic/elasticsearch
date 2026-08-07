@@ -1842,7 +1842,7 @@ public class AnalyzerSubqueryTests extends ESTestCase {
         return new EsIndex(
             "sample_data_ts_long",
             mapping,
-            Map.of("sample_data_ts_long", new IndexProperties(IndexMode.STANDARD)),
+            Map.of("sample_data_ts_long", new IndexProperties(IndexMode.STANDARD, 0)),
             Map.of(),
             Map.of()
         );

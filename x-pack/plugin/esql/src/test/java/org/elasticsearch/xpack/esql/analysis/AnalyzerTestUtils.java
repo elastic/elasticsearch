@@ -119,11 +119,11 @@ public final class AnalyzerTestUtils {
             Map.of(dateDateNanos, dateDateNanosField, dateDateNanosLong, dateDateNanosLongField),
             Map.of(
                 "index1",
-                new IndexProperties(IndexMode.STANDARD),
+                new IndexProperties(IndexMode.STANDARD, 0),
                 "index2",
-                new IndexProperties(IndexMode.STANDARD),
+                new IndexProperties(IndexMode.STANDARD, 0),
                 "index3",
-                new IndexProperties(IndexMode.STANDARD)
+                new IndexProperties(IndexMode.STANDARD, 0)
             ),
             Map.of(),
             Map.of()

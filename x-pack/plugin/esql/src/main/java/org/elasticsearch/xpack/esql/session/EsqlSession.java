@@ -1954,7 +1954,7 @@ public class EsqlSession {
             EsIndex newIndex = new EsIndex(
                 index,
                 lookupIndexResolution.get().mapping(),
-                Map.of(indexName, new IndexProperties(IndexMode.LOOKUP)),
+                Map.of(indexName, new IndexProperties(IndexMode.LOOKUP, 1)),
                 lookupIndexResolution.get().originalIndices(),
                 lookupIndexResolution.get().concreteIndices()
             );

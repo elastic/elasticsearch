@@ -1240,7 +1240,10 @@ public abstract class GoldenTestCase extends ESTestCase {
     ) {
         Map<String, IndexProperties> indexModes = datasets.datasets()
             .stream()
-            .collect(Collectors.toMap(CsvTestsDataLoader.TestDataset::indexName, ds -> new IndexProperties(indexModeOf(ds))));
+            .collect(Collectors.toMap(CsvTestsDataLoader.TestDataset::indexName, ds -> {
+                IndexMode m = indexModeOf(ds);
+                return new IndexProperties(m, m == IndexMode.LOOKUP ? 1 : 0);
+            }));
         List<MappingPerIndex> mappings = datasets.datasets()
             .stream()
             .map(ds -> new MappingPerIndex(ds.indexName(), createMappingForIndex(ds)))

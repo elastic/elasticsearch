@@ -10090,7 +10090,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             IndexMode.TIME_SERIES,
             Map.of(),
             Map.of(),
-            Map.of("k8s", new IndexProperties(IndexMode.TIME_SERIES)),
+            Map.of("k8s", new IndexProperties(IndexMode.TIME_SERIES, 0)),
             List.of()
         );
         MetricsInfo metricsInfo = new MetricsInfo(Source.EMPTY, esRelation);
@@ -10115,7 +10115,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             IndexMode.TIME_SERIES,
             Map.of(),
             Map.of(),
-            Map.of("k8s", new IndexProperties(IndexMode.TIME_SERIES)),
+            Map.of("k8s", new IndexProperties(IndexMode.TIME_SERIES, 0)),
             List.of()
         );
         TsInfo tsInfo = new TsInfo(Source.EMPTY, esRelation);

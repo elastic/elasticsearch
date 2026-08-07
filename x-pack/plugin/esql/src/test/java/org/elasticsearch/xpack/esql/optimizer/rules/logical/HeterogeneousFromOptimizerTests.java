@@ -1369,7 +1369,7 @@ public class HeterogeneousFromOptimizerTests extends AbstractLogicalPlanOptimize
                 "salary",
                 new EsField("salary", INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
             ),
-            Map.of("employees", new IndexProperties(IndexMode.STANDARD)),
+            Map.of("employees", new IndexProperties(IndexMode.STANDARD, 0)),
             Map.of(),
             Map.of()
         );

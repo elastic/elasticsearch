@@ -2705,7 +2705,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
             IndexMode.TIME_SERIES,
             Map.of(),
             Map.of(),
-            Map.of("k8s", new IndexProperties(IndexMode.TIME_SERIES)),
+            Map.of("k8s", new IndexProperties(IndexMode.TIME_SERIES, 0)),
             List.of(cpuField)
         );
         Project project = new Project(EMPTY, esRelation, List.of(cpuField));
@@ -2734,7 +2734,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
             IndexMode.TIME_SERIES,
             Map.of(),
             Map.of(),
-            Map.of("k8s", new IndexProperties(IndexMode.TIME_SERIES)),
+            Map.of("k8s", new IndexProperties(IndexMode.TIME_SERIES, 0)),
             List.of(cpuField)
         );
         Project project = new Project(EMPTY, esRelation, List.of(cpuField));

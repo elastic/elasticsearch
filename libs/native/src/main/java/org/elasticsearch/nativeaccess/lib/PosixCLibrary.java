@@ -158,7 +158,12 @@ public abstract class PosixCLibrary {
     @Function("getpagesize")
     public abstract int getPageSize();
 
-    /** corresponds to struct stat64 */
+    /**
+     * Corresponds to {@code struct stat64}. Only the two fields needed for allocated-size
+     * and block-count accounting ({@code st_size} and {@code st_blocks}) are declared here;
+     * the sparse layout means undeclared members cost nothing. Additional fields can be
+     * added in the future if other callers need them.
+     */
     @StructSpecification(sparse = true)
     @StructSize(144)
     public interface Stat64 {

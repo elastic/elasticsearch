@@ -38,7 +38,7 @@ public final class PosixMethodHandleResolver implements MethodHandleResolver {
             argLayouts.add(JAVA_INT); // vers
             argLayouts.addAll(descriptor.argumentLayouts());
             FunctionDescriptor extDesc = FunctionDescriptor.of(
-                descriptor.returnLayout().orElseThrow(),
+                descriptor.returnLayout().orElseThrow(() -> new AssertionError("__fxstat must have a return layout")),
                 argLayouts.toArray(MemoryLayout[]::new)
             );
             MethodHandle handle = linker.downcallHandle(symbol.address(), extDesc, options);

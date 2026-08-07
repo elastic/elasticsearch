@@ -648,6 +648,9 @@ public class StructLayoutTests extends ProcessorTestCase {
      * returns the size resolved for {@code Platform.current()} at runtime.
      */
     public void testSizeofSparsePerPlatformStructReturnsCurrentPlatformSize() throws Exception {
+        if (System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).startsWith("windows")) {
+            return; // struct sizes are declared only for Linux/macOS; Windows is excluded via unavailableOn
+        }
         String libSource = """
             package test;
             import org.elasticsearch.foreign.LibrarySpecification;

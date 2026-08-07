@@ -15,8 +15,10 @@ import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.OneMergeWrappingMergePolicy;
+import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.StandardDirectoryReader;
@@ -57,6 +59,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.shard.ShardFieldStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardSplittingQuery;
 import org.elasticsearch.index.translog.Translog;
@@ -434,6 +437,53 @@ public class IndexEngine extends InternalEngine {
             assert false;
             throw new UncheckedIOException(e);
         }
+    }
+
+    /**
+     * Segment infos for the current NRT reader. Preferred over {@link #getLastCommittedSegmentInfos()} for
+     * shard field stats: the index primary's reader leads the last commit between flushes, and
+     * {@link #getCommitExtraUserData} calls {@link #shardFieldStats()} mid-commit when the last committed
+     * infos still point at the prior generation.
+     */
+    static SegmentInfos getSegmentInfos(DirectoryReader directoryReader) {
+        if (FilterDirectoryReader.unwrap(directoryReader) instanceof StandardDirectoryReader standardDirectoryReader) {
+            return standardDirectoryReader.getSegmentInfos();
+        }
+        throw new IllegalStateException("expected StandardDirectoryReader, got [" + directoryReader.getClass().getName() + "]");
+    }
+
+    /**
+     * Stateless byte terms ({@code postingsInMemoryBytes}, {@code liveDocsBytes}, {@code pointsInMemoryBytes})
+     * come from the current reader's {@link SegmentInfos} via {@link DirectoryReaderHeapEstimator}, matching
+     * the reader-heap circuit breaker — not from unwrapping {@code getLiveDocs()}.
+     */
+    @Override
+    public ShardFieldStats shardFieldStats() {
+        try (var searcher = acquireSearcher("shard_field_stats", SearcherScope.INTERNAL)) {
+            return shardFieldStats(searcher.getLeafContexts(), getSegmentInfos(searcher.getDirectoryReader()));
+        }
+    }
+
+    /**
+     * Tier-agnostic leaf terms plus postings / soft-delete bitset bytes from {@code infos} (same
+     * commit-metadata decomposition as {@link DirectoryReaderHeapEstimator#segmentBytes}, excluding the
+     * per-segment baseline) and points bytes from the leaves.
+     */
+    static ShardFieldStats shardFieldStats(List<LeafReaderContext> leaves, SegmentInfos infos) {
+        ShardFieldStats base = Engine.shardFieldStats(leaves);
+        long postings = 0L;
+        long liveDocs = 0L;
+        for (SegmentCommitInfo sci : infos) {
+            postings += DirectoryReaderHeapEstimator.postingsBytes(sci);
+            if (sci.getSoftDelCount() > 0) {
+                liveDocs += DirectoryReaderHeapEstimator.softDeleteBitsetBytes(sci);
+            }
+        }
+        long points = 0L;
+        for (LeafReaderContext leaf : leaves) {
+            points += getPointsBytes(leaf.reader().getFieldInfos());
+        }
+        return new ShardFieldStats(base.numSegments(), base.totalFields(), base.fieldUsages(), postings, liveDocs, points);
     }
 
     @Override

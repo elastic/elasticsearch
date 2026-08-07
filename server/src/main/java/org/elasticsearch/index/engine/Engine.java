@@ -32,14 +32,9 @@ import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.DenseLiveDocs;
-import org.apache.lucene.util.FixedBitSet;
-import org.apache.lucene.util.LiveDocs;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.SetOnce;
-import org.apache.lucene.util.SparseLiveDocs;
 import org.apache.lucene.util.bkd.BKDConfig;
 import org.apache.lucene.util.bkd.BKDReader;
 import org.elasticsearch.ExceptionsHelper;
@@ -50,7 +45,6 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.UnsafePlainActionFuture;
 import org.elasticsearch.action.support.replication.StaleRequestException;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -75,7 +69,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.codec.FieldInfosWithUsages;
-import org.elasticsearch.index.codec.TrackingPostingsInMemoryBytesCodec;
 import org.elasticsearch.index.mapper.DocumentParser;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.Mapper;
@@ -173,8 +166,6 @@ public abstract class Engine implements Closeable {
     private final RefCounted ensureOpenRefs = AbstractRefCounted.of(() -> drainOnCloseListener.onResponse(null));
     private final Releasable releaseEnsureOpenRef = ensureOpenRefs::decRef; // reuse this to avoid allocation for each op
 
-    private final boolean isStateless;
-
     /*
      * on {@code lastWriteNanos} we use System.nanoTime() to initialize this since:
      *  - we use the value for figuring out if the shard / engine is active so if we startup and no write has happened yet we still
@@ -203,8 +194,6 @@ public abstract class Engine implements Closeable {
         this.pauseIndexingOnThrottle = IndexingMemoryController.PAUSE_INDEXING_ON_THROTTLE.get(
             engineConfig.getIndexSettings().getSettings()
         );
-
-        this.isStateless = DiscoveryNode.isStateless(engineConfig.getIndexSettings().getNodeSettings());
     }
 
     /**
@@ -278,11 +267,15 @@ public abstract class Engine implements Closeable {
     }
 
     /**
+     * Tier-agnostic shard field stats ({@code numSegments}, {@code totalFields}, {@code fieldUsages}).
+     * The three byte terms ({@code postingsInMemoryBytes}, {@code liveDocsBytes}, {@code pointsInMemoryBytes})
+     * are zeroed here; stateful engines report them as zero, and stateless engines fill them in via overrides.
+     *
      * @throws AlreadyClosedException if the shard is closed
      */
     public ShardFieldStats shardFieldStats() {
         try (var searcher = acquireSearcher("shard_field_stats", Engine.SearcherScope.INTERNAL)) {
-            return shardFieldStats(searcher.getLeafContexts(), isStateless);
+            return shardFieldStats(searcher.getLeafContexts());
         }
     }
 
@@ -295,13 +288,14 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    protected static ShardFieldStats shardFieldStats(List<LeafReaderContext> leaves, boolean isStateless) {
+    /**
+     * Computes tier-agnostic shard field stats from searcher leaves. Byte terms are always zero;
+     * subclasses that account for in-memory postings / live-docs / points fill those in separately.
+     */
+    protected static ShardFieldStats shardFieldStats(List<LeafReaderContext> leaves) {
         int numSegments = 0;
         int totalFields = 0;
         long usages = 0;
-        long totalPostingBytes = 0;
-        long totalLiveDocsBytes = 0;
-        long totalPointsBytes = 0;
 
         for (LeafReaderContext leaf : leaves) {
             numSegments++;
@@ -314,29 +308,11 @@ public abstract class Engine implements Closeable {
             } else {
                 usages = -1;
             }
-            if (isStateless) {
-                SegmentReader segmentReader = Lucene.tryUnwrapSegmentReader(leaf.reader());
-                if (segmentReader != null) {
-                    String postingBytes = segmentReader.getSegmentInfo().info.getAttribute(
-                        TrackingPostingsInMemoryBytesCodec.IN_MEMORY_POSTINGS_BYTES_KEY
-                    );
-                    if (postingBytes != null) {
-                        totalPostingBytes += Long.parseLong(postingBytes);
-                    }
-                    var liveDocs = segmentReader.getLiveDocs();
-                    if (liveDocs != null) {
-                        assert validateLiveDocsClass(liveDocs);
-                        long liveDocsBytes = getLiveDocsBytes(liveDocs);
-                        totalLiveDocsBytes += liveDocsBytes;
-                    }
-                    totalPointsBytes += getPointsBytes(fieldInfos);
-                }
-            }
         }
-        return new ShardFieldStats(numSegments, totalFields, usages, totalPostingBytes, totalLiveDocsBytes, totalPointsBytes);
+        return new ShardFieldStats(numSegments, totalFields, usages, 0L, 0L, 0L);
     }
 
-    private static long getPointsBytes(FieldInfos fieldInfos) {
+    protected static long getPointsBytes(FieldInfos fieldInfos) {
         long totalPointsBytes = 0;
         for (FieldInfo fieldInfo : fieldInfos) {
             if (fieldInfo.getPointDimensionCount() > 0) {
@@ -356,34 +332,6 @@ public abstract class Engine implements Closeable {
 
     private static long byteArrayRamBytesUsed(int length) {
         return RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) Byte.BYTES * length);
-    }
-
-    // Would prefer to use FixedBitSet#ramBytesUsed() however FixedBits / Bits interface don't expose that.
-    // This simulates FixedBitSet#ramBytesUsed() does:
-    private static long getLiveDocsBytes(Bits liveDocs) {
-        if (liveDocs instanceof DenseLiveDocs dld) {
-            return dld.ramBytesUsed();
-        }
-        if (liveDocs instanceof SparseLiveDocs sld) {
-            return sld.ramBytesUsed();
-        }
-        int words = FixedBitSet.bits2words(liveDocs.length());
-        return ShardFieldStats.FIXED_BITSET_BASE_RAM_BYTES_USED + RamUsageEstimator.alignObjectSize(
-            RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) Long.BYTES * words
-        );
-    }
-
-    private static boolean validateLiveDocsClass(Bits liveDocs) {
-        if (liveDocs instanceof LiveDocs) {
-            return true;
-        }
-        // These classes are package protected in Lucene and therefor we compare fully qualified classnames as strings here:
-        String fullClassName = liveDocs.getClass().getName();
-        assert fullClassName.equals("org.apache.lucene.util.FixedBits")
-            || fullClassName.contains("org.apache.lucene.tests.codecs.asserting.AssertingLiveDocsFormat$Asserting")
-            || fullClassName.contains("org.apache.lucene.tests.codecs.asserting.AssertLeafReader$Asserting")
-            : "unexpected class [" + fullClassName + "]";
-        return true;
     }
 
     /**

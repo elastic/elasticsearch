@@ -104,8 +104,12 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
     }
 
     @Override
-    void doAuthenticate(ServiceAccountToken token, ActionListener<StoreAuthenticationResult> listener) {
-        authenticateIndexToken(token, null, true, listener);
+    void doAuthenticate(
+        ServiceAccountToken token,
+        @Nullable String accountGenerationId,
+        ActionListener<StoreAuthenticationResult> listener
+    ) {
+        authenticateIndexToken(token, accountGenerationId, accountGenerationId == null, listener);
     }
 
     void authenticateManagedToken(
@@ -113,8 +117,7 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
         String expectedGenerationId,
         ActionListener<StoreAuthenticationResult> listener
     ) {
-        // Bypass the credential cache so successful authentications cannot cross account generations.
-        authenticateIndexToken(token, expectedGenerationId, false, listener);
+        authenticateWithGenerationCache(token, expectedGenerationId, listener);
     }
 
     private void authenticateIndexToken(
@@ -312,9 +315,12 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
                     TransportDeleteAction.TYPE,
                     deleteRequest,
                     ActionListener.wrap(deleteResponse -> {
+                        final String cacheInvalidationKey = ElasticServiceAccounts.isBuiltInPrincipal(accountId.asPrincipal())
+                            ? qualifiedTokenName
+                            : CachingServiceAccountTokenStore.cacheInvalidationPrefixForQualifiedTokenName(qualifiedTokenName);
                         final ClearSecurityCacheRequest clearSecurityCacheRequest = new ClearSecurityCacheRequest().cacheName(
                             "index_service_account_token"
-                        ).keys(qualifiedTokenName);
+                        ).keys(cacheInvalidationKey);
                         executeAsyncWithOrigin(
                             client,
                             SECURITY_ORIGIN,

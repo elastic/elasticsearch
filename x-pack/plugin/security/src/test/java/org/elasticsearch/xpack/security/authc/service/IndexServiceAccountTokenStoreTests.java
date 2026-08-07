@@ -167,7 +167,7 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
         // success
         responseProviderHolder.set((r, l) -> l.onResponse(getResponse1));
         final PlainActionFuture<StoreAuthenticationResult> future1 = new PlainActionFuture<>();
-        store.doAuthenticate(serviceAccountToken, future1);
+        store.doAuthenticate(serviceAccountToken, null, future1);
         final GetRequest getRequest = (GetRequest) requestHolder.get();
         assertThat(getRequest.id(), equalTo("service_account_token-" + serviceAccountToken.getQualifiedName()));
         assertThat(future1.get().isSuccess(), is(true));
@@ -177,7 +177,7 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
         final GetResponse getResponse2 = createGetResponse(ServiceAccountToken.newToken(accountId, randomAlphaOfLengthBetween(3, 8)), true);
         responseProviderHolder.set((r, l) -> l.onResponse(getResponse2));
         final PlainActionFuture<StoreAuthenticationResult> future2 = new PlainActionFuture<>();
-        store.doAuthenticate(serviceAccountToken, future2);
+        store.doAuthenticate(serviceAccountToken, null, future2);
         assertThat(future2.get().isSuccess(), is(false));
         assertThat(future2.get().getTokenSource(), is(TokenSource.INDEX));
 
@@ -185,7 +185,7 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
         final GetResponse getResponse3 = createGetResponse(serviceAccountToken, false);
         responseProviderHolder.set((r, l) -> l.onResponse(getResponse3));
         final PlainActionFuture<StoreAuthenticationResult> future3 = new PlainActionFuture<>();
-        store.doAuthenticate(serviceAccountToken, future3);
+        store.doAuthenticate(serviceAccountToken, null, future3);
         assertThat(future3.get().isSuccess(), is(false));
         assertThat(future3.get().getTokenSource(), is(TokenSource.INDEX));
     }

@@ -17,7 +17,7 @@ parse bearer token
        validate managed principal grammar
        load managed account document (no cache)
        reject missing/disabled/malformed
-       index token auth bypassing credential cache, with generation check
+       index token auth with generation-scoped credential cache key
        Authentication with role names in User.roles() and _managed_service_account metadata
 ```
 
@@ -83,7 +83,7 @@ Generation IDs are not exposed via GET APIs.
 
 ## Deletion / recreation
 
-On create, a new `account_generation_id` is generated. Token documents store this ID; authentication rejects tokens whose generation differs. Managed token authentication bypasses the credential cache to prevent cross-generation hits.
+On create, a new `account_generation_id` is generated. Token documents store this ID; authentication rejects tokens whose generation differs. Managed token cache keys include the account generation id so successful authentications cannot cross account generations without an index read.
 
 Deleting an account removes the account document (with refresh), clears index token cache by principal prefix, and bulk-deletes index tokens. Authentication fails closed even if stale token documents remain.
 
@@ -137,7 +137,7 @@ Verified in `ManagedServiceAccountPrivilegeTests`.
 2. **Role/account updates on next request?** Yes — no account cache; per-request index read and fresh auth object.
 3. **Reuse role cache without principal graph?** Yes — `NamedRoleReference` only.
 4. **Persistence changes?** New `service_account` doc type + generation field on managed tokens.
-5. **Credential binding?** Generation ID on account and token docs; cache bypass for managed auth.
+5. **Credential binding?** Generation ID on account and token docs; managed token auth uses a generation-scoped credential cache key.
 6. **Remaining production gaps?** See below.
 
 ## Production gaps
@@ -164,7 +164,7 @@ Verified in `ManagedServiceAccountPrivilegeTests`.
 
 ### Performance
 - Per-auth index GET for managed accounts
-- Managed token auth skips cache entirely
+- Managed token auth uses generation-scoped credential cache keys (same TTL as built-in index tokens)
 
 ### Documentation
 - REST API spec JSON files added for managed PUT/DELETE under `rest-api-spec/`

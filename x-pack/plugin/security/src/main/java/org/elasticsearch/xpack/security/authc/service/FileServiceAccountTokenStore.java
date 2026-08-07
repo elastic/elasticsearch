@@ -80,7 +80,12 @@ public class FileServiceAccountTokenStore extends CachingServiceAccountTokenStor
     }
 
     @Override
-    public void doAuthenticate(ServiceAccountToken token, ActionListener<StoreAuthenticationResult> listener) {
+    public void doAuthenticate(
+        ServiceAccountToken token,
+        @Nullable String accountGenerationId,
+        ActionListener<StoreAuthenticationResult> listener
+    ) {
+        assert accountGenerationId == null : "file service account tokens are not generation scoped";
         // This is done on the current thread instead of using a dedicated thread pool like API key does
         // because it is not expected to have a large number of service tokens.
         listener.onResponse(

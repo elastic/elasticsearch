@@ -171,6 +171,7 @@ import org.elasticsearch.xpack.stateless.commits.IndexEngineDeletionPolicy;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitCleaner;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.UploadQueueControllerService;
 import org.elasticsearch.xpack.stateless.engine.HollowIndexEngine;
 import org.elasticsearch.xpack.stateless.engine.HollowShardsMetrics;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
@@ -492,6 +493,7 @@ public class StatelessPlugin extends Plugin
     private final SetOnce<ThreadPool> threadPool = new SetOnce<>();
     private final SetOnce<Executor> commitSuccessExecutor = new SetOnce<>();
     private final SetOnce<StatelessCommitService> commitService = new SetOnce<>();
+    private final SetOnce<UploadQueueControllerService> uploadQueueControllerService = new SetOnce<>();
     private final SetOnce<ClosedShardService> closedShardService = new SetOnce<>();
     private final SetOnce<ObjectStoreService> objectStoreService = new SetOnce<>();
     private final SetOnce<StatelessSharedBlobCacheService> sharedBlobCacheService = new SetOnce<>();
@@ -850,6 +852,16 @@ public class StatelessPlugin extends Plugin
             commitService = null;
         }
         components.add(new StatelessCommitServiceProvider(commitService));
+
+        var uploadQueueControllerService = new UploadQueueControllerService(
+            threadPool,
+            settings,
+            clusterService,
+            commitService,
+            services.telemetryProvider()
+        );
+        components.add(uploadQueueControllerService);
+        setAndGet(this.uploadQueueControllerService, uploadQueueControllerService);
 
         final var snapshotsCommitService = setAndGet(
             this.snapshotsCommitServiceRef,
@@ -1304,6 +1316,7 @@ public class StatelessPlugin extends Plugin
             StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE,
             StatelessCommitService.STATELESS_UPLOAD_MAX_IO_ERROR_RETRIES,
             StatelessCommitService.STATELESS_UPLOAD_SLOW_LOG_THRESHOLD,
+            StatelessCommitService.STATELESS_UPLOAD_AVERAGE_THROUGHPUT_INITIAL_VALUE,
             IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING,
             IndexingDiskController.INDEXING_DISK_RESERVED_BYTES_SETTING,
             BlobStoreHealthIndicator.POLL_INTERVAL_SETTING,
@@ -1421,7 +1434,12 @@ public class StatelessPlugin extends Plugin
             PinnedWindowEvictionPolicy.PINNED_WINDOW_DURATION_SETTING,
             StatelessSharedBlobCacheService.STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_THRESHOLD_SETTING,
             StatelessSharedBlobCacheService.STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_DURATION_SETTING,
-            DisableSimulationRebalancingDecider.SIMULATION_REBALANCING_ENABLED_SETTING
+            DisableSimulationRebalancingDecider.SIMULATION_REBALANCING_ENABLED_SETTING,
+            UploadQueueControllerService.STATELESS_UPLOAD_QUEUE_CONTROLLER_ENABLED,
+            UploadQueueControllerService.STATELESS_UPLOAD_QUEUE_CONTROLLER_INTERVAL,
+            UploadQueueControllerService.STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEX_THROTTLE_THRESHOLD,
+            UploadQueueControllerService.STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEX_THROTTLE_REMOVAL_THRESHOLD,
+            UploadQueueControllerService.STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEX_THROTTLE_COOLDOWN
         );
     }
 

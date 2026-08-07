@@ -15,7 +15,10 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.test.rest.ObjectPath;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -27,6 +30,8 @@ import static org.hamcrest.Matchers.instanceOf;
  * Integration tests for the Prometheus {@code /api/v1/query} instant query endpoint.
  */
 public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
+
+    private static final String METRIC = "test_gauge_labels_iq";
 
     /**
      * Verifies that querying when no Prometheus indices exist returns an empty result instead of an error.
@@ -143,6 +148,87 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
 
         ObjectPath responsePath = executeInstantQuery("test_gauge_iq{job=\"test_job\"}", "2026-01-01T00:10:00Z", null);
         assertThat(responsePath.evaluate("data.result"), empty());
+    }
+
+    /**
+     * {@code by (...)} must key on the named label whichever side of the {@code labels.} passthrough prefix it sorts
+     * on, and the result must expose that label and nothing else.
+     */
+    public void testInstantQuerySumByEachLabel() throws Exception {
+        ingestLabelledSeries(METRIC);
+
+        assertThat(
+            valuesOf("sum by (cluster) (" + METRIC + ")"),
+            equalTo(Map.of(Map.of("cluster", "a"), "3", Map.of("cluster", "b"), "7"))
+        );
+        assertThat(valuesOf("sum by (pod) (" + METRIC + ")"), equalTo(Map.of(Map.of("pod", "p1"), "4", Map.of("pod", "p2"), "6")));
+        assertThat(valuesOf("sum by (region) (" + METRIC + ")"), equalTo(Map.of(Map.of("region", "r1"), "5", Map.of("region", "r2"), "5")));
+        assertThat(valuesOf("sum by (job) (" + METRIC + ")"), equalTo(Map.of(Map.of("job", "test_job"), "10")));
+    }
+
+    /**
+     * {@code without (...)} must drop the named label and keep the rest. Every series stays distinct after dropping
+     * any single label, so the four input values survive unchanged.
+     */
+    public void testInstantQuerySumWithoutEachLabel() throws Exception {
+        ingestLabelledSeries(METRIC);
+
+        for (String dropped : List.of("cluster", "instance", "job", "pod", "region")) {
+            Map<Map<String, String>, String> series = valuesOf("sum without (" + dropped + ") (" + METRIC + ")");
+            assertThat("without(" + dropped + ")", series.keySet(), hasSize(4));
+            for (Map<String, String> labels : series.keySet()) {
+                assertThat("without(" + dropped + ") leaked [" + dropped + "]: " + labels, labels.containsKey(dropped), equalTo(false));
+                assertThat("without(" + dropped + ") lost labels: " + labels, labels.keySet(), hasSize(4));
+            }
+            assertThat(Set.copyOf(series.values()), equalTo(Set.of("1", "2", "3", "4")));
+        }
+    }
+
+    /** {@code topk} ranks across series and keeps the full labelset of the ones it selects. */
+    public void testInstantQueryTopKKeepsSeriesLabels() throws Exception {
+        ingestLabelledSeries(METRIC);
+
+        Map<Map<String, String>, String> top = valuesOf("topk(2, " + METRIC + ")");
+        assertThat(top.keySet(), hasSize(2));
+        assertThat(Set.copyOf(top.values()), equalTo(Set.of("3", "4")));
+        for (Map<String, String> labels : top.keySet()) {
+            assertThat(labels.keySet(), equalTo(Set.of("cluster", "instance", "job", "pod", "region")));
+        }
+    }
+
+    /** A comparison against a scalar filters series out and leaves the survivors' labels and values untouched. */
+    public void testInstantQueryComparisonFiltersSeries() throws Exception {
+        ingestLabelledSeries(METRIC);
+
+        Map<Map<String, String>, String> above = valuesOf(METRIC + " > 1");
+        assertThat(above.keySet(), hasSize(3));
+        assertThat(Set.copyOf(above.values()), equalTo(Set.of("2", "3", "4")));
+    }
+
+    /**
+     * Evaluates an instant query inside the ingested lookback window and maps each returned series to its labels
+     * (without {@code __name__}) and its value.
+     */
+    private Map<Map<String, String>, String> valuesOf(String promql) throws Exception {
+        ObjectPath path = executeInstantQuery(promql, "2026-01-01T00:05:00Z", null);
+
+        List<Map<String, Object>> result = path.evaluate("data.result");
+        Map<Map<String, String>, String> seriesByLabels = new HashMap<>();
+        for (Map<String, Object> series : result) {
+            // The Prometheus response shape: "metric" is a label map, "value" is a single [epochSeconds, value] pair.
+            @SuppressWarnings("unchecked")
+            Map<String, String> metric = new HashMap<>((Map<String, String>) series.get("metric"));
+            metric.remove("__name__");
+            @SuppressWarnings("unchecked")
+            List<Object> value = (List<Object>) series.get("value");
+            seriesByLabels.put(Map.copyOf(metric), stripTrailingZero((String) value.get(1)));
+        }
+        return seriesByLabels;
+    }
+
+    /** Prometheus renders whole numbers as {@code 3} or {@code 3.0} depending on the path; compare on the integer. */
+    private static String stripTrailingZero(String value) {
+        return value.endsWith(".0") ? value.substring(0, value.length() - 2) : value;
     }
 
     private static void assertMetricResult(ObjectPath responsePath) throws IOException {

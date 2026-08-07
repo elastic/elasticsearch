@@ -13,18 +13,23 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.test.rest.ObjectPath;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 
 /**
  * Integration tests for the Prometheus {@code /api/v1/query_range} endpoint.
  */
 public class PrometheusQueryRangeRestIT extends AbstractPrometheusRestIT {
+
+    private static final String METRIC = "test_gauge_labels_qr";
 
     /**
      * Verifies that querying when no Prometheus indices exist returns an empty result instead of an error.
@@ -86,6 +91,114 @@ public class PrometheusQueryRangeRestIT extends AbstractPrometheusRestIT {
 
         ObjectPath responsePath = executeQueryRangeWithIndex("metrics-generic.prometheus-*");
         assertMetricResults(responsePath);
+    }
+
+    /**
+     * {@code by (...)} must key on the named label whichever side of the {@code labels.} passthrough prefix it sorts
+     * on, and the result must expose that label and nothing else.
+     */
+    public void testQueryRangeSumByEachLabel() throws Exception {
+        ingestLabelledSeries(METRIC);
+
+        assertThat(sumOf("sum by (cluster) (" + METRIC + ")"), equalTo(Map.of(Map.of("cluster", "a"), "3", Map.of("cluster", "b"), "7")));
+        assertThat(sumOf("sum by (pod) (" + METRIC + ")"), equalTo(Map.of(Map.of("pod", "p1"), "4", Map.of("pod", "p2"), "6")));
+        assertThat(sumOf("sum by (region) (" + METRIC + ")"), equalTo(Map.of(Map.of("region", "r1"), "5", Map.of("region", "r2"), "5")));
+        assertThat(sumOf("sum by (job) (" + METRIC + ")"), equalTo(Map.of(Map.of("job", "test_job"), "10")));
+        assertThat(sumOf("sum by (instance) (" + METRIC + ")"), equalTo(Map.of(Map.of("instance", "localhost:9090"), "10")));
+    }
+
+    /**
+     * {@code without (...)} must drop the named label and keep the rest, again regardless of how the label sorts
+     * against the passthrough prefix. Every series stays distinct after dropping any single label, so the four input
+     * values survive unchanged.
+     */
+    public void testQueryRangeSumWithoutEachLabel() throws Exception {
+        ingestLabelledSeries(METRIC);
+
+        for (String dropped : List.of("cluster", "instance", "job", "pod", "region")) {
+            Map<Map<String, String>, String> series = sumOf("sum without (" + dropped + ") (" + METRIC + ")");
+            assertThat("without(" + dropped + ")", series.keySet(), hasSize(4));
+            for (Map<String, String> labels : series.keySet()) {
+                assertThat("without(" + dropped + ") leaked [" + dropped + "]: " + labels, labels.containsKey(dropped), equalTo(false));
+                assertThat("without(" + dropped + ") lost labels: " + labels, labels.keySet(), hasSize(4));
+            }
+            assertThat(Set.copyOf(series.values()), equalTo(Set.of("1", "2", "3", "4")));
+        }
+    }
+
+    /**
+     * An opaque {@code without} child feeding a {@code by} parent: the inner aggregation packs its identity, and the
+     * outer one must still resolve {@code pod} out of it.
+     */
+    public void testQueryRangeNestedRegrouping() throws Exception {
+        ingestLabelledSeries(METRIC);
+
+        assertThat(
+            sumOf("sum by (pod) (sum without (region) (" + METRIC + "))"),
+            equalTo(Map.of(Map.of("pod", "p1"), "4", Map.of("pod", "p2"), "6"))
+        );
+    }
+
+    /**
+     * {@code or} aligns its branches by column name, so branches carrying different label sets are the interesting
+     * case: neither side's labelset appears on the other, so all four series survive.
+     */
+    public void testQueryRangeUnionOfDifferentlyShapedBranches() throws Exception {
+        ingestLabelledSeries(METRIC);
+
+        assertThat(
+            sumOf("sum by (cluster) (" + METRIC + ") or sum by (pod) (" + METRIC + ")"),
+            equalTo(Map.of(Map.of("cluster", "a"), "3", Map.of("cluster", "b"), "7", Map.of("pod", "p1"), "4", Map.of("pod", "p2"), "6"))
+        );
+    }
+
+    /** Elementwise arithmetic keeps every label of the operand series. */
+    public void testQueryRangeArithmeticKeepsSeriesLabels() throws Exception {
+        ingestLabelledSeries(METRIC);
+
+        Map<Map<String, String>, String> doubled = sumOf(METRIC + " * 2");
+        assertThat(doubled.keySet(), hasSize(4));
+        assertThat(Set.copyOf(doubled.values()), equalTo(Set.of("2", "4", "6", "8")));
+        for (Map<String, String> labels : doubled.keySet()) {
+            assertThat(labels.keySet(), equalTo(Set.of("cluster", "instance", "job", "pod", "region")));
+        }
+    }
+
+    /**
+     * Runs a range query over the ingested window and maps each returned series to its labels (without
+     * {@code __name__}) and its last sample value.
+     */
+    private Map<Map<String, String>, String> sumOf(String promql) throws Exception {
+        Request request = prometheusReadRequest(
+            "/_prometheus/api/v1/query_range",
+            new BasicNameValuePair("query", promql),
+            new BasicNameValuePair("start", "2026-01-01T00:01:00Z"),
+            new BasicNameValuePair("end", "2026-01-01T00:03:00Z"),
+            new BasicNameValuePair("step", "60s")
+        );
+        Response response = client().performRequest(request);
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+        ObjectPath path = ObjectPath.createFromResponse(response);
+        assertThat(path.evaluate("status"), equalTo("success"));
+
+        List<Map<String, Object>> result = path.evaluate("data.result");
+        Map<Map<String, String>, String> seriesByLabels = new HashMap<>();
+        for (Map<String, Object> series : result) {
+            // The Prometheus response shape: "metric" is a label map, "values" a list of [epochSeconds, value] pairs.
+            @SuppressWarnings("unchecked")
+            Map<String, String> metric = new HashMap<>((Map<String, String>) series.get("metric"));
+            metric.remove("__name__");
+            @SuppressWarnings("unchecked")
+            List<List<Object>> values = (List<List<Object>>) series.get("values");
+            assertThat("no samples for " + metric + " in [" + promql + "]", values, not(empty()));
+            seriesByLabels.put(Map.copyOf(metric), stripTrailingZero((String) values.getLast().get(1)));
+        }
+        return seriesByLabels;
+    }
+
+    /** Prometheus renders whole numbers as {@code 3} or {@code 3.0} depending on the path; compare on the integer. */
+    private static String stripTrailingZero(String value) {
+        return value.endsWith(".0") ? value.substring(0, value.length() - 2) : value;
     }
 
     private static void assertMetricResults(ObjectPath responsePath) throws IOException {

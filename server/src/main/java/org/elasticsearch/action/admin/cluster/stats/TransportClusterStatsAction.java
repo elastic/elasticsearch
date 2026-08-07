@@ -43,6 +43,7 @@ import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.common.util.CancellableSingleObjectCache;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.FixForMultiProject;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.seqno.RetentionLeaseStats;
@@ -66,6 +67,7 @@ import org.elasticsearch.transport.RemoteClusterSettings;
 import org.elasticsearch.transport.RemoteConnectionInfo;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.Transports;
+import org.elasticsearch.usage.SearchUsageHolder;
 import org.elasticsearch.usage.UsageService;
 
 import java.io.IOException;
@@ -108,7 +110,12 @@ public class TransportClusterStatsAction extends TransportNodesAction<
     private final IndicesService indicesService;
     private final RepositoriesService repositoriesService;
     private final ProjectResolver projectResolver;
-    private final UsageService usageService;
+    private final SearchUsageHolder searchUsageHolder;
+    private final CCSUsageTelemetry ccsUsageHolder;
+    private final CCSUsageTelemetry esqlUsageHolder;
+    private final ProjectRoutingUsageHolder projectRoutingUsageHolder;
+    @Nullable
+    private final ClusterStatsTagsProvider tagsProvider;
 
     private final Executor clusterStateStatsExecutor;
     private final MetadataStatsCache<MappingStats> mappingStatsCache;
@@ -141,7 +148,11 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         this.indicesService = indicesService;
         this.repositoriesService = repositoriesService;
         this.projectResolver = projectResolver;
-        this.usageService = usageService;
+        this.searchUsageHolder = usageService.getSearchUsageHolder();
+        this.ccsUsageHolder = usageService.getCcsUsageHolder();
+        this.esqlUsageHolder = usageService.getEsqlUsageHolder();
+        this.projectRoutingUsageHolder = usageService.getProjectRoutingUsageHolder();
+        this.tagsProvider = usageService.getTagsProvider();
         this.clusterStateStatsExecutor = threadPool.executor(ThreadPool.Names.MANAGEMENT);
         this.mappingStatsCache = new MetadataStatsCache<>(threadPool.getThreadContext(), MappingStats::of);
         this.analysisStatsCache = new MetadataStatsCache<>(threadPool.getThreadContext(), AnalysisStats::of);
@@ -200,7 +211,6 @@ public class TransportClusterStatsAction extends TransportNodesAction<
                     null
                 );
             }
-            ClusterStatsTagsProvider tagsProvider = usageService.getTagsProvider();
             TagsConfigSnapshot tagsConfig = (tagsProvider != null) ? tagsProvider.getTagsConfig(clusterService.state()) : null;
             return new ClusterStatsResponse(
                 System.currentTimeMillis(),
@@ -315,12 +325,12 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             ? new ClusterStateHealth(clusterState, project.getConcreteAllIndices(), project.id()).getStatus()
             : null;
 
-        final SearchUsageStats searchUsageStats = usageService.getSearchUsageHolder().getSearchUsageStats();
+        final SearchUsageStats searchUsageStats = searchUsageHolder.getSearchUsageStats();
 
         final RepositoryUsageStats repositoryUsageStats = repositoriesService.getUsageStats();
-        final CCSTelemetrySnapshot ccsTelemetry = usageService.getCcsUsageHolder().getCCSTelemetrySnapshot();
-        final CCSTelemetrySnapshot esqlTelemetry = usageService.getEsqlUsageHolder().getCCSTelemetrySnapshot();
-        final ProjectRoutingUsageSnapshot projectRoutingUsage = usageService.getProjectRoutingUsageHolder().getSnapshot();
+        final CCSTelemetrySnapshot ccsTelemetry = ccsUsageHolder.getCCSTelemetrySnapshot();
+        final CCSTelemetrySnapshot esqlTelemetry = esqlUsageHolder.getCCSTelemetrySnapshot();
+        final ProjectRoutingUsageSnapshot projectRoutingUsage = projectRoutingUsageHolder.getSnapshot();
 
         return new ClusterStatsNodeResponse(
             nodeInfo.getNode(),

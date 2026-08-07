@@ -139,7 +139,7 @@ public class SubqueryJoinTests extends ESTestCase {
             true
         );
 
-        // ANTI with empty result: x IN NOT () is TRUE for every row, so the join collapses LHS child
+        // ANTI with empty result: x NOT IN () is TRUE for every row, so the join collapses LHS child
         AntiJoin antiJoin = antiJoin(leftField, rightField);
         assertEmptyRelation(
             AbstractSubqueryJoin.inlineData(antiJoin, emptyResult, HASH_JOIN_THRESHOLD, BLOCK_FACTORY, null),

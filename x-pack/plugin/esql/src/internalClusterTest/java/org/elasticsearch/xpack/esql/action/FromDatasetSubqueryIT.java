@@ -1159,11 +1159,11 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
     }
 
     /**
-     * An IN subquery with an empty result substitutes a constant-false filter into the main plan without re-running the logical optimizer,
-     * and split discovery then prunes every file of the dataset scan. The gather exchange must survive that empty scan when the plan ends
-     * in STATS: the final aggregation reads its child's output as intermediate state, which only an exchange boundary delivers
-     * positionally. Before the fix the exchange was collapsed and planning failed with {@code IndexOutOfBoundsException: toIndex = 2}
-     * from {@code AbstractPhysicalOperationProviders$IntermediateInputs}.
+     * An IN subquery with an empty result collapses the SEMI join to an empty {@code LocalRelation}. Previously it substituted a
+     * constant-false filter into the main plan without re-running the logical optimizer, and split discovery then pruned every file of
+     * the dataset scan. The gather exchange must survive that empty scan when the plan ends. Before the fix the exchange was collapsed
+     * and planning failed with {@code IndexOutOfBoundsException: toIndex = 2} from
+     * {@code AbstractPhysicalOperationProviders$IntermediateInputs}.
      */
     public void testEmptyInSubqueryThenStatsOnDataset() {
         requireInSubquery();

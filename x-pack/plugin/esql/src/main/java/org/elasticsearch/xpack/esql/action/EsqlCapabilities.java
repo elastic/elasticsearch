@@ -3654,6 +3654,13 @@ public class EsqlCapabilities {
          */
         FIX_TS_STATS_ALIAS_GROUPING_SHADOW,
 
+        /*
+         * CHANGE_POINT now uses EventDetector (multiple events, log-space p-values), which can report
+         * a change point at a slightly different bucket and with different p-values than the previous
+         * implementation.
+         */
+        CHANGE_POINT_MULTIPLE_EVENTS,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

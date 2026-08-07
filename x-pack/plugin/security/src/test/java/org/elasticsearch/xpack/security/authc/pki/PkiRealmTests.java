@@ -22,6 +22,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
@@ -39,7 +40,6 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.BytesKey;
 import org.elasticsearch.xpack.security.authc.support.MockLookupRealm;
-import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
 import org.mockito.Mockito;
 
@@ -149,44 +149,30 @@ public class PkiRealmTests extends ESTestCase {
         final String publicKeyFingerprint = MessageDigests.toHexString(
             MessageDigests.sha256().digest(leafCertificate.getPublicKey().getEncoded())
         );
-        final ExpressionRoleMapping certificateMapping = ExpressionRoleMapping.parse(
-            "certificate-fingerprint",
-            new BytesArray("""
-                roles:
-                - certificate_role
-                rules:
-                  field:
-                    metadata.pki_cert_fingerprint: "%s"
-                enabled: true
-                """.formatted(certificateFingerprint)),
-            XContentType.YAML
-        );
-        final ExpressionRoleMapping publicKeyMapping = ExpressionRoleMapping.parse(
-            "public-key-fingerprint",
-            new BytesArray("""
-                roles:
-                - public_key_role
-                rules:
-                  field:
-                    metadata.pki_public_key_fingerprint: "%s"
-                enabled: true
-                """.formatted(publicKeyFingerprint)),
-            XContentType.YAML
-        );
+        final ExpressionRoleMapping certificateMapping = ExpressionRoleMapping.parse("certificate-fingerprint", new BytesArray("""
+            roles:
+            - certificate_role
+            rules:
+              field:
+                metadata.pki_cert_fingerprint: "%s"
+            enabled: true
+            """.formatted(certificateFingerprint)), XContentType.YAML);
+        final ExpressionRoleMapping publicKeyMapping = ExpressionRoleMapping.parse("public-key-fingerprint", new BytesArray("""
+            roles:
+            - public_key_role
+            rules:
+              field:
+                metadata.pki_public_key_fingerprint: "%s"
+            enabled: true
+            """.formatted(publicKeyFingerprint)), XContentType.YAML);
         final List<ExpressionRoleMapping> mappings = List.of(certificateMapping, publicKeyMapping);
         final PkiRealm realm = buildRealm(buildRoleMapper(mappings), globalSettings);
 
         final AuthenticationResult<User> result = authenticate(token, realm);
 
         assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
-        assertThat(
-            result.getValue().metadata().get(PkiRealm.PKI_CERT_FINGERPRINT_METADATA_KEY),
-            is(certificateFingerprint)
-        );
-        assertThat(
-            result.getValue().metadata().get(PkiRealm.PKI_PUBLIC_KEY_FINGERPRINT_METADATA_KEY),
-            is(publicKeyFingerprint)
-        );
+        assertThat(result.getValue().metadata().get(PkiRealm.PKI_CERT_FINGERPRINT_METADATA_KEY), is(certificateFingerprint));
+        assertThat(result.getValue().metadata().get(PkiRealm.PKI_PUBLIC_KEY_FINGERPRINT_METADATA_KEY), is(publicKeyFingerprint));
         assertThat(result.getValue().roles(), arrayContainingInAnyOrder("certificate_role", "public_key_role"));
     }
 

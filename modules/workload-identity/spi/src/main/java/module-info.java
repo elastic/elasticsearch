@@ -9,6 +9,7 @@
 
 module org.elasticsearch.workloadidentity.spi {
     requires org.elasticsearch.server;
+    requires org.elasticsearch.base;
 
     exports org.elasticsearch.workloadidentity.spi;
 }

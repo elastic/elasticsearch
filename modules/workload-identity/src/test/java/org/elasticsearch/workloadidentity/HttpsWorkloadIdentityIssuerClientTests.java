@@ -39,9 +39,11 @@ import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.workloadidentity.spi.DataSourceAuditListener;
 import org.elasticsearch.workloadidentity.spi.WorkloadIdentityIssuerClient.IssueTokenRequest;
 import org.elasticsearch.workloadidentity.spi.WorkloadIdentityIssuerClient.IssueTokenResponse;
 import org.elasticsearch.workloadidentity.spi.WorkloadIdentityIssuerClient.WorkloadIdentityIssuerException;
+import org.elasticsearch.workloadidentity.spi.WorkloadIdentityRegistry;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -57,8 +59,10 @@ import java.nio.file.StandardCopyOption;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
@@ -129,6 +133,11 @@ public class HttpsWorkloadIdentityIssuerClientTests extends ESTestCase {
     @After
     public void resetHandler() {
         handler = exchange -> {};
+    }
+
+    @After
+    public void resetAuditListener() {
+        WorkloadIdentityRegistry.reset();
     }
 
     private static SSLContext buildServerSslContext() throws Exception {
@@ -486,6 +495,138 @@ public class HttpsWorkloadIdentityIssuerClientTests extends ESTestCase {
             final IssueTokenResponse second = awaitToken(harness, request);
             assertEquals("second issuance must come from the cache", 1, callCount.get());
             assertEquals(first, second);
+        }
+    }
+
+    /**
+     * Every real mint publishes one {@link DataSourceAuditListener#tokenIssued} event with
+     * the identifier claims decoded from the token, cache hits publish nothing, and
+     * {@link HttpsWorkloadIdentityIssuerClient#peekTokenInfo} serves the same identifiers for
+     * audit correlation by the ES|QL completion path.
+     */
+    public void testMintPublishesAuditEventAndPeekableTokenInfo() throws Exception {
+        final long expiresAtSeconds = (System.currentTimeMillis() / 1000) + 3_600;
+        final String payload = Base64.getUrlEncoder()
+            .withoutPadding()
+            .encodeToString("{\"sub\":\"deployment:abc\",\"jti\":\"session-1\"}".getBytes(StandardCharsets.UTF_8));
+        handler = exchange -> {
+            try {
+                final byte[] bytes = ("{\"token\":\"h." + payload + ".sig\",\"expires_at\":" + expiresAtSeconds + "}").getBytes(
+                    StandardCharsets.UTF_8
+                );
+                exchange.getResponseHeaders().add("Content-Type", "application/json");
+                exchange.sendResponseHeaders(200, bytes.length);
+                try (OutputStream os = exchange.getResponseBody()) {
+                    os.write(bytes);
+                }
+            } catch (IOException e) {
+                throw new AssertionError("failed writing mock response", e);
+            }
+        };
+
+        final List<DataSourceAuditListener.TokenIssuance> issued = new CopyOnWriteArrayList<>();
+        WorkloadIdentityRegistry.setAuditListener(new DataSourceAuditListener() {
+            @Override
+            public void tokenIssued(TokenIssuance issuance) {
+                issued.add(issuance);
+            }
+
+            @Override
+            public void tokenIssuanceFailed(TokenIssuanceFailure failure) {
+                throw new AssertionError("unexpected failure event: " + failure.cause());
+            }
+
+            @Override
+            public void dataSourceAccess(DataSourceAccess access) {
+                throw new AssertionError("unexpected access event");
+            }
+        });
+
+        try (ClientHarness harness = new ClientHarness(clientSettingsWithIssuerUrl().build())) {
+            final IssueTokenRequest request = new IssueTokenRequest("aud-1");
+            awaitToken(harness, request);
+            awaitToken(harness, request);
+
+            assertEquals("cache hit must not publish an audit event", 1, issued.size());
+            final DataSourceAuditListener.TokenIssuance issuance = issued.get(0);
+            assertEquals("aud-1", issuance.audience());
+            assertEquals("deployment:abc", issuance.subject());
+            assertEquals("session-1", issuance.sessionId());
+            assertEquals(expiresAtSeconds, issuance.expiresAt().getEpochSecond());
+            assertThat(issuance.issuer(), containsString("/token"));
+
+            final var info = harness.client.peekTokenInfo("aud-1");
+            assertNotNull(info);
+            assertEquals("deployment:abc", info.subject());
+            assertEquals("session-1", info.sessionId());
+            assertNull("un-minted audiences have no peekable token", harness.client.peekTokenInfo("aud-other"));
+        }
+    }
+
+    /** A failed mint (after retries) publishes one {@link DataSourceAuditListener#tokenIssuanceFailed} event. */
+    public void testFailedMintPublishesAuditFailureEvent() throws Exception {
+        handler = exchange -> {
+            try {
+                exchange.sendResponseHeaders(403, -1);
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+        };
+
+        final List<DataSourceAuditListener.TokenIssuanceFailure> failures = new CopyOnWriteArrayList<>();
+        WorkloadIdentityRegistry.setAuditListener(new DataSourceAuditListener() {
+            @Override
+            public void tokenIssued(TokenIssuance issuance) {
+                throw new AssertionError("unexpected success event");
+            }
+
+            @Override
+            public void tokenIssuanceFailed(TokenIssuanceFailure failure) {
+                failures.add(failure);
+            }
+
+            @Override
+            public void dataSourceAccess(DataSourceAccess access) {
+                throw new AssertionError("unexpected access event");
+            }
+        });
+
+        try (ClientHarness harness = new ClientHarness(clientSettingsWithIssuerUrl().build())) {
+            final PlainActionFuture<IssueTokenResponse> future = new PlainActionFuture<>();
+            harness.client.issueToken(new IssueTokenRequest("aud-denied"), future);
+            expectThrows(ExecutionException.class, () -> future.get(10, TimeUnit.SECONDS));
+
+            assertEquals("one event per completed fetch, not per retry attempt", 1, failures.size());
+            assertEquals("aud-denied", failures.get(0).audience());
+            assertThat(failures.get(0).cause(), instanceOf(WorkloadIdentityIssuerException.class));
+            assertNull("failed mints leave no peekable token", harness.client.peekTokenInfo("aud-denied"));
+        }
+    }
+
+    /** A throwing audit listener must not fail token issuance: the audit path is fail-open. */
+    public void testThrowingAuditListenerDoesNotFailIssuance() throws Exception {
+        final long farFutureEpochSecond = (System.currentTimeMillis() / 1000) + 3_600;
+        handler = exchange -> respondWithToken(exchange, farFutureEpochSecond);
+        WorkloadIdentityRegistry.setAuditListener(new DataSourceAuditListener() {
+            @Override
+            public void tokenIssued(TokenIssuance issuance) {
+                throw new RuntimeException("audit listener bug");
+            }
+
+            @Override
+            public void tokenIssuanceFailed(TokenIssuanceFailure failure) {
+                throw new RuntimeException("audit listener bug");
+            }
+
+            @Override
+            public void dataSourceAccess(DataSourceAccess access) {
+                throw new RuntimeException("audit listener bug");
+            }
+        });
+
+        try (ClientHarness harness = new ClientHarness(clientSettingsWithIssuerUrl().build())) {
+            final IssueTokenResponse response = awaitToken(harness, new IssueTokenRequest("aud"));
+            assertEquals("header.payload.sig", response.token());
         }
     }
 

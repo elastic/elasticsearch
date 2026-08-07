@@ -62,6 +62,8 @@ public class TransformMessages {
 
     public static final String TRANSFORM_CANNOT_START_WITHOUT_PERMISSIONS = "Cannot start transform [{0}] because user lacks required "
         + "permissions, see privileges_check_failed issue for more details";
+    public static final String TRANSFORM_CANNOT_START_WITHOUT_CREDENTIALS =
+        "Cannot start transform [{0}] because user lacks required permissions. Call /_transform/{0}/_update to reset permissions.";
     public static final String TRANSFORM_CONFIGURATION_BAD_FUNCTION_COUNT = "Transform configuration must specify exactly 1 function";
     public static final String TRANSFORM_CONFIGURATION_PIVOT_NO_GROUP_BY = "Pivot transform configuration must specify at least 1 group_by";
     public static final String TRANSFORM_CONFIGURATION_PIVOT_NO_AGGREGATION =

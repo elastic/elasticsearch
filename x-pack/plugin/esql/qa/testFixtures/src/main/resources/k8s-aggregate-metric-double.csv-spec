@@ -279,3 +279,80 @@ avg:double         | min:double | max:double | _timeseries:keyword              
 798.3333333333334  | 94.0       | 1060.0     | "{""cluster"":""prod"",""pod"":""one""}"      | 2024-05-09T23:00:00.000Z
 877.0              | 75.0       | 1248.0     | "{""cluster"":""qa"",""pod"":""two""}"        | 2024-05-09T23:00:00.000Z
 ;
+
+bare_AMD_in_promql
+required_capability: promql_command_v0
+required_capability: aggregate_metric_double_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: time_series_translation_in_analyzer
+PROMQL index=k8s-downsampled step=1m network.eth0.tx | sort step, _timeseries | limit 9;
+ignoreOrder:true
+
+network.eth0.tx:double | step:datetime            | _timeseries:keyword
+729.0                  | 2024-05-09T23:30:00.000Z | "{""cluster"":""prod"",""pod"":""one""}"
+299.0                  | 2024-05-09T23:30:00.000Z | "{""cluster"":""prod"",""pod"":""three""}"
+37.0                   | 2024-05-09T23:30:00.000Z | "{""cluster"":""prod"",""pod"":""two""}"
+353.0                  | 2024-05-09T23:30:00.000Z | "{""cluster"":""qa"",""pod"":""one""}"
+605.0                  | 2024-05-09T23:30:00.000Z | "{""cluster"":""qa"",""pod"":""three""}"
+859.0                  | 2024-05-09T23:30:00.000Z | "{""cluster"":""qa"",""pod"":""two""}"
+539.0                  | 2024-05-09T23:30:00.000Z | "{""cluster"":""staging"",""pod"":""one""}"
+391.2                  | 2024-05-09T23:30:00.000Z | "{""cluster"":""staging"",""pod"":""three""}"
+550.0                  | 2024-05-09T23:30:00.000Z | "{""cluster"":""staging"",""pod"":""two""}"
+;
+
+implicit_LOT_on_AMD_promql
+required_capability: promql_command_v0
+required_capability: aggregate_metric_double_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: time_series_translation_in_analyzer
+PROMQL index=k8s-downsampled step=10m sum=(round(sum(network.eth0.tx), 0.1)) | sort step;
+
+sum:double | step:datetime
+4362.2     | 2024-05-09T23:30:00.000Z
+5643.7     | 2024-05-09T23:40:00.000Z
+4574.5     | 2024-05-09T23:50:00.000Z
+;
+
+explicit_LOT_on_AMD_promql
+required_capability: promql_command_v0
+required_capability: aggregate_metric_double_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: time_series_translation_in_analyzer
+PROMQL index=k8s-downsampled step=10m sum=(round(sum(last_over_time(network.eth0.tx[10m])), 0.1)) | sort step;
+
+sum:double | step:datetime
+4362.2     | 2024-05-09T23:30:00.000Z
+5643.7     | 2024-05-09T23:40:00.000Z
+4574.5     | 2024-05-09T23:50:00.000Z
+;
+
+delta_on_AMD_promql
+required_capability: promql_command_v0
+required_capability: aggregate_metric_double_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: time_series_translation_in_analyzer
+PROMQL index=k8s-downsampled step=1h sum=(round(sum(delta(network.eth0.tx[1h])), 0.1)) | limit 5;
+
+sum:double | step:datetime
+283.1      | 2024-05-10T00:00:00.000Z
+;
+
+max_over_time_AMD_with_implicit_cast_and_no_outer_agg_promql
+required_capability: promql_command_v0
+required_capability: aggregate_metric_double_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: time_series_translation_in_analyzer
+PROMQL index=k8s* step=1h max=(max_over_time(network.eth0.tx[1h])) | sort max | drop _timeseries | limit 10;
+
+max:double | step:datetime
+581.0      | 2024-05-10T01:00:00.000Z
+685.0      | 2024-05-10T00:00:00.000Z
+715.0      | 2024-05-10T00:00:00.000Z
+795.0      | 2024-05-10T00:00:00.000Z
+824.0      | 2024-05-10T00:00:00.000Z
+928.0      | 2024-05-10T01:00:00.000Z
+967.0      | 2024-05-10T01:00:00.000Z
+973.0      | 2024-05-10T01:00:00.000Z
+1011.0     | 2024-05-10T00:00:00.000Z
+1042.0     | 2024-05-10T00:00:00.000Z
+;

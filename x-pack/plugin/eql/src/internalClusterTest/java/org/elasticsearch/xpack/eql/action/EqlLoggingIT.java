@@ -19,10 +19,13 @@ import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.logging.AccumulatingMockAppender;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.logging.activity.QueryLoggerContext;
 import org.elasticsearch.common.logging.activity.QueryLogging;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.test.ActivityLoggingUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultRequest;
@@ -39,6 +42,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.common.logging.activity.QueryLogging.ES_QUERY_FIELDS_PREFIX;
+import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_FILTER;
 import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_INDICES;
 import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_RESULT_COUNT;
 import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_SHARDS;
@@ -102,6 +106,28 @@ public class EqlLoggingIT extends AbstractEqlBlockingIntegTestCase {
             assertMessageSuccess(message, EqlLogContext.TYPE, query);
             assertThat(message.get(QUERY_FIELD_INDICES), equalTo("test"));
             assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo(success ? "1" : "0"));
+        } finally {
+            decRef(response);
+        }
+    }
+
+    public void testEqlLoggingFilter() throws Exception {
+        prepareIndex();
+        QueryBuilder filter = new TermQueryBuilder("host", "192.168.0.1");
+        String query = "my_event where i >= 0";
+        EqlSearchRequest request = new EqlSearchRequest().indices("test")
+            .query(query)
+            .eventCategoryField("event_type")
+            .filter(filter)
+            .waitForCompletionTimeout(TimeValue.THIRTY_SECONDS);
+
+        EqlSearchResponse response = client().execute(EqlSearchAction.INSTANCE, request).get();
+        try {
+            var message = getMessageData(appender.getLastEventAndReset());
+            assertMessageSuccess(message, EqlLogContext.TYPE, query);
+            assertThat(message.get(QUERY_FIELD_INDICES), equalTo("test"));
+            assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo("5"));
+            assertThat(message.get(QUERY_FIELD_FILTER), equalTo(QueryLoggerContext.filterToLogString(filter).get()));
         } finally {
             decRef(response);
         }
@@ -223,7 +249,18 @@ public class EqlLoggingIT extends AbstractEqlBlockingIntegTestCase {
 
     private void prepareIndex(int numberOfShards) throws Exception {
         var createRequest = indicesAdmin().prepareCreate("test")
-            .setMapping("val", "type=integer", "event_type", "type=keyword", "@timestamp", "type=date", "i", "type=integer");
+            .setMapping(
+                "val",
+                "type=integer",
+                "event_type",
+                "type=keyword",
+                "@timestamp",
+                "type=date",
+                "i",
+                "type=integer",
+                "host",
+                "type=keyword"
+            );
         if (numberOfShards > 1) {
             createRequest.setSettings(
                 Settings.builder()
@@ -245,6 +282,7 @@ public class EqlLoggingIT extends AbstractEqlBlockingIntegTestCase {
                         .field("event_type", "my_event")
                         .field("@timestamp", "2020-04-09T12:35:48Z")
                         .field("i", i)
+                        .field("host", "192.168.0.1")
                         .endObject()
                 )
             );

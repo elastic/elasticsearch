@@ -97,7 +97,7 @@ public class TSDBDocValuesBulkWriteBenchmark {
             false,
             false
         );
-        final DocValuesFormat es95Format = ES95TSDBDocValuesFormatFactory.get(false, false, false);
+        final DocValuesFormat es95Format = ES95TSDBDocValuesFormatFactory.create(false, false, false, null);
         es819Codec = wrapCodec(es819Format);
         es95Codec = wrapCodec(es95Format);
         es95UncachedCodec = wrapUncachedES95Codec();
@@ -166,10 +166,14 @@ public class TSDBDocValuesBulkWriteBenchmark {
     }
 
     private static Codec wrapUncachedES95Codec() {
+        // NOTE: allocates a fresh format on every Lucene `getDocValuesFormatForField`
+        // call, mirroring what would happen without the per-supplier cache in
+        // `PerFieldFormatSupplier`. The other ES95 variant in this benchmark reuses
+        // one format instance across all calls (the production behavior).
         return new Elasticsearch93Lucene104Codec() {
             @Override
             public DocValuesFormat getDocValuesFormatForField(String field) {
-                return ES95TSDBDocValuesFormatFactory.create(false, false, false);
+                return ES95TSDBDocValuesFormatFactory.create(false, false, false, null);
             }
         };
     }

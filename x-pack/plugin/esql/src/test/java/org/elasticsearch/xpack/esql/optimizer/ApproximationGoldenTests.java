@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 
 import java.util.ArrayList;
@@ -17,6 +20,17 @@ import java.util.List;
  * Golden tests for query approximation.
  */
 public class ApproximationGoldenTests extends GoldenTestCase {
+    private static final String ESQL_APPROXIMATION_LOOKUP_JOIN = "esql_approximation_lookup_join";
+
+    @ParametersFactory(argumentFormatting = "%1$s")
+    public static Iterable<Object[]> parameters() {
+        return goldenModes();
+    }
+
+    public ApproximationGoldenTests(@Name("mode") String mode) {
+        super(mode);
+    }
+
     private static final EnumSet<Stage> STAGES = EnumSet.of(
         Stage.LOGICAL_OPTIMIZATION,
         Stage.PHYSICAL_OPTIMIZATION,
@@ -89,14 +103,37 @@ public class ApproximationGoldenTests extends GoldenTestCase {
     }
 
     public void testLookupJoin() {
-        assumeTrue("needs approximation lookup join", EsqlCapabilities.Cap.APPROXIMATION_LOOKUP_JOIN.isEnabled());
-        runGoldenTest("""
+        assumeTrue("needs approximation lookup join", EsqlCapabilities.Cap.APPROXIMATION_LOOKUP_JOIN_V2.isEnabled());
+        builder("""
             SET approximation=true;
             FROM many_numbers
               | EVAL language_code = sv % 4 + 1
               | LOOKUP JOIN languages_lookup ON language_code
               | EVAL length = LENGTH(language_name)
-              | STATS AVG(length)
+              | STATS MEDIAN(length)
+            """).stages(STAGES).expectationChangesAt(ESQL_APPROXIMATION_LOOKUP_JOIN).run();
+    }
+
+    public void testFork() {
+        assumeTrue("needs approximation fork", EsqlCapabilities.Cap.APPROXIMATION_FORK.isEnabled());
+        runGoldenTest("""
+            SET approximation=true;
+            FROM many_numbers
+              | FORK (WHERE sv <= 100 | STATS count = COUNT())
+                     (WHERE sv >= 100 | STATS count = COUNT(), sum = SUM(sv))
+            """, STAGES);
+    }
+
+    // Regression for local-stage pruning of _fork sort key — see PruneConstantSortKeysFromOrderBy.
+    public void testForkWithStatsInJustOneBranch() {
+        assumeTrue("needs approximation fork", EsqlCapabilities.Cap.APPROXIMATION_FORK.isEnabled());
+        runGoldenTest("""
+            SET approximation={"rows":10000};
+            FROM many_numbers
+              | FORK (STATS count = COUNT())
+                     (KEEP sv)
+              | SORT _fork, sv
+              | LIMIT 5
             """, STAGES);
     }
 }

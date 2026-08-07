@@ -23,6 +23,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.lucene.grouping.TopFieldGroups;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -138,6 +139,7 @@ public final class SearchResponseMerger implements Releasable {
         List<TopDocs> topDocsList = new ArrayList<>(searchResponses.size());
         Map<String, List<Suggest.Suggestion<?>>> groupedSuggestions = new HashMap<>();
         Boolean trackTotalHits = null;
+        DirectoryMetrics mergedDirectoryMetrics = DirectoryMetrics.EMPTY;
 
         TopDocsStats topDocsStats = new TopDocsStats(trackTotalHitsUpTo);
 
@@ -146,6 +148,7 @@ public final class SearchResponseMerger implements Releasable {
             skippedShards += searchResponse.getSkippedShards();
             successfulShards += searchResponse.getSuccessfulShards();
             numReducePhases += searchResponse.getNumReducePhases();
+            mergedDirectoryMetrics = mergedDirectoryMetrics.merge(searchResponse.getDirectoryMetrics());
 
             Collections.addAll(failures, searchResponse.getShardFailures());
 
@@ -228,7 +231,7 @@ public final class SearchResponseMerger implements Releasable {
             // make failures ordering consistent between ordinary search and CCS by looking at the shard they come from
             Arrays.sort(shardFailures, FAILURES_COMPARATOR);
             long tookInMillis = searchTimeProvider.buildTookInMillis();
-            return new SearchResponse(
+            SearchResponse mergedResponse = new SearchResponse(
                 mergedSearchHits,
                 reducedAggs,
                 suggest,
@@ -247,6 +250,8 @@ public final class SearchResponseMerger implements Releasable {
                 topHitsToRelease,
                 null
             );
+            mergedResponse.setDirectoryMetrics(mergedDirectoryMetrics);
+            return mergedResponse;
         } finally {
             mergedSearchHits.decRef();
         }

@@ -21,6 +21,7 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -237,11 +238,13 @@ public final class IndexingSlowLog implements IndexingOperationListener {
                 map.put("elasticsearch.slowlog.routing", doc.routing());
             }
 
-            if (maxSourceCharsToLog == 0 || doc.source() == null || doc.source().length() == 0) {
+            SourceToParse.Source sourceObject = doc.source();
+            // TODO: Will materialize to original x-content if rows. Consider if we eventually want to optimize this.
+            if (maxSourceCharsToLog == 0 || sourceObject == null || sourceObject.originalBytes().length() == 0) {
                 return map;
             }
             try {
-                String source = XContentHelper.convertToJson(doc.source(), reformat, doc.getXContentType());
+                String source = XContentHelper.convertToJson(sourceObject.originalBytes(), reformat, sourceObject.xContentType());
                 String trim = Strings.cleanTruncate(source, maxSourceCharsToLog).trim();
                 StringBuilder sb = new StringBuilder(trim);
                 StringBuilders.escapeJson(sb, 0);

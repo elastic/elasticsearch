@@ -1,0 +1,3 @@
+@timestamp:date,cluster:keyword,pod:keyword
+2024-05-10T00:00:00.000Z,prod,alpha
+2024-05-10T00:00:00.000Z,prod,beta

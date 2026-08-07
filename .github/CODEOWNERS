@@ -25,6 +25,14 @@ libs/logstash-bridge @elastic/logstash
 
 # Kibana Security
 x-pack/plugin/core/src/main/java/org/elasticsearch/xpack/core/security/authz/store/KibanaOwnedReservedRoleDescriptors.java @elastic/kibana-security
+x-pack/plugin/kibana @elastic/kibana-security
+# Per-domain ImplicitPrivilegesProvider implementations are co-owned by Kibana Security and the
+# team that owns the corresponding Kibana feature/privilege. Add overrides below as new providers
+# are introduced, the last matching pattern wins.
+x-pack/plugin/kibana/src/main/java/org/elasticsearch/xpack/kibana/KibanaAlertsImplicitPrivilegesProvider.java @elastic/kibana-security @elastic/response-ops
+x-pack/plugin/kibana/src/test/java/org/elasticsearch/xpack/kibana/KibanaAlertsImplicitPrivilegesProviderTests.java @elastic/kibana-security @elastic/response-ops
+x-pack/plugin/kibana/src/main/java/org/elasticsearch/xpack/kibana/KibanaCasesImplicitPrivilegesProvider.java @elastic/kibana-security @elastic/kibana-cases
+x-pack/plugin/kibana/src/test/java/org/elasticsearch/xpack/kibana/KibanaCasesImplicitPrivilegesProviderTests.java @elastic/kibana-security @elastic/kibana-cases
 
 # APM Data index templates, etc.
 x-pack/plugin/apm-data/src/main/resources @elastic/obs-ds-intake-services
@@ -93,7 +101,7 @@ docs/reference/elasticsearch/rest-apis @elastic/developer-docs
 docs/reference/elasticsearch/elasticsearch-audit-events.md @elastic/admin-docs
 docs/reference/elasticsearch/jvm-settings.md @elastic/admin-docs
 docs/reference/elasticsearch/roles.md @elastic/admin-docs
-docs/reference/enrich-processor @elastic/admin-docs
+docs/reference/ingest-processor @elastic/admin-docs
 docs/reference/query-languages @elastic/developer-docs
 docs/reference/scripting-languages @elastic/admin-docs
 docs/reference/search-connectors @elastic/developer-docs

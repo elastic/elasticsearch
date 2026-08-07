@@ -219,7 +219,7 @@ public class DeepSeekServiceTests extends InferenceServiceTestCase {
         try (var service = createService()) {
             var model = createModel(service, TaskType.COMPLETION);
             TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
-            service.infer(model, null, null, null, List.of("hello"), false, Map.of(), InputType.UNSPECIFIED, TIMEOUT, listener);
+            service.infer(model, List.of("hello"), false, Map.of(), InputType.UNSPECIFIED, TIMEOUT, listener);
             var result = listener.actionGet(TIMEOUT);
             assertThat(result, isA(ChatCompletionResults.class));
             var completionResults = (ChatCompletionResults) result;
@@ -242,7 +242,7 @@ public class DeepSeekServiceTests extends InferenceServiceTestCase {
         try (var service = createService()) {
             var model = createModel(service, TaskType.COMPLETION);
             TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
-            service.infer(model, null, null, null, List.of("hello"), true, Map.of(), InputType.UNSPECIFIED, TIMEOUT, listener);
+            service.infer(model, List.of("hello"), true, Map.of(), InputType.UNSPECIFIED, TIMEOUT, listener);
             InferenceEventsAssertion.assertThat(listener.actionGet(TIMEOUT)).hasFinishedStream().hasNoErrors().hasEvent("""
                 {"completion":[{"delta":"hello, world"}]}""");
         }
@@ -338,7 +338,7 @@ public class DeepSeekServiceTests extends InferenceServiceTestCase {
     public void testChunkedInferFails() throws IOException {
         try (var service = createService()) {
             TestPlainActionFuture<List<ChunkedInference>> listener = new TestPlainActionFuture<>();
-            service.chunkedInfer(mock(), null, List.of(new ChunkInferenceInput("a")), Map.of(), InputType.UNSPECIFIED, TIMEOUT, listener);
+            service.chunkedInfer(mock(), List.of(new ChunkInferenceInput("a")), Map.of(), InputType.UNSPECIFIED, TIMEOUT, listener);
             var exception = expectThrows(UnsupportedOperationException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(exception.getMessage(), is("deepseek service does not support chunked inference"));
         }
@@ -347,7 +347,7 @@ public class DeepSeekServiceTests extends InferenceServiceTestCase {
     public void testChunkedInferFails_noInputs() throws IOException {
         try (var service = createService()) {
             TestPlainActionFuture<List<ChunkedInference>> listener = new TestPlainActionFuture<>();
-            service.chunkedInfer(mock(), null, List.of(), Map.of(), InputType.UNSPECIFIED, TIMEOUT, listener);
+            service.chunkedInfer(mock(), List.of(), Map.of(), InputType.UNSPECIFIED, TIMEOUT, listener);
             var exception = expectThrows(UnsupportedOperationException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(exception.getMessage(), is("deepseek service does not support chunked inference"));
         }

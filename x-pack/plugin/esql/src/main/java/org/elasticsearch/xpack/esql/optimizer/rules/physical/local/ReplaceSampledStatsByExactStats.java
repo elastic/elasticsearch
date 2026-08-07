@@ -82,7 +82,7 @@ public class ReplaceSampledStatsByExactStats extends PhysicalOptimizerRules.Para
             for (int i = plan.originalIntermediateAttributes().size(); i < plan.intermediateAttributes().size(); i++) {
                 Attribute attribute = plan.intermediateAttributes().get(i);
                 Attribute originalAttribute = plan.originalIntermediateAttributes().get(i % plan.originalIntermediateAttributes().size());
-                exactBuckets.add(new Alias(Source.EMPTY, attribute.name(), originalAttribute, attribute.id()));
+                exactBuckets.add(new Alias(Source.EMPTY, attribute.name(), originalAttribute, attribute.id(), attribute.synthetic()));
             }
             return new EvalExec(Source.EMPTY, aggregate, exactBuckets);
         } else {

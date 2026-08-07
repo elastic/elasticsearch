@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function;
 
-import org.elasticsearch.Build;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -16,32 +14,9 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.AbstractNamedExpressionSerializationTests;
 
-import java.util.function.Supplier;
+import static org.elasticsearch.xpack.esql.expression.function.ReferenceAttributeTestUtils.randomReferenceAttribute;
 
 public class ReferenceAttributeTests extends AbstractNamedExpressionSerializationTests<ReferenceAttribute> {
-    public static ReferenceAttribute randomReferenceAttribute(boolean onlyRepresentable) {
-        return randomReferenceAttribute(onlyRepresentable, null);
-    }
-
-    public static ReferenceAttribute randomReferenceAttribute(boolean onlyRepresentable, TransportVersion supportedOn) {
-        Source source = Source.EMPTY;
-        String qualifier = randomBoolean() ? null : randomAlphaOfLength(3);
-        String name = randomAlphaOfLength(5);
-        boolean isSnapshot = Build.current().isSnapshot();
-        Supplier<DataType> randomType = () -> randomValueOtherThanMany(
-            t -> false == t.supportedVersion().supportedLocally()
-                || DataType.UNDER_CONSTRUCTION.contains(t)
-                || (supportedOn != null && false == t.supportedVersion().supportedOn(supportedOn, isSnapshot)),
-            () -> randomFrom(DataType.types())
-        );
-        DataType type = onlyRepresentable
-            ? randomValueOtherThanMany(t -> false == DataType.isRepresentable(t), randomType)
-            : randomType.get();
-        Nullability nullability = randomFrom(Nullability.values());
-        boolean synthetic = randomBoolean();
-        return new ReferenceAttribute(source, qualifier, name, type, nullability, new NameId(), synthetic);
-    }
-
     @Override
     protected ReferenceAttribute createTestInstance() {
         return randomReferenceAttribute(false);
@@ -70,6 +45,17 @@ public class ReferenceAttributeTests extends AbstractNamedExpressionSerializatio
     @Override
     protected ReferenceAttribute mutateNameId(ReferenceAttribute instance) {
         return (ReferenceAttribute) instance.withId(new NameId());
+    }
+
+    /**
+     * Ensures {@code withQualifier} applies the new qualifier rather than returning
+     * the unchanged attribute, and still avoids cloning when the qualifier is equal.
+     */
+    public void testWithQualifier() {
+        ReferenceAttribute attribute = randomReferenceAttribute(false);
+        String newQualifier = randomValueOtherThan(attribute.qualifier(), () -> randomBoolean() ? null : randomAlphaOfLength(5));
+        assertEquals(newQualifier, attribute.withQualifier(newQualifier).qualifier());
+        assertSame(attribute, attribute.withQualifier(attribute.qualifier()));
     }
 
     @Override

@@ -190,7 +190,7 @@ public class ImplicitPrivilegesIT extends ESRestTestCase {
                 { "names": ["logs-*"], "privileges": ["read"] }
               ],
               "applications": [
-                { "application": "*", "privileges": ["*"], "resources": ["*"] }
+                { "application": "shield*", "privileges": ["*"], "resources": ["*"] }
               ]
             }
             """);

@@ -11,11 +11,20 @@ package org.elasticsearch.gradle
 
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
 import org.gradle.testkit.runner.TaskOutcome
+import spock.lang.TempDir
 import spock.lang.Unroll
 
 import static org.elasticsearch.gradle.fixtures.DistributionDownloadFixture.withMockedDistributionDownload
 
 class DistributionDownloadPluginFuncTest extends AbstractGradleFuncTest {
+
+    @TempDir
+    File gradleUserHome
+
+    @Override
+    protected File customGradleUserHome() {
+        return gradleUserHome
+    }
 
     @Unroll
     def "extracted #distType version can be resolved"() {

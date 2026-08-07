@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedNamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 
@@ -111,13 +112,41 @@ public class UnresolvedNamePattern extends UnresolvedNamedExpression {
         return super.innerEquals(other, true) && Objects.equals(pattern, other.pattern) && Objects.equals(actualName, other.actualName);
     }
 
-    @Override
-    public void nodeString(StringBuilder sb, NodeStringFormat format) {
-        sb.append(toString());
+    /**
+     * Renders a wildcard-style pattern (SQL {@code LIKE} / shell {@code KEEP *foo*}) preserving
+     * the metacharacters {@code *}, {@code ?}, {@code %}, {@code _} verbatim; each literal run
+     * between metacharacters routes through {@code mapper.column}. Backslash escapes the next
+     * character (treated as literal).
+     */
+    public static void rewriteWildcardPattern(StringBuilder sb, String pattern, NodeStringMapper mapper) {
+        if (pattern == null || pattern.isEmpty()) {
+            return;
+        }
+        StringBuilder run = new StringBuilder();
+        for (int i = 0; i < pattern.length(); i++) {
+            char c = pattern.charAt(i);
+            if (c == '\\' && i + 1 < pattern.length()) {
+                run.append(pattern.charAt(++i));
+                continue;
+            }
+            if (c == '*' || c == '?' || c == '%' || c == '_') {
+                if (run.length() > 0) {
+                    sb.append(mapper.column(run.toString()));
+                    run.setLength(0);
+                }
+                sb.append(c);
+            } else {
+                run.append(c);
+            }
+        }
+        if (run.length() > 0) {
+            sb.append(mapper.column(run.toString()));
+        }
     }
 
     @Override
     public String toString() {
         return UNRESOLVED_PREFIX + pattern;
     }
+
 }

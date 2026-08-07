@@ -715,7 +715,11 @@ public final class DataStreamTestHelper {
         when(allocationService.getShardRoutingRoleStrategy()).thenReturn(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
         MappingLookup mappingLookup = MappingLookup.EMPTY;
         if (dataStream != null) {
-            RootObjectMapper.Builder root = new RootObjectMapper.Builder("_doc", ObjectMapper.Defaults.SUBOBJECTS);
+            IndexMode indexMode = randomFrom(IndexMode.availableModes());
+            RootObjectMapper.Builder root = new RootObjectMapper.Builder(
+                "_doc",
+                indexMode.isStrictColumnar() ? ObjectMapper.Defaults.SUBOBJECTS_COLUMNAR : ObjectMapper.Defaults.SUBOBJECTS
+            );
             root.add(
                 new DateFieldMapper.Builder(
                     DataStream.TIMESTAMP_FIELD_NAME,
@@ -731,12 +735,7 @@ public final class DataStreamTestHelper {
                 new MetadataFieldMapper[] { dtfm },
                 Collections.emptyMap()
             );
-            mappingLookup = MappingLookup.fromMappers(
-                mapping,
-                List.of(dtfm, dateFieldMapper),
-                List.of(),
-                randomFrom(IndexMode.availableModes())
-            );
+            mappingLookup = MappingLookup.fromMappers(mapping, List.of(dtfm, dateFieldMapper), List.of(), indexMode);
         }
         IndicesService indicesService = mockIndicesServices(mappingLookup);
 
@@ -800,7 +799,7 @@ public final class DataStreamTestHelper {
             when(indexService.index()).thenReturn(indexMetadata.getIndex());
             MapperService mapperService = mock(MapperService.class);
 
-            RootObjectMapper root = new RootObjectMapper.Builder(MapperService.SINGLE_MAPPING_NAME, ObjectMapper.Defaults.SUBOBJECTS).build(
+            RootObjectMapper root = new RootObjectMapper.Builder(MapperService.SINGLE_MAPPING_NAME).build(
                 MapperBuilderContext.root(false, false)
             );
             Mapping mapping = new Mapping(root, new MetadataFieldMapper[0], null);

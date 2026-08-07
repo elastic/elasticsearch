@@ -1,0 +1,45 @@
+---
+"Task cancellation interrupts a long-running reindex script loop":
+  - do:
+      indices.create:
+        index: test_reindex_cancel_source
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+  - do:
+      index:
+        index: test_reindex_cancel_source
+        id:    "1"
+        body:  { "value": 1 }
+  - do:
+      indices.refresh:
+        index: test_reindex_cancel_source
+
+  - do:
+      reindex:
+        wait_for_completion: false
+        body:
+          source:
+            index: test_reindex_cancel_source
+          dest:
+            index: test_reindex_cancel_dest
+          script:
+            lang: painless
+            source: |
+              long start = System.currentTimeMillis();
+              while (System.currentTimeMillis() - start < 60000L) {
+                /* spin: task cancellation will interrupt via Painless cancellation check */
+              }
+              ctx._source.processed = true;
+  - match: {task: '/.+:\d+/'}
+  - set: {task: task}
+
+  - do:
+      tasks.cancel:
+        task_id: $task
+
+  - do:
+      tasks.get:
+        wait_for_completion: true
+        task_id: $task

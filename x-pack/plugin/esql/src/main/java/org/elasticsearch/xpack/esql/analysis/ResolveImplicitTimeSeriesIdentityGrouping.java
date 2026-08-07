@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.analysis;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.Functions;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
@@ -82,8 +83,10 @@ public class ResolveImplicitTimeSeriesIdentityGrouping extends Rule<LogicalPlan,
             );
         }
 
-        List<Expression> groupings = new ArrayList<>();
-        groupings.add(new TimeSeriesWithout(aggregate.source(), List.of()).toAttribute());
+        List<Expression> groupings = new ArrayList<>(aggregate.groupings().size() + 1);
+        Source source = aggregate.source();
+        var fn = new TimeSeriesWithout(source);
+        groupings.add(fn.createNamedExpression());
 
         for (Expression grouping : aggregate.groupings()) {
             if (Functions.isGrouping(Alias.unwrap(grouping)) == false) {
@@ -104,7 +107,8 @@ public class ResolveImplicitTimeSeriesIdentityGrouping extends Rule<LogicalPlan,
             groupings,
             newAggregateFunctions,
             null,
-            aggregate.timestamp()
+            aggregate.timestamp(),
+            aggregate.origin()
         );
     }
 

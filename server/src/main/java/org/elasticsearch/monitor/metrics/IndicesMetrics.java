@@ -81,9 +81,12 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
         ClusterService clusterService,
         SystemIndices systemIndices
     ) {
-        final int TOTAL_METRICS = 95;
-        List<AutoCloseable> metrics = new ArrayList<>(TOTAL_METRICS);
-        for (IndexMode indexMode : IndexMode.values()) {
+        final IndexMode[] availableModes = IndexMode.availableModes();
+        final int metricsPerIndexMode = 13;
+        final int sharedMetrics = 4;
+        final int totalMetrics = (availableModes.length * metricsPerIndexMode) + sharedMetrics;
+        List<AutoCloseable> metrics = new ArrayList<>(totalMetrics);
+        for (IndexMode indexMode : availableModes) {
             String name = indexMode.getName();
             metrics.add(
                 registry.registerLongGauge(
@@ -233,7 +236,7 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
                 getTotalUserIndices(systemIndices, clusterState.getMetadata().projects().values().iterator().next())
             );
         }));
-        assert metrics.size() == TOTAL_METRICS : "total number of metrics has changed";
+        assert metrics.size() == totalMetrics : "total number of metrics has changed";
         return metrics;
     }
 
@@ -315,19 +318,22 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
         return count;
     }
 
-    static Map<IndexMode, IndexStats> getStatsWithoutCache(IndicesService indicesService) {
+    static Map<IndexMode, IndexStats> getStatsWithoutCache(IndicesService indicesService, IndexMode[] availableModes) {
         Map<IndexMode, IndexStats> stats = new EnumMap<>(IndexMode.class);
-        for (IndexMode mode : IndexMode.values()) {
+        for (IndexMode mode : availableModes) {
             stats.put(mode, new IndexStats());
         }
         for (IndexService indexService : indicesService) {
             for (IndexShard indexShard : indexService) {
                 if (indexShard.isSystem()) {
-                    continue; // skip system indices
+                    continue;
                 }
                 final ShardRouting shardRouting = indexShard.routingEntry();
                 final IndexMode indexMode = indexShard.indexSettings().getMode();
                 final IndexStats indexStats = stats.get(indexMode);
+                if (indexStats == null) {
+                    continue;
+                }
                 try {
                     if (shardRouting.primary() && shardRouting.recoverySource() == null) {
                         if (shardRouting.shardId().id() == 0) {
@@ -351,7 +357,7 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
         private static final Map<IndexMode, IndexStats> MISSING_STATS;
         static {
             MISSING_STATS = new EnumMap<>(IndexMode.class);
-            for (IndexMode value : IndexMode.values()) {
+            for (IndexMode value : IndexMode.availableModes()) {
                 MISSING_STATS.put(value, new IndexStats());
             }
         }
@@ -367,7 +373,7 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
 
         @Override
         protected Map<IndexMode, IndexStats> refresh() {
-            return refresh ? getStatsWithoutCache(indicesService) : getNoRefresh();
+            return refresh ? getStatsWithoutCache(indicesService, IndexMode.availableModes()) : getNoRefresh();
         }
 
         @Override

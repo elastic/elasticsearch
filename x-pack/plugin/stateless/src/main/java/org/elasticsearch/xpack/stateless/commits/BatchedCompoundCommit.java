@@ -234,10 +234,14 @@ public record BatchedCompoundCommit(PrimaryTermAndGeneration primaryTermAndGener
 
     public static Set<PrimaryTermAndGeneration> computeReferencedBCCGenerations(StatelessCompoundCommit commit) {
         Set<PrimaryTermAndGeneration> primaryTermAndGenerations = new HashSet<>();
+        appendBCCGenerations(primaryTermAndGenerations, commit);
+        return Collections.unmodifiableSet(primaryTermAndGenerations);
+    }
+
+    public static void appendBCCGenerations(Set<PrimaryTermAndGeneration> primaryTermAndGenerations, StatelessCompoundCommit commit) {
         for (BlobLocation blobLocation : commit.commitFiles().values()) {
             primaryTermAndGenerations.add(blobLocation.getBatchedCompoundCommitTermAndGeneration());
         }
-        return Collections.unmodifiableSet(primaryTermAndGenerations);
     }
 
     public static String blobNameFromGeneration(long generation) {

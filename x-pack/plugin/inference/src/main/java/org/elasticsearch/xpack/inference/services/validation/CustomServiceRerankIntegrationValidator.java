@@ -18,8 +18,6 @@ import org.elasticsearch.inference.validation.ServiceIntegrationValidator;
 
 import java.util.List;
 
-import static org.elasticsearch.inference.DataType.TEXT;
-
 /**
  * This class is slightly different from the SimpleServiceIntegrationValidator in that in sends the topN and return documents in the
  * request. This is necessary because the custom service may require those template to be replaced when building the request. Otherwise,
@@ -33,7 +31,7 @@ public class CustomServiceRerankIntegrationValidator implements ServiceIntegrati
     public void validate(InferenceService service, Model model, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
         service.rerankInfer(
             model,
-            new RerankRequest(InferenceString.fromStringList(TEST_INPUT), new InferenceString(TEXT, QUERY), 1, true, null),
+            new RerankRequest(InferenceString.fromStringList(TEST_INPUT), InferenceString.ofText(QUERY), 1, true, null),
             timeout,
             ServiceIntegrationValidator.wrapListenerForValidation(listener)
         );

@@ -43,10 +43,22 @@ public interface Vector extends Accountable, RefCounted, Releasable {
     /**
      * Creates a new vector that only exposes the positions provided. Materialization of the selected positions is avoided.
      * @param mayContainDuplicates may the positions array contain duplicate positions?
+     * @param positions the positions array
+     * @param offset the start index in the positions array
+     * @param length the number of positions to use from the array
+     * @return a filtered vector
+     */
+    Vector filter(boolean mayContainDuplicates, int[] positions, int offset, int length);
+
+    /**
+     * Creates a new vector that only exposes the positions provided. Materialization of the selected positions is avoided.
+     * @param mayContainDuplicates may the positions array contain duplicate positions?
      * @param positions the positions to retain
      * @return a filtered vector
      */
-    Vector filter(boolean mayContainDuplicates, int... positions);
+    default Vector filter(boolean mayContainDuplicates, int... positions) {
+        return filter(mayContainDuplicates, positions, 0, positions.length);
+    }
 
     /**
      * Build a {@link Block} the same values as this {@link Vector}, but replacing
@@ -152,6 +164,13 @@ public interface Vector extends Accountable, RefCounted, Releasable {
      * Whether this vector was released
      */
     boolean isReleased();
+
+    /**
+     * Attaches a {@link Releasable} that is invoked exactly once when this vector's reference count
+     * reaches zero, immediately after its resources are released. May be called at most once; throws
+     * {@link IllegalStateException} if called after release or a second time.
+     */
+    void attachReleasable(Releasable releasable);
 
     /**
      * The serialization type of vectors: 0 and 1 replaces the boolean false/true in pre-8.14.

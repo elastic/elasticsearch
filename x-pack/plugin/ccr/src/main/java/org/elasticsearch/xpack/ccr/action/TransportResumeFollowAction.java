@@ -489,6 +489,7 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
         IndexSettings.MAX_REGEX_LENGTH_SETTING,
         IndexSettings.MAX_TERMS_COUNT_SETTING,
         IndexSettings.MAX_ANALYZED_OFFSET_SETTING,
+        IndexSettings.MAX_NUMBER_OF_FRAGMENTS_SETTING,
         IndexSettings.WEIGHT_MATCHES_MODE_ENABLED_SETTING,
         IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING,
         IndexSettings.MAX_TOKEN_COUNT_SETTING,
@@ -542,6 +543,7 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
         MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING,
         DenseVectorFieldMapper.HNSW_FILTER_HEURISTIC,
         DenseVectorFieldMapper.HNSW_EARLY_TERMINATION,
+        DenseVectorFieldMapper.POST_FILTER_SELECTIVITY_THRESHOLD,
         IndexSettings.INTRA_MERGE_PARALLELISM_ENABLED_SETTING
     );
 

@@ -12,9 +12,8 @@ package org.elasticsearch.benchmark.vector.scorer;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.elasticsearch.benchmark.store.DirectoryType;
 import org.elasticsearch.core.CheckedFunction;
-import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.simdvec.ES940OSQVectorsScorer;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.io.IOException;
@@ -27,36 +26,32 @@ public class VectorScorerOSQBenchmarkTests extends BenchmarkTest {
 
     private final float deltaPercent = 0.1f;
     private final int dims;
-    private final byte bits;
-    private final VectorScorerOSQBenchmark.DirectoryType directoryType;
-    private final ES940OSQVectorsScorer.SymmetricInt4Encoding int4Encoding;
+    private final VectorScorerOSQBenchmark.QuantConfig quantConfig;
+    private final DirectoryType directoryType;
     private final VectorSimilarityFunction similarityFunction;
 
     public VectorScorerOSQBenchmarkTests(
         int dims,
-        byte bits,
-        VectorScorerOSQBenchmark.DirectoryType directoryType,
-        ES940OSQVectorsScorer.SymmetricInt4Encoding int4Encoding,
+        VectorScorerOSQBenchmark.QuantConfig quantConfig,
+        DirectoryType directoryType,
         VectorSimilarityFunction similarityFunction
     ) {
         this.dims = dims;
-        this.bits = bits;
+        this.quantConfig = quantConfig;
         this.directoryType = directoryType;
-        this.int4Encoding = int4Encoding;
         this.similarityFunction = similarityFunction;
     }
 
     public void testSingle() throws Exception {
-        var data = VectorScorerOSQBenchmark.generateRandomVectorData(random(), dims, bits, int4Encoding, similarityFunction);
+        var data = VectorScorerOSQBenchmark.generateRandomVectorData(random(), dims, quantConfig, similarityFunction);
 
         float[] expected = null;
         for (var impl : VectorScorerOSQBenchmark.VectorImplementation.values()) {
             VectorScorerOSQBenchmark bench = new VectorScorerOSQBenchmark();
             bench.implementation = impl;
             bench.dims = dims;
-            bench.bits = bits;
+            bench.quantConfig = quantConfig;
             bench.directoryType = directoryType;
-            bench.int4Encoding = int4Encoding;
             bench.similarityFunction = similarityFunction;
             bench.setup(data);
 
@@ -70,22 +65,20 @@ public class VectorScorerOSQBenchmarkTests extends BenchmarkTest {
                 assertArrayEqualsPercent(impl.toString(), expected, result, deltaPercent, DEFAULT_DELTA);
             } finally {
                 bench.teardown();
-                IOUtils.rm(bench.tempDir);
             }
         }
     }
 
     public void testBulk() throws Exception {
-        var data = VectorScorerOSQBenchmark.generateRandomVectorData(random(), dims, bits, int4Encoding, similarityFunction);
+        var data = VectorScorerOSQBenchmark.generateRandomVectorData(random(), dims, quantConfig, similarityFunction);
 
         float[] expected = null;
         for (var impl : VectorScorerOSQBenchmark.VectorImplementation.values()) {
             VectorScorerOSQBenchmark bench = new VectorScorerOSQBenchmark();
             bench.implementation = impl;
             bench.dims = dims;
-            bench.bits = bits;
+            bench.quantConfig = quantConfig;
             bench.directoryType = directoryType;
-            bench.int4Encoding = int4Encoding;
             bench.similarityFunction = similarityFunction;
             bench.setup(data);
 
@@ -99,13 +92,12 @@ public class VectorScorerOSQBenchmarkTests extends BenchmarkTest {
                 assertArrayEqualsPercent(impl.toString(), expected, result, deltaPercent, DEFAULT_DELTA);
             } finally {
                 bench.teardown();
-                IOUtils.rm(bench.tempDir);
             }
         }
     }
 
     public void testFilteredOne() throws Exception {
-        var data = VectorScorerOSQBenchmark.generateRandomVectorData(random(), dims, bits, int4Encoding, similarityFunction);
+        var data = VectorScorerOSQBenchmark.generateRandomVectorData(random(), dims, quantConfig, similarityFunction);
         runFilteredBenchmarks(
             data,
             VectorScorerOSQBenchmark::controlScoreBulkFilteredOne,
@@ -116,7 +108,7 @@ public class VectorScorerOSQBenchmarkTests extends BenchmarkTest {
     }
 
     public void testFilteredDense() throws Exception {
-        var data = VectorScorerOSQBenchmark.generateRandomVectorData(random(), dims, bits, int4Encoding, similarityFunction);
+        var data = VectorScorerOSQBenchmark.generateRandomVectorData(random(), dims, quantConfig, similarityFunction);
         runFilteredBenchmarks(
             data,
             VectorScorerOSQBenchmark::scoreBulkFilteredDense,
@@ -127,7 +119,7 @@ public class VectorScorerOSQBenchmarkTests extends BenchmarkTest {
     }
 
     public void testFilteredSparse() throws Exception {
-        var data = VectorScorerOSQBenchmark.generateRandomVectorData(random(), dims, bits, int4Encoding, similarityFunction);
+        var data = VectorScorerOSQBenchmark.generateRandomVectorData(random(), dims, quantConfig, similarityFunction);
         runFilteredBenchmarks(
             data,
             VectorScorerOSQBenchmark::scoreBulkFilteredSparse,
@@ -182,9 +174,8 @@ public class VectorScorerOSQBenchmarkTests extends BenchmarkTest {
         VectorScorerOSQBenchmark bench = new VectorScorerOSQBenchmark();
         bench.implementation = impl;
         bench.dims = dims;
-        bench.bits = bits;
+        bench.quantConfig = quantConfig;
         bench.directoryType = directoryType;
-        bench.int4Encoding = int4Encoding;
         bench.similarityFunction = similarityFunction;
         bench.setup(data);
 
@@ -195,7 +186,6 @@ public class VectorScorerOSQBenchmarkTests extends BenchmarkTest {
             return bulkResult;
         } finally {
             bench.teardown();
-            IOUtils.rm(bench.tempDir);
         }
     }
 
@@ -214,9 +204,8 @@ public class VectorScorerOSQBenchmarkTests extends BenchmarkTest {
     public static Iterable<Object[]> parametersFactory() throws NoSuchFieldException {
         return generateParameters(
             VectorScorerOSQBenchmark.class.getField("dims"),
-            VectorScorerOSQBenchmark.class.getField("bits"),
+            VectorScorerOSQBenchmark.class.getField("quantConfig"),
             VectorScorerOSQBenchmark.class.getField("directoryType"),
-            VectorScorerOSQBenchmark.class.getField("int4Encoding"),
             VectorScorerOSQBenchmark.class.getField("similarityFunction")
         );
     }

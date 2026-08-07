@@ -154,7 +154,6 @@ public final class MinBytesRefGroupingAggregatorFunction implements GroupingAggr
 
   @Override
   public void addIntermediateInput(int positionOffset, IntArrayBlock groups, Page page) {
-    state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
     Block minUncast = page.getBlock(channels.get(0));
     if (minUncast.areAllValuesNull()) {
@@ -244,7 +243,6 @@ public final class MinBytesRefGroupingAggregatorFunction implements GroupingAggr
 
   @Override
   public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
-    state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
     Block minUncast = page.getBlock(channels.get(0));
     if (minUncast.areAllValuesNull()) {
@@ -319,7 +317,6 @@ public final class MinBytesRefGroupingAggregatorFunction implements GroupingAggr
 
   @Override
   public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
-    state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
     Block minUncast = page.getBlock(channels.get(0));
     if (minUncast.areAllValuesNull()) {
@@ -356,6 +353,16 @@ public final class MinBytesRefGroupingAggregatorFunction implements GroupingAggr
       int valuesPosition = groupPosition + positionOffset;
       MinBytesRefAggregator.combineIntermediate(state, groupId, min.getBytesRef(valuesPosition, minScratch), seen.getBoolean(valuesPosition));
     }
+  }
+
+  @Override
+  public GroupingAggregatorFunction.AddInput prepareProcessIntermediateInputPage(
+      SeenGroupIds seenGroupIds, Page page) {
+    BooleanVector seen = ((BooleanBlock) page.getBlock(channels.get(1))).asVector();
+    if (seen == null || seen.isConstant() == false || seen.getBoolean(0) == false) {
+      state.enableGroupIdTracking(seenGroupIds);
+    }
+    return new GroupingAggregatorFunction.IntermediateAddInput(this, seenGroupIds, page);
   }
 
   private void maybeEnableGroupIdTracking(SeenGroupIds seenGroupIds, BytesRefBlock valueBlock) {

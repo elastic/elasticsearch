@@ -10,7 +10,6 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.local.LocalClusterStateRequest;
-import org.elasticsearch.cluster.metadata.DataSource;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
@@ -18,7 +17,9 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.esql.DataSourceRequestInfo;
 import org.elasticsearch.xpack.core.esql.EsqlDataSourceActionNames;
+import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -36,7 +37,7 @@ public class GetDataSourceAction extends ActionType<GetDataSourceAction.Response
         super(NAME);
     }
 
-    public static class Request extends LocalClusterStateRequest {
+    public static class Request extends LocalClusterStateRequest implements DataSourceRequestInfo {
         private final String[] names;
 
         public Request(TimeValue masterNodeTimeout, String[] names) {
@@ -46,6 +47,16 @@ public class GetDataSourceAction extends ActionType<GetDataSourceAction.Response
 
         public String[] names() {
             return names;
+        }
+
+        @Override
+        public String[] dataSourceNames() {
+            return names;
+        }
+
+        @Override
+        public String dataSourceClusterActionName() {
+            return NAME;
         }
 
         @Override
@@ -96,7 +107,7 @@ public class GetDataSourceAction extends ActionType<GetDataSourceAction.Response
                 if (ds.description() != null) {
                     builder.field("description", ds.description());
                 }
-                builder.field("settings", ds.toPresentationMap());
+                builder.field("settings", ds.settings().toPresentationMap());
                 builder.endObject();
             }
             builder.endArray();

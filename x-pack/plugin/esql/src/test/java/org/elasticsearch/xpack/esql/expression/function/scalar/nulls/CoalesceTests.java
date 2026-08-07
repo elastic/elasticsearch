@@ -15,6 +15,8 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
+import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
+import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
@@ -51,6 +53,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.common.time.DateUtils.MAX_MILLIS_BEFORE_9999;
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.appliesTo;
@@ -155,6 +158,44 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
                 equalTo(firstHisto == null ? secondHisto : firstHisto)
             );
         }));
+        noNullsSuppliers.add(new TestCaseSupplier(List.of(DataType.DATE_RANGE, DataType.DATE_RANGE), () -> {
+            assumeTrue("Requires COALESCE_DATE_RANGE capability", EsqlCapabilities.Cap.COALESCE_DATE_RANGE.isEnabled());
+            long from1 = randomMillisUpToYear9999();
+            LongRangeBlockBuilder.LongRange first = randomBoolean()
+                ? null
+                : new LongRangeBlockBuilder.LongRange(from1, randomLongBetween(from1 + 1, MAX_MILLIS_BEFORE_9999));
+            long from2 = randomMillisUpToYear9999();
+            LongRangeBlockBuilder.LongRange second = new LongRangeBlockBuilder.LongRange(
+                from2,
+                randomLongBetween(from2 + 1, MAX_MILLIS_BEFORE_9999)
+            );
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(first, DataType.DATE_RANGE, "first"),
+                    new TestCaseSupplier.TypedData(second, DataType.DATE_RANGE, "second")
+                ),
+                "CoalesceLongRangeEagerEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]",
+                DataType.DATE_RANGE,
+                equalTo(first == null ? second : first)
+            );
+        }));
+        noNullsSuppliers.add(new TestCaseSupplier(List.of(DataType.DOUBLE_RANGE, DataType.DOUBLE_RANGE), () -> {
+            assumeTrue(
+                "Requires DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V8 capability",
+                EsqlCapabilities.Cap.DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V8.isEnabled()
+            );
+            DoubleRangeBlockBuilder.DoubleRange first = randomBoolean() ? null : TestCaseSupplier.randomDoubleRange();
+            DoubleRangeBlockBuilder.DoubleRange second = TestCaseSupplier.randomDoubleRange();
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(first, DataType.DOUBLE_RANGE, "first"),
+                    new TestCaseSupplier.TypedData(second, DataType.DOUBLE_RANGE, "second")
+                ),
+                "CoalesceDoubleRangeEagerEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]",
+                DataType.DOUBLE_RANGE,
+                equalTo(first == null ? second : first)
+            );
+        }));
         noNullsSuppliers.add(new TestCaseSupplier(List.of(DataType.HISTOGRAM, DataType.HISTOGRAM), () -> {
             BytesRef firstHisto = randomBoolean() ? null : EsqlTestUtils.randomHistogram();
             BytesRef secondHisto = EsqlTestUtils.randomHistogram();
@@ -231,10 +272,14 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
 
         FunctionAppliesTo histogramPreviewAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.3.0", "", false);
         FunctionAppliesTo histogramGaAppliesTo = appliesTo(FunctionAppliesToLifecycle.GA, "9.4.0", "", true);
+        FunctionAppliesTo doubleRangeAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.6.0", "", false);
         suppliers = TestCaseSupplier.mapTestCases(suppliers, tc -> tc.withData(tc.getData().stream().map(typedData -> {
             DataType type = typedData.type();
             if (type == DataType.HISTOGRAM || type == DataType.EXPONENTIAL_HISTOGRAM || type == DataType.TDIGEST) {
                 return typedData.withAppliesTo(histogramPreviewAppliesTo).withAppliesTo(histogramGaAppliesTo);
+            }
+            if (type == DataType.DOUBLE_RANGE) {
+                return typedData.withAppliesTo(doubleRangeAppliesTo);
             }
             return typedData;
         }).toList()));

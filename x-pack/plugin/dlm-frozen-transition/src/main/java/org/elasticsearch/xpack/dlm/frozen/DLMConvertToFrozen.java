@@ -47,8 +47,10 @@ import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
+import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.SnapshotsInProgress;
+import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamAction;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -57,24 +59,28 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
+import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.snapshots.RestoreInfo;
+import org.elasticsearch.snapshots.SnapshotException;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.SnapshotState;
+import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
@@ -102,14 +108,6 @@ import static org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapsho
  * This class encapsulates the steps necessary to convert a data stream backing index to frozen.
  */
 public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
-
-    public static final String DLM_CREATED_SETTING_KEY = IndexMetadata.INDEX_SETTING_PREFIX + "dlm.frozen.created";
-    public static final Setting<Boolean> DLM_CREATED_SETTING = Setting.boolSetting(
-        DLM_CREATED_SETTING_KEY,
-        false,
-        Setting.Property.IndexScope,
-        Setting.Property.InternalIndex
-    );
 
     public static final String CLONE_INDEX_PREFIX = "dlm-clone-";
     static final String SNAPSHOT_NAME_PREFIX = "dlm-frozen-";
@@ -152,6 +150,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
             maybeForceMergeIndex(forceMergeIndex);
             maybeTakeSnapshot(forceMergeIndex);
             maybeMountSearchableSnapshot(forceMergeIndex);
+            waitForMountedIndexToBeAvailable();
             maybeCleanup(forceMergeIndex);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -456,7 +455,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
             getRepositoryForFrozen(projectMetadata, indexName),
             snapshotName,
             forceMergeIndex,
-            Settings.builder().put(DLM_CREATED_SETTING_KEY, true).build(),
+            Settings.builder().put(DataStreamLifecycleService.DLM_CREATED_SETTING_KEY, true).build(),
             ignoredIndexSettings,
             true,
             MountSearchableSnapshotRequest.Storage.SHARED_CACHE
@@ -479,10 +478,31 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
                 );
             }
             logger.info("DLM successfully mounted snapshot [{}]", snapshotName);
-        } catch (ExecutionException e) {
-            throw ExceptionsHelper.convertToElastic(e, "DLM failed while mounting snapshot [{}]", snapshotName);
+        } catch (Exception e) {
+            Throwable unwrapped = unwrapNestedExceptions(e);
+            if (unwrapped instanceof InterruptedException ie) {
+                throw ie;
+            }
+            throw e instanceof ElasticsearchException ee
+                ? ee
+                : new ElasticsearchException("DLM failed while mounting snapshot [{}]", e, snapshotName);
         }
+    }
 
+    /**
+     * Waits for the mounted searchable snapshot index to reach yellow status (all primary shards allocated) before
+     * the cleanup step swaps it into the data stream. This guards against a partial mount being promoted, which would
+     * point the data stream at an index with no allocated shards while the original index is deleted.
+     * <p>
+     * This is a distinct step to handle both the normal path and a retry / resumption after master failover.
+     * <p>
+     * On timeout this method throws, the error is recorded in the DLM error store, and the next poll-cycle retry
+     * re-enters this same step.
+     */
+    public void waitForMountedIndexToBeAvailable() throws InterruptedException {
+        checkIfThreadInterrupted();
+        checkIfEligibleForConvertToFrozen();
+        waitForIndexYellowStatus(snapshotName(indexName));
     }
 
     void maybeCleanup(String forceMergeIndex) throws InterruptedException {
@@ -590,7 +610,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .putNull(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS)
-                .put(DLM_CREATED_SETTING_KEY, true)
+                .put(DataStreamLifecycleService.DLM_CREATED_SETTING_KEY, true)
         );
         return resizeReq;
     }
@@ -644,25 +664,60 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
     }
 
     /**
-     * Waits up to 1 minute for the given index to reach yellow status (all primary shards allocated).
+     * Waits up to 5 minutes for the given index to reach yellow status (all primary shards allocated).
      * Throws an {@link ElasticsearchException} if the timeout is breached.
      */
-    private void waitForIndexYellowStatus(String index) throws InterruptedException {
-        TimeValue timeout = TimeValue.timeValueMinutes(1);
-        ClusterHealthRequest healthRequest = new ClusterHealthRequest(INFINITE_MASTER_NODE_TIMEOUT, index).waitForYellowStatus()
-            .timeout(timeout);
-        ClusterHealthResponse response;
+    protected void waitForIndexYellowStatus(String index) throws InterruptedException {
+        final TimeValue timeout = TimeValue.timeValueMinutes(5);
+        // Use a latch because we do no work, only waiting
+        final CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<Exception> observerError = new AtomicReference<>();
+
+        ClusterStateObserver.waitForState(
+            clusterService,
+            clusterService.threadPool().getThreadContext(),
+            new ClusterStateObserver.Listener() {
+                @Override
+                public void onNewClusterState(ClusterState state) {
+                    // Index shards have been allocated – signal the waiting thread.
+                    latch.countDown();
+                }
+
+                @Override
+                public void onClusterServiceClose() {
+                    observerError.set(new NodeClosedException(clusterService.localNode()));
+                    latch.countDown();
+                }
+
+                @Override
+                public void onTimeout(TimeValue timeout) {
+                    observerError.set(
+                        new ElasticsearchException("DLM timed out after [{}] waiting for index [{}] shards to be allocated", timeout, index)
+                    );
+                    latch.countDown();
+                }
+            },
+            state -> Optional.ofNullable(state.projectState(projectId))
+                .map(projectState -> projectState.routingTable().index(index))
+                .map(IndexRoutingTable::allPrimaryShardsActive)
+                // Why "true" here? Because if the project or index goes missing (because it was
+                // deleted, for instance), then we want to fast-pass this observer, not waiting
+                // for the full timeout. DLM will consider the index as having reached yellow,
+                // and the error will bubble up elsewhere.
+                .orElse(true),
+            timeout,
+            logger
+        );
         try {
-            response = client.projectClient(projectId).admin().cluster().health(healthRequest).get();
-        } catch (ExecutionException e) {
-            throw new ElasticsearchException("DLM failed while waiting for index [{}] shards to be allocated", e, index);
+            latch.await();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw e;
         }
-        if (response.isTimedOut()) {
-            throw new ElasticsearchException(
-                "DLM timed out after [{}]m waiting for index [{}] shards to be allocated",
-                timeout.getMinutes(),
-                index
-            );
+
+        Exception error = observerError.get();
+        if (error != null) {
+            throw ExceptionsHelper.convertToElastic(error);
         }
         logger.debug("DLM index [{}] has reached yellow status, proceeding", index);
     }
@@ -840,13 +895,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
 
                 @Override
                 public void onClusterServiceClose() {
-                    observerError.set(
-                        new ElasticsearchException(
-                            "Cluster service closed while waiting for DLM snapshot [{}] for index [{}]",
-                            snapshotName,
-                            indexName
-                        )
-                    );
+                    observerError.set(new NodeClosedException(clusterService.localNode()));
                     latch.countDown();
                 }
 
@@ -911,15 +960,18 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
             return;
         }
 
-        if (existingSnapshot.state() == SnapshotState.SUCCESS && existingSnapshot.failedShards() == 0) {
+        if (snapshotCompletedSuccessfully(existingSnapshot, indexName)) {
             logger.info("DLM found valid snapshot [{}] for index [{}]", snapshotName, indexName);
         } else {
             logger.info(
-                "DLM found invalid orphaned snapshot [{}] for index [{}] (state [{}], failed shards [{}]), deleting and recreating",
+                "DLM found invalid orphaned snapshot [{}] for index [{}] "
+                    + "(state [{}], successful shards [{}], failed shards [{}], indices {}), deleting and recreating",
                 snapshotName,
                 indexName,
                 existingSnapshot.state(),
-                existingSnapshot.failedShards()
+                existingSnapshot.successfulShards(),
+                existingSnapshot.failedShards(),
+                existingSnapshot.indices()
             );
             deleteSnapshotIfExists(repositoryName, snapshotName, indexName);
             createSnapshot(indexName, repositoryName, snapshotName);
@@ -998,6 +1050,31 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
     }
 
     /**
+     * Returns {@code true} if the exception indicates a transient master-failover condition from which the DLM service
+     * will naturally recover on the next scheduler tick once a new master is elected.
+     * Such exceptions must not be recorded in the error store, as they are not indicative of a bug or a
+     * misconfiguration.
+     */
+    static boolean isTransientMasterFailoverException(Throwable t) {
+        Throwable unwrapped = ExceptionsHelper.unwrap(
+            t,
+            NotMasterException.class,
+            FailedToCommitClusterStateException.class,
+            NodeClosedException.class,
+            MasterNotDiscoveredException.class,
+            ConnectTransportException.class,
+            SnapshotException.class
+        );
+
+        if (unwrapped != null) {
+            return unwrapped instanceof SnapshotException == false
+                || (unwrapped.getMessage() != null && unwrapped.getMessage().endsWith("no longer master"));
+        }
+
+        return false;
+    }
+
+    /**
      * Creates a snapshot for the given index and waits for completion.
      * Throws an exception if the snapshot fails to complete successfully for any reason.
      */
@@ -1037,7 +1114,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
             throw new ElasticsearchException("DLM snapshot [{}] for index [{}] did not return snapshot info", snapshotName, indexName);
         }
 
-        if (snapshotInfo.state() == SnapshotState.SUCCESS && snapshotInfo.failedShards() == 0) {
+        if (snapshotCompletedSuccessfully(snapshotInfo, indexName)) {
             logger.info("DLM successfully created snapshot [{}] for index [{}]", snapshotName, indexName);
             return;
         }
@@ -1047,22 +1124,34 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
         String reason = snapshotInfo.reason();
         if (Strings.hasText(reason)) {
             throw new ElasticsearchException(
-                "DLM snapshot [{}] for index [{}] finished with [{}] failed shards, state [{}], reason [{}]",
+                "DLM snapshot [{}] for index [{}] finished with [{}] successful shards and [{}] failed shards, "
+                    + "state [{}], indices {}, reason [{}]",
                 snapshotName,
                 indexName,
+                snapshotInfo.successfulShards(),
                 failedShards,
                 state,
+                snapshotInfo.indices(),
                 reason
             );
         } else {
             throw new ElasticsearchException(
-                "DLM snapshot [{}] for index [{}] finished with [{}] failed shards, state [{}]",
+                "DLM snapshot [{}] for index [{}] finished with [{}] successful shards and [{}] failed shards, state [{}], indices {}",
                 snapshotName,
                 indexName,
+                snapshotInfo.successfulShards(),
                 failedShards,
-                state
+                state,
+                snapshotInfo.indices()
             );
         }
+    }
+
+    private static boolean snapshotCompletedSuccessfully(SnapshotInfo snapshotInfo, String indexName) {
+        return snapshotInfo.state() == SnapshotState.SUCCESS
+            && snapshotInfo.failedShards() == 0
+            && snapshotInfo.successfulShards() > 0
+            && snapshotInfo.indices().contains(indexName);
     }
 
     /**
@@ -1086,6 +1175,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
         request.indices(indexName);
         request.waitForCompletion(true);
         request.includeGlobalState(false);
+        request.partial(true);
         request.userMetadata(Map.of(DLM_CREATED_METADATA_KEY, true));
         return request;
     }

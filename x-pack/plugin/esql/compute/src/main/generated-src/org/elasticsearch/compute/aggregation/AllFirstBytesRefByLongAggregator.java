@@ -354,24 +354,24 @@ public class AllFirstBytesRefByLongAggregator {
             try (var valuesBuilder = blockFactory.newBytesRefBlockBuilder(groups.getPositionCount())) {
                 for (int p = 0; p < groups.getPositionCount(); p++) {
                     int group = groups.getInt(p);
-                    if (group <= maxGroupId && hasValue(group) && nullValue(group) == false) {
-                        BytesRefArray tail = getTail(group);
-                        int tailCount = tail == null ? 0 : (int) tail.size();
-                        if (tailCount == 0) {
-                            valuesBuilder.appendBytesRef(firstValues.get(group).bytesRefView());
-                        } else {
-                            valuesBuilder.beginPositionEntry();
-                            valuesBuilder.appendBytesRef(firstValues.get(group).bytesRefView());
-                            for (int i = 0; i < tailCount; ++i) {
-                                BytesRef bytesScratch = new BytesRef();
-                                tail.get(i, bytesScratch);
-                                valuesBuilder.appendBytesRef(bytesScratch);
-                            }
-                            valuesBuilder.endPositionEntry();
-                        }
-                    } else {
+                    if (group > maxGroupId || hasValue(group) == false || nullValue(group)) {
                         valuesBuilder.appendNull();
+                        continue;
                     }
+                    BytesRefArray tail = getTail(group);
+                    int tailCount = tail == null ? 0 : (int) tail.size();
+                    if (tailCount == 0) {
+                        valuesBuilder.appendBytesRef(firstValues.get(group).bytesRefView());
+                        continue;
+                    }
+                    valuesBuilder.beginPositionEntry();
+                    valuesBuilder.appendBytesRef(firstValues.get(group).bytesRefView());
+                    for (int i = 0; i < tailCount; ++i) {
+                        BytesRef bytesScratch = new BytesRef();
+                        tail.get(i, bytesScratch);
+                        valuesBuilder.appendBytesRef(bytesScratch);
+                    }
+                    valuesBuilder.endPositionEntry();
                 }
                 return valuesBuilder.build();
             }

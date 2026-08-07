@@ -15,6 +15,7 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
@@ -148,6 +149,11 @@ final class VectorDVLeafFieldData implements LeafFieldData {
             }
             return vectorValue;
         }
+
+        @Override
+        public DocIdSetIterator docIdIterator() {
+            return iterator;
+        }
     }
 
     private class FloatDocValues implements FormattedDocValues {
@@ -208,6 +214,11 @@ final class VectorDVLeafFieldData implements LeafFieldData {
                 return Base64.getEncoder().encodeToString(scratchBuffer.array());
             }
             return Arrays.copyOf(vector, vector.length);
+        }
+
+        @Override
+        public DocIdSetIterator docIdIterator() {
+            return iterator;
         }
     }
 

@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `IDELTA` function [esql-idelta]
 
-:::{include} ../../_snippets/functions/layout/idelta.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/idelta.md
 :::

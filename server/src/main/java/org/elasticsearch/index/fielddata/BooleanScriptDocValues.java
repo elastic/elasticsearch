@@ -16,6 +16,7 @@ public final class BooleanScriptDocValues extends SortedNumericLongValues {
     private int cursor;
 
     BooleanScriptDocValues(BooleanFieldScript script) {
+        super(null);
         this.script = script;
     }
 

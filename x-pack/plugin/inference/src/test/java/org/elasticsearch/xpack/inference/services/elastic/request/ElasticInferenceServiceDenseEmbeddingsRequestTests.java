@@ -208,6 +208,7 @@ public class ElasticInferenceServiceDenseEmbeddingsRequestTests extends ESTestCa
                     TEST_ES_VERSION
                 ),
                 inputType,
+                null,
                 CCMAuthenticationApplierFactory.NOOP_APPLIER
             );
 
@@ -240,6 +241,7 @@ public class ElasticInferenceServiceDenseEmbeddingsRequestTests extends ESTestCa
                     TEST_ES_VERSION
                 ),
                 inputType,
+                null,
                 new CCMAuthenticationApplierFactory.AuthenticationHeaderApplier(new SecureString(TEST_SECRET.toCharArray()))
             );
 
@@ -267,6 +269,7 @@ public class ElasticInferenceServiceDenseEmbeddingsRequestTests extends ESTestCa
             new TraceContext(randomAlphaOfLength(10), randomAlphaOfLength(10)),
             randomElasticInferenceServiceRequestMetadata(),
             inputType,
+            null,
             CCMAuthenticationApplierFactory.NOOP_APPLIER
         );
     }

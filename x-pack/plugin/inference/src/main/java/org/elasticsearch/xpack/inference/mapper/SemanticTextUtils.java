@@ -24,7 +24,7 @@ import java.util.function.Function;
 
 public class SemanticTextUtils {
     private static final String STRING_EXPECTED_TYPES = "String|Number|Boolean";
-    private static final String OBJECT_EXPECTED_TYPES = STRING_EXPECTED_TYPES + "|InferenceString";
+    private static final String OBJECT_EXPECTED_TYPES = STRING_EXPECTED_TYPES + "|Object";
 
     private SemanticTextUtils() {}
 
@@ -66,6 +66,28 @@ public class SemanticTextUtils {
         return nodeValues(valueObj, raw -> (String) nodeObjectValue(field, raw, false));
     }
 
+    /**
+     * Parse a {@link Map} into an {@link InferenceString}
+     *
+     * @param value The map representation of the inference string
+     * @return An {@link InferenceString}
+     * @throws IllegalArgumentException If the map cannot be parsed into an {@link InferenceString}
+     */
+    public static InferenceString parseInferenceStringValue(Map<String, Object> value) {
+        try (
+            XContentParser parser = new MapXContentParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.IGNORE_DEPRECATIONS,
+                value,
+                XContentType.JSON
+            )
+        ) {
+            return InferenceString.PARSER.parse(parser, null);
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Cannot parse value [" + value + "] to an InferenceString", e);
+        }
+    }
+
     private static <T> List<T> nodeValues(Object valueObj, Function<Object, T> parse) {
         if (valueObj instanceof Collection<?> values) {
             List<T> parsed = new ArrayList<>(values.size());
@@ -100,15 +122,8 @@ public class SemanticTextUtils {
 
     private static InferenceString parseInferenceStringValue(String field, Map<String, Object> value) {
         InferenceString inferenceString;
-        try (
-            XContentParser parser = new MapXContentParser(
-                NamedXContentRegistry.EMPTY,
-                DeprecationHandler.IGNORE_DEPRECATIONS,
-                value,
-                XContentType.JSON
-            )
-        ) {
-            inferenceString = InferenceString.PARSER.parse(parser, null);
+        try {
+            inferenceString = parseInferenceStringValue(value);
         } catch (Exception e) {
             throw new ElasticsearchStatusException("Invalid object value format for field [{}]", RestStatus.BAD_REQUEST, e, field);
         }

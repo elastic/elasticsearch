@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.prometheus.rest.PrometheusQueryRangeRestAction;
 import org.elasticsearch.xpack.prometheus.rest.PrometheusRemoteWriteRestAction;
 import org.elasticsearch.xpack.prometheus.rest.PrometheusRemoteWriteTransportAction;
 import org.elasticsearch.xpack.prometheus.rest.PrometheusSeriesRestAction;
+import org.elasticsearch.xpack.prometheus.rest.PrometheusStatusBuildInfoRestAction;
 
 import java.util.Collection;
 import java.util.List;
@@ -69,7 +70,8 @@ public class PrometheusPlugin extends Plugin implements ActionPlugin {
                 clusterService,
                 services.threadPool(),
                 services.client(),
-                services.xContentRegistry()
+                services.xContentRegistry(),
+                services.featureService()
             )
         );
         if (enabled) {
@@ -107,7 +109,8 @@ public class PrometheusPlugin extends Plugin implements ActionPlugin {
                 new PrometheusInstantQueryRestAction(),
                 new PrometheusLabelsRestAction(),
                 new PrometheusLabelValuesRestAction(),
-                new PrometheusMetadataRestAction()
+                new PrometheusMetadataRestAction(),
+                new PrometheusStatusBuildInfoRestAction()
             );
         }
         return List.of();

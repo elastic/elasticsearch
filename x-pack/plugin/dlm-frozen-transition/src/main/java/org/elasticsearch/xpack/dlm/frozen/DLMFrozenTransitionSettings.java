@@ -8,12 +8,26 @@
 package org.elasticsearch.xpack.dlm.frozen;
 
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
 
 public class DLMFrozenTransitionSettings {
 
+    /**
+     * When {@code false}, {@link DLMFrozenTransitionService} will not submit any new frozen-tier
+     * transitions to the executor. In-flight transitions that are already running will continue
+     * to completion; only the submission of new work is suppressed.
+     */
+    public static final Setting<Boolean> TRANSITION_ENABLED_SETTING = Setting.boolSetting(
+        "dlm.frozen_transitions.enabled",
+        true,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     private volatile int errorRetryInterval;
+    private volatile boolean transitionEnabled;
 
     /**
      * Sets internal settings to their initial values
@@ -21,6 +35,7 @@ public class DLMFrozenTransitionSettings {
      */
     public DLMFrozenTransitionSettings(Settings settings) {
         this.errorRetryInterval = DataStreamLifecycleErrorStore.DATA_STREAM_SIGNALLING_ERROR_RETRY_INTERVAL_SETTING.get(settings);
+        this.transitionEnabled = TRANSITION_ENABLED_SETTING.get(settings);
     }
 
     /**
@@ -44,10 +59,15 @@ public class DLMFrozenTransitionSettings {
                 DataStreamLifecycleErrorStore.DATA_STREAM_SIGNALLING_ERROR_RETRY_INTERVAL_SETTING,
                 this::updateErrorInterval
             );
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(TRANSITION_ENABLED_SETTING, this::updateTransitionEnabled);
     }
 
     private void updateErrorInterval(int newInterval) {
         this.errorRetryInterval = newInterval;
+    }
+
+    private void updateTransitionEnabled(boolean enabled) {
+        this.transitionEnabled = enabled;
     }
 
     /**
@@ -56,5 +76,14 @@ public class DLMFrozenTransitionSettings {
      */
     public int getErrorRetryInterval() {
         return errorRetryInterval;
+    }
+
+    /**
+     * @return {@code true} when new frozen-tier transitions should be submitted. In-flight transitions
+     *         already executing are unaffected when this is set to {@code false}.
+     * @see #TRANSITION_ENABLED_SETTING
+     */
+    public boolean isTransitionEnabled() {
+        return transitionEnabled;
     }
 }

@@ -6,24 +6,23 @@
  */
 package org.elasticsearch.xpack.esql.datasources;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
-import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -40,6 +39,72 @@ import java.util.Set;
  * <p>
  * Type widening is intentionally conservative: only lossless promotions are allowed.
  * This is NOT {@code EsqlDataTypeConverter.commonType()}, which allows LONG→DOUBLE (lossy above 2^53).
+ * <p>
+ * Under {@code UNION_BY_NAME}, any pair the lossless table cannot widen falls back to
+ * {@link DataType#KEYWORD} (the cross-type join), and a single response {@code Warning} header per
+ * affected column tells the user what happened. How the wider (or KEYWORD) type is produced depends
+ * on the format: columnar files (Parquet, ORC) read the physically-typed value and stringify it via
+ * {@code ColumnMapping}'s per-block cast, while text files (CSV, TSV, NDJSON) are pinned to the
+ * reconciled type and read it at that type directly (see {@code readsColumnsAtReconciledType}). This
+ * matches the industry baseline (DuckDB,
+ * ClickHouse, Spark all widen to string as the cross-type floor) and turns "samplers disagreed"
+ * — the normal steady state for sampling-based readers — from a hard error into a benign
+ * widening. Users who want the strict-mismatch error can opt into {@code schema_resolution =
+ * "strict"} which still throws.
+ * <p>
+ * The lossy {@code LONG + DOUBLE} pair is *not* covered by the lossless table on purpose
+ * (precision loss above 2^53). Under UBN it goes to {@code KEYWORD}, which is louder and safer
+ * than silent precision loss; the lossless table itself stays unchanged.
+ *
+ * <h2>The four schemas in an external-source query</h2>
+ *
+ * Four distinct schemas exist in every external-source query. In simpler modes (single file,
+ * FFW, STRICT) some collapse onto each other; under UNION_BY_NAME all four are genuinely
+ * distinct. Code touching {@link FileSplit#readSchema()}, {@code ExternalSourceExec.attributes},
+ * or {@link ColumnMapping} reads much more clearly with these names in mind:
+ *
+ * <dl>
+ *   <dt><b>File schema</b> (per-file, file shape)</dt>
+ *   <dd>What's literally in one file. Parquet/ORC: read from the file footer. CSV/NDJSON:
+ *       inferred from a byte sample. Carried per-file on {@link FileSplit#readSchema()} as the
+ *       reader's read pin. Under UNION_BY_NAME this pin is the effective read schema after
+ *       reconciliation overrides: for text formats a widened column is pinned to its reconciled
+ *       type so the reader reads at that type directly rather than the narrower sampled type.</dd>
+ *
+ *   <dt><b>Unified schema</b> (one for the whole table)</dt>
+ *   <dd>The cross-file harmonized schema. Produced here as {@link Result#unifiedSchema()}:
+ *       FFW takes the anchor file's schema, STRICT validates a common schema, UBN takes the
+ *       column-name union with type widening. Becomes {@code ExternalSourceExec.attributes}
+ *       at first, before the optimizer's projection pruning rewrites that field.</dd>
+ *
+ *   <dt><b>Query schema</b> (unified shape; same for every file in the query)</dt>
+ *   <dd>The subset of unified schema the query actually materializes after projection pruning.
+ *       Lives on {@code ExternalSourceExec.attributes} on the wire. Drives the per-file
+ *       {@link ColumnMapping} after {@link ColumnMapping#pruneToPerFileQuery}.</dd>
+ *
+ *   <dt><b>Per-file query schema</b> (per-file, file shape — what the reader actually produces)</dt>
+ *   <dd>{@code Query schema} ∩ this file's columns, ordered to match the file's natural layout.
+ *       Derived per file at split-construction time and at read time. Under FFW and STRICT it
+ *       collapses to the Query schema because every file has every projected column.</dd>
+ * </dl>
+ *
+ * <h3>Worked example (UNION_BY_NAME)</h3>
+ *
+ * <pre>
+ *   a.csv = [name:keyword, age:int]
+ *   b.csv = [age:long, name:keyword, city:keyword]
+ *   dataset "my_dataset" over *.csv, configured with schema_resolution=union_by_name
+ *   query: FROM my_dataset
+ *          | KEEP name, city
+ *          | SORT name
+ *
+ *   File schema:           a → [name:keyword, age:int]
+ *                          b → [age:long, name:keyword, city:keyword]
+ *   Unified schema:        [name:keyword, age:long, city:keyword]  (age widens int → long)
+ *   Query schema:          [name:keyword, city:keyword]            (KEEP drops age)
+ *   Per-file query schema: a → [name]                              (no city in a)
+ *                          b → [name, city]                        (in b's natural order)
+ * </pre>
  */
 public final class SchemaReconciliation {
 
@@ -51,183 +116,38 @@ public final class SchemaReconciliation {
      * @param unifiedSchema the merged/validated schema used for planning
      * @param perFileInfo per-file schema info keyed by file path
      */
-    public record Result(List<Attribute> unifiedSchema, Map<StoragePath, FileSchemaInfo> perFileInfo) {}
+    public record Result(ExternalSchema unifiedSchema, Map<StoragePath, FileSchemaInfo> perFileInfo) {}
 
     /**
      * Per-file schema information collected during reconciliation.
      *
-     * @param fileSchema the original schema from this file
+     * @param fileSchema the effective read schema the reader is pinned to for this file: the file's
+     *                   inferred/footer schema, after any reconciliation overrides (a shape-conflict
+     *                   winner's shape, or a text format's columns pinned to their reconciled types)
      * @param mapping column mapping from unified schema to file schema, null for identity mapping
      * @param statistics optional statistics from file metadata
      */
-    public record FileSchemaInfo(List<Attribute> fileSchema, @Nullable ColumnMapping mapping, @Nullable SourceStatistics statistics) {}
-
-    /**
-     * Maps unified schema column positions to file-local column positions.
-     * Handles both planning-time use (with {@link DataType} references) and wire
-     * serialization (via {@link Writeable}), so there is no separate "wire" class.
-     * <p>
-     * Cast types are serialized via {@link StreamOutput#writeEnum}/{@link StreamInput#readEnum}
-     * (ordinal-based). The ordinal mapping is pinned by an {@code assertEnumSerialization} test
-     * so any reordering or insertion is caught at test time.
-     * <p>
-     * <b>Coordinator sharing:</b> {@code FileSplitProvider} passes the same instance
-     * to all splits from the same file. A dedup cache ensures files with content-equal
-     * mappings share a single object. Duplication only occurs during wire serialization.
-     * <p>
-     * <b>Wire-size analysis:</b> for a file split into K chunks with N unified columns,
-     * the overhead is {@code K * (4*N + N)} bytes when casts are present (one VInt ordinal
-     * per cast), or {@code K * 4*N} when no casts are needed. For typical schemas
-     * (N &lt; 200) and split counts (K &lt; 50), this is well under 50 KB total — negligible
-     * next to the data payload. See {@link CoalescedSplit} for approaches to eliminate
-     * per-split duplication on the wire for very wide schemas.
-     * <p>
-     * <b>Bitset alternative:</b> the {@code int[]} currently encodes both "missing" ({@code -1})
-     * and "local index" for present columns. A bitset could represent missing-column flags
-     * in {@code ceil(N/8)} bytes and store only the present-column indices, saving ~50% on
-     * the int[] for schemas where most columns are absent. This trade-off only matters for
-     * very wide schemas and is left as a future optimisation.
-     */
-    public static final class ColumnMapping implements Writeable {
-
-        /**
-         * Supported widening cast targets.
-         * Serialized via {@link StreamOutput#writeEnum}/{@link StreamInput#readEnum} (ordinal-based).
-         * New entries must only be appended at the end; reordering or inserting breaks the wire
-         * protocol. The ordinal mapping is pinned by {@code SchemaReconciliationTests#testCastTypeEnumSerialization}.
-         */
-        public enum CastType {
-            NONE(null),
-            LONG(DataType.LONG),
-            DOUBLE(DataType.DOUBLE),
-            DATE_NANOS(DataType.DATE_NANOS);
-
-            private static final CastType[] VALUES = values();
-
-            private final DataType dataType;
-
-            CastType(@Nullable DataType dataType) {
-                this.dataType = dataType;
-            }
-
-            @Nullable
-            public DataType toDataType() {
-                return dataType;
-            }
-
-            public static CastType fromDataType(@Nullable DataType type) {
-                if (type == null) return NONE;
-                for (CastType ct : VALUES) {
-                    if (ct.dataType == type) return ct;
-                }
-                throw new IllegalArgumentException("Unsupported cast target type: " + type.typeName());
-            }
-        }
-
-        private final int[] globalToLocalIndex;
-        @Nullable
-        private final DataType[] casts;
-
-        public ColumnMapping(int[] globalToLocalIndex, @Nullable DataType[] casts) {
-            if (casts != null && casts.length != globalToLocalIndex.length) {
-                throw new IllegalArgumentException(
-                    "cast array length [" + casts.length + "] must match index array length [" + globalToLocalIndex.length + "]"
-                );
-            }
-            this.globalToLocalIndex = Arrays.copyOf(globalToLocalIndex, globalToLocalIndex.length);
-            this.casts = casts != null ? Arrays.copyOf(casts, casts.length) : null;
-        }
-
-        public ColumnMapping(StreamInput in) throws IOException {
-            this.globalToLocalIndex = in.readIntArray();
-            int castLen = in.readVInt();
-            if (castLen > 0) {
-                if (castLen != globalToLocalIndex.length) {
-                    throw new IllegalArgumentException(
-                        "cast array length [" + castLen + "] must match index array length [" + globalToLocalIndex.length + "]"
-                    );
-                }
-                this.casts = new DataType[castLen];
-                for (int i = 0; i < castLen; i++) {
-                    this.casts[i] = in.readEnum(CastType.class).toDataType();
-                }
-            } else {
-                this.casts = null;
-            }
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeIntArray(globalToLocalIndex);
-            if (casts != null) {
-                out.writeVInt(casts.length);
-                for (DataType cast : casts) {
-                    out.writeEnum(CastType.fromDataType(cast));
-                }
-            } else {
-                out.writeVInt(0);
-            }
-        }
-
-        public int columnCount() {
-            return globalToLocalIndex.length;
-        }
-
-        public int localIndex(int globalIndex) {
-            return globalToLocalIndex[globalIndex];
-        }
-
-        @Nullable
-        public DataType cast(int globalIndex) {
-            return casts != null ? casts[globalIndex] : null;
-        }
-
-        public boolean hasMissingColumns() {
-            for (int idx : globalToLocalIndex) {
-                if (idx == -1) return true;
-            }
-            return false;
-        }
-
-        public boolean hasCasts() {
-            if (casts == null) return false;
-            for (DataType cast : casts) {
-                if (cast != null) return true;
-            }
-            return false;
-        }
-
-        public boolean isIdentity() {
-            if (hasMissingColumns() || hasCasts()) {
-                return false;
-            }
-            for (int i = 0; i < globalToLocalIndex.length; i++) {
-                if (globalToLocalIndex[i] != i) {
-                    return false;
-                }
-            }
-            return true;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            ColumnMapping that = (ColumnMapping) o;
-            return Arrays.equals(globalToLocalIndex, that.globalToLocalIndex) && Arrays.equals(casts, that.casts);
-        }
-
-        @Override
-        public int hashCode() {
-            int result = Arrays.hashCode(globalToLocalIndex);
-            result = 31 * result + Arrays.hashCode(casts);
-            return result;
+    public record FileSchemaInfo(
+        ExternalSchema fileSchema,
+        @Nullable ColumnMapping mapping,
+        @Nullable SourceStatistics statistics,
+        // PRE-retype file types, physical-keyed; null means fileSchema IS the inferred schema (nothing retyped this file),
+        // so callers fall back to the fileSchema attributes' types (today's behavior). Populated by the UNION_BY_NAME pin
+        // (reconcileUnionByName / pinToReconciledTypes) with the full pre-pin type map, and by the declared overlay
+        // (ExternalSourceResolver.applyNonStrictOverlay), which preserves an upstream pin's snapshot when present and
+        // otherwise snapshots its own pre-overlay types. It lets stats boundaries recover the file's real inferred types:
+        // the split-level boundary normalizes footer range stats with them instead of the retyped types, and the
+        // resolve/commit boundaries identify the retyped (pinned) column set to safe-miss its read-schema-blind cached stats.
+        @Nullable Map<String, DataType> inferredTypes
+    ) {
+        public FileSchemaInfo(ExternalSchema fileSchema, @Nullable ColumnMapping mapping, @Nullable SourceStatistics statistics) {
+            this(fileSchema, mapping, statistics, null);
         }
     }
 
     /**
      * Safe type widening for schema reconciliation.
-     * Only lossless promotions are allowed; returns null if no safe supertype exists.
+     * Only lossless promotions are allowed; returns {@code null} if no safe supertype exists.
      * <p>
      * Widening rules:
      * <ul>
@@ -235,7 +155,11 @@ public final class SchemaReconciliation {
      *   <li>INTEGER + DOUBLE → DOUBLE (lossless: int32 ≤ 2^31 &lt; 2^53)</li>
      *   <li>DATETIME + DATE_NANOS → DATE_NANOS (more precise type wins)</li>
      * </ul>
-     * All other cross-type pairs return null (incompatible).
+     * All other cross-type pairs return null (no lossless supertype). UBN reconciliation
+     * additionally falls back to {@link DataType#KEYWORD} for those — see
+     * {@link #widenToCommonOrKeyword} and {@link #reconcileUnionByName}. LONG + DOUBLE
+     * deliberately stays out of this table (precision loss above 2^53) and is therefore one of
+     * the pairs that goes to {@code KEYWORD} under UBN.
      *
      * @return the widened type, or null if no safe supertype exists
      */
@@ -263,6 +187,23 @@ public final class SchemaReconciliation {
             return DataType.DATE_NANOS;
         }
         return null;
+    }
+
+    /**
+     * UNION_BY_NAME widening: returns {@link #schemaWiden}'s result when one exists, otherwise
+     * falls back to {@link DataType#KEYWORD} as the cross-type join (lossy for numerics — but
+     * the lossy path is the one that triggers a response {@code Warning} so users see when
+     * stringification happened). Never returns null: every cross-type pair has a defined UBN
+     * answer.
+     * <p>
+     * This is the UBN-specific entry point; {@link #schemaWiden} is intentionally kept as a
+     * separate {@code @Nullable}-returning method so callers that want the strict lossless-only
+     * semantic still have it. The two stay aligned by construction — the KEYWORD branch here
+     * fires only on inputs where {@code schemaWiden} would have returned null.
+     */
+    private static DataType widenToCommonOrKeyword(DataType a, DataType b) {
+        DataType widened = schemaWiden(a, b);
+        return widened != null ? widened : DataType.KEYWORD;
     }
 
     /**
@@ -299,10 +240,10 @@ public final class SchemaReconciliation {
             for (int i = 0; i < identity.length; i++) {
                 identity[i] = i;
             }
-            perFileInfo.put(filePath, new FileSchemaInfo(fileSchema, new ColumnMapping(identity, null), stats));
+            perFileInfo.put(filePath, new FileSchemaInfo(new ExternalSchema(fileSchema), new ColumnMapping(identity, null), stats));
         }
 
-        return new Result(List.copyOf(refSchema), Map.copyOf(perFileInfo));
+        return new Result(new ExternalSchema(refSchema), Map.copyOf(perFileInfo));
     }
 
     private static void validateStrictMatch(
@@ -365,14 +306,22 @@ public final class SchemaReconciliation {
 
     /**
      * UNION_BY_NAME reconciliation: merge schemas from all files into a superset.
-     * Missing columns are NULL-filled; type differences are resolved by safe widening.
+     * Missing columns are NULL-filled; type differences are resolved by safe widening or, when no
+     * lossless supertype exists, by falling back to {@link DataType#KEYWORD} with a per-column
+     * {@code Warning} response header. See the class javadoc for the rationale and the lattice
+     * picture.
      *
      * @param fileMetadata ordered map of file path → metadata (insertion order = file sort order)
      * @return reconciliation result with unified schema and per-file mappings
-     * @throws IllegalArgumentException if types are incompatible
      */
     public static Result reconcileUnionByName(Map<StoragePath, SourceMetadata> fileMetadata) {
         LinkedHashMap<String, MergeEntry> unified = new LinkedHashMap<>();
+        // Per-column accumulator. We record *every* file's inferred type for every column up
+        // front (it's cheap and gives the warning emitter a complete contributor list), then
+        // decide at the end whether the column actually degraded to KEYWORD and a warning is
+        // warranted. Building this lazily inside the merge branch would lose pre-merge files
+        // when a column finally degrades on its third or later file.
+        LinkedHashMap<String, KeywordFallback> contributions = new LinkedHashMap<>();
 
         for (Map.Entry<StoragePath, SourceMetadata> entry : fileMetadata.entrySet()) {
             StoragePath filePath = entry.getKey();
@@ -382,36 +331,29 @@ public final class SchemaReconciliation {
 
             for (Attribute attr : fileSchema) {
                 String name = attr.name();
+                contributions.computeIfAbsent(name, KeywordFallback::new).add(filePath, attr.dataType());
                 MergeEntry existing = unified.get(name);
                 if (existing == null) {
                     boolean attrNullable = attr.nullable() == Nullability.TRUE || attr.nullable() == Nullability.UNKNOWN;
                     unified.put(name, new MergeEntry(attr.dataType(), attrNullable, filePath));
                 } else {
                     if (existing.type != attr.dataType()) {
-                        DataType widened = schemaWiden(existing.type, attr.dataType());
-                        if (widened == null) {
-                            throw new IllegalArgumentException(
-                                "Cannot merge schemas for column ["
-                                    + name
-                                    + "]: file ["
-                                    + existing.firstSeenIn
-                                    + "] has type ["
-                                    + existing.type.typeName()
-                                    + "], file ["
-                                    + filePath
-                                    + "] has type ["
-                                    + attr.dataType().typeName()
-                                    + "]. No compatible supertype exists."
-                                    + " Consider using an explicit CAST in your query."
-                            );
-                        }
-                        existing.type = widened;
+                        existing.type = widenToCommonOrKeyword(existing.type, attr.dataType());
                     }
                     boolean fileIsNullable = attr.nullable() == Nullability.TRUE || attr.nullable() == Nullability.UNKNOWN;
                     existing.nullable = existing.nullable || fileIsNullable;
                 }
             }
         }
+
+        emitKeywordFallbackWarnings(unified, contributions);
+
+        // Resolve esql-planning#1050 before the nullable-fill pass below: collapse any field that
+        // some files infer as a scalar leaf and others infer as a nested object (dotted-prefix
+        // parent) to a single shape, dropping the losing shape's entries from `unified` in place.
+        // The nullable-fill pass then naturally marks the surviving name nullable for the losing
+        // files (their original schema genuinely lacks it), which is exactly what we want.
+        Map<StoragePath, List<Attribute>> shapeConflictOverrides = resolveShapeConflicts(unified, fileMetadata);
 
         // Mark columns as nullable when missing from any file
         for (Map.Entry<StoragePath, SourceMetadata> entry : fileMetadata.entrySet()) {
@@ -438,14 +380,364 @@ public final class SchemaReconciliation {
         for (Map.Entry<StoragePath, SourceMetadata> entry : fileMetadata.entrySet()) {
             StoragePath filePath = entry.getKey();
             SourceMetadata meta = entry.getValue();
-            List<Attribute> fileSchema = meta.schema();
+            // A file on the losing side of a shape conflict is pinned to the winning shape's
+            // attribute(s) instead of its own inferred sub-schema for that field — see
+            // resolveShapeConflicts for why this is what actually routes the file's real values
+            // through the per-file shape-conflict/ErrorPolicy handling at read time.
+            List<Attribute> fileSchema = shapeConflictOverrides.getOrDefault(filePath, meta.schema());
+            Map<String, DataType> inferredTypes = null;
+            if (readsColumnsAtReconciledType(meta.sourceType())) {
+                // Text readers parse each token at the pinned read type, so pin every widened column
+                // to its reconciled type. The reader then reads at the wider type directly (raw text
+                // for KEYWORD) instead of parsing at the narrower sampled type and failing on a value
+                // the sample never saw, which would otherwise null-fill or abort the read before the
+                // ColumnMapping cast could run. See readsColumnsAtReconciledType for why this is
+                // scoped to sample-inferring text formats.
+                List<Attribute> prePin = fileSchema;
+                fileSchema = pinToReconciledTypes(fileSchema, unified);
+                if (fileSchema != prePin) {
+                    // At least one column was pinned above its inferred type. Carry the pre-pin (inferred) types
+                    // so the resolve-side stats boundary can identify the pinned columns: their per-file stats were
+                    // harvested at the narrower read type but the cache identity is read-schema-blind, so they must
+                    // safe-miss rather than fold a stale count/extremum.
+                    inferredTypes = typeMap(prePin);
+                }
+            }
             SourceStatistics stats = meta.statistics().orElse(null);
 
             ColumnMapping mapping = computeMapping(unifiedSchema, fileSchema);
-            perFileInfo.put(filePath, new FileSchemaInfo(fileSchema, mapping, stats));
+            perFileInfo.put(filePath, new FileSchemaInfo(new ExternalSchema(fileSchema), mapping, stats, inferredTypes));
         }
 
-        return new Result(List.copyOf(unifiedSchema), Map.copyOf(perFileInfo));
+        return new Result(new ExternalSchema(unifiedSchema), Map.copyOf(perFileInfo));
+    }
+
+    /**
+     * Detects and resolves esql-planning#1050: a field that some files infer as a scalar leaf and
+     * others infer as a nested object (a dotted-prefix parent, e.g. {@code user} vs
+     * {@code user.id}/{@code user.tier}) is a schema conflict across files, exactly like a
+     * within-file shape conflict is for a single file (elastic/esql-planning#1028).
+     * {@code UNION_BY_NAME} merges purely by exact name, so the two shapes never collide there and
+     * both get fabricated into the unified schema — this pass collapses each such family to a
+     * single shape: the first file (in {@code fileMetadata} iteration order) to contribute the
+     * family at all wins, mirroring both #1028's first-observed-shape rule and
+     * {@code FIRST_FILE_WINS}'s anchor semantics.
+     * <p>
+     * Mutates {@code unified} in place, removing the losing shape's entries so they never reach
+     * the unified schema. Returns a per-file override of {@link SourceMetadata#schema()} for the
+     * losing files: their own inferred sub-schema for the family is replaced by the winning
+     * attribute(s) taken straight from the (possibly widened) {@code unified} entries. That
+     * override becomes, via the caller, the losing file's {@link FileSchemaInfo#fileSchema()} —
+     * which is exactly what {@code FileSplitProvider} pins the reader's {@code readSchema} to. So
+     * when the reader for a losing file later hits that file's real, differently-shaped JSON
+     * value on the now-pinned winning attribute, the existing per-file shape-conflict handling
+     * (e.g. {@code NdJsonPageDecoder}'s {@code shapeConflict}, added for #1028) fires
+     * automatically and routes it through {@link org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy}
+     * — no format-specific code needed here.
+     * <p>
+     * A file that contributes <em>both</em> the bare name and a dotted child for the same root
+     * (a literal flat key such as {@code "user.tag"} coexisting with scalar {@code "user"} in one
+     * file) still fully participates in the vote above as a leaf-shaped contributor — presence of
+     * the bare name means its dotted column(s) are literal flat keys, not nested children (see
+     * {@code NdJsonPageDecoder#hasDottedPrefixConflict}), so only those unrelated dotted columns
+     * are excluded from the family; see {@link #resolveFamily} for why exempting the file's leaf
+     * contribution too would silently reopen the conflict.
+     * <p>
+     * Only files whose {@link SourceMetadata#sourceType()} is {@link #supportsShapeConflictResolution
+     * shape-conflict-capable} ever enter this family vote — see that method for why. A file from
+     * any other format that happens to carry a name matching {@code root} or {@code root.*} is
+     * therefore never touched here, however it looks lexically: e.g. a CSV file with a literal
+     * {@code user.tag} header alongside another (CSV or NDJSON) file's scalar {@code user} column
+     * is not a shape conflict — both are ordinary, independent columns and both survive in the
+     * unified schema, one NULL-filled in whichever file lacks it, exactly like any other pair of
+     * unrelated column names would.
+     */
+    private static Map<StoragePath, List<Attribute>> resolveShapeConflicts(
+        LinkedHashMap<String, MergeEntry> unified,
+        Map<StoragePath, SourceMetadata> fileMetadata
+    ) {
+        Set<String> namesFromCapableFiles = new LinkedHashSet<>();
+        for (Map.Entry<StoragePath, SourceMetadata> entry : fileMetadata.entrySet()) {
+            if (supportsShapeConflictResolution(entry.getValue().sourceType()) == false) {
+                continue;
+            }
+            for (Attribute attr : entry.getValue().schema()) {
+                namesFromCapableFiles.add(attr.name());
+            }
+        }
+        List<String> familyRoots = findFamilyRoots(namesFromCapableFiles);
+        if (familyRoots.isEmpty()) {
+            return Map.of();
+        }
+        // Shallowest roots first: once a shallower family is resolved its losing names are
+        // removed from `unified`, so a deeper candidate root re-derives its family membership
+        // from what's actually still there rather than from a stale upfront snapshot.
+        familyRoots.sort(Comparator.comparingInt(SchemaReconciliation::dotDepth));
+
+        Map<StoragePath, List<Attribute>> overrides = new LinkedHashMap<>();
+        List<FamilyConflict> conflicts = new ArrayList<>();
+        for (String root : familyRoots) {
+            FamilyConflict conflict = resolveFamily(root, unified, fileMetadata);
+            if (conflict == null) {
+                continue;
+            }
+            conflicts.add(conflict);
+            for (String droppedName : conflict.droppedNames()) {
+                unified.remove(droppedName);
+            }
+            for (Map.Entry<StoragePath, List<String>> losing : conflict.losingFileNames().entrySet()) {
+                StoragePath losingFile = losing.getKey();
+                List<String> ownFamilyNames = losing.getValue();
+                List<Attribute> override = overrides.computeIfAbsent(losingFile, f -> new ArrayList<>(fileMetadata.get(f).schema()));
+                override.removeIf(a -> ownFamilyNames.contains(a.name()));
+                override.addAll(conflict.winningAttributes());
+            }
+        }
+        emitShapeConflictWarnings(conflicts);
+        return overrides;
+    }
+
+    /**
+     * Whether {@code sourceType} may participate in {@link #resolveShapeConflicts}: its reader
+     * must both (a) genuinely flatten nested objects into dotted attribute names, so a
+     * {@code root}/{@code root.*} pair can actually mean "scalar in one file, object in another"
+     * rather than two unrelated literal names, and (b) have a per-file, read-time mechanism that
+     * routes a pinned-shape mismatch through {@link org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy}
+     * once this pass overrides a losing file's {@code readSchema} — see {@link #resolveShapeConflicts}'s
+     * javadoc for how that override is used downstream.
+     * <p>
+     * Today only NDJSON satisfies both: {@code NdJsonSchemaInferrer} flattens
+     * {@code {"user": {"id": ...}}} into {@code user.id}, and {@code NdJsonPageDecoder}'s
+     * {@code shapeConflict} handling (elastic/esql-planning#1028) is exactly the read-time fallback
+     * (a) needs. Every other format fails at least one requirement, and enabling it there would
+     * silently drop <em>valid</em> UBN columns instead of resolving a real conflict:
+     * <ul>
+     *   <li>CSV/TSV headers are always literal — a {@code "."} never means nesting, so
+     *       {@code user} and {@code user.tag} in two CSV files are simply two unrelated columns,
+     *       not a shape conflict.</li>
+     *   <li>Iceberg never flattens structs (they're skipped as {@code UNSUPPORTED}), so any dotted
+     *       name it does surface is, like CSV, always a literal top-level column name.</li>
+     *   <li>Parquet and ORC <em>do</em> flatten nested structs into dotted names (satisfying (a)),
+     *       but neither reader has an equivalent of NDJSON's {@code shapeConflict} fallback for a
+     *       column pinned to a shape that disagrees with the file's actual footer-declared type
+     *       (failing (b)) — so overriding a losing Parquet/ORC file's {@code readSchema} here would
+     *       misfire (e.g. a read-time type error) instead of gracefully degrading through
+     *       {@code ErrorPolicy}.</li>
+     * </ul>
+     */
+    private static boolean supportsShapeConflictResolution(String sourceType) {
+        return "ndjson".equals(sourceType);
+    }
+
+    private static int dotDepth(String name) {
+        int depth = 0;
+        for (int i = 0; i < name.length(); i++) {
+            if (name.charAt(i) == '.') {
+                depth++;
+            }
+        }
+        return depth;
+    }
+
+    /**
+     * Returns every name in {@code names} that is a "family root": some other name in the set is
+     * {@code root + "." + suffix}. Quadratic in the (typically small, per-query-bounded) column
+     * count — the same trade-off {@link #validateNoDuplicateColumns} and the rest of this class
+     * already make for per-name work at reconciliation time.
+     */
+    private static List<String> findFamilyRoots(Set<String> names) {
+        List<String> roots = new ArrayList<>();
+        for (String candidate : names) {
+            String prefix = candidate + ".";
+            for (String other : names) {
+                if (other.startsWith(prefix)) {
+                    roots.add(candidate);
+                    break;
+                }
+            }
+        }
+        return roots;
+    }
+
+    /**
+     * Classifies every file's contribution to the {@code root} family as leaf-shaped (has the
+     * bare {@code root} name — even if it also carries unrelated {@code root.*} flat keys, see
+     * below), dotted-shaped (has some {@code root.*} name but not {@code root} itself) or absent,
+     * then resolves a conflict when both shapes are contributed by different files. Returns
+     * {@code null} when there is no actual cross-file conflict for this family (a single
+     * contributor, or every contributor agrees).
+     * <p>
+     * A file that has the bare {@code root} name always classifies as leaf-shaped for this
+     * family, full stop, regardless of whether it also happens to carry some unrelated
+     * {@code root.*} column: presence of {@code root} itself means any {@code root.*} names in
+     * that <em>same</em> file are literal flat keys, not nested children of {@code root} (see
+     * {@code NdJsonPageDecoder#hasDottedPrefixConflict}), so they take no part in this family
+     * either way — they are simply excluded from {@code familyNamesInFile} below and therefore
+     * never touched by the winning/losing overrides. The file's actual {@code root} value,
+     * though, is a real, ordinary leaf contribution and must fully participate in the cross-file
+     * win/loss vote like any other file's bare column — exempting it entirely (as an earlier
+     * version of this method did) let such a file's scalar {@code root} silently keep coexisting
+     * with a winning nested shape from another file, reopening the exact ambiguity this method
+     * exists to close.
+     * <p>
+     * A file whose format is not {@link #supportsShapeConflictResolution shape-conflict-capable}
+     * (e.g. CSV, Iceberg, Parquet, ORC) is skipped outright, regardless of whether it happens to
+     * carry {@code root} or a {@code root.*} name — see {@link #resolveShapeConflicts} for why
+     * such names there are always literal/independent, never a genuine shape conflict.
+     */
+    @Nullable
+    private static FamilyConflict resolveFamily(
+        String root,
+        LinkedHashMap<String, MergeEntry> unified,
+        Map<StoragePath, SourceMetadata> fileMetadata
+    ) {
+        String dottedPrefix = root + ".";
+        Boolean winningShapeIsLeaf = null;
+        StoragePath winningFile = null;
+        // Every family-member name (the bare root, or a genuinely nested root.* child) mapped to
+        // the set of files whose own schema contributes it — used below so a name is only ever
+        // dropped from the unified schema when *every* one of its contributors is on the losing
+        // side; a name a kept (non-losing) file also relies on must survive untouched. Note this
+        // never contains a root.* name from a file that also has the bare root itself — see the
+        // class javadoc above for why those are excluded from the family entirely.
+        Map<String, Set<StoragePath>> contributorsByName = new LinkedHashMap<>();
+        // Losing files mapped to exactly the family-member names *they* contribute, so each
+        // file's override only ever removes its own columns, never another file's.
+        LinkedHashMap<StoragePath, List<String>> losingFileNames = new LinkedHashMap<>();
+
+        for (Map.Entry<StoragePath, SourceMetadata> entry : fileMetadata.entrySet()) {
+            if (supportsShapeConflictResolution(entry.getValue().sourceType()) == false) {
+                continue;
+            }
+            boolean hasLeaf = false;
+            List<String> dottedNames = new ArrayList<>();
+            for (Attribute attr : entry.getValue().schema()) {
+                String name = attr.name();
+                if (name.equals(root)) {
+                    hasLeaf = true;
+                } else if (name.startsWith(dottedPrefix)) {
+                    dottedNames.add(name);
+                }
+            }
+
+            List<String> familyNamesInFile;
+            boolean fileShapeIsLeaf;
+            if (hasLeaf) {
+                familyNamesInFile = List.of(root);
+                fileShapeIsLeaf = true;
+            } else if (dottedNames.isEmpty() == false) {
+                familyNamesInFile = dottedNames;
+                fileShapeIsLeaf = false;
+            } else {
+                continue; // file doesn't touch this family at all
+            }
+
+            for (String name : familyNamesInFile) {
+                contributorsByName.computeIfAbsent(name, n -> new LinkedHashSet<>()).add(entry.getKey());
+            }
+            if (winningShapeIsLeaf == null) {
+                winningShapeIsLeaf = fileShapeIsLeaf;
+                winningFile = entry.getKey();
+            } else if (fileShapeIsLeaf != winningShapeIsLeaf) {
+                losingFileNames.put(entry.getKey(), familyNamesInFile);
+            }
+        }
+
+        if (losingFileNames.isEmpty()) {
+            return null;
+        }
+
+        // Restricted to contributorsByName's keys (true family members only) rather than a plain
+        // name/dottedPrefix match against `unified`: an unrelated root.* flat key owned by some
+        // other leaf-shaped file (excluded above) must never be pulled into the winning shape.
+        List<Attribute> winningAttributes = new ArrayList<>();
+        for (String name : unified.keySet()) {
+            if (contributorsByName.containsKey(name) == false) {
+                continue;
+            }
+            boolean isLeafName = name.equals(root);
+            if (isLeafName == winningShapeIsLeaf) {
+                MergeEntry me = unified.get(name);
+                Nullability nullability = me.nullable ? Nullability.TRUE : Nullability.FALSE;
+                winningAttributes.add(new ReferenceAttribute(Source.EMPTY, null, name, me.type, nullability, null, false));
+            }
+        }
+
+        Set<StoragePath> losingFiles = losingFileNames.keySet();
+        LinkedHashSet<String> droppedNames = new LinkedHashSet<>();
+        for (List<String> ownNames : losingFileNames.values()) {
+            for (String name : ownNames) {
+                if (losingFiles.containsAll(contributorsByName.get(name))) {
+                    droppedNames.add(name);
+                }
+            }
+        }
+
+        return new FamilyConflict(root, winningFile, winningShapeIsLeaf, winningAttributes, droppedNames, losingFileNames);
+    }
+
+    /**
+     * A resolved esql-planning#1050 conflict for one field family: {@code winningFile} kept its
+     * shape ({@code winningAttributes}, family root {@code root}); every file key in
+     * {@code losingFileNames} contributed the other shape and had its own listed family names
+     * removed from the unified schema (to the extent {@code droppedNames} allows — see
+     * {@link #resolveFamily}) and overridden to {@code winningAttributes} in its own
+     * {@code fileSchema()} pin.
+     */
+    private record FamilyConflict(
+        String root,
+        StoragePath winningFile,
+        boolean winningShapeIsLeaf,
+        List<Attribute> winningAttributes,
+        Set<String> droppedNames,
+        Map<StoragePath, List<String>> losingFileNames
+    ) {
+        String buildDetail() {
+            StoragePath losingExample = losingFileNames.keySet().iterator().next();
+            String winningShape = winningShapeIsLeaf ? "a scalar" : "an object";
+            String losingShape = winningShapeIsLeaf ? "an object" : "a scalar";
+            StringBuilder sb = new StringBuilder("Field [").append(root)
+                .append("] is ")
+                .append(winningShape)
+                .append(" in [")
+                .append(winningFile)
+                .append("] but ")
+                .append(losingShape)
+                .append(" in [")
+                .append(losingExample)
+                .append("]");
+            if (losingFileNames.size() > 1) {
+                sb.append(" (+").append(losingFileNames.size() - 1).append(" more)");
+            }
+            sb.append("; kept the [")
+                .append(winningFile)
+                .append("] shape [")
+                .append(String.join(", ", winningAttributes.stream().map(Attribute::name).toList()))
+                .append("], dropped [")
+                .append(String.join(", ", droppedNames))
+                .append("] from the unified schema. The conflicting file(s)' values for [")
+                .append(root)
+                .append("] are handled per the configured error policy at read time.");
+            return sb.toString();
+        }
+    }
+
+    /**
+     * Fire-and-forget emit of one response {@code Warning} per resolved shape conflict, via the
+     * same {@link SkipWarnings} pattern as {@link #emitKeywordFallbackWarnings}.
+     */
+    private static void emitShapeConflictWarnings(List<FamilyConflict> conflicts) {
+        if (conflicts.isEmpty()) {
+            return;
+        }
+        SkipWarnings warnings = new SkipWarnings(
+            "Schema reconciliation resolved cross-file scalar/object shape conflicts (esql-planning#1050) by"
+                + " keeping the first file's shape; make the field's shape consistent across files, or declare it"
+                + " explicitly, to avoid this."
+        );
+        for (FamilyConflict conflict : conflicts) {
+            warnings.add(conflict.buildDetail());
+        }
     }
 
     static ColumnMapping computeMapping(List<Attribute> unifiedSchema, List<Attribute> fileSchema) {
@@ -481,6 +773,90 @@ public final class SchemaReconciliation {
         return new ColumnMapping(globalToLocal, anyCasts ? casts : null);
     }
 
+    /**
+     * Whether a format's reader parses each value at the pinned read type, so pinning a widened
+     * column to its reconciled type makes the reader read at the wider type directly. This holds
+     * for the sample-inferring text formats (CSV, TSV, NDJSON): their readers convert each token to
+     * the read schema's type (a KEYWORD read type yields the raw token), so an out-of-sample value
+     * that does not fit the narrower sampled type survives at the wider reconciled type instead of
+     * being destroyed at parse time. Columnar formats (Parquet, ORC) instead read the
+     * physically-typed value and rely on {@link ColumnMapping}'s post-read cast to widen it, so
+     * they must not be pinned here (there is no parse-time loss to avoid, and their readers do not
+     * honor a read type that disagrees with the footer-declared type).
+     */
+    private static boolean readsColumnsAtReconciledType(String sourceType) {
+        return READS_AT_RECONCILED_TYPE_FORMATS.contains(sourceType);
+    }
+
+    /**
+     * The sample-inferring text formats whose readers parse each token at the pinned read type, so a
+     * widened column can be pinned to its reconciled type (see {@link #readsColumnsAtReconciledType}).
+     * The columnar-vs-text axis lives here as a single documented constant, mirroring the sibling
+     * {@link #supportsShapeConflictResolution} check and {@code ExternalSourceResolver.FILE_TYPED_FORMATS},
+     * rather than on the {@code FormatReader} SPI. A new sample-inferring text reader must be added here
+     * to receive the pin.
+     */
+    private static final Set<String> READS_AT_RECONCILED_TYPE_FORMATS = Set.of("csv", "tsv", "ndjson");
+
+    /**
+     * Returns {@code fileSchema} with each column that {@link #shouldPinAtReconciledType safely reads
+     * at its reconciled type} replaced by an attribute of that reconciled type, preserving the column
+     * name and nullability. Returns the input list unchanged when no column needs pinning.
+     */
+    private static List<Attribute> pinToReconciledTypes(List<Attribute> fileSchema, Map<String, MergeEntry> unified) {
+        List<Attribute> pinned = null;
+        for (int i = 0; i < fileSchema.size(); i++) {
+            Attribute attr = fileSchema.get(i);
+            MergeEntry unifiedEntry = unified.get(attr.name());
+            if (unifiedEntry != null && shouldPinAtReconciledType(attr.dataType(), unifiedEntry.type)) {
+                if (pinned == null) {
+                    pinned = new ArrayList<>(fileSchema);
+                }
+                pinned.set(i, new ReferenceAttribute(Source.EMPTY, null, attr.name(), unifiedEntry.type, attr.nullable(), null, false));
+            }
+        }
+        return pinned != null ? pinned : fileSchema;
+    }
+
+    /**
+     * Physical-name-keyed type map of the given schema attributes. Used to snapshot a file's pre-pin
+     * (inferred) column types before {@link #pinToReconciledTypes} retypes them, so downstream code can
+     * recover which columns were pinned.
+     */
+    private static Map<String, DataType> typeMap(List<Attribute> schema) {
+        Map<String, DataType> types = new HashMap<>(schema.size());
+        for (Attribute attr : schema) {
+            types.put(attr.name(), attr.dataType());
+        }
+        return types;
+    }
+
+    /**
+     * Whether a text reader parsing a column directly at {@code reconciled} is equivalent to (or, for
+     * KEYWORD, the intended replacement of) reading it at the sampled {@code inferred} type and then
+     * applying {@link ColumnMapping}'s post-read cast.
+     * <ul>
+     *   <li>KEYWORD: the widened column is a string, so the reader returns the raw token. This is the
+     *       point of the pin: an out-of-sample non-numeric value survives verbatim instead of being
+     *       destroyed by a numeric parse before the cast can run.</li>
+     *   <li>LONG / DOUBLE: the reader's typed parse at the wider numeric type is exactly the sampled
+     *       type widened, so an out-of-sample value that overflows the narrower type (e.g. a value
+     *       above {@code Integer.MAX_VALUE} in an INTEGER-sampled column reconciled to LONG) still
+     *       parses instead of failing.</li>
+     * </ul>
+     * DATE_NANOS is deliberately excluded: a text reader parsing an epoch number at DATE_NANOS reads
+     * it as epoch-nanos, not the epoch-millis a DATETIME column holds, so a DATETIME to DATE_NANOS
+     * widening stays on the post-read cast that rescales the unit rather than a raw parse. Text
+     * inference produces only BOOLEAN, INTEGER, LONG, DOUBLE, DATETIME, and KEYWORD, so DATE_NANOS as
+     * a reconciled type reaches this predicate only from a declared schema.
+     */
+    private static boolean shouldPinAtReconciledType(DataType inferred, DataType reconciled) {
+        if (inferred == reconciled) {
+            return false;
+        }
+        return reconciled == DataType.KEYWORD || reconciled == DataType.LONG || reconciled == DataType.DOUBLE;
+    }
+
     private static void validateNoDuplicateColumns(StoragePath filePath, List<Attribute> schema) {
         Set<String> seen = new HashSet<>();
         for (Attribute attr : schema) {
@@ -499,6 +875,119 @@ public final class SchemaReconciliation {
             this.type = type;
             this.nullable = nullable;
             this.firstSeenIn = firstSeenIn;
+        }
+    }
+
+    private static boolean isStringType(DataType type) {
+        return type == DataType.KEYWORD || type == DataType.TEXT;
+    }
+
+    /**
+     * Maximum number of contributing file paths quoted in a single per-column warning detail.
+     * Keeps the warning header from blowing up on glob-of-thousands queries; the "+N more" suffix
+     * preserves the cardinality so users know the warning applies to more files than shown.
+     */
+    private static final int MAX_FILES_IN_WARNING_DETAIL = 3;
+
+    private static void emitKeywordFallbackWarnings(
+        LinkedHashMap<String, MergeEntry> unified,
+        LinkedHashMap<String, KeywordFallback> contributions
+    ) {
+        // Decide which columns warrant a warning: column degraded to KEYWORD *and* at least one
+        // contributing file inferred a non-string type. A column that was KEYWORD in every file
+        // (and stayed KEYWORD) is not a degradation — the user-visible type matches the on-disk
+        // inferences and nothing was stringified.
+        List<KeywordFallback> warned = new ArrayList<>();
+        for (Map.Entry<String, MergeEntry> e : unified.entrySet()) {
+            if (e.getValue().type != DataType.KEYWORD) {
+                continue;
+            }
+            KeywordFallback fb = contributions.get(e.getKey());
+            if (fb != null && fb.hasNonStringContributor()) {
+                warned.add(fb);
+            }
+        }
+        if (warned.isEmpty()) {
+            return;
+        }
+        // Fire-and-forget: SkipWarnings#add deposits headers on the current thread context via
+        // HeaderWarning.addWarning. The local is not stored anywhere — the side effect *is* the
+        // emit. Same pattern as other SkipWarnings callers (e.g. format readers under non-strict
+        // error policy).
+        SkipWarnings warnings = new SkipWarnings(
+            "Schema reconciliation widened columns to keyword due to cross-file type disagreement;"
+                + " values are returned as strings. Hint: use schema_resolution = \"strict\" to fail instead."
+        );
+        for (KeywordFallback fb : warned) {
+            warnings.add(fb.buildDetail());
+        }
+    }
+
+    /**
+     * Per-column accumulator: every file that contributed a value for the column, together with
+     * that file's inferred type. Insertion-ordered so the emitted message reflects the user's
+     * glob order. Recording is unconditional during merge; the emit step decides whether the
+     * column actually degraded to {@code KEYWORD} and only then turns this into a warning.
+     */
+    private static final class KeywordFallback {
+        private final String columnName;
+        private final LinkedHashMap<StoragePath, DataType> contributions = new LinkedHashMap<>();
+
+        KeywordFallback(String columnName) {
+            this.columnName = columnName;
+        }
+
+        void add(StoragePath file, DataType inferredType) {
+            // First inference wins per (column, file). A single file can't contribute two
+            // different types for the same column (validateNoDuplicateColumns guarantees
+            // unique names within a file), so putIfAbsent and put are equivalent here — use
+            // putIfAbsent for clarity-of-intent.
+            contributions.putIfAbsent(file, inferredType);
+        }
+
+        boolean hasNonStringContributor() {
+            for (DataType type : contributions.values()) {
+                if (isStringType(type) == false) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        String buildDetail() {
+            // Pair each file with its inferred type — "file (type), file (type), …" — so users
+            // can tell at a glance which file disagreed instead of cross-referencing two lists.
+            // Long file lists are truncated with a "+N more" suffix; the distinct-type roll-up
+            // at the end preserves the legacy summary so users get an at-a-glance type picture
+            // even when files are truncated.
+            StringBuilder sb = new StringBuilder("Column [").append(columnName).append("] widened to keyword: ");
+            int shown = 0;
+            int total = contributions.size();
+            for (Map.Entry<StoragePath, DataType> e : contributions.entrySet()) {
+                if (shown == MAX_FILES_IN_WARNING_DETAIL && total > MAX_FILES_IN_WARNING_DETAIL) {
+                    sb.append(", +").append(total - shown).append(" more");
+                    break;
+                }
+                if (shown > 0) {
+                    sb.append(", ");
+                }
+                sb.append(e.getKey()).append(" (").append(e.getValue().typeName()).append(")");
+                shown++;
+            }
+            LinkedHashSet<DataType> distinctTypes = new LinkedHashSet<>(contributions.values());
+            if (distinctTypes.size() > 1) {
+                sb.append("; distinct types: [");
+                int t = 0;
+                for (DataType type : distinctTypes) {
+                    if (t > 0) {
+                        sb.append(", ");
+                    }
+                    sb.append(type.typeName());
+                    t++;
+                }
+                sb.append("]");
+            }
+            return sb.toString();
         }
     }
 

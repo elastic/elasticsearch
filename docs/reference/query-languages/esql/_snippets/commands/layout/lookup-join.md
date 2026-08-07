@@ -21,6 +21,9 @@ FROM <source_index>
 `<lookup_index>`
 :   The name of the lookup index. This must be a specific index name or alias. Wildcards and remote cluster prefixes are not supported. If the query source includes remote indices, the lookup index must exist on all involved clusters. Indices used for lookups must be configured with the [`lookup` index mode](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting).
 
+    In cross-cluster or cross-project queries, you can prefix the index name with `_coordinator:` to run the lookup on the coordinating node of the local cluster or origin project instead of on each remote cluster or linked project. This allows `LOOKUP JOIN` to be used after pipeline-breaking commands such as `STATS`, `LIMIT`, `SORT`. {applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview`
+   
+     
 `<join_condition>`
 :   Can be one of the following:
    * A single field name
@@ -47,7 +50,7 @@ results, the output will contain one row for each matching combination.
 For important information about using `LOOKUP JOIN`, refer to [Usage notes](../../../../esql/esql-lookup-join.md#usage-notes).
 ::::
 
-:::{include} ../types/lookup-join.md
+:::{include} ../../generated/x-pack-esql/commands/types/lookup-join.md
 :::
 
 ## Examples
@@ -58,34 +61,34 @@ The following examples show common `LOOKUP JOIN` use cases.
 
 Check whether source IPs match known malicious addresses:
 
-:::{include} ../examples/docs-lookup-join.csv-spec/lookupJoinSourceIp.md
+:::{include} ../../generated/x-pack-esql/commands/examples/docs-lookup-join.csv-spec/lookupJoinSourceIp.md
 :::
 
 To filter only for those rows that have a matching `threat_list` entry, use `WHERE ... IS NOT NULL` with a field from the lookup index:
 
-:::{include} ../examples/docs-lookup-join.csv-spec/lookupJoinSourceIpWhere.md
+:::{include} ../../generated/x-pack-esql/commands/examples/docs-lookup-join.csv-spec/lookupJoinSourceIpWhere.md
 :::
 
 ### Host metadata correlation
 
 Pull in environment or ownership details for each host to correlate with metrics data:
 
-:::{include} ../examples/docs-lookup-join.csv-spec/lookupJoinHostNameTwice.md
+:::{include} ../../generated/x-pack-esql/commands/examples/docs-lookup-join.csv-spec/lookupJoinHostNameTwice.md
 :::
 
 ### Service ownership mapping
 
 Show logs alongside the owning team or escalation information for faster triage:
 
-:::{include} ../examples/docs-lookup-join.csv-spec/lookupJoinServiceId.md
+:::{include} ../../generated/x-pack-esql/commands/examples/docs-lookup-join.csv-spec/lookupJoinServiceId.md
 :::
 
 ### Filter before LOOKUP JOIN
 
 `LOOKUP JOIN` is generally faster when there are fewer rows to join with. {{esql}} will try to perform any `WHERE` clause before the `LOOKUP JOIN` where possible. The following two queries produce the same results. One filters before the join, the other after. The optimizer will push the filter before the lookup when possible:
 
-:::{include} ../examples/lookup-join.csv-spec/filterOnLeftSide.md
+:::{include} ../../generated/x-pack-esql/commands/examples/lookup-join.csv-spec/filterOnLeftSide.md
 :::
 
-:::{include} ../examples/lookup-join.csv-spec/filterOnRightSide.md
+:::{include} ../../generated/x-pack-esql/commands/examples/lookup-join.csv-spec/filterOnRightSide.md
 :::

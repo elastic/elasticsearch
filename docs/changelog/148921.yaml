@@ -1,5 +1,0 @@
-area: Inference
-issues: []
-pr: 148921
-summary: "[Inference API] Fixing potential NPE if `InferenceContext` is null"
-type: bug

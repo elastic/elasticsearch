@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.generator.function;
 import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.ChangePointGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.DedupGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.InlineStatsGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.LimitByGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.LimitGenerator;
@@ -24,6 +25,7 @@ import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator.randomName;
+import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.isUnmappedFieldsEnabled;
 import static org.elasticsearch.xpack.esql.generator.command.source.FromGenerator.isFromSource;
 
 /**
@@ -44,7 +46,8 @@ public final class FullTextFunctionGenerator {
         StatsGenerator.STATS,
         InlineStatsGenerator.INLINE_STATS,
         ChangePointGenerator.CHANGE_POINT,
-        MvExpandGenerator.MV_EXPAND
+        MvExpandGenerator.MV_EXPAND,
+        DedupGenerator.DEDUP
     );
 
     private static boolean isFullTextAllowed(List<CommandGenerator.CommandDescription> previousCommands) {
@@ -77,13 +80,14 @@ public final class FullTextFunctionGenerator {
     /**
      * Returns the subset of columns that are index-mapped (originate from the actual index mapping).
      * Full-text functions (match, match_phrase, {@code :} operator) require these fields.
-     * Returns {@code null} when the information is unavailable (e.g. non-FROM source).
+     * Returns {@code null} when the information is unavailable (e.g. non-FROM source), or when
+     * {@code SET unmapped_fields="nullify"} makes even columns of a FROM source resolve as non-index-mapped.
      */
-    private static List<Column> indexFieldColumns(List<Column> columns, List<CommandGenerator.CommandDescription> previousCommands) {
+    public static List<Column> indexFieldColumns(List<Column> columns, List<CommandGenerator.CommandDescription> previousCommands) {
         if (previousCommands == null || previousCommands.isEmpty()) {
             return null;
         }
-        if (isFromSource(previousCommands.get(0)) == false) {
+        if (isFromSource(previousCommands.get(0)) == false || isUnmappedFieldsEnabled(previousCommands)) {
             return null;
         }
         List<Column> result = columns.stream().filter(Column::indexMapped).toList();
@@ -105,9 +109,19 @@ public final class FullTextFunctionGenerator {
     );
     private static final Set<String> MATCH_PHRASE_FIELD_TYPES = Set.of("keyword", "text");
 
-    private static final String[] SAMPLE_QUERY_WORDS = { "test", "hello", "world", "data", "search", "quick", "brown", "fox" };
+    private static final String[] SAMPLE_QUERY_WORDS = {
+        "test",
+        "hello",
+        "world",
+        "data",
+        "search",
+        "quick",
+        "brown",
+        "fox",
+        "ring",
+        "return" };
 
-    private static String randomQueryWord() {
+    public static String randomQueryWord() {
         return randomFrom(SAMPLE_QUERY_WORDS);
     }
 
@@ -153,7 +167,9 @@ public final class FullTextFunctionGenerator {
         { "default_operator", "\"OR\"", "\"AND\"" },
         { "lenient", "true", "false" },
         { "fuzziness", "\"AUTO\"", "1" },
-        { "boost", "1.0", "2.5" }, };
+        { "boost", "1.0", "2.5" },
+        { "phrase_slop", "1", "2", "3" },
+        { "analyze_wildcard", "true", "false" }, };
 
     private static final String[][] KQL_OPTIONS = { { "case_insensitive", "true", "false" }, { "boost", "1.0", "2.5" }, };
 

@@ -233,11 +233,8 @@ public class DLMConvertToFrozenCloneIndexTests extends ESTestCase {
 
     public void testMaybeCloneIndexThrowsWhenYellowStatusTimeoutBreached() {
         createProjectState(2); // replicas > 0 to trigger cloning
-        ClusterHealthResponse timedOut = new ClusterHealthResponse();
-        timedOut.setTimedOut(true);
-        mockHealthResponse.set(timedOut);
 
-        DLMConvertToFrozen convert = new DLMConvertToFrozen(
+        DLMConvertToFrozen convert = new DLMConvertToFrozenSnapshotTests.TestDLMConvertToFrozenWithTimeout(
             indexName,
             projectId,
             client,

@@ -56,7 +56,7 @@ public class S3TenaciousRetryBlobContainer extends TenaciousRetryBlobContainer {
 
     @Override
     protected BlobContainer wrapChild(BlobContainer child) {
-        return new S3TenaciousRetryBlobContainer(child, repositoriesMetrics);
+        return child instanceof S3TenaciousRetryBlobContainer ? child : new S3TenaciousRetryBlobContainer(child, repositoriesMetrics);
     }
 
     private String lookUpOperationNameByMethod(RetryMethod method) {

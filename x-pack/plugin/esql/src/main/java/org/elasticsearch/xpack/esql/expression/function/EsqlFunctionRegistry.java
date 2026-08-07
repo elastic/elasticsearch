@@ -81,6 +81,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToBase64;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToBoolean;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesianPoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesianShape;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCounter;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatePeriod;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateRange;
@@ -89,6 +90,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDegrees
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVector;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToExponentialHistogram;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGauge;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoPoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoShape;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeohash;
@@ -129,6 +131,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.RangeMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.RangeMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.RangeWithin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.TRange;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.ToRange;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.IpPrefix;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.NetworkDirection;
@@ -171,15 +174,18 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCoun
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvDedupe;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvDifference;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvFirst;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersection;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLast;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMedian;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMedianAbsoluteDeviation;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPSeriesWeightedSum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentile;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvRLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSlice;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSort;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
@@ -192,6 +198,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialDi
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialIntersects;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialWithin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StBuffer;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StDifference;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StDimension;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StDistance;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StEnvelope;
@@ -199,10 +206,13 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohash
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohex;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeometryType;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeotile;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StIntersection;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StIsEmpty;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StNPoints;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplify;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplifyPreserveTopology;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSymDifference;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StUnion;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StX;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StXMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StXMin;
@@ -324,16 +334,37 @@ public class EsqlFunctionRegistry {
     private final Map<Class<? extends Function>, String> names = new HashMap<>();
     private final Map<Class<? extends Function>, List<DataType>> dataTypesForStringLiteralConversions = new LinkedHashMap<>();
 
-    private SnapshotFunctionRegistry snapshotRegistry = null;
+    private final EsqlFunctionRegistry snapshotRegistry;
 
     @SuppressWarnings("this-escape")
     public EsqlFunctionRegistry() {
+        this(false);
+    }
+
+    @SuppressWarnings("this-escape")
+    private EsqlFunctionRegistry(boolean snapshot) {
         register(functions());
         buildDataTypesForStringLiteralConversion(functions());
         nameSurrogates();
+        if (snapshot) {
+            if (Build.current().isSnapshot() == false) {
+                throw new IllegalStateException("build snapshot function registry for non-snapshot build");
+            }
+            register(snapshotFunctions());
+            buildDataTypesForStringLiteralConversion(snapshotFunctions());
+            snapshotRegistry = this;
+        } else {
+            snapshotRegistry = Build.current().isSnapshot() ? new EsqlFunctionRegistry(true) : this;
+        }
     }
 
+    /**
+     * Testing constructor — makes a minimal registry with <strong>just</strong> the provided functions.
+     * The registry is its own snapshot registry so that function resolution in snapshot builds works
+     * without losing the custom functions.
+     */
     EsqlFunctionRegistry(FunctionDefinition... functions) {
+        snapshotRegistry = this;
         register(functions);
     }
 
@@ -449,6 +480,7 @@ public class EsqlFunctionRegistry {
                 Concat.DEFINITION,
                 Contains.DEFINITION,
                 EndsWith.DEFINITION,
+                FieldExtract.DEFINITION,
                 Hash.DEFINITION,
                 JsonExtract.DEFINITION,
                 LTrim.DEFINITION,
@@ -484,6 +516,11 @@ public class EsqlFunctionRegistry {
                 DayName.DEFINITION,
                 MonthName.DEFINITION,
                 Now.DEFINITION,
+                RangeContains.DEFINITION,
+                RangeIntersects.DEFINITION,
+                RangeMax.DEFINITION,
+                RangeMin.DEFINITION,
+                RangeWithin.DEFINITION,
                 TRange.DEFINITION },
             // spatial
             new FunctionDefinition[] {
@@ -496,8 +533,12 @@ public class EsqlFunctionRegistry {
                 StDistance.DEFINITION,
                 StEnvelope.DEFINITION,
                 StBuffer.DEFINITION,
+                StDifference.DEFINITION,
+                StIntersection.DEFINITION,
                 StSimplify.DEFINITION,
                 StSimplifyPreserveTopology.DEFINITION,
+                StSymDifference.DEFINITION,
+                StUnion.DEFINITION,
                 StGeohash.DEFINITION,
                 StGeotile.DEFINITION,
                 StGeohex.DEFINITION,
@@ -525,13 +566,16 @@ public class EsqlFunctionRegistry {
                 ToBoolean.DEFINITION,
                 ToCartesianPoint.DEFINITION,
                 ToCartesianShape.DEFINITION,
+                ToCounter.DEFINITION,
                 ToDatePeriod.DEFINITION,
                 ToDatetime.DEFINITION,
                 ToDateNanos.DEFINITION,
+                ToDateRange.DEFINITION,
                 ToDegrees.DEFINITION,
                 ToDenseVector.DEFINITION,
                 ToDouble.DEFINITION,
                 ToExponentialHistogram.DEFINITION,
+                ToGauge.DEFINITION,
                 ToGeohash.DEFINITION,
                 ToGeotile.DEFINITION,
                 ToGeohex.DEFINITION,
@@ -541,8 +585,10 @@ public class EsqlFunctionRegistry {
                 ToIntegerSurrogate.DEFINITION,
                 ToLongSurrogate.DEFINITION,
                 ToRadians.DEFINITION,
+                ToRange.DEFINITION,
                 ToString.DEFINITION,
                 ToTDigest.DEFINITION,
+                ToText.DEFINITION,
                 ToTimeDuration.DEFINITION,
                 ToUnsignedLong.DEFINITION,
                 ToVersion.DEFINITION, },
@@ -556,8 +602,10 @@ public class EsqlFunctionRegistry {
                 MvDedupe.DEFINITION,
                 MvDifference.DEFINITION,
                 MvFirst.DEFINITION,
+                MvInRange.DEFINITION,
                 MvIntersection.DEFINITION,
                 MvLast.DEFINITION,
+                MvLike.DEFINITION,
                 MvMax.DEFINITION,
                 MvMedian.DEFINITION,
                 MvMedianAbsoluteDeviation.DEFINITION,
@@ -565,6 +613,7 @@ public class EsqlFunctionRegistry {
                 MvIntersects.DEFINITION,
                 MvPercentile.DEFINITION,
                 MvPSeriesWeightedSum.DEFINITION,
+                MvRLike.DEFINITION,
                 MvSort.DEFINITION,
                 MvSlice.DEFINITION,
                 MvUnion.DEFINITION,
@@ -621,27 +670,10 @@ public class EsqlFunctionRegistry {
                 // TSTEP is new enough that we only want to expose it on snapshot builds for now.
                 TStep.DEFINITION,
                 // dense vector functions
-                Magnitude.DEFINITION,
-                // date_range functions
-                RangeContains.DEFINITION,
-                RangeIntersects.DEFINITION,
-                RangeMax.DEFINITION,
-                RangeMin.DEFINITION,
-                RangeWithin.DEFINITION,
-                ToDateRange.DEFINITION,
-                ToText.DEFINITION,
-                FieldExtract.DEFINITION } };
+                Magnitude.DEFINITION } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {
-        if (Build.current().isSnapshot() == false) {
-            return this;
-        }
-        var snapshotRegistry = this.snapshotRegistry;
-        if (snapshotRegistry == null) {
-            snapshotRegistry = new SnapshotFunctionRegistry();
-            this.snapshotRegistry = snapshotRegistry;
-        }
         return snapshotRegistry;
     }
 
@@ -671,7 +703,7 @@ public class EsqlFunctionRegistry {
 
     public static class ArgSignature {
 
-        public record Hint(String entityType, String kind, Map<String, String> constraints) {}
+        public record Hint(String entityType, String kind, Map<String, String> constraints, List<String> allowedValues) {}
 
         protected final String name;
         protected final String[] type;
@@ -748,6 +780,10 @@ public class EsqlFunctionRegistry {
 
         public DataType targetDataType() {
             return targetDataType;
+        }
+
+        public Hint hint() {
+            return hint;
         }
 
         public Map<String, MapEntryArgSignature> mapParams() {
@@ -948,7 +984,8 @@ public class EsqlFunctionRegistry {
                 );
             }
             String kind = param.hint().kind() != Param.Hint.Kind.STANDARD ? param.hint().kind().name().toLowerCase(Locale.ROOT) : null;
-            hint = new ArgSignature.Hint(entityType, kind, constraints);
+            List<String> allowedValues = List.of(param.hint().allowedValues());
+            hint = new ArgSignature.Hint(entityType, kind, constraints, allowedValues);
         }
 
         return new EsqlFunctionRegistry.ArgSignature(
@@ -1020,17 +1057,6 @@ public class EsqlFunctionRegistry {
 
     public List<DataType> getDataTypeForStringLiteralConversion(Class<? extends Function> clazz) {
         return dataTypesForStringLiteralConversions.get(clazz);
-    }
-
-    private static class SnapshotFunctionRegistry extends EsqlFunctionRegistry {
-        SnapshotFunctionRegistry() {
-            if (Build.current().isSnapshot() == false) {
-                throw new IllegalStateException("build snapshot function registry for non-snapshot build");
-            }
-            register(snapshotFunctions());
-            buildDataTypesForStringLiteralConversion(snapshotFunctions());
-        }
-
     }
 
     void register(FunctionDefinition[]... groupFunctions) {
@@ -1127,7 +1153,7 @@ public class EsqlFunctionRegistry {
         } else {
             addCapabilities(filterAliases, capabilities, true);
             if (capabilities.all()) {
-                new SnapshotFunctionRegistry().addCapabilities(filterAliases, capabilities, false);
+                snapshotRegistry().addCapabilities(filterAliases, capabilities, false);
             }
         }
     }
@@ -1141,6 +1167,9 @@ public class EsqlFunctionRegistry {
             capabilities.add(name, enabled);
             for (String sub : def.capabilities()) {
                 capabilities.add(name + "_" + sub, enabled);
+            }
+            for (String sub : def.snapshotCapabilities()) {
+                capabilities.add(name + "_" + sub, enabled && Build.current().isSnapshot());
             }
         }
     }

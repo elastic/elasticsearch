@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.FlattenedCases;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.math.BigInteger;
@@ -62,7 +63,7 @@ public class MvSliceTests extends AbstractScalarFunctionTestCase {
                 case INTEGER -> "Int";
                 case LONG, DATE_NANOS, DATETIME, UNSIGNED_LONG, GEOHASH, GEOTILE, GEOHEX -> "Long";
                 case DOUBLE -> "Double";
-                case KEYWORD, TEXT, IP, VERSION, GEO_POINT, CARTESIAN_POINT, GEO_SHAPE, CARTESIAN_SHAPE -> "BytesRef";
+                case KEYWORD, TEXT, IP, VERSION, GEO_POINT, CARTESIAN_POINT, GEO_SHAPE, CARTESIAN_SHAPE, FLATTENED -> "BytesRef";
                 default -> throw new IllegalArgumentException("Unsupported type: " + firstArgumentType);
             };
 
@@ -428,5 +429,24 @@ public class MvSliceTests extends AbstractScalarFunctionTestCase {
                 equalTo(start == end ? field.get(start) : field.subList(start, end + 1))
             );
         }));
+
+        if (DataType.FLATTENED.supportedVersion().supportedLocally()) {
+            suppliers.add(new TestCaseSupplier(List.of(DataType.FLATTENED, DataType.INTEGER, DataType.INTEGER), () -> {
+                List<Object> field = randomList(1, 10, FlattenedCases.RANDOM::get);
+                int length = field.size();
+                int start = randomIntBetween(0, length - 1);
+                int end = randomIntBetween(start, length - 1);
+                return new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(field, DataType.FLATTENED, "field"),
+                        new TestCaseSupplier.TypedData(start, DataType.INTEGER, "start"),
+                        new TestCaseSupplier.TypedData(end, DataType.INTEGER, "end")
+                    ),
+                    "MvSliceBytesRefEvaluator[field=Attribute[channel=0], start=Attribute[channel=1], end=Attribute[channel=2]]",
+                    DataType.FLATTENED,
+                    equalTo(start == end ? field.get(start) : field.subList(start, end + 1))
+                );
+            }));
+        }
     }
 }

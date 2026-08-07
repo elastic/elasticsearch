@@ -9,21 +9,21 @@
 
 package org.elasticsearch.gradle.internal.distribution
 
-import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
+import org.elasticsearch.gradle.fixtures.AbstractGradleInternalPluginFuncTest
 import org.gradle.testkit.runner.TaskOutcome
 
-class ElasticsearchDistributionPluginFuncTest extends AbstractGradleFuncTest {
+class ElasticsearchDistributionPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
 
+    Class<? extends org.gradle.api.Plugin> pluginClassUnderTest = org.elasticsearch.gradle.internal.distribution.ElasticsearchDistributionPlugin
+
+    
     def "copied modules are resolved from explodedBundleZip"() {
         given:
-        // we use the esplugin plugin in this test that is not configuration cache compatible yet
-        configurationCacheCompatible = false
+        disableConfigurationCache("esplugin plugin is not configuration cache compatible yet")
         moduleSubProject()
 
-        buildFile << """plugins {
-                id 'elasticsearch.distro'
-            }
-
+        // elasticsearch.distro is applied by AbstractGradleInternalPluginFuncTest
+        buildFile << """
             def someCopy = tasks.register('someCopy', Sync) {
                 into 'build/targetDir'
             }

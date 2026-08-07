@@ -15,7 +15,9 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
+import org.apache.lucene.util.Accountable;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.test.AbstractQueryTestCase;
@@ -35,6 +37,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
@@ -43,6 +46,8 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.hasItem;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 
 public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilder> {
@@ -479,6 +484,133 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         boolQuery.must(termQuery);
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> boolQuery.toQuery(context));
         assertEquals("Rewrite first", e.getMessage());
+    }
+
+    public void testToQueryChargesEntireTreeOnceMatchingVisitorTotal() throws IOException {
+        CircuitBreaker cb = createCircuitBreakerService();
+        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext(), cb);
+        try {
+            long before = cb.getUsed();
+            new BoolQueryBuilder().must(new PrefixQueryBuilder(TEXT_FIELD_NAME, "test"))
+                .must(new TermQueryBuilder(KEYWORD_FIELD_NAME, "value"))
+                .toQuery(context);
+            long delta = cb.getUsed() - before;
+
+            assertTrue("a compound bool query must contribute strictly positive bytes to the breaker", delta > 0);
+            assertEquals(
+                "bool query must charge the breaker exactly once with the visitor's running total across the fan-out",
+                delta,
+                context.getQueryConstructionMemoryUsed()
+            );
+        } finally {
+            context.releaseQueryConstructionMemory();
+        }
+    }
+
+    public void testDuplicateFilterClausesAreChargedOnce() throws IOException {
+        CircuitBreaker cb = createCircuitBreakerService();
+        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext(), cb);
+        try {
+            long baselineSingle = cb.getUsed();
+            new BoolQueryBuilder().filter(new TermQueryBuilder(KEYWORD_FIELD_NAME, "value")).toQuery(context);
+            long singleClauseDelta = cb.getUsed() - baselineSingle;
+            context.releaseQueryConstructionMemory();
+
+            long baselineDuplicates = cb.getUsed();
+            BoolQueryBuilder duplicates = new BoolQueryBuilder();
+            for (int i = 0; i < 5; i++) {
+                duplicates.filter(new TermQueryBuilder(KEYWORD_FIELD_NAME, "value"));
+            }
+            duplicates.toQuery(context);
+            long duplicateDelta = cb.getUsed() - baselineDuplicates;
+
+            assertTrue("a single filter clause must contribute strictly positive bytes", singleClauseDelta > 0);
+            assertEquals(
+                "duplicate filter clauses must be deduplicated by the bool query and charge the breaker exactly once",
+                singleClauseDelta,
+                duplicateDelta
+            );
+        } finally {
+            context.releaseQueryConstructionMemory();
+        }
+    }
+
+    public void testBoolFilterWildcardClausesChargedOncePerAutomaton() throws IOException {
+        assertDedupWildcardClausesChargedOnce(true);
+    }
+
+    public void testBoolMustNotWildcardClausesChargedOncePerAutomaton() throws IOException {
+        assertDedupWildcardClausesChargedOnce(false);
+    }
+
+    private void assertDedupWildcardClausesChargedOnce(boolean filter) throws IOException {
+        String patternOne = "test*pattern*one*here*";
+        String patternTwo = "another*completely*different*pattern*two*";
+
+        long automatonOne;
+        long automatonTwo;
+        CircuitBreaker measureBreaker = createCircuitBreakerService();
+        SearchExecutionContext measureContext = new SearchExecutionContext(createSearchExecutionContext(), measureBreaker);
+        try {
+            Query first = new WildcardQueryBuilder(TEXT_FIELD_NAME, patternOne).toQuery(measureContext);
+            Query second = new WildcardQueryBuilder(TEXT_FIELD_NAME, patternTwo).toQuery(measureContext);
+            assertThat("wildcard automaton query must be Accountable", first, instanceOf(Accountable.class));
+            assertThat("wildcard automaton query must be Accountable", second, instanceOf(Accountable.class));
+            automatonOne = ((Accountable) first).ramBytesUsed();
+            automatonTwo = ((Accountable) second).ramBytesUsed();
+        } finally {
+            measureContext.releaseQueryConstructionMemory();
+        }
+        long expected = automatonOne + automatonTwo;
+        long smallerAutomaton = Math.min(automatonOne, automatonTwo);
+        assertTrue("precondition: distinct wildcard automata must retain bytes", smallerAutomaton > 0);
+
+        CircuitBreaker cb = createCircuitBreakerService();
+        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext(), cb);
+        try {
+            BoolQueryBuilder boolQuery = new BoolQueryBuilder();
+            if (filter) {
+                boolQuery.filter(new WildcardQueryBuilder(TEXT_FIELD_NAME, patternOne))
+                    .filter(new WildcardQueryBuilder(TEXT_FIELD_NAME, patternTwo));
+            } else {
+                boolQuery.mustNot(new WildcardQueryBuilder(TEXT_FIELD_NAME, patternOne))
+                    .mustNot(new WildcardQueryBuilder(TEXT_FIELD_NAME, patternTwo));
+            }
+
+            long before = cb.getUsed();
+            boolQuery.toQuery(context);
+            long delta = cb.getUsed() - before;
+
+            String clause = filter ? "filter" : "must_not";
+            assertThat(
+                "bool " + clause + " wildcard clauses must charge both automata at least once",
+                delta,
+                greaterThanOrEqualTo(expected)
+            );
+            assertThat(
+                "bool "
+                    + clause
+                    + " wildcard clauses must charge each automaton exactly once; the dedup clause visitor must honor the "
+                    + "pre-charged predicate so construction-time bytes are not counted again under CATEGORY_QUERY",
+                delta,
+                lessThan(expected + smallerAutomaton)
+            );
+        } finally {
+            context.releaseQueryConstructionMemory();
+        }
+    }
+
+    public void testBoolDedupPathTripsBreakerMidWalkBeforeMerge() {
+        assertCircuitBreakerTripsOnQueryConstruction("500kb", () -> {
+            BoolQueryBuilder boolQuery = new BoolQueryBuilder();
+            IntStream.range(0, 100)
+                .forEach(
+                    i -> boolQuery.filter(
+                        new RegexpQueryBuilder(TEXT_FIELD_NAME, "(pattern" + i + "|alternate" + i + "|option" + i + ").*")
+                    )
+                );
+            return boolQuery;
+        });
     }
 
     public void testShallowCopy() {

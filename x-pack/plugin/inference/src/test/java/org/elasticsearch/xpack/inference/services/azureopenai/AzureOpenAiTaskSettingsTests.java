@@ -166,7 +166,7 @@ public abstract class AzureOpenAiTaskSettingsTests<T extends AzureOpenAiTaskSett
 
     public void testFromMap_isEmpty() {
         {
-            var emptyMap = createFromMap(new HashMap<>(Map.of()), randomContext());
+            var emptyMap = createFromMap(new HashMap<>(), randomContext());
             assertTrue(emptyMap.isEmpty());
         }
         {
@@ -208,7 +208,7 @@ public abstract class AzureOpenAiTaskSettingsTests<T extends AzureOpenAiTaskSett
     }
 
     public void testFromMap_MissingUser_DoesNotThrowException() {
-        var taskSettings = createFromMap(new HashMap<>(Map.of()), ConfigurationParseContext.REQUEST);
+        var taskSettings = createFromMap(new HashMap<>(), ConfigurationParseContext.REQUEST);
         assertTrue(taskSettings.user().isUndefined());
     }
 
@@ -300,7 +300,7 @@ public abstract class AzureOpenAiTaskSettingsTests<T extends AzureOpenAiTaskSett
     }
 
     public void testFromMap_WithRequestContext_ReturnsEmptySettings_WhenMapIsEmpty() {
-        var settings = createFromMap(new HashMap<>(Map.of()), ConfigurationParseContext.REQUEST);
+        var settings = createFromMap(new HashMap<>(), ConfigurationParseContext.REQUEST);
         assertTrue(settings.isEmpty());
         assertTrue(settings.user().isUndefined());
         assertThat(settings.headers(), sameInstance(Headers.UNDEFINED_INSTANCE));

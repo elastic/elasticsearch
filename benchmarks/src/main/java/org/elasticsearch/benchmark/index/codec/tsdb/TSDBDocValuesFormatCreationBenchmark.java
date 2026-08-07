@@ -12,6 +12,7 @@ package org.elasticsearch.benchmark.index.codec.tsdb;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormatFactory;
+import org.elasticsearch.index.codec.tsdb.es819.ES819Version3TSDBDocValuesFormat;
 import org.elasticsearch.index.codec.tsdb.es95.ES95TSDBDocValuesFormatFactory;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -29,14 +30,16 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Compares the cost of creating an {@code ES819} vs an {@code ES95} TSDB doc values format.
- * Mirrors the production codec selection path in {@code TSDBDocValuesFormatSelector#select}:
- * both {@code ES819TSDBDocValuesFormatFactory.createDocValuesFormat} and
- * {@code ES95TSDBDocValuesFormatFactory.createDocValuesFormat} return a cached singleton for
- * the standard parameter set.
  *
- * <p>Run with {@code -prof gc} to read {@code gc.alloc.rate.norm} (bytes per op),
- * which is the direct measure of the per call allocation. The same run also reports
- * throughput, so a single invocation covers both.
+ * <p>The ES819 cached/uncached pair shows both the cache lookup cost and the cold
+ * construction cost of the previous codec. ES95 has no factory level cache because every
+ * production caller supplies a per index {@link
+ * org.elasticsearch.index.codec.tsdb.pipeline.FieldContextResolver} that cannot be
+ * globally cached; the ES95 row measures the cold construction cost production pays once
+ * per supplier.
+ *
+ * <p>Run with {@code -prof gc} to read {@code gc.alloc.rate.norm} (bytes per op), which is
+ * the direct measure of the per call allocation. The same run also reports throughput.
  *
  * <h2>Ready to run command</h2>
  *
@@ -61,12 +64,17 @@ public class TSDBDocValuesFormatCreationBenchmark {
     }
 
     @Benchmark
-    public DocValuesFormat createES819DocValuesFormat() {
+    public DocValuesFormat createES819Cached() {
         return ES819TSDBDocValuesFormatFactory.createDocValuesFormat(currentVersion, false, false, false);
     }
 
     @Benchmark
-    public DocValuesFormat createES95DocValuesFormat() {
-        return ES95TSDBDocValuesFormatFactory.get(false, false, false);
+    public DocValuesFormat createES819Uncached() {
+        return new ES819Version3TSDBDocValuesFormat(false, false, false);
+    }
+
+    @Benchmark
+    public DocValuesFormat createES95() {
+        return ES95TSDBDocValuesFormatFactory.create(false, false, false, null);
     }
 }

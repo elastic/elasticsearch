@@ -19,15 +19,19 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobStoreActionStats;
 import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoryStats;
 import org.elasticsearch.repositories.gcs.GcsRepositoryStatsCollector;
 import org.elasticsearch.repositories.gcs.GoogleCloudStoragePlugin;
 import org.elasticsearch.repositories.gcs.GoogleCloudStorageService;
 import org.elasticsearch.repositories.gcs.MeteredStorage;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.TaskId;
 import org.mockito.Mockito;
 
 import java.io.IOException;
@@ -158,6 +162,35 @@ public class GoogleObjectStoreTests extends AbstractMockObjectStoreIntegTestCase
         logger.info("--> stopping " + node1);
         internalCluster().stopNode(node1);
         ensureGreen(indexName);
+    }
+
+    public void testCopyShardWithTenaciousRetries() throws Exception {
+        final var settings = Settings.builder().put("gcs.client.test.tenacious_retries.enabled", true).build();
+        final String node = startMasterAndIndexNode(settings);
+        try {
+            final var objectStoreService = getCurrentMasterObjectStoreService();
+
+            final String indexName = randomIdentifier();
+            createIndex(indexName, indexSettings(1, 0).build());
+            final var sourceShardId = new ShardId(resolveIndex(indexName), 0);
+            final var destShardId = new ShardId(resolveIndex(indexName), 1);
+            final long primaryTerm = 1L;
+
+            final var blobData = randomBytesReference(between(1, 100));
+            objectStoreService.getProjectBlobContainer(sourceShardId, primaryTerm)
+                .writeBlob(OperationPurpose.INDICES, "commit-1", blobData, true);
+
+            final var task = new CancellableTask(1L, "test", "copyShard", "", TaskId.EMPTY_TASK_ID, Map.of());
+            objectStoreService.copyShard(task, sourceShardId, destShardId, primaryTerm);
+
+            try (
+                var is = objectStoreService.getProjectBlobContainer(destShardId, primaryTerm).readBlob(OperationPurpose.INDICES, "commit-1")
+            ) {
+                assertArrayEquals(BytesReference.toBytes(blobData), is.readAllBytes());
+            }
+        } finally {
+            internalCluster().stopNode(node);
+        }
     }
 
     public static class TestGoogleCloudStoragePlugin extends GoogleCloudStoragePlugin {

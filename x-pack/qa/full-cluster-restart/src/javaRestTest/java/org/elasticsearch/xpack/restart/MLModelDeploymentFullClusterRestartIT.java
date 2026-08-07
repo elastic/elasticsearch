@@ -113,10 +113,7 @@ public class MLModelDeploymentFullClusterRestartIT extends AbstractXpackFullClus
                 }
             }, 90, TimeUnit.SECONDS);
         } else {
-            ensureHealth(".ml-inference-*,.ml-config*", (request -> {
-                request.addParameter("wait_for_status", "yellow");
-                request.addParameter("timeout", "120s");
-            }));
+            ensureYellowAndNoInitializingShards(".ml-inference-*,.ml-config*", "120s");
             waitForDeploymentStarted(modelId);
             assertBusy(() -> {
                 try {

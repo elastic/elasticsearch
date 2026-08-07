@@ -36,7 +36,7 @@ public class CohereV1EmbeddingsRequest extends CohereRequest implements Outbound
         super(
             CohereAccount.of(embeddingsModel),
             embeddingsModel.getInferenceEntityId(),
-            embeddingsModel.getServiceSettings().getCommonSettings().modelId(),
+            embeddingsModel.getServiceSettings().commonSettings().modelId(),
             false
         );
 

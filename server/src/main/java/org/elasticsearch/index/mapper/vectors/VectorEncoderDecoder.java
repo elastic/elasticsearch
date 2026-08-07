@@ -94,22 +94,16 @@ public final class VectorEncoderDecoder {
 
     /**
      * Decodes a BytesRef into the provided array of bytes
+     *
      * @param vectorBR - dense vector encoded in BytesRef
-     * @param vector - array of bytes where the decoded vector should be stored
+     * @param vector   - array of bytes where the decoded vector should be stored
      */
-    public static void decodeDenseVector(IndexVersion indexVersion, BytesRef vectorBR, byte[] vector) {
+    public static void decodeDenseVector(BytesRef vectorBR, byte[] vector) {
         if (vectorBR == null) {
             throw new IllegalArgumentException(DenseVectorScriptDocValues.MISSING_VECTOR_FIELD_MESSAGE);
         }
-        if (indexVersion.onOrAfter(LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION)) {
-            ByteBuffer fb = ByteBuffer.wrap(vectorBR.bytes, vectorBR.offset, vectorBR.length).order(ByteOrder.LITTLE_ENDIAN);
-            fb.get(vector);
-        } else {
-            ByteBuffer byteBuffer = ByteBuffer.wrap(vectorBR.bytes, vectorBR.offset, vectorBR.length);
-            for (int dim = 0; dim < vector.length; dim++) {
-                vector[dim] = byteBuffer.get(dim * vectorBR.offset);
-            }
-        }
+        // individual bytes have no endianness, so a plain copy is correct for all index versions
+        System.arraycopy(vectorBR.bytes, vectorBR.offset, vector, 0, vector.length);
     }
 
     public static float[] getMultiMagnitudes(BytesRef magnitudes) {

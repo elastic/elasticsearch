@@ -17,6 +17,8 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPatt
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Contains;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.Range;
@@ -621,14 +623,27 @@ public class ParquetFilterPushdownSupportTests extends ESTestCase {
 
     // --- StartsWith tests ---
 
-    public void testStartsWithKeywordPushed() {
+    public void testStartsWithKeywordPushedAsYes() {
         Attribute col = attr("name", DataType.KEYWORD);
         Expression filter = new StartsWith(Source.EMPTY, col, keywordLit("alice"));
 
         FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
 
         assertTrue(result.hasPushedFilter());
-        assertEquals(1, result.remainder().size());
+        assertEquals(FilterPushdownSupport.Pushability.YES, support.canPush(filter));
+        assertEquals("StartsWith must be dropped from the remainder under YES", 0, result.remainder().size());
+    }
+
+    public void testStartsWithNegatedPushedAsYes() {
+        Attribute col = attr("name", DataType.KEYWORD);
+        Expression sw = new StartsWith(Source.EMPTY, col, keywordLit("alice"));
+        Expression filter = new Not(Source.EMPTY, sw);
+
+        FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
+
+        assertTrue(result.hasPushedFilter());
+        assertEquals(FilterPushdownSupport.Pushability.YES, support.canPush(filter));
+        assertEquals(0, result.remainder().size());
     }
 
     public void testStartsWithNonKeywordNotPushed() {
@@ -857,10 +872,215 @@ public class ParquetFilterPushdownSupportTests extends ESTestCase {
         assertEquals(0, result.remainder().size());
     }
 
+    // --- Contains tests ---
+
+    public void testContainsKeywordPushedAsYes() {
+        Attribute col = attr("url", DataType.KEYWORD);
+        Expression filter = new Contains(Source.EMPTY, col, keywordLit("google"));
+
+        FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
+
+        assertTrue(result.hasPushedFilter());
+        assertEquals(FilterPushdownSupport.Pushability.YES, support.canPush(filter));
+        assertEquals("Contains must be dropped from the remainder under YES", 0, result.remainder().size());
+    }
+
+    public void testContainsNegatedPushedAsYes() {
+        Attribute col = attr("url", DataType.KEYWORD);
+        Expression c = new Contains(Source.EMPTY, col, keywordLit("google"));
+        Expression filter = new Not(Source.EMPTY, c);
+
+        FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
+
+        assertTrue(result.hasPushedFilter());
+        assertEquals(FilterPushdownSupport.Pushability.YES, support.canPush(filter));
+        assertEquals(0, result.remainder().size());
+    }
+
+    public void testContainsNonKeywordNotPushed() {
+        Attribute col = attr("age", DataType.INTEGER);
+        Expression filter = new Contains(Source.EMPTY, col, intLit(10));
+
+        assertFalse(ParquetFilterPushdownSupport.canConvert(filter));
+    }
+
+    public void testContainsNonFoldableNotPushed() {
+        // CONTAINS(field, other_field) — non-literal substring stays on FilterExec.
+        Attribute col = attr("name", DataType.KEYWORD);
+        Attribute other = attr("substring", DataType.KEYWORD);
+        Expression filter = new Contains(Source.EMPTY, col, other);
+
+        assertFalse(ParquetFilterPushdownSupport.canConvert(filter));
+    }
+
+    public void testContainsNullSubstrNotPushed() {
+        Attribute col = attr("name", DataType.KEYWORD);
+        Expression filter = new Contains(Source.EMPTY, col, new Literal(Source.EMPTY, null, DataType.KEYWORD));
+
+        FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
+
+        assertFalse(result.hasPushedFilter());
+    }
+
+    public void testContainsOnVirtualAttributeIsNotPushed() {
+        Attribute virtual = virtualAttr("_file.name", DataType.KEYWORD);
+        Expression filter = new Contains(Source.EMPTY, virtual, keywordLit("foo"));
+        assertEquals(FilterPushdownSupport.Pushability.NO, support.canPush(filter));
+    }
+
+    public void testContainsAndEqualsAsSeparateConjuncts() {
+        Attribute url = attr("url", DataType.KEYWORD);
+        Attribute status = attr("status", DataType.LONG);
+        Expression c = new Contains(Source.EMPTY, url, keywordLit("google"));
+        Expression statusEq = new Equals(Source.EMPTY, status, longLit(200L), null);
+
+        FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(c, statusEq));
+
+        assertTrue(result.hasPushedFilter());
+        assertEquals(FilterPushdownSupport.Pushability.YES, support.canPush(c));
+        assertEquals(FilterPushdownSupport.Pushability.RECHECK, support.canPush(statusEq));
+        assertEquals("Contains must be dropped from remainder; only status = 200 RECHECK remains", 1, result.remainder().size());
+        assertTrue("remainder must be the status = 200 conjunct", result.remainder().contains(statusEq));
+        assertFalse("remainder must not contain the Contains conjunct", result.remainder().contains(c));
+    }
+
+    // --- EndsWith tests ---
+
+    public void testEndsWithKeywordPushedAsYes() {
+        Attribute col = attr("path", DataType.KEYWORD);
+        Expression filter = new EndsWith(Source.EMPTY, col, keywordLit(".log"));
+
+        FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
+
+        assertTrue(result.hasPushedFilter());
+        assertEquals(FilterPushdownSupport.Pushability.YES, support.canPush(filter));
+        assertEquals("EndsWith must be dropped from the remainder under YES", 0, result.remainder().size());
+    }
+
+    public void testEndsWithNegatedPushedAsYes() {
+        Attribute col = attr("path", DataType.KEYWORD);
+        Expression ew = new EndsWith(Source.EMPTY, col, keywordLit(".log"));
+        Expression filter = new Not(Source.EMPTY, ew);
+
+        FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
+
+        assertTrue(result.hasPushedFilter());
+        assertEquals(FilterPushdownSupport.Pushability.YES, support.canPush(filter));
+        assertEquals(0, result.remainder().size());
+    }
+
+    public void testEndsWithNonKeywordNotPushed() {
+        Attribute col = attr("age", DataType.INTEGER);
+        Expression filter = new EndsWith(Source.EMPTY, col, intLit(10));
+
+        assertFalse(ParquetFilterPushdownSupport.canConvert(filter));
+    }
+
+    public void testEndsWithNonFoldableNotPushed() {
+        Attribute col = attr("name", DataType.KEYWORD);
+        Attribute other = attr("suffix", DataType.KEYWORD);
+        Expression filter = new EndsWith(Source.EMPTY, col, other);
+
+        assertFalse(ParquetFilterPushdownSupport.canConvert(filter));
+    }
+
+    public void testEndsWithNullSuffixNotPushed() {
+        Attribute col = attr("name", DataType.KEYWORD);
+        Expression filter = new EndsWith(Source.EMPTY, col, new Literal(Source.EMPTY, null, DataType.KEYWORD));
+
+        FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
+
+        assertFalse(result.hasPushedFilter());
+    }
+
+    public void testEndsWithOnVirtualAttributeIsNotPushed() {
+        Attribute virtual = virtualAttr("_file.name", DataType.KEYWORD);
+        Expression filter = new EndsWith(Source.EMPTY, virtual, keywordLit(".log"));
+        assertEquals(FilterPushdownSupport.Pushability.NO, support.canPush(filter));
+    }
+
+    public void testNotOverAndOfContainsAndEndsWithIsRecheck() {
+        // See testNotOverAndOfWildcardLikesIsRecheck — same TVL reason.
+        Attribute url = attr("url", DataType.KEYWORD);
+        Attribute path = attr("path", DataType.KEYWORD);
+        Expression c = new Contains(Source.EMPTY, url, keywordLit("google"));
+        Expression ew = new EndsWith(Source.EMPTY, path, keywordLit(".log"));
+        Expression notAnd = new Not(Source.EMPTY, new And(Source.EMPTY, c, ew));
+
+        assertEquals(FilterPushdownSupport.Pushability.RECHECK, support.canPush(notAnd));
+
+        FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(notAnd));
+        assertTrue(result.hasPushedFilter());
+        assertEquals("RECHECK keeps the conjunct in remainder so FilterExec re-applies", 1, result.remainder().size());
+    }
+
+    public void testEndsWithAndEqualsAsSeparateConjuncts() {
+        Attribute path = attr("path", DataType.KEYWORD);
+        Attribute status = attr("status", DataType.LONG);
+        Expression ew = new EndsWith(Source.EMPTY, path, keywordLit(".log"));
+        Expression statusEq = new Equals(Source.EMPTY, status, longLit(200L), null);
+
+        FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(ew, statusEq));
+
+        assertTrue(result.hasPushedFilter());
+        assertEquals(FilterPushdownSupport.Pushability.YES, support.canPush(ew));
+        assertEquals(FilterPushdownSupport.Pushability.RECHECK, support.canPush(statusEq));
+        assertEquals("EndsWith must be dropped from remainder; only status = 200 RECHECK remains", 1, result.remainder().size());
+        assertTrue("remainder must be the status = 200 conjunct", result.remainder().contains(statusEq));
+        assertFalse("remainder must not contain the EndsWith conjunct", result.remainder().contains(ew));
+    }
+
+    // --- Virtual column tests ---
+    // Virtual columns (engine-synthesized _file.* via ExternalMetadataAttribute / VirtualAttribute,
+    // ES document metadata via MetadataAttribute) have no parquet column to read, so every
+    // predicate over them must stay non-pushable regardless of the structural shape.
+
+    public void testEqualsOnVirtualAttributeIsNotPushed() {
+        Attribute virtual = virtualAttr("_file.size", DataType.LONG);
+        Expression filter = new Equals(Source.EMPTY, virtual, longLit(123L), null);
+        assertEquals(FilterPushdownSupport.Pushability.NO, support.canPush(filter));
+    }
+
+    public void testRangeOnVirtualAttributeIsNotPushed() {
+        Attribute virtual = virtualAttr("_file.modified", DataType.DATETIME);
+        Expression filter = new Range(Source.EMPTY, virtual, datetimeLit(1L), true, datetimeLit(100L), false, ZoneOffset.UTC);
+        assertEquals(FilterPushdownSupport.Pushability.NO, support.canPush(filter));
+    }
+
+    public void testInOnVirtualAttributeIsNotPushed() {
+        Attribute virtual = virtualAttr("_file.name", DataType.KEYWORD);
+        Expression filter = new In(Source.EMPTY, virtual, List.of(keywordLit("a.parquet"), keywordLit("b.parquet")));
+        assertEquals(FilterPushdownSupport.Pushability.NO, support.canPush(filter));
+    }
+
+    public void testIsNullOnVirtualAttributeIsNotPushed() {
+        Attribute virtual = virtualAttr("_file.path", DataType.KEYWORD);
+        Expression filter = new IsNull(Source.EMPTY, virtual);
+        assertEquals(FilterPushdownSupport.Pushability.NO, support.canPush(filter));
+    }
+
+    public void testStartsWithOnVirtualAttributeIsNotPushed() {
+        Attribute virtual = virtualAttr("_file.path", DataType.KEYWORD);
+        Expression filter = new StartsWith(Source.EMPTY, virtual, keywordLit("/data/"));
+        assertEquals(FilterPushdownSupport.Pushability.NO, support.canPush(filter));
+    }
+
+    public void testWildcardLikeOnVirtualAttributeIsNotPushed() {
+        // The original symptom of #149393: virtual-column LIKE accepted as YES → FilterExec
+        // dropped → predicate silently never fires. Stay NO so FilterExec keeps evaluating it.
+        Attribute virtual = virtualAttr("_file.name", DataType.KEYWORD);
+        Expression filter = new WildcardLike(Source.EMPTY, virtual, new WildcardPattern("*.parquet"));
+        assertEquals(FilterPushdownSupport.Pushability.NO, support.canPush(filter));
+    }
+
     // --- helpers ---
 
     private static Attribute attr(String name, DataType type) {
         return new ReferenceAttribute(Source.EMPTY, name, type);
+    }
+
+    private static Attribute virtualAttr(String name, DataType type) {
+        return new org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute(Source.EMPTY, name, type);
     }
 
     private static Literal intLit(int value) {

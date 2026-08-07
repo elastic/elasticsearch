@@ -32,6 +32,7 @@ import org.elasticsearch.geometry.MultiPolygon;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -59,7 +60,7 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSP
  * Alternatively, it is well described in PostGIS documentation at
  * <a href="https://postgis.net/docs/ST_Dimension.html">PostGIS:ST_Dimension</a>.
  */
-public class StDimension extends SpatialUnaryDocValuesFunction {
+public class StDimension extends SpatialUnaryDocValuesFunction implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "StDimension",
@@ -75,6 +76,7 @@ public class StDimension extends SpatialUnaryDocValuesFunction {
         returnType = "integer",
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.4.0") },
+        briefSummary = "Returns the topological dimension of the supplied geometry.",
         description = "Returns the topological dimension of the supplied geometry.\n"
             + "Points and multi-points return `0`, lines and multi-lines return `1`, "
             + "polygons and multi-polygons return `2`, and geometry collections return the maximum dimension of their components.",

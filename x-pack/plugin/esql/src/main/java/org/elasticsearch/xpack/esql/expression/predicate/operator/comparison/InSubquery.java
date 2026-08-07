@@ -19,9 +19,13 @@ import java.util.Objects;
 
 /**
  * Unresolved expression for {@code field IN (subquery)} where the subquery is a full ES|QL query.
- * Produced by the parser as a placeholder; the analyzer half (resolution into a join-based plan) is
- * not yet implemented on this branch, and the Verifier rejects any plan that still contains an
- * {@code InSubquery} after analysis.
+ * <p>
+ * This node will be resolved by {@code InSubqueryResolver} into a concrete logical plan. InSubquery serves
+ * as the clean boundary between parsing and pre analysis, LogicalPlanBuilder creates an expression,
+ * {@link org.elasticsearch.xpack.esql.analysis.InSubqueryResolver InSubqueryResolver} transforms it into a logical plan.
+ * <p>
+ * If any {@code InSubquery} expressions remain after {@code InSubqueryResolver} runs (i.e. they were used
+ * outside a WHERE clause), {@code InSubqueryResolver} raises a {@link org.elasticsearch.xpack.esql.VerificationException}.
  */
 public class InSubquery extends Expression {
 

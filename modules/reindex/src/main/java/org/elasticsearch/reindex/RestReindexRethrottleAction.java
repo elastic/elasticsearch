@@ -27,7 +27,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.action.admin.cluster.RestListTasksAction.listTasksResponseListener;
 
 @FixForMultiProject(description = "rethrottle doesn't support multi-project")
-@ServerlessScope(Scope.INTERNAL)
+@ServerlessScope(Scope.PUBLIC)
 public class RestReindexRethrottleAction extends BaseRestHandler {
 
     private final Supplier<DiscoveryNodes> nodesInCluster;

@@ -25,13 +25,11 @@ import static org.hamcrest.Matchers.not;
 public class VectordbDocumentIndexModeTests extends ESTestCase {
 
     public void testFromString() {
-        assumeTrue("vectordb_document index mode requires snapshot build", IndexMode.VECTORDB_FEATURE_FLAG.isEnabled());
         assertThat(IndexMode.fromString("vectordb_document"), equalTo(IndexMode.VECTORDB_DOCUMENT));
         assertThat(IndexMode.fromString("VECTORDB_DOCUMENT"), equalTo(IndexMode.VECTORDB_DOCUMENT));
     }
 
     public void testProviderSetsDefaultSettings() {
-        assumeTrue("vectordb_document index mode requires snapshot build", IndexMode.VECTORDB_FEATURE_FLAG.isEnabled());
         // _source mode defaults to STORED for vectordb_document index mode.
         assertThat(IndexMode.VECTORDB_DOCUMENT.defaultSourceMode().name(), equalTo("STORED"));
 
@@ -61,7 +59,6 @@ public class VectordbDocumentIndexModeTests extends ESTestCase {
     }
 
     public void testProviderRejectsExplicitFalseExcludeSourceVectors() {
-        assumeTrue("vectordb_document index mode requires snapshot build", IndexMode.VECTORDB_FEATURE_FLAG.isEnabled());
         Settings userSettings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), "vectordb_document")
             .put(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.getKey(), false)
@@ -72,7 +69,6 @@ public class VectordbDocumentIndexModeTests extends ESTestCase {
     }
 
     public void testProviderAcceptsExplicitTrueExcludeSourceVectors() {
-        assumeTrue("vectordb_document index mode requires snapshot build", IndexMode.VECTORDB_FEATURE_FLAG.isEnabled());
         Settings userSettings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), "vectordb_document")
             .put(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.getKey(), true)
@@ -83,7 +79,6 @@ public class VectordbDocumentIndexModeTests extends ESTestCase {
     }
 
     public void testProviderDoesNotOverrideExplicitSettings() {
-        assumeTrue("vectordb_document index mode requires snapshot build", IndexMode.VECTORDB_FEATURE_FLAG.isEnabled());
         Settings userSettings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), "vectordb_document")
             .putList(IndexModule.INDEX_STORE_PRE_LOAD_SETTING.getKey(), "vex")

@@ -17,9 +17,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchTaskStatusTests;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.PaginatedSearchFailure;
 import org.elasticsearch.index.reindex.ResumeInfo.PitWorkerResumeInfo;
 import org.elasticsearch.index.reindex.ResumeInfo.ScrollWorkerResumeInfo;
@@ -44,7 +44,7 @@ import static org.elasticsearch.index.reindex.resumeinfo.ScrollWorkerResumeInfoW
 /**
  * Wire serialization tests for {@link SliceStatus}.
  * Uses a {@link Wrapper} with content-based equals/hashCode because {@link SliceStatus}
- * embeds {@link BulkByScrollResponse} and {@link Exception} without structural {@code equals}.
+ * embeds {@link BulkByPaginatedSearchResponse} and {@link Exception} without structural {@code equals}.
  */
 public class SliceStatusWireSerializingTests extends AbstractWireSerializingTestCase<SliceStatusWireSerializingTests.Wrapper> {
 
@@ -119,7 +119,7 @@ public class SliceStatusWireSerializingTests extends AbstractWireSerializingTest
         result = 31 * result + workerResumeInfoContentHashCode(status.resumeInfo());
         if (status.result() != null) {
             if (status.result().getResponse().isPresent()) {
-                result = 31 * result + bulkByScrollResponseContentHashCode(status.result().getResponse().get());
+                result = 31 * result + bulkByPaginatedSearchResponseContentHashCode(status.result().getResponse().get());
             } else {
                 result = 31 * result + Objects.hashCode(status.result().getFailure().get().getMessage());
             }
@@ -132,7 +132,7 @@ public class SliceStatusWireSerializingTests extends AbstractWireSerializingTest
             if (b.getResponse().isPresent() == false) {
                 return false;
             }
-            return bulkByScrollResponseContentEquals(a.getResponse().get(), b.getResponse().get());
+            return bulkByPaginatedSearchResponseContentEquals(a.getResponse().get(), b.getResponse().get());
         } else {
             if (b.getFailure().isPresent() == false) {
                 return false;
@@ -141,7 +141,7 @@ public class SliceStatusWireSerializingTests extends AbstractWireSerializingTest
         }
     }
 
-    static boolean bulkByScrollResponseContentEquals(BulkByScrollResponse a, BulkByScrollResponse b) {
+    static boolean bulkByPaginatedSearchResponseContentEquals(BulkByPaginatedSearchResponse a, BulkByPaginatedSearchResponse b) {
         if (Objects.equals(a.getTook(), b.getTook()) == false) {
             return false;
         }
@@ -157,7 +157,7 @@ public class SliceStatusWireSerializingTests extends AbstractWireSerializingTest
         return searchFailuresContentEquals(a.getSearchFailures(), b.getSearchFailures());
     }
 
-    static int bulkByScrollResponseContentHashCode(BulkByScrollResponse response) {
+    static int bulkByPaginatedSearchResponseContentHashCode(BulkByPaginatedSearchResponse response) {
         int result = Objects.hash(response.getTook(), response.getStatus(), response.isTimedOut());
         result = 31 * result + bulkFailuresContentHashCode(response.getBulkFailures());
         result = 31 * result + searchFailuresContentHashCode(response.getSearchFailures());
@@ -287,7 +287,7 @@ public class SliceStatusWireSerializingTests extends AbstractWireSerializingTest
 
     /**
      * Wrapper around {@link SliceStatus} that implements content-based equals/hashCode so that
-     * round-trip serialization tests pass when the slice contains {@link BulkByScrollResponse} or {@link Exception}.
+     * round-trip serialization tests pass when the slice contains {@link BulkByPaginatedSearchResponse} or {@link Exception}.
      */
     public static final class Wrapper implements Writeable {
         private final SliceStatus delegate;
@@ -332,14 +332,14 @@ public class SliceStatusWireSerializingTests extends AbstractWireSerializingTest
                 sliceId,
                 null,
                 randomBoolean()
-                    ? new WorkerResult(randomBulkByScrollResponse(), null)
+                    ? new WorkerResult(randomBulkByPaginatedSearchResponse(), null)
                     : new WorkerResult(null, new ElasticsearchException(randomAlphaOfLength(5)))
             );
         }
     }
 
-    static BulkByScrollResponse randomBulkByScrollResponse() {
-        return new BulkByScrollResponse(
+    static BulkByPaginatedSearchResponse randomBulkByPaginatedSearchResponse() {
+        return new BulkByPaginatedSearchResponse(
             TimeValue.timeValueMillis(randomNonNegativeLong()),
             BulkByPaginatedSearchTaskStatusTests.randomStatusWithoutException(),
             randomBulkFailuresList(),

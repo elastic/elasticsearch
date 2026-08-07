@@ -7,8 +7,13 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.datasources.DeclaredReadSpec;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -19,6 +24,10 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class ExternalSourceExecSerializationTests extends AbstractPhysicalPlanSerializationTests<ExternalSourceExec> {
 
@@ -158,5 +167,104 @@ public class ExternalSourceExecSerializationTests extends AbstractPhysicalPlanSe
     @Override
     protected boolean alwaysEmptySource() {
         return true;
+    }
+
+    private static ExternalSourceExec externalSourceExecWithConfig(Map<String, Object> config) {
+        return externalSourceExecWithConfig(config, null);
+    }
+
+    /**
+     * Build an {@link ExternalSourceExec} whose attributes only use data types serializable on {@code supportedOn}.
+     * Passing the target (older) transport version keeps release builds from generating types gated behind a later
+     * version (e.g. FLATTENED), which would otherwise fail {@code DataType#writeTo} before the config assertions run.
+     */
+    private static ExternalSourceExec externalSourceExecWithConfig(Map<String, Object> config, TransportVersion supportedOn) {
+        return new ExternalSourceExec(
+            randomSource(),
+            "teststore:///data.csv",
+            "csv",
+            randomFieldAttributes(1, 3, false, supportedOn),
+            config,
+            Map.of(),
+            null,
+            List.of(),
+            FormatReader.NO_LIMIT,
+            null,
+            null,
+            Map.of(),
+            List.of()
+        );
+    }
+
+    /**
+     * A target node on a transport version that supports the encrypted carrier receives the secret still
+     * encrypted in the plan config — it decrypts at the point of use, not over the wire.
+     */
+    public void testEncryptedDatasourceSecretSurvivesRoundTripWhenSupported() throws IOException {
+        EncryptedData secret = new EncryptedData("test-key", new byte[] { 1, 2, 3, 4 });
+        Map<String, Object> datasource = new HashMap<>();
+        datasource.put("secret_token", secret);
+        Map<String, Object> config = new HashMap<>();
+        config.put("format", "csv");
+        config.put(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, datasource);
+
+        ExternalSourceExec roundTripped = copyInstance(externalSourceExecWithConfig(config), TransportVersion.current());
+
+        Object ds = roundTripped.config().get(ExternalSourceResolver.DATASOURCE_CONFIG_KEY);
+        assertThat(ds, instanceOf(Map.class));
+        assertThat(((Map<?, ?>) ds).get("secret_token"), equalTo(secret));
+    }
+
+    /**
+     * A target node on a transport version that predates the carrier cannot deserialize it, so the
+     * coordinator strips {@code _datasource} before serializing and the node reverts to prior behavior.
+     */
+    public void testEncryptedDatasourceSecretStrippedForOlderTransportVersion() throws IOException {
+        EncryptedData secret = new EncryptedData("test-key", new byte[] { 1, 2, 3, 4 });
+        Map<String, Object> datasource = new HashMap<>();
+        datasource.put("secret_token", secret);
+        Map<String, Object> config = new HashMap<>();
+        config.put("format", "csv");
+        config.put(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, datasource);
+
+        TransportVersion beforeCarrier = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("data_source_encrypted_data"));
+        ExternalSourceExec roundTripped = copyInstance(externalSourceExecWithConfig(config, beforeCarrier), beforeCarrier);
+
+        assertThat(roundTripped.config().containsKey(ExternalSourceResolver.DATASOURCE_CONFIG_KEY), equalTo(false));
+        assertThat(roundTripped.config().get("format"), equalTo("csv"));
+    }
+
+    /**
+     * The declared read-instructions (renames + {@code _id.path}) ride the wire on a node that supports the
+     * {@code dataset_declared_schema} transport version.
+     */
+    public void testDeclaredReadSpecSurvivesRoundTripWhenSupported() throws IOException {
+        DeclaredReadSpec spec = DeclaredReadSpec.of(Map.of("id", "emp_no"), "id");
+        ExternalSourceExec original = randomExternalSourceExec().withDeclaredReadSpec(spec);
+        ExternalSourceExec roundTripped = copyInstance(original, TransportVersion.current());
+        assertThat(roundTripped.declaredReadSpec(), equalTo(spec));
+    }
+
+    /**
+     * A NON-empty spec toward a target node predating {@code dataset_declared_schema} is rejected loudly rather than
+     * silently dropped — dropping it would return wrong rows (physical names, synthetic _id, unparsed dates).
+     */
+    public void testDeclaredReadSpecRejectedForOlderTransportVersion() throws IOException {
+        DeclaredReadSpec spec = DeclaredReadSpec.of(Map.of("id", "emp_no"), "id");
+        ExternalSourceExec original = randomExternalSourceExec().withDeclaredReadSpec(spec);
+        TransportVersion before = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("dataset_declared_schema"));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> copyInstance(original, before));
+        assertThat(e.getMessage(), containsString("not supported on all nodes"));
+    }
+
+    /**
+     * An EMPTY spec toward a node predating {@code dataset_declared_schema} must still serialize cleanly — only a
+     * NON-empty spec is rejected. Guards the {@code else if (isEmpty() == false)} branch against an always-throw regression.
+     */
+    public void testEmptyDeclaredReadSpecSerializesToOlderTransportVersion() throws IOException {
+        ExternalSourceExec original = externalSourceExecWithConfig(Map.of("format", "csv")); // default spec is NONE
+        TransportVersion before = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("dataset_declared_schema"));
+        ExternalSourceExec roundTripped = copyInstance(original, before);
+        assertThat(roundTripped.declaredReadSpec(), equalTo(DeclaredReadSpec.NONE));
     }
 }

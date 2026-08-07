@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xpack.core.esql.DataSourceRequestInfo;
 import org.elasticsearch.xpack.core.esql.EsqlDataSourceActionNames;
 
 import java.io.IOException;
@@ -31,7 +32,7 @@ public class DeleteDataSourceAction extends ActionType<AcknowledgedResponse> {
         super(NAME);
     }
 
-    public static class Request extends AcknowledgedRequest<Request> {
+    public static class Request extends AcknowledgedRequest<Request> implements DataSourceRequestInfo {
         private String[] names;
 
         public Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, String[] names) {
@@ -60,6 +61,16 @@ public class DeleteDataSourceAction extends ActionType<AcknowledgedResponse> {
 
         public String[] names() {
             return names;
+        }
+
+        @Override
+        public String[] dataSourceNames() {
+            return names;
+        }
+
+        @Override
+        public String dataSourceClusterActionName() {
+            return NAME;
         }
 
         @Override

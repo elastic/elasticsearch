@@ -50,7 +50,13 @@ public class Score extends Function implements EvaluatorMapper {
         returnType = "double",
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0") },
+        briefSummary = "Returns relevance scores for full text function expressions.",
         description = "Scores an expression. Only full text functions will be scored. Returns scores for all the resulting docs.",
+        detailedDescription = """
+            :::{tip}
+            Learn more about using [ES|QL for search use cases](docs-content://solutions/search/esql-for-search.md).
+            :::
+            """,
         examples = { @Example(file = "score-function", tag = "score-function") }
     )
     public Score(

@@ -72,7 +72,7 @@ public class HighlighterTestCase extends MapperServiceTestCase {
             HighlightPhase highlightPhase = new HighlightPhase(getHighlighters());
             FetchSubPhaseProcessor processor = highlightPhase.getProcessor(fetchContext(context, search));
             Map<String, List<Object>> storedFields = storedFields(processor.storedFieldsSpec(), doc);
-            Source source = Source.fromBytes(doc.source());
+            Source source = Source.fromBytes(doc.source().originalBytes());
             SearchHit hit = new SearchHit(0, "id");
             try {
                 FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext(hit, ir.leaves().get(0), 0, storedFields, source, null);

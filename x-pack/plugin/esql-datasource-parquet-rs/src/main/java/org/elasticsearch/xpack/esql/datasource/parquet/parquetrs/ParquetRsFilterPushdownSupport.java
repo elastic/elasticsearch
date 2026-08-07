@@ -159,7 +159,13 @@ public class ParquetRsFilterPushdownSupport implements FilterPushdownSupport {
                 && lit.value() != null;
         }
         if (expr instanceof WildcardLike wl) {
-            return wl.field() instanceof NamedExpression ne && (ne.dataType() == DataType.KEYWORD || ne.dataType() == DataType.TEXT);
+            // Virtual columns ({@code _file.*}, MetadataAttribute) live outside the file's schema
+            // and the parquet-rs reader has no column to evaluate them against, so accepting them
+            // here would push the predicate into the native side and silently never match
+            // (see github.com/elastic/elasticsearch/issues/149393).
+            return wl.field() instanceof NamedExpression ne
+                && PushdownPredicates.isVirtualColumn(ne) == false
+                && (ne.dataType() == DataType.KEYWORD || ne.dataType() == DataType.TEXT);
         }
         return false;
     }

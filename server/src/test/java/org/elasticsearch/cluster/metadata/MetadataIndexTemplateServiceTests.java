@@ -676,7 +676,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             .build();
         project = metadataIndexTemplateService.addIndexTemplateV2(project, false, "v2-template", v2Template);
 
-        assertCriticalWarnings(
+        assertWarnings(
             "index template [v2-template] has index patterns [foo-bar-*, eggplant] matching patterns "
                 + "from existing older templates [v1-template] with patterns (v1-template => [fo*, baz]); this template [v2-template] will "
                 + "take precedence during new index creation"
@@ -771,7 +771,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         req.patterns(Arrays.asList("*", "baz"));
         project = MetadataIndexTemplateService.innerPutTemplate(project, req, IndexTemplateMetadata.builder("v1-template"));
 
-        assertCriticalWarnings(
+        assertWarnings(
             "legacy template [v1-template] has index patterns [*, baz] matching patterns from existing "
                 + "composable templates [v2-template] with patterns (v2-template => [foo-bar-*, eggplant]); this template "
                 + "[v1-template] may be ignored in favor of a composable template at index creation time"
@@ -827,7 +827,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             .build();
         project = metadataIndexTemplateService.addIndexTemplateV2(project, false, "v2-template", v2Template);
 
-        assertCriticalWarnings(
+        assertWarnings(
             "index template [v2-template] has index patterns [foo-bar-*, eggplant] matching patterns "
                 + "from existing older templates [v1-template] with patterns (v1-template => [fo*, baz]); this template [v2-template] will "
                 + "take precedence during new index creation"
@@ -842,7 +842,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         req.patterns(Arrays.asList("fo*", "baz"));
         project = MetadataIndexTemplateService.innerPutTemplate(project, req, IndexTemplateMetadata.builder("v1-template"));
 
-        assertCriticalWarnings(
+        assertWarnings(
             "legacy template [v1-template] has index patterns [fo*, baz] matching patterns from existing "
                 + "composable templates [v2-template] with patterns (v2-template => [foo-bar-*, eggplant]); this template "
                 + "[v1-template] may be ignored in favor of a composable template at index creation time"
@@ -867,7 +867,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             .build();
         project = metadataIndexTemplateService.addIndexTemplateV2(project, false, "v2-template", v2Template);
 
-        assertCriticalWarnings(
+        assertWarnings(
             "index template [v2-template] has index patterns [foo-bar-*, eggplant] matching patterns "
                 + "from existing older templates [v1-template] with patterns (v1-template => [fo*, baz]); this template [v2-template] will "
                 + "take precedence during new index creation"
@@ -1807,7 +1807,11 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                           "type": "object",
                           "properties": {
                             "bar": {
-                              "type": "nested"
+                              "type": "object",
+                              "subobjects": true,
+                              "properties": {
+                                "baz": { "type": "integer" }
+                              }
                             }
                           }
                         }
@@ -1835,7 +1839,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         assertNotNull(e.getCause().getCause());
         assertThat(
             e.getCause().getCause().getMessage(),
-            containsString("Tried to add nested object [bar] to object [field2] which does not support subobjects")
+            containsString("Object mapper [field2.bar] was found in a context where subobjects is set to false")
         );
     }
 
@@ -1924,7 +1928,11 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                   "type": "object",
                   "properties": {
                     "bar": {
-                      "type": "nested"
+                      "type": "object",
+                      "subobjects": true,
+                      "properties": {
+                        "baz": { "type": "integer" }
+                      }
                     }
                   }
                 }
@@ -1952,7 +1960,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         assertNotNull(e.getCause().getCause().getCause());
         assertThat(
             e.getCause().getCause().getCause().getMessage(),
-            containsString("Tried to add nested object [bar] to object [field2] which does not support subobjects")
+            containsString("Object mapper [field2.bar] was found in a context where subobjects is set to false")
         );
     }
 

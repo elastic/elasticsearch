@@ -10,20 +10,21 @@ package org.elasticsearch.xpack.esql.plan.logical;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.FieldAttributeTests;
-import org.elasticsearch.xpack.esql.expression.function.ReferenceAttributeTests;
 
 import java.io.IOException;
 import java.util.List;
+
+import static org.elasticsearch.xpack.esql.expression.function.FieldAttributeTestUtils.createFieldAttribute;
+import static org.elasticsearch.xpack.esql.expression.function.ReferenceAttributeTestUtils.randomReferenceAttribute;
 
 public class GrokSerializationTests extends AbstractLogicalPlanSerializationTests<Grok> {
     @Override
     protected Grok createTestInstance() {
         Source source = randomSource();
         LogicalPlan child = randomChild(0);
-        Expression inputExpr = FieldAttributeTests.createFieldAttribute(3, false);
+        Expression inputExpr = createFieldAttribute(3, false);
         String pattern = randomAlphaOfLength(5);
-        List<Attribute> extracted = randomList(1, 10, () -> ReferenceAttributeTests.randomReferenceAttribute(false));
+        List<Attribute> extracted = randomList(1, 10, () -> randomReferenceAttribute(false));
         return new Grok(source, child, inputExpr, Grok.pattern(source, pattern), extracted);
     }
 
@@ -35,7 +36,7 @@ public class GrokSerializationTests extends AbstractLogicalPlanSerializationTest
         List<Attribute> extracted = instance.extractedFields();
         switch (between(0, 2)) {
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
-            case 1 -> inputExpr = randomValueOtherThan(inputExpr, () -> FieldAttributeTests.createFieldAttribute(0, false));
+            case 1 -> inputExpr = randomValueOtherThan(inputExpr, () -> createFieldAttribute(0, false));
             case 2 -> pattern = randomValueOtherThan(pattern, () -> randomAlphaOfLength(5));
         }
         return new Grok(instance.source(), child, inputExpr, Grok.pattern(instance.source(), pattern), extracted);

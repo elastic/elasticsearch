@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.generator.command.source;
 
 import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
+import org.elasticsearch.xpack.esql.generator.GenerationContext;
 import org.elasticsearch.xpack.esql.generator.QueryExecutor;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 
@@ -38,7 +39,8 @@ public class RowGenerator implements CommandGenerator {
         List<CommandDescription> previousCommands,
         List<Column> previousOutput,
         QuerySchema schema,
-        QueryExecutor executor
+        QueryExecutor executor,
+        GenerationContext context
     ) {
         int nFields = randomIntBetween(1, 10);
         StringBuilder result = new StringBuilder("ROW ");

@@ -483,11 +483,8 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
 
     public void testThrowsWhenYellowStatusTimeoutBreached() {
         createProjectState();
-        ClusterHealthResponse timedOut = new ClusterHealthResponse();
-        timedOut.setTimedOut(true);
-        mockHealthResponse.set(timedOut);
 
-        DLMConvertToFrozen converter = new DLMConvertToFrozen(
+        DLMConvertToFrozen converter = new DLMConvertToFrozenSnapshotTests.TestDLMConvertToFrozenWithTimeout(
             indexName,
             projectId,
             createMockClient(),

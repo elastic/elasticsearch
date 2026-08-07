@@ -341,22 +341,22 @@ public class AllLastLongByIntAggregator {
             try (var valuesBuilder = blockFactory.newLongBlockBuilder(groups.getPositionCount())) {
                 for (int p = 0; p < groups.getPositionCount(); p++) {
                     int group = groups.getInt(p);
-                    if (group <= maxGroupId && hasValue(group) && nullValue(group) == false) {
-                        LongArray tail = getTail(group);
-                        int tailCount = tail == null ? 0 : (int) tail.size();
-                        if (tailCount == 0) {
-                            valuesBuilder.appendLong(firstValues.get(group));
-                        } else {
-                            valuesBuilder.beginPositionEntry();
-                            valuesBuilder.appendLong(firstValues.get(group));
-                            for (int i = 0; i < tailCount; ++i) {
-                                valuesBuilder.appendLong(tail.get(i));
-                            }
-                            valuesBuilder.endPositionEntry();
-                        }
-                    } else {
+                    if (group > maxGroupId || hasValue(group) == false || nullValue(group)) {
                         valuesBuilder.appendNull();
+                        continue;
                     }
+                    LongArray tail = getTail(group);
+                    int tailCount = tail == null ? 0 : (int) tail.size();
+                    if (tailCount == 0) {
+                        valuesBuilder.appendLong(firstValues.get(group));
+                        continue;
+                    }
+                    valuesBuilder.beginPositionEntry();
+                    valuesBuilder.appendLong(firstValues.get(group));
+                    for (int i = 0; i < tailCount; ++i) {
+                        valuesBuilder.appendLong(tail.get(i));
+                    }
+                    valuesBuilder.endPositionEntry();
                 }
                 return valuesBuilder.build();
             }

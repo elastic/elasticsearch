@@ -25,8 +25,8 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequestBuilder;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequestBuilder;
 import org.elasticsearch.index.reindex.ReindexAction;
@@ -157,7 +157,7 @@ public class RetryTests extends ESIntegTestCase {
     private void testCase(
         String action,
         Function<Client, AbstractBulkByPaginatedSearchRequestBuilder<?, ?>> request,
-        BulkIndexByScrollResponseMatcher matcher
+        BulkIndexByPaginatedSearchResponseMatcher matcher
     ) throws Exception {
         /*
          * These test cases work by stuffing the bulk queue of a single node and
@@ -190,16 +190,16 @@ public class RetryTests extends ESIntegTestCase {
         indicesAdmin().prepareRefresh("source").get();
 
         AbstractBulkByPaginatedSearchRequestBuilder<?, ?> builder = request.apply(internalCluster().masterClient());
-        // Make sure we use more than one batch so we have to scroll
+        // Make sure we use more than one batch
         builder.source().setSize(DOC_COUNT / randomIntBetween(2, 10));
 
         logger.info("Blocking bulk so we start to get bulk rejections");
         CyclicBarrier bulkBlock = blockExecutor(ThreadPool.Names.WRITE, node);
 
         logger.info("Starting request");
-        ActionFuture<BulkByScrollResponse> responseListener = builder.execute();
+        ActionFuture<BulkByPaginatedSearchResponse> responseListener = builder.execute();
 
-        BulkByScrollResponse response = null;
+        BulkByPaginatedSearchResponse response = null;
         try {
             logger.info("Waiting for bulk rejections");
             assertBusy(() -> assertThat(taskStatus(action).getBulkRetries(), greaterThan(0L)));

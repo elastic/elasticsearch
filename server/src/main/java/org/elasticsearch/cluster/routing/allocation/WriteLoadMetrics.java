@@ -181,7 +181,8 @@ public class WriteLoadMetrics {
         if (shardWriteLoads.isEmpty()) {
             return null;
         }
-        final List<DoubleWithAttributes>[] distributionMetrics = new List[trackedPercentiles.length];
+        @SuppressWarnings("unchecked")
+        final List<DoubleWithAttributes>[] distributionMetrics = (List<DoubleWithAttributes>[]) new List<?>[trackedPercentiles.length];
         for (int i = 0; i < trackedPercentiles.length; i++) {
             distributionMetrics[i] = new ArrayList<>(ingestNodeCount);
         }

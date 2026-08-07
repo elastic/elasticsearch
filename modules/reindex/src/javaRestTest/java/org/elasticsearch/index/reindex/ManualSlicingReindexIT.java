@@ -12,7 +12,6 @@ package org.elasticsearch.index.reindex;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 
 import java.io.IOException;
@@ -41,7 +40,7 @@ import static org.junit.Assert.assertTrue;
  * calls eventually covers the same document set as a single unsliced reindex, as long as the source query and slice
  * parameters are consistent across calls.
  */
-public class ManualSlicingReindexIT extends ESRestTestCase {
+public class ManualSlicingReindexIT extends AbstractReindexIT {
 
     /**
      * Tests that reindexing can handle bulk updates to the source index during reindexing.
@@ -63,8 +62,11 @@ public class ManualSlicingReindexIT extends ESRestTestCase {
     public void testReindexWithSourceUpdatesBetweenSlices() throws IOException {
         int docCount = randomIntBetween(500, 1000);
         String sourceIndex = randomAlphanumericOfLength(randomIntBetween(3, 5)).toLowerCase(Locale.ROOT);
-        String dest1 = randomAlphanumericOfLength(randomIntBetween(3, 5)).toLowerCase(Locale.ROOT);
-        String dest2 = randomAlphanumericOfLength(randomIntBetween(3, 5)).toLowerCase(Locale.ROOT);
+        String dest1 = randomValueOtherThan(sourceIndex, () -> randomAlphanumericOfLength(randomIntBetween(3, 5)).toLowerCase(Locale.ROOT));
+        String dest2 = randomValueOtherThanMany(
+            index -> index.equals(sourceIndex) || index.equals(dest1),
+            () -> randomAlphanumericOfLength(randomIntBetween(3, 5)).toLowerCase(Locale.ROOT)
+        );
 
         createIndex(sourceIndex, Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build());
         bulkIndexSource(sourceIndex, docCount, 0);
@@ -131,7 +133,10 @@ public class ManualSlicingReindexIT extends ESRestTestCase {
     public void testReindexManualSlicesWithExplicitIdFieldInBody() throws IOException {
         int docCount = randomIntBetween(100, 250);
         String sourceIndex = randomAlphanumericOfLength(randomIntBetween(3, 5)).toLowerCase(Locale.ROOT);
-        String destIndex = randomAlphanumericOfLength(randomIntBetween(3, 5)).toLowerCase(Locale.ROOT);
+        String destIndex = randomValueOtherThan(
+            sourceIndex,
+            () -> randomAlphanumericOfLength(randomIntBetween(3, 5)).toLowerCase(Locale.ROOT)
+        );
 
         createIndex(sourceIndex, Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build());
         bulkIndexSource(sourceIndex, docCount, 0);

@@ -46,6 +46,7 @@ import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
+import org.elasticsearch.indices.recovery.RecoveryMetricsCollector;
 import org.elasticsearch.indices.recovery.SnapshotFilesProvider;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.SnapshotMetrics;
@@ -53,6 +54,8 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -84,16 +87,14 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
     private ThreadPool threadPool;
     private ClusterStateChanges cluster;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void startCluster() throws Exception {
         threadPool = new TestThreadPool(getClass().getName());
         cluster = new ClusterStateChanges(xContentRegistry(), threadPool);
     }
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @After
+    public void terminateCluster() throws Exception {
         terminate(threadPool);
     }
 
@@ -300,11 +301,13 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
 
         assertNotNull(indicesCSSvc.indicesService.getShardOrNull(shardId));
 
+        final long primaryTerm = localState.metadata().getProject().index(index).primaryTerm(shardId.id());
+
         // check that failing unrelated allocation does not remove shard
-        indicesCSSvc.handleRecoveryFailure(shardRouting.reinitializeReplicaShard(), false, new Exception("dummy"));
+        indicesCSSvc.handleRecoveryFailure(shardRouting.reinitializeReplicaShard(), false, primaryTerm, new Exception("dummy"));
         assertNotNull(indicesCSSvc.indicesService.getShardOrNull(shardId));
 
-        indicesCSSvc.handleRecoveryFailure(shardRouting, false, new Exception("dummy"));
+        indicesCSSvc.handleRecoveryFailure(shardRouting, false, primaryTerm, new Exception("dummy"));
         assertNull(indicesCSSvc.indicesService.getShardOrNull(shardId));
     }
 
@@ -580,7 +583,8 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             null,
             primaryReplicaSyncer,
             RetentionLeaseSyncer.EMPTY,
-            client
+            client,
+            RecoveryMetricsCollector.NOOP
         ) {
             @Override
             protected void updateGlobalCheckpointForShard(final ShardId shardId) {}

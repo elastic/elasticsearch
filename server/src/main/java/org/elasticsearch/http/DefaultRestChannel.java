@@ -27,7 +27,7 @@ import org.elasticsearch.rest.LoggingChunkedRestResponseBodyPart;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.telemetry.tracing.Tracer;
+import org.elasticsearch.telemetry.instrumentation.HttpServerInstrumentation;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -54,7 +54,7 @@ public class DefaultRestChannel extends AbstractRestChannel {
     private final ThreadContext threadContext;
     private final HttpChannel httpChannel;
     private final CorsHandler corsHandler;
-    private final Tracer tracer;
+    private final HttpServerInstrumentation instrumentation;
 
     @Nullable
     private final HttpTracer httpLogger;
@@ -68,7 +68,7 @@ public class DefaultRestChannel extends AbstractRestChannel {
         ThreadContext threadContext,
         CorsHandler corsHandler,
         @Nullable HttpTracer httpLogger,
-        Tracer tracer
+        HttpServerInstrumentation instrumentation
     ) {
         super(request, settings.detailedErrorsEnabled());
         this.httpChannel = httpChannel;
@@ -78,7 +78,7 @@ public class DefaultRestChannel extends AbstractRestChannel {
         this.threadContext = threadContext;
         this.corsHandler = corsHandler;
         this.httpLogger = httpLogger;
-        this.tracer = tracer;
+        this.instrumentation = instrumentation;
     }
 
     @Override
@@ -95,7 +95,7 @@ public class DefaultRestChannel extends AbstractRestChannel {
         if (HttpUtils.shouldCloseConnection(httpRequest)) {
             toClose.add(() -> CloseableChannel.closeChannel(httpChannel));
         }
-        toClose.add(() -> tracer.stopTrace(request));
+        toClose.add(() -> instrumentation.end(request, restResponse));
         toClose.add(restResponse);
 
         boolean success = false;
@@ -169,11 +169,6 @@ public class DefaultRestChannel extends AbstractRestChannel {
             }
 
             addCookies(httpResponse);
-
-            tracer.setAttribute(request, "http.status_code", restResponse.status().getStatus());
-            tracer.setAttribute(request, "http.response.status_code", restResponse.status().getStatus());
-            restResponse.getHeaders()
-                .forEach((key, values) -> tracer.setAttribute(request, "http.response.headers." + key, String.join("; ", values)));
 
             ActionListener<Void> listener = ActionListener.releasing(Releasables.wrap(toClose));
             if (httpLogger != null) {

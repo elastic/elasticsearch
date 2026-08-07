@@ -55,7 +55,7 @@ When adding tested examples to a command, for example adding an example to the `
 * If you only want to show the query, and no results, then do not tag the results table,
   otherwise tag the results table with a tag that has the same name as the query tag, but with the suffix `-result`.
 * Create a file with the name of the tag in a subdirectory with the name of the csv-spec file
-  in the [`_snippets/commands/examples`](https://github.com/elastic/elasticsearch/tree/main/docs/reference/query-languages/esql/_snippets/commands/examples) directory. While you could add the content to that file, it is not necessary, merely that the file exists
+  in the [`_snippets/generated/x-pack-esql/commands/examples`](https://github.com/elastic/elasticsearch/tree/main/docs/reference/query-languages/esql/_snippets/generated/x-pack-esql/commands/examples) directory. While you could add the content to that file, it is not necessary, merely that the file exists
 * Run the test `CommandDocsTests` in the `x-pack/plugin/esql` module to generate the content.
 
 For example, we tag the following test in change_point.csv-spec:
@@ -80,7 +80,7 @@ key:integer | value:integer | type:keyword | pvalue:double
 ;
 ```
 
-Then we create the file [`_snippets/commands/examples/change_point.csv-spec/changePointForDocs.md`](https://github.com/elastic/elasticsearch/blob/main/docs/reference/query-languages/esql/_snippets/commands/examples/change_point.csv-spec/changePointForDocs.md) with the content:
+Then we create the file [`_snippets/generated/x-pack-esql/commands/examples/change_point.csv-spec/changePointForDocs.md`](https://github.com/elastic/elasticsearch/blob/main/docs/reference/query-languages/esql/_snippets/generated/x-pack-esql/commands/examples/change_point.csv-spec/changePointForDocs.md) with the content:
 ```
 This should be overwritten
 ```
@@ -108,7 +108,7 @@ ROW key=[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25]
 Finally include this file in the `CHANGE_POINT` command file [`_snippets/commands/layout/change_point.md`](https://github.com/elastic/elasticsearch/blob/main/docs/reference/query-languages/esql/_snippets/commands/layout/change_point.md):
 
 ```
-**Examples**
+## Examples
 
 The following example shows the detection of a step change:
 
@@ -118,14 +118,16 @@ The following example shows the detection of a step change:
 
 ## Add a new function
 
-Each function has its own standalone page under `functions-operators/<group>/` that includes a generated layout snippet from [`_snippets/functions/layout/`](https://github.com/elastic/elasticsearch/tree/main/docs/reference/query-languages/esql/_snippets/functions/layout).
+Each function has its own standalone page under `functions-operators/<group>/` that includes a generated layout snippet from `_snippets/generated/<plugin-name>/functions/layout/`.
+
+Generated snippets are organized by the Elasticsearch plugin that provides the function. The `<plugin-name>` matches the `name` field in the module's `esplugin { }` block in `build.gradle` (e.g. `x-pack-esql` for the core plugin, `x-pack-esql-function-math` for the math function plugin).
 
 To add a new function called `<my_func>` to the `<group>` group (e.g. `string-functions`):
 
 > [!TIP]
 > For a full walkthrough of the Java implementation, see the [guide in `package-info.java`](https://github.com/elastic/elasticsearch/blob/main/x-pack/plugin/esql/src/main/java/org/elasticsearch/xpack/esql/expression/function/scalar/package-info.java).
 
-1. Implement the function's Java class
+1. Implement the function's Java class in the appropriate module
    - Add `@FunctionInfo` and `@Param` annotations
    - Add version metadata: see [Add version metadata](#add-version-metadata)
    - If the function name doesn't start with a known prefix (`mv_`, `st_`, `to_`, `date_`, `is_`),
@@ -133,10 +135,10 @@ To add a new function called `<my_func>` to the `<group>` group (e.g. `string-fu
      This maps function names to groups for cross-reference link generation.
       > [!WARNING]
       > Without this, the test in the next step will fail with `Docs Generation Error: Unknown function group`.
-2. Create a test class extending `AbstractFunctionTestCase`
-3. Run the test to generate all snippets
-   - `./gradlew :x-pack:plugin:esql:test -Dtests.class='<MyFunc>Tests'`
-   - This generates files in [`_snippets/functions/`](https://github.com/elastic/elasticsearch/tree/main/docs/reference/query-languages/esql/_snippets/functions) (layout, description, parameters, types, examples) and [`images/functions/`](https://github.com/elastic/elasticsearch/tree/main/docs/reference/query-languages/esql/images/functions)
+2. Create a test class extending `AbstractFunctionTestCase` in the same module
+3. Run the test to generate all snippets, using the Gradle path for the module that owns the function:
+   - `./gradlew :<module-path>:test -Dtests.class='<MyFunc>Tests'`
+   - This generates files in `_snippets/generated/<plugin-name>/functions/` (layout, description, parameters, types, examples) and `images/generated/<plugin-name>/`
 4. Add the function to `_snippets/lists/<group>.md`
    - Link to the individual page path: `functions-operators/<group>/<my_func>.md`
    - Add [version tags](#update-list-files)
@@ -160,11 +162,18 @@ Because we now publish just one docs set off of the `main` branch, we use the [`
 
 `applies_to` allows us to clearly communicate when features are introduced, when they transition from preview to GA, and which versions support specific functionality.
 
-This metadata accepts a lifecycle and an optional version.
+This metadata accepts a lifecycle and an optional version. The version supports three operators:
+
+- `=X.x` applies to that version only, for example `=9.4`
+- `X.x-Y.y` applies to a version range, for example `9.4-9.6`
+- `X.x+` applies to that version and later, for example `9.5+`
 
 ### Annotate functions and operators
 
 Use the `@FunctionAppliesTo` annotation within the `@FunctionInfo` annotation on function and operator classes to specify the lifecycle and version for functions and operators.
+
+> [!NOTE]
+> For functions, this annotation generates the page-level `{applies_to}` badge in the layout snippet. Operator reference pages are hand-written (see [Promote a feature to GA](#promote-a-feature-to-ga)), so an operator's page badge is not generated from this annotation and must be set by hand.
 
 For example, to indicate that a function is in technical preview and applies to version 9.0.0, you would use:
 
@@ -179,19 +188,21 @@ For example, to indicate that a function is in technical preview and applies to 
 )
 ```
 
-When a feature evolves from preview in `9.0` to GA in `9.2`, add a new entry alongside the existing preview entry and remove the `preview = true` boolean:
+When a feature evolves from preview in `9.0` to GA in `9.2`, add a new entry alongside the existing preview entry, remove the `preview = true` boolean, and switch the version strings to range operators:
 
 ```java
 @FunctionInfo(
     returnType = "boolean",
     preview = false, //  the preview boolean can be removed (or flipped to false) when the function becomes GA
     appliesTo = {
-        @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.0.0"),
-        @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.2.0")
+        @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "=9.0"),
+        @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.2+")
     },
     ...
 )
 ```
+
+The `=9.0` marks that the feature was in preview only in `9.0`. You can only state this at GA time, once you know it went GA in the next release. The generator passes these version strings straight through, so the layout snippet renders `stack: preview =9.0, ga 9.2+` to match the list entry.
 
 You can also use `applies_to` for `Param`, `MapParam`, and `MapParamEntry`. In this case `applies_to` is a plain text field that accepts the same format used in [inline](https://elastic.github.io/docs-builder/syntax/applies/#inline-examples-by-product) `applies_to` metadata.
 For example, to mark a specific parameter as preview:
@@ -230,6 +241,27 @@ To mark a specific map entry as preview:
 ```
 
 We updated [`DocsV3Support.java`](https://github.com/elastic/elasticsearch/blob/main/x-pack/plugin/esql/qa/testFixtures/src/main/java/org/elasticsearch/xpack/esql/expression/function/DocsV3Support.java) to generate the `applies_to` metadata correctly for functions and operators.
+
+### Annotate supported types
+
+When a function adds support for a new data type in a specific version, the **Supported types** table in the docs needs `applies_to` metadata on those type rows. This is done by annotating the type's `TypedDataSupplier` in the function's `*Tests.java` class.
+
+Use `withAppliesTo(...)` to tag which version introduced the type, and `withPreview()` if the function has `preview = true` on its `@FunctionInfo` annotation:
+
+```java
+FunctionAppliesTo histogramAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.3.0", "", true);
+
+// In the suppliers list:
+MultiRowTestCaseSupplier.exponentialHistogramCases(1, 100)
+    .stream()
+    .map(s -> s.withAppliesTo(histogramAppliesTo).withPreview())  // withPreview() because the function has preview=true
+    .toList()
+```
+
+- Call `withAppliesTo(...)` on `TypedDataSupplier` entries for any type that was added after the function's initial release
+- Call `withPreview()` only if the data types function's `@FunctionInfo` has `preview = true`
+
+This ensures the generated **Supported types** table includes the correct `{applies_to}` and `serverless: preview` annotations per type row.
 
 ### Use inline applies_to metadata
 
@@ -280,27 +312,45 @@ A few formatting rules:
 
 #### Promote a feature to GA
 
-**Functions and operators:**
+**Functions:**
 
-1. In the Java class, add a `GA` entry to `appliesTo` and remove (or set to `false`) `preview = true`:
+1. In the Java class, add a `GA` entry to `appliesTo`, remove (or set to `false`) `preview = true`, and switch the version strings to range operators:
    ```diff
    @FunctionInfo(
    -   preview = true,
        appliesTo = {
-           @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.0.0"),
-   +       @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.2.0")
+   -       @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.0.0"),
+   +       @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "=9.0"),
+   +       @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.2+")
        },
    )
    ```
-2. Run the function's tests to regenerate its docs snippets:
+   Use `=9.0` on the preview entry to mark that the feature was in preview only in `9.0`, and `9.2+` on the GA entry. You can only state this at GA time, once you know the next release makes it GA.
+2. Run the function's tests to regenerate its docs snippets, using the Gradle path for the module that owns the function:
    ```
-   ./gradlew :x-pack:plugin:esql:test -Dtests.class='MyFuncTests'
+   ./gradlew :<module-path>:test -Dtests.class='MyFuncTests'
    ```
-3. Update the list entry: add the `stack: ga X.Y` tag and drop `serverless: preview`:
+3. Update the list entry to use the same operators in a single `{applies_to}` tag, and drop `serverless: preview`:
    ```diff
    - * [`MY_FUNC`](path/to/my-func.md) {applies_to}`stack: preview 9.0` {applies_to}`serverless: preview`
-   + * [`MY_FUNC`](path/to/my-func.md) {applies_to}`stack: preview 9.0` {applies_to}`stack: ga 9.2`
+   + * [`MY_FUNC`](path/to/my-func.md) {applies_to}`stack: preview =9.0, ga 9.2+`
    ```
+
+**Operators:**
+
+Operator reference pages in [`_snippets/operators/layout/`](https://github.com/elastic/elasticsearch/tree/main/docs/reference/query-languages/esql/_snippets/operators/layout) are hand-written and pull in generated snippets (types, examples) with `:::{include}`. The `@FunctionAppliesTo` annotation does not generate the operator page badge, so set the lifecycle by hand.
+
+1. Add or update the `{applies_to}` block directly after the heading in `_snippets/operators/layout/<operator>.md`. Unlike list entries, the page-level badge states `serverless: ga` explicitly:
+
+   ````markdown
+   ### My operator `<op>` [esql-my_operator]
+   ```{applies_to}
+   stack: preview 9.0, ga 9.2
+   serverless: ga
+   ```
+   ````
+
+2. Update the operator's list entry in the relevant [`_snippets/lists/`](https://github.com/elastic/elasticsearch/tree/main/docs/reference/query-languages/esql/_snippets/lists) file (for example `operators.md`), the same way as for functions.
 
 **Commands:**
 
@@ -357,21 +407,23 @@ All generated content is produced by running ESQL tests. The section below cover
 
 ### Functions and operators
 
+Generated snippets are written to `_snippets/generated/<plugin-name>/functions/` where `<plugin-name>` is the `name` from the module's `esplugin { }` block. Run the test task for whichever module owns the function.
+
 Run a single function's tests to regenerate its snippets (layout, description, parameters, types, examples, syntax diagrams, and Kibana definitions):
 
 ```
-./gradlew :x-pack:plugin:esql:test -Dtests.class='CaseTests'
+./gradlew :<module-path>:test -Dtests.class='CaseTests'
 ```
 
-To regenerate everything for all functions and operators:
+To regenerate everything for all functions and operators in a module:
 
 ```
-./gradlew :x-pack:plugin:esql:test
+./gradlew :<module-path>:test
 ```
 
 ### Settings
 
-Query settings (see [SET](commands/set.md)) are documented in [`_snippets/commands/settings/`](https://github.com/elastic/elasticsearch/tree/main/docs/reference/query-languages/esql/_snippets/commands/settings). To regenerate, run `QuerySettingsTests` in the `x-pack/plugin/esql` module. Only settings with `snapshot=false` are included.
+Query settings (see [SET](directives/set.md)) are documented in [`_snippets/generated/x-pack-esql/commands/settings/`](https://github.com/elastic/elasticsearch/tree/main/docs/reference/query-languages/esql/_snippets/generated/x-pack-esql/commands/settings). To regenerate, run `QuerySettingsTests` in the `x-pack/plugin/esql` module. Markdown docs and the table of contents only include non-snapshot settings; Kibana definitions are generated for all settings, with snapshot-only ones carrying `"snapshotOnly": true`.
 
 ## Understand how generated content works
 
@@ -398,18 +450,24 @@ To help differentiate between the static and generated content, the generated co
 
 ## Generate PromQL definitions
 
-PromQL documentation is generated separately and stored in:
+PromQL reference documentation is auto-generated and stored in:
 ```
-docs/reference/query-languages/promql/kibana/definitions/*.json
+docs/reference/query-languages/promql/_snippets/generated/x-pack-esql/functions/    # function markdown snippets: per-function pages, per-category lists, and the "Not yet supported" list
+docs/reference/query-languages/promql/_snippets/generated/x-pack-esql/operators/    # operator markdown snippets: per-operator pages, per-category lists, and the "Not yet supported" list
+docs/reference/query-languages/promql/kibana/generated/x-pack-esql/                 # Kibana definition JSON files for functions and operators
 ```
-For PromQL function documentation, see: https://prometheus.io/docs/prometheus/latest/querying/functions/
+For functions, the descriptions, examples, and "Differences from Prometheus" notes come from each function's `PromqlFunctionDefinition` (see `PromqlBuiltinFunctionDefinitions` and the `PROMQL_DEFINITION` fields on the individual function classes). For operators, the same metadata (plus the documentation category and per-operator stack availability) comes from `OPERATOR_DEFS` in `PromqlDocsSupport`, because operators have no runtime registry. Edit those sources rather than the generated files.
 
-To generate the PromQL definition files, run:
+The hand-written hub pages (`promql/functions.md`, `promql/operators.md`) and the per-category wrapper pages (`promql/functions/<category>.md`, `promql/operators/<category>.md`) include the generated snippets; update them by hand when adding a category.
+
+For PromQL function and operator documentation, see: https://prometheus.io/docs/prometheus/latest/querying/functions/ and https://prometheus.io/docs/prometheus/latest/querying/operators/
+
+To regenerate these files, run:
 
 ```bash
 ./gradlew :x-pack:plugin:esql:test --tests "PromqlKibanaDefinitionGeneratorTests"
 ```
-The result will be in `x-pack/plugin/esql/build/testrun/test/temp/promql/kibana/definitions/`.
+Locally this writes the generated files straight into the directories above (`generateDocs=write`). In CI the same test runs with `generateDocs=assert` and fails if the committed files are out of date, so commit the regenerated files.
 
 ## Elastic docs resources
 

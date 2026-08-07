@@ -17,8 +17,8 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * A typed reference to a {@link DataSource} by name. Carries only the name — resolution to the full
- * {@link DataSource} object happens against {@link DataSourceMetadata} in cluster state at query or
+ * A typed reference to a {@code DataSource} by name. Carries only the name — resolution to the full
+ * {@code DataSource} object happens against {@code DataSourceMetadata} in cluster state at query or
  * service-layer time. Modelled after {@link org.elasticsearch.index.Index}, which is the precedent
  * for a named reference to a first-class cluster-state entity.
  *

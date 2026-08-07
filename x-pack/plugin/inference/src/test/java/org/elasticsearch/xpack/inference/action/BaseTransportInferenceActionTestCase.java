@@ -81,8 +81,7 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
     }
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initMocks() throws Exception {
         ActionFilters actionFilters = mock();
         threadPool = mock();
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
@@ -418,9 +417,9 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
         when(service.canStream(any())).thenReturn(stream);
         when(service.supportedStreamingTasks()).thenReturn(supportedStreamingTasks);
         doAnswer(ans -> {
-            listenerAction.accept(ans.getArgument(9));
+            listenerAction.accept(ans.getArgument(6));
             return null;
-        }).when(service).infer(any(), any(), any(), any(), any(), anyBoolean(), any(), any(), any(), any());
+        }).when(service).infer(any(), any(), anyBoolean(), any(), any(), any(), any());
         doAnswer(ans -> {
             listenerAction.accept(ans.getArgument(3));
             return null;

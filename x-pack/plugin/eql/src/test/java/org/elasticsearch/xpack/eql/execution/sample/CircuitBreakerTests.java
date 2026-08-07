@@ -294,7 +294,7 @@ public class CircuitBreakerTests extends ESTestCase {
             ActionListener<Response> listener
         ) {
             if (request instanceof OpenPointInTimeRequest) {
-                OpenPointInTimeResponse response = new OpenPointInTimeResponse(pitId, 1, 1, 0, 0);
+                OpenPointInTimeResponse response = new OpenPointInTimeResponse(pitId, 1, 1, 0, 0, SearchResponse.Clusters.EMPTY);
                 listener.onResponse((Response) response);
             } else if (request instanceof ClosePointInTimeRequest) {
                 ClosePointInTimeResponse response = new ClosePointInTimeResponse(true, 1);

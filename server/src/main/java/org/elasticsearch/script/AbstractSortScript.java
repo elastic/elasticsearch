@@ -61,6 +61,16 @@ abstract class AbstractSortScript extends DocBasedScript implements ScorerAware 
         this.params = null;
     }
 
+    private Runnable cancellationCheck = null;
+
+    public void _setCancellationCheck(Runnable cancellationCheck) {
+        this.cancellationCheck = cancellationCheck;
+    }
+
+    public Runnable _getCancellationCheck() {
+        return cancellationCheck;
+    }
+
     /**
      * Return the parameters for this script.
      */

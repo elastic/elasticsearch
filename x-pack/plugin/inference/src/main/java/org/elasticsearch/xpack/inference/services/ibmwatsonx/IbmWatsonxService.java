@@ -116,6 +116,11 @@ public class IbmWatsonxService extends SenderService<IbmWatsonxModel> implements
     }
 
     @Override
+    public boolean usesParserForServiceSettings() {
+        return true;
+    }
+
+    @Override
     public InferenceServiceConfiguration getConfiguration() {
         return Configuration.get();
     }
@@ -220,11 +225,6 @@ public class IbmWatsonxService extends SenderService<IbmWatsonxModel> implements
 
         var action = ibmWatsonxRerankModel.accept(actionCreator, request.taskSettings());
         action.execute(fromRerankRequest(request), timeout, listener);
-    }
-
-    @Override
-    public boolean supportsNewRerankCodePath() {
-        return true;
     }
 
     @Override

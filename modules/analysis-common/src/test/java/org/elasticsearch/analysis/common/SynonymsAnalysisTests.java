@@ -9,6 +9,7 @@
 
 package org.elasticsearch.analysis.common;
 
+import org.apache.logging.log4j.Level;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.KeywordTokenizer;
@@ -18,6 +19,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -27,6 +29,7 @@ import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -50,6 +53,9 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.startsWith;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class SynonymsAnalysisTests extends ESTestCase {
     private IndexAnalyzers indexAnalyzers;
@@ -383,70 +389,32 @@ public class SynonymsAnalysisTests extends ESTestCase {
         );
     }
 
-    public void testManyChainedSynonymGraphFilters() throws IOException {
-        Settings.Builder settingsBuilder = Settings.builder()
+    /**
+     * Test a fix for OOM when chaining synonym graph filters. Without the fix, A is active
+     * while B parses its rules, so A rewrites B's LHSes (cat/dog/bird → animal) and B's
+     * SynonymMap collapses to one phantom entry: {@code animal → [meows, barks, sings]}.
+     * At runtime that one input fans out to three outputs the user didn't intend,
+     * potentially leading to OOMs on large synonym sets.
+     */
+    public void testChainedSynonymGraphFilterBuildIsIsolated() throws IOException {
+        Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-            .put("path.home", createTempDir().toString());
-
-        String[] vocab = randomArray(50_000, 100_000, String[]::new, () -> randomAlphanumericOfLength(20));
-        int synonymsPerFilter = 10_000;
-        int synonymSets = 100;
-        List<String> filterNames = new ArrayList<>();
-        filterNames.add("lowercase");
-
-        for (int i = 1; i <= synonymSets; i++) {
-            String filterName = "synonyms_" + i;
-            StringBuilder sb = new StringBuilder();
-
-            for (int j = 0; j < synonymsPerFilter; j++) {
-                if (j > 0) {
-                    sb.append("\n");
-                }
-                for (int k = 0; k < between(1, 3); k++) {
-                    if (k > 0) {
-                        sb.append(", ");
-                    }
-                    for (int l = 0; l < between(1, 3); l++) {
-                        if (l > 0) {
-                            sb.append(" ");
-                        }
-                        sb.append(randomFrom(vocab));
-                    }
-                }
-
-                sb.append(" => ");
-                sb.append("syn").append(i * (j + 1)); // Shared ID appears in ALL filters
-            }
-
-            filterNames.add(filterName);
-            settingsBuilder.put("index.analysis.filter." + filterName + ".type", "synonym_graph")
-                .put("index.analysis.filter." + filterName + ".lenient", true)
-                .putList("index.analysis.filter." + filterName + ".synonyms", sb.toString());
-        }
-
-        settingsBuilder.put("index.analysis.analyzer.many_syn.tokenizer", "standard")
-            .putList("index.analysis.analyzer.many_syn.filter", filterNames);
-
-        Settings settings = settingsBuilder.build();
+            .put("path.home", createTempDir().toString())
+            .put("index.analysis.filter.syn_a.type", "synonym_graph")
+            .putList("index.analysis.filter.syn_a.synonyms", "cat => animal", "dog => animal", "bird => animal")
+            .put("index.analysis.filter.syn_b.type", "synonym_graph")
+            .putList("index.analysis.filter.syn_b.synonyms", "cat => meows", "dog => barks", "bird => sings")
+            .put("index.analysis.analyzer.chained.tokenizer", "standard")
+            .putList("index.analysis.analyzer.chained.filter", "lowercase", "syn_a", "syn_b")
+            .build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
-
-        long startTime = System.currentTimeMillis();
-
-        // This would OOM without the SynonymGraphTokenFilterFactory::getSynonymFilter() fix (filters built sequentially)
         indexAnalyzers = createTestAnalysis(idxSettings, settings, commonAnalysisPlugin).indexAnalyzers;
 
-        // Verify the analyzer was built successfully and can analyze text
-        // With cross-referencing synonyms, the exact output is complex, so just verify it works
-        Analyzer analyzer = indexAnalyzers.get("many_syn");
-        assertNotNull("Analyzer should be created", analyzer);
-
-        for (int i = 0; i < 1000; i++) {
-            // Test that it can analyze without throwing exceptions
-            TokenStream ts = analyzer.tokenStream("test", randomFrom(vocab));
-            ts.reset();
-            assertTrue("Should produce at least one token", ts.incrementToken());
-            ts.close();
-        }
+        // Without the IDENTITY_FILTER fix, syn_b's three rules would collapse to one phantom entry
+        // (animal → meows/barks/sings)
+        BaseTokenStreamTestCase.assertAnalyzesTo(indexAnalyzers.get("chained"), "animal", new String[] { "animal" });
+        BaseTokenStreamTestCase.assertAnalyzesTo(indexAnalyzers.get("chained"), "cat", new String[] { "animal" });
+        BaseTokenStreamTestCase.assertAnalyzesTo(indexAnalyzers.get("chained"), "dog", new String[] { "animal" });
     }
 
     public void testShingleFilters() {
@@ -571,6 +539,77 @@ public class SynonymsAnalysisTests extends ESTestCase {
 
             assertEquals(factory, "Token filter [" + factory + "] cannot be used to parse synonyms", e.getMessage());
         }
+    }
+
+    public void testDuplicateSynonymSetsLogWarning() throws IOException {
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put("path.home", createTempDir().toString())
+            .put("index.analysis.filter.my_synonyms.type", "synonym_graph")
+            .put("index.analysis.filter.my_synonyms.updateable", "true")
+            .put("index.analysis.analyzer.my_analyzer.tokenizer", "standard")
+            .putList("index.analysis.analyzer.my_analyzer.filter", "lowercase", "my_synonyms")
+            .putList("index.analysis.filter.my_synonyms.synonyms_set", "set-a", "set-a")
+            .build();
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
+        try (var mockLog = MockLog.capture(SynonymTokenFilterFactory.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "duplicate warning",
+                    SynonymTokenFilterFactory.class.getName(),
+                    Level.WARN,
+                    "Duplicate synonym set names*"
+                )
+            );
+            createTestAnalysis(idxSettings, settings, commonAnalysisPlugin);
+            mockLog.assertAllExpectationsMatched();
+        }
+    }
+
+    public void testTooManySynonymSetsRejected() {
+        Settings.Builder settingsBuilder = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put("path.home", createTempDir().toString())
+            .put("index.analysis.filter.my_synonyms.type", "synonym_graph")
+            .put("index.analysis.filter.my_synonyms.updateable", "true")
+            .put("index.analysis.analyzer.my_analyzer.tokenizer", "standard")
+            .putList("index.analysis.analyzer.my_analyzer.filter", "lowercase", "my_synonyms");
+        List<String> manySets = new ArrayList<>();
+        for (int i = 0; i <= SynonymTokenFilterFactory.MAX_SYNONYM_SETS_PER_FILTER; i++) {
+            manySets.add("set-" + i);
+        }
+        settingsBuilder.putList("index.analysis.filter.my_synonyms.synonyms_set", manySets);
+        Settings settings = settingsBuilder.build();
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> createTestAnalysis(idxSettings, settings, commonAnalysisPlugin)
+        );
+        assertThat(e.getMessage(), containsString("At most " + SynonymTokenFilterFactory.MAX_SYNONYM_SETS_PER_FILTER));
+    }
+
+    /**
+     * When the cluster is not fully upgraded, creating an index with multiple synonym sets in a
+     * single filter must be rejected at index creation time. This prevents inconsistency
+     * during rolling upgrades, where old nodes would either error out or use no synonyms.
+     */
+    public void testMultipleSynonymSetsRejectedOnPartiallyUpgradedCluster() throws IOException {
+        FeatureService absentFeatureService = mock(FeatureService.class);
+        when(absentFeatureService.clusterHasFeature(any(), any())).thenReturn(false);
+        CommonAnalysisPlugin plugin = new TestCommonAnalysisPluginBuilder(threadPool).featureService(absentFeatureService).build();
+
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put("path.home", createTempDir().toString())
+            .put("index.analysis.filter.my_synonyms.type", "synonym_graph")
+            .put("index.analysis.filter.my_synonyms.updateable", "true")
+            .put("index.analysis.analyzer.my_analyzer.tokenizer", "standard")
+            .putList("index.analysis.analyzer.my_analyzer.filter", "lowercase", "my_synonyms")
+            .putList("index.analysis.filter.my_synonyms.synonyms_set", "set-a", "set-b")
+            .build();
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> createTestAnalysis(idxSettings, settings, plugin));
+        assertThat(e.getMessage(), containsString("not supported until all nodes in the cluster have been upgraded"));
     }
 
     private void match(String analyzerName, String source, String target) throws IOException {

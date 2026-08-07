@@ -2011,7 +2011,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             tempDir,
             deterministicTaskQueue,
             transportInterceptorFactory,
-            this::assertCriticalWarnings
+            expectedWarnings -> assertWarnings(expectedWarnings)
         );
         startCluster();
     }

@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -43,7 +44,8 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
         .filter(DataType::isRepresentable)
         .filter(t -> t != DataType.DOC_DATA_TYPE)
         .filter(t -> t != DataType.TSID_DATA_TYPE)
-        .filter(t -> t != DataType.DATE_RANGE) // TODO(pr/133309): implement
+        .filter(t -> t != DataType.DATE_RANGE || EsqlCapabilities.Cap.CASE_DATE_RANGE.isEnabled())
+        .filter(t -> t != DataType.DOUBLE_RANGE || EsqlCapabilities.Cap.DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V8.isEnabled())
         .toList();
 
     /**
@@ -99,10 +101,14 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
         }
         FunctionAppliesTo histogramPreviewAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.3.0", "", false);
         FunctionAppliesTo histogramGaAppliesTo = appliesTo(FunctionAppliesToLifecycle.GA, "9.4.0", "", true);
+        FunctionAppliesTo doubleRangeAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.6.0", "", false);
         suppliers = TestCaseSupplier.mapTestCases(suppliers, tc -> tc.withData(tc.getData().stream().map(typedData -> {
             DataType type = typedData.type();
             if (type == DataType.HISTOGRAM || type == DataType.EXPONENTIAL_HISTOGRAM || type == DataType.TDIGEST) {
                 return typedData.withAppliesTo(histogramPreviewAppliesTo).withAppliesTo(histogramGaAppliesTo);
+            }
+            if (type == DataType.DOUBLE_RANGE) {
+                return typedData.withAppliesTo(doubleRangeAppliesTo);
             }
             return typedData;
         }).toList()));

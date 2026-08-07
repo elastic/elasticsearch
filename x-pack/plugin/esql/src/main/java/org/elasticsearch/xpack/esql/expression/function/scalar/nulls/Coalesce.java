@@ -21,6 +21,8 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
@@ -48,13 +50,16 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
     private DataType dataType;
 
     @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = {
             "boolean",
             "cartesian_point",
             "cartesian_shape",
             "date_nanos",
             "date",
+            "date_range",
             "dense_vector",
+            "double_range",
             "flattened",
             "histogram",
             "geo_point",
@@ -69,6 +74,7 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
             "tdigest",
             "version",
             "exponential_histogram" },
+        briefSummary = "Returns the first of its arguments that is not null.",
         description = "Returns the first of its arguments that is not null. If all arguments are null, it returns `null`.",
         examples = { @Example(file = "null", tag = "coalesce") }
     )
@@ -82,7 +88,9 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
                 "cartesian_shape",
                 "date_nanos",
                 "date",
+                "date_range",
                 "dense_vector",
+                "double_range",
                 "flattened",
                 "histogram",
                 "geo_point",
@@ -108,7 +116,9 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
                 "cartesian_shape",
                 "date_nanos",
                 "date",
+                "date_range",
                 "dense_vector",
+                "double_range",
                 "flattened",
                 "histogram",
                 "geo_point",
@@ -230,9 +240,11 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
             case EXPONENTIAL_HISTOGRAM -> CoalesceExponentialHistogramEvaluator.toEvaluator(toEvaluator, children());
             case TDIGEST -> CoalesceTDigestEvaluator.toEvaluator(toEvaluator, children());
             case DENSE_VECTOR -> CoalesceFloatEvaluator.toEvaluator(toEvaluator, children());
+            case DATE_RANGE -> CoalesceLongRangeEvaluator.toEvaluator(toEvaluator, children());
+            case DOUBLE_RANGE -> CoalesceDoubleRangeEvaluator.toEvaluator(toEvaluator, children());
             case NULL -> ConstantEvaluators.CONSTANT_NULL_FACTORY;
             case UNSUPPORTED, SHORT, BYTE, DATE_PERIOD, OBJECT, DOC_DATA_TYPE, SOURCE, TIME_DURATION, FLOAT, HALF_FLOAT, TSID_DATA_TYPE,
-                SCALED_FLOAT, PARTIAL_AGG, AGGREGATE_METRIC_DOUBLE, DATE_RANGE -> throw new UnsupportedOperationException(
+                SCALED_FLOAT, PARTIAL_AGG, AGGREGATE_METRIC_DOUBLE -> throw new UnsupportedOperationException(
                     dataType() + " can't be coalesced"
                 );
         };

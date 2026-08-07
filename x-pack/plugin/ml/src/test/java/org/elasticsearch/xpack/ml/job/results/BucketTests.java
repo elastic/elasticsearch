@@ -6,8 +6,10 @@
  */
 package org.elasticsearch.xpack.ml.job.results;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
@@ -16,6 +18,7 @@ import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.job.results.BucketInfluencer;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -85,6 +88,9 @@ public class BucketTests extends AbstractXContentSerializingTestCase<Bucket> {
             List<String> scheduledEvents = new ArrayList<>(size);
             IntStream.range(0, size).forEach(i -> scheduledEvents.add(randomAlphaOfLength(20)));
             bucket.setScheduledEvents(scheduledEvents);
+        }
+        if (randomBoolean()) {
+            bucket.setEventIngested(Instant.ofEpochMilli(randomNonNegativeLong()));
         }
         return bucket;
     }
@@ -279,5 +285,26 @@ public class BucketTests extends AbstractXContentSerializingTestCase<Bucket> {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
             Bucket.LENIENT_PARSER.apply(parser, null);
         }
+    }
+
+    public void testEventIngestedWireBwc() throws IOException {
+        TransportVersion gate = TransportVersion.fromName("ml_anomaly_event_ingested");
+
+        Bucket instance = createTestInstance();
+        instance.setEventIngested(Instant.ofEpochMilli(randomNonNegativeLong()));
+
+        Bucket supported = copyInstance(instance, TransportVersionUtils.randomVersionSupporting(gate));
+        assertEquals(instance.getEventIngested(), supported.getEventIngested());
+
+        Bucket old = copyInstance(instance, TransportVersionUtils.randomVersionNotSupporting(gate));
+        assertNull(old.getEventIngested());
+        instance.setEventIngested(null);
+        if (instance.getRecords() != null) {
+            instance.getRecords().forEach(r -> r.setEventIngested(null));
+        }
+        if (instance.getBucketInfluencers() != null) {
+            instance.getBucketInfluencers().forEach(bi -> bi.setEventIngested(null));
+        }
+        assertEquals(instance, old);
     }
 }

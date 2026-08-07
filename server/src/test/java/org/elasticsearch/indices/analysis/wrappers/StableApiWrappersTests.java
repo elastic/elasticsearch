@@ -200,6 +200,118 @@ public class StableApiWrappersTests extends ESTestCase {
         assertThat(charFilterFactory.name(), equalTo("TestCharFilterFactory"));
     }
 
+    /**
+     * Backwards-compat invariant for stable plugins: a plugin implementing only the stable API
+     * (no {@code sharingKey()} method — that's an internal-API addition) must continue to load
+     * and run unchanged. Its produced factories MUST NOT share by default — every
+     * {@code .get(...)} call must yield a fresh wrapper with a distinct {@code sharingKey},
+     * matching pre-sharing behavior. Sharing would require explicit opt-in from the plugin (not
+     * possible through the stable API, by design).
+     */
+    public void testStableTokenFilterFactoryDoesNotShareByDefault() throws IOException {
+        StablePluginsRegistry registry = Mockito.mock(StablePluginsRegistry.class);
+        Mockito.when(registry.getPluginInfosForExtensible(eq(TokenFilterFactory.class.getCanonicalName())))
+            .thenReturn(
+                List.of(new PluginInfo("namedComponentName1", TestTokenFilterFactory.class.getName(), getClass().getClassLoader()))
+            );
+
+        Map<String, AnalysisModule.AnalysisProvider<org.elasticsearch.index.analysis.TokenFilterFactory>> providers = StableApiWrappers
+            .oldApiForTokenFilterFactory(registry);
+        AnalysisModule.AnalysisProvider<org.elasticsearch.index.analysis.TokenFilterFactory> provider = providers.get(
+            "namedComponentName1"
+        );
+
+        // Two independent .get(...) calls — mimicking two indices on the same node — produce
+        // distinct wrappers, each keyed on its own identity.
+        org.elasticsearch.index.analysis.TokenFilterFactory a = provider.get(null, mock(Environment.class), null, null);
+        org.elasticsearch.index.analysis.TokenFilterFactory b = provider.get(null, mock(Environment.class), null, null);
+        assertNotSame("each get() must yield a wrapper with a distinct sharing key", a.sharingKey(), b.sharingKey());
+        assertNotEquals(a.sharingKey(), b.sharingKey());
+    }
+
+    /**
+     * The no-sharing-by-default invariant must not depend on the stable factory producing fresh,
+     * identity-distinct instances. A stable plugin is free to override {@code equals()}/{@code hashCode()}
+     * (or hand out a singleton) for its own reasons — that is not a sharing-contract opt-in, which the
+     * stable API has no way to express. The wrapper therefore keys on its own identity, so even two
+     * wrappers around stable factories that compare {@code equal} must still produce distinct sharing
+     * keys and never collapse to one shared analyzer.
+     */
+    public void testStableFactoryOverridingEqualsStillDoesNotShare() throws IOException {
+        StablePluginsRegistry registry = Mockito.mock(StablePluginsRegistry.class);
+        Mockito.when(registry.getPluginInfosForExtensible(eq(TokenFilterFactory.class.getCanonicalName())))
+            .thenReturn(
+                List.of(new PluginInfo("namedComponentName1", AlwaysEqualTokenFilterFactory.class.getName(), getClass().getClassLoader()))
+            );
+
+        Map<String, AnalysisModule.AnalysisProvider<org.elasticsearch.index.analysis.TokenFilterFactory>> providers = StableApiWrappers
+            .oldApiForTokenFilterFactory(registry);
+        AnalysisModule.AnalysisProvider<org.elasticsearch.index.analysis.TokenFilterFactory> provider = providers.get(
+            "namedComponentName1"
+        );
+
+        org.elasticsearch.index.analysis.TokenFilterFactory a = provider.get(null, mock(Environment.class), null, null);
+        org.elasticsearch.index.analysis.TokenFilterFactory b = provider.get(null, mock(Environment.class), null, null);
+        // Sanity: the underlying stable factories really do compare equal, so keying on them would share.
+        assertEquals(new AlwaysEqualTokenFilterFactory(), new AlwaysEqualTokenFilterFactory());
+        // The wrappers must not: distinct identities, distinct sharing keys, no sharing.
+        assertNotSame(a.sharingKey(), b.sharingKey());
+        assertNotEquals(a.sharingKey(), b.sharingKey());
+    }
+
+    /**
+     * Same for stable {@link CharFilterFactory}: no sharing by default.
+     */
+    public void testStableCharFilterFactoryDoesNotShareByDefault() throws IOException {
+        StablePluginsRegistry registry = Mockito.mock(StablePluginsRegistry.class);
+        Mockito.when(registry.getPluginInfosForExtensible(eq(CharFilterFactory.class.getCanonicalName())))
+            .thenReturn(List.of(new PluginInfo("namedComponentName1", TestCharFilterFactory.class.getName(), getClass().getClassLoader())));
+
+        Map<String, AnalysisModule.AnalysisProvider<org.elasticsearch.index.analysis.CharFilterFactory>> providers = StableApiWrappers
+            .oldApiForStableCharFilterFactory(registry);
+        AnalysisModule.AnalysisProvider<org.elasticsearch.index.analysis.CharFilterFactory> provider = providers.get("namedComponentName1");
+
+        org.elasticsearch.index.analysis.CharFilterFactory a = provider.get(null, mock(Environment.class), null, null);
+        org.elasticsearch.index.analysis.CharFilterFactory b = provider.get(null, mock(Environment.class), null, null);
+        assertNotSame(a.sharingKey(), b.sharingKey());
+    }
+
+    /**
+     * Same for stable {@link TokenizerFactory}: no sharing by default.
+     */
+    public void testStableTokenizerFactoryDoesNotShareByDefault() throws IOException {
+        StablePluginsRegistry registry = Mockito.mock(StablePluginsRegistry.class);
+        Mockito.when(registry.getPluginInfosForExtensible(eq(TokenizerFactory.class.getCanonicalName())))
+            .thenReturn(List.of(new PluginInfo("namedComponentName1", TestTokenizerFactory.class.getName(), getClass().getClassLoader())));
+
+        Map<String, AnalysisModule.AnalysisProvider<org.elasticsearch.index.analysis.TokenizerFactory>> providers = StableApiWrappers
+            .oldApiForTokenizerFactory(registry);
+        AnalysisModule.AnalysisProvider<org.elasticsearch.index.analysis.TokenizerFactory> provider = providers.get("namedComponentName1");
+
+        org.elasticsearch.index.analysis.TokenizerFactory a = provider.get(null, mock(Environment.class), null, null);
+        org.elasticsearch.index.analysis.TokenizerFactory b = provider.get(null, mock(Environment.class), null, null);
+        assertNotSame(a.sharingKey(), b.sharingKey());
+    }
+
+    /**
+     * Same for stable {@link AnalyzerFactory}: no sharing by default.
+     */
+    public void testStableAnalyzerFactoryDoesNotShareByDefault() throws IOException {
+        StablePluginsRegistry registry = Mockito.mock(StablePluginsRegistry.class);
+        Mockito.when(registry.getPluginInfosForExtensible(eq(AnalyzerFactory.class.getCanonicalName())))
+            .thenReturn(List.of(new PluginInfo("namedComponentName1", TestAnalyzerFactory.class.getName(), getClass().getClassLoader())));
+
+        Map<String, AnalysisModule.AnalysisProvider<org.elasticsearch.index.analysis.AnalyzerProvider<?>>> providers = StableApiWrappers
+            .oldApiForAnalyzerFactory(registry);
+        AnalysisModule.AnalysisProvider<org.elasticsearch.index.analysis.AnalyzerProvider<?>> provider = providers.get(
+            "namedComponentName1"
+        );
+
+        org.elasticsearch.index.analysis.AnalyzerProvider<?> a = provider.get(null, mock(Environment.class), null, null);
+        org.elasticsearch.index.analysis.AnalyzerProvider<?> b = provider.get(null, mock(Environment.class), null, null);
+        assertNotSame(a.sharingKey(), b.sharingKey());
+    }
+
     @NamedComponent("DefaultConstrAnalyzerFactory")
     public static class DefaultConstrAnalyzerFactory implements AnalyzerFactory {
 
@@ -253,6 +365,35 @@ public class StableApiWrappersTests extends ESTestCase {
         @Override
         public AnalysisMode getAnalysisMode() {
             return AnalysisMode.INDEX_TIME;
+        }
+    }
+
+    /**
+     * A stable {@link TokenFilterFactory} whose instances all compare {@code equal}. Models a plugin
+     * that overrides {@code equals()}/{@code hashCode()} for its own reasons — which must NOT be read as
+     * a sharing opt-in. Used to prove the wrapper keys on its own identity, not on the wrapped factory.
+     */
+    @NamedComponent("AlwaysEqualTokenFilterFactory")
+    public static class AlwaysEqualTokenFilterFactory implements TokenFilterFactory {
+
+        @Override
+        public TokenStream create(TokenStream tokenStream) {
+            return tokenStream;
+        }
+
+        @Override
+        public AnalysisMode getAnalysisMode() {
+            return AnalysisMode.INDEX_TIME;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            return obj instanceof AlwaysEqualTokenFilterFactory;
+        }
+
+        @Override
+        public int hashCode() {
+            return 0;
         }
     }
 

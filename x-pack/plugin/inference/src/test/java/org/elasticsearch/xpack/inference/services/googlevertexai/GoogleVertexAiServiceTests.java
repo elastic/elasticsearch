@@ -309,7 +309,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                 TaskType.RERANK,
                 getRequestConfigMap(
                     new HashMap<>(Map.of(GoogleVertexAiServiceFields.PROJECT_ID, projectId)),
-                    new HashMap<>(Map.of()),
+                    new HashMap<>(),
                     getSecretSettingsMap(serviceAccountJson)
                 ),
                 modelListener
@@ -338,7 +338,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                             "project"
                         )
                     ),
-                    new HashMap<>(Map.of()),
+                    new HashMap<>(),
                     getSecretSettingsMap("{}")
                 ),
                 failureListener
@@ -1045,8 +1045,8 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
             var topN = randomNonNegativeIntOrNull();
             var returnDocuments = randomOptionalBoolean();
             var request = new RerankRequest(
-                List.of(new InferenceString(DataType.TEXT, inputOne), new InferenceString(DataType.TEXT, inputTwo)),
-                new InferenceString(DataType.TEXT, query),
+                List.of(InferenceString.ofText(inputOne), InferenceString.ofText(inputTwo)),
+                InferenceString.ofText(query),
                 topN,
                 returnDocuments,
                 new HashMap<>()
@@ -1152,9 +1152,9 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                                    "supported_task_types": ["text_embedding", "rerank", "completion", "chat_completion"]
                                },
                                "location": {
-                                   "description": "Please provide the GCP region where the Vertex AI API(s) is enabled. For more information, refer to the {geminiVertexAIDocs}.",
+                                   "description": "Please provide the GCP region where the Vertex AI API(s) is enabled. Omit this field to target the Vertex AI global endpoint. For more information, refer to the {geminiVertexAIDocs}.",
                                    "label": "GCP Region",
-                                   "required": true,
+                                   "required": false,
                                    "sensitive": false,
                                    "updatable": false,
                                    "type": "str",
@@ -1203,7 +1203,6 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
             PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
             service.chunkedInfer(
                 GoogleVertexAiEmbeddingsModelTests.createModel(randomAlphaOfLength(10), randomBoolean(), randomSimilarityMeasure()),
-                null,
                 List.of(),
                 new HashMap<>(),
                 InputType.INTERNAL_INGEST,

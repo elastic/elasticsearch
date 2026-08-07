@@ -158,10 +158,12 @@ public interface SourceLoader {
         @Override
         public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException {
             SyntheticFieldLoader loader = syntheticFieldLoaderLeafSupplier.get();
-            return new LeafWithMetrics(
-                new SyntheticLeaf(filter, loader, loader.docValuesLoader(reader, docIdsInLeaf), ignoredSourceFormat, reader),
-                metrics
-            );
+            var leaf = new SyntheticLeaf(filter, loader, loader.docValuesLoader(reader, docIdsInLeaf), ignoredSourceFormat, reader);
+            if (metrics == SourceFieldMetrics.NOOP) {
+                return leaf;
+            } else {
+                return new LeafWithMetrics(leaf, metrics);
+            }
         }
 
         private record LeafWithMetrics(Leaf leaf, SourceFieldMetrics metrics) implements Leaf {

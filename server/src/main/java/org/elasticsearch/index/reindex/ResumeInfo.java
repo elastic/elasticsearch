@@ -197,7 +197,7 @@ public record ResumeInfo(
 
     /*
      * Holds the result of a worker task, either with a successful response or a failure exception */
-    public record WorkerResult(@Nullable BulkByScrollResponse response, @Nullable Exception failure) implements Writeable {
+    public record WorkerResult(@Nullable BulkByPaginatedSearchResponse response, @Nullable Exception failure) implements Writeable {
 
         public WorkerResult {
             if (response != null && failure != null) {
@@ -209,7 +209,7 @@ public record ResumeInfo(
         }
 
         public WorkerResult(StreamInput in) throws IOException {
-            this(in.readOptional(BulkByScrollResponse::new), in.readOptionalException());
+            this(in.readOptional(BulkByPaginatedSearchResponse::new), in.readOptionalException());
         }
 
         @Override
@@ -218,7 +218,7 @@ public record ResumeInfo(
             out.writeOptionalException(failure);
         }
 
-        public Optional<BulkByScrollResponse> getResponse() {
+        public Optional<BulkByPaginatedSearchResponse> getResponse() {
             return Optional.ofNullable(response);
         }
 

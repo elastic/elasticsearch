@@ -9,8 +9,6 @@
 
 package org.elasticsearch.index.codec.vectors.es93;
 
-import org.apache.lucene.codecs.hnsw.DefaultFlatVectorScorer;
-import org.apache.lucene.codecs.hnsw.FlatVectorScorerUtil;
 import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
 import org.apache.lucene.codecs.lucene95.HasIndexSlice;
 import org.apache.lucene.index.ByteVectorValues;
@@ -29,8 +27,8 @@ import java.util.Optional;
 
 public class ES93GenericFlatVectorScorer implements FlatVectorsScorer {
 
-    private static final FlatVectorsScorer FALLBACK = FlatVectorScorerUtil.getLucene99FlatVectorsScorer();
     private static final VectorScorerFactory FACTORY = ESVectorizationProvider.getInstance().getVectorScorerFactory();
+    private static final FlatVectorsScorer FALLBACK = FACTORY.newFlatVectorsScorer();
 
     public static final ES93GenericFlatVectorScorer INSTANCE = new ES93GenericFlatVectorScorer();
 
@@ -43,35 +41,28 @@ public class ES93GenericFlatVectorScorer implements FlatVectorsScorer {
         VectorSimilarityFunction similarityFunction,
         KnnVectorValues vectorValues
     ) throws IOException {
-        if (isBFloat16(vectorValues)) {
-            // can't use MemorySegment scorer for bfloat16, have to fallback to standard scorer
-            // which operates on arrays, not raw MemorySegments
-            if (vectorValues instanceof HasIndexSlice sl) {
-                Optional<RandomVectorScorerSupplier> scorer = FACTORY.getBFloat16VectorScorerSupplier(
-                    VectorSimilarityType.of(similarityFunction),
-                    sl.getSlice(),
-                    (FloatVectorValues) vectorValues
-                );
-                if (scorer.isPresent()) {
-                    return scorer.get();
-                }
-            }
-            return DefaultFlatVectorScorer.INSTANCE.getRandomVectorScorerSupplier(similarityFunction, vectorValues);
-        }
-
         if (vectorValues instanceof HasIndexSlice sl) {
-            Optional<RandomVectorScorerSupplier> scorer = switch (vectorValues.getEncoding()) {
-                case BYTE -> FACTORY.getInt8VectorScorerSupplier(
-                    VectorSimilarityType.of(similarityFunction),
-                    sl.getSlice(),
-                    (ByteVectorValues) vectorValues
-                );
-                case FLOAT32 -> FACTORY.getFloat32VectorScorerSupplier(
+            Optional<RandomVectorScorerSupplier> scorer;
+            if (isBFloat16(vectorValues)) {
+                scorer = FACTORY.getBFloat16VectorScorerSupplier(
                     VectorSimilarityType.of(similarityFunction),
                     sl.getSlice(),
                     (FloatVectorValues) vectorValues
                 );
-            };
+            } else {
+                scorer = switch (vectorValues.getEncoding()) {
+                    case BYTE -> FACTORY.getInt8VectorScorerSupplier(
+                        VectorSimilarityType.of(similarityFunction),
+                        sl.getSlice(),
+                        (ByteVectorValues) vectorValues
+                    );
+                    case FLOAT32 -> FACTORY.getFloat32VectorScorerSupplier(
+                        VectorSimilarityType.of(similarityFunction),
+                        sl.getSlice(),
+                        (FloatVectorValues) vectorValues
+                    );
+                };
+            }
             if (scorer.isPresent()) {
                 return scorer.get();
             }
@@ -85,21 +76,12 @@ public class ES93GenericFlatVectorScorer implements FlatVectorsScorer {
         KnnVectorValues vectorValues,
         float[] target
     ) throws IOException {
+        Optional<RandomVectorScorer> scorer;
         if (isBFloat16(vectorValues)) {
-            // can't use MemorySegment scorer for bfloat16, have to fallback to standard scorer
-            // which operates on arrays, not raw MemorySegments
-            Optional<RandomVectorScorer> scorer = FACTORY.getBFloat16VectorScorer(
-                similarityFunction,
-                (FloatVectorValues) vectorValues,
-                target
-            );
-            if (scorer.isPresent()) {
-                return scorer.get();
-            }
-            return DefaultFlatVectorScorer.INSTANCE.getRandomVectorScorer(similarityFunction, vectorValues, target);
+            scorer = FACTORY.getBFloat16VectorScorer(similarityFunction, (FloatVectorValues) vectorValues, target);
+        } else {
+            scorer = FACTORY.getFloat32VectorScorer(similarityFunction, (FloatVectorValues) vectorValues, target);
         }
-
-        var scorer = FACTORY.getFloat32VectorScorer(similarityFunction, (FloatVectorValues) vectorValues, target);
         if (scorer.isPresent()) {
             return scorer.get();
         }

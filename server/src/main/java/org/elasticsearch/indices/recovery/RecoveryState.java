@@ -9,6 +9,7 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -97,6 +98,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
     private final Timer timer;
 
     private final RecoverySource recoverySource;
+    private final ShardRouting.RecoveryPriority recoveryPriority;
     private final ShardId shardId;
     @Nullable
     private final DiscoveryNode sourceNode;
@@ -108,12 +110,22 @@ public class RecoveryState implements ToXContentFragment, Writeable {
     }
 
     public RecoveryState(ShardRouting shardRouting, DiscoveryNode targetNode, @Nullable DiscoveryNode sourceNode, Index index) {
-        this(shardRouting.shardId(), shardRouting.primary(), shardRouting.recoverySource(), sourceNode, targetNode, index, new Timer());
+        this(
+            shardRouting.shardId(),
+            shardRouting.primary(),
+            shardRouting.recoverySource(),
+            shardRouting.recoveryPriority(),
+            sourceNode,
+            targetNode,
+            index,
+            new Timer()
+        );
         assert shardRouting.initializing() : "only allow initializing shard routing to be recovered: " + shardRouting;
         assert shardRouting.recoverySource().getType() != RecoverySource.Type.PEER || sourceNode != null
             : "peer recovery requires source node but it is null";
         assert shardRouting.recoverySource().getType() != RecoverySource.Type.RESHARD_SPLIT || sourceNode != null
             : "reshard split target recovery requires source node but it is null";
+        assert shardRouting.recoveryPriority() != null : "recovery priority must not be null in shard routing: " + shardRouting;
         timer.start();
     }
 
@@ -121,6 +133,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         ShardId shardId,
         boolean primary,
         RecoverySource recoverySource,
+        ShardRouting.RecoveryPriority recoveryPriority,
         DiscoveryNode sourceNode,
         DiscoveryNode targetNode,
         Index index,
@@ -129,6 +142,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         this.shardId = shardId;
         this.primary = primary;
         this.recoverySource = recoverySource;
+        this.recoveryPriority = recoveryPriority;
         this.sourceNode = sourceNode;
         this.targetNode = targetNode;
         stage = Stage.INIT;
@@ -138,11 +152,20 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         this.timer = timer;
     }
 
+    private static final TransportVersion RECOVERY_PRIORITY_TRANSPORT_VERSION = TransportVersion.fromName(
+        "recovery_priority_in_recovery_state"
+    );
+
     private RecoveryState(StreamInput in) throws IOException {
         timer = new Timer(in);
         stage = Stage.fromId(in.readByte());
         shardId = new ShardId(in);
         recoverySource = RecoverySource.readFrom(in);
+        if (in.getTransportVersion().supports(RECOVERY_PRIORITY_TRANSPORT_VERSION)) {
+            recoveryPriority = ShardRouting.RecoveryPriority.readFrom(in);
+        } else {
+            recoveryPriority = ShardRouting.RecoveryPriority.UNKNOWN;
+        }
         targetNode = new DiscoveryNode(in);
         sourceNode = in.readOptionalWriteable(DiscoveryNode::new);
         index = new Index(in);
@@ -157,6 +180,11 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         out.writeByte(stage.id());
         shardId.writeTo(out);
         recoverySource.writeTo(out);
+        // Only send recoveryPriority to nodes which are new enough to know about it.
+        // This is fine as the only time this is serialized is when returning in the response to the recovery API.
+        if (out.getTransportVersion().supports(RECOVERY_PRIORITY_TRANSPORT_VERSION)) {
+            recoveryPriority.writeTo(out);
+        }
         targetNode.writeTo(out);
         out.writeOptionalWriteable(sourceNode);
         index.writeTo(out);
@@ -233,7 +261,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
      * information
      */
     public RecoveryState reset() {
-        return new RecoveryState(shardId, primary, recoverySource, sourceNode, targetNode, new Index(), timer);
+        return new RecoveryState(shardId, primary, recoverySource, recoveryPriority, sourceNode, targetNode, new Index(), timer);
     }
 
     public synchronized RecoveryState setLocalTranslogStage() {
@@ -264,6 +292,10 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         return recoverySource;
     }
 
+    public ShardRouting.RecoveryPriority getRecoveryPriority() {
+        return recoveryPriority;
+    }
+
     /**
      * Returns recovery source node (only non-null if peer recovery)
      */
@@ -285,12 +317,27 @@ public class RecoveryState implements ToXContentFragment, Writeable {
     }
 
     @Override
+    public String toString() {
+        return Strings.format(
+            "RecoveryState{shardId=%s, recoverySource=%s, stage=%s, primary=%s, recoveryPriority=%s, sourceNode=%s, targetNode=%s}",
+            shardId,
+            recoverySource.getType(),
+            stage,
+            primary,
+            recoveryPriority,
+            sourceNode != null ? sourceNode.getId() : "null",
+            targetNode.getId()
+        );
+    }
+
+    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
 
         builder.field(Fields.ID, shardId.id());
         builder.field(Fields.TYPE, recoverySource.getType());
         builder.field(Fields.STAGE, stage.toString());
         builder.field(Fields.PRIMARY, primary);
+        builder.field(Fields.PRIORITY, recoveryPriority);
         builder.timestampFieldsFromUnixEpochMillis(Fields.START_TIME_IN_MILLIS, Fields.START_TIME, timer.startTime);
         if (timer.stopTime > 0) {
             builder.timestampFieldsFromUnixEpochMillis(Fields.STOP_TIME_IN_MILLIS, Fields.STOP_TIME, timer.stopTime);
@@ -335,6 +382,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
     static final class Fields {
         static final String ID = "id";
         static final String TYPE = "type";
+        static final String PRIORITY = "priority";
         static final String STAGE = "stage";
         static final String PRIMARY = "primary";
         static final String START_TIME = "start_time";

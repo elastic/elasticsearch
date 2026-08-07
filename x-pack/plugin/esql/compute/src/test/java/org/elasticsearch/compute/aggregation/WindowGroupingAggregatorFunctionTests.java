@@ -212,8 +212,7 @@ public class WindowGroupingAggregatorFunctionTests extends ForkingOperatorTestCa
                 )
             ),
             10_000,
-            fiveMinBucket,
-            false
+            fiveMinBucket
         );
 
         var driverCtx = driverContext();
@@ -303,8 +302,7 @@ public class WindowGroupingAggregatorFunctionTests extends ForkingOperatorTestCa
                 )
             ),
             10_000,
-            fiveMinBucket,
-            false
+            fiveMinBucket
         );
 
         var driverCtx = driverContext();
@@ -488,8 +486,7 @@ public class WindowGroupingAggregatorFunctionTests extends ForkingOperatorTestCa
                 )
             ),
             10_000,
-            fiveMinBucket,
-            false
+            fiveMinBucket
         );
 
         var driverCtx = driverContext();

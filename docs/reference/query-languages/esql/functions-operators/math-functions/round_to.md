@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `ROUND_TO` function [esql-round_to]
 
-:::{include} ../../_snippets/functions/layout/round_to.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/round_to.md
 :::

@@ -84,7 +84,7 @@ public final class InferenceStringGroup implements Writeable, ToXContentObject {
 
     // Convenience constructor for the common use case of a single text input
     public InferenceStringGroup(String input) {
-        this(singletonList(new InferenceString(DataType.TEXT, input)));
+        this(singletonList(InferenceString.ofText(input)));
     }
 
     public List<InferenceString> inferenceStrings() {

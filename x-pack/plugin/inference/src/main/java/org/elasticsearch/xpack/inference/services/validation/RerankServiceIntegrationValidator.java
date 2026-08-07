@@ -19,8 +19,6 @@ import org.elasticsearch.inference.validation.ServiceIntegrationValidator;
 
 import java.util.List;
 
-import static org.elasticsearch.inference.DataType.TEXT;
-
 public class RerankServiceIntegrationValidator implements ServiceIntegrationValidator {
     private static final List<String> TEST_INPUT = List.of("how big");
     private static final String QUERY = "test query";
@@ -29,7 +27,7 @@ public class RerankServiceIntegrationValidator implements ServiceIntegrationVali
     public void validate(InferenceService service, Model model, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
         service.rerankInfer(
             model,
-            new RerankRequest(InferenceString.fromStringList(TEST_INPUT), new InferenceString(TEXT, QUERY), null, null, null),
+            new RerankRequest(InferenceString.fromStringList(TEST_INPUT), InferenceString.ofText(QUERY), null, null, null),
             timeout,
             ServiceIntegrationValidator.wrapListenerForValidation(listener)
         );

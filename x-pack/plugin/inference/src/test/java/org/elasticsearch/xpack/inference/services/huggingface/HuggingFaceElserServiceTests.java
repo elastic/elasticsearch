@@ -106,7 +106,6 @@ public class HuggingFaceElserServiceTests extends ESTestCase {
             PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
             service.chunkedInfer(
                 model,
-                null,
                 List.of(new ChunkInferenceInput("abc")),
                 new HashMap<>(),
                 InputType.INTERNAL_SEARCH,
@@ -149,7 +148,7 @@ public class HuggingFaceElserServiceTests extends ESTestCase {
         try (var service = new HuggingFaceElserService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             var model = HuggingFaceElserModelTests.createModel(getUrl(webServer), API_KEY_VALUE);
             PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
-            service.chunkedInfer(model, null, List.of(), new HashMap<>(), InputType.INTERNAL_SEARCH, null, listener);
+            service.chunkedInfer(model, List.of(), new HashMap<>(), InputType.INTERNAL_SEARCH, null, listener);
 
             assertThat(listener.actionGet(TIMEOUT), empty());
             assertThat(webServer.requests(), empty());

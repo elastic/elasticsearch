@@ -4340,6 +4340,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     @Override
                     public int read() throws IOException {
                         checkAborted();
+                        fileReader.maybeReleaseCommitRef();
                         final long beforeReadNanos = System.nanoTime();
                         int value = super.read();
                         totalTimeSpendReadingInNanos.addAndGet(System.nanoTime() - beforeReadNanos);
@@ -4349,6 +4350,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     @Override
                     public int read(byte[] b, int off, int len) throws IOException {
                         checkAborted();
+                        fileReader.maybeReleaseCommitRef();
                         final long beforeReadNanos = System.nanoTime();
                         int amountRead = super.read(b, off, len);
                         totalTimeSpendReadingInNanos.addAndGet(System.nanoTime() - beforeReadNanos);

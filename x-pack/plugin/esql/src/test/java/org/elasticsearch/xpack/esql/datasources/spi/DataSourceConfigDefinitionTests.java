@@ -18,6 +18,7 @@ public class DataSourceConfigDefinitionTests extends ESTestCase {
         assertEquals("region", def.name());
         assertFalse(def.secret());
         assertFalse(def.caseInsensitive());
+        assertFalse(def.federatedAuth());
     }
 
     public void testSecretDefaults() {
@@ -25,6 +26,7 @@ public class DataSourceConfigDefinitionTests extends ESTestCase {
         assertEquals("access_key", def.name());
         assertTrue(def.secret());
         assertFalse(def.caseInsensitive());
+        assertFalse(def.federatedAuth());
     }
 
     public void testAsCaseInsensitiveOnPlaintext() {
@@ -40,6 +42,35 @@ public class DataSourceConfigDefinitionTests extends ESTestCase {
         assertEquals("password", def.name());
         assertTrue(def.secret());
         assertTrue(def.caseInsensitive());
+        assertFalse(def.federatedAuth());
+    }
+
+    public void testAsFederatedAuthOnPlaintext() {
+        DataSourceConfigDefinition def = DataSourceConfigDefinition.plaintext("jwt_audience").asFederatedAuth();
+        assertEquals("jwt_audience", def.name());
+        assertFalse(def.secret());
+        assertFalse(def.caseInsensitive());
+        assertTrue(def.federatedAuth());
+    }
+
+    public void testSecretCannotAlsoBeFederatedAuth() {
+        // secret and federated auth are mutually exclusive authentication kinds; combining them on a
+        // single field would make it self-conflict during validation, so construction must fail fast.
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> DataSourceConfigDefinition.secret("token").asFederatedAuth()
+        );
+        assertEquals("field [token] cannot be both secret and federated auth", e.getMessage());
+    }
+
+    public void testFederatedAuthCannotAlsoBeSecret() {
+        expectThrows(IllegalArgumentException.class, () -> new DataSourceConfigDefinition("token", true, false, true));
+    }
+
+    public void testAsCaseInsensitivePreservesFederatedAuthBit() {
+        DataSourceConfigDefinition def = DataSourceConfigDefinition.plaintext("auth").asFederatedAuth().asCaseInsensitive();
+        assertTrue(def.caseInsensitive());
+        assertTrue(def.federatedAuth());
     }
 
     public void testAsCaseInsensitiveReturnsCopy() {

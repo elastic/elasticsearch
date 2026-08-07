@@ -29,7 +29,6 @@ import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTestUtils;
-import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
@@ -44,7 +43,6 @@ import org.elasticsearch.xpack.inference.InferenceIndex;
 import org.elasticsearch.xpack.inference.InferenceSecretsIndex;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.Utils;
-import org.elasticsearch.xpack.inference.mapper.SemanticFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsMapperTests;
 import org.elasticsearch.xpack.inference.mock.TestSparseInferenceServiceExtension;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
@@ -233,7 +231,7 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
         // Set an inference string value on a field that uses an embedding inference service
         assertItemFailures(INDEX_NAME, () -> Map.of("embedding_field", randomInferenceString()), r -> {
             // In the legacy format, the value is parsed as a SemanticTextField, which requires an "inference" block.
-            // In the new format, it is rejected by SemanticTextFieldMapper.
+            // In the new format, object values are rejected by SemanticTextFieldMapper.
             String expectedMessage = useLegacyFormat
                 ? "Required [inference]"
                 : "[semantic_text] field [embedding_field] does not support object values";
@@ -253,9 +251,7 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
         // Set a list of lists value on a field that uses an embedding inference service.
         // In both cases (legacy and new format), ShardBulkInferenceActionFilter attempts to parse the list of lists and fails.
         assertItemFailures(INDEX_NAME, () -> Map.of("embedding_field", List.of(List.of("foo", "bar"))), r -> {
-            String expectedMessage = useLegacyFormat
-                ? "expected [String|Number|Boolean]"
-                : "expected [String|Number|Boolean|InferenceString]";
+            String expectedMessage = useLegacyFormat ? "expected [String|Number|Boolean]" : "expected [String|Number|Boolean|Object]";
             assertThat(rootCause(r.getFailure().getCause()).getMessage(), containsString(expectedMessage));
         });
     }
@@ -329,7 +325,6 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
     }
 
     public void testSemanticBulkOperations() throws Exception {
-        assumeTrue("Semantic field feature flag is enabled", SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled());
         assumeFalse("Legacy format does not apply to the semantic field", useLegacyFormat);
 
         prepareCreate(INDEX_NAME).setMapping(String.format(Locale.ROOT, """
@@ -350,7 +345,6 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
     }
 
     public void testSemanticItemFailures() {
-        assumeTrue("Semantic field feature flag is enabled", SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled());
         assumeFalse("Legacy format does not apply to the semantic field", useLegacyFormat);
 
         prepareCreate(INDEX_NAME).setMapping(String.format(Locale.ROOT, """
@@ -377,7 +371,7 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
         // Text expressed as an inference string object
         assertItemFailures(
             INDEX_NAME,
-            () -> Map.of("semantic_field", new InferenceString(DataType.TEXT, "foo")),
+            () -> Map.of("semantic_field", InferenceString.ofText("foo")),
             r -> assertThat(
                 rootCause(r.getFailure().getCause()).getMessage(),
                 containsString("Objects for text values are not supported, use a string literal instead")
@@ -388,10 +382,7 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
         assertItemFailures(
             INDEX_NAME,
             () -> Map.of("semantic_field", List.of(List.of("foo", "bar"))),
-            r -> assertThat(
-                rootCause(r.getFailure().getCause()).getMessage(),
-                containsString("expected [String|Number|Boolean|InferenceString]")
-            )
+            r -> assertThat(rootCause(r.getFailure().getCause()).getMessage(), containsString("expected [String|Number|Boolean|Object]"))
         );
     }
 

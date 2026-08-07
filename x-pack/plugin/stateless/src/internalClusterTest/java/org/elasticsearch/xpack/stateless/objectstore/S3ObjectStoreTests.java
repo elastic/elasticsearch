@@ -16,11 +16,14 @@ import com.sun.net.httpserver.HttpHandler;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
+import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -31,7 +34,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryStats;
@@ -39,6 +42,8 @@ import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
 import org.elasticsearch.repositories.s3.S3RepositoryPlugin;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -48,7 +53,6 @@ import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequest;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
-import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -460,7 +464,7 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
 
     public void testUploadIndicesDataWithRetries() throws Exception {
         s3HttpHandler.setInterceptor(new Interceptor() {
-            private final int errorsPerRequest = randomIntBetween(3, 5);
+            private final int errorsPerRequest = maxRetries + randomIntBetween(2, 3);
             private final Map<String, AtomicInteger> requestPathErrorCount = ConcurrentCollections.newConcurrentMap();
 
             @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
@@ -509,7 +513,22 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
             }
         });
 
-        final Settings nodeSettings = disableIndexingDiskAndMemoryControllersNodeSettings();
+        // Use random but sufficiently large cache settings. The default random cache configuration can produce a cache smaller than the
+        // region size, resulting in zero usable regions and every read going through the mock HTTP handler which is too slow to complete
+        // within the ensureGreen timeout.
+        var regionPages = randomIntBetween(16, 64); // 64kb to 256kb regions
+        var cachePages = regionPages * randomIntBetween(64, 256); // 64 to 256 regions, giving at least 4mb of cache
+        final Settings nodeSettings = Settings.builder()
+            .put(disableIndexingDiskAndMemoryControllersNodeSettings())
+            .put(
+                SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(),
+                ByteSizeValue.ofBytes((long) regionPages * SharedBytes.PAGE_SIZE)
+            )
+            .put(
+                SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(),
+                ByteSizeValue.ofBytes((long) cachePages * SharedBytes.PAGE_SIZE)
+            )
+            .build();
         final String masterAndIndexNode = startMasterAndIndexNode(nodeSettings);
         final String searchNode = startSearchNode(nodeSettings);
 
@@ -517,8 +536,6 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
             final String indexName = randomIdentifier();
             createIndex(indexName, indexSettings(1, 0).build());
             ensureGreen(indexName);
-            IndexShard indexShard = findIndexShard(indexName);
-            IndexEngine shardEngine = getShardEngine(indexShard, IndexEngine.class);
 
             // Index enough 1 MiB documents to produce a >5MiB Lucene compound segment file, to ensure S3 multi-part upload
             int numDocs = randomIntBetween(8, 10);
@@ -793,6 +810,35 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
             internalCluster().stopNode(indexNode1);
             internalCluster().stopNode(indexNode2);
             internalCluster().stopNode(searchNode);
+        }
+    }
+
+    public void testCopyShardWithTenaciousRetries() throws Exception {
+        final var settings = Settings.builder().put("s3.client.test.tenacious_retries.enabled", true).build();
+        final String node = startMasterAndIndexNode(settings);
+        try {
+            final var objectStoreService = getCurrentMasterObjectStoreService();
+
+            final String indexName = randomIdentifier();
+            createIndex(indexName, indexSettings(1, 0).build());
+            final var sourceShardId = new ShardId(resolveIndex(indexName), 0);
+            final var destShardId = new ShardId(resolveIndex(indexName), 1);
+            final long primaryTerm = 1L;
+
+            final var blobData = randomBytesReference(between(1, 100));
+            objectStoreService.getProjectBlobContainer(sourceShardId, primaryTerm)
+                .writeBlob(OperationPurpose.INDICES, "commit-1", blobData, true);
+
+            final var task = new CancellableTask(1L, "test", "copyShard", "", TaskId.EMPTY_TASK_ID, Map.of());
+            objectStoreService.copyShard(task, sourceShardId, destShardId, primaryTerm);
+
+            try (
+                var is = objectStoreService.getProjectBlobContainer(destShardId, primaryTerm).readBlob(OperationPurpose.INDICES, "commit-1")
+            ) {
+                assertArrayEquals(BytesReference.toBytes(blobData), is.readAllBytes());
+            }
+        } finally {
+            internalCluster().stopNode(node);
         }
     }
 

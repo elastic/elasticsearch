@@ -187,11 +187,6 @@ public class AlibabaCloudSearchService extends SenderService<AlibabaCloudSearchM
     }
 
     @Override
-    public boolean supportsNewRerankCodePath() {
-        return true;
-    }
-
-    @Override
     protected void doChunkedInfer(
         Model model,
         List<ChunkInferenceInput> inputs,
@@ -247,6 +242,11 @@ public class AlibabaCloudSearchService extends SenderService<AlibabaCloudSearchM
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersion.minimumCompatible();
+    }
+
+    @Override
+    public boolean usesParserForServiceSettings() {
+        return true;
     }
 
     @Override

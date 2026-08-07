@@ -12,12 +12,16 @@ package org.elasticsearch.common.lucene.search;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.WildcardQuery;
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
+import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.lucene.search.cost.AutomatonQueryCostEstimator;
+import org.elasticsearch.lucene.search.cost.RegexpNfaRamEstimator;
 import org.elasticsearch.lucene.util.automaton.CircuitBreakingOperations;
 
 import java.util.ArrayList;
@@ -30,12 +34,12 @@ import java.util.Objects;
  */
 public class AutomatonQueries {
 
-    /** Build an automaton query accepting all terms with the specified prefix, ASCII case insensitive. */
+    /** Build an automaton query accepting all terms with the specified prefix, case insensitive. */
     public static Automaton caseInsensitivePrefix(String s) {
         List<Automaton> list = new ArrayList<>();
         Iterator<Integer> iter = s.codePoints().iterator();
         while (iter.hasNext()) {
-            list.add(toCaseInsensitiveChar(iter.next()));
+            list.add(Automata.makeCaseInsensitiveChar(iter.next()));
         }
         list.add(Automata.makeAnyString());
 
@@ -45,17 +49,17 @@ public class AutomatonQueries {
         return a;
     }
 
-    /** Build an automaton query accepting all terms with the specified prefix, ASCII case insensitive. */
+    /** Build an automaton query accepting all terms with the specified prefix, case insensitive. */
     public static AutomatonQuery caseInsensitivePrefixQuery(Term prefix) {
         return new CaseInsensitivePrefixQuery(prefix);
     }
 
-    /** Build an automaton accepting all terms ASCII case insensitive. */
+    /** Build an automaton accepting all terms case insensitive. */
     public static AutomatonQuery caseInsensitiveTermQuery(Term term) {
         return new CaseInsensitiveTermQuery(term);
     }
 
-    /** Build an automaton matching a wildcard pattern, ASCII case insensitive. */
+    /** Build an automaton matching a wildcard pattern, case insensitive. */
     public static AutomatonQuery caseInsensitiveWildcardQuery(Term wildcardquery) {
         return new CaseInsensitiveWildcardQuery(wildcardquery);
     }
@@ -106,8 +110,11 @@ public class AutomatonQueries {
     }
 
     /**
-     * Build a deterministic automaton from a regular expression, checking a circuit breaker
-     * during determinization to prevent OOM from huge automatons.
+     * Build a deterministic automaton from a regular expression, using the circuit breaker to avoid running
+     * out of memory on huge patterns. Two steps can use a lot of heap and are each guarded:
+     * - Building the NFA ({@link #buildRegexpNfa}), which can blow up while expanding bounded repetitions
+     * - Determinizing it into a DFA ({@link CircuitBreakingOperations#determinize}), which accounts for the DFA as it grows.
+     * If either step would exceed the breaker's budget the query is rejected with a {@code CircuitBreakingException}.
      */
     public static Automaton toRegexpAutomaton(
         Term term,
@@ -116,63 +123,67 @@ public class AutomatonQueries {
         int maxDeterminizedStates,
         CircuitBreaker circuitBreaker
     ) {
-        Automaton nfa = new RegExp(term.text(), syntaxFlags, matchFlags).toAutomaton();
+        Automaton nfa = buildRegexpNfa(term.text(), syntaxFlags, matchFlags, circuitBreaker, term.field());
         return CircuitBreakingOperations.determinize(nfa, maxDeterminizedStates, circuitBreaker, "regexp:" + term.field());
     }
 
     /**
-     * Empirical multiplier applied to {@code dfa.ramBytesUsed()} to estimate the peak heap
-     * footprint of Lucene's {@code CompiledAutomaton} construction (UTF-8 byte expansion +
-     * second determinize + {@code ByteRunAutomaton}). The estimate is reserved on the breaker
-     * before {@code AutomatonQuery}'s super-constructor runs, so the in-flight clause is
-     * visible to the breaker across the otherwise-unguarded construction window.
-     * <p>
-     * Sized from heap-measurement data on the patterns that motivated #147428. Across an extended
-     * harness corpus (ASCII wildcard, multi-byte UTF-8, regexp, wildcard-{@code ?}), peak-to-DFA
-     * ratios cluster around ~70–120× for long ASCII literals and ~150–190× for interleaved
-     * adversarial wildcards. {@code 200} covers these typical patterns with at least 1.2× margin;
-     * see the known gaps below for adversarial inputs where it under-reserves.
-     * <p>
-     * Two known gaps where the multiplier under-reserves but the absolute heap impact is bounded:
-     * <ul>
-     *   <li>Multi-byte UTF-8 long literals (e.g. 500-char Cyrillic): peak ratio ~400×; a 14-clause
-     *       request leaves ~140 MB unreserved. Significant but not OOM-causing on production heaps.</li>
-     *   <li>Adversarial {@code ?}-only patterns (e.g. {@code ?×100}): peak ratio ~900× but small
-     *       absolute peak (~2 MB per clause); cumulative impact is negligible.</li>
-     * </ul>
-     * The {@link #COMPILED_AUTOMATON_RESERVATION_FLOOR_BYTES} floor partially mitigates these
-     * gaps by ensuring a minimum reservation regardless of DFA size. Production telemetry on the
-     * reservation/actual ratio should be used to refine the multiplier over time.
+     * Build a {@link ByteRunAutomaton} from a regular expression for the doc-values / script paths. This is the
+     * same idea as {@link #toRegexpAutomaton(Term, int, int, int, CircuitBreaker)} but with one extra step, so
+     * when a breaker is supplied three steps are guarded: building the NFA, determinizing it, and converting the
+     * DFA into a {@code ByteRunAutomaton} (which expands it to UTF-8 and determinizes again).
      */
-    static final int COMPILED_AUTOMATON_PEAK_MULTIPLIER = 200;
-
-    /**
-     * Lower bound on the pre-flight reservation. Prevents under-reservation for tiny DFAs that
-     * disproportionately blow up during {@code CompiledAutomaton} construction (e.g. small
-     * automatons with wide-alphabet transitions like {@code ?×N}).
-     */
-    static final long COMPILED_AUTOMATON_RESERVATION_FLOOR_BYTES = 128L * 1024L;
-
-    /**
-     * Returns the pre-flight breaker reservation in bytes for a unicode DFA whose
-     * {@code ramBytesUsed()} is {@code dfaRamBytes}. Charge this on the breaker before invoking
-     * {@code AutomatonQuery}'s super-constructor so the unguarded {@code CompiledAutomaton}
-     * build window is visible to the breaker.
-     * <p>
-     * The result is at least {@link #COMPILED_AUTOMATON_RESERVATION_FLOOR_BYTES} and at most
-     * {@link Long#MAX_VALUE} — the multiplier is applied with saturation so a pathologically large
-     * DFA cannot wrap to a small reservation. A {@link Long#MAX_VALUE} reservation is guaranteed
-     * to trip any real-world breaker, which is the correct behavior for inputs that large.
-     */
-    public static long compiledAutomatonReservationBytes(long dfaRamBytes) {
-        assert dfaRamBytes >= 0 : "dfaRamBytes must be non-negative, got " + dfaRamBytes;
-        long peak;
-        try {
-            peak = Math.multiplyExact(dfaRamBytes, (long) COMPILED_AUTOMATON_PEAK_MULTIPLIER);
-        } catch (ArithmeticException e) {
-            peak = Long.MAX_VALUE;
+    public static ByteRunAutomaton toRegexpByteRunAutomaton(
+        String field,
+        String pattern,
+        int syntaxFlags,
+        int matchFlags,
+        int maxDeterminizedStates,
+        @Nullable CircuitBreaker circuitBreaker
+    ) {
+        Automaton nfa = buildRegexpNfa(pattern, syntaxFlags, matchFlags, circuitBreaker, field);
+        if (circuitBreaker == null) {
+            return new ByteRunAutomaton(Operations.determinize(nfa, maxDeterminizedStates));
         }
-        return Math.max(peak, COMPILED_AUTOMATON_RESERVATION_FLOOR_BYTES);
+
+        Automaton dfa = CircuitBreakingOperations.determinize(
+            nfa,
+            maxDeterminizedStates,
+            circuitBreaker,
+            ChildMemoryCircuitBreaker.CATEGORY_REGEXP
+        );
+        long reservation = new AutomatonQueryCostEstimator(dfa.ramBytesUsed()).estimate();
+        circuitBreaker.addEstimateBytesAndMaybeBreak(reservation, ChildMemoryCircuitBreaker.CATEGORY_REGEXP);
+        try {
+            return new ByteRunAutomaton(dfa);
+        } finally {
+            circuitBreaker.addWithoutBreaking(-reservation, ChildMemoryCircuitBreaker.CATEGORY_REGEXP);
+        }
+    }
+
+    /**
+     * Parse {@code pattern} into an NFA via {@link RegExp#toAutomaton()}, reserving a slight over-estimate of
+     * the build's peak heap on {@code circuitBreaker} beforehand and releasing it once the NFA is built. When
+     * {@code circuitBreaker} is {@code null} the NFA is built without accounting.
+     */
+    private static Automaton buildRegexpNfa(
+        String pattern,
+        int syntaxFlags,
+        int matchFlags,
+        @Nullable CircuitBreaker circuitBreaker,
+        String field
+    ) {
+        RegExp re = new RegExp(pattern, syntaxFlags, matchFlags);
+        if (circuitBreaker == null) {
+            return re.toAutomaton();
+        }
+        final long reservation = RegexpNfaRamEstimator.estimateRamBytes(re);
+        circuitBreaker.addEstimateBytesAndMaybeBreak(reservation, ChildMemoryCircuitBreaker.CATEGORY_REGEXP);
+        try {
+            return re.toAutomaton();
+        } finally {
+            circuitBreaker.addWithoutBreaking(-reservation, ChildMemoryCircuitBreaker.CATEGORY_REGEXP);
+        }
     }
 
     /**
@@ -203,7 +214,7 @@ public class AutomatonQueries {
                         break;
                     } // else fallthru, lenient parsing with a trailing \
                 default:
-                    automata.add(toCaseInsensitiveChar(c));
+                    automata.add(Automata.makeCaseInsensitiveChar(c));
             }
             i += length;
         }
@@ -215,6 +226,7 @@ public class AutomatonQueries {
      * Build the NFA for a case-sensitive wildcard pattern without determinizing.
      * This mirrors {@link WildcardQuery#toAutomaton(Term, int)} but stops before the determinize step.
      */
+    @SuppressWarnings("fallthrough")
     public static Automaton toWildcardNFA(Term wildcardquery) {
         List<Automaton> automata = new ArrayList<>();
 
@@ -245,23 +257,6 @@ public class AutomatonQueries {
         }
 
         return Operations.concatenate(automata);
-    }
-
-    protected static Automaton toCaseInsensitiveString(BytesRef br) {
-        return toCaseInsensitiveString(br.utf8ToString());
-    }
-
-    public static Automaton toCaseInsensitiveString(String s) {
-        List<Automaton> list = new ArrayList<>();
-        Iterator<Integer> iter = s.codePoints().iterator();
-        while (iter.hasNext()) {
-            list.add(toCaseInsensitiveChar(iter.next()));
-        }
-
-        Automaton a = Operations.concatenate(list);
-        // concatenating deterministic automata should result in a deterministic automaton. No need to determinize here.
-        assert a.isDeterministic();
-        return a;
     }
 
     /**
@@ -341,19 +336,4 @@ public class AutomatonQueries {
         return c == '+' || c == '*' || c == '?';
     }
 
-    public static Automaton toCaseInsensitiveChar(int codepoint) {
-        Automaton case1 = Automata.makeChar(codepoint);
-        if (codepoint > 128) {
-            return case1;
-        }
-        int altCase = Character.isLowerCase(codepoint) ? Character.toUpperCase(codepoint) : Character.toLowerCase(codepoint);
-        Automaton result;
-        if (altCase != codepoint) {
-            result = Operations.union(case1, Automata.makeChar(altCase));
-            assert result.isDeterministic();
-        } else {
-            result = case1;
-        }
-        return result;
-    }
 }

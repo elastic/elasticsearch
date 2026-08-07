@@ -73,9 +73,17 @@ public class ConsumerAwareIpDatabaseDownloadIT extends AbstractGeoIpIT {
      * any in-flight {@code runDownloader()} has returned), the DELETE runs against an idle index — no auto-create
      * race from a straggler bulk and therefore no shard left in {@code [starting shard]} state for
      * {@code InternalTestCluster#assertAfterTest} to time out on.
+     * <p>
+     * Guards against an empty cluster: if {@code assumeTrue} in the test body caused the test to be skipped before
+     * any nodes were started, there is nothing to clean up and attempting to do so would throw
+     * {@code AssertionError: Unable to get client, no node found}, which would turn the skip into a
+     * {@code TestCouldNotBeSkippedException}.
      */
     @After
     public void cleanUp() throws Exception {
+        if (internalCluster().size() == 0) {
+            return;
+        }
         updateClusterSettings(Settings.builder().putNull(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey()));
         assertBusy(
             () -> assertFalse(
@@ -137,22 +145,7 @@ public class ConsumerAwareIpDatabaseDownloadIT extends AbstractGeoIpIT {
 
         // Phase 2: add ESQL consumer — databases should now also appear on data-only nodes
         IpLocationTestHelper.requestDownloads(internalCluster(), projectId, IpLocationConsumer.ESQL);
-        assertBusy(() -> {
-            List<GeoIpStatsAction.NodeResponse> responses = getNodeResponses();
-            for (GeoIpStatsAction.NodeResponse nodeResponse : responses) {
-                DiscoveryNode node = nodeResponse.getNode();
-                if (node.canContainData()) {
-                    assertThat(
-                        "phase 2: data node ["
-                            + node.getName()
-                            + "] should have databases after ESQL request. "
-                            + describeCluster(projectId, responses),
-                        nodeResponse.getDatabases(),
-                        not(empty())
-                    );
-                }
-            }
-        }, PHASE_TIMEOUT.seconds(), TimeUnit.SECONDS);
+        IpLocationTestHelper.awaitAllDatabasesAvailable(internalCluster(), IpLocationConsumer.ESQL);
 
         // Phase 3: cancel INGEST — ESQL still active, data-only nodes keep databases
         IpLocationTestHelper.cancelDownloadRequest(internalCluster(), projectId, IpLocationConsumer.INGEST);

@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.expression.function.WindowFilter;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -35,6 +36,20 @@ import java.util.Map;
  * {@code EVAL `a + 1` = a + 1, `x % 2` = x % 2 | INLINE STATS SUM(`a+1`_ref) BY `x % 2`_ref}
  */
 public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRules.OptimizerRule<Aggregate> {
+
+    private final boolean locallyUniqueNames;
+
+    public ReplaceAggregateNestedExpressionWithEval() {
+        this(false);
+    }
+
+    /**
+     * @param locallyUniqueNames when {@code true}, the synthetic eval names generated for extracted nested expressions are made
+     *                           globally unique instead of being derived deterministically from the extracted expression.
+     */
+    public ReplaceAggregateNestedExpressionWithEval(boolean locallyUniqueNames) {
+        this.locallyUniqueNames = locallyUniqueNames;
+    }
 
     @Override
     protected LogicalPlan rule(Aggregate aggregate) {
@@ -105,11 +120,21 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
                     af -> transformAggregateFunction(af, expToAttribute, evals, counter, aggsChanged)
                 );
                 // replace any evaluatable grouping functions with their references pointing to the added synthetic eval
-                replaced = replaced.transformDown(GroupingFunction.EvaluatableGroupingFunction.class, gf -> {
-                    aggsChanged.set(true);
-                    // should never return null, as it's verified.
-                    // but even if broken, the transform will fail safely; otoh, returning `gf` will fail later due to incorrect plan.
-                    return groupingAttributes.get(gf);
+                replaced = replaced.transformDownSkipBranch((expr, skipBranch) -> {
+                    // TODO: Remove `WindowFilter` because it's a workaround for supporting windows narrower than bucket;
+                    // not meant to be replaced by `Eval`.
+                    if (expr instanceof WindowFilter) {
+                        skipBranch.set(true);
+                        return expr;
+                    }
+                    if (expr instanceof GroupingFunction.EvaluatableGroupingFunction gf) {
+                        aggsChanged.set(true);
+                        // should never return null, as it's verified.
+                        // but even if broken, the transform will fail safely;
+                        // otoh, returning `gf` will fail later due to incorrect plan.
+                        return groupingAttributes.get(gf);
+                    }
+                    return expr;
                 });
 
                 return as.replaceChild(replaced);
@@ -129,10 +154,7 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
         return aggregate;
     }
 
-    private static Expression transformNonEvaluatableGroupingFunction(
-        GroupingFunction.NonEvaluatableGroupingFunction gf,
-        List<Alias> evals
-    ) {
+    private Expression transformNonEvaluatableGroupingFunction(GroupingFunction.NonEvaluatableGroupingFunction gf, List<Alias> evals) {
         int counter = 0;
         boolean childrenChanged = false;
         List<Expression> newChildren = new ArrayList<>(gf.children().size());
@@ -163,7 +185,7 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
         return foundNestedAggs.get();
     }
 
-    private static Expression transformAggregateFunction(
+    private Expression transformAggregateFunction(
         AggregateFunction af,
         Map<Expression, Attribute> expToAttribute,
         List<Alias> evals,
@@ -171,6 +193,10 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
         Holder<Boolean> aggsChanged
     ) {
         Expression result = af;
+
+        if (skipOptimisingAgg(af)) {
+            return af;
+        }
 
         Expression field = af.field();
         // if the field is a nested expression (not attribute or literal), replace it
@@ -190,7 +216,9 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
         return result;
     }
 
-    private static String syntheticName(Expression expression, Expression func, int counter) {
-        return TemporaryNameGenerator.temporaryName(expression, func, counter);
+    private String syntheticName(Expression expression, Expression func, int counter) {
+        return locallyUniqueNames
+            ? TemporaryNameGenerator.locallyUniqueTemporaryName(TemporaryNameGenerator.toString(expression))
+            : TemporaryNameGenerator.temporaryName(expression, func, counter);
     }
 }

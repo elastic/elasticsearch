@@ -268,6 +268,66 @@ public class StatelessShardsAvailabilityHealthIndicatorServiceTests extends ESTe
         }
     }
 
+    public void testHealthWhileReshardSplitTargetShardsInactive() {
+        final var projectId = randomProjectIdOrDefault();
+        final var indexMetadata = IndexMetadata.builder(INDEX_NAME)
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
+            .numberOfShards(2)
+            .numberOfReplicas(1)
+            .build();
+        var nodeA = randomNodeId();
+        var nodeB = randomNodeId();
+        final var index = indexMetadata.getIndex();
+        final var sourceShardId = new ShardId(index.getName(), index.getUUID(), 0);
+        final var sourceShardPrimary = shardRouting(sourceShardId, true, nodeA, null, STARTED);
+        final var sourceShardReplica = shardRouting(sourceShardId, false, nodeB, null, STARTED);
+        final var targetShardId = new ShardId(index.getName(), index.getUUID(), 1);
+        final var unassignedAt = new TimeValue(System.currentTimeMillis() - TimeValue.timeValueMinutes(5).millis(), TimeUnit.MILLISECONDS);
+        var targetShardPrimary = newUnassigned(
+            targetShardId,
+            true,
+            new RecoverySource.ReshardSplitRecoverySource(sourceShardId),
+            unassignedInfo(UnassignedInfo.Reason.RESHARD_ADDED, unassignedAt),
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
+        );
+        var targetShardReplica = newUnassigned(
+            targetShardId,
+            false,
+            RecoverySource.PeerRecoverySource.INSTANCE,
+            unassignedInfo(UnassignedInfo.Reason.RESHARD_ADDED, unassignedAt),
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
+        );
+        if (randomBoolean()) {
+            targetShardPrimary = targetShardPrimary.initialize(nodeB, null, 0);
+        }
+        var routingTable = IndexRoutingTable.builder(index)
+            .addShard(sourceShardPrimary)
+            .addShard(sourceShardReplica)
+            .addShard(targetShardPrimary)
+            .addShard(targetShardReplica)
+            .build();
+
+        final var state = clusterState(projectId, routingTable);
+        final var service = createStatelessIndicator(
+            projectId,
+            Settings.builder()
+                .put(ShardsAvailabilityHealthIndicatorService.PRIMARY_INACTIVE_BUFFER_TIME.getKey(), "0s")
+                .put(ShardsAvailabilityHealthIndicatorService.REPLICA_INACTIVE_BUFFER_TIME.getKey(), "0s")
+                .build(),
+            state
+        );
+        final var result = service.calculate(true, 10, HealthInfo.EMPTY_HEALTH_INFO);
+        final var details = ((SimpleHealthIndicatorDetails) result.details()).details();
+
+        assertThat(result.status(), equalTo(HealthStatus.GREEN));
+        assertThat(details.get("indices_with_provisionally_unavailable_primaries"), equalTo(INDEX_NAME));
+        assertThat(details.get("indices_with_unavailable_primaries"), nullValue());
+        assertThat(details.get("indices_with_provisionally_unavailable_replicas"), equalTo(INDEX_NAME));
+        assertThat(details.get("indices_with_unavailable_replicas"), nullValue());
+    }
+
     private static UnassignedInfo randomUnassignedInfo(TimeValue withinBuffer, TimeValue beyondBuffer) {
         if (randomBoolean()) {
             return unassignedInfo(
@@ -406,7 +466,14 @@ public class StatelessShardsAvailabilityHealthIndicatorServiceTests extends ESTe
             ? (unassignedInfo != null ? recoverySourceFrom(unassignedInfo) : RecoverySource.ExistingStoreRecoverySource.INSTANCE)
             : RecoverySource.PeerRecoverySource.INSTANCE;
 
-        var routing = newUnassigned(shardId, primary, recoverySource, info, ShardRouting.Role.DEFAULT);
+        var routing = newUnassigned(
+            shardId,
+            primary,
+            recoverySource,
+            info,
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED // may not correspond to other parameters, but that shouldn't matter
+        );
         if (state == ShardRoutingState.UNASSIGNED) {
             return routing;
         }

@@ -11,10 +11,14 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
+
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Shared superclass for testing reindex and friends. In particular it makes sure to test the slice features.
@@ -46,10 +50,13 @@ public abstract class AbstractBulkByPaginatedSearchRequestTestCase<R extends Abs
         // it's not important how many slices there are, we just need a number for forSlice
         int actualSlices = between(2, 1000);
         int activeSlices = between(1, actualSlices);
+        int sliceId = between(0, actualSlices - 1);
         original.setSlices(randomBoolean() ? actualSlices : AbstractBulkByPaginatedSearchRequest.AUTO_SLICES);
 
         TaskId slicingTask = new TaskId(randomAlphaOfLength(5), randomLong());
-        SearchRequest sliceRequest = new SearchRequest();
+        SearchRequest sliceRequest = new SearchRequest(original.getSearchRequest());
+        SliceBuilder sliceBuilder = new SliceBuilder(sliceId, actualSlices);
+        sliceRequest.source(sliceRequest.source().shallowCopy().slice(sliceBuilder));
         R forSliced = original.forSlice(slicingTask, sliceRequest, actualSlices, activeSlices);
         assertEquals(original.isAbortOnVersionConflict(), forSliced.isAbortOnVersionConflict());
         assertEquals(original.isRefresh(), forSliced.isRefresh());
@@ -65,13 +72,19 @@ public abstract class AbstractBulkByPaginatedSearchRequestTestCase<R extends Abs
             forSliced.getRequestsPerSecond(),
             Float.MIN_NORMAL
         );
-        assertEquals(
-            "max_docs is split evenly between all slices",
-            original.getMaxDocs() == AbstractBulkByPaginatedSearchRequest.MAX_DOCS_ALL_MATCHES
-                ? AbstractBulkByPaginatedSearchRequest.MAX_DOCS_ALL_MATCHES
-                : original.getMaxDocs() / actualSlices,
-            forSliced.getMaxDocs()
-        );
+        if (original.getMaxDocs() == AbstractBulkByPaginatedSearchRequest.MAX_DOCS_ALL_MATCHES) {
+            assertEquals(
+                "max_docs of MAX_DOCS_ALL_MATCHES is propagated to all children",
+                AbstractBulkByPaginatedSearchRequest.MAX_DOCS_ALL_MATCHES,
+                forSliced.getMaxDocs()
+            );
+        } else {
+            assertThat(
+                "max_docs is split evenly between all slices",
+                forSliced.getMaxDocs(),
+                anyOf(equalTo(original.getMaxDocs() / actualSlices), equalTo(original.getMaxDocs() / actualSlices + 1))
+            );
+        }
         assertEquals(slicingTask, forSliced.getParentTask());
         assertArrayEquals(
             "sourceIndicesForDescription should be copied to slice",
@@ -80,6 +93,26 @@ public abstract class AbstractBulkByPaginatedSearchRequestTestCase<R extends Abs
         );
 
         extraForSliceAssertions(original, forSliced);
+    }
+
+    public void testForSlice_maxDocsSumsCorrectly() {
+        R original = newRequest();
+        int originalMaxDocs = between(0, Integer.MAX_VALUE);
+        original.setMaxDocs(originalMaxDocs);
+        TaskId slicingTask = new TaskId(randomAlphaOfLength(5), randomLong());
+
+        int actualSlices = between(2, 1000);
+        int activeSlices = between(1, actualSlices);
+
+        int maxDocsForSlices = 0;
+        for (int sliceId = 0; sliceId < actualSlices; sliceId++) {
+            SearchRequest sliceRequest = new SearchRequest(original.getSearchRequest());
+            SliceBuilder sliceBuilder = new SliceBuilder(sliceId, actualSlices);
+            sliceRequest.source(sliceRequest.source().shallowCopy().slice(sliceBuilder));
+            R forSliced = original.forSlice(slicingTask, sliceRequest, actualSlices, activeSlices);
+            maxDocsForSlices += forSliced.getMaxDocs();
+        }
+        assertThat("Sum of max docs over all slices equals original max docs", maxDocsForSlices, equalTo(originalMaxDocs));
     }
 
     protected abstract R newRequest();

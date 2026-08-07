@@ -423,7 +423,7 @@ public class JinaAIEmbeddingsRequestEntityTests extends ESTestCase {
         var videoInput = randomDataURI();
         var entity = new JinaAIEmbeddingsRequestEntity(
             List.of(
-                new InferenceStringGroup(List.of(new InferenceString(TEXT, TEST_TEXT_INPUT), new InferenceString(IMAGE, firstImageInput))),
+                new InferenceStringGroup(List.of(InferenceString.ofText(TEST_TEXT_INPUT), new InferenceString(IMAGE, firstImageInput))),
                 new InferenceStringGroup(
                     List.of(
                         new InferenceString(AUDIO, firstAudioInput),

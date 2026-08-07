@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.parser.promql;
 
-import org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.Arithmetics;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryArithmetic.ArithmeticOp;
@@ -16,157 +15,40 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryCom
 import java.time.Duration;
 
 /**
- * Utility class for evaluating scalar arithmetic operations at parse time.
- * Handles operations between:
- * - Numbers (delegates to Arithmetics)
- * - Durations and numbers (converts to seconds, computes, converts back)
- * - Durations and durations (only for ADD/SUB)
+ * Folds scalar PromQL arithmetic and comparisons at parse time.
+ * <p>
+ * Supported operands:
+ * - number op number: evaluated as double
+ * - duration op duration: only addition and subtraction
+ * - duration op number: duration is converted to seconds, evaluated, then converted back
+ * - number op duration: only supported where PromQL duration semantics are well-defined
  */
-public class PromqlFoldingUtils {
+public abstract class PromqlFoldingUtils {
+    private PromqlFoldingUtils() {}
 
-    /**
-     * Evaluate arithmetic operation between two scalar values at parse time.
-     *
-     * @param source Source location for error messages
-     * @param left Left operand (Number or Duration)
-     * @param right Right operand (Number or Duration)
-     * @param operation The arithmetic operation
-     * @return Result value (Number or Duration)
-     */
-    public static Object evaluate(Source source, Object left, Object right, ArithmeticOp operation) {
-        // Dispatch to appropriate handler based on operand types
-        if (left instanceof Duration leftDuration) {
-            if (right instanceof Duration rightDuration) {
-                return arithmetics(source, leftDuration, rightDuration, operation);
-            } else if (right instanceof Number rightNumber) {
-                return arithmetics(source, leftDuration, rightNumber, operation);
-            }
-        } else if (left instanceof Number leftNumber) {
-            if (right instanceof Duration rightDuration) {
-                return arithmetics(source, leftNumber, rightDuration, operation);
-            } else if (right instanceof Number rightNumber) {
-                return numericArithmetics(source, leftNumber, rightNumber, operation);
-            }
+    public static Object evaluate(Source source, Object left, Object right, ArithmeticOp op) {
+        if (left instanceof Number l && right instanceof Number r) {
+            return arithmetic(l, r, op);
+        }
+        if (left instanceof Duration l && right instanceof Duration r) {
+            return arithmetic(source, l, r, op);
+        }
+        if (left instanceof Duration l && right instanceof Number r) {
+            return arithmetic(source, l, r, op);
+        }
+        if (left instanceof Number l && right instanceof Duration r) {
+            return arithmetic(source, l, r, op);
         }
 
-        throw new ParsingException(
-            source,
-            "Cannot perform arithmetic between [{}] and [{}]",
-            left.getClass().getSimpleName(),
-            right.getClass().getSimpleName()
-        );
+        throw cannotApply(source, op, left, right);
     }
 
-    /**
-     * Duration op Duration (only ADD and SUB supported).
-     */
-    private static Duration arithmetics(Source source, Duration left, Duration right, ArithmeticOp op) {
-        Duration result = switch (op) {
-            case ADD -> left.plus(right);
-            case SUB -> left.minus(right);
-            default -> throw new ParsingException(source, "Operation [{}] not supported between two durations", op);
-        };
-
-        return result;
-    }
-
-    /**
-     * Duration op Number.
-     * For ADD/SUB: Number interpreted as seconds (PromQL convention).
-     * For MUL/DIV/MOD/POW: Number is a dimensionless scalar.
-     */
-    private static Duration arithmetics(Source source, Duration duration, Number scalar, ArithmeticOp op) {
-        long durationSeconds = duration.getSeconds();
-        long scalarValue = scalar.longValue();
-
-        long resultSeconds = switch (op) {
-            case ADD -> {
-                yield Math.addExact(durationSeconds, scalarValue);
-            }
-            case SUB -> {
-                yield Math.subtractExact(durationSeconds, scalarValue);
-            }
-            case MUL -> {
-                yield Math.round(durationSeconds * scalar.doubleValue());
-            }
-            case DIV -> {
-                if (scalarValue == 0) {
-                    throw new ParsingException(source, "Cannot divide duration by zero");
-                }
-                yield Math.round(durationSeconds / scalar.doubleValue());
-            }
-            case MOD -> {
-                // Modulo operation
-                if (scalarValue == 0) {
-                    throw new ParsingException(source, "Cannot compute modulo with zero");
-                }
-                yield Math.floorMod(durationSeconds, scalarValue);
-            }
-            case POW -> {
-                // Power operation (duration ^ scalar)
-                yield Math.round(Math.pow(durationSeconds, scalarValue));
-            }
-        };
-
-        return Duration.ofSeconds(resultSeconds);
-    }
-
-    private static Duration arithmetics(Source source, Number scalar, Duration duration, ArithmeticOp op) {
-        return switch (op) {
-            case ADD -> arithmetics(source, duration, scalar, ArithmeticOp.ADD);
-            case SUB -> arithmetics(source, Duration.ofSeconds(scalar.longValue()), duration, ArithmeticOp.SUB);
-            case MUL -> arithmetics(source, duration, scalar, ArithmeticOp.MUL);
-            default -> throw new ParsingException(source, "Operation [{}] not supported with scalar on left and duration on right", op);
-        };
-    }
-
-    /**
-     * Number op Number (pure numeric operations).
-     * Delegates to Arithmetics for consistent numeric handling.
-     */
-    private static Number numericArithmetics(Source source, Number left, Number right, ArithmeticOp op) {
-        try {
-            return switch (op) {
-                case ADD -> Arithmetics.add(left, right);
-                case SUB -> Arithmetics.sub(left, right);
-                case MUL -> Arithmetics.mul(left, right);
-                case DIV -> Arithmetics.div(left, right);
-                case MOD -> Arithmetics.mod(left, right);
-                case POW -> {
-                    // Power not in Arithmetics, compute manually
-                    double result = Math.pow(left.doubleValue(), right.doubleValue());
-                    // Try to preserve integer types when possible
-                    if (Double.isFinite(result)) {
-                        if (result == (long) result) {
-                            if (result >= Integer.MIN_VALUE && result <= Integer.MAX_VALUE) {
-                                yield (int) result;
-                            }
-                            yield (long) result;
-                        }
-                    }
-                    yield result;
-                }
-            };
-        } catch (ArithmeticException e) {
-            throw new ParsingException(source, "Arithmetic error: {}", e.getMessage());
-        }
-    }
-
-    /**
-     * Evaluate comparison operation between two numbers at parse time.
-     *
-     * @param left Left operand (Number)
-     * @param right Right operand (Number)
-     * @param operation The comparison operation
-     * @return true if comparison holds, false otherwise
-     */
-    public static boolean evaluate(Source source, Object left, Object right, ComparisonOp operation) {
+    public static boolean evaluate(Source source, Object left, Object right, ComparisonOp op) {
         if (left instanceof Number ln && right instanceof Number rn) {
-            // Get double values once, reuse for comparison - avoids extra allocation
             double l = ln.doubleValue();
             double r = rn.doubleValue();
 
-            return switch (operation) {
+            return switch (op) {
                 case EQ -> l == r;
                 case NEQ -> l != r;
                 case GT -> l > r;
@@ -175,20 +57,94 @@ public class PromqlFoldingUtils {
                 case LTE -> l <= r;
             };
         }
-        throw new ParsingException(
-            source,
-            "Cannot perform comparison between [{}] and [{}]",
-            left.getClass().getSimpleName(),
-            right.getClass().getSimpleName()
-        );
+
+        throw cannotApply(source, op, left, right);
     }
 
-    /**
-     * Validate that duration is positive (PromQL requirement).
-     */
-    private static void validatePositiveDuration(Source source, Duration duration) {
-        if (duration.isNegative() || duration.isZero()) {
-            throw new ParsingException(source, "Duration must be positive, got [{}]", duration);
-        }
+    private static double arithmetic(Number left, Number right, ArithmeticOp op) {
+        double l = left.doubleValue();
+        double r = right.doubleValue();
+
+        return switch (op) {
+            case ADD -> l + r;
+            case SUB -> l - r;
+            case MUL -> l * r;
+            case DIV -> l / r;
+            case MOD -> l % r;
+            case POW -> Math.pow(l, r);
+        };
+    }
+
+    private static Duration arithmetic(Source source, Duration left, Duration right, ArithmeticOp op) {
+        return switch (op) {
+            case ADD -> left.plus(right);
+            case SUB -> left.minus(right);
+            default -> throw cannotApply(source, op, left, right);
+        };
+    }
+
+    private static Duration arithmetic(Source source, Duration duration, Number scalar, ArithmeticOp op) {
+        long seconds = duration.getSeconds();
+        long scalarSeconds = scalar.longValue();
+        double scalarValue = scalar.doubleValue();
+
+        long result = switch (op) {
+            case ADD -> Math.addExact(seconds, scalarSeconds);
+            case SUB -> Math.subtractExact(seconds, scalarSeconds);
+            case MUL -> Math.round(seconds * scalarValue);
+            case DIV -> {
+                if (scalarValue == 0d) {
+                    throw new ParsingException(source, "division of a duration by zero is not allowed");
+                }
+                yield Math.round(seconds / scalarValue);
+            }
+            case MOD -> {
+                if (scalarSeconds == 0L) {
+                    throw new ParsingException(source, "modulo of a duration by zero is not allowed");
+                }
+                yield Math.floorMod(seconds, scalarSeconds);
+            }
+            case POW -> Math.round(Math.pow(seconds, scalarValue));
+        };
+
+        return Duration.ofSeconds(result);
+    }
+
+    private static Duration arithmetic(Source source, Number scalar, Duration duration, ArithmeticOp op) {
+        return switch (op) {
+            case ADD -> arithmetic(source, duration, scalar, ArithmeticOp.ADD);
+            case SUB -> Duration.ofSeconds(Math.subtractExact(scalar.longValue(), duration.getSeconds()));
+            case MUL -> arithmetic(source, duration, scalar, ArithmeticOp.MUL);
+            default -> throw cannotApply(source, op, scalar, duration);
+        };
+    }
+
+    private static String symbol(ArithmeticOp op) {
+        return switch (op) {
+            case ADD -> "+";
+            case SUB -> "-";
+            case MUL -> "*";
+            case DIV -> "/";
+            case MOD -> "%";
+            case POW -> "^";
+        };
+    }
+
+    private static String typeName(Object value) {
+        return value instanceof Duration ? "duration" : "scalar";
+    }
+
+    private static ParsingException cannotApply(Source source, ArithmeticOp op, Object left, Object right) {
+        return new ParsingException(source, "operator [{}] is not defined for {} and {}", symbol(op), typeName(left), typeName(right));
+    }
+
+    private static ParsingException cannotApply(Source source, ComparisonOp op, Object left, Object right) {
+        return new ParsingException(
+            source,
+            "comparison operator [{}] requires scalar operands, got {} and {}",
+            op.toString().toLowerCase(java.util.Locale.ROOT),
+            typeName(left),
+            typeName(right)
+        );
     }
 }

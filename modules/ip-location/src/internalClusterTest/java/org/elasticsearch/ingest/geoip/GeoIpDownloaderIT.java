@@ -429,7 +429,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
 
         // 5. Verify data via createIpDataLookup + lookup
         IpLocationTestHelper.assertDatabaseAvailable(
-            internalCluster(),
+            listenerNode,
             projectId,
             "GeoLite2-City.mmdb",
             "89.160.20.128",
@@ -437,7 +437,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             "Linköping"
         );
         IpLocationTestHelper.assertDatabaseAvailable(
-            internalCluster(),
+            listenerNode,
             projectId,
             "GeoLite2-ASN.mmdb",
             "89.160.20.128",
@@ -515,20 +515,8 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         });
     }
 
-    /**
-     * Waits until all nodes relevant for the {@link IpLocationConsumer#INGEST INGEST} consumer report having downloaded the expected
-     * databases. This ensures that all such nodes are in a consistent state and prevents us from deleting databases before they've been
-     * downloaded on all nodes.
-     */
     private void awaitAllIngestNodesDownloadedDatabases() throws Exception {
-        IpLocationTestHelper.awaitAllRelevantNodesDownloadedDatabases(
-            client(),
-            IpLocationConsumer.INGEST,
-            "GeoLite2-Country.mmdb",
-            "GeoLite2-City.mmdb",
-            "GeoLite2-ASN.mmdb",
-            "MyCustomGeoLite2-City.mmdb"
-        );
+        IpLocationTestHelper.awaitAllDatabasesAvailable(internalCluster(), IpLocationConsumer.INGEST);
     }
 
     private GeoIpTaskState getGeoIpTaskState() {

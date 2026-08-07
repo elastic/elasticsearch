@@ -10,6 +10,7 @@
 package org.elasticsearch.telemetry.apm.internal.export;
 
 import io.opentelemetry.api.OpenTelemetry;
+import io.opentelemetry.sdk.common.CompletableResultCode;
 
 import java.util.function.Supplier;
 
@@ -21,9 +22,11 @@ import java.util.function.Supplier;
 public interface TraceSupplier extends Supplier<OpenTelemetry>, AutoCloseable {
 
     /**
-     * Export any buffered traces on a best-effort basis.
+     * Initiates a best-effort export of buffered traces. Callers must join the result with an appropriate timeout.
      */
-    default void attemptFlushTraces() {}
+    default CompletableResultCode attemptFlushTraces() {
+        return CompletableResultCode.ofSuccess();
+    }
 
     @Override
     default void close() {}

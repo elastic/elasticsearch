@@ -27,4 +27,17 @@ final class MalformedRowException extends RuntimeException {
     MalformedRowException(String message, Throwable cause) {
         super(message, cause);
     }
+
+    /**
+     * Shared message template for the structural fault factories below: keeps the two splitter
+     * copies aligned and routes every long-row excerpt through {@link CsvErrorMessages#summarizeAround}
+     * so the printed window is anchored on {@code offset} (the parser's known fault index).
+     */
+    static MalformedRowException unclosedQuotedField(String line, int offset) {
+        return new MalformedRowException("Unclosed quoted field in line [" + CsvErrorMessages.summarizeAround(line, offset) + "]");
+    }
+
+    static MalformedRowException unclosedBracketCell(String line, int offset) {
+        return new MalformedRowException("Unclosed bracket cell in line [" + CsvErrorMessages.summarizeAround(line, offset) + "]");
+    }
 }

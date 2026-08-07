@@ -2232,6 +2232,45 @@ public class IngestDocumentTests extends ESTestCase {
         assertThat(((byte[]) unmodifiableDocument.get("byteArrayField"))[0], equalTo(originalByteValue));
     }
 
+    public void testCumulativeFieldValueSizeLimitTripped() {
+        long originalLimit = IngestDocument.MAX_CUMULATIVE_FIELD_VALUE_BYTES;
+        try {
+            IngestDocument.MAX_CUMULATIVE_FIELD_VALUE_BYTES = 1000; // small limit for a fast, deterministic test
+            String largeValue = "a".repeat(200);
+            Map<String, Object> document = new HashMap<>();
+            document.put("foo", largeValue);
+            IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+
+            // Mimic the reported exploit: many "processors" each copying the same already-large field into a new field.
+            // No single write is large, but the cumulative total should trip the limit well before all 100 writes complete.
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+                for (int i = 0; i < 100; i++) {
+                    ingestDocument.setFieldValue("bar" + i, ingestDocument.getFieldValue("foo", String.class));
+                }
+            });
+            assertThat(e.getMessage(), containsString("bytes of field values"));
+        } finally {
+            IngestDocument.MAX_CUMULATIVE_FIELD_VALUE_BYTES = originalLimit;
+        }
+    }
+
+    public void testCumulativeFieldValueSizeLimitAllowsNormalUsage() {
+        // Explicitly fixes the limit for this test rather than relying on whatever the production default currently is --
+        // that default is expected to be retuned over time, and this test should keep passing regardless.
+        long originalLimit = IngestDocument.MAX_CUMULATIVE_FIELD_VALUE_BYTES;
+        try {
+            IngestDocument.MAX_CUMULATIVE_FIELD_VALUE_BYTES = 1000;
+            Map<String, Object> document = new HashMap<>();
+            IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+            for (int i = 0; i < 5; i++) {
+                ingestDocument.setFieldValue("field" + i, "some modest value " + i);
+            }
+            // no exception expected -- this is well under the 1000 byte limit set above
+        } finally {
+            IngestDocument.MAX_CUMULATIVE_FIELD_VALUE_BYTES = originalLimit;
+        }
+    }
+
     @SuppressWarnings("unchecked")
     public void assertMutatingThrows(Consumer<Map<String, Object>> mutation) {
         Map<String, Object> document = new HashMap<>();

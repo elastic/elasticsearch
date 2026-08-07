@@ -29,6 +29,7 @@ import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.IngestService;
+import org.elasticsearch.ingest.IngestSettings;
 import org.elasticsearch.ingest.IngestStats;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.iplocation.api.IpLocationService;
@@ -150,7 +151,8 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
                     ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
                     ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_THREAD_DUMP_TIMEOUT_SETTING,
                     ClusterApplierService.CLUSTER_APPLIER_THREAD_WATCHDOG_INTERVAL,
-                    ClusterApplierService.CLUSTER_APPLIER_THREAD_WATCHDOG_QUIET_TIME
+                    ClusterApplierService.CLUSTER_APPLIER_THREAD_WATCHDOG_QUIET_TIME,
+                    IngestSettings.MAX_CUMULATIVE_FIELD_VALUE_BYTES
                 )
             )
         );

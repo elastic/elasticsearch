@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.ConfigurationTestUtils;
 import org.elasticsearch.xpack.esql.SerializationTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -1366,6 +1367,32 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         } catch (Exception e) {
             throw new AssertionError("unexpected exception", e);
         }
+    }
+
+    public void testDescriptionRoundTrip() {
+        addView("view1", "FROM a", "A useful view");
+        View stored = viewService.get(projectId, "view1");
+        assertThat(stored.description(), equalTo("A useful view"));
+        assertThat(stored.query(), equalTo("FROM a"));
+    }
+
+    public void testDescriptionIsOptional() {
+        addView("view1", "FROM a");
+        assertNull(viewService.get(projectId, "view1").description());
+    }
+
+    public void testDescriptionLengthExceeded() {
+        String tooLong = "x".repeat(ViewService.MAX_VIEW_DESCRIPTION_LENGTH + 1);
+        expectThrows(
+            Exception.class,
+            containsString(
+                "view description is too large: "
+                    + tooLong.length()
+                    + " characters, the maximum allowed is "
+                    + ViewService.MAX_VIEW_DESCRIPTION_LENGTH
+            ),
+            () -> addView("view1", "FROM a", tooLong)
+        );
     }
 
     public void testViewWithDateMathInBody() {
@@ -2806,7 +2833,19 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     }
 
     private void addView(String name, String query, ViewService viewService) {
-        PutViewAction.Request request = new PutViewAction.Request(TimeValue.ONE_MINUTE, TimeValue.ONE_MINUTE, new View(name, query));
+        addView(name, query, null, viewService);
+    }
+
+    private void addView(String name, String query, String description) {
+        addView(name, query, description, viewService);
+    }
+
+    private void addView(String name, String query, String description, ViewService viewService) {
+        PutViewAction.Request request = new PutViewAction.Request(
+            ESTestCase.TEST_REQUEST_TIMEOUT,
+            ESTestCase.TEST_REQUEST_TIMEOUT,
+            new View(name, query, description)
+        );
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Exception> err = new AtomicReference<>(null);
         viewService.putView(projectId, request, ActionListener.wrap(r -> latch.countDown(), e -> {

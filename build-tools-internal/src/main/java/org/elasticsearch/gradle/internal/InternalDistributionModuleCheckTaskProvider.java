@@ -61,6 +61,7 @@ public class InternalDistributionModuleCheckTaskProvider {
         "org.elasticsearch.grok",
         "org.elasticsearch.iplocation.api",
         "org.elasticsearch.logging",
+        "org.elasticsearch.lucene.store",
         "org.elasticsearch.lz4",
         "org.elasticsearch.nativeaccess",
         "org.elasticsearch.plugin",

@@ -26,7 +26,8 @@ final class MetadataRamEstimators {
 
     /**
      * Sizes a map whose values are {@link Accountable}, summing the map's shallow size, each entry's shallow size and key string, and each
-     * value's recursive {@link Accountable#ramBytesUsed()}.
+     * value's recursive {@link Accountable#ramBytesUsed()}. Use this when you want compile-time enforcement that the map's values are
+     * {@link Accountable}.
      */
     static <T extends Accountable> long ramBytesUsedByAccountableMap(Map<String, T> map) {
         long size = RamUsageEstimator.shallowSizeOf(map);

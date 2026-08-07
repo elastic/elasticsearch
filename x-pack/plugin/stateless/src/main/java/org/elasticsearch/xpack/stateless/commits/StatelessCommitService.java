@@ -338,7 +338,14 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         /// so this is somewhat realistic and it saves us from trying to calculate this in some smart way.
         this.commitUploadThroughputMiBSec = new ExponentiallyWeightedMovingAverage(0.6, ByteSizeValue.ofGb(1).getMb());
         this.bccMaxAmountOfCommits = STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.get(settings);
-        this.bccUploadMaxSizeInBytes = STATELESS_UPLOAD_MAX_SIZE.get(settings).getBytes();
+        final var bccUploadMaxSize = STATELESS_UPLOAD_MAX_SIZE.get(settings);
+        this.bccUploadMaxSizeInBytes = bccUploadMaxSize.getBytes();
+        logger.info(
+            "delayed upload with [max_commits={}], [max_size={}], [max_age={}]",
+            bccMaxAmountOfCommits,
+            bccUploadMaxSize.getStringRep(),
+            virtualBccUploadMaxAge.getStringRep()
+        );
         this.bccUploadMaxIoRetries = STATELESS_UPLOAD_MAX_IO_ERROR_RETRIES.get(settings).intValue();
         this.bccUploadSlowLogThresholdMillis = STATELESS_UPLOAD_SLOW_LOG_THRESHOLD.get(settings).millis();
         this.useInternalFilesReplicatedContent = STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT.get(settings);

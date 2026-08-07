@@ -21,10 +21,10 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
  * Regression test for the false-positive bug in {@code bool{filter: term, must_not: term}} queries
  * on TSDB indices ({@code elastic/elasticsearch#155653}).
  *
- * <p>Root cause: {@code DocValuesRangeIterator.docIDRunEnd()} over-reports run ends for
+ * <p>Root cause: {@code DocValuesRangeIterator.docIDRunEnd()} over-reported run ends for
  * {@code MAYBE} and {@code YES_IF_PRESENT} blocks, causing the bulk scorer to skip per-doc
- * {@code matches()} calls and return false positives. The fix in {@code XDocValuesRangeIterator}
- * returns {@code approximation().docID()} for those cases, limiting the run to the current doc.
+ * {@code matches()} calls and return false positives. Fixed upstream in {@code apache/lucene#16450},
+ * which returns the current doc ID for those cases so the run is limited to that doc.
  */
 public class TsdbBoolMustNotReproductionTests extends ESSingleNodeTestCase {
 

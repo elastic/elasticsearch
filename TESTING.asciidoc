@@ -184,6 +184,11 @@ testClusters.register("runTask") {
 }
 -------------------------------------
 
+To quickly start a homogeneous multi-node cluster without editing any files, use `--nodes=N`:
+-------------------------------------
+./gradlew run --nodes=3
+-------------------------------------
+
 You can also place this config in custom init script (see above) to avoid accidental commits.
 If you are passing in the --debug-jvm flag with multiple nodes, you will need multiple remote debuggers running. One
 for each node listening at port 5007, 5008, 5009, and so on. Ensure that each remote debugger has auto restart enabled.

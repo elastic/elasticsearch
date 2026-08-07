@@ -595,9 +595,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecK8sTimeseriesLastOverTimeIT
   method: test {csv-spec:k8s-timeseries-last-over-time.last_over_time_of_event}
   issue: https://github.com/elastic/elasticsearch/issues/156131
-- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
-  method: test {yaml=indices.sort/40_high_cardinality/Index sort on high cardinality keyword field - mixed single and multi values}
-  issue: https://github.com/elastic/elasticsearch/issues/156132
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecK8sTimeseriesFirstOverTimeIT
   method: test {csv-spec:k8s-timeseries-first-over-time.first_over_time_of_event}
   issue: https://github.com/elastic/elasticsearch/issues/156159
@@ -610,3 +607,6 @@ tests:
 - class: org.elasticsearch.client.RestClientSingleHostIntegTests
   method: testRequestResetAndAbort
   issue: https://github.com/elastic/elasticsearch/issues/156177
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecDenseVectorAggsIT
+  method: test {csv-spec:dense_vector_aggs.sumDenseVectorOverflow}
+  issue: https://github.com/elastic/elasticsearch/issues/156194

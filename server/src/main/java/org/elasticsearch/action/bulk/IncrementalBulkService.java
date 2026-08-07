@@ -17,6 +17,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -279,8 +280,31 @@ public class IncrementalBulkService {
             }
         }
 
+        /**
+         * Cancels the bulk session task and propagates the cancellation ban to every node holding a
+         * descendant task.
+         *
+         * <p>Stashes the thread context before cancelling. Propagating a cancellation sends
+         * {@code internal:admin/tasks/ban} (and later the matching unban) to peer nodes. Those actions
+         * can never be granted to a user — they must run as the system user. When the bulk timeout
+         * fires, {@link ThreadPool#schedule} preserves the REST caller's context (including any
+         * authentication) into the timeout lambda without the originating-action transient that
+         * would normally cause the security interceptor to swap to the system user. Stashing here
+         * produces a user-less context so the interceptor can swap correctly. The same pattern is
+         * applied in {@link org.elasticsearch.tasks.TaskCancellationService} when sending
+         * {@code internal:admin/tasks/cancel_child}.
+         *
+         * <p>The stash is sufficient for both the ban and the unban: the unban is scheduled via
+         * {@link ThreadContext#preserveContext} on the context active when
+         * {@code cancelTaskAndDescendants} is invoked, so using this stashed context as the base
+         * means the unban inherits a user-less context too.
+         */
         public void cancel(String reason, Runnable listener) {
-            taskManager.cancelTaskAndDescendants(bulkSessionTask, reason, false, ActionListener.running(listener));
+            // internal:admin/tasks/ban cannot be granted to a user; stash to let the security
+            // interceptor run it as the system user instead of denying it.
+            try (ThreadContext.StoredContext ignored = threadPool.getThreadContext().stashContext()) {
+                taskManager.cancelTaskAndDescendants(bulkSessionTask, reason, false, ActionListener.running(listener));
+            }
         }
 
         public IndexingPressure.Incremental getIncrementalOperation() {
@@ -388,12 +412,7 @@ public class IncrementalBulkService {
                 releasables.forEach(Releasable::close);
                 releasables.clear();
                 if (taskManager.getCancellableTask(bulkSessionTask.getId()) != null) {
-                    taskManager.cancelTaskAndDescendants(
-                        bulkSessionTask,
-                        "handler closed",
-                        false,
-                        ActionListener.running(() -> taskManager.unregister(bulkSessionTask))
-                    );
+                    cancel("handler closed", () -> taskManager.unregister(bulkSessionTask));
                 }
             }
         }

@@ -627,6 +627,12 @@ public class IncrementalBulkIT extends ESIntegTestCase {
 
             final CountDownLatch readyForCancellation = new CountDownLatch(1);
             final AtomicBoolean childTaskBanned = new AtomicBoolean(false);
+            // Checks that Handler#cancel stashes the context before propagating the cancellation, so
+            // internal:admin/tasks/ban is sent without caller-owned authentication headers. Without the
+            // stash, any header present when cancel() is called (or preserved into the timeout lambda by
+            // ThreadPool#schedule) would be carried into the ban request, causing the security layer to
+            // deny it because internal actions must run as the system user.
+            final AtomicBoolean banSentInUserlessContext = new AtomicBoolean(false);
 
             IncrementalBulkService.Handler handler2 = incrementalBulkService.newBulkRequest();
 
@@ -636,11 +642,17 @@ public class IncrementalBulkIT extends ESIntegTestCase {
 
             refCounted.incRef();
             handler2.addItems(List.of(notCancelled), refCounted::decRef, () -> {
-                // Verify child task banned.
+                // Verify child task banned and that the ban is sent in a user-less context.
                 primaryTransportService.addRequestHandlingBehavior(
                     TaskCancellationService.BAN_PARENT_ACTION_NAME,
                     (transportRequestHandler, request, channel, task) -> {
                         childTaskBanned.set(true);
+                        // The ban must arrive without the "test.ban.sentinel" header that was put
+                        // in the caller's context before cancel(). If Handler#cancel stashes correctly,
+                        // the ban is sent from a clean context and the header is absent on the receiver.
+                        banSentInUserlessContext.set(
+                            primaryTransportService.getThreadPool().getThreadContext().getHeader("test.ban.sentinel") == null
+                        );
                         transportRequestHandler.messageReceived(request, channel, task);
                     }
                 );
@@ -673,11 +685,19 @@ public class IncrementalBulkIT extends ESIntegTestCase {
 
                 assertThat(handler2.getBulkSessionTask().getAction(), is("internal:bulk"));
                 assertThat(handler2.getBulkSessionTask().getType(), is("bulk"));
+                // Put a sentinel header that simulates a caller's authentication surviving
+                // ThreadPool#schedule's preserveContext. Handler#cancel must stash before sending the
+                // ban so the header is absent from the transport request on the receiver.
+                primaryTransportService.getThreadPool().getThreadContext().putHeader("test.ban.sentinel", "fake-auth");
                 handler2.cancel("after first additem() before second TransportShardBulkAction submit to write thread pool", () -> {});
             });
 
             BulkResponse bulkResponse = future2.actionGet();
             assertThat(childTaskBanned.get(), is(true));
+            assertTrue(
+                "ban was sent with caller header in context; stashContext() missing from Handler#cancel",
+                banSentInUserlessContext.get()
+            );
             assertThat(bulkResponse.getItems().length, is(3));
             assertThat(bulkResponse.getItems()[0].getFailure(), nullValue());
             assertThat(bulkResponse.getItems()[0].isFailed(), is(false));

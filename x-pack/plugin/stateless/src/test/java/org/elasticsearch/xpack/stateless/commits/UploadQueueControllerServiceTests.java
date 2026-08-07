@@ -7,8 +7,9 @@
 
 package org.elasticsearch.xpack.stateless.commits;
 
-import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.stateless.commits.UploadQueueControllerService.ThrottleCalculator;
 import org.elasticsearch.xpack.stateless.commits.UploadQueueControllerService.ThrottleSettings;
@@ -19,7 +20,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Function;
+
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class UploadQueueControllerServiceTests extends ESTestCase {
     public void testThrottleAndRemoveSteadyState() {
@@ -29,8 +35,8 @@ public class UploadQueueControllerServiceTests extends ESTestCase {
         var throttler = new MemorizingThrottler();
         var calculator = new ThrottleCalculator(time::get, throttler);
 
-        var stats = new ShardCommitStats() {
-            long pendingUploadBytes = 0;
+        var stats = new ShardCommitUploadStats() {
+            long pendingUploadMiB = 0;
 
             @Override
             public ShardId shardId() {
@@ -38,8 +44,8 @@ public class UploadQueueControllerServiceTests extends ESTestCase {
             }
 
             @Override
-            public long pendingUploadBytes() {
-                return pendingUploadBytes;
+            public long pendingUploadMiB() {
+                return pendingUploadMiB;
             }
         };
 
@@ -49,17 +55,18 @@ public class UploadQueueControllerServiceTests extends ESTestCase {
         Map<ShardId, ThrottleState> currentState = Map.of();
         for (int i = 0; i < iterations; i++) {
             // Ensure that the period always passes for simplicity.
-            long timePassed = randomIntBetween(11, 60);
+            long timePassed = randomLongBetween(settings.cooldownPeriodSeconds() + 1, 60);
             time.addAndGet(timePassed);
 
             // We will alternate between high and low backlog.
-            long pendingUploadBytes;
+            long pendingUploadMiB;
+            // Since the throughput is 1, we can use periods here directly.
             if (i % 2 == 0) {
-                pendingUploadBytes = randomLongBetween(ByteSizeValue.ofMb(21).getBytes(), ByteSizeValue.ofMb(100).getBytes());
+                pendingUploadMiB = randomLongBetween(settings.activationThresholdSeconds() + 1, 100);
             } else {
-                pendingUploadBytes = randomLongBetween(0, ByteSizeValue.ofMb(10).getBytes() - 1);
+                pendingUploadMiB = randomLongBetween(0, settings.deactivationThresholdSeconds());
             }
-            stats.pendingUploadBytes = pendingUploadBytes;
+            stats.pendingUploadMiB = pendingUploadMiB;
 
             currentState = calculator.newState(currentState, List.of(stats), settings, 1);
             var shardState = currentState.get(shardId);
@@ -81,15 +88,15 @@ public class UploadQueueControllerServiceTests extends ESTestCase {
         var calculator = new ThrottleCalculator(time::get, throttler);
 
         // With empty current state we can throttle if conditions are met.
-        var stats = new ShardCommitStats() {
+        var stats = new ShardCommitUploadStats() {
             @Override
             public ShardId shardId() {
                 return shardId;
             }
 
             @Override
-            public long pendingUploadBytes() {
-                return 50 * 1024 * 1024;
+            public long pendingUploadMiB() {
+                return 50; // higher than 20 in settings below
             }
         };
         var settings = new ThrottleSettings(20, 10, 10);
@@ -104,7 +111,7 @@ public class UploadQueueControllerServiceTests extends ESTestCase {
         assertTrue(throttler.history.get(0).throttled);
 
         // We should hold this state for the specified cooldown period.
-        time.set(9);
+        time.set(settings.cooldownPeriodSeconds() - 1);
 
         // So this is all the same as above.
         Map<ShardId, ThrottleState> throttleKeepState = calculator.newState(throttleState, List.of(stats), settings, 1);
@@ -116,7 +123,7 @@ public class UploadQueueControllerServiceTests extends ESTestCase {
         assertEquals(1, throttler.history.size());
 
         // Once the period passes, we'll keep the throttle until we reach the maximum period count.
-        time.set(11);
+        time.addAndGet(settings.cooldownPeriodSeconds() + 1);
 
         Map<ShardId, ThrottleState> secondPeriodState = calculator.newState(throttleKeepState, List.of(stats), settings, 1);
         var secondPeriodShardState = secondPeriodState.get(shardId);
@@ -126,7 +133,7 @@ public class UploadQueueControllerServiceTests extends ESTestCase {
         // We don't reapply throttling if it's already there.
         assertEquals(1, throttler.history.size());
 
-        time.set(22);
+        time.addAndGet(settings.cooldownPeriodSeconds() + 1);
 
         Map<ShardId, ThrottleState> thirdPeriodState = calculator.newState(secondPeriodState, List.of(stats), settings, 1);
         var thirdPeriodShardState = thirdPeriodState.get(shardId);
@@ -136,7 +143,7 @@ public class UploadQueueControllerServiceTests extends ESTestCase {
         // We don't reapply throttling if it's already there.
         assertEquals(1, throttler.history.size());
 
-        time.set(33);
+        time.addAndGet(settings.cooldownPeriodSeconds() + 1);
 
         Map<ShardId, ThrottleState> unthrottledDueToMaxPeriodsState = calculator.newState(thirdPeriodState, List.of(stats), settings, 1);
         var unthrottledDueToMaxPeriodsShardState = unthrottledDueToMaxPeriodsState.get(shardId);
@@ -149,25 +156,129 @@ public class UploadQueueControllerServiceTests extends ESTestCase {
     }
 
     public void testRemoveThrottleCooldown() {
+        var shardId = new ShardId(randomIndexName(), randomUUID(), 0);
 
+        var time = new AtomicLong(0);
+        var throttler = new MemorizingThrottler();
+        var calculator = new ThrottleCalculator(time::get, throttler);
+
+        var stats = new ShardCommitUploadStats() {
+            long pendingUploadMiB = 0;
+
+            @Override
+            public ShardId shardId() {
+                return shardId;
+            }
+
+            @Override
+            public long pendingUploadMiB() {
+                return pendingUploadMiB;
+            }
+        };
+
+        var settings = new ThrottleSettings(20, 10, 10);
+
+        stats.pendingUploadMiB = 50;
+
+        Map<ShardId, ThrottleState> throttledState = calculator.newState(Map.of(), List.of(stats), settings, 1);
+        var throttledShardState = throttledState.get(shardId);
+        assertEquals(Type.THROTTLED, throttledShardState.latestDecision());
+        assertEquals(0, throttledShardState.relativeApplicationTimeMs());
+        assertEquals(1, throttledShardState.consecutiveApplications());
+        assertEquals(1, throttler.history.size());
+        assertTrue(throttler.history.get(0).throttled);
+
+        time.set(settings.cooldownPeriodSeconds() + 1);
+        stats.pendingUploadMiB = 0;
+
+        long throttleRemovedTime = time.get();
+        Map<ShardId, ThrottleState> removeThrottleState = calculator.newState(throttledState, List.of(stats), settings, 1);
+        var removeThrottleStateShardState = removeThrottleState.get(shardId);
+        assertEquals(Type.THROTTLE_REMOVED, removeThrottleStateShardState.latestDecision());
+        assertEquals(throttleRemovedTime, removeThrottleStateShardState.relativeApplicationTimeMs());
+        assertEquals(1, removeThrottleStateShardState.consecutiveApplications());
+        assertEquals(2, throttler.history.size());
+        assertFalse(throttler.history.get(1).throttled);
+
+        stats.pendingUploadMiB = 50;
+
+        Map<ShardId, ThrottleState> state = removeThrottleState;
+        for (int i = 0; i < settings.cooldownPeriodSeconds(); i++) {
+            time.incrementAndGet();
+
+            // We don't throttle again during grace period after the throttle removal.
+            state = calculator.newState(state, List.of(stats), settings, 1);
+            var shardState = state.get(shardId);
+            assertEquals(Type.THROTTLE_REMOVED, shardState.latestDecision());
+            assertEquals(throttleRemovedTime, shardState.relativeApplicationTimeMs());
+            assertEquals(1, shardState.consecutiveApplications());
+            assertEquals(2, throttler.history.size());
+        }
+
+        // Finally once the cooldown period passes, the throttle is applied again.
+        time.incrementAndGet();
+        state = calculator.newState(state, List.of(stats), settings, 1);
+        var shardState = state.get(shardId);
+        assertEquals(Type.THROTTLED, shardState.latestDecision());
+        assertEquals(time.get(), shardState.relativeApplicationTimeMs());
+        assertEquals(1, shardState.consecutiveApplications());
+        assertEquals(3, throttler.history.size());
+        assertTrue(throttler.history.get(2).throttled);
+    }
+
+    public void testIndexingThrottler() {
+        var indicesService = mock(IndicesService.class);
+
+        var sut = new UploadQueueControllerService.IndexingThrottler(indicesService);
+
+        // Happy case throttling.
+        var shard1 = mock(IndexShard.class);
+        var shardId1 = new ShardId(randomIndexName(), randomUUID(), 0);
+        when(indicesService.getShardOrNull(shardId1)).thenReturn(shard1);
+
+        sut.activate(shardId1);
+        assertTrue(sut.getThrottledShards().contains(shard1));
+        verify(shard1, times(1)).activateThrottling();
+
+        // Shard doesn't exist.
+        var shardId2 = new ShardId(randomIndexName(), randomUUID(), 1);
+
+        // The call succeeds but nothing changes in state.
+        sut.activate(shardId2);
+        assertEquals(1, sut.getThrottledShards().size());
+
+        // Deactivate works.
+        sut.deactivate(shardId1);
+        assertFalse(sut.getThrottledShards().contains(shard1));
+        verify(shard1, times(1)).deactivateThrottling();
+
+        // Do not deactivate throttling if it was never applied.
+        var shard3 = mock(IndexShard.class);
+        var shardId3 = new ShardId(randomIndexName(), randomUUID(), 2);
+        when(indicesService.getShardOrNull(shardId3)).thenReturn(shard3);
+
+        sut.deactivate(shardId3);
+        assertFalse(sut.getThrottledShards().contains(shard3));
+        verify(shard3, never()).deactivateThrottling();
+
+        // closeShard() also works
+        var shard4 = mock(IndexShard.class);
+        var shardId4 = new ShardId(randomIndexName(), randomUUID(), 3);
+        when(indicesService.getShardOrNull(shardId4)).thenReturn(shard4);
+
+        sut.activate(shardId4);
+        assertTrue(sut.getThrottledShards().contains(shard4));
+
+        sut.closeShard(shard4);
+        assertFalse(sut.getThrottledShards().contains(shard4));
     }
 
     static class MemorizingThrottler implements UploadQueueControllerService.Throttler {
         private final List<Decision> history = new ArrayList<>();
-        private final Function<ShardId, Boolean> canActivate;
-
-        MemorizingThrottler(Function<ShardId, Boolean> canActivate) {
-            this.canActivate = canActivate;
-        }
-
-        MemorizingThrottler() {
-            this.canActivate = shardId -> true;
-        }
 
         @Override
-        public boolean activate(ShardId shardId) {
+        public void activate(ShardId shardId) {
             history.add(new Decision(shardId, true));
-            return canActivate.apply(shardId);
         }
 
         @Override

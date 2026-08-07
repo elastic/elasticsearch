@@ -9,8 +9,11 @@ package org.elasticsearch.xpack.stateless.commits;
 
 import org.elasticsearch.index.shard.ShardId;
 
-interface ShardCommitStats {
+/**
+ * Provides information about state of commit uploads of a shard.
+ */
+public interface ShardCommitUploadStats {
     ShardId shardId();
 
-    long pendingUploadBytes();
+    long pendingUploadMiB();
 }

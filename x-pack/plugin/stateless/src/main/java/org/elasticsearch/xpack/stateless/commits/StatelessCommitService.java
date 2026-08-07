@@ -216,6 +216,12 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         Setting.Property.NodeScope
     );
 
+    public static final Setting<ByteSizeValue> STATELESS_UPLOAD_AVERAGE_THROUGHPUT_INITIAL_VALUE = Setting.byteSizeSetting(
+        "stateless.upload.average_throughput_initial_value",
+        ByteSizeValue.ofGb(1),
+        Setting.Property.NodeScope
+    );
+
     public static final String BCC_TOTAL_SIZE_HISTOGRAM_METRIC = "es.bcc.total_size_in_megabytes.histogram";
     public static final String BCC_NUMBER_COMMITS_HISTOGRAM_METRIC = "es.bcc.number_of_commits.histogram";
     public static final String BCC_ELAPSED_TIME_BEFORE_FREEZE_HISTOGRAM_METRIC = "es.bcc.elapsed_time_before_freeze.histogram";
@@ -327,7 +333,10 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         /// We use a slight recency biased value.
         /// We also use an optimistic initial value of 1 Gb/sec to run unrestricted on a fresh node.
         /// This based on an assumption that a node provides 15 Gigabit max network throughput (which is about ~1.7 GiB).
-        this.commitUploadThroughputMiBSec = new ExponentiallyWeightedMovingAverage(0.6, ByteSizeValue.ofGb(1).getBytes());
+        this.commitUploadThroughputMiBSec = new ExponentiallyWeightedMovingAverage(
+            0.6,
+            STATELESS_UPLOAD_AVERAGE_THROUGHPUT_INITIAL_VALUE.get(settings).getBytes()
+        );
         this.scheduledUploadMonitor = new ScheduledUploadMonitor(
             threadPool,
             threadPool.generic(),
@@ -512,6 +521,14 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     public void markCommitDeleted(ShardId shardId, long generation) {
         ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
         commitState.markCommitDeleted(generation);
+    }
+
+    public double getAverageCommitUploadThroughputMiBSec() {
+        return commitUploadThroughputMiBSec.getAverage();
+    }
+
+    public Iterable<? extends ShardCommitUploadStats> getShardCommitStats() {
+        return shardsCommitsStates.values();
     }
 
     @Override
@@ -896,6 +913,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             public void onResponse(BccUploadResult uploadResult) {
                 maybeLogSlowBccUpload(virtualBcc, uploadResult);
                 commitUploadThroughputMiBSec.addValue(uploadResult.uploadThroughputMiBPerSec());
+                commitState.pendingUploadBytes.addAndGet(-1 * virtualBcc.getTotalSizeInBytes());
                 final BatchedCompoundCommit uploadedBcc = uploadResult.batchedCompoundCommit();
                 try {
                     // Use the largest translog release file from all CCs to release translog files for cleaning.
@@ -1349,7 +1367,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         return getSafe(shardsCommitsStates, shardId);
     }
 
-    class ShardCommitState implements IndexEngineLocalReaderListener, CommitBCCResolver {
+    class ShardCommitState implements IndexEngineLocalReaderListener, CommitBCCResolver, ShardCommitUploadStats {
         private static final long EMPTY_GENERATION_NOTIFIED_SENTINEL = -1;
 
         private enum State {
@@ -1781,6 +1799,16 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 long length = Math.min(request.getLength(), vbcc.getTotalSizeInBytes() - request.getOffset());
                 vbcc.getBytesByRange(request.getOffset(), length, output);
             }
+        }
+
+        @Override
+        public ShardId shardId() {
+            return shardId;
+        }
+
+        @Override
+        public long pendingUploadMiB() {
+            return ByteSizeValue.ofBytes(pendingUploadBytes.get()).getMb();
         }
 
         private Optional<VirtualBatchedCompoundCommit> getMaxPendingUploadBcc() {
@@ -2226,8 +2254,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 if (isUpload) {
                     // Remove the BCC from the pending list *after* upload consumers but *before* generation listeners are fired
                     var removed = pendingUploadBccGenerations.remove(newBccGeneration);
-                    // TODO does calculateBccBlobLength match VBCC#getTotalSizeInBytes() ?
-                    pendingUploadBytes.addAndGet(-1 * uploadedBcc.calculateBccBlobLength());
                     assert removed != null : newBccGeneration + "not found";
                 }
                 if (localUploadedGenerationListeners != null) {

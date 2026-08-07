@@ -216,6 +216,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         Setting.Property.NodeScope
     );
 
+    /// We use an optimistic default value of 1 Gb/sec to run unrestricted on a fresh node.
+    /// This is loosely based on the fact that a node provides at least 15 Gigabit max network throughput (which is about ~1.7 GiB).
     public static final Setting<ByteSizeValue> STATELESS_UPLOAD_AVERAGE_THROUGHPUT_INITIAL_VALUE = Setting.byteSizeSetting(
         "stateless.upload.average_throughput_initial_value",
         ByteSizeValue.ofGb(1),
@@ -331,8 +333,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         /// `alpha` determines how much older data points influence the average, a value of 1 means that the mean is equal
         /// to the latest data point.
         /// We use a slight recency biased value.
-        /// We also use an optimistic initial value of 1 Gb/sec to run unrestricted on a fresh node.
-        /// This based on an assumption that a node provides 15 Gigabit max network throughput (which is about ~1.7 GiB).
         this.commitUploadThroughputMiBSec = new ExponentiallyWeightedMovingAverage(
             0.6,
             STATELESS_UPLOAD_AVERAGE_THROUGHPUT_INITIAL_VALUE.get(settings).getBytes()
@@ -2191,7 +2191,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     if (isUpload) {
                         // Remove the BCC from the pending list regardless just in case
                         pendingUploadBccGenerations.remove(newBccGeneration);
-                        pendingUploadBytes.addAndGet(-1 * uploadedBcc.calculateBccBlobLength());
                     }
                     assert false
                         : "out of order BCC generation ["

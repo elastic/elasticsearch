@@ -52,6 +52,7 @@ import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineDescriptor;
+import org.elasticsearch.index.codec.zstd.ZstdCompressionMode;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.CustomBinaryDocValuesReader;
@@ -633,7 +634,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         private BytesRef uncompressedBytesRef;
         private long startDocNumForBlock = -1;
         private long limitDocNumForBlock = -1;
-        private final Decompressor decompressor;
+        private final ZstdCompressionMode.ZstdDecompressor decompressor;
         private final DocOffsetsCodec.Decoder docOffsetsDecoder;
 
         BinaryDecoder(
@@ -645,7 +646,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
             int maxNumDocsInAnyBlock,
             DocOffsetsCodec.Decoder docOffsetsDecoder
         ) {
-            this.decompressor = decompressor;
+            this.decompressor = (ZstdCompressionMode.ZstdDecompressor) decompressor;
             this.addresses = addresses;
             this.docOffsets = docOffsets;
             this.compressedData = compressedData;
@@ -921,10 +922,6 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
             final int[] offsetBuffer = new int[count + 1];
             int valuesBufferIndex = 0;
             final byte[] valuesBuffer = new byte[bufferSize];
-            // Reused across blocks; bytes stays as valuesBuffer since valuesBuffer.length >= any
-            // single block's fullBlockLength (bufferSize is their sum), so ArrayUtil.growNoCopy
-            // never reallocates it and bytes.offset is preserved into decompressDirect.
-            final BytesRef workRef = new BytesRef(valuesBuffer);
 
             int sentinel = 0;
             for (long blockId = firstBlockId; blockId <= endBlockId; blockId++) {
@@ -938,9 +935,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 // Decompress directly into valuesBuffer at valuesBufferIndex. decompressDirect writes
                 // at bytes.offset, so no intermediate buffer or arraycopy is needed.
                 if (header.isCompressed()) {
-                    workRef.offset = valuesBufferIndex;
-                    workRef.length = fullBlockLength;
-                    decompressor.decompress(compressedData, fullBlockLength, 0, fullBlockLength, workRef);
+                    decompressor.decompressDirect(compressedData, valuesBuffer, valuesBufferIndex, fullBlockLength);
                 } else {
                     // Currently this will not happen in production, because compression mode is always zstd and
                     // block compression is always enabled in production code.

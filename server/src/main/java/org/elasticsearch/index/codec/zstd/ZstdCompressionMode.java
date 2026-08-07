@@ -106,7 +106,7 @@ public class ZstdCompressionMode extends CompressionMode {
         public void close() throws IOException {}
     }
 
-    static final class ZstdDecompressor extends Decompressor {
+    public static final class ZstdDecompressor extends Decompressor {
 
         // we can safely store and share a single Zstd instance, since we only use thread-safe decompress
         static final Zstd ZSTD = Objects.requireNonNull(NativeAccess.instance().getZstd());
@@ -133,20 +133,30 @@ public class ZstdCompressionMode extends CompressionMode {
             return offset == 0 && length == originalLength;
         }
 
-        /**
-         * Decompress directly into bytes.bytes, writing at bytes.offset rather than index 0.
-         * Callers that want the output at bytes.bytes[0] set bytes.offset = 0 before calling
-         * (which all existing callers do). Callers that need the output at an arbitrary position
-         * set bytes.offset to that position before calling; bytes.bytes must be large enough that
-         * bytes.bytes.length >= bytes.offset + origLen so that ArrayUtil.growNoCopy does not
-         * reallocate the array and discard the caller-supplied offset.
-         */
+        /** Decompress directly into bytes.bytes, then set offset/length view. */
         void decompressDirect(DataInput in, int cLen, int origLen, int off, int len, BytesRef bytes) throws IOException {
-            MemorySegment dst = MemorySegment.ofArray(bytes.bytes).asSlice(bytes.offset, origLen);
+            MemorySegment dst = MemorySegment.ofArray(bytes.bytes).asSlice(0, origLen);
             int decompressedLen = decompressInput(in, cLen, dst);
             checkLength(decompressedLen, origLen, in);
             bytes.offset = off;
             bytes.length = len;
+        }
+
+        /**
+         * Decompresses a full zstd frame from {@code in} into {@code out[outOffset..outOffset+outLength)}.
+         * This allows callers to directly copy into any slot of an array. Avoiding the need of an additional buffer.
+         *
+         * {@link #decompress(DataInput, int, int, int, BytesRef)} always decompresses using out offset zero.
+         */
+        public void decompressDirect(DataInput in, byte[] out, int outOffset, int outLength) throws IOException {
+            assert out.length >= outLength || isFullDecompress(outOffset, out.length, outLength);
+            if (outLength == 0) {
+                return;
+            }
+            final int compressedLength = in.readVInt();
+            MemorySegment dstSegment = MemorySegment.ofArray(out).asSlice(outOffset, outLength);
+            int decompressedLen = decompressInput(in, compressedLength, dstSegment);
+            checkLength(decompressedLen, outLength, in);
         }
 
         /** Decompress into a temporary off-heap buffer, copy only the needed range into bytes.bytes. */

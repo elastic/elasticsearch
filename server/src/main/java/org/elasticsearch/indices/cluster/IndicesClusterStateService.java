@@ -1295,7 +1295,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 eventListener.beforeIndexShardRecoveryRetry(shardRouting.shardId());
                 logger.debug("{} retry recovery for shard", shardRouting.shardId());
                 // Fork onto cluster state applier thread to retry attempt to create shard
-                // todo(burqen) possibly scheduleUnlessShuttingDown
                 clusterService.getClusterApplierService()
                     .runOnApplierThread(
                         "retry recovery " + shardRouting.shardId(),

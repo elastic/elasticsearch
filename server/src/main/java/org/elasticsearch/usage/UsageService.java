@@ -31,14 +31,20 @@ public class UsageService {
     private final CCSUsageTelemetry ccsUsageHolder;
     private final CCSUsageTelemetry esqlUsageHolder;
     private final ProjectRoutingUsageHolder projectRoutingUsageHolder;
-    private volatile ClusterStatsTagsProvider tagsProvider = null;
+    @Nullable
+    private final ClusterStatsTagsProvider tagsProvider;
 
     public UsageService() {
+        this(null);
+    }
+
+    public UsageService(@Nullable ClusterStatsTagsProvider tagsProvider) {
         this.handlers = new HashMap<>();
         this.searchUsageHolder = new SearchUsageHolder();
         this.ccsUsageHolder = new CCSUsageTelemetry();
         this.esqlUsageHolder = new CCSUsageTelemetry(false);
         this.projectRoutingUsageHolder = new ProjectRoutingUsageHolder();
+        this.tagsProvider = tagsProvider;
     }
 
     /**
@@ -104,10 +110,6 @@ public class UsageService {
 
     public ProjectRoutingUsageHolder getProjectRoutingUsageHolder() {
         return projectRoutingUsageHolder;
-    }
-
-    public void registerTagsProvider(ClusterStatsTagsProvider provider) {
-        this.tagsProvider = Objects.requireNonNull(provider);
     }
 
     @Nullable

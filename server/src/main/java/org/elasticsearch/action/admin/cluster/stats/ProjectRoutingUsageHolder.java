@@ -95,7 +95,9 @@ public class ProjectRoutingUsageHolder {
      *                          when false all counters are skipped
      */
     public void recordSearch(@Nullable ProjectRoutingRequestInfo info, boolean hasLinkedProjects) {
-        if (hasLinkedProjects == false) return;
+        if (hasLinkedProjects == false) {
+            return;
+        }
         search.record(info);
     }
 
@@ -111,8 +113,12 @@ public class ProjectRoutingUsageHolder {
      *                          when false all counters are skipped
      */
     public void recordEsql(@Nullable ProjectRoutingRequestInfo info, boolean setClauseUsed, boolean hasLinkedProjects) {
-        if (hasLinkedProjects == false) return;
-        if (setClauseUsed) esqlWithSet.increment();
+        if (hasLinkedProjects == false) {
+            return;
+        }
+        if (setClauseUsed) {
+            esqlWithSet.increment();
+        }
         esql.record(info);
     }
 
@@ -124,7 +130,9 @@ public class ProjectRoutingUsageHolder {
      * @param hasLinkedProjects true when the project had at least one linked project; when false this is a no-op
      */
     public void recordSearchProjectRoutingFailure(boolean hasLinkedProjects) {
-        if (hasLinkedProjects == false) return;
+        if (hasLinkedProjects == false) {
+            return;
+        }
         search.recordFailure();
     }
 
@@ -136,7 +144,9 @@ public class ProjectRoutingUsageHolder {
      * @param hasLinkedProjects true when the project had at least one linked project; when false this is a no-op
      */
     public void recordEsqlProjectRoutingFailure(boolean hasLinkedProjects) {
-        if (hasLinkedProjects == false) return;
+        if (hasLinkedProjects == false) {
+            return;
+        }
         esql.recordFailure();
     }
 

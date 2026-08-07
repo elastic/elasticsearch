@@ -14,7 +14,8 @@ import org.elasticsearch.core.Nullable;
 
 /**
  * Extension point for supplying the {@code tags} configuration snapshot (tag names, named routing expressions, etc.)
- * to {@code GET _cluster/stats}. Registered via {@link org.elasticsearch.plugins.ActionPlugin#getClusterStatsTagsProvider()}.
+ * to {@code GET _cluster/stats}. Registered via SPI ({@code META-INF/services/}) and loaded by
+ * {@code NodeConstruction} using {@code loadSingletonServiceProvider}.
  *
  * <p>Needed as an extension point for serverless code.
  */

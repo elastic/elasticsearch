@@ -124,7 +124,9 @@ public class ProjectRoutingUsageSnapshot implements Writeable, ToXContentFragmen
      * Additively merges {@code other} into this snapshot. Called on the coordinator to combine node responses.
      */
     public void add(ProjectRoutingUsageSnapshot other) {
-        if (other == null) return;
+        if (other == null) {
+            return;
+        }
         searchQueriesTotal += other.searchQueriesTotal;
         searchWithProjectRouting += other.searchWithProjectRouting;
         searchWithAliasOrigin += other.searchWithAliasOrigin;
@@ -204,8 +206,12 @@ public class ProjectRoutingUsageSnapshot implements Writeable, ToXContentFragmen
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         ProjectRoutingUsageSnapshot other = (ProjectRoutingUsageSnapshot) o;
         return searchQueriesTotal == other.searchQueriesTotal
             && searchWithProjectRouting == other.searchWithProjectRouting

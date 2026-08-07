@@ -11,7 +11,6 @@ package org.elasticsearch.plugins;
 
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.RequestValidators;
-import org.elasticsearch.action.admin.cluster.stats.ClusterStatsTagsProvider;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.ActionFilter;
@@ -29,7 +28,6 @@ import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -142,15 +140,6 @@ public interface ActionPlugin {
 
     default Collection<RequestValidators.RequestValidator<IndicesAliasesRequest>> indicesAliasesRequestValidators() {
         return Collections.emptyList();
-    }
-
-    /**
-     * Optionally supplies a {@link ClusterStatsTagsProvider} that populates the static {@code tags} configuration
-     * fields (tag names, named routing expressions) in {@code GET _cluster/stats}. At most one plugin may provide
-     * a non-empty value; {@link org.elasticsearch.action.ActionModule} uses the first it finds.
-     */
-    default Optional<ClusterStatsTagsProvider> getClusterStatsTagsProvider() {
-        return Optional.empty();
     }
 
     record RestHandlersServices(

@@ -28,6 +28,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RecoveryFailureStrategySelectorPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.junit.After;
@@ -35,6 +36,7 @@ import org.junit.After;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -127,6 +129,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         ResizeIndexTestUtils.executeResize(ResizeType.CLONE, sourceIndexName, targetIndexName, indexSettings(1, 0));
 
         // Recovery should succeed, and we should have retried once
+        ensureGreen(sourceIndexName);
         ensureGreen(targetIndexName);
         assertThat(RetryRecoveryTestPlugin.retryCounter.get(), equalTo(1));
         assertThat(RetryRecoveryTestPlugin.recoveryCounter.get(), equalTo(2));
@@ -193,6 +196,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
         // Recovery should succeed, and we should have retried once
         ensureGreen(indexName);
+        assertAllShardsOnNodes(indexName, target);
         assertThat(RetryRecoveryTestPlugin.retryCounter.get(), equalTo(1));
         assertThat(RetryRecoveryTestPlugin.recoveryCounter.get(), equalTo(2));
     }
@@ -388,8 +392,258 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         // Let all tasks complete
         waitNoPendingTasksOnAll();
 
-        // Index should not exist, and we should have reached retry step
+        // Index should not exist
         assertThat(indexExists(indexName), equalTo(false));
+    }
+
+    public void testRetryOnFailureOnRecoveryFromEmptyStoreRaceWithNetworkDisruption() throws Exception {
+        String masterA = internalCluster().startMasterOnlyNode();
+        String masterB = internalCluster().startMasterOnlyNode();
+        String dataNode = internalCluster().startDataOnlyNode();
+        String indexName = randomIndexName();
+
+        // Index creation will block at some point during creation/recovery and then fail when released
+        RetryRecoveryTestPlugin.armRandomFailure();
+        Gate gate = RetryRecoveryTestPlugin.randomGateBeforeTargetFailure();
+        gate.block();
+
+        // Create index async
+        prepareCreate(indexName, indexSettings(1, 0)).execute();
+
+        // Wait for index creation/recovery attempt
+        gate.await();
+
+        // Isolating dataNode will cause shard to go unassigned
+        NetworkDisruption disruption = new NetworkDisruption(
+            new NetworkDisruption.TwoPartitions(Set.of(dataNode), Set.of(masterA, masterB)),
+            NetworkDisruption.DISCONNECT
+        );
+        internalCluster().setDisruptionScheme(disruption);
+        disruption.startDisrupting();
+        String dataNodeId = internalCluster().clusterService(dataNode).localNode().getId();
+        awaitClusterState(masterA, state -> state.nodes().nodeExists(dataNodeId) == false);
+
+        // Release will make recovery and retry race with index deletion
+        gate.release();
+
+        // Reconnecting dataNode will reassign shard to dataNode
+        disruption.stopDisrupting();
+
+        // Let all tasks complete
+        waitNoPendingTasksOnAll();
+
+        // Index should exist
+        ensureGreen(indexName);
+    }
+
+    public void testRetryOnFailureOnRecoveryFromFromExistingStoreRaceWithNetworkDisruption() throws Exception {
+        String masterA = internalCluster().startMasterOnlyNode();
+        String masterB = internalCluster().startMasterOnlyNode();
+        String dataNode = internalCluster().startDataOnlyNode();
+        String indexName = randomIndexName();
+
+        // Create an existing store
+        createIndex(indexName, indexSettings(1, 0).build());
+        indexDoc(indexName, "1", "f", randomAlphaOfLength(10));
+        flush(indexName);
+        ensureGreen(indexName);
+        assertAcked(indicesAdmin().prepareClose(indexName));
+
+        // Index creation will block at some point during creation/recovery and then fail when released
+        RetryRecoveryTestPlugin.armRandomFailure();
+        Gate gate = RetryRecoveryTestPlugin.randomGateBeforeTargetFailure();
+        gate.block();
+
+        // Recover from existing store async
+        indicesAdmin().prepareOpen(indexName).execute();
+
+        // Wait for index creation/recovery attempt
+        gate.await();
+
+        // Isolating dataNode will cause shard to go unassigned
+        NetworkDisruption disruption = new NetworkDisruption(
+            new NetworkDisruption.TwoPartitions(Set.of(dataNode), Set.of(masterA, masterB)),
+            NetworkDisruption.DISCONNECT
+        );
+        internalCluster().setDisruptionScheme(disruption);
+        disruption.startDisrupting();
+        String dataNodeId = internalCluster().clusterService(dataNode).localNode().getId();
+        awaitClusterState(masterA, state -> state.nodes().nodeExists(dataNodeId) == false);
+
+        // Release will make recovery and retry race with index deletion
+        gate.release();
+
+        // Reconnecting dataNode will reassign shard to dataNode
+        disruption.stopDisrupting();
+
+        // Let all tasks complete
+        waitNoPendingTasksOnAll();
+
+        // Index should exist
+        ensureGreen(indexName);
+    }
+
+    public void testRetryOnFailureOnRecoveryFromLocalShardRaceWithNetworkDisruption() throws Exception {
+        String masterA = internalCluster().startMasterOnlyNode();
+        String masterB = internalCluster().startMasterOnlyNode();
+        String dataNode = internalCluster().startDataOnlyNode();
+        final var sourceIndexName = randomIndexName();
+        final var targetIndexName = randomIndexName();
+
+        // Create an existing store
+        createIndex(sourceIndexName, indexSettings(1, 0).build());
+        indexDoc(sourceIndexName, "1", "f", randomAlphaOfLength(10));
+        flush(sourceIndexName);
+        ensureGreen(sourceIndexName);
+
+        // Required for clone, make the source index read-only
+        updateIndexSettings(Settings.builder().put("index.blocks.write", true), sourceIndexName);
+
+        // Index creation will block at some point during creation/recovery and then fail when released
+        RetryRecoveryTestPlugin.armRandomFailure();
+        Gate gate = RetryRecoveryTestPlugin.randomGateBeforeTargetFailure();
+        gate.block();
+
+        // Recover from local shard async
+        ResizeIndexTestUtils.executeResize(ResizeType.CLONE, sourceIndexName, targetIndexName, indexSettings(1, 0));
+
+        // Wait for index creation/recovery attempt
+        gate.await();
+
+        // Isolating dataNode will cause shard to go unassigned
+        NetworkDisruption disruption = new NetworkDisruption(
+            new NetworkDisruption.TwoPartitions(Set.of(dataNode), Set.of(masterA, masterB)),
+            NetworkDisruption.DISCONNECT
+        );
+        internalCluster().setDisruptionScheme(disruption);
+        disruption.startDisrupting();
+        String dataNodeId = internalCluster().clusterService(dataNode).localNode().getId();
+        awaitClusterState(masterA, state -> state.nodes().nodeExists(dataNodeId) == false);
+
+        // Release will make recovery and retry race with index deletion
+        gate.release();
+
+        // Reconnecting dataNode will reassign shard to dataNode
+        disruption.stopDisrupting();
+
+        // Let all tasks complete
+        waitNoPendingTasksOnAll();
+
+        // Index should exist
+        ensureGreen(sourceIndexName);
+        ensureGreen(targetIndexName);
+    }
+
+    public void testRetryOnFailureOnRecoveryFromSnapshotRaceWithNetworkDisruption() throws Exception {
+        String masterA = internalCluster().startMasterOnlyNode();
+        String masterB = internalCluster().startMasterOnlyNode();
+        String dataNode = internalCluster().startDataOnlyNode();
+        final var indexName = randomIndexName();
+        final var repoName = "test-repo";
+
+        // Create index to snapshot
+        createIndex(indexName, indexSettings(1, 0).build());
+        indexDoc(indexName, "1", "f", randomAlphaOfLength(10));
+        flush(indexName);
+        ensureGreen(indexName);
+
+        // Snapshot the index
+        assertAcked(
+            clusterAdmin().preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName)
+                .setType("fs")
+                .setSettings(Settings.builder().put("location", randomRepoPath()))
+        );
+        clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snap").setWaitForCompletion(true).get();
+
+        // Delete the index
+        assertAcked(indicesAdmin().prepareDelete(indexName));
+
+        // Index creation will block at some point during creation/recovery and then fail when released
+        RetryRecoveryTestPlugin.armRandomFailure();
+        Gate gate = RetryRecoveryTestPlugin.randomGateBeforeTargetFailure();
+        gate.block();
+
+        // Recover from snapshot async
+        clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snap").setWaitForCompletion(false).execute();
+
+        // Wait for index creation/recovery attempt
+        gate.await();
+
+        // Isolating dataNode will cause shard to go unassigned
+        NetworkDisruption disruption = new NetworkDisruption(
+            new NetworkDisruption.TwoPartitions(Set.of(dataNode), Set.of(masterA, masterB)),
+            NetworkDisruption.DISCONNECT
+        );
+        internalCluster().setDisruptionScheme(disruption);
+        disruption.startDisrupting();
+        String dataNodeId = internalCluster().clusterService(dataNode).localNode().getId();
+        awaitClusterState(masterA, state -> state.nodes().nodeExists(dataNodeId) == false);
+
+        // Release will make recovery and retry race with index deletion
+        gate.release();
+
+        // Reconnecting dataNode will reassign shard to dataNode
+        disruption.stopDisrupting();
+
+        // Let all tasks complete
+        waitNoPendingTasksOnAll();
+
+        // Index should exist
+        ensureGreen(indexName);
+    }
+
+    public void testRetryOnFailureOnRecoveryFromPeerRaceWithNetworkDisruption() throws Exception {
+        String master = internalCluster().startMasterOnlyNode();
+        String source = internalCluster().startNode();
+        final var indexName = randomIndexName();
+
+        // Create index on source
+        createIndex(indexName, indexSettings(1, 0).put("index.routing.allocation.require._name", source).build());
+        indexDoc(indexName, "1", "f", randomAlphaOfLength(10));
+        flush(indexName);
+        ensureGreen(indexName);
+
+        // Start target node
+        String target = internalCluster().startNode();
+
+        // Fail next recovery attempt
+        // Target send error response back to source on data channel
+        // Source sends an error response back on the coordination channel (as response to start_recovery request)
+        // Target -> RecoveryResponseHandler -> failRecovery(..., RETRY) --> listener.onRecoveryFailure(..., RETRY)
+        armRandomPeerRecoveryFailure(target);
+        Gate gate = randomFrom(RetryRecoveryTestPlugin.allGatesExcept(RetryRecoveryTestPlugin.stateChangePostRecoveryGate));
+        gate.block();
+
+        // Recover from peer async
+        indicesAdmin().prepareUpdateSettings(indexName)
+            .setSettings(Settings.builder().put("index.routing.allocation.require._name", target))
+            .execute();
+
+        // Wait for index creation/recovery attempt
+        gate.await();
+
+        // Disrupt connection between target and master (source can talk to both)
+        NetworkDisruption disruption = new NetworkDisruption(
+            new NetworkDisruption.Bridge(source, Set.of(master), Set.of(target)),
+            NetworkDisruption.DISCONNECT
+        );
+        internalCluster().setDisruptionScheme(disruption);
+        disruption.startDisrupting();
+        String targetId = internalCluster().clusterService(target).localNode().getId();
+        awaitClusterState(master, state -> state.nodes().nodeExists(targetId) == false);
+
+        // Release will make recovery and retry race with index deletion
+        gate.release();
+
+        // Reconnecting dataNode will reassign shard to dataNode
+        disruption.stopDisrupting();
+
+        // Let all tasks complete
+        waitNoPendingTasksOnAll();
+
+        // Index should exist
+        ensureGreen(indexName);
+        assertAllShardsOnNodes(indexName, target);
     }
 
     private void armRandomPeerRecoveryFailure(String target) {
@@ -418,27 +672,6 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         });
     }
 
-    // Test matrix:
-    // concurrent with index deletion
-    // X EMPTY_STORE
-    // X EXISTING_STORE
-    // X LOCAL_SHARDS
-    // X SNAPSHOT
-    // X PEER
-    // X currentRouting == null -> shard no longer assigned to node, e.g. index delete, allocation moved
-    // - currentRouting.isSameAllocation(retryRouting) == false -> master unassigned then assigned back to same node
-    // - currentRouting.initializing() == false -> see comment in IndexShard.updateShardState
-    // - failedShardsCache.containsKey(shardId) ->
-    // shard deletion
-    // - EMPTY_STORE
-    // - EXISTING_STORE
-    // - LOCAL_SHARDS
-    // - SNAPSHOT
-    // - PEER
-    // new allocation can't grab shard lock (shard moved away and then back while lock is held)
-    // (note that this depends on createShardWhenLockAvailable use the same retry mechanism that rest of recovery does)
-    // RESHARD_SPLIT depends on x-pack plugin, so implement inside StatelessReshardIT
-
     /// Think of a Gate as... well, a gate with a visitor and a guard.
     /// The visitor tries to [enter] the gate and when it leaves, [exit] the gate.
     /// The guard might prevent the visitor from entering by [block] the gate, then [await] for visitor to try to [enter],
@@ -459,6 +692,11 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
     static class Gate {
         private final Semaphore gate = new Semaphore(1);
         private final Semaphore entered = new Semaphore(0);
+        private final String name;
+
+        Gate(String name) {
+            this.name = name;
+        }
 
         void reset() {
             gate.drainPermits();
@@ -493,6 +731,11 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             gate.release();
             safeAcquire(entered);
         }
+
+        @Override
+        public String toString() {
+            return name;
+        }
     }
 
     /// This plugin does a few things:
@@ -507,12 +750,12 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         private static final AtomicInteger retryCounter = new AtomicInteger();
 
         // Gates in the order they are invoked
-        private static final Gate beforeIndexShardCreatedGate = new Gate();
-        private static final Gate onStoreCreatedGate = new Gate();
-        private static final Gate afterIndexShardCreatedGate = new Gate();
-        private static final Gate stateChangeRecoveringGate = new Gate();
-        private static final Gate beforeIndexShardRecoveryGate = new Gate();
-        private static final Gate stateChangePostRecoveryGate = new Gate();
+        private static final Gate beforeIndexShardCreatedGate = new Gate("beforeIndexShardCreateGate");
+        private static final Gate onStoreCreatedGate = new Gate("onStoreCreatedGate");
+        private static final Gate afterIndexShardCreatedGate = new Gate("afterIndexShardCreatedGate");
+        private static final Gate stateChangeRecoveringGate = new Gate("stateChangeRecoveringGate");
+        private static final Gate beforeIndexShardRecoveryGate = new Gate("beforeIndexShardRecoveryGate");
+        private static final Gate stateChangePostRecoveryGate = new Gate("stateChangePostRecoveryGate");
         private static final List<Gate> allGates = List.of(
             beforeIndexShardCreatedGate,
             onStoreCreatedGate,
@@ -545,7 +788,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         }
 
         public static List<Gate> allGatesExcept(Gate... excluded) {
-            List<Gate> result = new ArrayList(allGates);
+            List<Gate> result = new ArrayList<>(allGates);
             for (Gate gate : excluded) {
                 result.remove(gate);
             }

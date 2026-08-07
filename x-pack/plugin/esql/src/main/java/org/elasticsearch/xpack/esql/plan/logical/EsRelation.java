@@ -10,7 +10,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -36,7 +35,6 @@ import java.util.Set;
 public class EsRelation extends LeafPlan {
 
     private static final TransportVersion SPLIT_INDICES = TransportVersion.fromName("esql_es_relation_add_split_indices");
-    private static final TransportVersion SHARD_COUNTS = TransportVersion.fromName("field_caps_number_of_shards");
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
@@ -88,18 +86,9 @@ public class EsRelation extends LeafPlan {
             originalIndices = Map.of();
             concreteIndices = Map.of();
         }
-        // indexNameWithModes and shardCounts are written as separate maps on the wire (for BWC);
-        // we merge them into IndexProperties here.
-        Map<String, IndexMode> indexNameWithModes = in.readMap(IndexMode::readFrom);
+        Map<String, IndexProperties> indexProperties = in.readMap(IndexProperties::new);
         List<Attribute> attributes = in.readNamedWriteableCollectionAsList(Attribute.class);
         IndexMode indexMode = IndexMode.fromString(in.readString());
-        Map<String, Integer> rawShardCounts = in.getTransportVersion().supports(SHARD_COUNTS)
-            ? in.readMap(StreamInput::readVInt)
-            : Map.of();
-        Map<String, IndexProperties> indexProperties = Maps.newMapWithExpectedSize(indexNameWithModes.size());
-        for (var e : indexNameWithModes.entrySet()) {
-            indexProperties.put(e.getKey(), new IndexProperties(e.getValue(), rawShardCounts.getOrDefault(e.getKey(), 0)));
-        }
         return new EsRelation(source, indexPattern, indexMode, originalIndices, concreteIndices, indexProperties, attributes);
     }
 
@@ -111,21 +100,9 @@ public class EsRelation extends LeafPlan {
             out.writeMap(originalIndices, StreamOutput::writeStringCollection);
             out.writeMap(concreteIndices, StreamOutput::writeStringCollection);
         }
-        // Split IndexProperties back into two separate maps to maintain the wire format (for BWC).
-        out.writeMap(indexProperties, (o, v) -> IndexMode.writeTo(v.indexMode(), out));
+        out.writeMap(indexProperties, StreamOutput::writeWriteable);
         out.writeNamedWriteableCollection(attrs);
         out.writeString(indexMode.getName());
-        if (out.getTransportVersion().supports(SHARD_COUNTS)) {
-            // Write only non-zero shard counts (sparse) to stay wire-compatible with the original
-            // format, which was built from IndexResolver's sparse shardCounts map (entries only when > 0).
-            Map<String, Integer> nonZeroShardCounts = Maps.newMapWithExpectedSize(indexProperties.size());
-            for (var e : indexProperties.entrySet()) {
-                if (e.getValue().numberOfShards() > 0) {
-                    nonZeroShardCounts.put(e.getKey(), e.getValue().numberOfShards());
-                }
-            }
-            out.writeMap(nonZeroShardCounts, StreamOutput::writeVInt);
-        }
     }
 
     @Override

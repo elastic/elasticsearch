@@ -610,3 +610,5 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecDenseVectorAggsIT
   method: test {csv-spec:dense_vector_aggs.sumDenseVectorOverflow}
   issue: https://github.com/elastic/elasticsearch/issues/156194
+- class: org.elasticsearch.xpack.esql.CommandDocsTests
+  issue: https://github.com/elastic/elasticsearch/issues/156152

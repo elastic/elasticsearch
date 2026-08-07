@@ -10,10 +10,8 @@ package org.elasticsearch.xpack.stateless;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.search.ReferenceManager;
-import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.AutoCreateAction;
 import org.elasticsearch.action.termvectors.EnsureDocsSearchableAction;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
@@ -36,11 +34,9 @@ import org.elasticsearch.cluster.metadata.MetadataMappingService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.project.ProjectResolver;
-import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingRoleStrategy;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.IndexBalanceConstraintSettings;
 import org.elasticsearch.cluster.routing.allocation.IndexBalanceMetricsTaskExecutor;
@@ -62,7 +58,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
@@ -84,7 +79,6 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineCreationFailureException;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.DirectoryMetrics;
@@ -95,7 +89,6 @@ import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
-import org.elasticsearch.indices.cluster.IndexRemovalReason;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.StatelessPrimaryRelocationAction;
 import org.elasticsearch.indices.recovery.StatelessUnpromotableRelocationAction;
@@ -206,6 +199,8 @@ import org.elasticsearch.xpack.stateless.recovery.PITRelocationService;
 import org.elasticsearch.xpack.stateless.recovery.PitRelocationMetrics;
 import org.elasticsearch.xpack.stateless.recovery.RecoveryCommitRegistrationHandler;
 import org.elasticsearch.xpack.stateless.recovery.RemoveRefreshClusterBlockService;
+import org.elasticsearch.xpack.stateless.recovery.StatelessIndexNodeRecoveryListener;
+import org.elasticsearch.xpack.stateless.recovery.StatelessSearchNodeRecoveryListener;
 import org.elasticsearch.xpack.stateless.recovery.TransportRegisterCommitForRecoveryAction;
 import org.elasticsearch.xpack.stateless.recovery.TransportSendRecoveryCommitRegistrationAction;
 import org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction;
@@ -255,6 +250,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
@@ -559,8 +555,7 @@ public class StatelessPlugin extends Plugin
     private final SetOnce<SearchShardSizeCollectorProvider> searchShardSizeCollectorProvider = new SetOnce<>();
     private final SetOnce<SearchShardSizeCollector> searchShardSizeCollector = new SetOnce<>();
     private final SetOnce<WarmingRatioProviderFactory> warmingRatioProviderFactoryRef = new SetOnce<>();
-
-    private volatile boolean isNodeShuttingDown = false;
+    private final SetOnce<AtomicBoolean> isNodeShuttingDown = new SetOnce<>();
 
     private ObjectStoreService getObjectStoreService() {
         return Objects.requireNonNull(this.objectStoreService.get());
@@ -618,7 +613,6 @@ public class StatelessPlugin extends Plugin
         logger.info("[{}] is enabled", NAME);
         hasIndexRole = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.INDEX_ROLE);
 
-        logSettings(settings);
         // It is dangerous to retain these settings because they will be further modified after this ctor due
         // to the call to #additionalSettings. We only parse out the components that has already been set.
         sharedCachedSettingExplicitlySet = SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.exists(settings);
@@ -627,7 +621,7 @@ public class StatelessPlugin extends Plugin
         pageCacheReyclerLimitExplicitlySet = PageCacheRecycler.LIMIT_HEAP_SETTING.exists(settings);
         hasSearchRole = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE);
         hasMasterRole = DiscoveryNode.isMasterNode(settings);
-        this.statelessIndexSettingProvider = new StatelessIndexSettingProvider();
+        statelessIndexSettingProvider = new StatelessIndexSettingProvider();
         hollowShardsEnabled = STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.get(settings);
     }
 
@@ -835,7 +829,7 @@ public class StatelessPlugin extends Plugin
 
         var clusterStateCleanupService = new StatelessClusterStateCleanupService(threadPool, objectStoreService, clusterService);
         clusterService.addListener(clusterStateCleanupService);
-        StatelessCommitService commitService = null;
+        final StatelessCommitService commitService;
         if (hasIndexRole) {
             commitService = createStatelessCommitService(
                 settings,
@@ -850,14 +844,12 @@ public class StatelessPlugin extends Plugin
             );
             // createStatelessCommitService may return a subclass, so we bind the component explicitly
             components.add(new PluginComponentBinding<>(StatelessCommitService.class, commitService));
-        }
-        components.add(new StatelessCommitServiceProvider(commitService));
-        if (commitService != null) {
-            // Allow wrapping non-Guiced version for testing
-            commitService = wrapStatelessCommitService(commitService);
             setAndGet(this.commitService, commitService);
             clusterService.addListener(commitService);
+        } else {
+            commitService = null;
         }
+        components.add(new StatelessCommitServiceProvider(commitService));
 
         final var snapshotsCommitService = setAndGet(
             this.snapshotsCommitServiceRef,
@@ -1068,10 +1060,10 @@ public class StatelessPlugin extends Plugin
                     threadPool.relativeTimeInMillisSupplier()
                 )
             );
-
+            final var shuttingDown = setAndGet(isNodeShuttingDown, new AtomicBoolean());
             clusterService.addListener(event -> {
                 if (event.state().metadata().nodeShutdowns().contains(event.state().nodes().getLocalNodeId())) {
-                    isNodeShuttingDown = true;
+                    shuttingDown.set(true);
                 }
             });
         }
@@ -1250,10 +1242,6 @@ public class StatelessPlugin extends Plugin
         MeterRegistry meterRegistry
     ) {
         return new GetVirtualBatchedCompoundCommitChunksPressure(settings, meterRegistry);
-    }
-
-    protected StatelessCommitService wrapStatelessCommitService(StatelessCommitService instance) {
-        return instance;
     }
 
     private static <T> T setAndGet(SetOnce<T> ref, T service) {
@@ -1458,120 +1446,15 @@ public class StatelessPlugin extends Plugin
 
             indexModule.addIndexEventListener(shardsMappingSizeCollector.get());
             indexModule.addIndexOperationListener(new StatelessIndexingOperationListener(hollowShardsService.get()));
-            indexModule.addIndexEventListener(new IndexEventListener() {
-
-                @Override
-                public void afterIndexShardCreated(IndexShard indexShard) {
-                    statelessCommitService.register(
-                        indexShard.shardId(),
-                        indexShard.getOperationPrimaryTerm(),
-                        () -> isInitializingNoSearchShards(indexShard),
-                        () -> indexShard.mapperService().mappingLookup(),
-                        indexShard::addGlobalCheckpointListener,
-                        () -> {
-                            Engine engineOrNull = indexShard.getEngineOrNull();
-                            if (engineOrNull instanceof IndexEngine engine) {
-                                engine.syncTranslogReplicator(ActionListener.noop());
-                            } else if (engineOrNull == null) {
-                                throw new AlreadyClosedException("engine is closed");
-                            } else {
-                                assert false : "Engine is " + engineOrNull;
-                                throw new IllegalStateException("Engine is " + engineOrNull);
-                            }
-                        }
-                    );
-                    localTranslogReplicator.register(indexShard.shardId(), indexShard.getOperationPrimaryTerm(), seqNos -> {
-                        var engine = indexShard.getEngineOrNull();
-                        if (engine != null && engine instanceof IndexEngine indexEngine) {
-                            indexEngine.objectStorePersistedSeqNoConsumer().accept(seqNos);
-                            // The local checkpoint is updated as part of the post-replication actions of ReplicationOperation. However, if
-                            // a bulk request has a refresh included, the post-replication actions happen after the refresh. And the refresh
-                            // may need to wait for the checkpoint to progress in order to send out a new VBCC commit notification. To
-                            // break this stalemate, we update the checkpoint as early as here, when the translog has persisted a seqno.
-                            // We exclude the initializing state since the replication tracker may not yet be in primary mode and the local
-                            // checkpoint is updated as part of recovery. We ignore errors since this is best effort.
-                            try {
-                                if (indexShard.routingEntry().state() != ShardRoutingState.INITIALIZING) {
-                                    indexShard.updateLocalCheckpointForShard(
-                                        indexShard.routingEntry().allocationId().getId(),
-                                        indexEngine.getPersistedLocalCheckpoint()
-                                    );
-                                }
-                            } catch (Exception e) {
-                                logger.debug(() -> "Failed to update local checkpoint", e);
-                            }
-                        }
-                    });
-                    // We are pruning the archive for a given generation, only once we know all search shards are
-                    // aware of that generation.
-                    // TODO: In the context of real-time GET, this might be an overkill and in case of misbehaving
-                    // search shards, this might lead to higher memory consumption on the indexing shards. Depending on
-                    // how we respond to get requests that are not in the live version map (what generation we send back
-                    // for the search shard to wait for), it could be safe to trigger the pruning earlier, e.g., once the
-                    // commit upload is successful.
-                    statelessCommitService.registerCommitNotificationSuccessListener(indexShard.shardId(), (gen) -> {
-                        // We dispatch to a generic thread to avoid a transport worker being blocked to get the engine while it's reset
-                        commitSuccessExecutor.get().execute(new AbstractRunnable() {
-                            @Override
-                            public void onFailure(Exception e) {
-                                logger.warn(
-                                    () -> "["
-                                        + indexShard.shardId()
-                                        + "] failed to notify success of commit notification with generation"
-                                        + gen,
-                                    e
-                                );
-                            }
-
-                            @Override
-                            protected void doRun() throws Exception {
-                                indexShard.withEngineOrNull(engine -> {
-                                    if (engine != null && engine instanceof IndexEngine e) {
-                                        e.commitSuccess(gen);
-                                    }
-                                    return null;
-                                });
-                            }
-
-                            @Override
-                            public String toString() {
-                                return "commitSuccess[" + indexShard.shardId() + "]";
-                            }
-                        });
-                    });
-                }
-
-                @Override
-                public void beforeIndexRemoved(IndexService indexService, IndexRemovalReason reason) {
-                    if (reason == IndexRemovalReason.DELETED) {
-                        statelessCommitService.markIndexDeleting(
-                            indexService.shardIds().stream().map(id -> new ShardId(indexService.index(), id)).toList()
-                        );
-                    }
-                }
-
-                @Override
-                public void afterIndexShardClosed(ShardId shardId, IndexShard indexShard, Settings indexSettings) {
-                    if (indexShard != null) {
-                        statelessCommitService.unregisterCommitNotificationSuccessListener(shardId);
-                        statelessCommitService.closeShard(shardId);
-                        // release snapshot commits after shardCommitState is closed
-                        snapshotsCommitService.releaseCommitsAndRemoveShardAfterShardClosed(shardId);
-                        hollowShardsService.get().removeHollowShard(indexShard, "index shard closed");
-                    }
-                }
-
-                @Override
-                public void afterIndexShardDeleted(ShardId shardId, Settings indexSettings) {
-                    statelessCommitService.delete(shardId);
-                }
-
-                @Override
-                public void onStoreClosed(ShardId shardId) {
-                    statelessCommitService.unregister(shardId);
-                    localTranslogReplicator.unregister(shardId);
-                }
-            });
+            indexModule.addIndexEventListener(
+                new StatelessIndexNodeLifecycleListener(
+                    statelessCommitService,
+                    localTranslogReplicator,
+                    snapshotsCommitService,
+                    commitSuccessExecutor.get(),
+                    hollowShardsService.get()
+                )
+            );
             if (hollowShardsEnabled == false) {
                 indexModule.setIndexCommitListener(createIndexCommitListener());
             } else {
@@ -1612,45 +1495,16 @@ public class StatelessPlugin extends Plugin
             );
         }
         if (hasSearchRole) {
-            final var collector = searchShardSizeCollector.get();
-            indexModule.addIndexEventListener(new IndexEventListener() {
-
-                @Override
-                public void afterIndexShardStarted(IndexShard indexShard) {
-                    collector.collectShardSize(indexShard.shardId());
-                }
-
-                @Override
-                public void beforeIndexRemoved(IndexService indexService, IndexRemovalReason reason) {
-                    if (reason == IndexRemovalReason.DELETED) {
-                        // Evict cache regions of shards of the deleted index
-                        final var cacheService = sharedBlobCacheService.get();
-                        if (cacheService.isEvictDeletedIndexRegionsEnabled() && isNodeShuttingDown == false) {
-                            cacheService.forceEvictAsync(k -> k.shardId().getIndex().equals(indexService.index()));
-                        }
-                    }
-                }
-
-                @Override
-                public void onStoreClosed(ShardId shardId) {
-                    getClosedShardService().onStoreClose(shardId);
-
-                    // Demote cache regions of the closed shard, so they can be more easily evicted
-                    final var cacheService = sharedBlobCacheService.get();
-                    if (cacheService.isDemoteClosedShardRegionsEnabled() && isNodeShuttingDown == false) {
-                        final var hasShard = indicesService.get().hasShardPredicate();
-                        // Index deletion also ultimately closes the store, but there is no point demoting regions of an index
-                        // that no longer exists: beforeIndexRemoved above enqueues them for eviction when that is enabled, and
-                        // otherwise they are left to the regular LFU. We check index existence in the predicate because
-                        // onStoreClosed can run on the cluster state applier thread, where querying the ClusterService#state()
-                        // is not allowed.
-                        final Predicate<ShardId> shouldDemote = id -> isNodeShuttingDown == false
-                            && clusterService.get().state().metadata().lookupProject(id.getIndex()).isPresent()
-                            && hasShard.test(id) == false;
-                        cacheService.demoteAllAsync(shardId, shouldDemote);
-                    }
-                }
-            });
+            indexModule.addIndexEventListener(
+                new StatelessSearchNodeLifecycleListener(
+                    searchShardSizeCollector.get(),
+                    sharedBlobCacheService.get(),
+                    indicesService.get(),
+                    clusterService.get(),
+                    getClosedShardService(),
+                    isNodeShuttingDown.get()::get
+                )
+            );
 
             indexModule.addIndexEventListener(this.searchShardInformationIndexListener.get());
             indexModule.addIndexEventListener(this.pitRelocationService.get());
@@ -2175,24 +2029,6 @@ public class StatelessPlugin extends Plugin
 
     public ShardsMappingSizeCollector getShardsMappingSizeCollector() {
         return shardsMappingSizeCollector.get();
-    }
-
-    private static void logSettings(final Settings settings) {
-        // TODO: Move the logging back to StatelessCommitService#new once ES-8507 is resolved
-        final var bccMaxAmountOfCommits = StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.get(settings);
-        final var bccUploadMaxSize = StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE.get(settings);
-        final var virtualBccUploadMaxAge = StatelessCommitService.STATELESS_UPLOAD_VBCC_MAX_AGE.get(settings);
-        logger.info(
-            "delayed upload with [max_commits={}], [max_size={}], [max_age={}]",
-            bccMaxAmountOfCommits,
-            bccUploadMaxSize.getStringRep(),
-            virtualBccUploadMaxAge.getStringRep()
-        );
-    }
-
-    private boolean isInitializingNoSearchShards(IndexShard shard) {
-        ShardRouting shardRouting = shard.routingEntry();
-        return shardRouting.initializing() && shardRouting.recoverySource().getType() != RecoverySource.Type.PEER;
     }
 
     private record ShouldSkipMerges(IndicesService indicesService, SplitSourceService splitSourceService) implements Predicate<ShardId> {

@@ -225,6 +225,91 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         assertTrue("Expected positive rank correlation, got " + correlation, correlation > 0.3);
     }
 
+    public void testReconstructedDotProductApproximatesTrueDotProduct() {
+        // With no dimensionality reduction (projectedDimsFraction=1.0, so nDims == originalDim and W
+        // is a random orthogonal matrix -- a pure rotation, not a projection), the only source of
+        // reconstruction error is the quantization of the residual (vector - centroid). This
+        // isolates the quantizer's fidelity, matching the near-linear ⟨q, x⟩ ~ ⟨q, quant(x)⟩
+        // relationship reported for ASH (see https://arxiv.org/pdf/2606.07870, Figure 4 and the
+        // surrounding "estimator bias" discussion, which notes the fit is not exact -- there's a
+        // small, bitsPerDim-dependent bias -- but the pairs are tightly clustered around the line).
+        //
+        // Thresholds below were calibrated empirically (aggregate relative RMSE over many random
+        // query/vector/centroid trials, stable across seeds) with a safety margin of roughly 2x
+        // (4 bits) to 5x (8 bits) over the observed values, to catch a real regression without being
+        // flaky.
+        int dim = 128;
+        int nVectors = 200;
+        Random rng = new Random(2026);
+
+        for (var config : new Object[][] { { 4, 0.35 }, { 8, 0.05 } }) {
+            int bitsPerDim = (int) config[0];
+            double relRmseThreshold = (double) config[1];
+
+            AsymmetricHashingQuantizer quantizer = new AsymmetricHashingQuantizer(
+                1.0f,
+                bitsPerDim,
+                AsymmetricHashingQuantizer.Method.RANDOM,
+                0,
+                1,
+                42L
+            );
+            float[][] w = quantizer.train(new float[][] { new float[dim] }, i -> new float[dim]);
+            float[][] wT = AsymmetricHashingQuantizer.transposeW(w);
+
+            float[] centroid = new float[dim];
+            float[] query = new float[dim];
+            for (int d = 0; d < dim; d++) {
+                centroid[d] = (float) rng.nextGaussian();
+                query[d] = (float) rng.nextGaussian();
+            }
+
+            // Raw query projection: qt = query @ W
+            int nDims = w[0].length;
+            float[] qt = new float[nDims];
+            for (int j = 0; j < nDims; j++) {
+                double sum = 0;
+                for (int d = 0; d < dim; d++) {
+                    sum = Math.fma(query[d], w[d][j], sum);
+                }
+                qt[j] = (float) sum;
+            }
+            float queryDotCentroid = ESVectorUtil.dotProduct(query, centroid, dim);
+            AsymmetricHashingQuantizer.PrecomputedCentroid precomputed = AsymmetricHashingQuantizer.precomputeCentroid(centroid, wT);
+
+            double sumSqErr = 0;
+            double sumSqTrue = 0;
+            for (int i = 0; i < nVectors; i++) {
+                float[] vector = new float[dim];
+                for (int d = 0; d < dim; d++) {
+                    vector[d] = (float) rng.nextGaussian();
+                }
+                float trueDot = ESVectorUtil.dotProduct(query, vector, dim);
+
+                AsymmetricHashingQuantizer.EncodedVector enc = quantizer.encode(vector, centroid, wT, precomputed);
+                byte[] packed = AsymmetricHashingScorer.pack(enc.xEnc(), bitsPerDim);
+                float reconstructed = AsymmetricHashingScorer.score(
+                    qt,
+                    queryDotCentroid,
+                    packed,
+                    nDims,
+                    bitsPerDim,
+                    enc.scale(),
+                    enc.offset()
+                );
+
+                double err = reconstructed - trueDot;
+                sumSqErr += err * err;
+                sumSqTrue += (double) trueDot * trueDot;
+            }
+            double relRmse = Math.sqrt(sumSqErr / sumSqTrue);
+            assertTrue(
+                "bitsPerDim=" + bitsPerDim + " relative RMSE too high: " + relRmse + " (threshold " + relRmseThreshold + ")",
+                relRmse < relRmseThreshold
+            );
+        }
+    }
+
     public void testScorerSingleVector() {
         int nDims = 2;
         int bitsPerDim = 2;

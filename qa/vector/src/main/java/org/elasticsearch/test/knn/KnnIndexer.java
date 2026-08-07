@@ -342,7 +342,7 @@ public class KnnIndexer {
         try {
             Class<?> factoryClass = Class.forName("org.elasticsearch.xpack.stateless.lucene.StatelessDirectoryFactory");
             Settings searchNodeSettings = Settings.builder().putList("node.roles", "search").build();
-            var method = factoryClass.getMethod("create", Path.class, Path.class, Settings.class);
+            var method = factoryClass.getMethod("newSearchDirectory", Path.class, Path.class, Settings.class);
             return (Directory) method.invoke(null, indexPath, workPath, searchNodeSettings);
         } catch (Exception e) {
             throw new IOException("Failed to create stateless directory. Ensure the stateless test artifact is on the classpath.", e);

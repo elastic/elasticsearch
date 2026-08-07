@@ -20,6 +20,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ShardBatchMapper;
 import org.elasticsearch.index.mapper.ShardBatchMapper.BatchMapperResolution;
 import org.elasticsearch.indices.recovery.RecoverySettings;
@@ -104,10 +105,11 @@ public class ShardBatchMapperResolveTests extends MapperServiceTestCase {
         assertTrue(resolution.columnMappers()[0] instanceof KeywordFieldMapper);
     }
 
-    public void testNumberIgnoreMalformedIsNotSupported() throws IOException {
+    public void testNumberIgnoreMalformedIsSupported() throws IOException {
         MapperService ms = mapper(mapping(b -> { b.startObject("v").field("type", "long").field("ignore_malformed", true).endObject(); }));
         BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schemaOf("v"), ms.mappingLookup(), indexSettings);
-        assertNull(resolution);
+        assertNotNull(resolution);
+        assertTrue(resolution.columnMappers()[0] instanceof NumberFieldMapper);
     }
 
     public void testMissingLeafUnderDynamicFalseIsIgnored() throws IOException {

@@ -64,7 +64,7 @@ public class TransportGetServiceAccountAction extends HandledTransportAction<Get
             .map(v -> ServiceAccountInfo.builtIn(v.id().asPrincipal(), v.roleDescriptor()))
             .toList();
 
-        if (requestsBuiltInAccountsOnly(request)) {
+        if (requestsBuiltInAccountsOnly(request) || shouldSkipManagedLookup(request)) {
             listener.onResponse(new GetServiceAccountResponse(builtInInfos.toArray(ServiceAccountInfo[]::new)));
             return;
         }
@@ -80,5 +80,9 @@ public class TransportGetServiceAccountAction extends HandledTransportAction<Get
 
     private static boolean requestsBuiltInAccountsOnly(GetServiceAccountRequest request) {
         return ManagedServiceAccountIdValidator.BUILTIN_NAMESPACE.equals(request.getNamespace());
+    }
+
+    private static boolean shouldSkipManagedLookup(GetServiceAccountRequest request) {
+        return request.getNamespace() == null && request.isIncludeManaged() == false;
     }
 }

@@ -105,7 +105,26 @@ public class TransportGetServiceAccountActionTests extends ESTestCase {
         verify(failingServiceAccountService, never()).getManagedAccountInfos(any(), any(), any());
     }
 
-    public void testUnfilteredLookupStillUsesManagedStore() {
+    public void testUnfilteredLookupStillUsesManagedStoreWhenRequested() {
+        ServiceAccountService failingServiceAccountService = mock(ServiceAccountService.class);
+        doAnswer(invocation -> {
+            ActionListener<List<ServiceAccountInfo>> listener = invocation.getArgument(2);
+            listener.onFailure(new ElasticsearchException("security index unavailable"));
+            return null;
+        }).when(failingServiceAccountService).getManagedAccountInfos(any(), any(), any());
+        TransportGetServiceAccountAction action = new TransportGetServiceAccountAction(
+            MockUtils.setupTransportServiceWithThreadpoolExecutor(),
+            new ActionFilters(Collections.emptySet()),
+            failingServiceAccountService
+        );
+
+        final PlainActionFuture<GetServiceAccountResponse> future = new PlainActionFuture<>();
+        action.doExecute(mock(Task.class), new GetServiceAccountRequest(null, null, true), future);
+        expectThrows(ElasticsearchException.class, future::actionGet);
+        verify(failingServiceAccountService).getManagedAccountInfos(eq(null), eq(null), any());
+    }
+
+    public void testUnfilteredLookupSkipsManagedStoreByDefault() {
         ServiceAccountService failingServiceAccountService = mock(ServiceAccountService.class);
         doAnswer(invocation -> {
             ActionListener<List<ServiceAccountInfo>> listener = invocation.getArgument(2);
@@ -120,7 +139,7 @@ public class TransportGetServiceAccountActionTests extends ESTestCase {
 
         final PlainActionFuture<GetServiceAccountResponse> future = new PlainActionFuture<>();
         action.doExecute(mock(Task.class), new GetServiceAccountRequest(null, null), future);
-        expectThrows(ElasticsearchException.class, future::actionGet);
-        verify(failingServiceAccountService).getManagedAccountInfos(eq(null), eq(null), any());
+        assertThat(future.actionGet().getServiceAccountInfos().length, equalTo(4));
+        verify(failingServiceAccountService, never()).getManagedAccountInfos(any(), any(), any());
     }
 }

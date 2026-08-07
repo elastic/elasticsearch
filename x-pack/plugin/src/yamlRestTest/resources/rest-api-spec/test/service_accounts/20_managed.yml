@@ -69,6 +69,17 @@ teardown:
   - match: { created: true }
 
   - do:
+      security.get_service_accounts: {}
+  - length: { '': 4 }
+  - is_false: "yaml_poc/worker_1"
+
+  - do:
+      security.get_service_accounts:
+        include_managed: true
+  - length: { '': 5 }
+  - is_true: "yaml_poc/worker_1"
+
+  - do:
       security.get_service_accounts:
         namespace: yaml_poc
         service: worker_1

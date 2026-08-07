@@ -22,16 +22,27 @@ public class GetServiceAccountRequest extends UntypedActionRequest {
     private final String namespace;
     @Nullable
     private final String serviceName;
+    private final boolean includeManaged;
 
     public GetServiceAccountRequest(@Nullable String namespace, @Nullable String serviceName) {
+        this(namespace, serviceName, false);
+    }
+
+    public GetServiceAccountRequest(@Nullable String namespace, @Nullable String serviceName, boolean includeManaged) {
         this.namespace = namespace;
         this.serviceName = serviceName;
+        this.includeManaged = includeManaged;
     }
 
     public GetServiceAccountRequest(StreamInput in) throws IOException {
         super(in);
         this.namespace = in.readOptionalString();
         this.serviceName = in.readOptionalString();
+        if (in.getTransportVersion().supports(ServiceAccountInfo.MANAGED_SERVICE_ACCOUNTS)) {
+            includeManaged = in.readBoolean();
+        } else {
+            includeManaged = false;
+        }
     }
 
     public String getNamespace() {
@@ -42,17 +53,23 @@ public class GetServiceAccountRequest extends UntypedActionRequest {
         return serviceName;
     }
 
+    public boolean isIncludeManaged() {
+        return includeManaged;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         GetServiceAccountRequest that = (GetServiceAccountRequest) o;
-        return Objects.equals(namespace, that.namespace) && Objects.equals(serviceName, that.serviceName);
+        return includeManaged == that.includeManaged
+            && Objects.equals(namespace, that.namespace)
+            && Objects.equals(serviceName, that.serviceName);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(namespace, serviceName);
+        return Objects.hash(namespace, serviceName, includeManaged);
     }
 
     @Override
@@ -60,6 +77,9 @@ public class GetServiceAccountRequest extends UntypedActionRequest {
         super.writeTo(out);
         out.writeOptionalString(namespace);
         out.writeOptionalString(serviceName);
+        if (out.getTransportVersion().supports(ServiceAccountInfo.MANAGED_SERVICE_ACCOUNTS)) {
+            out.writeBoolean(includeManaged);
+        }
     }
 
     @Override

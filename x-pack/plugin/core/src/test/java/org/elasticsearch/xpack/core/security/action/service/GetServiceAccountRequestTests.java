@@ -21,22 +21,35 @@ public class GetServiceAccountRequestTests extends AbstractWireSerializingTestCa
     protected GetServiceAccountRequest createTestInstance() {
         return new GetServiceAccountRequest(
             randomFrom(randomAlphaOfLengthBetween(3, 8), null),
-            randomFrom(randomAlphaOfLengthBetween(3, 8), null)
+            randomFrom(randomAlphaOfLengthBetween(3, 8), null),
+            randomBoolean()
         );
     }
 
     @Override
     protected GetServiceAccountRequest mutateInstance(GetServiceAccountRequest instance) {
-        if (randomBoolean()) {
-            return new GetServiceAccountRequest(
-                randomValueOtherThan(instance.getNamespace(), () -> randomFrom(randomAlphaOfLengthBetween(3, 8), null)),
-                instance.getServiceName()
-            );
-        } else {
-            return new GetServiceAccountRequest(
-                instance.getNamespace(),
-                randomValueOtherThan(instance.getServiceName(), () -> randomFrom(randomAlphaOfLengthBetween(3, 8), null))
-            );
+        switch (randomInt(2)) {
+            case 0 -> {
+                return new GetServiceAccountRequest(
+                    randomValueOtherThan(instance.getNamespace(), () -> randomFrom(randomAlphaOfLengthBetween(3, 8), null)),
+                    instance.getServiceName(),
+                    instance.isIncludeManaged()
+                );
+            }
+            case 1 -> {
+                return new GetServiceAccountRequest(
+                    instance.getNamespace(),
+                    randomValueOtherThan(instance.getServiceName(), () -> randomFrom(randomAlphaOfLengthBetween(3, 8), null)),
+                    instance.isIncludeManaged()
+                );
+            }
+            default -> {
+                return new GetServiceAccountRequest(
+                    instance.getNamespace(),
+                    instance.getServiceName(),
+                    instance.isIncludeManaged() == false
+                );
+            }
         }
     }
 }

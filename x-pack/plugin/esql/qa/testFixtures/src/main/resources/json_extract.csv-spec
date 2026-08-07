@@ -523,8 +523,6 @@ str:keyword              | result:keyword
 "{""name"":""Alice""}"  | null
 ;
 
-// Exercises JSON_EXTRACT:string with a keyword field containing valid JSON
-// so that field_extract coverage is recorded for the string parameter slot.
 jsonExtractKeywordStringField
 required_capability: fn_json_extract
 

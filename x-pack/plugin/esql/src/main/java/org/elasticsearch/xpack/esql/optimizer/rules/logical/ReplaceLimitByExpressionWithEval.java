@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -42,6 +43,12 @@ public final class ReplaceLimitByExpressionWithEval extends OptimizerRules.Optim
         for (int i = 0; i < size; i++) {
             Expression g = newGroupings.get(i);
             if (g.foldable()) {
+                continue;
+            }
+            if (Alias.unwrap(g) instanceof GroupingFunction.NonEvaluatableGroupingFunction) {
+                // NonEvaluatableGroupingFunction (e.g. CATEGORIZE) cannot be evaluated row-by-row; the
+                // physical planner handles them via a dedicated operator (e.g. CategorizeEvalOperator).
+                // Leave them in the groupings list so the planner can find and handle them.
                 continue;
             }
             if (g instanceof Attribute == false) {

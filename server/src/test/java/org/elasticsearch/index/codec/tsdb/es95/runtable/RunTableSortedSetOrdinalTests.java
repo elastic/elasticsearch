@@ -211,7 +211,6 @@ public class RunTableSortedSetOrdinalTests extends ESTestCase {
     }
 
     public void testSortedSetSparseLeadingAndTrailingAbsent() throws IOException {
-        // run 0: doc 0, {} (empty); run 1: docs 1-3, {0,1}; run 2: doc 4, {} (empty)
         final int[][] perDocSets = { {}, { 0, 1 }, { 0, 1 }, { 0, 1 }, {} };
         final int valueCount = 2;
         try (Directory dir = new ByteBuffersDirectory()) {
@@ -234,8 +233,6 @@ public class RunTableSortedSetOrdinalTests extends ESTestCase {
     }
 
     public void testSortedSetSparseOnlyOneDocPresent() throws IOException {
-        // run 0: docs 0-1, {} (two consecutive empty sets collapse into one run);
-        // run 1: doc 2, {0,1}; run 2: docs 3-4, {} (trailing empty)
         final int[][] perDocSets = { {}, {}, { 0, 1 }, {}, {} };
         final int valueCount = 2;
         try (Directory dir = new ByteBuffersDirectory()) {
@@ -249,7 +246,6 @@ public class RunTableSortedSetOrdinalTests extends ESTestCase {
     }
 
     public void testSortedSetConsecutiveEmptyRunsNotPossible() {
-        // Two consecutive empty-set adds collapse into a single run (maximal runs invariant).
         final RunTableSortedSetOrdinalWriter writer = new RunTableSortedSetOrdinalWriter(4);
         writer.add(new int[0]);
         writer.add(new int[0]);
@@ -376,60 +372,4 @@ public class RunTableSortedSetOrdinalTests extends ESTestCase {
         assertEquals(expected.length, expectedDoc);
     }
 
-    // A thin IndexInput wrapper that tallies every byte read into a shared counter, propagating the counter
-    // to clones and slices (including the random-access slices the DirectReader path reads ordinals through)
-    // so a single count captures all reads no matter which view served them.
-    private static final class CountingIndexInput extends IndexInput {
-
-        private final IndexInput in;
-        private final long[] counter;
-
-        CountingIndexInput(final IndexInput in, final long[] counter) {
-            super("CountingIndexInput(" + in + ")");
-            this.in = in;
-            this.counter = counter;
-        }
-
-        @Override
-        public byte readByte() throws IOException {
-            counter[0]++;
-            return in.readByte();
-        }
-
-        @Override
-        public void readBytes(final byte[] b, int offset, int len) throws IOException {
-            counter[0] += len;
-            in.readBytes(b, offset, len);
-        }
-
-        @Override
-        public void close() throws IOException {
-            in.close();
-        }
-
-        @Override
-        public long getFilePointer() {
-            return in.getFilePointer();
-        }
-
-        @Override
-        public void seek(long pos) throws IOException {
-            in.seek(pos);
-        }
-
-        @Override
-        public long length() {
-            return in.length();
-        }
-
-        @Override
-        public IndexInput slice(final String sliceDescription, long offset, long length) throws IOException {
-            return new CountingIndexInput(in.slice(sliceDescription, offset, length), counter);
-        }
-
-        @Override
-        public IndexInput clone() {
-            return new CountingIndexInput(in.clone(), counter);
-        }
-    }
 }

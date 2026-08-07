@@ -1945,6 +1945,9 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         // (null value signals a null slot). No separate null marker is needed: the value's presence or absence carries the
         // distinction, and the retained cursor BytesRef is valid until the column builder consumes it at end-of-document.
         BytesRef[] tuples = new BytesRef[8];
+        // Batch-scoped encode buffer. encodeTuples writes each document's blob here and returns a view over it;
+        // keyed.setString copies the bytes out immediately, so the buffer is free to be overwritten next document.
+        final BytesRefBuilder encodeScratch = new BytesRefBuilder();
 
         for (int doc = 0; doc < docCount; doc++) {
             int slotCount = 0;
@@ -1988,7 +1991,10 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
 
             if (slotCount > 0) {
                 // Unlike the non-keyed ArrayOrderInlineNull, an all-null document still writes a blob: its null slots carry keys.
-                keyed.setString(doc, MultiValuedBinaryDocValuesField.KeyedArrayOrderInlineNull.encodeTuples(tuples, slotCount));
+                keyed.setString(
+                    doc,
+                    MultiValuedBinaryDocValuesField.KeyedArrayOrderInlineNull.encodeTuples(tuples, slotCount, encodeScratch)
+                );
                 counts.setLong(doc, slotCount);
             }
         }

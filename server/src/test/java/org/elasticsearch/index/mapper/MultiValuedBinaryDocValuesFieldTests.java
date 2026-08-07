@@ -13,6 +13,7 @@ import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -25,6 +26,7 @@ import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.BitSet;
 import java.util.List;
 
@@ -419,7 +421,7 @@ public class MultiValuedBinaryDocValuesFieldTests extends ESTestCase {
         BytesRef[] tuples = { keyPrefix, value };
 
         // when
-        BytesRef actual = KeyedArrayOrderInlineNull.encodeTuples(tuples, 1);
+        BytesRef actual = KeyedArrayOrderInlineNull.encodeTuples(tuples, 1, new BytesRefBuilder());
 
         // then — VInt prefix is valueLen+1 (no single-slot raw passthrough)
         try (var expected = new BytesStreamOutput()) {
@@ -435,7 +437,7 @@ public class MultiValuedBinaryDocValuesFieldTests extends ESTestCase {
         BytesRef[] tuples = { new BytesRef("k1\0"), new BytesRef("a"), new BytesRef("k2\0"), new BytesRef("b"), };
 
         // when
-        BytesRef actual = KeyedArrayOrderInlineNull.encodeTuples(tuples, 2);
+        BytesRef actual = KeyedArrayOrderInlineNull.encodeTuples(tuples, 2, new BytesRefBuilder());
 
         // then
         try (var expected = new BytesStreamOutput()) {
@@ -455,7 +457,7 @@ public class MultiValuedBinaryDocValuesFieldTests extends ESTestCase {
         BytesRef[] tuples = { keyPrefix, null };
 
         // when
-        BytesRef actual = KeyedArrayOrderInlineNull.encodeTuples(tuples, 1);
+        BytesRef actual = KeyedArrayOrderInlineNull.encodeTuples(tuples, 1, new BytesRefBuilder());
 
         // then — the separator byte is always written even for null slots; decoders skip keyLen+1
         try (var expected = new BytesStreamOutput()) {
@@ -481,7 +483,7 @@ public class MultiValuedBinaryDocValuesFieldTests extends ESTestCase {
         };
 
         // when
-        BytesRef actual = KeyedArrayOrderInlineNull.encodeTuples(tuples, 2);
+        BytesRef actual = KeyedArrayOrderInlineNull.encodeTuples(tuples, 2, new BytesRefBuilder());
 
         // then
         try (var expected = new BytesStreamOutput()) {
@@ -501,7 +503,7 @@ public class MultiValuedBinaryDocValuesFieldTests extends ESTestCase {
         BytesRef[] tuples = { keyPrefix, value };
 
         // when
-        BytesRef actual = KeyedArrayOrderInlineNull.encodeTuples(tuples, 1);
+        BytesRef actual = KeyedArrayOrderInlineNull.encodeTuples(tuples, 1, new BytesRefBuilder());
 
         // then — the inner \0 in the value is not confused with the key separator
         try (var expected = new BytesStreamOutput()) {
@@ -520,7 +522,7 @@ public class MultiValuedBinaryDocValuesFieldTests extends ESTestCase {
         BytesRef[] tuples = { keyPrefix, value };
 
         // when
-        BytesRef actual = KeyedArrayOrderInlineNull.encodeTuples(tuples, 1);
+        BytesRef actual = KeyedArrayOrderInlineNull.encodeTuples(tuples, 1, new BytesRefBuilder());
 
         // then
         try (var expected = new BytesStreamOutput()) {
@@ -547,11 +549,12 @@ public class MultiValuedBinaryDocValuesFieldTests extends ESTestCase {
         };
 
         // when
-        BytesRef actual = KeyedArrayOrderInlineNull.encodeTuples(tuples, 2);
+        BytesRef actual = KeyedArrayOrderInlineNull.encodeTuples(tuples, 2, new BytesRefBuilder());
 
         // then - result equals encoding only the two valid slots
         BytesRef[] fresh = { new BytesRef("k1\0"), new BytesRef("v1"), new BytesRef("k2\0"), new BytesRef("v2") };
-        assertEquals(KeyedArrayOrderInlineNull.encodeTuples(fresh, 2), actual);
+        // A separate scratch buffer: `actual` is a view over the first one and would be overwritten by a second encode into it.
+        assertEquals(KeyedArrayOrderInlineNull.encodeTuples(fresh, 2, new BytesRefBuilder()), actual);
     }
 
     /**
@@ -577,11 +580,94 @@ public class MultiValuedBinaryDocValuesFieldTests extends ESTestCase {
         };
 
         // when
-        BytesRef fromTuples = KeyedArrayOrderInlineNull.encodeTuples(tuples, 3);
+        BytesRef fromTuples = KeyedArrayOrderInlineNull.encodeTuples(tuples, 3, new BytesRefBuilder());
         BytesRef fromLegacy = KeyedArrayOrderInlineNull.encode(legacySlots, legacyNulls);
 
         // then
         assertEquals(fromLegacy, fromTuples);
     }
 
+    /**
+     * The scratch buffer is only ever grown, so a short document encoded after a long one leaves the tail of the previous document's
+     * bytes in the array. The returned view must be bounded by the current document's length so those stale bytes are never read.
+     */
+    public void testEncodeTuplesScratchReuseDoesNotLeakPreviousDocument() {
+        // given - a long document followed by a much shorter one, sharing a scratch buffer
+        BytesRefBuilder scratch = new BytesRefBuilder();
+        BytesRef[] longDoc = {
+            new BytesRef("averyveryverylongkeyname\0"),
+            new BytesRef("averyveryverylongvaluepayload"),
+            new BytesRef("secondlongkeyname\0"),
+            new BytesRef("secondlongvaluepayload"), };
+        BytesRef[] shortDoc = { new BytesRef("k\0"), new BytesRef("v") };
+
+        // when
+        KeyedArrayOrderInlineNull.encodeTuples(longDoc, 2, scratch);
+        BytesRef second = KeyedArrayOrderInlineNull.encodeTuples(shortDoc, 1, scratch);
+
+        // then - the second result must equal an encode of the short document into an untouched buffer
+        assertEquals(KeyedArrayOrderInlineNull.encodeTuples(shortDoc, 1, new BytesRefBuilder()), second);
+    }
+
+    /** Once grown to the largest blob in a batch, the scratch buffer must be reused rather than reallocated per document. */
+    public void testEncodeTuplesScratchBufferIsReused() {
+        // given - the first encode sizes the buffer
+        BytesRefBuilder scratch = new BytesRefBuilder();
+        BytesRef[] tuples = { new BytesRef("key\0"), new BytesRef("value") };
+        KeyedArrayOrderInlineNull.encodeTuples(tuples, 1, scratch);
+        byte[] afterFirst = scratch.bytes();
+
+        // when - a subsequent document of the same shape is encoded
+        KeyedArrayOrderInlineNull.encodeTuples(tuples, 1, scratch);
+
+        // then - no reallocation
+        assertSame(afterFirst, scratch.bytes());
+    }
+
+    /**
+     * Checks that the array-backed encoder produces exactly the same bytes as the row-path collection encoder for identical logical
+     * slots, ensuring the two paths cannot silently diverge.
+     */
+    public void testArrayOrderEncodeMatchesCollectionEncode() {
+        // given - a null slot between two values
+        BytesRef[] slots = { new BytesRef("a"), null, new BytesRef("ccc") };
+
+        // when
+        BytesRef fromArray = MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.encode(slots, 3, new BytesRefBuilder());
+        BytesRef fromCollection = MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.encode(Arrays.asList(slots));
+
+        // then
+        assertEquals(fromCollection, fromArray);
+    }
+
+    public void testArrayOrderEncodeScratchReuseDoesNotLeakPreviousDocument() {
+        // given
+        BytesRefBuilder scratch = new BytesRefBuilder();
+        BytesRef[] longDoc = { new BytesRef("averyverylongvalue"), new BytesRef("anotherveryverylongvalue") };
+        BytesRef[] shortDoc = { new BytesRef("a"), new BytesRef("b") };
+
+        // when
+        MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.encode(longDoc, 2, scratch);
+        BytesRef second = MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.encode(shortDoc, 2, scratch);
+
+        // then - the second result must equal an encode of the short document into an untouched buffer
+        assertEquals(MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.encode(shortDoc, 2, new BytesRefBuilder()), second);
+    }
+
+    /**
+     * A single non-null slot is passed through raw (no VInt prefix), so the scratch buffer must be left out of it entirely and the
+     * caller's own value returned.
+     */
+    public void testArrayOrderEncodeSingleSlotBypassesScratch() {
+        // given
+        BytesRefBuilder scratch = new BytesRefBuilder();
+        BytesRef only = new BytesRef("solo");
+        BytesRef[] slots = { only };
+
+        // when
+        BytesRef encoded = MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.encode(slots, 1, scratch);
+
+        // then
+        assertSame(only, encoded);
+    }
 }

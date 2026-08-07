@@ -41,6 +41,7 @@ import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
@@ -1605,6 +1606,10 @@ public final class KeywordFieldMapper extends FieldMapper {
         boolean ignoredThisDoc = false;
         // Per-doc element buffer for blob encoding; null when blob is not emitted.
         BytesRef[] docSlots = emitDvs ? new BytesRef[4] : null;
+        // Batch-scoped encode buffer. ArrayOrderInlineNull.encode writes each document's blob here and returns a
+        // view over it; binaryDvs.setString copies the bytes out immediately, so the buffer is free to be
+        // overwritten on the next document.
+        final BytesRefBuilder blobScratch = emitDvs ? new BytesRefBuilder() : null;
         int docSlotCount = 0;
         // True when the current doc has at least one non-null slot; gates binary dv blob emission.
         boolean hasNonNull = false;
@@ -1617,11 +1622,11 @@ public final class KeywordFieldMapper extends FieldMapper {
                 if (binaryDvs != null && docSlotCount > 0) {
                     dvCounts.setLong(currentDoc, docSlotCount);
                     if (hasNonNull) {
-                        // TODO: improve MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.encode to directly write to column and
-                        // save allocation and copy
+                        // TODO: let ArrayOrderInlineNull.encode write straight into the column builder's stream. The
+                        // scratch buffer removes the per-document allocation, but the bytes are still copied once.
                         binaryDvs.setString(
                             currentDoc,
-                            MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.encode(docSlots, docSlotCount)
+                            MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.encode(docSlots, docSlotCount, blobScratch)
                         );
                     }
                     docSlotCount = 0;

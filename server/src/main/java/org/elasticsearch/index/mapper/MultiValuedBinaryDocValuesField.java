@@ -12,8 +12,10 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamOutputHelper;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.simdvec.ESVectorUtil;
@@ -528,8 +530,12 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
          * pre-allocated array. Avoids {@link java.util.List} allocation for the common small
          * multi-value case. A {@code null} element at position {@code i < count} denotes a null slot.
          * Must only be called when at least one non-null value is present.
+         *
+         * <p><b>The returned {@link BytesRef} is a view over {@code scratch} — or, in the single non-null slot
+         * case, over the caller's own value — and is invalidated by the next call.</b> Callers must consume it
+         * (typically by copying it into a column builder) before encoding the next document.
          */
-        public static BytesRef encode(BytesRef[] slots, int count) {
+        public static BytesRef encode(BytesRef[] slots, int count, BytesRefBuilder scratch) {
             assert count >= 1 : "encode requires at least one slot";
             if (count == 1) {
                 assert slots[0] != null : "a lone null slot must not write a binary value";
@@ -541,21 +547,22 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
                     byteCount += slots[i].length;
                 }
             }
-            int streamSize = byteCount + count * VINT_MAX_BYTES;
-            try (BytesStreamOutput out = new BytesStreamOutput(streamSize)) {
-                for (int i = 0; i < count; i++) {
-                    BytesRef slot = slots[i];
-                    if (slot == null) {
-                        out.writeVInt(0);
-                    } else {
-                        out.writeVInt(slot.length + 1);
-                        out.writeBytes(slot.bytes, slot.offset, slot.length);
-                    }
+            // growNoCopy: the previous document's contents are dead, so there is nothing to preserve.
+            scratch.growNoCopy(byteCount + count * VINT_MAX_BYTES);
+            final byte[] buffer = scratch.bytes();
+            int pos = 0;
+            for (int i = 0; i < count; i++) {
+                BytesRef slot = slots[i];
+                if (slot == null) {
+                    pos = StreamOutputHelper.putVInt(buffer, 0, pos);
+                } else {
+                    pos = StreamOutputHelper.putVInt(buffer, slot.length + 1, pos);
+                    System.arraycopy(slot.bytes, slot.offset, buffer, pos, slot.length);
+                    pos += slot.length;
                 }
-                return out.bytes().toBytesRef();
-            } catch (IOException e) {
-                throw new UncheckedIOException("Failed to encode binary value", e);
             }
+            scratch.setLength(pos);
+            return scratch.get();
         }
 
         /**
@@ -723,8 +730,12 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
          * <p>Same wire format as {@link #encode(ArrayList, BitSet)}: {@code [valueLen+1][key\0value]...},
          * with {@code [0][key\0]} for null slots. Every slot carries a VInt prefix (no single-slot raw
          * passthrough); the separator byte is always written; slot order is load-bearing.
+         *
+         * <p><b>The returned {@link BytesRef} is a view over {@code scratch} and is invalidated by the next
+         * call.</b> Callers must consume it (typically by copying it into a column builder) before encoding the
+         * next document.
          */
-        public static BytesRef encodeTuples(BytesRef[] tuples, int slotCount) {
+        public static BytesRef encodeTuples(BytesRef[] tuples, int slotCount, BytesRefBuilder scratch) {
             assert slotCount >= 1 : "encodeTuples requires at least one slot";
             assert tuples.length >= 2 * slotCount : "tuples array too short: " + tuples.length + " < " + (2 * slotCount);
             int byteCount = 0;
@@ -735,28 +746,31 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
                     byteCount += value.length;
                 }
             }
-            try (BytesStreamOutput out = new BytesStreamOutput(streamSize(byteCount, slotCount))) {
-                for (int i = 0; i < slotCount; i++) {
-                    BytesRef keyPrefix = tuples[2 * i];
-                    BytesRef value = tuples[2 * i + 1];
-                    assert keyPrefix.length > 0 && keyPrefix.bytes[keyPrefix.offset + keyPrefix.length - 1] == 0
-                        : "key prefix for slot " + i + " must be non-empty and end with \\0";
-                    if (value == null) {
-                        // Null slot: [0]key\0
-                        out.writeVInt(0);
-                    } else {
-                        // Non-null slot: [valueLen+1]key\0value
-                        out.writeVInt(value.length + 1);
-                    }
-                    out.writeBytes(keyPrefix.bytes, keyPrefix.offset, keyPrefix.length);
-                    if (value != null) {
-                        out.writeBytes(value.bytes, value.offset, value.length);
-                    }
+            // growNoCopy: the previous document's contents are dead, so there is nothing to preserve.
+            scratch.growNoCopy(streamSize(byteCount, slotCount));
+            final byte[] buffer = scratch.bytes();
+            int pos = 0;
+            for (int i = 0; i < slotCount; i++) {
+                BytesRef keyPrefix = tuples[2 * i];
+                BytesRef value = tuples[2 * i + 1];
+                assert keyPrefix.length > 0 && keyPrefix.bytes[keyPrefix.offset + keyPrefix.length - 1] == 0
+                    : "key prefix for slot " + i + " must be non-empty and end with \\0";
+                if (value == null) {
+                    // Null slot: [0]key\0
+                    pos = StreamOutputHelper.putVInt(buffer, 0, pos);
+                } else {
+                    // Non-null slot: [valueLen+1]key\0value
+                    pos = StreamOutputHelper.putVInt(buffer, value.length + 1, pos);
                 }
-                return out.bytes().toBytesRef();
-            } catch (IOException e) {
-                throw new UncheckedIOException("Failed to encode keyed inline null binary value", e);
+                System.arraycopy(keyPrefix.bytes, keyPrefix.offset, buffer, pos, keyPrefix.length);
+                pos += keyPrefix.length;
+                if (value != null) {
+                    System.arraycopy(value.bytes, value.offset, buffer, pos, value.length);
+                    pos += value.length;
+                }
             }
+            scratch.setLength(pos);
+            return scratch.get();
         }
 
         private static int streamSize(int byteCount, int slotCount) {

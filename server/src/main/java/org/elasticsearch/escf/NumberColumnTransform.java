@@ -105,7 +105,8 @@ public final class NumberColumnTransform {
     ) {
         AbstractXContentParser.checkCoerceString(coerce, classForType(type));
         EscfColumnBuilder builder = newLongBuilder(recycler);
-        ObjectTupleCursor<BytesRef> cursor = source.bytesRefCursor();
+        // retainValues=false: each value is parsed inside the loop body, before the cursor advances.
+        ObjectTupleCursor<BytesRef> cursor = source.bytesRefCursor(false);
         final long min = integerMinForType(type);
         final long max = integerMaxForType(type);
         final long[] scratch = new long[1];

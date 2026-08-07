@@ -22,7 +22,7 @@ import org.apache.lucene.util.LongValues;
  * cursor to run 0 before searching forward again. This class carries no value semantics; the reader
  * built on top reads a single ordinal or a per-run ordinal set from {@link #run()}.
  */
-public final class RunCursor {
+final class RunCursor {
 
     private final LongValues startDocs;
     private final int numRuns;

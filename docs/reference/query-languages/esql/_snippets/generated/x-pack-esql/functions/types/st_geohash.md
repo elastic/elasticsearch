@@ -6,4 +6,6 @@
 | --- | --- | --- | --- |
 | geo_point | integer | geo_shape | geohash |
 | geo_point | integer | | geohash |
+| geo_shape | integer | geo_shape | geohash |
+| geo_shape | integer | | geohash |
 

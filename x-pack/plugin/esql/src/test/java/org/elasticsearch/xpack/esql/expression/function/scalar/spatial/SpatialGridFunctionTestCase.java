@@ -70,18 +70,20 @@ public abstract class SpatialGridFunctionTestCase extends AbstractScalarFunction
         List<TestCaseSupplier> suppliers,
         DataType[] dataTypes,
         DataType gridType,
-        BiFunction<BytesRef, Integer, Long> expectedValue,
-        TriFunction<BytesRef, Integer, GeoBoundingBox, Long> expectedValueWithBounds
+        BiFunction<BytesRef, Integer, Object> expectedValue,
+        TriFunction<BytesRef, Integer, GeoBoundingBox, Object> expectedValueWithBounds
     ) {
         for (DataType spatialType : dataTypes) {
-            TestCaseSupplier.TypedDataSupplier geometrySupplier = testCaseSupplier(spatialType, true);
+            TestCaseSupplier.TypedDataSupplier geometrySupplier = testCaseSupplier(spatialType, false);
+            // Limit precision for geo_shape to avoid generating millions of cells for complex geometries
+            int maxPrecision = spatialType == GEO_SHAPE ? 4 : 8;
             for (boolean literalPrecision : List.of(true)) {
                 // TODO: add 'false' case once we support non-literal precision
                 String testName = spatialType.typeName() + (literalPrecision ? " with literal precision" : " with precision");
                 suppliers.add(new TestCaseSupplier(testName, List.of(spatialType, INTEGER), () -> {
                     TestCaseSupplier.TypedData geoTypedData = geometrySupplier.get();
                     BytesRef geometry = (BytesRef) geoTypedData.data();
-                    int precision = between(1, 8);
+                    int precision = between(1, maxPrecision);
                     TestCaseSupplier.TypedData precisionData = new TestCaseSupplier.TypedData(precision, INTEGER, "precision");
                     String evaluatorName = "FromFieldAndLiteralEvaluator[in=Attribute[channel=0], precision=Attribute[channel=1]";
                     if (literalPrecision) {
@@ -100,7 +102,7 @@ public abstract class SpatialGridFunctionTestCase extends AbstractScalarFunction
                 suppliers.add(new TestCaseSupplier(boundsTestName, List.of(spatialType, INTEGER, GEO_SHAPE), () -> {
                     TestCaseSupplier.TypedData geoTypedData = geometrySupplier.get();
                     BytesRef geometry = (BytesRef) geoTypedData.data();
-                    int precision = between(1, 8);
+                    int precision = between(1, maxPrecision);
                     TestCaseSupplier.TypedData precisionData = new TestCaseSupplier.TypedData(precision, INTEGER, "precision");
                     String evaluatorName = "FromFieldAndLiteralAndLiteralEvaluator[in=Attribute[channel=0], bounds=[";
                     if (literalPrecision) {
@@ -156,7 +158,7 @@ public abstract class SpatialGridFunctionTestCase extends AbstractScalarFunction
         );
     }
 
-    protected Long process(int precision, BiFunction<BytesRef, Integer, Long> expectedValue) {
+    protected Object process(int precision, BiFunction<BytesRef, Integer, Object> expectedValue) {
         Object spatialObj = this.testCase.getDataValues().getFirst();
         assumeNotNull(spatialObj);
         assumeTrue("Expected a BytesRef, but got " + spatialObj.getClass(), spatialObj instanceof BytesRef);

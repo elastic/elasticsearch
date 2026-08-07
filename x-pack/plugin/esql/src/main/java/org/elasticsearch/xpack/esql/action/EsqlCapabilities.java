@@ -704,6 +704,12 @@ public class EsqlCapabilities {
         SPATIAL_GRID_INTERSECTS,
 
         /**
+         * Support geo_shape in ST_GEOHASH, ST_GEOTILE and ST_GEOHEX functions.
+         * The grid cell is calculated from the centroid of the shape.
+         */
+        SPATIAL_GRID_GEO_SHAPE,
+
+        /**
          * Fix to GROK and DISSECT that allows extracting attributes with the same name as the input
          * https://github.com/elastic/elasticsearch/issues/110184
          */

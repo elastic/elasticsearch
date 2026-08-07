@@ -6,4 +6,6 @@
 | --- | --- | --- | --- |
 | geo_point | integer | geo_shape | geotile |
 | geo_point | integer | | geotile |
+| geo_shape | integer | geo_shape | geotile |
+| geo_shape | integer | | geotile |
 

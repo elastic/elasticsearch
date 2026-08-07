@@ -9,6 +9,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.test.ESTestCase;
@@ -27,6 +28,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 
 public class RewriteableTests extends ESTestCase {
@@ -67,6 +69,17 @@ public class RewriteableTests extends ESTestCase {
             }
         });
         assertEquals("too many rewrite rounds, rewriteable might return new objects even if they are not rewritten", ise.getMessage());
+    }
+
+    public void testRewriteAndFetchStackOverflow() {
+        QueryRewriteContext context = new QueryRewriteContext(null, null, null);
+        PlainActionFuture<TestRewriteable> future = new PlainActionFuture<>();
+        Rewriteable.rewriteAndFetch(new StackOverflowingTestRewriteable(), context, future);
+
+        Throwable failure = expectThrows(ExecutionException.class, future::get).getCause();
+        assertThat(failure, instanceOf(IllegalArgumentException.class));
+        assertEquals("The request is too deeply nested to rewrite", failure.getMessage());
+        assertTrue("no Error may be reachable from the failure", ExceptionsHelper.maybeError(failure).isEmpty());
     }
 
     public void testRewriteList() throws IOException {
@@ -290,6 +303,18 @@ public class RewriteableTests extends ESTestCase {
                 new Thread(() -> { l.onFailure(new RuntimeException("Simulated async failure")); }).start();
             });
             return new FailingTestRewriteable(numRewrites - 1);
+        }
+    }
+
+    private static class StackOverflowingTestRewriteable extends TestRewriteable {
+
+        StackOverflowingTestRewriteable() {
+            super(1);
+        }
+
+        @Override
+        public TestRewriteable rewrite(QueryRewriteContext ctx) {
+            throw new StackOverflowError();
         }
     }
 

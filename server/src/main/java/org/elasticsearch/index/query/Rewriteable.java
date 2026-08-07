@@ -140,6 +140,8 @@ public interface Rewriteable<T> {
             rewriteResponse.onResponse(builder);
         } catch (Exception ex) {
             rewriteResponse.onFailure(ex);
+        } catch (StackOverflowError ex) {
+            rewriteResponse.onFailure(new IllegalArgumentException("The request is too deeply nested to rewrite"));
         }
     }
 

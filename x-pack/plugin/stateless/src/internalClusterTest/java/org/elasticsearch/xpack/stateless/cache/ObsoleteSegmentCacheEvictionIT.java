@@ -346,14 +346,11 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
             BlobStoreCacheDirectoryTestUtils.getCacheService(searchDirectory)
         );
         final var future = cacheService.startTracking();
+        searchEngine.addPrimaryTermAndGenerationListener(0L, minGeneration + 2L, ActionListener.releasing(future.refs.acquire()));
 
         flush(indexName);
-        minGeneration += 1L;
-
         refresh(indexName);
-        minGeneration += 1L;
 
-        searchEngine.addPrimaryTermAndGenerationListener(0L, minGeneration, ActionListener.releasing(future.refs.acquire()));
         cacheService.stopTrackingAndAwait(future);
 
         var blobsRegionsAfterClosePIT = readAllFilesAndCollectRegions(searchEngine, searchDirectory, searchCacheService);
@@ -549,20 +546,18 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
             assertThat(docResult.getResponse().getResult(), equalTo(DocWriteResponse.Result.UPDATED));
         }
 
+        final boolean randomFlush = randomBoolean();
         final var indexEngine = getShardEngine(findIndexShard(indexName), IndexEngine.class);
-        long minGeneration = indexEngine.getCurrentGeneration();
+        long minGeneration = indexEngine.getCurrentGeneration() + 1L + (randomFlush ? 1L : 0L);
 
         final var future = searchCacheService.startTracking();
+        searchEngine.addPrimaryTermAndGenerationListener(0L, minGeneration, ActionListener.releasing(future.refs.acquire()));
 
         refresh(indexName);
-        minGeneration += 1L;
-
-        if (randomBoolean()) {
+        if (randomFlush) {
             flush(indexName);
-            minGeneration += 1L;
         }
 
-        searchEngine.addPrimaryTermAndGenerationListener(0L, minGeneration, ActionListener.releasing(future.refs.acquire()));
         searchCacheService.stopTrackingAndAwait(future);
 
         final var blobsRegionsAfterUpdates = readAllFilesAndCollectRegions(searchEngine, searchDirectory, searchCacheService);
@@ -677,21 +672,19 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
             equalTo(blobsRegionsBeforeMerge.values().stream().mapToLong(BitSet::cardinality).sum())
         );
 
+        final boolean randomFlush = randomBoolean();
         final var indexEngine = getShardEngine(findIndexShard(indexName), IndexEngine.class);
-        long minGeneration = indexEngine.getCurrentGeneration();
+        long minGeneration = indexEngine.getCurrentGeneration() + 1L + (randomFlush ? 1L : 0L);
 
         final var future = searchCacheService.startTracking();
+        searchEngine.addPrimaryTermAndGenerationListener(0L, minGeneration, ActionListener.releasing(future.refs.acquire()));
 
         assertNoFailures(indicesAdmin().prepareForceMerge().setFlush(false).setMaxNumSegments(1).get());
         refresh(indexName);
-        minGeneration += 1L;
-
-        if (randomBoolean()) {
+        if (randomFlush) {
             flush(indexName);
-            minGeneration += 1L;
         }
 
-        searchEngine.addPrimaryTermAndGenerationListener(0L, minGeneration, ActionListener.releasing(future.refs.acquire()));
         searchCacheService.stopTrackingAndAwait(future);
 
         var blobsRegionsAfterMerge = readAllFilesAndCollectRegions(searchEngine, searchDirectory, searchCacheService);
@@ -776,21 +769,18 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
     /** Force-merges to 1 segment, refreshes, then waits for the search shard to process both commits and complete all evictions. */
     private void forceMergeThenRefreshAndAwaitEvictions(String indexName, SearchEngine searchEngine, SearchDirectory searchDirectory) {
         final var indexEngine = getShardEngine(findIndexShard(indexName), IndexEngine.class);
-        long minGeneration = indexEngine.getCurrentGeneration();
+        final long minGeneration = indexEngine.getCurrentGeneration() + 2L;
 
         final var cacheService = asInstanceOf(
             EvictionTrackingCacheService.class,
             BlobStoreCacheDirectoryTestUtils.getCacheService(searchDirectory)
         );
         final var future = cacheService.startTracking();
+        searchEngine.addPrimaryTermAndGenerationListener(0L, minGeneration, ActionListener.releasing(future.refs.acquire()));
 
         forceMerge(true);
-        minGeneration += 1L;
-
         refresh(indexName);
-        minGeneration += 1L;
 
-        searchEngine.addPrimaryTermAndGenerationListener(0L, minGeneration, ActionListener.releasing(future.refs.acquire()));
         cacheService.stopTrackingAndAwait(future);
     }
 

@@ -12,14 +12,13 @@ package org.elasticsearch.action.admin.cluster.stats;
 import org.elasticsearch.search.crossproject.ProjectRoutingRequestInfo;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.List;
-
 import static org.hamcrest.Matchers.equalTo;
 
 public class ProjectRoutingUsageHolderTests extends ESTestCase {
 
     private static ProjectRoutingRequestInfo info(boolean aliasOrigin, boolean aliasWildcard, boolean namedExpr, String... tags) {
-        return new ProjectRoutingRequestInfo(List.of(tags), namedExpr, aliasWildcard, aliasOrigin);
+        boolean usedCustomTags = java.util.Arrays.stream(tags).anyMatch(t -> t.startsWith("_") == false);
+        return new ProjectRoutingRequestInfo(usedCustomTags, namedExpr, aliasWildcard, aliasOrigin);
     }
 
     // -----------------------------------------------------------------------

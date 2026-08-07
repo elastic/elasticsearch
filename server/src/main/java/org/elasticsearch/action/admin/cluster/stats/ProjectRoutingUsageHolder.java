@@ -21,27 +21,68 @@ import java.util.concurrent.atomic.LongAdder;
  * <p>All counters are gated on {@code hasLinkedProjects}: they only increment while the project has at least one
  * configured linked project. This ensures percentages can be computed from the data
  * (e.g. {@code queries_project_routing / queries}).
+ *
+ * <p>Common per-endpoint counters are grouped in {@link RoutingCounters}. Adding a new endpoint (e.g. EQL, SQL)
+ * requires adding a new {@link RoutingCounters} instance and a corresponding {@code record*()} method.
+ * The ES|QL-specific {@code in_SET} counter ({@link #esqlWithSet}) is tracked separately.
  */
 public class ProjectRoutingUsageHolder {
 
-    // _search, _async_search, _msearch (per sub-request), _search/template, _msearch/template
-    private final LongAdder searchQueriesTotal = new LongAdder();
-    private final LongAdder searchWithProjectRouting = new LongAdder();
-    private final LongAdder searchWithAliasOrigin = new LongAdder();
-    private final LongAdder searchWithAliasWildcard = new LongAdder();
-    private final LongAdder searchWithCustomTags = new LongAdder();
-    private final LongAdder searchWithNamedExpression = new LongAdder();
-    private final LongAdder searchProjectRoutingFailures = new LongAdder();
+    /**
+     * Groups the counters that are common across all tracked endpoints. Each endpoint ({@code _search},
+     * {@code _esql}, and any future additions) gets its own instance.
+     */
+    private static class RoutingCounters {
+        final LongAdder total = new LongAdder();
+        final LongAdder withProjectRouting = new LongAdder();
+        final LongAdder withAliasOrigin = new LongAdder();
+        final LongAdder withAliasWildcard = new LongAdder();
+        final LongAdder withCustomTags = new LongAdder();
+        final LongAdder withNamedExpression = new LongAdder();
+        final LongAdder failures = new LongAdder();
+
+        /**
+         * Records a query. Always increments {@code total}. When {@code info} is non-null (the request
+         * carried a {@code project_routing} expression), also increments {@code withProjectRouting} and
+         * any applicable sub-counters.
+         */
+        void record(@Nullable ProjectRoutingRequestInfo info) {
+            total.increment();
+            if (info == null) {
+                return;
+            }
+            withProjectRouting.increment();
+            if (info.usedAliasOrigin()) {
+                withAliasOrigin.increment();
+            }
+            if (info.usedAliasWildcard()) {
+                withAliasWildcard.increment();
+            }
+            if (info.usedNamedExpression()) {
+                withNamedExpression.increment();
+            }
+            if (info.usedCustomTags()) {
+                withCustomTags.increment();
+            }
+        }
+
+        /**
+         * Records a routing failure. Increments {@code total}, {@code withProjectRouting}, and
+         * {@code failures}. Called by Ticket 5 from {@code AuthorizationService.onAuthorizedResourceLoadFailure()}.
+         */
+        void recordFailure() {
+            total.increment();
+            withProjectRouting.increment();
+            failures.increment();
+        }
+    }
+
+    // _search, _async_search, _msearch (per sub-request), _search/template, _msearch/template, _count, _cat/count
+    private final RoutingCounters search = new RoutingCounters();
 
     // ES|QL endpoint
-    private final LongAdder esqlQueriesTotal = new LongAdder();
-    private final LongAdder esqlWithProjectRouting = new LongAdder();
-    private final LongAdder esqlWithAliasOrigin = new LongAdder();
-    private final LongAdder esqlWithAliasWildcard = new LongAdder();
-    private final LongAdder esqlWithCustomTags = new LongAdder();
-    private final LongAdder esqlWithNamedExpression = new LongAdder();
-    private final LongAdder esqlWithSet = new LongAdder();
-    private final LongAdder esqlProjectRoutingFailures = new LongAdder();
+    private final RoutingCounters esql = new RoutingCounters();
+    private final LongAdder esqlWithSet = new LongAdder();  // in_SET: routing came from SET clause, not request body
 
     /**
      * Records a {@code _search} request. {@code queries} is always incremented (subject to the
@@ -55,13 +96,7 @@ public class ProjectRoutingUsageHolder {
      */
     public void recordSearch(@Nullable ProjectRoutingRequestInfo info, boolean hasLinkedProjects) {
         if (hasLinkedProjects == false) return;
-        searchQueriesTotal.increment();
-        if (info == null) return;
-        searchWithProjectRouting.increment();
-        if (info.usedAliasOrigin()) searchWithAliasOrigin.increment();
-        if (info.usedAliasWildcard()) searchWithAliasWildcard.increment();
-        if (info.usedNamedExpression()) searchWithNamedExpression.increment();
-        if (info.tagsUsedInRouting().stream().anyMatch(t -> t.startsWith("_") == false)) searchWithCustomTags.increment();
+        search.record(info);
     }
 
     /**
@@ -77,14 +112,8 @@ public class ProjectRoutingUsageHolder {
      */
     public void recordEsql(@Nullable ProjectRoutingRequestInfo info, boolean setClauseUsed, boolean hasLinkedProjects) {
         if (hasLinkedProjects == false) return;
-        esqlQueriesTotal.increment();
         if (setClauseUsed) esqlWithSet.increment();
-        if (info == null) return;
-        esqlWithProjectRouting.increment();
-        if (info.usedAliasOrigin()) esqlWithAliasOrigin.increment();
-        if (info.usedAliasWildcard()) esqlWithAliasWildcard.increment();
-        if (info.usedNamedExpression()) esqlWithNamedExpression.increment();
-        if (info.tagsUsedInRouting().stream().anyMatch(t -> t.startsWith("_") == false)) esqlWithCustomTags.increment();
+        esql.record(info);
     }
 
     /**
@@ -96,9 +125,7 @@ public class ProjectRoutingUsageHolder {
      */
     public void recordSearchProjectRoutingFailure(boolean hasLinkedProjects) {
         if (hasLinkedProjects == false) return;
-        searchQueriesTotal.increment();
-        searchWithProjectRouting.increment();
-        searchProjectRoutingFailures.increment();
+        search.recordFailure();
     }
 
     /**
@@ -110,9 +137,7 @@ public class ProjectRoutingUsageHolder {
      */
     public void recordEsqlProjectRoutingFailure(boolean hasLinkedProjects) {
         if (hasLinkedProjects == false) return;
-        esqlQueriesTotal.increment();
-        esqlWithProjectRouting.increment();
-        esqlProjectRoutingFailures.increment();
+        esql.recordFailure();
     }
 
     /**
@@ -120,21 +145,21 @@ public class ProjectRoutingUsageHolder {
      */
     public ProjectRoutingUsageSnapshot getSnapshot() {
         return new ProjectRoutingUsageSnapshot(
-            searchQueriesTotal.sum(),
-            searchWithProjectRouting.sum(),
-            searchWithAliasOrigin.sum(),
-            searchWithAliasWildcard.sum(),
-            searchWithCustomTags.sum(),
-            searchWithNamedExpression.sum(),
-            searchProjectRoutingFailures.sum(),
-            esqlQueriesTotal.sum(),
-            esqlWithProjectRouting.sum(),
-            esqlWithAliasOrigin.sum(),
-            esqlWithAliasWildcard.sum(),
-            esqlWithCustomTags.sum(),
-            esqlWithNamedExpression.sum(),
+            search.total.sum(),
+            search.withProjectRouting.sum(),
+            search.withAliasOrigin.sum(),
+            search.withAliasWildcard.sum(),
+            search.withCustomTags.sum(),
+            search.withNamedExpression.sum(),
+            search.failures.sum(),
+            esql.total.sum(),
+            esql.withProjectRouting.sum(),
+            esql.withAliasOrigin.sum(),
+            esql.withAliasWildcard.sum(),
+            esql.withCustomTags.sum(),
+            esql.withNamedExpression.sum(),
             esqlWithSet.sum(),
-            esqlProjectRoutingFailures.sum()
+            esql.failures.sum()
         );
     }
 }

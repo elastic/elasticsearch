@@ -9,24 +9,20 @@
 
 package org.elasticsearch.search.crossproject;
 
-import java.util.List;
-
 /**
  * Carries per-request project routing metadata from the resolver chain to the transport actions for telemetry recording.
  * Populated by the serverless cross-project resolver and attached to {@link TargetProjects}.
  *
- * <p>Custom-tag detection is left to consumers: a tag is custom if its name does not start with {@code _}.
- *
- * @param tagsUsedInRouting all tag names referenced in the resolved expression
+ * @param usedCustomTags true when the routing expression referenced at least one custom tag (a tag whose name does not start with {@code _})
  * @param usedNamedExpression true when the request used a named-expression ({@code @name}) reference
  * @param usedAliasWildcard true when the expression was exactly {@code _alias:*}
  * @param usedAliasOrigin true when the expression was exactly {@code _alias:_origin}
  */
 public record ProjectRoutingRequestInfo(
-    List<String> tagsUsedInRouting,
+    boolean usedCustomTags,
     boolean usedNamedExpression,
     boolean usedAliasWildcard,
     boolean usedAliasOrigin
 ) {
-    public static final ProjectRoutingRequestInfo NONE = new ProjectRoutingRequestInfo(List.of(), false, false, false);
+    public static final ProjectRoutingRequestInfo NONE = new ProjectRoutingRequestInfo(false, false, false, false);
 }

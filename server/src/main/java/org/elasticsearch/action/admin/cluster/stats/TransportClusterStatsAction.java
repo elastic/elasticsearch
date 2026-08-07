@@ -66,7 +66,6 @@ import org.elasticsearch.transport.RemoteClusterSettings;
 import org.elasticsearch.transport.RemoteConnectionInfo;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.Transports;
-import org.elasticsearch.usage.SearchUsageHolder;
 import org.elasticsearch.usage.UsageService;
 
 import java.io.IOException;
@@ -109,9 +108,6 @@ public class TransportClusterStatsAction extends TransportNodesAction<
     private final IndicesService indicesService;
     private final RepositoriesService repositoriesService;
     private final ProjectResolver projectResolver;
-    private final SearchUsageHolder searchUsageHolder;
-    private final CCSUsageTelemetry ccsUsageHolder;
-    private final CCSUsageTelemetry esqlUsageHolder;
     private final UsageService usageService;
 
     private final Executor clusterStateStatsExecutor;
@@ -145,9 +141,6 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         this.indicesService = indicesService;
         this.repositoriesService = repositoriesService;
         this.projectResolver = projectResolver;
-        this.searchUsageHolder = usageService.getSearchUsageHolder();
-        this.ccsUsageHolder = usageService.getCcsUsageHolder();
-        this.esqlUsageHolder = usageService.getEsqlUsageHolder();
         this.usageService = usageService;
         this.clusterStateStatsExecutor = threadPool.executor(ThreadPool.Names.MANAGEMENT);
         this.mappingStatsCache = new MetadataStatsCache<>(threadPool.getThreadContext(), MappingStats::of);
@@ -322,11 +315,11 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             ? new ClusterStateHealth(clusterState, project.getConcreteAllIndices(), project.id()).getStatus()
             : null;
 
-        final SearchUsageStats searchUsageStats = searchUsageHolder.getSearchUsageStats();
+        final SearchUsageStats searchUsageStats = usageService.getSearchUsageHolder().getSearchUsageStats();
 
         final RepositoryUsageStats repositoryUsageStats = repositoriesService.getUsageStats();
-        final CCSTelemetrySnapshot ccsTelemetry = ccsUsageHolder.getCCSTelemetrySnapshot();
-        final CCSTelemetrySnapshot esqlTelemetry = esqlUsageHolder.getCCSTelemetrySnapshot();
+        final CCSTelemetrySnapshot ccsTelemetry = usageService.getCcsUsageHolder().getCCSTelemetrySnapshot();
+        final CCSTelemetrySnapshot esqlTelemetry = usageService.getEsqlUsageHolder().getCCSTelemetrySnapshot();
         final ProjectRoutingUsageSnapshot projectRoutingUsage = usageService.getProjectRoutingUsageHolder().getSnapshot();
 
         return new ClusterStatsNodeResponse(

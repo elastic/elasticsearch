@@ -19,6 +19,7 @@ import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.ssl.SslConfigException;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.test.ESTestCase;
@@ -149,22 +150,22 @@ public class PkiRealmTests extends ESTestCase {
         final String publicKeyFingerprint = MessageDigests.toHexString(
             MessageDigests.sha256().digest(leafCertificate.getPublicKey().getEncoded())
         );
-        final ExpressionRoleMapping certificateMapping = ExpressionRoleMapping.parse("certificate-fingerprint", new BytesArray("""
+        final ExpressionRoleMapping certificateMapping = ExpressionRoleMapping.parse("certificate-fingerprint", new BytesArray(Strings.format("""
             roles:
             - certificate_role
             rules:
               field:
                 metadata.pki_cert_fingerprint: "%s"
             enabled: true
-            """.formatted(certificateFingerprint)), XContentType.YAML);
-        final ExpressionRoleMapping publicKeyMapping = ExpressionRoleMapping.parse("public-key-fingerprint", new BytesArray("""
+            """, certificateFingerprint)), XContentType.YAML);
+        final ExpressionRoleMapping publicKeyMapping = ExpressionRoleMapping.parse("public-key-fingerprint", new BytesArray(Strings.format("""
             roles:
             - public_key_role
             rules:
               field:
                 metadata.pki_public_key_fingerprint: "%s"
             enabled: true
-            """.formatted(publicKeyFingerprint)), XContentType.YAML);
+            """, publicKeyFingerprint)), XContentType.YAML);
         final List<ExpressionRoleMapping> mappings = List.of(certificateMapping, publicKeyMapping);
         final PkiRealm realm = buildRealm(buildRoleMapper(mappings), globalSettings);
 

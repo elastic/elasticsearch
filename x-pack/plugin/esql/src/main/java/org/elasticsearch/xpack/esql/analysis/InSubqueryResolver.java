@@ -324,7 +324,7 @@ public class InSubqueryResolver {
      * <ul>
      *   <li>{@link And}, {@link Or}, {@link Not} — standard boolean connectives.</li>
      *   <li>{@link IsNull}, {@link IsNotNull} — {@code (x IN (sub)) IS [NOT] NULL}; the operand is a {@code valueExpression} in the
-     *       grammar so it must be parenthesized, but the  resulting {@link IsNull}/{@link IsNotNull} node wraps the {@link InSubquery}
+     *       grammar so it must be parenthesized, but the resulting {@link IsNull}/{@link IsNotNull} node wraps the {@link InSubquery}
      *       directly.</li>
      *   <li>An {@link UnresolvedFunction} whose name is {@code CASE} or {@code COALESCE} (case-insensitive): every argument position may
      *       contain an {@link InSubquery} because all {@code functionParam} grammar alternatives accept a full {@code booleanExpression}.

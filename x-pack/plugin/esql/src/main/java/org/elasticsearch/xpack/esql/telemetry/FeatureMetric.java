@@ -92,7 +92,7 @@ public enum FeatureMetric {
     SORT(OrderBy.class::isInstance),
     // the STATS is checked in Analyzer.gatherPreAnalysisMetrics, because it can also be part of an INLINE STATS command
     STATS(plan -> false),
-    // SemiJoin/AntiJoin/MarkJoin only originate from `WHERE x IN (sub)` (rewritten by InSubqueryResolver),
+    // SemiJoin/AntiJoin only originate from `WHERE x IN (sub)` (rewritten by InSubqueryResolver),
     // so seeing one in the plan implies the user wrote a WHERE clause — count it for WHERE.
     WHERE(plan -> plan instanceof Filter || plan instanceof SemiJoin || plan instanceof AntiJoin),
     ENRICH(Enrich.class::isInstance),

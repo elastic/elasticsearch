@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.cluster.metadata.DatasetMapping;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
@@ -507,9 +508,10 @@ public class ExternalSourceResolver {
 
     /**
      * Reproduces the previous loop's error contract: a cancelled query surfaces {@link TaskCancelledException}
-     * unwrapped (so the client sees a clean 4xx rather than a generic 500), {@link IllegalArgumentException} and
-     * {@link UnsupportedOperationException} (client-caused) propagate unwrapped, and any other failure is wrapped in
-     * an {@link ElasticsearchException} carrying the path and detail. A footer read can fail <em>because</em> the
+     * unwrapped (so the client sees a clean 4xx rather than a generic 500), a client-caused
+     * {@link IllegalArgumentException} is recovered from the cause chain (it can arrive wrapped -- see below) and
+     * surfaced unchanged, {@link UnsupportedOperationException} propagates unwrapped, and any other failure is
+     * wrapped in an {@link ElasticsearchException} carrying the path and detail. A footer read can fail <em>because</em> the
      * query was cancelled mid-read and arrive wrapped (e.g. the schema cache wraps loader failures), so the
      * cancellation state is consulted directly rather than matched on the exception type.
      * <p>
@@ -521,7 +523,8 @@ public class ExternalSourceResolver {
      * acquisition arrives the same way as an {@link EsRejectedExecutionException} (429) and is recovered identically so a
      * node-level rejection is not masked as a 400.
      */
-    private RuntimeException mapResolveFailure(String path, Exception e) {
+    // Package-private so the client-status recovery gate below can be tested directly.
+    RuntimeException mapResolveFailure(String path, Exception e) {
         if (e instanceof TaskCancelledException tce) {
             LOGGER.debug("External source resolution cancelled for [{}]", path);
             return tce;
@@ -565,14 +568,40 @@ public class ExternalSourceResolver {
             wrapped.initCause(rejected);
             return wrapped;
         }
-        if (e instanceof IllegalArgumentException || e instanceof UnsupportedOperationException) {
+        // A breaker trip carries its own 429 and must survive a wrapper for the same reason: ParsedFooterCache
+        // raises it during resolution, and the boundary already treats it as a status carrier alongside the two
+        // above (see ExternalFailures). Unwrapped rather than re-wrapped -- the type's byte counts are the payload.
+        CircuitBreakingException breaking = (CircuitBreakingException) ExceptionsHelper.unwrap(e, CircuitBreakingException.class);
+        if (breaking != null) {
+            recordDiscoveryFailure();
+            LOGGER.warn("Failed to resolve external source [{}]: {}", path, breaking.getMessage(), e);
+            return breaking;
+        }
+        // Recover a client error from behind a wrapper, the same way the 503 and 429 arms above do. Resolution
+        // runs inside Cache#computeIfAbsent on the cacheable rail, which reports a loader failure as an
+        // ExecutionException -- so without this a correctly-typed 400 reached the client as a 500, and only on
+        // that rail, making the status depend on whether the provider happened to be cacheable. Recovering at the
+        // boundary rather than auditing every wrap site means a wrapper introduced later cannot silently
+        // reintroduce the same masking.
+        IllegalArgumentException clientError = (IllegalArgumentException) ExceptionsHelper.unwrap(e, IllegalArgumentException.class);
+        if (clientError != null) {
+            recordDiscoveryFailure();
+            LOGGER.error("Failed to resolve external source [{}]: {}", path, clientError.getMessage(), e);
+            return clientError;
+        }
+        if (e instanceof UnsupportedOperationException) {
             recordDiscoveryFailure();
             LOGGER.error("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
             return (RuntimeException) e;
         }
         recordDiscoveryFailure();
         LOGGER.error("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
-        String detail = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+        // rootDetail, not getMessage: the arm above recovers a buried IllegalArgumentException by type, but the
+        // file-metadata rail raises a plain IOException that no type-specific arm claims, and it arrives inside the
+        // cache's ExecutionException whose message is the cause's toString(). Reading the top message there would
+        // print "java.io.IOException: Object not found: ..." at the user. Status is unchanged -- this is the same
+        // catch-all, only better worded.
+        String detail = ExternalFailures.rootDetail(e);
         return new ElasticsearchException(String.format(Locale.ROOT, "Failed to resolve external source [%s]: %s", path, detail), e);
     }
 
@@ -1203,9 +1232,11 @@ public class ExternalSourceResolver {
      * {@code ndjson} and qualifies. The {@code formatName() -> findByName} round-trip deliberately
      * unwraps {@code CompressionDelegatingFormatReader} to the inner reader, whose
      * {@code aggregatePushdownSupport} is the authoritative one (the wrapper does not forward it).
-     * Any resolution failure refuses: the registry throws {@code QlIllegalArgumentException} (not
-     * {@code java.lang.IllegalArgumentException}) on an unregistered extension, and the aggregate is an
-     * optimization that must never turn a resolvable read into a throw — hence the broad catch.
+     * Any resolution failure refuses rather than throws: the registry rejects an unregistered extension
+     * with an {@link IllegalArgumentException}, and the aggregate is an optimization that must never turn
+     * a resolvable read into a throw — hence the broad catch. The catch is deliberately broad and must
+     * stay so: it is the refusal that matters here, not the exception type, and narrowing it to the type
+     * the registry happens to throw today would re-couple this gate to that choice.
      */
     private boolean datasetAggregateSafeForFormat(FileList listing, Map<String, Object> config) {
         try {
@@ -1959,6 +1990,18 @@ public class ExternalSourceResolver {
         return "false".equalsIgnoreCase(value.toString()) == false;
     }
 
+    /**
+     * Surfaces the last factory failure after every claiming factory has been tried. The
+     * {@link IllegalArgumentException} wrapper is what types a factory failure as client-caused, so it stays; only
+     * its message changes. It used to be the constant "Failed to resolve metadata for [path]", which reported a
+     * missing object, a wrong format, a truncated footer and an empty file with one identical sentence — and the
+     * factories already build that same sentence one level down, so the wrapper also duplicated it. It now carries
+     * the diagnosis instead; see {@link ExternalFailures#resolutionFailureMessage}.
+     */
+    private static RuntimeException lastFactoryFailure(String path, Exception lastFailure) {
+        return new IllegalArgumentException(ExternalFailures.resolutionFailureMessage(path, lastFailure), lastFailure);
+    }
+
     private SourceMetadata resolveSingleSource(String path, Map<String, Object> config) {
         // Early scheme validation: reject unsupported schemes without loading any plugin factories
         try {
@@ -1991,18 +2034,36 @@ public class ExternalSourceResolver {
             }
         }
         if (lastFailure != null) {
-            throw new IllegalArgumentException("Failed to resolve metadata for [" + path + "]", lastFailure);
+            throw lastFactoryFailure(path, lastFailure);
         }
-        var sources = String.join(", ", dataSourceModule.sourceFactories().keySet());
-        throw new UnsupportedOperationException(
-            "No handler found for source at path ["
-                + path
-                + "]. "
-                + "Please ensure the appropriate data source plugin is installed. "
-                + "Known handlers: ["
-                + sources
-                + "]."
-        );
+        throw noReaderError(path);
+    }
+
+    /**
+     * Builds the failure for a path that no factory claimed. The cause is always format resolution, never a missing
+     * storage plugin: {@link #resolveSingleSource} and {@link #resolveSingleSourceAsync} both validate the scheme
+     * against {@link DataSourceCapabilities} first, so an unsupported scheme has already failed with its own message
+     * by the time we get here. What is left is an object whose extension names no registered format, or which carries
+     * no extension to name one with.
+     * <p>
+     * The message itself is built by {@link FormatReaderRegistry#unreadableObject}, which sources the vocabulary
+     * from the registry's own maps — the same maps {@code canHandle} consults, so the advice cannot drift from what
+     * actually claims. It is deliberately NOT {@code sourceFactories().keySet()}: that key set aliases the single
+     * catch-all file factory under every format name alongside catalog types, so it reads as a handler list while
+     * being neither the formats a user may name nor anything they can act on.
+     * <p>
+     * An {@link IllegalArgumentException}, so this maps to 400 like its sibling {@link UnsupportedSchemeException}.
+     */
+    private IllegalArgumentException noReaderError(String path) {
+        String objectName;
+        try {
+            objectName = StoragePath.of(path).objectName();
+        } catch (IllegalArgumentException e) {
+            objectName = "";
+        }
+        // The full location is the display path: the caller asked for a glob or a dataset resource, and
+        // quoting back only the object name would lose what they wrote.
+        return dataSourceModule.formatReaderRegistry().unreadableObject(path, objectName);
     }
 
     /**
@@ -2037,7 +2098,10 @@ public class ExternalSourceResolver {
 
         List<ExternalSourceFactory> candidates = new ArrayList<>();
         for (ExternalSourceFactory factory : dataSourceModule.sourceFactories().values()) {
-            if (factory.canHandle(path)) {
+            // Config-aware, like the synchronous resolveSingleSource: an explicit `format` names the reader
+            // directly, so it must claim a resource whose extension alone says nothing. Every multi-file resolve
+            // reaches here, so the path-only form would make `format` a no-op for all of them.
+            if (factory.canHandle(path, config)) {
                 candidates.add(factory);
             }
         }
@@ -2048,7 +2112,7 @@ public class ExternalSourceResolver {
      * Tries each claiming factory in order, asynchronously. On a factory failure (sync throw from dispatch or async
      * {@code onFailure}) it records the failure and advances to the next candidate, mirroring the synchronous
      * fall-through in {@link #resolveSingleSource}. When no candidate remains it fails with the last recorded error,
-     * or a "no handler" error if none claimed the path.
+     * or the unreadable-object error if none claimed the path.
      */
     private void resolveWithFactory(
         String path,
@@ -2061,21 +2125,10 @@ public class ExternalSourceResolver {
     ) {
         if (index >= candidates.size()) {
             if (lastFailure != null) {
-                listener.onFailure(new IllegalArgumentException("Failed to resolve metadata for [" + path + "]", lastFailure));
+                listener.onFailure(lastFactoryFailure(path, lastFailure));
                 return;
             }
-            var sources = String.join(", ", dataSourceModule.sourceFactories().keySet());
-            listener.onFailure(
-                new UnsupportedOperationException(
-                    "No handler found for source at path ["
-                        + path
-                        + "]. "
-                        + "Please ensure the appropriate data source plugin is installed. "
-                        + "Known handlers: ["
-                        + sources
-                        + "]."
-                )
-            );
+            listener.onFailure(noReaderError(path));
             return;
         }
         ExternalSourceFactory factory = candidates.get(index);

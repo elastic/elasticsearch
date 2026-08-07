@@ -75,6 +75,7 @@ import org.elasticsearch.xpack.core.inference.action.GetRegionPolicyAction;
 import org.elasticsearch.xpack.core.inference.action.GetRerankerWindowSizeAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceActionProxy;
+import org.elasticsearch.xpack.core.inference.action.InternalDeleteInferenceEndpointsAction;
 import org.elasticsearch.xpack.core.inference.action.PutCCMConfigurationAction;
 import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.PutRegionPolicyAction;
@@ -98,6 +99,7 @@ import org.elasticsearch.xpack.inference.action.TransportGetRerankerWindowSizeAc
 import org.elasticsearch.xpack.inference.action.TransportInferenceAction;
 import org.elasticsearch.xpack.inference.action.TransportInferenceActionProxy;
 import org.elasticsearch.xpack.inference.action.TransportInferenceUsageAction;
+import org.elasticsearch.xpack.inference.action.TransportInternalDeleteEndpointsAction;
 import org.elasticsearch.xpack.inference.action.TransportPutCCMConfigurationAction;
 import org.elasticsearch.xpack.inference.action.TransportPutInferenceModelAction;
 import org.elasticsearch.xpack.inference.action.TransportPutRegionPolicyAction;
@@ -320,6 +322,7 @@ public class InferencePlugin extends Plugin
             new ActionHandler(GetRerankerWindowSizeAction.INSTANCE, TransportGetRerankerWindowSizeAction.class),
             new ActionHandler(ClearInferenceEndpointCacheAction.INSTANCE, ClearInferenceEndpointCacheAction.class),
             new ActionHandler(StoreInferenceEndpointsAction.INSTANCE, TransportStoreEndpointsAction.class),
+            new ActionHandler(InternalDeleteInferenceEndpointsAction.INSTANCE, TransportInternalDeleteEndpointsAction.class),
             new ActionHandler(GetCCMConfigurationAction.INSTANCE, TransportGetCCMConfigurationAction.class),
             new ActionHandler(PutCCMConfigurationAction.INSTANCE, TransportPutCCMConfigurationAction.class),
             new ActionHandler(DeleteCCMConfigurationAction.INSTANCE, TransportDeleteCCMConfigurationAction.class),

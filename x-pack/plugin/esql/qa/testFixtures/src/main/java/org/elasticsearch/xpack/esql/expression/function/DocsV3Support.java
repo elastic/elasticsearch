@@ -858,8 +858,11 @@ public abstract class DocsV3Support {
          * Build the {@code {applies_to}} annotation for the docs to tell users which version of
          * Elasticsearch first supported this function/operator/signature.
          * @param functionAppliesTos The version information for stateful Elasticsearch
-         * @param preview Is this tech preview? Effectively just generates the
-         *                {@code serverless: preview} annotation if true and nothing if false.
+         * @param preview Is this tech preview? Generates the {@code serverless: preview} annotation if true.
+         *                If false and the feature has a GA {@code appliesTo} entry, the block form (see
+         *                {@code oneLine}) generates {@code serverless: ga}. A preview-only feature generates no
+         *                serverless annotation when the boolean is unset, and the inline form never emits
+         *                {@code serverless: ga}, since GA is not stated on type rows or params.
          * @param oneLine Should we generate a single line variant of the {@code {applies_to}}
          *                annotation compatible with tables (true) or the more readable
          *                multi-line variant (false)?
@@ -895,7 +898,11 @@ public abstract class DocsV3Support {
                     }
                 }
 
-                // Only specify serverless if it's preview, using the preview boolean (GA is the default)
+                // Serverless lifecycle. Preview is marked both inline (type rows, params) and in the block form.
+                // GA is only stated at the function/page level (the block), and only when the feature is actually
+                // GA, meaning it has a GA appliesTo entry. A preview feature never gets serverless: ga, even when
+                // the preview boolean is unset.
+                boolean anyGa = functionAppliesTos.stream().anyMatch(a -> a.lifeCycle() == FunctionAppliesToLifecycle.GA);
                 if (preview) {
                     if (oneLine) {
                         appliesToText.append("` {applies_to}`");
@@ -904,6 +911,9 @@ public abstract class DocsV3Support {
                     if (false == oneLine) {
                         appliesToText.append('\n');
                     }
+                } else if (oneLine == false && anyGa) {
+                    appliesToText.append("serverless: ga");
+                    appliesToText.append('\n');
                 }
 
                 appliesToText.append(oneLine ? "`" : "```\n");

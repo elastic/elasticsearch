@@ -12,6 +12,7 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.expression.ConstantEvaluators;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationPlanVerificationAware;
@@ -59,9 +60,7 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
         PostOptimizationPlanVerificationAware {
 
     protected final Expression field;
-
-    // Options for the function. They don't need to be serialized as the data nodes will retrieve them from the query builder
-    private final transient Expression options;
+    private final Expression options;
 
     protected SingleFieldFullTextFunction(
         Source source,
@@ -212,35 +211,43 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
 
     @Override
     public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
+        return postAnalysisPlanVerification(null);
+    }
+
+    @Override
+    public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification(AnalysisRegistry analysisRegistry) {
         return (plan, failures) -> {
             super.postAnalysisPlanVerification().accept(plan, failures);
-            fieldVerifier(plan, this, field, failures);
+            fieldVerifier(plan, this, field, analysisRegistry, failures);
         };
     }
 
     @Override
     public BiConsumer<LogicalPlan, Failures> postOptimizationPlanVerification() {
-        // check plan again after predicates are pushed down into subqueries
+        // Check plan again after predicates are pushed down into subqueries. No analysis registry is available at
+        // this point, so registry-backed checks (e.g. analyzer-name validation) only run in the post-analysis pass;
+        // registry inputs cannot change during optimization, so skipping them here is safe.
         return (plan, failures) -> {
             super.postOptimizationPlanVerification().accept(plan, failures);
-            fieldVerifier(plan, this, field, failures);
+            fieldVerifier(plan, this, field, null, failures);
         };
     }
 
     @Override
     public boolean equals(Object o) {
-        // Functions do not serialize options, as they get included in the query builder.
-        // We override equals and hashcode to ignore options when comparing two function instances
         if (o == null || getClass() != o.getClass()) return false;
         SingleFieldFullTextFunction that = (SingleFieldFullTextFunction) o;
 
         // Compare query builders using identity because that's how they are compared during query rewriting
-        return Objects.equals(field(), that.field()) && Objects.equals(query(), that.query()) && queryBuilder() == that.queryBuilder();
+        return Objects.equals(field(), that.field())
+            && Objects.equals(query(), that.query())
+            && queryBuilder() == that.queryBuilder()
+            && Objects.equals(options, that.options());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field(), query(), System.identityHashCode(queryBuilder()));
+        return Objects.hash(field(), query(), System.identityHashCode(queryBuilder()), options);
     }
 
     /**

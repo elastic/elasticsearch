@@ -11,7 +11,6 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
@@ -41,8 +40,6 @@ import java.util.concurrent.Executor;
 public class TopNOperator implements Operator, Accountable {
     static final byte SMALL_NULL = 0x01; // "null" representation for "nulls first"
     static final byte BIG_NULL = 0x02; // "null" representation for "nulls last"
-
-    public static final FeatureFlag PARALLEL_TOPN_FEATURE_FLAG = new FeatureFlag("parallel_topn");
 
     /** Opts the operator into parallel workers; promotion is one-way once {@code promotionThresholdRows} is crossed. */
     public record ParallelWorkerConfig(Executor executor, int workerCount, int maxInFlightPages, long promotionThresholdRows) {}

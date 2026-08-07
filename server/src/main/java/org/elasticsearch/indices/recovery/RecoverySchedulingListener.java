@@ -45,4 +45,12 @@ public interface RecoverySchedulingListener {
 
     /// Called when a running recovery finishes (success, failure or aborted).
     default void onRecoveryCompleted(RecoverySource.Type type, RecoveryRole role) {}
+
+    /// Called when this node starts holding new recoveries back due to a recovery gate; `gateName` identifies the gate. Paired with
+    /// [#onRecoveriesUnblocked].
+    default void onRecoveriesBlocked(String gateName) {}
+
+    /// Called when this node stops holding recoveries back, reporting how long the block lasted (ms). Carries no gate name: the gate
+    /// that started the block (reported by [#onRecoveriesBlocked]) is not necessarily the one that held it last.
+    default void onRecoveriesUnblocked(long blockedTimeMillis) {}
 }

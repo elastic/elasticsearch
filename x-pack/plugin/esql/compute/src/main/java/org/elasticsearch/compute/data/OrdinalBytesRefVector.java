@@ -23,7 +23,7 @@ import java.io.IOException;
  * the additional ordinals vector. However, they offer significant speed improvements and reduced memory usage when byte values are
  * frequently repeated
  */
-public final class OrdinalBytesRefVector extends AbstractNonThreadSafeRefCounted implements BytesRefVector {
+public final class OrdinalBytesRefVector extends AbstractBlockRefCounted implements BytesRefVector {
     private final IntVector ordinals;
     private final BytesRefVector bytes;
 
@@ -71,6 +71,7 @@ public final class OrdinalBytesRefVector extends AbstractNonThreadSafeRefCounted
 
     @Override
     public void allowPassingToDifferentDriver() {
+        makeRefCountsThreadSafe();
         ordinals.allowPassingToDifferentDriver();
         bytes.allowPassingToDifferentDriver();
     }

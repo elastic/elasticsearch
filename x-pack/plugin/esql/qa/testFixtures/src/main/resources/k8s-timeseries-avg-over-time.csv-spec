@@ -108,6 +108,20 @@ cost:double | step:datetime
 46.4375     | 2024-05-10T00:20:00.000Z
 ;
 
+// date_nanos counterpart of avg_over_time_of_double_small_window_promql. 
+avg_over_time_of_double_small_window_of_date_nanos_promql
+required_capability: promql_command_v0
+required_capability: fix_tstep_window_filter_rounding
+required_capability: fix_promql_date_nanos_step
+
+PROMQL index=datenanos-k8s step=10m start="2024-05-10T00:10:00.000Z" end="2024-05-10T00:20:00.000Z" cost=(round(sum(avg_over_time(network.cost[1m])), 0.0001))
+| SORT step;
+
+cost:double | step:datetime
+69.6875     | 2024-05-10T00:10:00.000Z
+46.4375     | 2024-05-10T00:20:00.000Z
+;
+
 avg_over_time_of_integer
 required_capability: ts_command_v0
 TS k8s 

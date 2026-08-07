@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.en.EnglishAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.Term;
@@ -48,6 +49,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.of;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -115,6 +117,21 @@ public class HighlightQueryBuildersTests extends ESTestCase {
         // query_string represents a query containing only stop words as an empty boolean query.
         BooleanQuery bq = asInstanceOf(BooleanQuery.class, translate(of("the"), TITLE, STOP_ANALYZER));
         assertThat(bq.clauses(), hasSize(0));
+    }
+
+    public void testVerifyUsesProvidedAnalyzer() {
+        // A failing analyzer makes it observable which analyzer verify uses without mocking the query machinery.
+        Analyzer analyzer = new Analyzer() {
+            @Override
+            protected TokenStreamComponents createComponents(String fieldName) {
+                throw new IllegalStateException("test analyzer was used");
+            }
+        };
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> HighlightQueryBuilders.verify(of("fox"), TITLE, analyzer)
+        );
+        assertThat(e.getMessage(), containsString("test analyzer was used"));
     }
 
     public void testLiteralLeadingWildcardAllowed() {
@@ -224,10 +241,8 @@ public class HighlightQueryBuildersTests extends ESTestCase {
 
     public void testNot() {
         Not not = new Not(EMPTY, match("title", "fox", null));
-        // Non-scoring queries are wrapped in a zero-boost query.
-        BoostQuery boost = asInstanceOf(BoostQuery.class, translate(not, TITLE));
-        assertThat(boost.getBoost(), equalTo(0.0f));
-        BooleanQuery bq = asInstanceOf(BooleanQuery.class, boost.getQuery());
+        // A bool query with only must_not gets an implicit match_all filter.
+        BooleanQuery bq = asInstanceOf(BooleanQuery.class, translate(not, TITLE));
         BooleanClause filter = bq.clauses().stream().filter(c -> c.occur() == BooleanClause.Occur.FILTER).findFirst().orElseThrow();
         BooleanClause mustNot = bq.clauses().stream().filter(c -> c.occur() == BooleanClause.Occur.MUST_NOT).findFirst().orElseThrow();
         assertThat(filter.query(), instanceOf(MatchAllDocsQuery.class));

@@ -37,7 +37,7 @@ public class AllocationEsFieldTests extends AllocationTestCase {
 
     public void testContextWhitelistsWithConstantAnnotationsParse() {
         // StatsSummary (score) and sha1/256/512 (ingest/reindex/update/update_by_query) live in context whitelists that the
-        // base test context does not load, so parse them directly to validate their new @allocates_constant annotations.
+        // base test context does not load, so parse them directly to validate their new @allocates annotations.
         WhitelistLoader.loadFromResourceFiles(
             PainlessPlugin.class,
             "org.elasticsearch.script.score.txt",

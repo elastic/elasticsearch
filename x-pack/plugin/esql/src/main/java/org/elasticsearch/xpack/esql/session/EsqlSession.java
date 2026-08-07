@@ -80,6 +80,7 @@ import org.elasticsearch.xpack.esql.datasources.ExternalStatsRequirementExtracto
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
+import org.elasticsearch.xpack.esql.dsltranslate.RequestFilterRewriter;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
@@ -104,6 +105,7 @@ import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
@@ -113,6 +115,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.InnerJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
@@ -456,7 +459,27 @@ public class EsqlSession {
                         EsqlPlugin.externalBlobStorePool()
                     );
 
-                    LogicalPlan plan = analyzedPlan.inner();
+                    TransportVersion minimumVersion = analyzedPlan.minimumVersion();
+
+                    // Apply the out-of-band request filter to external-source (dataset) leaves, translated
+                    // against each source's schema. Index leaves keep their existing filter path. Version-gated:
+                    // the translated predicate can contain mv_in_range, which older nodes cannot deserialize.
+                    // The rewrite is fail-closed: an unsupported construct throws IllegalArgumentException (a 400).
+                    // This callback runs outside the SubscribableListener chain below, so a synchronous throw here
+                    // would not be routed to the listener — catch it and fail the query explicitly.
+                    final LogicalPlan plan;
+                    try {
+                        plan = RequestFilterRewriter.rewrite(
+                            analyzedPlan.inner(),
+                            request.filter(),
+                            RequestFilterRewriter.REQUEST_FILTER_ON_DATASET_FEATURE_FLAG.isEnabled(),
+                            finalConfiguration,
+                            minimumVersion
+                        );
+                    } catch (Exception e) {
+                        listener.onFailure(e);
+                        return;
+                    }
                     // Capture the analyzed plan for failure-path logging: schema-resolved,
                     // PROMQL→TS conversion done, but surrogate rewrites haven't fired yet.
                     planSnapshot = planSnapshot.withAnalyzed(plan);
@@ -465,7 +488,6 @@ public class EsqlSession {
                     if (plan.anyMatch(ExternalRelation.class::isInstance)) {
                         planTelemetry.externalSource(true);
                     }
-                    TransportVersion minimumVersion = analyzedPlan.minimumVersion();
 
                     var logicalPlanPreOptimizer = new LogicalPlanPreOptimizer(
                         new LogicalPreOptimizerContext(foldContext, inferenceService, minimumVersion)
@@ -925,7 +947,7 @@ public class EsqlSession {
     ) {
         SubPlanAndCallback subPlanAndCallback = null;
 
-        // Find the first (bottom-up) SemiJoin or InlineJoin that needs subplan execution.
+        // Find the first (bottom-up) SemiJoin/InnerJoin/InlineJoin that needs subplan execution.
         // Processing bottom-up ensures inner subplans (e.g. INLINE STATS inside IN subquery)
         // are resolved before outer ones that depend on them.
         LogicalPlan firstJoin = findFirstSubPlanJoin(mainPlan, subPlansResults);
@@ -949,6 +971,17 @@ public class EsqlSession {
                         blockFactory,
                         localRelationPage
                     );
+                }, () -> releaseLocalRelationBlocks(localRelationPage), true);
+            }
+        } else if (firstJoin instanceof InnerJoin) {
+            InnerJoin.LogicalPlanTuple subPlans = InnerJoin.firstSubPlan(mainPlan, subPlansResults);
+            if (subPlans != null) {
+                AtomicReference<Page> localRelationPage = new AtomicReference<>();
+                subPlanAndCallback = new SubPlanAndCallback(subPlans.subPlan(), result -> {
+                    LocalRelation resultWrapper = resultToPlan(subPlans.subPlan().source(), result);
+                    localRelationPage.set(resultWrapper.supplier().get());
+                    subPlansResults.add(resultWrapper);
+                    return InnerJoin.newMainPlan(mainPlan, subPlans, resultWrapper);
                 }, () -> releaseLocalRelationBlocks(localRelationPage), true);
             }
         } else if (firstJoin instanceof InlineJoin) {
@@ -984,23 +1017,30 @@ public class EsqlSession {
     }
 
     /**
-     * Finds the first (bottom-up) SemiJoin or InlineJoin in the plan that has an unresolved subplan.
+     * Finds the first (bottom-up) SemiJoin, InnerJoin or InlineJoin in the plan that has an unresolved subplan.
      * Returns the join node itself, or null if none found.
      */
     private static LogicalPlan findFirstSubPlanJoin(LogicalPlan plan, Set<LocalRelation> subPlansResults) {
         Holder<LogicalPlan> result = new Holder<>();
-        // Evaluate the right hand side of a SemiJoin or InlineJoin, unless it is a LocalRelation and registered in subPlansResults already
+        // Evaluate the right hand side of a SemiJoin/InnerJoin/InlineJoin, unless it is a LocalRelation and registered in subPlansResults
+        // already
         plan.forEachUp(p -> {
             if (result.get() != null) {
                 return;
             }
-            // Whether checking the subquery join or InlineJoin first does not matter, the plan is processed bottom up, looking for
+            // Whether checking the subquery join, InnerJoin or InlineJoin first does not matter, the plan is processed bottom up, looking
+            // for
             // joins whose right child haven't been evaluated yet
             if (p instanceof AbstractSubqueryJoin sj) {
                 if (sj.right() instanceof LocalRelation lr && subPlansResults.contains(lr)) {
                     return; // already processed
                 }
                 result.set(sj);
+            } else if (p instanceof InnerJoin ej) {
+                if (ej.right() instanceof LocalRelation lr && subPlansResults.contains(lr)) {
+                    return; // already processed
+                }
+                result.set(ej);
             } else if (p instanceof InlineJoin ij) {
                 if (ij.right().anyMatch(r -> r instanceof StubRelation)) {
                     result.set(ij);
@@ -1355,7 +1395,7 @@ public class EsqlSession {
         PreAnalysisResult result = FieldNameUtils.resolveFieldNames(
             parsed,
             preAnalysis.enriches().isEmpty() == false,
-            unmappedResolution == UnmappedResolution.LOAD
+            unmappedResolution.loadsUnmappedFields()
         ).withMinimumTransportVersion(localClusterMinimumVersion);
         String description = requestFilter == null ? "the only attempt without filter" : "first attempt with filter";
         // Extract timestamp bounds eagerly from the request filter so they can be threaded through to the analyzer,
@@ -1395,7 +1435,7 @@ public class EsqlSession {
         executionInfo.queryProfile().indicesResolutionMarker().start();
         // TODO this is a quick hack to alleviate the pressure off of https://github.com/elastic/elasticsearch/issues/145920. A better
         // solution would be to just not track the unmapped indices at all, but that requires a more structural change.
-        boolean trackedUnmappedFieldIndices = unmappedResolution == UnmappedResolution.LOAD;
+        boolean trackedUnmappedFieldIndices = unmappedResolution.loadsUnmappedFields();
         boolean nullify = parsed.collectFirstChildren(p -> p instanceof PromqlCommand).isEmpty() == false;
         SubscribableListener.<PreAnalysisResult>newForked(
             l -> preAnalyzeMainIndices(preAnalysis, configuration, executionInfo, trackedUnmappedFieldIndices, result, requestFilter, l)
@@ -1495,7 +1535,7 @@ public class EsqlSession {
      * Perform a field caps request for each lookup index. Does not update the minimum transport version.
      */
     private void preAnalyzeLookupIndices(
-        Iterator<IndexPattern> lookupIndices,
+        Iterator<PreAnalyzer.LookupIndexPattern> lookupIndices,
         LogicalPlan plan,
         PreAnalysisResult preAnalysisResult,
         EsqlExecutionInfo executionInfo,
@@ -1510,13 +1550,13 @@ public class EsqlSession {
     }
 
     private void preAnalyzeLookupIndex(
-        IndexPattern lookupIndexPattern,
+        PreAnalyzer.LookupIndexPattern lookupIndexPattern,
         LogicalPlan plan,
         PreAnalysisResult result,
         EsqlExecutionInfo executionInfo,
         ActionListener<PreAnalysisResult> listener
     ) {
-        String localPattern = lookupIndexPattern.indexPattern();
+        String localPattern = lookupIndexPattern.indexPattern().indexPattern();
         assert RemoteClusterAware.isRemoteIndexName(localPattern) == false
             : "Lookup index name should not include remote, but got: " + localPattern;
         assert ThreadPool.assertCurrentThreadPool(
@@ -1528,10 +1568,31 @@ public class EsqlSession {
             // indices) the resolver's continuation reaches this on the external blob-store pool.
             EsqlPlugin.externalBlobStorePool()
         );
-        var lookupIndexScope = EsqlCCSUtils.onlyRunning(
-            executionInfo,
-            computeLookupJoinIndexScope(plan, localPattern, result.indexResolution())
-        );
+
+        String qualifiedPattern;
+        Set<String> lookupIndexScope;
+
+        if (lookupIndexPattern.mode() == ExecutesOn.ExecuteLocation.COORDINATOR) {
+            // "_coordinator" is our reserved alias for the local coordinator node.
+            // If a remote cluster is registered under the same name, reject the query to avoid ambiguity.
+            if (remoteClusterService.getRegisteredRemoteClusterNames().contains("_coordinator")) {
+                listener.onFailure(
+                    new VerificationException(
+                        "coordinator LOOKUP JOIN is not supported with a remote cluster [_coordinator]. Please rename it."
+                    )
+                );
+                return;
+            }
+            lookupIndexScope = Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+            qualifiedPattern = RemoteClusterAware.splitIndexName(localPattern).indexExpression();
+        } else {
+            lookupIndexScope = EsqlCCSUtils.onlyRunning(
+                executionInfo,
+                computeLookupJoinIndexScope(plan, localPattern, result.indexResolution())
+            );
+            qualifiedPattern = EsqlCCSUtils.createQualifiedLookupIndexExpressionFromAvailableClusters(lookupIndexScope, localPattern);
+        }
+
         if (lookupIndexScope.isEmpty()) {
             // The source index returned no contributing clusters (all shards were pruned by the
             // request-level filter). Skip the lookup field-caps call — sending an empty index
@@ -1542,11 +1603,12 @@ public class EsqlSession {
             listener.onResponse(result.addLookupIndexResolution(localPattern, IndexResolution.notFound(localPattern)));
             return;
         }
+
+        executionInfo.queryProfile().incFieldCapsCalls();
         // No need to update the minimum transport version in the PreAnalysisResult,
         // it should already have been determined during the main index resolution.
-        executionInfo.queryProfile().incFieldCapsCalls();
         indexResolver.resolveLookupIndices(
-            EsqlCCSUtils.createQualifiedLookupIndexExpressionFromAvailableClusters(lookupIndexScope, localPattern),
+            qualifiedPattern,
             result.wildcardJoinIndices().contains(localPattern) ? IndexResolver.ALL_FIELDS : result.fieldNames,
             // We use the minimum version determined in the main index resolution, because for remote LOOKUP JOIN, we're only considering
             // remote lookup indices in the field caps request - but the coordinating cluster must be considered, too!
@@ -1893,8 +1955,8 @@ public class EsqlSession {
                 index,
                 lookupIndexResolution.get().mapping(),
                 Map.of(indexName, IndexMode.LOOKUP),
-                Map.of(),
-                Map.of()
+                lookupIndexResolution.get().originalIndices(),
+                lookupIndexResolution.get().concreteIndices()
             );
             return IndexResolution.valid(newIndex, newIndex.concreteQualifiedIndices(), lookupIndexResolution.failures());
         }

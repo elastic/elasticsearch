@@ -41,6 +41,7 @@ import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.FileTypeHint;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.RandomAccessInput;
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.LongValues;
@@ -611,8 +612,10 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         private final IndexInput readAhead;
         private long lastBlockId = -1;
         private final int[] uncompressedDocStarts;
-        private final byte[] uncompressedBlock;
-        private final BytesRef uncompressedBytesRef;
+        private final int biggestUncompressedBlockSize;
+        // Lazily allocated to avoid eagerly over-consuming memory under a large query fan-out or a single outlier block
+        private byte[] uncompressedBlock;
+        private BytesRef uncompressedBytesRef;
         private long startDocNumForBlock = -1;
         private long limitDocNumForBlock = -1;
         private final Decompressor decompressor;
@@ -632,8 +635,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
             this.docOffsets = docOffsets;
             this.compressedData = compressedData;
             this.readAhead = compressedData.clone();
-            this.uncompressedBlock = new byte[biggestUncompressedBlockSize];
-            uncompressedBytesRef = new BytesRef(uncompressedBlock);
+            this.biggestUncompressedBlockSize = biggestUncompressedBlockSize;
             uncompressedDocStarts = new int[maxNumDocsInAnyBlock + 1];
             this.docOffsetsDecoder = docOffsetsDecoder;
         }
@@ -667,6 +669,13 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
          */
         private void decompressValues(boolean compressed, int numDocsInBlock) throws IOException {
             int uncompressedBlockLength = uncompressedDocStarts[numDocsInBlock];
+            if (uncompressedBlock == null || uncompressedBlock.length < uncompressedBlockLength) {
+                // Size to the block we actually read, capped at the segment max, so one outlier block does not force every
+                // decoder on the segment to allocate the outlier size.
+                int size = Math.min(ArrayUtil.oversize(uncompressedBlockLength, Byte.BYTES), biggestUncompressedBlockSize);
+                uncompressedBlock = new byte[size];
+                uncompressedBytesRef = new BytesRef(uncompressedBlock);
+            }
             assert uncompressedBlockLength <= uncompressedBlock.length;
             uncompressedBytesRef.offset = 0;
             uncompressedBytesRef.length = uncompressedBlock.length;
@@ -2657,6 +2666,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                             @Override
                             public void intoBitSet(int upTo, FixedBitSet bitSet, int offset) throws IOException {
                                 int doc = approximation.docID();
+                                upTo = Math.min(upTo, maxDoc);
                                 if (doc >= upTo) {
                                     return;
                                 }

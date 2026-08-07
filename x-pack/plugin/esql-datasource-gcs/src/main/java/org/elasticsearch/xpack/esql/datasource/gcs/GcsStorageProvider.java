@@ -264,7 +264,7 @@ public class GcsStorageProvider implements StorageProvider {
             if (e.getCode() == 403) {
                 return existsViaRead(bucket, objectName, path);
             }
-            throw new IOException("Failed to check existence of " + path + credentialHint(), e);
+            throw new IOException("Failed to check existence of " + path + ": " + GcsFailureDetail.of(e) + credentialHint(), e);
         }
     }
 
@@ -275,7 +275,14 @@ public class GcsStorageProvider implements StorageProvider {
             if (e.getCode() == 404) {
                 return false;
             }
-            throw new IOException("Failed to check existence of " + path + " (metadata denied, read also failed)" + credentialHint(), e);
+            throw new IOException(
+                "Failed to check existence of "
+                    + path
+                    + " (metadata denied, read also failed): "
+                    + GcsFailureDetail.of(e)
+                    + credentialHint(),
+                e
+            );
         }
     }
 

@@ -17,6 +17,7 @@ import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.CsvTestUtils;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 import org.junit.AfterClass;
 import org.junit.ClassRule;
@@ -78,9 +79,30 @@ public abstract class AbstractMixedClusterEsqlSpecIT extends EsqlSpecTestCase {
         oldNodeClient = null;
     }
 
+    // Slice indexing is unreleased and renamed its request parameter (`_slice` -> `slice`), so the older bwc node
+    // cannot ingest data via the current parameter. Treat slice as unsupported whenever an older node is present.
+    private static boolean slicesSupportedOnBwcNode() {
+        return bwcVersion == null || bwcVersion.before(Version.CURRENT) == false;
+    }
+
+    @Override
+    protected boolean clusterHasCapability(EsqlCapabilities.Cap capability) {
+        // Skip loading the slice dataset in a mixed-version cluster: the older node cannot ingest it.
+        if (capability == EsqlCapabilities.Cap.METADATA_SLICE && slicesSupportedOnBwcNode() == false) {
+            return false;
+        }
+        return super.clusterHasCapability(capability);
+    }
+
     @Override
     protected void shouldSkipTest(String testName) throws IOException {
         super.shouldSkipTest(testName);
+        // Slice tests need the slice dataset, which is not loaded against an older node (see clusterHasCapability).
+        CsvTestUtils.assumeTrueLogging(
+            "Slice indexing is unreleased and unsupported on the older mixed-cluster node",
+            slicesSupportedOnBwcNode()
+                || testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.METADATA_SLICE.capabilityName()) == false
+        );
         CsvTestUtils.assumeTrueLogging(
             "Old mixed-cluster node does not support required capabilities for " + testName,
             testCase.requiredCapabilities.isEmpty() || hasCapabilities(oldNodeClient(), testCase.requiredCapabilities)

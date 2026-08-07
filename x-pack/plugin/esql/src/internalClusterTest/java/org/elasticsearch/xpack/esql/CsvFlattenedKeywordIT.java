@@ -1305,7 +1305,6 @@ public class CsvFlattenedKeywordIT extends CsvIT {
     }
 
     public static final java.util.List<String> EXPECTED_ERRORS = java.util.List.of(
-        "ABSENT_OVER_TIME:field is missing",
         "CIDR_MATCH:blockX is missing",
         "CLAMP:field is missing",
         "CLAMP:max is missing",
@@ -1314,26 +1313,14 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         "CLAMP_MAX:max is missing",
         "CLAMP_MIN:field is missing",
         "CLAMP_MIN:min is missing",
-        "COUNT_DISTINCT_OVER_TIME:field is missing",
-        "COUNT_OVER_TIME:field is missing",
-        "DATE_DIFF:unit is missing",
         "EMBEDDING:value is missing",
         "FIELD_EXTRACT:path is missing",
-        "FIRST_OVER_TIME:field is missing",
-        "FROM_BASE64:string is missing",
-        "GREATEST:first is missing",
-        "GREATEST:rest is missing",
         "JSON_EXTRACT:string is missing",
         "KNN:field is missing",
         "KQL:query is missing",
-        "LAST_OVER_TIME:field is missing",
-        "LEAST:first is missing",
-        "LEAST:rest is missing",
         "MATCH:query is missing",
         "MATCH_OPERATOR:field is missing",
         "MATCH_OPERATOR:query is missing",
-        "MAX_OVER_TIME:field is missing",
-        "MIN_OVER_TIME:field is missing",
         // mv_in_range's bounds are literals in the csv-specs (like the comparison operators below), so its
         // keyword/text parameters are not exercised via flattened-keyword field extraction.
         "MV_IN_RANGE:field is missing",
@@ -1343,24 +1330,14 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         // metadata, so it is excluded from the candidate set entirely (see the "constant".equals(kind)
         // check below) and never appears here as missing.
         "NETWORK_DIRECTION:internal_networks is missing",
-        "PRESENT_OVER_TIME:field is missing",
         "QSTR:query is missing",
         "SPARKLINE:from is missing",
         "SPARKLINE:to is missing",
         "TEXT_EMBEDDING:text is missing",
-        "TO_CARTESIANPOINT:field is missing",
-        "TO_CARTESIANSHAPE:field is missing",
-        "TO_DATETIME:field is missing",
-        "TO_DATE_NANOS:field is missing",
-        "TO_DATE_RANGE:field is missing",
-        "TO_DENSE_VECTOR:field is missing",
-        "TO_DOUBLE:field is missing",
-        "TO_GEOHASH:field is missing",
-        "TO_GEOHEX:field is missing",
-        "TO_GEOSHAPE:field is missing",
-        "TO_GEOTILE:field is missing",
-        "TO_UNSIGNED_LONG:field is missing",
-        "TO_VERSION:field is missing",
+        // WITHOUT is a time-series grouping helper valid only inside TS queries, and its dimension arguments
+        // must be real index dimension fields. Rewriting a dimension to a flattened subfield destroys its
+        // dimension nature, and TS tests are skipped by the coverage check entirely (see the ts_info_command
+        // / metrics_info_command guard above), so this slot can never be exercised via field extraction.
         "WITHOUT:dimension is missing"
     );
 

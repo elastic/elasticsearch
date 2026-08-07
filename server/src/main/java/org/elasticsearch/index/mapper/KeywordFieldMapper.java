@@ -96,9 +96,7 @@ import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesRegexpQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermInSetQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesWildcardQuery;
-import org.elasticsearch.lucene.queries.SortedSetDocValuesRangeQuery;
 import org.elasticsearch.lucene.search.FuzzyQueries;
-import org.elasticsearch.lucene.search.XDocValuesRewriteMethod;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.SortedBinaryDocValuesStringFieldScript;
@@ -807,7 +805,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             } else if (usesBinaryDocValues) {
                 return new ScanningBinaryDocValuesTermQuery(name(), indexedValueForSearch(value), useArrayOrderBinaryDocValues);
             } else {
-                return SortedSetDocValuesRangeQuery.newSlowExactQuery(name(), indexedValueForSearch(value));
+                return SortedSetDocValuesField.newSlowExactQuery(name(), indexedValueForSearch(value));
             }
         }
 
@@ -847,7 +845,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                     includeUpper
                 );
             } else {
-                return SortedSetDocValuesRangeQuery.newSlowRangeQuery(
+                return SortedSetDocValuesField.newSlowRangeQuery(
                     name(),
                     lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
                     upperTerm == null ? null : indexedValueForSearch(upperTerm),
@@ -888,7 +886,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                     prefixLength,
                     maxExpansions,
                     transpositions,
-                    XDocValuesRewriteMethod.DOC_VALUES_REWRITE,
+                    MultiTermQuery.DOC_VALUES_REWRITE,
                     context,
                     name()
                 );
@@ -915,7 +913,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             } else {
                 if (caseInsensitive == false) {
                     Term prefix = new Term(name(), indexedValueForSearch(value));
-                    return new PrefixQuery(prefix, XDocValuesRewriteMethod.DOC_VALUES_REWRITE);
+                    return new PrefixQuery(prefix, MultiTermQuery.DOC_VALUES_REWRITE);
                 }
                 return new StringScriptFieldPrefixQuery(
                     new Script(""),
@@ -1274,9 +1272,9 @@ public final class KeywordFieldMapper extends FieldMapper {
                     Term term = new Term(name(), value);
                     if (context.getCircuitBreaker() != null) {
                         Automaton dfa = AutomatonQueries.toWildcardAutomaton(term, context.getCircuitBreaker());
-                        return new AutomatonQuery(term, dfa, false, XDocValuesRewriteMethod.DOC_VALUES_REWRITE);
+                        return new AutomatonQuery(term, dfa, false, MultiTermQuery.DOC_VALUES_REWRITE);
                     }
-                    return new WildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, XDocValuesRewriteMethod.DOC_VALUES_REWRITE);
+                    return new WildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, MultiTermQuery.DOC_VALUES_REWRITE);
                 }
 
                 StringFieldScript.LeafFactory leafFactory = ctx -> new SortedSetDocValuesStringFieldScript(name(), context.lookup(), ctx);
@@ -1308,9 +1306,9 @@ public final class KeywordFieldMapper extends FieldMapper {
                     Term term = new Term(name(), value);
                     if (context.getCircuitBreaker() != null) {
                         Automaton dfa = AutomatonQueries.toWildcardAutomaton(term, context.getCircuitBreaker());
-                        return new AutomatonQuery(term, dfa, false, XDocValuesRewriteMethod.DOC_VALUES_REWRITE);
+                        return new AutomatonQuery(term, dfa, false, MultiTermQuery.DOC_VALUES_REWRITE);
                     }
-                    return new WildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, XDocValuesRewriteMethod.DOC_VALUES_REWRITE);
+                    return new WildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, MultiTermQuery.DOC_VALUES_REWRITE);
                 }
             }
         }
@@ -1349,7 +1347,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                             maxDeterminizedStates,
                             context.getCircuitBreaker()
                         );
-                        return new AutomatonQuery(term, dfa, false, XDocValuesRewriteMethod.DOC_VALUES_REWRITE);
+                        return new AutomatonQuery(term, dfa, false, MultiTermQuery.DOC_VALUES_REWRITE);
                     }
                     return new RegexpQuery(
                         new Term(name(), indexedValueForSearch(value)),
@@ -1357,7 +1355,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                         matchFlags,
                         RegexpQuery.DEFAULT_PROVIDER,
                         maxDeterminizedStates,
-                        XDocValuesRewriteMethod.DOC_VALUES_REWRITE
+                        MultiTermQuery.DOC_VALUES_REWRITE
                     );
                 }
             }

@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FromPartial;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
@@ -42,6 +43,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 public class ReplaceSparklineAggregateTests extends AbstractLogicalPlanOptimizerTests {
@@ -166,6 +168,28 @@ public class ReplaceSparklineAggregateTests extends AbstractLogicalPlanOptimizer
         );
     }
 
+    public void testSparklineWithExpressionOverAggregate() {
+        LogicalPlan plan = plan("from test | stats s = sparkline(count(*)+1, hire_date, 10, \"2024-01-01\", \"2024-12-31\")");
+        assertThat(collect(plan, SparklineGenerateEmptyBuckets.class), hasSize(1));
+        // count(*)+1 must be lowered: no aggregate may remain buried inside an expression in any STATS
+        assertNoAggregateBuriedInExpression(plan);
+        // the naked count survived the rewrite
+        assertThat(collectAggregateFunctions(plan), hasItem(instanceOf(Count.class)));
+    }
+
+    public void testSparklineWithSurrogateAggregateExpression() {
+        // AVG is a surrogate (Div(Sum, Count)); avg(salary)+1 exercises the
+        // ReplaceAggregateAggExpressionWithEval-before-SubstituteSurrogateAggregations ordering: the surrogate must first be
+        // exposed as a naked top-level agg, then expanded.
+        LogicalPlan plan = plan("from test | stats s = sparkline(avg(salary)+1, hire_date, 10, \"2024-01-01\", \"2024-12-31\")");
+        assertThat(collect(plan, SparklineGenerateEmptyBuckets.class), hasSize(1));
+        assertNoAggregateBuriedInExpression(plan);
+        // AVG expanded into naked Sum and Count
+        List<AggregateFunction> aggs = collectAggregateFunctions(plan);
+        assertThat(aggs, hasItem(instanceOf(Sum.class)));
+        assertThat(aggs, hasItem(instanceOf(Count.class)));
+    }
+
     public void testBucketCountExceedsLimit() {
         var e = expectThrows(IllegalArgumentException.class, () -> plan("""
             from test | stats s = sparkline(count(*), hire_date, 101, "2024-01-01", "2024-12-31")
@@ -198,6 +222,39 @@ public class ReplaceSparklineAggregateTests extends AbstractLogicalPlanOptimizer
                     s2 = sparkline(max(salary), hire_date, 10, "2024-01-01", "2024-06-30")
             """));
         assertThat(e.getMessage(), containsString("All SPARKLINE functions in a single STATS command must share the same"));
+    }
+
+    private static <T extends LogicalPlan> List<T> collect(LogicalPlan plan, Class<T> cls) {
+        List<T> found = new ArrayList<>();
+        plan.forEachDown(cls, found::add);
+        return found;
+    }
+
+    private static List<AggregateFunction> collectAggregateFunctions(LogicalPlan plan) {
+        List<AggregateFunction> found = new ArrayList<>();
+        plan.forEachExpressionDown(AggregateFunction.class, found::add);
+        return found;
+    }
+
+    /**
+     * Asserts that no STATS in the plan still holds an aggregate function buried inside an expression
+     * (e.g. {@code COUNT()+1}); every aggregate must have been lifted into a naked agg with the
+     * surrounding arithmetic pushed into a following {@code EVAL}. Otherwise the physical planner
+     * cannot assign a channel to it.
+     */
+    private static void assertNoAggregateBuriedInExpression(LogicalPlan plan) {
+        plan.forEachDown(Aggregate.class, agg -> {
+            for (NamedExpression ne : agg.aggregates()) {
+                Expression unwrapped = Alias.unwrap(ne);
+                if (unwrapped instanceof AggregateFunction == false) {
+                    assertThat(
+                        "aggregate function must not remain buried inside expression [" + ne + "]",
+                        unwrapped.anyMatch(AggregateFunction.class::isInstance),
+                        is(false)
+                    );
+                }
+            }
+        });
     }
 
     private void validateSparklineGenerateEmptyBuckets(SparklineGenerateEmptyBuckets sparkline, List<String> sparklineAggregateNames) {

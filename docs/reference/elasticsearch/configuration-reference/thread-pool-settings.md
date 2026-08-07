@@ -68,10 +68,10 @@ $$$search-throttled$$$`search_throttled`
 `flush`
 :   For [flush](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-flush) and [translog](/reference/elasticsearch/index-settings/translog.md) `fsync` operations. Thread pool type is `scaling` with a keep-alive of `5m` and a default maximum size of `min(5, (`[`# of allocated processors`](#node.processors)`) / 2)`.
 
+$$$merge-threadpool$$$
+
 `merge`
 :   For [merge](https://www.elastic.co/guide/en/elasticsearch/reference/current/index-modules-merge.html) operations of all the shards on the node. Thread pool type is `scaling` with a keep-alive of `5m` and a default maximum size of [`# of allocated processors`](#node.processors).
-
-    {applies_to}`stack: ga 9.6` The maximum size can be scaled down with the `indices.merge.thread_pool.max_size_factor` setting: a factor in the range `(0, 1]` applied to the default maximum size. The result is rounded to the nearest integer and never lower than `1`. Lowering the factor, for example, to `0.5`, reduces how many merges can run concurrently on the node, which lowers peak merge memory usage at the cost of merge throughput. Defaults to `1`. If `thread_pool.merge.max` is explicitly configured, that value is used regardless of this factor. This is a static setting that takes effect on node restart.
 
 `force_merge`
 :   For waiting on blocking [force merge](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-forcemerge) operations. Thread pool type is `fixed` with a size of `max(1, (`[`# of allocated processors`](#node.processors)`) / 8)` and an unbounded queue size.

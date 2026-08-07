@@ -172,10 +172,14 @@ public class ElasticsearchOtelAppender extends AbstractAppender {
         }
 
         mapMessage.getData().forEach((key, value) -> {
-            if (value != null && (useMessageKey == false || MESSAGE_KEY.equals(key) == false)) {
+            if (value != null && shouldEmitAsAttribute(key, useMessageKey)) {
                 setTypedAttribute(builder, key, value);
             }
         });
+    }
+
+    private static boolean shouldEmitAsAttribute(String key, boolean useMessageKey) {
+        return TRACE_ID_KEY.equals(key) == false && (useMessageKey == false || MESSAGE_KEY.equals(key) == false);
     }
 
     static <T> List<T> arrayToList(Object array, Function<Object, T> mapper) {

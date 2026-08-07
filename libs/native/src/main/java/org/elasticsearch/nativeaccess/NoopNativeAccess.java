@@ -98,7 +98,7 @@ class NoopNativeAccess implements NativeAccess {
     }
 
     @Override
-    public Optional<VectorSimilarityFunctions> getVectorSimilarityFunctions() {
+    public Optional<SimdVecLibrary> getVectorSimilarityFunctions() {
         logger.warn("cannot get vector distance because native access is not available");
         return Optional.empty();
     }

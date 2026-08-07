@@ -345,7 +345,14 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
 
         // Relocate the shard
         final RoutingNodes routingNodes = startedState.getRoutingNodes().mutableCopy();
-        routingNodes.relocateShard(onlyShard, otherNode.getId(), randomNegativeLong(), "relocate", RoutingChangesObserver.NOOP);
+        routingNodes.relocateShard(
+            onlyShard,
+            otherNode.getId(),
+            randomNegativeLong(),
+            "relocate",
+            RoutingChangesObserver.NOOP,
+            ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+        );
         final GlobalRoutingTable globalRoutingTable = startedState.globalRoutingTable().rebuild(routingNodes, startedState.metadata());
         final ClusterState relocatingState = ClusterState.builder(startedState).routingTable(globalRoutingTable).incrementVersion().build();
 

@@ -35,8 +35,11 @@ public interface ESVectorUtilSupport {
     /** Calculates the dot product over {@code [offset, offset + length)}. */
     float dotProduct(float[] a, float[] b, int offset, int length);
 
-    /** L2-normalizes {@code v[offset:offset + length)} in place. A zero prefix is a no-op. */
-    void l2Normalize(float[] v, int offset, int length);
+    /**
+     * L2-normalizes {@code v[offset:offset + length)} in place. A zero prefix is a no-op.
+     * @return the squared normalization factor
+     */
+    float l2Normalize(float[] v, int offset, int length);
 
     /** Returns the sum of squared differences of the two vectors. */
     float squareDistance(float[] a, float[] b);
@@ -61,6 +64,9 @@ public interface ESVectorUtilSupport {
 
     /** Returns the sum of squared differences of the two byte vectors over a sub-range. */
     float squareDistance(byte[] a, byte[] b, int offset, int length);
+
+    /** Returns the sum of squared differences between a byte vector and a float vector. */
+    float squareDistance(byte[] a, float[] b);
 
     float maxSimDotProduct(MultiFloatVectorsSource source, float[][] query, float[] scoresScratch);
 

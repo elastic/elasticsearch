@@ -103,6 +103,21 @@ public class GaugeAdapterTests extends ESTestCase {
         assertThat(metrics, hasSize(0));
     }
 
+    public void testZeroValuedGaugesAreRecorded() {
+        LongGauge longGauge = registry.registerLongGauge("es.test.long.current", "desc", "unit", () -> new LongWithAttributes(0L));
+        DoubleGauge doubleGauge = registry.registerDoubleGauge(
+            "es.test.double.current",
+            "desc",
+            "unit",
+            () -> new DoubleWithAttributes(0.0)
+        );
+
+        otelMeter.collectMetrics();
+
+        assertThat(otelMeter.getRecorder().getMeasurements(longGauge), hasSize(1));
+        assertThat(otelMeter.getRecorder().getMeasurements(doubleGauge), hasSize(1));
+    }
+
     public void testNullGaugeRecord() throws Exception {
         DoubleGauge dgauge = registry.registerDoubleGauge(
             "es.test.name.total",

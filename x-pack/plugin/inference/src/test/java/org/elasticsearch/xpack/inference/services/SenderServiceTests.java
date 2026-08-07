@@ -26,7 +26,9 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.completion.CacheControl;
 import org.elasticsearch.inference.completion.ContentObjects;
+import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -282,6 +284,126 @@ public class SenderServiceTests extends ESTestCase {
 
             var exception = assertThrows(UnsupportedOperationException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(exception.getMessage(), is("The test service service does not support embedding"));
+        }
+    }
+
+    public void testCacheControlNotSupportedByDefault() throws IOException {
+        var sender = createMockSender();
+        var factory = mock(HttpRequestSender.Factory.class);
+        when(factory.createSender()).thenReturn(sender);
+
+        try (var service = new TestSenderService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+            var messages = List.of(new Message(new ContentString("test"), "user", null, null));
+            var request = new UnifiedCompletionRequest(
+                messages,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                new CacheControl("ephemeral", null),
+                null
+            );
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            service.unifiedCompletionInfer(mock(Model.class), request, TIMEOUT, listener);
+
+            var exception = assertThrows(UnsupportedOperationException.class, () -> listener.actionGet(TIMEOUT));
+            assertThat(exception.getMessage(), is("The test service service does not support unified completion with cache control"));
+        }
+    }
+
+    public void testCacheControlSucceedsWhenServiceSupportsCacheControl() throws IOException {
+        var sender = createMockSender();
+        var factory = mock(HttpRequestSender.Factory.class);
+        when(factory.createSender()).thenReturn(sender);
+
+        var service = new TestSenderService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty()) {
+            @Override
+            protected boolean supportsChatCompletionCacheControl() {
+                return true;
+            }
+
+            @Override
+            protected void doUnifiedCompletionInfer(
+                Model model,
+                UnifiedChatInput inputs,
+                TimeValue timeout,
+                ActionListener<InferenceServiceResults> listener
+            ) {
+                listener.onResponse(mock(InferenceServiceResults.class));
+            }
+        };
+
+        try (service) {
+            var messages = List.of(new Message(new ContentString("test"), "user", null, null));
+            var request = new UnifiedCompletionRequest(
+                messages,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                new CacheControl("ephemeral", null),
+                null
+            );
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            service.unifiedCompletionInfer(mock(Model.class), request, TIMEOUT, listener);
+
+            assertNotNull(listener.actionGet(TIMEOUT));
+        }
+    }
+
+    public void testSessionIdNotSupportedByDefault() throws IOException {
+        var sender = createMockSender();
+        var factory = mock(HttpRequestSender.Factory.class);
+        when(factory.createSender()).thenReturn(sender);
+
+        try (var service = new TestSenderService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+            var messages = List.of(new Message(new ContentString("test"), "user", null, null));
+            var request = new UnifiedCompletionRequest(messages, null, null, null, null, null, null, null, null, null, "test-session");
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            service.unifiedCompletionInfer(mock(Model.class), request, TIMEOUT, listener);
+
+            var exception = assertThrows(UnsupportedOperationException.class, () -> listener.actionGet(TIMEOUT));
+            assertThat(exception.getMessage(), is("The test service service does not support unified completion with session id"));
+        }
+    }
+
+    public void testSessionIdSucceedsWhenServiceSupportsSessionId() throws IOException {
+        var sender = createMockSender();
+        var factory = mock(HttpRequestSender.Factory.class);
+        when(factory.createSender()).thenReturn(sender);
+
+        var service = new TestSenderService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty()) {
+            @Override
+            protected boolean supportsChatCompletionSessionId() {
+                return true;
+            }
+
+            @Override
+            protected void doUnifiedCompletionInfer(
+                Model model,
+                UnifiedChatInput inputs,
+                TimeValue timeout,
+                ActionListener<InferenceServiceResults> listener
+            ) {
+                listener.onResponse(mock(InferenceServiceResults.class));
+            }
+        };
+
+        try (service) {
+            var messages = List.of(new Message(new ContentString("test"), "user", null, null));
+            var request = new UnifiedCompletionRequest(messages, null, null, null, null, null, null, null, null, null, "test-session");
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            service.unifiedCompletionInfer(mock(Model.class), request, TIMEOUT, listener);
+
+            assertNotNull(listener.actionGet(TIMEOUT));
         }
     }
 

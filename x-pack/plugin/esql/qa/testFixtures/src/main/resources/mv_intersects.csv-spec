@@ -175,6 +175,50 @@ emp_no:integer | intersects:boolean
 10001          | false
 ;
 
+withFoldableEmptyRightArgument
+required_capability: fn_mv_intersects
+
+FROM all_types_mv
+| WHERE mv_intersects(keyword, mv_intersection(["foo", "bar"], ["foobar", "abc"]))
+| KEEP id
+;
+
+id: long
+;
+
+withFoldableEmptyLeftArgument
+required_capability: fn_mv_intersects
+
+FROM all_types_mv
+| WHERE mv_intersects(mv_intersection(["foo", "bar"], ["foobar", "abc"]), keyword)
+| KEEP id
+;
+
+id: long
+;
+
+withLeftNullArgument
+required_capability: fn_mv_intersects
+
+FROM all_types_mv
+| WHERE mv_intersects(NULL, keyword)
+| KEEP id
+;
+
+id: long
+;
+
+withBothNullArguments
+required_capability: fn_mv_intersects
+
+FROM all_types_mv
+| WHERE mv_intersects(NULL, NULL)
+| KEEP id
+;
+
+id: long
+;
+
 withBoolean
 required_capability: fn_mv_intersects
 
@@ -464,16 +508,4 @@ id:long | keyword:keyword
 3       | ["key1", "key2", "key3"]
 4       | ["key1", "key2", "key3", "key4"]
 5       | ["key1", "key2", "key3", "key4", "key5"]
-;
-
-withFoldableEmptyRightArgument
-required_capability: fn_mv_intersects
-
-FROM all_types_mv
-| WHERE mv_intersects(keyword, mv_intersection(["foo", "bar"], ["foobar", "abc"]))
-| SORT id
-| KEEP id, keyword
-;
-
-id: long | keyword: keyword
 ;

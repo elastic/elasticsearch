@@ -241,10 +241,10 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
     }
 
     @Override
-    public void l2Normalize(float[] v, int offset, int length) {
+    public float l2Normalize(float[] v, int offset, int length) {
         float normSq = dotProduct(v, v, offset, length);
         if (normSq == 0f) {
-            return;
+            return 0;
         }
 
         float scale = (float) (1.0 / Math.sqrt(normSq));
@@ -261,6 +261,7 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         for (; i < end; i++) {
             v[i] *= scale;
         }
+        return normSq;
     }
 
     @Override
@@ -906,6 +907,33 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         }
 
         return sum;
+    }
+
+    @Override
+    public float squareDistance(byte[] a, float[] b) {
+        int i = 0;
+        float result = 0;
+        // SIMD path: load bytes as floats, load floats, subtract, square, accumulate.
+        // BYTES_FOR_4BYTE_SPECIES is a byte vector species sized so that each byte lane maps to
+        // exactly one float lane after castShape — i.e., its lane count equals FLOAT_SPECIES.length().
+        if (a.length >= BYTES_FOR_4BYTE_SPECIES.length()) {
+            FloatVector acc = FloatVector.zero(FLOAT_SPECIES);
+            int limit = a.length - BYTES_FOR_4BYTE_SPECIES.length();
+            for (; i <= limit; i += FLOAT_SPECIES.length()) {
+                ByteVector va = ByteVector.fromArray(BYTES_FOR_4BYTE_SPECIES, a, i);
+                FloatVector fa = (FloatVector) va.castShape(FLOAT_SPECIES, 0);
+                FloatVector fb = FloatVector.fromArray(FLOAT_SPECIES, b, i);
+                FloatVector diff = fa.sub(fb);
+                acc = fma(diff, diff, acc);
+            }
+            result = acc.reduceLanes(ADD);
+        }
+        // Scalar tail
+        for (; i < a.length; i++) {
+            float diff = a[i] - b[i];
+            result = fma(diff, diff, result);
+        }
+        return result;
     }
 
     @Override

@@ -13,9 +13,9 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
 import org.apache.lucene.util.quantization.LegacyQuantizedByteVectorValues;
+import org.elasticsearch.lucene.store.IndexInputUtils;
 import org.elasticsearch.nativeaccess.NativeAccess;
-import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
-import org.elasticsearch.simdvec.IndexInputUtils;
+import org.elasticsearch.nativeaccess.SimdVecLibrary;
 import org.elasticsearch.simdvec.QuantizedByteVectorValuesAccess;
 
 import java.io.IOException;
@@ -24,7 +24,7 @@ import java.lang.foreign.ValueLayout;
 
 public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorScorerSupplier, QuantizedByteVectorValuesAccess {
 
-    private static final VectorSimilarityFunctions DISTANCE_FUNCS = NativeAccess.instance()
+    private static final SimdVecLibrary DISTANCE_FUNCS = NativeAccess.instance()
         .getVectorSimilarityFunctions()
         .orElseThrow(AssertionError::new);
 

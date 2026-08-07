@@ -7,11 +7,11 @@
 
 package org.elasticsearch.xpack.inference.services.anthropic;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.completion.ReasoningDetail;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
@@ -117,15 +117,18 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
     private int toolCallCount;
     private final Map<Integer, Integer> contentBlockIndexToToolCallIndex = new HashMap<>();
     private int reasoningBlockCount;
+    private final Map<Integer, Integer> contentBlockIndexToReasoningIndex = new HashMap<>();
     private int inputTokens;
     private int outputTokens;
     private int cacheReadTokens;
     private int cacheCreationTokens;
 
     private final BiFunction<String, Exception, Exception> errorParser;
+    private final boolean excludeReasoning;
 
-    public AnthropicChatCompletionStreamingProcessor(BiFunction<String, Exception, Exception> errorParser) {
+    public AnthropicChatCompletionStreamingProcessor(BiFunction<String, Exception, Exception> errorParser, boolean excludeReasoning) {
         this.errorParser = errorParser;
+        this.excludeReasoning = excludeReasoning;
     }
 
     @Override
@@ -167,7 +170,7 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
     ) throws IOException {
         switch (event.type()) {
             case VERTEX_EVENT_EVENT_TYPE, PING_EVENT_TYPE, CONTENT_BLOCK_STOP_EVENT_TYPE:
-                logger.debug("Skipping event type [{}] for line [{}].", event.type(), event.data());
+                logger.debug("Skipping event type [{}].", event.type());
                 return Stream.empty();
             case MESSAGE_START_EVENT_TYPE:
                 return parseObjects(parserConfig, event.data(), this::parseMessageStart);
@@ -180,7 +183,7 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
             case MESSAGE_STOP_EVENT_TYPE:
                 return buildMessageStopChunk();
             case null, default:
-                logger.debug("Unknown event type [{}] for line [{}].", event.type(), event.data());
+                logger.debug("Unknown event type [{}].", event.type());
                 return Stream.empty();
         }
     }
@@ -269,9 +272,19 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
                 delta = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(null, null, null, List.of(toolCall));
             }
             case THINKING_TYPE -> {
+                if (excludeReasoning) {
+                    return Stream.empty();
+                }
                 var thinking = extractMandatoryString(contentBlockMap, THINKING_FIELD);
                 var reasoningIdx = (long) reasoningBlockCount++;
-                var reasoningDetail = new ReasoningDetail.TextReasoningDetail(ANTHROPIC_CLAUDE_V1_FORMAT, null, reasoningIdx, null, null);
+                contentBlockIndexToReasoningIndex.put(blockIndex, (int) reasoningIdx);
+                var reasoningDetail = new ReasoningDetail.TextReasoningDetail(
+                    ANTHROPIC_CLAUDE_V1_FORMAT,
+                    null,
+                    reasoningIdx,
+                    thinking,
+                    null
+                );
                 delta = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(
                     null,
                     null,
@@ -282,9 +295,14 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
                 );
             }
             case REDACTED_THINKING_TYPE -> {
-                // TODO handle when reasoning is disabled
+                // Anthropic only emits redacted_thinking when extended thinking was enabled on the request;
+                // if reasoning is excluded the entire block is dropped before being registered.
+                if (excludeReasoning) {
+                    return Stream.empty();
+                }
                 var data = extractMandatoryString(contentBlockMap, DATA_FIELD);
                 var reasoningIdx = (long) reasoningBlockCount++;
+                contentBlockIndexToReasoningIndex.put(blockIndex, (int) reasoningIdx);
                 var reasoningDetail = new ReasoningDetail.EncryptedReasoningDetail(ANTHROPIC_CLAUDE_V1_FORMAT, null, reasoningIdx, data);
                 delta = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(
                     null,
@@ -296,7 +314,7 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
                 );
             }
             default -> {
-                logger.debug("Unknown content block start type [{}] for line [{}].", type, outerMap);
+                logger.debug("Unknown content block start type [{}].", type);
                 return Stream.empty();
             }
         }
@@ -356,12 +374,19 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
                 );
             }
             case THINKING_DELTA_TYPE -> {
+                if (excludeReasoning) {
+                    return Stream.empty();
+                }
                 var thinking = extractMandatoryString(deltaMap, THINKING_FIELD);
-                var reasoningIdx = (long) (reasoningBlockCount - 1);
+                var reasoningIdx = contentBlockIndexToReasoningIndex.get(blockIndex);
+                if (reasoningIdx == null) {
+                    logger.debug("Received [{}] for unknown content block index [{}].", THINKING_DELTA_TYPE, blockIndex);
+                    return Stream.empty();
+                }
                 var reasoningDetail = new ReasoningDetail.TextReasoningDetail(
                     ANTHROPIC_CLAUDE_V1_FORMAT,
                     null,
-                    reasoningIdx,
+                    (long) reasoningIdx,
                     thinking,
                     null
                 );
@@ -375,12 +400,19 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
                 );
             }
             case SIGNATURE_DELTA_TYPE -> {
+                if (excludeReasoning) {
+                    return Stream.empty();
+                }
                 var signature = extractMandatoryString(deltaMap, SIGNATURE_FIELD);
-                var reasoningIdx = (long) (reasoningBlockCount - 1);
+                var reasoningIdx = contentBlockIndexToReasoningIndex.get(blockIndex);
+                if (reasoningIdx == null) {
+                    logger.debug("Received [{}] for unknown content block index [{}].", SIGNATURE_DELTA_TYPE, blockIndex);
+                    return Stream.empty();
+                }
                 var reasoningDetail = new ReasoningDetail.TextReasoningDetail(
                     ANTHROPIC_CLAUDE_V1_FORMAT,
                     null,
-                    reasoningIdx,
+                    (long) reasoningIdx,
                     null,
                     signature
                 );
@@ -394,7 +426,7 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
                 );
             }
             default -> {
-                logger.debug("Unknown content block delta type [{}] for line [{}].", type, outerMap);
+                logger.debug("Unknown content block delta type [{}].", type);
                 return Stream.empty();
             }
         }
@@ -476,7 +508,7 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
         return new StreamingUnifiedChatCompletionResults.ChatCompletionChunk(id, choices, model, OBJECT_VALUE, usage);
     }
 
-    private String convertStopReason(@Nullable String stopReason) {
+    private static String convertStopReason(@Nullable String stopReason) {
         if (stopReason == null) {
             return null;
         }

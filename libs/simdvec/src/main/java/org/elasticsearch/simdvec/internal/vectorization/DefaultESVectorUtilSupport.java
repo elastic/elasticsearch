@@ -678,28 +678,11 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
-    public void packDibit(int[] vector, byte[] packed) {
-        packDibitImpl(vector, packed);
+    public void stride2BitValues(int[] vector, byte[] packed) {
+        stride2BitValuesImpl(vector, packed);
     }
 
-    @Override
-    public void packDibitQuad(int[] vector, byte[] packed) {
-        packDibitQuadImpl(vector, packed);
-    }
-
-    @Override
-    public void packAsBinary(int[] vector, byte[] packed) {
-        packAsBinaryImpl(vector, packed);
-    }
-
-    /**
-     * Packs two bit vector (values 0-3) into a byte array with lower bits first.
-     * The striding is similar to transposeHalfByte
-     *
-     * @param vector the input vector with values 0-3
-     * @param packed the output packed byte array
-     */
-    public static void packDibitImpl(int[] vector, byte[] packed) {
+    public static void stride2BitValuesImpl(int[] vector, byte[] packed) {
         int limit = vector.length - 7;
         int i = 0;
         int index = 0;
@@ -734,7 +717,12 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         packed[index + packed.length / 2] = (byte) upperByte;
     }
 
-    public static void packDibitQuadImpl(int[] vector, byte[] packed) {
+    @Override
+    public void pack2BitValues(int[] vector, byte[] packed) {
+        pack2BitValuesImpl(vector, packed);
+    }
+
+    public static void pack2BitValuesImpl(int[] vector, byte[] packed) {
         int limit = vector.length - 3;
         int i = 0;
         int index = 0;
@@ -757,7 +745,12 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         packed[index] = (byte) packedByte;
     }
 
-    public static void packAsBinaryImpl(int[] vector, byte[] packed) {
+    @Override
+    public void pack1BitValues(int[] vector, byte[] packed) {
+        pack1BitValuesImpl(vector, packed);
+    }
+
+    public static void pack1BitValuesImpl(int[] vector, byte[] packed) {
         int limit = vector.length - 7;
         int i = 0;
         int index = 0;
@@ -786,11 +779,11 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
-    public void transposeHalfByte(int[] q, byte[] quantQueryByte) {
-        transposeHalfByteImpl(q, quantQueryByte);
+    public void stride4BitValues(int[] vector, byte[] packed) {
+        stride4BitValuesImpl(vector, packed);
     }
 
-    public static void transposeHalfByteImpl(int[] q, byte[] quantQueryByte) {
+    public static void stride4BitValuesImpl(int[] q, byte[] quantQueryByte) {
         int limit = q.length - 7;
         int i = 0;
         int index = 0;

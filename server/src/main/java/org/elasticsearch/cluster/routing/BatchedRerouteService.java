@@ -136,17 +136,19 @@ public class BatchedRerouteService implements RerouteService {
                             pendingRerouteListeners = null;
                         }
                     }
-                    final ClusterState state = clusterService.state();
                     if (MasterService.isPublishFailureException(e)) {
-                        logger.debug(() -> format("unexpected failure during [%s], current state:\n%s", source, state), e);
+                        logger.debug(() -> format("unexpected failure during [%s]", source), e);
                         // no big deal, the new master will reroute again
-                    } else if (logger.isTraceEnabled()) {
-                        logger.error(() -> format("unexpected failure during [%s], current state:\n%s", source, state), e);
                     } else {
-                        logger.error(
-                            () -> format("unexpected failure during [%s], current state version [%s]", source, state.version()),
-                            e
-                        );
+                        final ClusterState state = clusterService.state();
+                        if (logger.isTraceEnabled()) {
+                            logger.error(() -> format("unexpected failure during [%s], current state:\n%s", source, state), e);
+                        } else {
+                            logger.error(
+                                () -> format("unexpected failure during [%s], current state version [%s]", source, state.version()),
+                                e
+                            );
+                        }
                     }
                     ActionListener.onFailure(currentListeners, e);
                 }
@@ -163,8 +165,7 @@ public class BatchedRerouteService implements RerouteService {
                     pendingRerouteListeners = null;
                 }
             }
-            ClusterState state = clusterService.state();
-            logger.warn(() -> "failed to reroute routing table, current state:\n" + state, e);
+            logger.warn(() -> "failed to reroute routing table for [" + reason + "]", e);
             ActionListener.onFailure(
                 currentListeners,
                 new ElasticsearchException("delayed reroute [" + reason + "] could not be submitted", e)

@@ -58,7 +58,7 @@ Observed behavior in unit tests:
 - Named-role create/update/delete invalidates via existing role-cache mechanisms
 - Built-in accounts remain on `ServiceAccountRoleReference` and are unaffected by native role invalidation
 
-**Not demonstrated in automated tests yet:** full end-to-end role create/update after managed auth in a cluster (requires internal cluster test — see gaps).
+**Demonstrated in automated tests:** internal cluster and YAML REST tests cover create-account → create-token → authorize, role assignment updates, delete/recreate generation binding, disabled accounts, reserved `elastic` namespace rejection, `manage_service_account` vs `manage_security` privilege split at HTTP, and native role definition changes via `put_role`.
 
 ## Document shapes (no secrets)
 
@@ -123,10 +123,13 @@ Verified in `ManagedServiceAccountPrivilegeTests`.
 |---|---|
 | `./gradlew generateTransportVersion` | PASS |
 | `./gradlew :x-pack:plugin:core:test --tests '...ServiceAccountInfoTests' ...ManagedServiceAccountSubjectTests' ...ManagedServiceAccountIdValidatorTests'` | PASS |
+| `./gradlew :x-pack:plugin:security:internalClusterTest --tests '...ManagedServiceAccountSingleNodeTests'` | PASS |
+| `./gradlew :x-pack:plugin:yamlRestTest --tests '...service_accounts/20_managed*' '...service_accounts/21_managed_gaps*'` | PASS |
+| `./gradlew :x-pack:plugin:core:test --tests '...PutManagedServiceAccountRequestTests'` | PASS |
 | `./gradlew :x-pack:plugin:security:test --tests '...ManagedServiceAccountPrivilegeTests' ...ServiceAccountServiceTests' ...IndexServiceAccountTokenStoreTests' ...TransportGetServiceAccountActionTests'` | PASS |
 | `./gradlew :x-pack:plugin:core:spotlessJavaCheck :x-pack:plugin:security:spotlessJavaCheck` | PASS |
 
-**Not run:** YAML REST integration test, internal cluster test, rolling-upgrade IT, packaging/QA.
+**Not run:** rolling-upgrade IT, packaging/QA.
 
 ## Prototype questions answered
 
@@ -140,7 +143,6 @@ Verified in `ManagedServiceAccountPrivilegeTests`.
 ## Production gaps
 
 ### Correctness
-- No internal cluster / YAML REST test for full create-account → create-token → authorize flow
 - Cross-project isolation not tested
 - Async existence checks for token delete on managed accounts added but not fully integration-tested
 - PUT update semantics are full replacement (documented); no PATCH/partial update
@@ -165,7 +167,7 @@ Verified in `ManagedServiceAccountPrivilegeTests`.
 - Managed token auth skips cache entirely
 
 ### Documentation
-- No public REST spec JSON files added under `rest-api-spec/`
+- REST API spec JSON files added for managed PUT/DELETE under `rest-api-spec/`
 - Serverless exposure plan not implemented
 
 ## Recommendation
@@ -174,7 +176,6 @@ Verified in `ManagedServiceAccountPrivilegeTests`.
 
 Evidence supports the core hypothesis: managed accounts can authorize through `NamedRoleReference` without weakening built-ins, and generation binding prevents credential resurrection. Before production:
 
-1. Add internal cluster + YAML REST tests for the vertical slice.
-2. Add cross-project and delete/recreate integration tests.
-3. Expose REST API specs and decide delegated-admin privilege model.
-4. Evaluate a project-scoped account cache with cluster-wide invalidation if read load is a concern.
+1. Add cross-project and rolling-upgrade integration tests.
+2. Expose REST API specs publicly and decide delegated-admin privilege model.
+3. Evaluate a project-scoped account cache with cluster-wide invalidation if read load is a concern.

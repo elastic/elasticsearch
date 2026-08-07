@@ -72,6 +72,8 @@ public class AzureClientProviderTests extends ESTestCase {
         LocationMode locationMode = LocationMode.SECONDARY_ONLY;
         RequestRetryOptions requestRetryOptions = new RequestRetryOptions();
         azureClientProvider.createClient(
+            null,
+            "",
             storageSettings,
             locationMode,
             requestRetryOptions,
@@ -102,6 +104,8 @@ public class AzureClientProviderTests extends ESTestCase {
         expectThrows(
             IllegalArgumentException.class,
             () -> azureClientProvider.createClient(
+                null,
+                "",
                 storageSettings,
                 locationMode,
                 requestRetryOptions,

@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.ProjectSecrets;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.repositories.azure.AzureStorageService.AzureStorageClientsManager;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -411,11 +412,13 @@ public class AzureStorageClientsManagerTests extends ESTestCase {
     static class TestAzureClientProvider extends AzureClientProvider {
 
         TestAzureClientProvider(int multipartUploadMaxConcurrency) {
-            super(null, null, null, null, null, multipartUploadMaxConcurrency);
+            super(null, null, null, null, null, null, multipartUploadMaxConcurrency);
         }
 
         @Override
         TestAzureBlobServiceClient createClient(
+            @Nullable ProjectId projectId,
+            String clientName,
             AzureStorageSettings settings,
             LocationMode locationMode,
             RequestRetryOptions retryOptions,
@@ -431,7 +434,7 @@ public class AzureStorageClientsManagerTests extends ESTestCase {
         final AzureStorageSettings settings;
 
         TestAzureBlobServiceClient(AzureStorageSettings settings) {
-            super(null, null, settings.getMaxRetries(), null);
+            super(null, null, settings.getMaxRetries(), null, null);
             this.settings = settings;
         }
     }

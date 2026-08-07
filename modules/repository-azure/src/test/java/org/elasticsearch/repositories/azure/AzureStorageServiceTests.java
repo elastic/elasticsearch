@@ -13,6 +13,7 @@ import com.azure.storage.common.policy.RequestRetryOptions;
 
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -82,6 +83,9 @@ public class AzureStorageServiceTests extends ESTestCase {
         Plugin.PluginServices services = mock(Plugin.PluginServices.class);
         when(services.threadPool()).thenReturn(threadPool);
         when(services.projectResolver()).thenReturn(TestProjectResolvers.DEFAULT_PROJECT_ONLY);
+        final ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.threadPool()).thenReturn(threadPool);
+        when(services.clusterService()).thenReturn(clusterService);
         plugin.createComponents(services);
         return plugin;
     }

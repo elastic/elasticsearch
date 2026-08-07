@@ -244,7 +244,7 @@ public class ViewResolver {
         // subqueries yet; InSubqueryResolver#verify rejects them). Identity-based tracking is safe here: transformDown is pre-order, so
         // the InlineStats is visited (and its aggregate registered) before the aggregate itself, and returning a node unchanged makes
         // transformDown recurse into the same child instances (see Node#transformDown).
-        Set<LogicalPlan> inlineStatsAggregates = Collections.newSetFromMap(new IdentityHashMap<>());
+        Set<Aggregate> inlineStatsAggregates = Collections.newSetFromMap(new IdentityHashMap<>());
 
         plan.transformDown((p, planListener) -> {
             if (resolvedPlans.contains(p)) {

@@ -1737,6 +1737,7 @@ qa
 ;
 
 inSubqueryInStatsWhereWithMainQueryTS
+skip_flattened_rewrite: aggregate_where_in_subquery
 required_capability: where_in_subquery_without_view
 required_capability: where_in_subquery_with_ts
 required_capability: subquery_with_ts
@@ -1760,6 +1761,7 @@ null           | staging
 ;
 
 notInSubqueryInStatsWhereWithMainQueryTS
+skip_flattened_rewrite: aggregate_where_in_subquery
 required_capability: where_in_subquery_without_view
 required_capability: where_in_subquery_with_ts
 required_capability: subquery_with_ts
@@ -1783,6 +1785,7 @@ null           | qa
 ;
 
 inSubqueryInStatsWhereWithMultipleAggsMainTS
+skip_flattened_rewrite: aggregate_where_in_subquery
 required_capability: where_in_subquery_without_view
 required_capability: where_in_subquery_with_ts
 required_capability: subquery_with_ts
@@ -1807,6 +1810,7 @@ null        | 7403       | staging
 ;
 
 inSubqueryAndEqualInStatsWhereWithMainQueryTS
+skip_flattened_rewrite: aggregate_where_in_subquery
 required_capability: where_in_subquery_without_view
 required_capability: where_in_subquery_with_ts
 required_capability: subquery_with_ts
@@ -1831,6 +1835,7 @@ null           | staging
 ;
 
 inSubqueryReferencingFromSubqueryInStatsWhereWithMainQueryTS
+skip_flattened_rewrite: aggregate_where_in_subquery
 required_capability: where_in_subquery_without_view
 required_capability: where_in_subquery_with_ts
 required_capability: ts_command_v0
@@ -1884,6 +1889,7 @@ null           | prod
 ;
 
 inSubqueryInStatsWhereWithoutGroupingWithMainQueryTS
+skip_flattened_rewrite: aggregate_where_in_subquery
 required_capability: where_in_subquery_without_view
 required_capability: where_in_subquery_with_ts
 required_capability: subquery_with_ts
@@ -1903,6 +1909,7 @@ max_bytes:long
 ;
 
 inSubqueryInStatsWhereWithRateWithMainQueryTS
+skip_flattened_rewrite: aggregate_where_in_subquery
 required_capability: where_in_subquery_without_view
 required_capability: where_in_subquery_with_ts
 required_capability: subquery_with_ts
@@ -1944,6 +1951,7 @@ max_bytes:long | cluster:keyword
 ;
 
 disjunctiveInSubqueryInStatsWhereWithMainQueryTS
+skip_flattened_rewrite: aggregate_where_in_subquery
 required_capability: where_in_subquery_without_view
 required_capability: where_in_subquery_with_ts
 required_capability: subquery_with_ts
@@ -1973,6 +1981,7 @@ null           | prod
 ;
 
 disjunctiveInAndNotInSubqueryInStatsWhereWithMainQueryTS
+skip_flattened_rewrite: aggregate_where_in_subquery
 required_capability: where_in_subquery_without_view
 required_capability: where_in_subquery_with_ts
 required_capability: subquery_with_ts
@@ -2002,6 +2011,7 @@ null           | prod
 ;
 
 inSubqueryOREqualInSubqueryInStatsWhereWithMainQueryTS
+skip_flattened_rewrite: aggregate_where_in_subquery
 required_capability: where_in_subquery_without_view
 required_capability: where_in_subquery_with_ts
 required_capability: subquery_with_ts
@@ -2060,6 +2070,7 @@ null           | staging
 ;
 
 inSubqueryInStatsWhereBeforeInSubqueryOrGreaterThanWithMainQueryTS
+skip_flattened_rewrite: aggregate_where_in_subquery
 required_capability: where_in_subquery_without_view
 required_capability: where_in_subquery_with_ts
 required_capability: subquery_with_ts
@@ -2121,6 +2132,7 @@ null            | prod
 ;
 
 inSubqueryInStatsWhereWithRateBeforeInSubqueryOrGreaterThanWithMainQueryTS
+skip_flattened_rewrite: aggregate_where_in_subquery
 required_capability: where_in_subquery_without_view
 required_capability: where_in_subquery_with_ts
 required_capability: subquery_with_ts
@@ -2150,6 +2162,7 @@ max_rate:double | cluster:keyword
 ;
 
 whereInSubqueryReferencingTSSubqueryWithInSubqueryInStatsWhere
+skip_flattened_rewrite: aggregate_where_in_subquery
 required_capability: where_in_subquery_without_view
 required_capability: where_in_subquery_with_ts
 required_capability: subquery_with_ts
@@ -2179,6 +2192,7 @@ cnt:long
 ;
 
 inSubqueryWithTSSourceInStatsWhereWithMainQueryTS
+skip_flattened_rewrite: aggregate_where_in_subquery
 required_capability: where_in_subquery_without_view
 required_capability: where_in_subquery_with_ts
 required_capability: subquery_with_ts
@@ -2300,6 +2314,7 @@ c:long | total:long
 ;
 
 forkAfterStatsWhereInSubqueryMainTS
+skip_flattened_rewrite: aggregate_where_in_subquery
 required_capability: where_in_subquery_without_view
 required_capability: where_in_subquery_with_ts
 required_capability: fork_v9

@@ -644,7 +644,7 @@ public class TestAnalyzer {
      * Single traversal that interleaves view expansion and IN-subquery rewriting, mirroring {@code ViewResolver#replaceViews}.
      */
     private LogicalPlan resolveViews(LogicalPlan parsed, Map<String, LogicalPlan> viewDefinitions) {
-        Set<LogicalPlan> inlineStatsAggregates = Collections.newSetFromMap(new IdentityHashMap<>());
+        Set<Aggregate> inlineStatsAggregates = Collections.newSetFromMap(new IdentityHashMap<>());
         return parsed.transformDown(p -> {
             if (p instanceof Filter filter) {
                 LogicalPlan resolved = InSubqueryResolver.resolveInSubqueryInFilter(filter);

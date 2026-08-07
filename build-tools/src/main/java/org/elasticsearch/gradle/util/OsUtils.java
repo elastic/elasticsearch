@@ -41,7 +41,7 @@ public final class OsUtils {
         return version.after("0.0.0") && version.onOrBefore("8.10.4") && isUbuntu2404OrLater();
     }
 
-    private static boolean isUbuntu2404OrLater() {
+    public static boolean isUbuntu2404OrLater() {
         try {
             if (OS.current() != OS.LINUX) {
                 return false;

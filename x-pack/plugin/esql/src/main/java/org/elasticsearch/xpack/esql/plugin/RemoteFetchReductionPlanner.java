@@ -18,6 +18,8 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TemporalityAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
+import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.scalar.RemoteFetchHandleFunction;
@@ -239,7 +241,16 @@ class RemoteFetchReductionPlanner {
     }
 
     private static boolean isFetchable(Attribute attr) {
-        return attr instanceof FieldAttribute || attr instanceof MetadataAttribute || attr instanceof TemporalityAttribute;
+        if (attr instanceof FieldAttribute fieldAttribute) {
+            /*
+             * The remote-fetch request currently carries only the field name and data type. Potentially-unmapped and union fields also
+             * need the specialized loader or per-index conversion stored in their EsField. Use normal field extraction until the remote
+             * request can preserve those semantics.
+             */
+            return (fieldAttribute.field() instanceof PotentiallyUnmappedKeywordEsField) == false
+                && (fieldAttribute.field() instanceof UnionTypeEsField) == false;
+        }
+        return attr instanceof MetadataAttribute || attr instanceof TemporalityAttribute;
     }
 
     private static Optional<TopNPlanningContext> topNPlanningContext(

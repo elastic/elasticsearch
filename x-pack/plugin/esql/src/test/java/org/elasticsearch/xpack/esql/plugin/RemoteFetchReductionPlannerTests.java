@@ -20,6 +20,8 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.scalar.RemoteFetchHandleFunction;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
@@ -74,6 +76,13 @@ public class RemoteFetchReductionPlannerTests extends ESTestCase {
 
     public void testDoesNotPlanExpressionBeforeTopNFromQueryText() {
         assertTrue(planQuery("FROM employees | EVAL x = salary + 1 | SORT hire_date | LIMIT 20 | KEEP hire_date, x").isEmpty());
+    }
+
+    public void testDoesNotPlanFieldsWithSpecializedLoaderSemantics() {
+        assertSpecializedFieldIsNotFetchable(new PotentiallyUnmappedKeywordEsField("specialized"));
+        assertSpecializedFieldIsNotFetchable(
+            new MultiTypeEsField("specialized", DataType.DATE_NANOS, true, Map.of(), EsField.TimeSeriesFieldType.NONE, null)
+        );
     }
 
     public void testCoordinatorAndReducePlansUseRemoteFetchHandleSchema() {
@@ -182,6 +191,35 @@ public class RemoteFetchReductionPlannerTests extends ESTestCase {
 
     private static FieldAttribute field(String name, DataType dataType) {
         return new FieldAttribute(Source.EMPTY, name, new EsField(name, dataType, Map.of(), true, EsField.TimeSeriesFieldType.NONE));
+    }
+
+    private static void assertSpecializedFieldIsNotFetchable(EsField specializedField) {
+        Attribute doc = new MetadataAttribute(Source.EMPTY, MetadataAttribute.DOC, DataType.DOC_DATA_TYPE, false);
+        Attribute sort = field("sort", DataType.LONG);
+        Attribute specialized = new FieldAttribute(Source.EMPTY, "specialized", specializedField);
+        List<Order> order = List.of(new Order(Source.EMPTY, sort, Order.OrderDirection.ASC, Order.NullsPosition.LAST));
+        EsRelation relation = new EsRelation(
+            Source.EMPTY,
+            "test",
+            IndexMode.STANDARD,
+            Map.of(),
+            Map.of(),
+            Map.of("test", IndexMode.STANDARD),
+            List.of(doc, sort, specialized)
+        );
+        Project dataProject = new Project(
+            Source.EMPTY,
+            new TopN(Source.EMPTY, new Project(Source.EMPTY, relation, List.of(doc, sort)), order, EsqlTestUtils.of(10), false),
+            List.of(sort, specialized)
+        );
+        ExchangeSinkExec dataPlan = new ExchangeSinkExec(Source.EMPTY, dataProject.output(), false, new FragmentExec(dataProject));
+        PhysicalPlan coordinatorPlan = new ProjectExec(
+            Source.EMPTY,
+            new TopNExec(Source.EMPTY, new ExchangeSourceExec(Source.EMPTY, dataPlan.output(), false), order, EsqlTestUtils.of(10), 0),
+            dataProject.output()
+        );
+
+        assertTrue(RemoteFetchReductionPlanner.planCoordinatorTopN(contextFactory(), dataPlan, coordinatorPlan).isEmpty());
     }
 
     private static Optional<RemoteFetchReductionPlanner.CoordinatorPlan> planQuery(String query) {

@@ -56,7 +56,7 @@ public class StatelessBalancingWeightsFactory implements BalancingWeightsFactory
 
     public static final Setting<Float> INDEXING_TIER_WRITE_LOAD_BALANCE_FACTOR_SETTING = Setting.floatSetting(
         "stateless.cluster.routing.allocation.balance.write_load.indexing_tier",
-        WRITE_LOAD_BALANCE_FACTOR_SETTING,
+        0.0f,
         0.0f,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope

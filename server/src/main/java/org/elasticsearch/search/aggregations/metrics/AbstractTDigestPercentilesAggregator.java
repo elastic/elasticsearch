@@ -131,9 +131,7 @@ abstract class AbstractTDigestPercentilesAggregator extends NumericMetricsAggreg
 
     @Override
     protected void doClose() {
-        // Closes states not handed off via takeState() — the failure path where collection was
-        // aborted before buildAggregation ran. states can be null if the breaker trips in the
-        // constructor before the field is assigned.
+        // That the super registers itself in the constructor so doClose might be called before construction is finished
         if (states == null) {
             return;
         }

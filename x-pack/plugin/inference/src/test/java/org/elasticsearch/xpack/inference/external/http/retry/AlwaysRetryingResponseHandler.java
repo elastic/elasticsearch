@@ -63,4 +63,9 @@ public class AlwaysRetryingResponseHandler implements ResponseHandler {
     public boolean canHandleStreamingResponses() {
         return false;
     }
+
+    @Override
+    public RetryException buildFailureStatusCodeException(OutboundRequest outboundRequest, HttpResult result) {
+        return new RetryException(true, new IOException("always retry"));
+    }
 }

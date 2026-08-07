@@ -702,7 +702,7 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
             .setShouldStoreResult(true)
             .setEligibleForRelocationOnShutdown(true)
             .setRequestsPerSecond(requestsPerSecond);
-        // Execute batches of 1 which should only delay ~1/3 of a second between each one
+        // Batches of 1 should only delay ~300ms, meaning the relocation should start sooner
         request.getSearchRequest().source().size(1);
 
         final CountDownLatch listenerDone = new CountDownLatch(1);

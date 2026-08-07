@@ -165,7 +165,8 @@ public class BatchedRerouteService implements RerouteService {
                     pendingRerouteListeners = null;
                 }
             }
-            logger.warn(() -> "failed to reroute routing table for [" + reason + "]", e);
+            ClusterState state = clusterService.state();
+            logger.warn(() -> "failed to reroute routing table, current state:\n" + state, e);
             ActionListener.onFailure(
                 currentListeners,
                 new ElasticsearchException("delayed reroute [" + reason + "] could not be submitted", e)

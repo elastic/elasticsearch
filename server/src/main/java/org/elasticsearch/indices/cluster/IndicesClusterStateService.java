@@ -323,9 +323,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 // reset the variable before applying the cluster state
                 closingMoreShards = false;
             }
-            logger.trace("--> doApplyClusterState START");
             doApplyClusterState(event);
-            logger.trace("--> doApplyClusterState END");
         } finally {
             currentClusterStateShardsClosedListeners.close();
             currentClusterStateShardsClosedListeners = null;
@@ -1250,7 +1248,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
         @Override
         public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
-            logger.trace("--> onRecoveryFailure({}, {})", e, failureStrategy);
             RecoveryClusterStateDelay.ensureClusterStateVersion(
                 creationClusterStateVersion,
                 clusterService,
@@ -1282,7 +1279,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     ) {
         try {
             ClusterState state = clusterService.state();
-            logger.trace("--> handleRecoveryFailure -> removeShard START");
             CloseUtils.executeDirectly(
                 l -> failAndRemoveShard(
                     shardRouting,
@@ -1295,13 +1291,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     l
                 )
             );
-            logger.trace("--> handleRecoveryFailure -> removeShard END");
             if (failureStrategy.retry()) {
                 eventListener.beforeIndexShardRecoveryRetry(shardRouting.shardId());
-                logger.debug("retry recovery for shard [{}]", shardRouting.shardId());
+                logger.debug("{} retry recovery for shard", shardRouting.shardId());
                 // Fork onto cluster state applier thread to retry attempt to create shard
                 // todo(burqen) possibly scheduleUnlessShuttingDown
-                logger.trace("--> handleRecoveryFailure -> forkToApplier START");
                 clusterService.getClusterApplierService()
                     .runOnApplierThread(
                         "retry recovery " + shardRouting.shardId(),
@@ -1310,6 +1304,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                             @Override
                             public void onResponse(Boolean success) {
                                 if (Boolean.TRUE.equals(success)) {
+                                    // Retry with current routing instead of retryRouting to be on the safe side
                                     createShard(shardRouting, currentState);
                                 }
                             }
@@ -1330,7 +1325,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                         }),
                         ActionListener.noop()
                     );
-                logger.trace("--> handleRecoveryFailure -> forkToApplier END");
             }
         } catch (Exception e) {
             // should not be possible
@@ -1342,21 +1336,18 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
     private void validateCreateShardRetry(ShardRouting retryRouting, ClusterState state, ActionListener<Boolean> listener) {
         try {
-            logger.trace("--> retryCreateShard START");
             // Running on cluster state applier thread
-            logger.trace("--> retryCreateShard check cluster state applier thread");
             assert ThreadPool.assertCurrentThreadPool(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME);
             RoutingNode localNode = state.getRoutingNodes().node(state.nodes().getLocalNodeId());
             ShardId shardId = retryRouting.shardId();
             Index index = retryRouting.index();
 
-            logger.trace("--> retryCreateShard check routing is same");
             // Ignore retry if shard is no longer allocated to this node or the allocation id has changed
             ShardRouting currentRouting = localNode.getByShardId(shardId);
             if (currentRouting == null
                 || currentRouting.isSameAllocation(retryRouting) == false
                 || currentRouting.initializing() == false) {
-                logger.info(
+                logger.debug(
                     "{} gave up while retrying shard creation because the old routing [{}] is not same as new routing [{}]",
                     shardId,
                     retryRouting,
@@ -1366,15 +1357,13 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 return;
             }
 
-            logger.trace("--> retryCreateShard check shard not in failed cache");
             // Ignore retry if shard has been marked as failed
             if (failedShardsCache.containsKey(shardId)) {
-                logger.info("{} gave up while retrying shard creation because shard has already been failed", shardId);
+                logger.debug("{} gave up while retrying shard creation because shard has already been failed", shardId);
                 listener.onResponse(false);
                 return;
             }
 
-            logger.trace("--> retryCreateShard check index metadata exist");
             // Expect index metadata to be present
             IndexMetadata indexMetadata = state.metadata().projectFor(index).index(index);
             if (indexMetadata == null) {
@@ -1384,7 +1373,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 return;
             }
 
-            logger.trace("--> retryCreateShard check index service exist");
             // Expect index service to exist
             final var indexService = indicesService.indexService(index);
             if (indexService == null) {
@@ -1394,7 +1382,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 return;
             }
 
-            logger.trace("--> retryCreateShard check index shard does not exist");
             // Expect shard to not exist
             if (indexService.getShardOrNull(shardId.id()) != null) {
                 final var message = "index shard unexpectedly found for " + retryRouting;
@@ -1403,16 +1390,12 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 return;
             }
 
-            logger.trace("--> retry call createShard START");
-            // Retry with current routing instead of retryRouting to be on the safe side
             listener.onResponse(true);
-            logger.trace("--> retry call createShard END");
-            logger.trace("--> retryCreateShard END");
         } catch (Exception e) {
             // should not be possible
             final var wrappedException = new IllegalStateException("unexpected failure in validateCreateShardRetry on " + retryRouting, e);
-            assert false : e;
             logger.error(wrappedException.getMessage(), e);
+            assert false : e;
             listener.onFailure(e);
         }
     }

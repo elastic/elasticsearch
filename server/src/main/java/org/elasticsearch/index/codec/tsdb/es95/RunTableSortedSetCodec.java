@@ -14,6 +14,7 @@ import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.ArrayUtil;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.codec.tsdb.AbstractTSDBDocValuesConsumer.DocValueCountConsumer;
 import org.elasticsearch.index.codec.tsdb.AbstractTSDBDocValuesProducer.NumericEntry;
 import org.elasticsearch.index.codec.tsdb.AbstractTSDBDocValuesProducer.SortedNumericEntry;
@@ -28,6 +29,7 @@ import org.elasticsearch.index.codec.tsdb.TsdbDocValuesProducer;
 import org.elasticsearch.index.codec.tsdb.es95.runtable.RunTableSortedSetOrdinalReader;
 import org.elasticsearch.index.codec.tsdb.es95.runtable.RunTableSortedSetOrdinalWriter;
 import org.elasticsearch.index.codec.tsdb.es95.runtable.SortedSetRunTableLayout;
+import org.elasticsearch.index.codec.tsdb.pipeline.FieldContextResolver;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -69,25 +71,43 @@ final class RunTableSortedSetCodec implements SortedSetOrdinalCodec {
 
     private final SortedSetOrdinalCodec fallback;
     private final IntFunction<RunTableSortedSetOrdinalWriter> accumulatorFactory;
+    @Nullable
+    private final FieldContextResolver fieldContextResolver;
 
     /**
-     * @param fallback           codec that owns every layout other than run-table and every field
-     *                           run-table does not encode itself
-     * @param accumulatorFactory creates the accumulator for each field write; receives the field
-     *                           cardinality and returns a fresh writer
+     * @param fallback             codec that owns every layout other than run-table and every field
+     *                             run-table does not encode itself
+     * @param accumulatorFactory   creates the accumulator for each field write; receives the field
+     *                             cardinality and returns a fresh writer
+     * @param fieldContextResolver resolves whether a field is a TSDB dimension at write time;
+     *                             {@code null} disables dimension filtering (run-table is attempted
+     *                             for all structurally eligible fields)
      */
-    RunTableSortedSetCodec(final SortedSetOrdinalCodec fallback, final IntFunction<RunTableSortedSetOrdinalWriter> accumulatorFactory) {
+    RunTableSortedSetCodec(
+        final SortedSetOrdinalCodec fallback,
+        final IntFunction<RunTableSortedSetOrdinalWriter> accumulatorFactory,
+        @Nullable final FieldContextResolver fieldContextResolver
+    ) {
         this.fallback = fallback;
         this.accumulatorFactory = accumulatorFactory;
+        this.fieldContextResolver = fieldContextResolver;
+    }
+
+    RunTableSortedSetCodec(final SortedSetOrdinalCodec fallback, final IntFunction<RunTableSortedSetOrdinalWriter> accumulatorFactory) {
+        this(fallback, accumulatorFactory, null);
     }
 
     RunTableSortedSetCodec(final SortedSetOrdinalCodec fallback) {
-        this(fallback, RunTableSortedSetOrdinalWriter::new);
+        this(fallback, RunTableSortedSetOrdinalWriter::new, null);
+    }
+
+    RunTableSortedSetCodec(final SortedSetOrdinalCodec fallback, @Nullable final FieldContextResolver fieldContextResolver) {
+        this(fallback, RunTableSortedSetOrdinalWriter::new, fieldContextResolver);
     }
 
     @Override
     public SortedSetOrdinalWriter createWriter(final NumericWriteContext ctx) {
-        return new RunTableSortedSetWriter(ctx, fallback, accumulatorFactory);
+        return new RunTableSortedSetWriter(ctx, fallback, accumulatorFactory, fieldContextResolver);
     }
 
     @Override
@@ -102,15 +122,19 @@ final class RunTableSortedSetCodec implements SortedSetOrdinalCodec {
         private final NumericWriteContext ctx;
         private final SortedSetOrdinalCodec fallback;
         private final IntFunction<RunTableSortedSetOrdinalWriter> accumulatorFactory;
+        @Nullable
+        private final FieldContextResolver fieldContextResolver;
 
         RunTableSortedSetWriter(
             final NumericWriteContext ctx,
             final SortedSetOrdinalCodec fallback,
-            final IntFunction<RunTableSortedSetOrdinalWriter> accumulatorFactory
+            final IntFunction<RunTableSortedSetOrdinalWriter> accumulatorFactory,
+            @Nullable final FieldContextResolver fieldContextResolver
         ) {
             this.ctx = ctx;
             this.fallback = fallback;
             this.accumulatorFactory = accumulatorFactory;
+            this.fieldContextResolver = fieldContextResolver;
         }
 
         @Override
@@ -122,6 +146,9 @@ final class RunTableSortedSetCodec implements SortedSetOrdinalCodec {
             final SortedFieldObserver sortedFieldObserver
         ) throws IOException {
             if (field.number == ctx.primarySortFieldNumber() || maxOrd <= 1) {
+                return writeDefault(field, values, maxOrd, docValueCountConsumer, sortedFieldObserver);
+            }
+            if (fieldContextResolver != null && fieldContextResolver.resolve(field.name, 0).isDimension() == false) {
                 return writeDefault(field, values, maxOrd, docValueCountConsumer, sortedFieldObserver);
             }
 

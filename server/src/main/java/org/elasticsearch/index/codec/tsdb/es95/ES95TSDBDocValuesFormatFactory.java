@@ -69,8 +69,8 @@ public final class ES95TSDBDocValuesFormatFactory {
             NumericCodecFactory.DEFAULT,
             ES95NumericFieldReader::defaultFallbackDecoder,
             fieldContextResolver,
-            new RunTableSortedCodec(new ES95SortedCodec()),
-            new RunTableSortedSetCodec(new ES95SortedSetCodec())
+            new RunTableSortedCodec(new ES95SortedCodec(), fieldContextResolver),
+            new RunTableSortedSetCodec(new ES95SortedSetCodec(), fieldContextResolver)
         );
     }
 }

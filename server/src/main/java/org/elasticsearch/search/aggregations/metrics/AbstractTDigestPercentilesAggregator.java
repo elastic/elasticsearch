@@ -107,9 +107,12 @@ abstract class AbstractTDigestPercentilesAggregator extends NumericMetricsAggreg
 
     /**
      * Removes and returns the state for {@code bucketOrd}, transferring ownership to the caller.
-     * After this call the aggregator no longer holds a reference to the state, so {@link #doClose()}
-     * will not attempt to close it. Use this in {@code buildAggregation} to hand the state off to
-     * an {@link org.elasticsearch.search.aggregations.InternalAggregation} result object.
+     * The state's circuit-breaker bytes are returned to the breaker immediately, while the
+     * aggregation context (and its {@code PreallocatedCircuitBreakerService}) is still open.
+     * This is the only safe window to do so: {@code InternalAggregation} has no close lifecycle,
+     * so by the time the result is serialized the breaker will already be closed.
+     * After this call the aggregator no longer holds a reference, so {@link #doClose()} will not
+     * attempt to close the state.
      */
     protected HistogramUnionState takeState(long bucketOrd) {
         if (bucketOrd >= states.size()) {
@@ -117,6 +120,11 @@ abstract class AbstractTDigestPercentilesAggregator extends NumericMetricsAggreg
         }
         HistogramUnionState state = states.get(bucketOrd);
         states.set(bucketOrd, null);
+        if (state != null) {
+            // Return bytes now, while the breaker is still open. The state's data remains
+            // accessible for serialization and reduction; only breaker accounting is released.
+            context.breaker().addWithoutBreaking(-state.ramBytesUsed());
+        }
         return state;
     }
 
@@ -127,10 +135,15 @@ abstract class AbstractTDigestPercentilesAggregator extends NumericMetricsAggreg
         // CircuitBreakingException aborts collection before buildAggregation is called).
         // Guard against null: the circuit breaker may trip inside the constructor before states is assigned.
         if (states != null) {
-            for (long i = 0; i < states.size(); i++) {
-                Releasables.close(states.get(i));
+            try {
+                for (long i = 0; i < states.size(); i++) {
+                    // Use closeWhileHandlingException so a failure on one slot does not prevent
+                    // the remaining slots (and the container itself) from being closed.
+                    Releasables.closeWhileHandlingException(states.get(i));
+                }
+            } finally {
+                Releasables.close(states);
             }
-            Releasables.close(states);
         }
     }
 

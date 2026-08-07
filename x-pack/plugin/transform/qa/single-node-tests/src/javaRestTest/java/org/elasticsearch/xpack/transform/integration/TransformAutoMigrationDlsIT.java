@@ -29,7 +29,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
- * Regression coverage for security#12053: auto-migration of deprecated
+ * auto-migration of deprecated
  * {@code pivot.max_page_search_size} must preserve stored creator security headers so
  * document-level security continues to apply when the transform runs.
  */

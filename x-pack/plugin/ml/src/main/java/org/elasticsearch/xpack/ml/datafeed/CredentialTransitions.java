@@ -490,11 +490,7 @@ public final class CredentialTransitions {
         if (carriedCredential != null) {
             return carriedCredential;
         }
-        CloudCredentialManager credentialManager = credentialManagerSupplier.get();
-        if (credentialManager.hasCloudManagedCredential(threadContext)) {
-            return credentialManager.extractCloudManagedCredential(threadContext);
-        }
-        return null;
+        return credentialManagerSupplier.get().extractCloudManagedCredential(threadContext);
     }
 
     private <T> ActionListener<T> revokeKeyOnFailure(PersistedCloudCredential mintedCredential, String jobId, ActionListener<T> delegate) {

@@ -110,9 +110,7 @@ public class KnnMixedFieldTypeCrossClusterSearchIT extends AbstractSemanticCross
     }
 
     @Before
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    public void configureClustersIfNeeded() throws Exception {
         if (clustersConfigured == false) {
             configureClusters();
             clustersConfigured = true;

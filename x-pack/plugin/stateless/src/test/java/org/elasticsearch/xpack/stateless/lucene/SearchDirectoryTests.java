@@ -152,7 +152,13 @@ public class SearchDirectoryTests extends ESTestCase {
                 CacheBlobReaderService cacheBlobReaderService,
                 MutableObjectStoreUploadTracker objectStoreUploadTracker
             ) {
-                var customCacheBlobReaderService = new CacheBlobReaderService(nodeSettings, sharedCacheService, client, threadPool) {
+                var customCacheBlobReaderService = new CacheBlobReaderService(
+                    nodeSettings,
+                    sharedCacheService,
+                    client,
+                    threadPool,
+                    TestUtils.unmeteredFillCacheMemoryPressure(nodeSettings, threadPool)
+                ) {
                     @Override
                     protected CacheBlobReader getObjectStoreCacheBlobReader(
                         BlobContainer blobContainer,
@@ -462,6 +468,56 @@ public class SearchDirectoryTests extends ESTestCase {
                     assertEquals(expectedLocations.get(range.blobName()).offset(), range.blobLocation().offset());
                 }
             }
+        }
+    }
+
+    public void testGetCurrentCommitBlobFileRangesExcludesExtraMetadataFiles() throws IOException {
+        try (var node = createFakeStatelessNode(ByteSizeValue.ofBytes(4096), ByteSizeValue.ofBytes(4096))) {
+            final var searchDirectory = SearchDirectory.unwrapDirectory(node.searchStore.directory());
+
+            assertThat(searchDirectory.getCurrentCommitBlobFileRanges(), hasSize(0));
+
+            final var locationA = createBlobLocation(1L, 1L, 0L, 100L);
+            final var locationB = createBlobLocation(1L, 1L, 100L, 100L);
+            final var locationC = createBlobLocation(1L, 1L, 200L, 100L);
+
+            searchDirectory.updateCommit(
+                new StatelessCompoundCommit(
+                    searchDirectory.shardId,
+                    new PrimaryTermAndGeneration(1L, 1L),
+                    1L,
+                    "_na_",
+                    Map.of("fileA", locationA, "fileB", locationB, "fileC", locationC),
+                    300L,
+                    Set.of("fileA", "fileB", "fileC"),
+                    0L,
+                    InternalFilesReplicatedRanges.EMPTY,
+                    Map.of(),
+                    null
+                )
+            );
+            assertThat(searchDirectory.getCurrentCommitBlobFileRanges(), hasSize(3));
+
+            searchDirectory.updateCommit(
+                new StatelessCompoundCommit(
+                    searchDirectory.shardId,
+                    new PrimaryTermAndGeneration(1L, 2L),
+                    1L,
+                    "_na_",
+                    Map.of("fileB", locationB, "fileC", locationC),
+                    200L,
+                    Set.of("fileB", "fileC"),
+                    0L,
+                    InternalFilesReplicatedRanges.EMPTY,
+                    Map.of(),
+                    null
+                )
+            );
+
+            assertThat("metadata still has all files from both commits", searchDirectory.getKnownFileNames(), hasSize(3));
+
+            Collection<BlobFileRanges> result = searchDirectory.getCurrentCommitBlobFileRanges();
+            assertThat("only files from the current commit are returned", result, hasSize(2));
         }
     }
 

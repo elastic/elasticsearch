@@ -111,6 +111,16 @@ public interface Tracer {
     void setAttribute(Traceable traceable, String key, String value);
 
     /**
+     * Sets the span status to ERROR. Per OpenTelemetry semantic conventions for HTTP server spans,
+     * this should be called when the HTTP response status code is 5xx, indicating a server-side error.
+     * 4xx responses should NOT trigger this — they represent client errors and the server handled
+     * the request correctly.
+     * @param traceable provides an identifier for the span
+     * @param description a human-readable description of the error, typically the HTTP status phrase
+     */
+    void setStatusToError(Traceable traceable, String description);
+
+    /**
      * Usually you won't need this about scopes when using tracing. However,
      * sometimes you may want more details to be captured about a particular
      * section of code. You can think of "scope" as representing the currently active
@@ -174,6 +184,9 @@ public interface Tracer {
 
         @Override
         public void setAttribute(Traceable traceable, String key, String value) {}
+
+        @Override
+        public void setStatusToError(Traceable traceable, String description) {}
 
         @Override
         public Releasable withScope(Traceable traceable) {

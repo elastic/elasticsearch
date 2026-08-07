@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.downsample;
 
 import org.apache.lucene.internal.hppc.IntArrayList;
+import org.apache.lucene.internal.hppc.LongArrayList;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
@@ -34,7 +35,7 @@ public class AggregateHistogramFieldDownsamplerTests extends ESTestCase {
     public void testDeltaHistogramMergesValues() throws IOException {
         var producer = new ExponentialHistogramFieldDownsampler.AggregateHistogram("my-histogram", null);
         IntArrayList docIdBuffer = IntArrayList.from(2, 1, 0);
-        long[] timeValues = new long[] { 30, 20, 10 };
+        LongArrayList timeValues = LongArrayList.from(30, 20, 10);
 
         ExponentialHistogram h1 = ExponentialHistogram.create(320, ExponentialHistogramCircuitBreaker.noop(), 1.0, 2.0, 3.0);
         ExponentialHistogram h2 = ExponentialHistogram.create(320, ExponentialHistogramCircuitBreaker.noop(), 4.0, 5.0);
@@ -60,7 +61,7 @@ public class AggregateHistogramFieldDownsamplerTests extends ESTestCase {
     public void testCumulativeHistogramKeepsOldestValue() throws IOException {
         var producer = new ExponentialHistogramFieldDownsampler.AggregateHistogram("my-histogram", null);
         IntArrayList docIdBuffer = IntArrayList.from(2, 1, 0);
-        long[] timeValues = new long[] { 30, 20, 10 };
+        LongArrayList timeValues = LongArrayList.from(30, 20, 10);
 
         // Cumulative: each snapshot includes all prior values
         ExponentialHistogram h10 = ExponentialHistogram.create(320, ExponentialHistogramCircuitBreaker.noop(), 1.0, 2.0, 3.0);
@@ -106,7 +107,7 @@ public class AggregateHistogramFieldDownsamplerTests extends ESTestCase {
         // t=20: count=5 (pre-reset, largest)
         // t=10: count=3 (pre-reset, growing)
         IntArrayList docIdBuffer = IntArrayList.from(3, 2, 1, 0);
-        long[] timeValues = new long[] { 40, 30, 20, 10 };
+        LongArrayList timeValues = LongArrayList.from(40, 30, 20, 10);
 
         ExponentialHistogram h40 = ExponentialHistogram.create(320, ExponentialHistogramCircuitBreaker.noop(), 10.0, 20.0);
         ExponentialHistogram h30 = ExponentialHistogram.create(320, ExponentialHistogramCircuitBreaker.noop(), 10.0);
@@ -160,7 +161,7 @@ public class AggregateHistogramFieldDownsamplerTests extends ESTestCase {
 
         // Bucket 2 (later, t=40-60): cumulative histograms with 4-6 values
         IntArrayList docIdBuffer = IntArrayList.from(5, 4, 3);
-        long[] timeValues = new long[] { 60, 50, 40 };
+        LongArrayList timeValues = LongArrayList.from(60, 50, 40);
 
         ExponentialHistogram h60 = ExponentialHistogram.create(
             320,
@@ -188,7 +189,7 @@ public class AggregateHistogramFieldDownsamplerTests extends ESTestCase {
 
         // Bucket 1 (earlier, t=10-30): cumulative histograms with 1-3 values
         docIdBuffer = IntArrayList.from(2, 1, 0);
-        timeValues = new long[] { 30, 20, 10 };
+        timeValues = LongArrayList.from(30, 20, 10);
 
         ExponentialHistogram h30 = ExponentialHistogram.create(320, ExponentialHistogramCircuitBreaker.noop(), 1.0, 2.0, 3.0);
         ExponentialHistogram h20 = ExponentialHistogram.create(320, ExponentialHistogramCircuitBreaker.noop(), 1.0, 2.0);
@@ -221,7 +222,7 @@ public class AggregateHistogramFieldDownsamplerTests extends ESTestCase {
 
         // tsid_1: delta — histograms are merged
         IntArrayList docIdBuffer = IntArrayList.from(1, 0);
-        long[] timeValues = new long[] { 20, 10 };
+        LongArrayList timeValues = LongArrayList.from(20, 10);
         ExponentialHistogram h1 = ExponentialHistogram.create(320, ExponentialHistogramCircuitBreaker.noop(), 1.0, 2.0);
         ExponentialHistogram h2 = ExponentialHistogram.create(320, ExponentialHistogramCircuitBreaker.noop(), 3.0);
         ExponentialHistogramValuesReader values = createHistogramValues(docIdBuffer, h1, h2);
@@ -239,7 +240,7 @@ public class AggregateHistogramFieldDownsamplerTests extends ESTestCase {
 
         // tsid_2: cumulative — oldest value kept
         docIdBuffer = IntArrayList.from(3, 2);
-        timeValues = new long[] { 20, 10 };
+        timeValues = LongArrayList.from(20, 10);
         ExponentialHistogram h3 = ExponentialHistogram.create(320, ExponentialHistogramCircuitBreaker.noop(), 1.0, 2.0, 3.0);
         ExponentialHistogram h4 = ExponentialHistogram.create(320, ExponentialHistogramCircuitBreaker.noop(), 1.0);
         values = createHistogramValues(docIdBuffer, h3, h4);
@@ -260,7 +261,7 @@ public class AggregateHistogramFieldDownsamplerTests extends ESTestCase {
 
         // tsid_3: delta again — fully independent
         docIdBuffer = IntArrayList.from(5, 4);
-        timeValues = new long[] { 20, 10 };
+        timeValues = LongArrayList.from(20, 10);
         ExponentialHistogram h5 = ExponentialHistogram.create(320, ExponentialHistogramCircuitBreaker.noop(), 10.0);
         ExponentialHistogram h6 = ExponentialHistogram.create(320, ExponentialHistogramCircuitBreaker.noop(), 20.0);
         values = createHistogramValues(docIdBuffer, h5, h6);
@@ -282,7 +283,7 @@ public class AggregateHistogramFieldDownsamplerTests extends ESTestCase {
 
         // Bucket 1: two histograms merged
         IntArrayList docIdBuffer = IntArrayList.from(1, 0);
-        long[] timeValues = new long[] { 20, 10 };
+        LongArrayList timeValues = LongArrayList.from(20, 10);
         ExponentialHistogram h1 = ExponentialHistogram.create(320, ExponentialHistogramCircuitBreaker.noop(), 1.0, 2.0);
         ExponentialHistogram h2 = ExponentialHistogram.create(320, ExponentialHistogramCircuitBreaker.noop(), 3.0);
         ExponentialHistogramValuesReader values = createHistogramValues(docIdBuffer, h1, h2);
@@ -299,7 +300,7 @@ public class AggregateHistogramFieldDownsamplerTests extends ESTestCase {
 
         // Bucket 3: one histogram
         docIdBuffer = IntArrayList.from(2);
-        timeValues = new long[] { 50 };
+        timeValues = LongArrayList.from(50);
         ExponentialHistogram h3 = ExponentialHistogram.create(320, ExponentialHistogramCircuitBreaker.noop(), 4.0, 5.0);
         values = createHistogramValues(docIdBuffer, h3);
         producer.collect(values, timeValues, docIdBuffer, Temporality.DELTA);
@@ -326,7 +327,7 @@ public class AggregateHistogramFieldDownsamplerTests extends ESTestCase {
     public void testDefaultTemporalityBehavesLikeDelta() throws IOException {
         var producer = new ExponentialHistogramFieldDownsampler.AggregateHistogram("my-histogram", null);
         IntArrayList docIdBuffer = IntArrayList.from(1, 0);
-        long[] timeValues = new long[] { 20, 10 };
+        LongArrayList timeValues = LongArrayList.from(20, 10);
         ExponentialHistogram h1 = ExponentialHistogram.create(320, ExponentialHistogramCircuitBreaker.noop(), 1.0, 2.0);
         ExponentialHistogram h2 = ExponentialHistogram.create(320, ExponentialHistogramCircuitBreaker.noop(), 3.0);
         ExponentialHistogramValuesReader values = createHistogramValues(docIdBuffer, h1, h2);

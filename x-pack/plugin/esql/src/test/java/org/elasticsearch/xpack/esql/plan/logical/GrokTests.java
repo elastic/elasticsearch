@@ -7,10 +7,26 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+
+import static org.hamcrest.Matchers.containsString;
 
 public class GrokTests extends ESTestCase {
+
+    public void testWatchdogInterruptsBacktracking() {
+        // With timeout 0 the watchdog fires immediately after the first check.
+        Grok.Parser parser = Grok.pattern(Source.EMPTY, "(?<a>a+)+b", MatcherWatchdog.newInstance(0));
+        RuntimeException ex = expectThrows(RuntimeException.class, () -> parser.grok().match("aaaaaaaaX"));
+        assertThat(ex.getMessage(), containsString("interrupted"));
+    }
+
+    public void testNoopWatchdogDoesNotInterruptSimplePattern() {
+        Grok.Parser parser = Grok.pattern(Source.EMPTY, "%{IP:client_ip}", MatcherWatchdog.noop());
+        assertNotNull(parser.grok().captures("192.168.1.1"));
+    }
 
     public void testRewriteGrokPatternKeepsLibraryIdentifierTokenizesCaptureName() {
         var ctx = AnonymizationContext.forSubmission(randomUUID());

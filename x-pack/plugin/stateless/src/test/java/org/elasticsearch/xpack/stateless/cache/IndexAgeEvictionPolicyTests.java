@@ -26,13 +26,16 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryMetrics;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.UNKNOWN_TIMESTAMP;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
@@ -137,7 +140,7 @@ public class IndexAgeEvictionPolicyTests extends ESTestCase {
             .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
             .put(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(), true)
             .put(
-                StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SETTING.getKey(),
+                StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING.getKey(),
                 StatelessCacheEvictionPolicyType.INDEX_AGE
             )
             .put("path.home", createTempDir())
@@ -147,7 +150,18 @@ public class IndexAgeEvictionPolicyTests extends ESTestCase {
         final ShardId newShard = new ShardId(newIndex.getIndex(), 0);
 
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
-        final ClusterService clusterService = ClusterServiceUtils.createClusterService(taskQueue.getThreadPool(), ProjectId.DEFAULT);
+        final ClusterService clusterService = ClusterServiceUtils.createClusterService(
+            taskQueue.getThreadPool(),
+            ProjectId.DEFAULT,
+            Settings.EMPTY,
+            Set.of(
+                StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING,
+                StatelessSharedBlobCacheService.STATELESS_CACHE_DEMOTE_CLOSED_SHARD_REGIONS_ENABLED_SETTING,
+                StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_TIMESTAMP_BACKFILL_ENABLED_SETTING,
+                StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_DELETED_INDEX_REGIONS_ENABLED_SETTING
+            )
+        );
+        final IndicesService indicesService = TestUtils.mockIndicesService(clusterService);
         ClusterServiceUtils.setState(
             clusterService,
             ClusterState.builder(ClusterName.DEFAULT)
@@ -162,6 +176,7 @@ public class IndexAgeEvictionPolicyTests extends ESTestCase {
                 taskQueue.getThreadPool(),
                 BlobCacheMetrics.NOOP,
                 clusterService,
+                indicesService,
                 new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
             )
         ) {

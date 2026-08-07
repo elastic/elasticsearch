@@ -9,15 +9,18 @@
 
 package org.elasticsearch.xpack.core.inference.results;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.inference.completion.ReasoningDetail;
 import org.elasticsearch.inference.completion.ReasoningDetailTests;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Usage.CompletionTokenDetails;
+import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Usage.PromptTokensDetails;
+import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
@@ -29,12 +32,15 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.CHAT_COMPLETION_CACHE_WRITE_TOKENS_SUPPORT_ADDED;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.CHAT_COMPLETION_REASONING_SUPPORT_ADDED;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.INFERENCE_CACHED_TOKENS;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-public class StreamingUnifiedChatCompletionResultsTests extends AbstractWireSerializingTestCase<
+public class StreamingUnifiedChatCompletionResultsTests extends AbstractBWCWireSerializationTestCase<
     StreamingUnifiedChatCompletionResults.Results> {
 
     public void testResults_toXContentChunked_WithCachedTokens() throws IOException {
@@ -82,7 +88,8 @@ public class StreamingUnifiedChatCompletionResultsTests extends AbstractWireSeri
         String cachedTokensPart = includeCachedTokens ? """
             ,
             "prompt_tokens_details": {
-              "cached_tokens": 20
+              "cached_tokens": 20,
+              "cache_write_tokens": 25
             }""" : "";
         String reasoningUsagePart = includeReasoning ? """
             ,
@@ -183,8 +190,8 @@ public class StreamingUnifiedChatCompletionResultsTests extends AbstractWireSeri
                 10,
                 5,
                 15,
-                includeCachedTokens ? 20 : null,
-                includeReasoning ? new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Usage.CompletionTokenDetails(25) : null
+                includeCachedTokens ? new PromptTokensDetails(20, 25) : null,
+                includeReasoning ? new CompletionTokenDetails(25) : null
             )
         );
 
@@ -454,12 +461,8 @@ public class StreamingUnifiedChatCompletionResultsTests extends AbstractWireSeri
                     randomInt(5),
                     randomInt(5),
                     randomInt(5),
-                    randomInt(5),
-                    randomBoolean()
-                        ? new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Usage.CompletionTokenDetails(
-                            randomNonNegativeIntOrNull()
-                        )
-                        : null
+                    randomBoolean() ? new PromptTokensDetails(randomInt(5), randomInt(5)) : null,
+                    randomBoolean() ? new CompletionTokenDetails(randomNonNegativeIntOrNull()) : null
                 )
         );
     }
@@ -479,5 +482,69 @@ public class StreamingUnifiedChatCompletionResultsTests extends AbstractWireSeri
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(UnifiedCompletionRequest.getNamedWriteables());
+    }
+
+    @Override
+    protected StreamingUnifiedChatCompletionResults.Results mutateInstanceForVersion(
+        StreamingUnifiedChatCompletionResults.Results instance,
+        TransportVersion version
+    ) {
+        Deque<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> mutatedChunks = new ArrayDeque<>();
+
+        for (var chunk : instance.chunks()) {
+            var choices = chunk.choices();
+            var usage = chunk.usage();
+
+            if (version.supports(CHAT_COMPLETION_REASONING_SUPPORT_ADDED) == false && choices != null) {
+                choices = choices.stream()
+                    .map(
+                        choice -> new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice(
+                            new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(
+                                choice.delta().content(),
+                                choice.delta().refusal(),
+                                choice.delta().role(),
+                                choice.delta().toolCalls()
+                            ),
+                            choice.finishReason(),
+                            choice.index()
+                        )
+                    )
+                    .toList();
+            }
+
+            if (usage != null) {
+                var promptTokensDetails = usage.promptTokensDetails();
+                var completionTokenDetails = usage.completionTokenDetails();
+
+                if (version.supports(CHAT_COMPLETION_CACHE_WRITE_TOKENS_SUPPORT_ADDED) == false && promptTokensDetails != null) {
+                    // the old wire format only carries cachedTokens; without it the whole details object collapses to null
+                    promptTokensDetails = promptTokensDetails.cachedTokens() == null
+                        ? null
+                        : new PromptTokensDetails(promptTokensDetails.cachedTokens(), null);
+                }
+
+                if (version.supports(INFERENCE_CACHED_TOKENS) == false) {
+                    promptTokensDetails = null;
+                }
+
+                if (version.supports(CHAT_COMPLETION_REASONING_SUPPORT_ADDED) == false) {
+                    completionTokenDetails = null;
+                }
+
+                usage = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Usage(
+                    usage.completionTokens(),
+                    usage.promptTokens(),
+                    usage.totalTokens(),
+                    promptTokensDetails,
+                    completionTokenDetails
+                );
+            }
+
+            mutatedChunks.add(
+                new StreamingUnifiedChatCompletionResults.ChatCompletionChunk(chunk.id(), choices, chunk.model(), chunk.object(), usage)
+            );
+        }
+
+        return new StreamingUnifiedChatCompletionResults.Results(mutatedChunks);
     }
 }

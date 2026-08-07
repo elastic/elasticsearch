@@ -14,6 +14,7 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
+import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.core.Nullable;
@@ -77,7 +78,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * This class exists to give a human-readable string representation of the test case.
  */
-public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestCase> supplier)
+public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestCase> supplier, boolean allowNullTypedFields)
     implements
         Supplier<TestCaseSupplier.TestCase> {
 
@@ -85,11 +86,23 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
 
     private static final Logger logger = LogManager.getLogger(TestCaseSupplier.class);
 
+    public TestCaseSupplier(String name, List<DataType> types, Supplier<TestCase> supplier) {
+        this(name, types, supplier, false);
+    }
+
     /**
      * Build a test case named after the types it takes.
      */
     public TestCaseSupplier(List<DataType> types, Supplier<TestCase> supplier) {
         this(nameFromTypes(types), types, supplier);
+    }
+
+    /**
+     * Like the canonical constructor, but field columns may arrive NULL-typed. The NULL-typed signature cannot be
+     * declared up front: which positions are fields is only known once the data is built, after signatures are fixed.
+     */
+    public static TestCaseSupplier withNullTypedFieldsAllowed(String name, List<DataType> types, Supplier<TestCase> supplier) {
+        return new TestCaseSupplier(name, types, supplier, true);
     }
 
     public static String nameFromTypes(List<DataType> types) {
@@ -144,13 +157,26 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             throw new IllegalStateException(name + ": type/data size mismatch " + types.size() + "/" + supplied.getData().size());
         }
         for (int i = 0; i < types.size(); i++) {
-            if (supplied.getData().get(i).type() != types.get(i)) {
-                throw new IllegalStateException(
-                    name + ": supplier/data type mismatch " + supplied.getData().get(i).type() + "/" + types.get(i)
-                );
+            TypedData data = supplied.getData().get(i);
+            if (allowNullTypedFields && isNullTypedField(data)) {
+                continue;
+            }
+            if (data.type() != types.get(i)) {
+                throw new IllegalStateException(name + ": supplier/data type mismatch " + data.type() + "/" + types.get(i));
             }
         }
         return supplied;
+    }
+
+    /**
+     * A field column that arrived NULL-typed, the shape {@code unmapped_fields="nullify"} gives fields
+     * missing from all indices. Multi-row-ness is what marks a column as a field: agg tests supply
+     * fields as multi-row columns and constants as single-row literals. Only fields get nullified this
+     * way — a NULL-typed constant ({@code EVAL x = null}) is a different scenario, not covered here —
+     * so constants must still match their declared type exactly.
+     */
+    private static boolean isNullTypedField(TypedData data) {
+        return data.type() == DataType.NULL && data.isMultiRow();
     }
 
     @Override
@@ -1712,20 +1738,42 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         return List.of(new TypedDataSupplier("<random date range>", TestCaseSupplier::randomDateRange, DataType.DATE_RANGE));
     }
 
+    public static List<TypedDataSupplier> doubleRangeCases() {
+        return List.of(new TypedDataSupplier("<random double range>", TestCaseSupplier::randomDoubleRange, DataType.DOUBLE_RANGE));
+    }
+
     public static LongRangeBlockBuilder.LongRange randomDateRange() {
         var from = randomMillisUpToYear9999();
         var to = randomLongBetween(from + 1, MAX_MILLIS_BEFORE_9999);
         return new LongRangeBlockBuilder.LongRange(from, to);
     }
 
+    public static DoubleRangeBlockBuilder.DoubleRange randomDoubleRange() {
+        double first = randomDouble();
+        double second;
+        do {
+            second = randomDouble();
+        } while (first == second);
+        return new DoubleRangeBlockBuilder.DoubleRange(Math.min(first, second), Math.max(first, second));
+    }
+
     /**
      * Generate cases for {@link DataType#EXPONENTIAL_HISTOGRAM}.
      */
     public static List<TypedDataSupplier> exponentialHistogramCases() {
+        return exponentialHistogramCases(false);
+    }
+
+    /**
+     * Generate cases for {@link DataType#EXPONENTIAL_HISTOGRAM}.
+     * @param zeroThresholdIsZero when {@code true}, always use 0.0 as the zero threshold (avoids floating point inaccuracies when
+     *                            computing percentiles from histograms with non-zero thresholds)
+     */
+    public static List<TypedDataSupplier> exponentialHistogramCases(boolean zeroThresholdIsZero) {
         return List.of(
             new TypedDataSupplier(
                 "<random exponential histogram>",
-                EsqlTestUtils::randomExponentialHistogram,
+                () -> EsqlTestUtils.randomExponentialHistogram(zeroThresholdIsZero),
                 DataType.EXPONENTIAL_HISTOGRAM
             )
         );

@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.services.elastic.denseembeddings;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkingSettings;
-import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
@@ -20,6 +19,7 @@ import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceModel;
+import org.elasticsearch.xpack.inference.services.settings.EnforcingEmptyTaskSettings;
 
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -74,7 +74,7 @@ public class ElasticInferenceServiceDenseEmbeddingsModel extends ElasticInferenc
                 taskType,
                 ElasticInferenceService.NAME,
                 serviceSettings,
-                EmptyTaskSettings.INSTANCE,
+                EnforcingEmptyTaskSettings.INSTANCE,
                 chunkingSettings,
                 endpointMetadata
             ),

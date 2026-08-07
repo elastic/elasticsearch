@@ -1,4 +1,6 @@
+import org.elasticsearch.dlm.TimeSeriesEligibleWriteWindowLocator;
 import org.elasticsearch.reservedstate.ReservedStateHandlerProvider;
+import org.elasticsearch.xpack.ilm.TimeSeriesEligibleWriteWindowLocatorWithIlm;
 
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
@@ -18,4 +20,5 @@ module org.elasticsearch.ilm {
     exports org.elasticsearch.xpack.ilm;
 
     provides ReservedStateHandlerProvider with org.elasticsearch.xpack.ilm.ReservedLifecycleStateHandlerProvider;
+    provides TimeSeriesEligibleWriteWindowLocator with TimeSeriesEligibleWriteWindowLocatorWithIlm;
 }

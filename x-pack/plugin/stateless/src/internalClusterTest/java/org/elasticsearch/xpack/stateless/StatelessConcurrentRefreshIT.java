@@ -282,7 +282,7 @@ public class StatelessConcurrentRefreshIT extends AbstractStatelessPluginIntegTe
             + "org.elasticsearch.indices.recovery:debug",
         reason = "ensure detailed shard relocation information"
     )
-    public void testWaitUntilShouldNotWaitForUpload() throws InterruptedException {
+    public void testWaitUntilShouldNotWaitForUpload() throws Exception {
         startMasterOnlyNode();
         final String indexNode = startIndexNode();
         startSearchNode();
@@ -292,11 +292,12 @@ public class StatelessConcurrentRefreshIT extends AbstractStatelessPluginIntegTe
         createIndex(
             indexName,
             indexSettings(1, 1).put(INDEX_TRANSLOG_FLUSH_THRESHOLD_AGE_SETTING.getKey(), "1h")
-                // The test should pass with scheduled refresh disabled. Randomly enable it for closer resemblance to production
-                .put(
-                    IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(),
-                    randomFrom(TimeValue.MINUS_ONE, IndexSettings.STATELESS_MIN_NON_FAST_REFRESH_INTERVAL)
-                )
+                // Scheduled refresh must stay disabled: this test relies on the relocation's forceRefreshes() being the
+                // refresh that notifies the wait_until refresh listener and counts down afterRefreshLatch (via the overridden
+                // 1-arg refresh(String)). A periodic refresh goes through Engine.maybeRefresh() -> the 3-arg refresh(), which
+                // notifies/consumes the listener WITHOUT counting the latch; the relocation would then find no pending listener
+                // (refreshNeeded() == false), never force a refresh, and afterRefreshLatch would never reach zero.
+                .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE)
                 .build()
         );
         ensureGreen(indexName);
@@ -313,6 +314,14 @@ public class StatelessConcurrentRefreshIT extends AbstractStatelessPluginIntegTe
         logger.info("--> Starting the bulk indexing thread with wait_until");
         final var indexingThread = new Thread(() -> bulkIndexDocsWithRefresh(indexName, 20, WriteRequest.RefreshPolicy.WAIT_UNTIL));
         indexingThread.start();
+
+        // Establish the happens-before the rest of the test relies on: wait until all docs have been written on the source
+        // primary (20 immediate + 20 immediate + 20 wait_until = 60). By then the wait_until bulk holds its operation permit
+        // and has registered (or is about to register) its refresh listener on the source, so the relocation's forceRefreshes()
+        // is guaranteed to observe a pending listener (refreshNeeded() == true) and fire the latch-counting refresh. Without
+        // this, under load the relocation could drain all permits before the bulk registers, the bulk would reroute to the new
+        // primary, and afterRefreshLatch would never count down.
+        assertBusy(() -> assertThat(testStateless.indexCounter.get(), equalTo(60)));
 
         // 2. Start the relocation and block it right after the pre-flush. The pre-flush creates and uploads generation N.
         // afterRealFlushCompletedBarrierReference is used so that only this real flush (IS_FLUSH_BY_REFRESH=false) can

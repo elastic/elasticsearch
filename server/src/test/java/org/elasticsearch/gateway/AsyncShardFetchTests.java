@@ -51,10 +51,8 @@ public class AsyncShardFetchTests extends ESTestCase {
     private ThreadPool threadPool;
     private TestFetch test;
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initFetchFixtures() throws Exception {
         this.threadPool = new TestThreadPool(getTestName());
         this.test = new TestFetch(threadPool);
     }

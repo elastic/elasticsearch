@@ -95,6 +95,20 @@ setup:
   - match: { values.4: ["warn", 200, "yellow"] }
 
 ---
+'profile includes unmapped load mode':
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM alias-test-both | KEEP message, event_duration, status | SORT message'
+          profile: true
+  - match: { columns.0.name: message }
+  - match: { columns.1.name: event_duration }
+  - match: { columns.2.name: status }
+  - match: { profile.unmapped_fields: load }
+
+---
 'load from alias without SET does not show unmapped fields':
   - do:
       allowed_warnings_regex:

@@ -32,6 +32,7 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
@@ -91,6 +92,18 @@ public class StatelessRealTimeGetIT extends AbstractStatelessPluginIntegTestCase
     @Before
     public void init() {
         startMasterOnlyNode();
+    }
+
+    @Override
+    protected Settings.Builder nodeSettings() {
+        // testStress generates large commits (2-3 MB). randomConcurrentMultiPartSettings can pick values as small as 1 KB threshold /
+        // 792 B part size, producing ~3000-4000 upload tasks for a shared 5-thread pool. With multiple shards uploading concurrently
+        // this overwhelms the pool, causing safeGet to exceed SAFE_AWAIT_TIMEOUT and triggering upload retries that outlive the 5-second
+        // shard lock check in assertAfterTest. Fixed values here keep the part count bounded (~190 parts for a 3 MB commit).
+        return super.nodeSettings().put(
+            ConcurrentMultiPartUploadsMockFsRepository.MULTIPART_UPLOAD_THRESHOLD_SIZE,
+            ByteSizeValue.of(128, ByteSizeUnit.KB)
+        ).put(ConcurrentMultiPartUploadsMockFsRepository.MULTIPART_UPLOAD_PART_SIZE, ByteSizeValue.of(16, ByteSizeUnit.KB));
     }
 
     public void testGet() {

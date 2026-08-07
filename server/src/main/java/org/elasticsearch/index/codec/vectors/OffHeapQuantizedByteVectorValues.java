@@ -29,7 +29,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.packed.DirectMonotonicReader;
-import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
+import org.apache.lucene.util.quantization.LegacyQuantizedByteVectorValues;
 import org.apache.lucene.util.quantization.ScalarQuantizer;
 
 import java.io.IOException;
@@ -40,7 +40,7 @@ import java.nio.ByteBuffer;
  * Read the quantized vector values and their score correction values from the index input. This
  * supports both iterated and random access.
  */
-public abstract class OffHeapQuantizedByteVectorValues extends QuantizedByteVectorValues {
+public abstract class OffHeapQuantizedByteVectorValues extends LegacyQuantizedByteVectorValues {
 
     final int dimension;
     final int size;

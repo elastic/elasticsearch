@@ -55,9 +55,9 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
 
     public ICUCollationKeywordFieldMapperIT(boolean binaryDocValues) {
         this.binaryDocValues = binaryDocValues;
-        if (binaryDocValues) {
-            assumeTrue("columnar index modes require snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        }
+        // icu_collation_keyword has no native synthetic source yet, so it is rejected in columnar; skip the columnar
+        // (binary doc values) variant until that follow-up lands (see the columnar contract tracking issue).
+        assumeFalse("icu_collation_keyword is not yet reconstructable from doc values in columnar", binaryDocValues);
     }
 
     @Override

@@ -2,14 +2,20 @@
 "Index Sort with doc_values multi_value false - integer":
 
   - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
       cluster_features: ["mapper.doc_values.multi_value_false_alias"]
-      reason: "doc_values.multi_value: false for index sort requires the false alias to be supported on all nodes"
+      reason: "doc_values.multi_value: false for index sort requires the false alias to be supported on all nodes; columnar index mode required"
 
   - do:
       indices.create:
         index: test
         body:
           settings:
+            index.mode: columnar
             number_of_shards: 1
             refresh_interval: -1
             index.sort.field: rank
@@ -139,14 +145,20 @@
 "Index Sort with doc_values multi_value false - keyword":
 
   - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
       cluster_features: ["mapper.doc_values.multi_value_false_alias"]
-      reason: "doc_values.multi_value: false for index sort requires the false alias to be supported on all nodes"
+      reason: "doc_values.multi_value: false for index sort requires the false alias to be supported on all nodes; columnar index mode required"
 
   - do:
       indices.create:
         index: test_kw
         body:
           settings:
+            index.mode: columnar
             number_of_shards: 1
             refresh_interval: -1
             index.sort.field: tag
@@ -268,14 +280,20 @@
 "Index Sort with doc_values multi_value false - secondary sort field":
 
   - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
       cluster_features: ["mapper.doc_values.multi_value_false_alias"]
-      reason: "doc_values.multi_value: false for index sort requires the false alias to be supported on all nodes"
+      reason: "doc_values.multi_value: false for index sort requires the false alias to be supported on all nodes; columnar index mode required"
 
   - do:
       indices.create:
         index: test_secondary
         body:
           settings:
+            index.mode: columnar
             number_of_shards: 1
             refresh_interval: -1
             index.sort.field: ["category", "rank"]

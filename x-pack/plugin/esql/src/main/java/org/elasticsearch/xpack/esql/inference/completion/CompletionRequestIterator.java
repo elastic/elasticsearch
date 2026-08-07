@@ -25,7 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 
-import static org.elasticsearch.xpack.esql.inference.InferenceService.COMPLETION_PRODUCT_USE_CASE;
+import static org.elasticsearch.xpack.esql.inference.InferenceService.ESQL_PRODUCT_USE_CASE;
 
 /**
  * Iterator that converts a block of prompt strings into inference request items.
@@ -104,7 +104,7 @@ class CompletionRequestIterator implements BulkInferenceRequestItemIterator {
 
         InferenceAction.Request.Builder builder = InferenceAction.Request.builder(inferenceId, TaskType.COMPLETION)
             .setInput(List.of(prompt))
-            .setContext(new InferenceContext(COMPLETION_PRODUCT_USE_CASE));
+            .setContext(new InferenceContext(ESQL_PRODUCT_USE_CASE));
         if (timeout != null) {
             builder.setInferenceTimeout(timeout);
         }

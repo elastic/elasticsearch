@@ -1,0 +1,11 @@
+# Minimal template registry used by YamlTemplateRegistryTests to exercise
+# node-feature-based template filtering without pulling in a real plugin's resources.
+version: 1
+
+component-templates:
+  - test-one@component-template
+  - test-two@component-template
+
+index-templates:
+  - test-index-one@template
+  - test-index-two@template

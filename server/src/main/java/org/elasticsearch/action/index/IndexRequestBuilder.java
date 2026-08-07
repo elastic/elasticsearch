@@ -50,6 +50,7 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
     private Boolean create;
     private Long version;
     private VersionType versionType;
+    private Boolean routingFromSlice;
 
     public IndexRequestBuilder(ElasticsearchClient client) {
         this(client, null);
@@ -270,6 +271,11 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
         return this;
     }
 
+    public IndexRequestBuilder setRoutingFromSlice(boolean routingFromSlice) {
+        this.routingFromSlice = routingFromSlice;
+        return this;
+    }
+
     @Override
     public IndexRequest request() {
         IndexRequest request = new IndexRequest();
@@ -283,6 +289,9 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
         }
         if (routing != null) {
             request.routing(routing);
+        }
+        if (routingFromSlice != null) {
+            request.setRoutingFromSlice(routingFromSlice);
         }
         if (refreshPolicy != null) {
             request.setRefreshPolicy(refreshPolicy);

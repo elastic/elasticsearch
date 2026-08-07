@@ -16,12 +16,12 @@ import org.apache.lucene.util.automaton.Automaton;
 import static org.elasticsearch.common.lucene.search.AutomatonQueries.toCaseInsensitiveWildcardAutomaton;
 
 /**
- * A case insensitive wildcard query.
+ * A case insensitive wildcard query that supports Unicode case folding.
  */
 public class CaseInsensitiveWildcardQuery extends AutomatonQuery {
     /**
      * Constructs a case insensitive wildcard query.
-     * @param term the term to search for, created into a case insensitive wildcard automaton
+     * @param term the term to search for, created into a case insensitive wildcard automaton using Unicode case folding
      */
     public CaseInsensitiveWildcardQuery(Term term) {
         super(term, toCaseInsensitiveWildcardAutomaton(term));

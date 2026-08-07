@@ -135,7 +135,7 @@ public class DataSourceTests extends AbstractXContentSerializingTestCase<DataSou
 
         Map<String, Object> masked = dataSource.settings().toPresentationMap();
         assertTrue(masked.containsKey("optional_secret"));
-        assertEquals("::es_redacted::", masked.get("optional_secret"));
+        assertNull(masked.get("optional_secret"));
         assertTrue(masked.containsKey("optional_region"));
         assertNull(masked.get("optional_region"));
         assertEquals("::es_redacted::", masked.get("present_secret"));

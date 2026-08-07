@@ -11,11 +11,18 @@ import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.TemporaryNameGenerator;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
@@ -29,10 +36,13 @@ import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.InnerJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
+import org.elasticsearch.xpack.esql.plan.physical.DistinctByExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
+import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitByExec;
@@ -42,6 +52,7 @@ import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNByExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.TsInfoExec;
@@ -59,6 +70,26 @@ import java.util.List;
  * instances, which represent data being sent back from the data nodes to the coordinating node.</p>
  */
 public class Mapper {
+
+    /* Used to add inner join semantics atop of left join operator. */
+    public static final String JOIN_MARKER_PREFIX = Attribute.rawTemporaryName("_join_marker");
+
+    /** Fresh synthetic INTEGER lookup-ordinal attribute, see {@link #JOIN_MARKER_PREFIX}. */
+    public static ReferenceAttribute newJoinMarker(Source source) {
+        return new ReferenceAttribute(
+            source,
+            null,
+            TemporaryNameGenerator.locallyUniqueTemporaryName(JOIN_MARKER_PREFIX),
+            DataType.INTEGER,
+            Nullability.TRUE,
+            null,
+            true
+        );
+    }
+
+    public static boolean isJoinMarker(Attribute attr) {
+        return attr.name() != null && attr.name().startsWith(JOIN_MARKER_PREFIX);
+    }
 
     public PhysicalPlan map(Versioned<LogicalPlan> versionedPlan) {
         // We ignore the version for now, but it's fine to use later for plans that work
@@ -168,7 +199,11 @@ public class Mapper {
 
         if (unary instanceof TopNBy topNBy) {
             mappedChild = addExchangeForFragment(topNBy, mappedChild);
-            return new TopNByExec(topNBy.source(), mappedChild, topNBy.order(), topNBy.limitPerGroup(), topNBy.groupings(), null);
+            var topNByExec = new TopNByExec(topNBy.source(), mappedChild, topNBy.order(), topNBy.limitPerGroup(), topNBy.groupings(), null);
+            if (mappedChild instanceof ExchangeExec) {
+                return topNByExec.withSortedOutput();
+            }
+            return topNByExec;
         }
 
         // MetricsInfo uses a two-phase approach like Aggregate: INITIAL on data nodes extracts
@@ -197,13 +232,40 @@ public class Mapper {
     }
 
     private PhysicalPlan mapBinary(BinaryPlan bp) {
+        if (bp instanceof InnerJoin innerJoin) {
+            PhysicalPlan left = mapInner(bp.left());
+            PhysicalPlan right = mapInner(bp.right());
+            if (right instanceof LocalSourceExec localData) {
+                var marker = newJoinMarker(innerJoin.source());
+                List<Attribute> addedFields = new ArrayList<>(innerJoin.addedFields());
+                addedFields.add(marker);
+                PhysicalPlan join = new HashJoinExec(
+                    innerJoin.source(),
+                    left,
+                    localData,
+                    innerJoin.leftFields(),
+                    innerJoin.rightFields(),
+                    addedFields
+                );
+                // inner join := left join where marker != null
+                join = new FilterExec(innerJoin.source(), join, new IsNotNull(innerJoin.source(), marker));
+                if (innerJoin.unique()) {
+                    // Guard: unique=true requires every build row to be matched at most once. The marker
+                    // is unique per build row, so a distinct-by on it alone detects duplicates independent
+                    // of the join key types and count.
+                    join = new DistinctByExec(innerJoin.source(), join, marker, true);
+                }
+                return new ProjectExec(innerJoin.source(), join, innerJoin.output());
+            }
+            return MapperUtils.unsupported(bp);
+        }
         if (bp instanceof Join join) {
             JoinConfig config = join.config();
             if (config.type() != JoinTypes.LEFT) {
                 throw new EsqlIllegalArgumentException("unsupported join type [" + config.type() + "]");
             }
 
-            if (join.isRemote()) {
+            if (join.executesOn() == ExecuteLocation.REMOTE) {
                 // This is generally wrong in case of pipeline breakers upstream from the join, but we validate against these.
                 // The only potential pipeline breakers upstream should be limits duplicated past the join from PushdownAndCombineLimits,
                 // but they are okay to perform on the data nodes because they only serve to reduce the number of rows processed and
@@ -215,7 +277,12 @@ public class Mapper {
 
             // only broadcast joins supported for now - hence push down as a streaming operator
             if (left instanceof FragmentExec) {
-                return new FragmentExec(bp);
+                if (join.executesOn() == ExecuteLocation.COORDINATOR) {
+                    // Transfer left-side data here via exchange in order to execute join against coordinator lookup index
+                    left = new ExchangeExec(left.source(), left);
+                } else {
+                    return new FragmentExec(bp);
+                }
             }
 
             PhysicalPlan right = mapInner(bp.right());
@@ -299,4 +366,5 @@ public class Mapper {
         }
         return child;
     }
+
 }

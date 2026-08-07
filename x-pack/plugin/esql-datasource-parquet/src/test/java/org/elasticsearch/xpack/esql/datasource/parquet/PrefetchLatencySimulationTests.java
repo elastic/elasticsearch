@@ -32,6 +32,8 @@ import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -58,19 +60,17 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
     private BlockFactory blockFactory;
     private ExecutorService asyncIoExecutor;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initBlockFactoryAndExecutor() throws Exception {
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
         // Owned, deterministically shut down in tearDown: using ForkJoinPool.commonPool() here leaks
         // worker threads that ESTestCase's suite-scoped ThreadLeakControl flags as a class failure.
         asyncIoExecutor = Executors.newFixedThreadPool(4, EsExecutors.daemonThreadFactory("test", "prefetch-test-async-io"));
     }
 
-    @Override
-    public void tearDown() throws Exception {
+    @After
+    public void terminateExecutor() throws Exception {
         terminate(asyncIoExecutor);
-        super.tearDown();
     }
 
     /**

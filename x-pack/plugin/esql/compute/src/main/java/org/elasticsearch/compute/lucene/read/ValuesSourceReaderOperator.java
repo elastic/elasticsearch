@@ -240,7 +240,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
      * Builds a {@link LoaderAndConverter} for a given shard.
      */
     public interface BuildLoader {
-        LoaderAndConverter build(DriverContext.WarningsMode warningsMode, int shard);
+        LoaderAndConverter build(DriverContext driverContext, int shard);
     }
 
     /**
@@ -307,6 +307,9 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
     private final Map<String, Integer> readersBuilt = new TreeMap<>();
     long valuesLoaded;
     long bytesRead;
+    long sourceDocsLoaded;
+    long sourceFieldReads;
+    long sourceBytesLoaded;
     private final LongSupplier directoryBytesRead;
 
     private int lastShard = -1;
@@ -444,11 +447,19 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
      */
     void trackSourceBytesAndRelease(BlockLoaderStoredFieldsFromLeafLoader storedFields) {
         long sourceBytes = storedFields.lastSourceBytesSize();
+        sourceBytesLoaded += sourceBytes;
         if (sourceBytes > lastKnownSourceSize) {
             lastKnownSourceSize = sourceBytes;
             acquireSourceLoadingReservation();
         }
         storedFields.releaseParsedSource();
+    }
+
+    void trackSourceFieldReads(int sourceBackedFieldCount) {
+        if (sourceBackedFieldCount > 0) {
+            sourceDocsLoaded++;
+            sourceFieldReads += sourceBackedFieldCount;
+        }
     }
 
     void positionFieldWork(int shard, int segment, int firstDoc) {
@@ -554,7 +565,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
         }
 
         void newShard(int shard) {
-            LoaderAndConverter l = info.buildLoader.build(driverContext.warningsMode(), shard);
+            LoaderAndConverter l = info.buildLoader.build(driverContext, shard);
             loader = l.loader;
             converter = l.converter == null ? null : converterEvaluators.get(shard, fieldIdx, info.name, l.converter);
             log.debug("moved to shard {} {} {}", shard, loader, converter);
@@ -647,7 +658,10 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
             rowsReceived,
             rowsEmitted,
             valuesLoaded,
-            bytesRead
+            bytesRead,
+            sourceDocsLoaded,
+            sourceFieldReads,
+            sourceBytesLoaded
         );
     }
 

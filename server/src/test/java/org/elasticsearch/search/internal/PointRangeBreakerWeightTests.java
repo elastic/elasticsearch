@@ -38,6 +38,8 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -59,9 +61,8 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
     private Directory directory;
     private DirectoryReader reader;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initDirectoryAndReader() throws Exception {
         directory = newDirectory();
         try (IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig(null))) {
             for (int docId = 0; docId < NUM_DOCS; docId++) {
@@ -80,10 +81,9 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
         reader = DirectoryReader.open(directory);
     }
 
-    @Override
-    public void tearDown() throws Exception {
+    @After
+    public void closeDirectoryAndReader() throws Exception {
         IOUtils.close(reader, directory);
-        super.tearDown();
     }
 
     public void testDenseRangeChargesAndReleasesAcrossSearch() throws IOException {

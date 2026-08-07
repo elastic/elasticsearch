@@ -19,6 +19,8 @@ import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.lang.management.BufferPoolMXBean;
@@ -52,18 +54,16 @@ public class PrefetchedPageReaderLeakRegressionTests extends ESTestCase {
     private BlockFactory blockFactory;
     private BufferAllocator allocator;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initCodecAndAllocator() {
         codecFactory = new PlainCompressionCodecFactory();
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
         allocator = blockFactory.arrowAllocator();
     }
 
-    @Override
-    public void tearDown() throws Exception {
+    @After
+    public void releaseCodecFactory() {
         codecFactory.release();
-        super.tearDown();
     }
 
     public void testRepeatedZstdDecompressionStaysWithinDirectMemoryBudget() throws IOException {

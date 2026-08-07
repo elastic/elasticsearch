@@ -116,6 +116,24 @@
       "params" : [
         {
           "name" : "field1",
+          "type" : "flattened",
+          "optional" : false,
+          "description" : "Expression that can be null, a single value, or multiple values. Null values are treated as empty sets."
+        },
+        {
+          "name" : "field2",
+          "type" : "flattened",
+          "optional" : false,
+          "description" : "Expression that can be null, a single value, or multiple values. Null values are treated as empty sets."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "flattened"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field1",
           "type" : "geo_point",
           "optional" : false,
           "description" : "Expression that can be null, a single value, or multiple values. Null values are treated as empty sets."

@@ -26,8 +26,23 @@ public record ExternalSourceResolution(Map<String, ResolvedSource> resolved) {
     public record ResolvedSource(
         ExternalSourceMetadata metadata,
         FileList fileList,
-        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap
-    ) {}
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap,
+        DeclaredReadSpec declaredReadSpec
+    ) {
+        /** Compact overload defaulting {@link #declaredReadSpec} to {@link DeclaredReadSpec#NONE}. */
+        public ResolvedSource(
+            ExternalSourceMetadata metadata,
+            FileList fileList,
+            Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap
+        ) {
+            this(metadata, fileList, schemaMap, DeclaredReadSpec.NONE);
+        }
+
+        /** Returns a copy carrying the given declared read-instructions. */
+        public ResolvedSource withDeclaredReadSpec(DeclaredReadSpec spec) {
+            return new ResolvedSource(metadata, fileList, schemaMap, spec);
+        }
+    }
 
     public ExternalSourceResolution {
         if (resolved == null) {

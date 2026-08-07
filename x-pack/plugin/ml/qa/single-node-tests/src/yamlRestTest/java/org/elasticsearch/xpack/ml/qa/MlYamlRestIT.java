@@ -8,8 +8,10 @@
 package org.elasticsearch.xpack.ml.qa;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
 import org.apache.http.HttpStatus;
+import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.CheckedFunction;
@@ -45,7 +47,12 @@ import java.util.function.Supplier;
  * under {@code x-pack/plugin/src/yamlRestTest/resources/rest-api-spec/test/ml/} so
  * that internal consumers using {@code restResources.restTests.includeXpack 'ml'}
  * continue to work; this project pulls them in via the same mechanism.
+ *
+ * <p>The suite timeout is raised above the default 30-minute inherited value because the
+ * encryption-at-rest periodic CI step copies the workspace onto a LUKS dm-crypt volume,
+ * adding significant I/O overhead that can cause the full ML YAML suite to exceed 30 minutes.
  */
+@TimeoutSuite(millis = 60 * TimeUnits.MINUTE)
 public class MlYamlRestIT extends ESClientYamlSuiteTestCase {
 
     private static final String BASIC_AUTH_VALUE = basicAuthHeaderValue(

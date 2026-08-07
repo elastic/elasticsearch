@@ -235,6 +235,176 @@ public class VirtualColumnIteratorTests extends ESTestCase {
     }
 
     /**
+     * A declared {@code _id.path} stamps {@code _id} from the named data column's value. The id column rides the data
+     * page as a normal data block (PruneColumns pins it into the reader projection); the iterator renders it to KEYWORD
+     * into the {@code _id} slot. Even when the id column is NOT part of the user's output projection, it is present in
+     * the data page here — the assertion checks the value is threaded row by row.
+     */
+    public void testIdFromColumnKeyword() {
+        List<Attribute> fullOutput = List.of(
+            attr("customer_id", DataType.KEYWORD),
+            attr("amount", DataType.INTEGER),
+            partAttr(ExternalMetadataColumns.ID, DataType.KEYWORD)
+        );
+        Set<String> partitionCols = new LinkedHashSet<>(List.of(ExternalMetadataColumns.ID));
+        BytesRef idPrefix = ExternalRowIdentity.prefix(StoragePath.of("s3://bucket/data.csv"), 1700000000000L);
+
+        VirtualColumnIterator it = new VirtualColumnIterator(
+            emptyDelegate(),
+            fullOutput,
+            partitionCols,
+            Map.of(),
+            blockFactory,
+            idPrefix,
+            "customer_id"
+        );
+
+        try (BytesRefBlock.Builder custBuilder = blockFactory.newBytesRefBlockBuilder(3)) {
+            custBuilder.appendBytesRef(new BytesRef("c-1"));
+            custBuilder.appendBytesRef(new BytesRef("c-2"));
+            custBuilder.appendBytesRef(new BytesRef("c-3"));
+            BytesRefBlock custBlock = custBuilder.build();
+            IntBlock amountBlock = blockFactory.newConstantIntBlockWith(10, 3);
+            Page dataPage = new Page(3, new Block[] { custBlock, amountBlock });
+
+            Page result = it.inject(dataPage);
+
+            assertEquals(3, result.getPositionCount());
+            // fullOutput order: customer_id (0), amount (1), _id (2)
+            assertEquals(3, result.getBlockCount());
+            BytesRefBlock idResult = result.getBlock(2);
+            assertEquals("c-1", asString(idResult, 0));
+            assertEquals("c-2", asString(idResult, 1));
+            assertEquals("c-3", asString(idResult, 2));
+            // The id column itself is still emitted unchanged.
+            BytesRefBlock custResult = result.getBlock(0);
+            assertEquals("c-1", asString(custResult, 0));
+            result.releaseBlocks();
+        }
+    }
+
+    /** A declared {@code _id.path} column whose cell is null renders a null {@code _id} for that row. */
+    public void testIdFromColumnNullCellIsNullId() {
+        List<Attribute> fullOutput = List.of(attr("customer_id", DataType.KEYWORD), partAttr(ExternalMetadataColumns.ID, DataType.KEYWORD));
+        Set<String> partitionCols = new LinkedHashSet<>(List.of(ExternalMetadataColumns.ID));
+        BytesRef idPrefix = ExternalRowIdentity.prefix(StoragePath.of("s3://bucket/data.csv"), 1700000000000L);
+
+        VirtualColumnIterator it = new VirtualColumnIterator(
+            emptyDelegate(),
+            fullOutput,
+            partitionCols,
+            Map.of(),
+            blockFactory,
+            idPrefix,
+            "customer_id"
+        );
+
+        try (BytesRefBlock.Builder custBuilder = blockFactory.newBytesRefBlockBuilder(2)) {
+            custBuilder.appendBytesRef(new BytesRef("c-1"));
+            custBuilder.appendNull();
+            BytesRefBlock custBlock = custBuilder.build();
+            Page dataPage = new Page(2, new Block[] { custBlock });
+
+            Page result = it.inject(dataPage);
+
+            BytesRefBlock idResult = result.getBlock(1);
+            assertEquals("c-1", asString(idResult, 0));
+            assertTrue(idResult.isNull(1));
+            result.releaseBlocks();
+        }
+    }
+
+    /**
+     * A LONG {@code _id.path} column renders {@code _id} as the {@code TO_STRING} form of the value, so the stamped
+     * {@code _id} reads identically to the column's own value.
+     */
+    public void testIdFromColumnLongRendersAsString() {
+        List<Attribute> fullOutput = List.of(attr("order_id", DataType.LONG), partAttr(ExternalMetadataColumns.ID, DataType.KEYWORD));
+        Set<String> partitionCols = new LinkedHashSet<>(List.of(ExternalMetadataColumns.ID));
+        BytesRef idPrefix = ExternalRowIdentity.prefix(StoragePath.of("s3://bucket/data.csv"), 1700000000000L);
+
+        VirtualColumnIterator it = new VirtualColumnIterator(
+            emptyDelegate(),
+            fullOutput,
+            partitionCols,
+            Map.of(),
+            blockFactory,
+            idPrefix,
+            "order_id"
+        );
+
+        LongBlock orderBlock = blockFactory.newConstantLongBlockWith(42L, 2);
+        Page dataPage = new Page(2, new Block[] { orderBlock });
+
+        Page result = it.inject(dataPage);
+
+        BytesRefBlock idResult = result.getBlock(1);
+        assertEquals("42", asString(idResult, 0));
+        assertEquals("42", asString(idResult, 1));
+        result.releaseBlocks();
+    }
+
+    /** A multi-valued {@code _id.path} cell is rejected — {@code _id} must be a single scalar value per row. */
+    public void testIdFromColumnMultiValueRejected() {
+        List<Attribute> fullOutput = List.of(attr("customer_id", DataType.KEYWORD), partAttr(ExternalMetadataColumns.ID, DataType.KEYWORD));
+        Set<String> partitionCols = new LinkedHashSet<>(List.of(ExternalMetadataColumns.ID));
+        BytesRef idPrefix = ExternalRowIdentity.prefix(StoragePath.of("s3://bucket/data.csv"), 1700000000000L);
+
+        VirtualColumnIterator it = new VirtualColumnIterator(
+            emptyDelegate(),
+            fullOutput,
+            partitionCols,
+            Map.of(),
+            blockFactory,
+            idPrefix,
+            "customer_id"
+        );
+
+        try (BytesRefBlock.Builder custBuilder = blockFactory.newBytesRefBlockBuilder(1)) {
+            custBuilder.beginPositionEntry();
+            custBuilder.appendBytesRef(new BytesRef("c-1"));
+            custBuilder.appendBytesRef(new BytesRef("c-2"));
+            custBuilder.endPositionEntry();
+            BytesRefBlock custBlock = custBuilder.build();
+            Page dataPage = new Page(1, new Block[] { custBlock });
+
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> it.inject(dataPage));
+            assertThat(e.getMessage(), containsString("customer_id"));
+            assertThat(e.getMessage(), containsString("multi-valued"));
+        }
+    }
+
+    /**
+     * When a declared {@code _id.path} column is absent from the file's projection (the UBN carve-out), {@code _id}
+     * renders as SQL NULL rather than throwing. Modeled by declaring an {@code idPath} that names no data column.
+     */
+    public void testIdFromColumnMissingColumnIsNullId() {
+        List<Attribute> fullOutput = List.of(attr("amount", DataType.INTEGER), partAttr(ExternalMetadataColumns.ID, DataType.KEYWORD));
+        Set<String> partitionCols = new LinkedHashSet<>(List.of(ExternalMetadataColumns.ID));
+        BytesRef idPrefix = ExternalRowIdentity.prefix(StoragePath.of("s3://bucket/data.csv"), 1700000000000L);
+
+        VirtualColumnIterator it = new VirtualColumnIterator(
+            emptyDelegate(),
+            fullOutput,
+            partitionCols,
+            Map.of(),
+            blockFactory,
+            idPrefix,
+            "customer_id" // names no data column in fullOutput
+        );
+
+        IntBlock amountBlock = blockFactory.newConstantIntBlockWith(10, 2);
+        Page dataPage = new Page(2, new Block[] { amountBlock });
+
+        Page result = it.inject(dataPage);
+
+        BytesRefBlock idResult = result.getBlock(1);
+        assertTrue(idResult.isNull(0));
+        assertTrue(idResult.isNull(1));
+        result.releaseBlocks();
+    }
+
+    /**
      * Regression test for the ~44KB-per-query parquet circuit-breaker leak:
      * https://github.com/elastic/elasticsearch/issues/149393.
      * <p>

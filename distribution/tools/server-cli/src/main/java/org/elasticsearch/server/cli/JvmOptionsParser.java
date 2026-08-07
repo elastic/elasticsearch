@@ -13,6 +13,7 @@ import org.elasticsearch.bootstrap.ServerArgs;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.core.Booleans;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -37,6 +38,9 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
+
+import static org.elasticsearch.telemetry.TelemetryProvider.OTEL_METRICS_ENABLED_SYSTEM_PROPERTY;
+import static org.elasticsearch.telemetry.TelemetryProvider.OTEL_TRACES_ENABLED_SYSTEM_PROPERTY;
 
 /**
  * Parses JVM options from a file and prints a single line with all JVM options to standard output.
@@ -157,7 +161,23 @@ public final class JvmOptionsParser {
         final List<String> ergonomicJvmOptions = JvmErgonomics.choose(parsedJvmOptions, effectiveHeapSize, args.nodeSettings());
         final List<String> systemJvmOptions = SystemJvmOptions.systemJvmOptions(args.nodeSettings(), cliSysprops);
 
-        final List<String> apmOptions = APMJvmOptions.apmJvmOptions(args.nodeSettings(), args.secrets(), args.logsDir(), tmpDir);
+        // The OTel SDK enablement switches are -D flags destined for the server JVM, so they are read from the assembled options
+        // rather than this launcher process's own system properties.
+        final Map<String, String> assembledSystemProperties = JvmErgonomics.extractSystemProperties(substitutedJvmOptions);
+        final boolean otelMetricsEnabled = Booleans.parseBoolean(
+            assembledSystemProperties.getOrDefault(OTEL_METRICS_ENABLED_SYSTEM_PROPERTY, "false")
+        );
+        final boolean otelTracesEnabled = Booleans.parseBoolean(
+            assembledSystemProperties.getOrDefault(OTEL_TRACES_ENABLED_SYSTEM_PROPERTY, "false")
+        );
+        final List<String> apmOptions = APMJvmOptions.apmJvmOptions(
+            args.nodeSettings(),
+            args.secrets(),
+            args.logsDir(),
+            tmpDir,
+            otelMetricsEnabled,
+            otelTracesEnabled
+        );
 
         final List<String> finalJvmOptions = new ArrayList<>(
             systemJvmOptions.size() + substitutedJvmOptions.size() + ergonomicJvmOptions.size() + apmOptions.size()

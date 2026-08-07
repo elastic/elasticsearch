@@ -17,7 +17,8 @@ This section provides some useful resource for troubleshooting {{esql}} issues:
 - [Task management API](esql-task-management.md): Learn how to diagnose issues like long-running queries.
 - [Circuit breaker settings](/reference/elasticsearch/configuration-reference/circuit-breaker-settings.md#circuit-breakers-page-esql): Learn how {{esql}} uses the circuit breaker and how to configure it. For circuit breaker errors, see [Circuit breaker errors](docs-content://troubleshoot/elasticsearch/circuit-breaker-errors.md).
 
-For tips on writing efficient queries, refer to [Optimize {{esql}} query performance](/reference/query-languages/esql/esql-query-performance.md).
+::::{include} _snippets/common/query-performance-tip.md
+::::
 
 ## Filing a support case
 

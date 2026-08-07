@@ -19,8 +19,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.eirf.EirfBatch;
 import org.elasticsearch.eirf.EirfRowToXContent;
+import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -40,9 +40,9 @@ public class IndexSource implements Writeable, Releasable {
     private BytesReference source;
     // Not serialized currently, set when deserializing the ShardBulkRequest.
     private int rowIndex = -1;
-    // Borrowed reference to the shard-level EIRF batch when rowIndex >= 0. Not serialized — the batch is transported
+    // Borrowed reference to the shard-level batch when rowIndex >= 0. Not serialized — the batch is transported
     // separately on BulkShardBatch and re-attached on the receiving node.
-    private EirfBatch eirfBatch;
+    private SourceBatch sourceBatch;
     private boolean isClosed = false;
 
     public IndexSource() {}
@@ -99,40 +99,40 @@ public class IndexSource implements Writeable, Releasable {
         return rowIndex;
     }
 
-    public boolean hasEirfRow() {
+    public boolean hasSourceRow() {
         assert isClosed == false;
         return rowIndex >= 0;
     }
 
     /**
-     * Replaces the inline source bytes with an empty reference and records the row index into the shard-level EIRF batch.
+     * Replaces the inline source bytes with an empty reference and records the row index into the shard-level batch.
      * The {@link XContentType} is preserved so downstream code can still identify the original content type.
      */
-    public void setEirfRow(EirfBatch batch, int rowIndex) {
+    public void setSourceRow(SourceBatch batch, int rowIndex) {
         assert isClosed == false;
         assert rowIndex >= 0;
         assert batch != null;
         this.source = BytesArray.EMPTY;
         this.rowIndex = rowIndex;
-        this.eirfBatch = batch;
+        this.sourceBatch = batch;
     }
 
     /**
-     * Materializes the row referenced by {@link #rowIndex} from the currently attached {@link EirfBatch}, writes the row back
-     * out as inline source bytes in {@link #contentType}, and clears the EIRF state.
+     * Materializes the row referenced by {@link #rowIndex} from the currently attached batch, writes the row back
+     * out as inline source bytes in {@link #contentType}, and clears the batch row state.
      */
     public void ensureInlineSource() throws IOException {
         assert isClosed == false;
         if (rowIndex < 0) {
             return;
         }
-        assert eirfBatch != null : "EIRF row set but no batch attached";
+        assert sourceBatch != null : "batch row set but no batch attached";
         try (XContentBuilder xcb = XContentFactory.contentBuilder(contentType)) {
-            EirfRowToXContent.writeRow(eirfBatch.getRowReader(rowIndex), eirfBatch.schema(), xcb);
+            EirfRowToXContent.writeRow(sourceBatch.row(rowIndex), sourceBatch.schema(), xcb);
             this.source = BytesReference.bytes(xcb);
         }
         this.rowIndex = -1;
-        this.eirfBatch = null;
+        this.sourceBatch = null;
     }
 
     public boolean isClosed() {
@@ -146,7 +146,7 @@ public class IndexSource implements Writeable, Releasable {
         source = null;
         contentType = null;
         rowIndex = -1;
-        eirfBatch = null;
+        sourceBatch = null;
     }
 
     public Map<String, Object> sourceAsMap(boolean includeSourceOnError) {
@@ -300,6 +300,6 @@ public class IndexSource implements Writeable, Releasable {
         this.source = source;
         this.contentType = contentType;
         this.rowIndex = -1;
-        this.eirfBatch = null;
+        this.sourceBatch = null;
     }
 }

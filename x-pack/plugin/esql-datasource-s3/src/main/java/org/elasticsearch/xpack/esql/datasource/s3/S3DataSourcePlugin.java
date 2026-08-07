@@ -17,6 +17,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
@@ -78,10 +79,14 @@ public class S3DataSourcePlugin extends Plugin implements DataSourcePlugin {
     @Override
     public Map<String, StorageProviderFactory> storageProviders(StorageProviderServices services) {
         CustomWebIdentityTokenCredentialsProvider provider = initWorkloadIdentitySources(services);
+        // Size the async client's connection pool from the single external-read concurrency knob
+        // (esql.external.max_concurrent_requests), so the SDK pool matches the per-scheme permit ceiling.
+        // services.settings() is the node Settings threaded through the SPI — the path that reaches the client build.
+        int maxConnections = ExternalSourceSettings.blobStoreConcurrency(services.settings());
         StorageProviderFactory s3Factory = StorageProviderFactory.of(
-            () -> new S3StorageProvider(null, provider),
+            () -> new S3StorageProvider(null, provider, maxConnections),
             S3Configuration::fromQueryConfig,
-            cfg -> new S3StorageProvider(cfg, provider)
+            cfg -> new S3StorageProvider(cfg, provider, maxConnections)
         );
         return Map.of("s3", s3Factory, "s3a", s3Factory, "s3n", s3Factory);
     }

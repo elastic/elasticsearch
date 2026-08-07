@@ -7,8 +7,15 @@
 
 package org.elasticsearch.xpack.inference;
 
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.indices.SystemIndexDescriptor;
+
+import java.util.Map;
 
 public class InferenceIndex {
 
@@ -25,6 +32,57 @@ public class InferenceIndex {
     // Public to allow tests to create the index with custom settings
     public static Settings.Builder builder() {
         return Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1");
+    }
+
+    /**
+     * Returns true when the .inference index already has v4 mappings that include the {@code doc_type} field,
+     * or when the index does not yet exist and it is safe to assume it will be created with v4 mappings.
+     * <p>
+     * When the index does not yet exist, returns true only if all nodes in the cluster carry the
+     * {@link InferenceFeatures#INFERENCE_INFERENCE_INDEX_DOC_TYPE} feature, which guarantees that whichever
+     * node creates the index will apply the v4 mappings. Returns false if any node is missing the feature.
+     * <p>
+     * When the index exists, returns false if it still carries v3 or earlier mappings (before the mapping
+     * migration completes during a rolling upgrade).
+     * <p>
+     * Callers are responsible for also checking the region-policy feature flag before acting on this result.
+     */
+    public static boolean inferenceIndexHasV4Mappings(ClusterState clusterState, FeatureService featureService) {
+        var projectMetadata = clusterState.metadata().getProject();
+        IndexMetadata indexMetadata = projectMetadata.index(InferenceIndex.INDEX_NAME);
+        if (indexMetadata == null) {
+            // The primary index name may have become an alias after a system index migration
+            // (e.g. ".inference" → ".inference-reindexed-for-10"). ProjectMetadata.index() only
+            // resolves concrete names, so we must fall back to the indices lookup, mirroring the
+            // pattern used by SystemIndexMappingUpdateService.getSystemIndexMetadata().
+            IndexAbstraction indexAbstraction = projectMetadata.getIndicesLookup().get(InferenceIndex.INDEX_NAME);
+            if (indexAbstraction != null && indexAbstraction.getWriteIndex() != null) {
+                indexMetadata = projectMetadata.getIndexSafe(indexAbstraction.getWriteIndex());
+            }
+        }
+        if (indexMetadata == null) {
+            // The index doesn't exist yet. Return true only when all nodes carry the doc_type feature,
+            // which guarantees that whoever creates the index will apply v4 mappings. An old node missing
+            // the feature would create the index with v3 mappings, causing a strict_dynamic_mapping_exception
+            // if doc_type were written.
+            return featureService.clusterHasFeature(clusterState, InferenceFeatures.INFERENCE_INFERENCE_INDEX_DOC_TYPE);
+        }
+        MappingMetadata mappingMetadata = indexMetadata.mapping();
+        if (mappingMetadata == null) {
+            return false;
+        }
+        @SuppressWarnings("unchecked")
+        Map<String, Object> meta = (Map<String, Object>) mappingMetadata.sourceAsMap().get("_meta");
+        if (meta == null) {
+            return false;
+        }
+        if (meta.containsKey(SystemIndexDescriptor.VERSION_META_KEY) == false) {
+            return false;
+        }
+        if (meta.get(SystemIndexDescriptor.VERSION_META_KEY) instanceof Integer version) {
+            return version >= 4;
+        }
+        return false;
     }
 
     /**
@@ -48,8 +106,137 @@ public class InferenceIndex {
      *
      * @return The index mappings
      */
-    public static String currentMappings() {
-        return mappingsV3();
+    public static String mappingsV4() {
+        return """
+            {
+              "_doc" : {
+                "_meta" : {
+                  "managed_index_mappings_version": 4
+                },
+                "dynamic": "strict",
+                "properties" : {
+                  "doc_type": {
+                    "type": "keyword"
+                  },
+                  "model_id": {
+                    "type": "keyword"
+                  },
+                  "task_type": {
+                    "type": "keyword"
+                  },
+                  "service": {
+                    "type": "keyword"
+                  },
+                  "service_settings": {
+                    "dynamic": false,
+                    "properties": {
+                    }
+                  },
+                  "task_settings": {
+                    "dynamic": false,
+                    "properties": {
+                    }
+                  },
+                  "chunking_settings": {
+                    "dynamic": false,
+                    "properties": {
+                      "strategy": {
+                        "type": "keyword"
+                      }
+                    }
+                  },
+                  "metadata": {
+                    "dynamic": false,
+                    "properties": {
+                      "heuristics": {
+                        "dynamic": false,
+                        "properties": {
+                          "properties": {
+                            "type": "keyword"
+                          },
+                          "status": {
+                            "type": "keyword"
+                          },
+                          "release_date": {
+                            "type": "date"
+                          },
+                          "end_of_life_date": {
+                            "type": "date"
+                          }
+                        }
+                      },
+                      "display": {
+                        "dynamic": false,
+                        "properties": {
+                          "name": {
+                            "type": "keyword"
+                          }
+                        }
+                      },
+                      "internal": {
+                        "dynamic": false,
+                        "properties": {
+                          "fingerprint": {
+                            "type": "keyword"
+                          },
+                          "version": {
+                            "type": "long"
+                          }
+                        }
+                      },
+                      "regions": {
+                        "dynamic": false,
+                        "properties": {
+                          "csp": {
+                            "type": "keyword"
+                          },
+                          "region": {
+                            "type": "keyword"
+                          },
+                          "geo": {
+                            "type": "keyword"
+                          }
+                        }
+                      },
+                      "denied_by_region_policy": {
+                        "type": "boolean"
+                      }
+                    }
+                  },
+                  "region_policy": {
+                    "dynamic": false,
+                    "properties": {
+                      "allowed_geos": {
+                        "type": "keyword"
+                      },
+                      "allowed_regions": {
+                        "properties": {
+                          "csp": {
+                            "type": "keyword"
+                          },
+                          "region": {
+                            "type": "keyword"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "created_at": {
+                    "type": "date"
+                  },
+                  "created_by": {
+                    "type": "keyword"
+                  },
+                  "updated_at": {
+                    "type": "date"
+                  },
+                  "updated_by": {
+                    "type": "keyword"
+                  }
+                }
+              }
+            }
+            """;
     }
 
     public static String mappingsV3() {

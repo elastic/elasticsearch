@@ -42,14 +42,30 @@ For now, a series stops appearing in results only once all its samples fall outs
 The majority of PromQL expressions run unchanged.
 The following constructs are not evaluated yet, so they return a client error (4xx):
 
-- Binary set operators: `and` and `unless`. The `or` operator is supported only at the top level of an expression; nested `or` returns a client error (4xx).
-- Group modifiers: `on(...)`, `group_left`, `group_right`
+- Binary set operators: `and` and `unless`. The `or` operator is supported only at the top level of an expression and a top-level `or` chain supports at most 8 operands; a nested `or`, or a chain of more than 8 operands, returns a client error (4xx).
+- Comparison operators: evaluated only at the top level of an expression and only with a scalar literal on the right-hand side. Comparisons between two instant vectors, and nested comparisons, return a client error (4xx).
+- Group modifiers: `on(...)`, `ignoring(...)`, `group_left`, `group_right`
 - Functions: see [Not yet supported](functions.md#promql-not-supported) for the full list of recognized but unimplemented functions.
 
 ## Native histograms [promql-limitations-native-histograms]
 
-Prometheus native histograms are not supported yet.
-PromQL functions operate on float samples; series stored as native histograms are not evaluated.
+{applies_to}`stack: ga 9.5` {applies_to}`serverless: ga`
+
+{{es}} provides basic support for Prometheus native histograms (the `exponential_histogram` type in {{es}}).
+The following query patterns work today:
+
+- `histogram_quantile` on native histograms, including after aggregation: `histogram_quantile(0.9, sum by (job) (increase(metric[10m])))`
+- `histogram_count`, `histogram_sum`, and `histogram_avg` on native histograms
+- `increase` on native histograms
+- `sum` aggregation on native histograms to aggregate across series
+
+In particular, the following features are not available yet for native histograms:
+
+- `rate`: If possible, use `increase` instead. The `rate` function produces fractional bucket counts that native histograms do not support yet. Most queries that use `rate` can be rewritten with `increase` (for example, `histogram_quantile(0.99, sum by (job) (increase(metric[5m])))` instead of using `rate`).
+- Native histograms as direct result types**: Queries that return a raw native histogram (such as a bare selector `my_histogram` or `increase(my_histogram[5m])` without wrapping in a histogram function) are not supported. Wrap selectors in `histogram_quantile`, `histogram_count`, `histogram_sum`, or `histogram_avg` to obtain scalar results.
+- `irate` and `delta`
+- Arithmetic operators on native histograms: `+`, `-`, `*`, `/`
+- `histogram_fraction` and `histogram_stddev`
 
 ## Metric metadata `help` (HTTP API) [promql-limitations-metadata-help]
 
@@ -58,5 +74,6 @@ Metric definition help text is not surfaced yet, so the `help` field remains an 
 
 ## Exemplar queries (HTTP API) [promql-limitations-exemplars]
 
-`/api/v1/query_exemplars` is not implemented yet.
-Turn off exemplar queries in your Prometheus-compatible client for now (for example, the Grafana data source exemplars option) so it does not call that endpoint.
+`/api/v1/query_exemplars` is not implemented yet, so exemplar queries are not supported.
+To avoid errors, turn off exemplar queries in your Prometheus-compatible client.
+In Grafana, go to **Data sources → Elasticsearch → Exemplars** and disable all configured exemplar links.

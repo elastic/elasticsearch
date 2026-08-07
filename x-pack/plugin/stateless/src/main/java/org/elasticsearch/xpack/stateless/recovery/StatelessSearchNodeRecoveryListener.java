@@ -5,46 +5,36 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.stateless;
+package org.elasticsearch.xpack.stateless.recovery;
 
-import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.IOContext;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.project.ProjectResolver;
-import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.NoOpEngine;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.WarmTarget;
-import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.engine.SearchEngine;
-import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
-import org.elasticsearch.xpack.stateless.recovery.RecoveryCommitRegistrationHandler;
-import org.elasticsearch.xpack.stateless.recovery.RegisterCommitResponse;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -54,19 +44,20 @@ import java.util.concurrent.Executor;
 
 import static org.elasticsearch.xpack.stateless.commits.BlobFileRanges.computeBlobFileRanges;
 
-class StatelessSearchNodeRecoveryListener implements IndexEventListener {
+/**
+ * {@link IndexEventListener} that drives shard recovery from the object store on stateless search nodes.
+ */
+public class StatelessSearchNodeRecoveryListener extends AbstractStatelessRecoveryListener implements IndexEventListener {
 
     private static final Logger logger = LogManager.getLogger(StatelessSearchNodeRecoveryListener.class);
 
-    private final ObjectStoreService objectStoreService;
     private final RecoveryCommitRegistrationHandler recoveryCommitRegistrationHandler;
     private final SharedBlobCacheWarmingService warmingService;
-    private final ProjectResolver projectResolver;
     private final Executor bccHeaderReadExecutor;
     private final boolean useInternalFilesReplicatedContentForSearchShards;
     private final ClusterService clusterService;
 
-    StatelessSearchNodeRecoveryListener(
+    public StatelessSearchNodeRecoveryListener(
         ObjectStoreService objectStoreService,
         RecoveryCommitRegistrationHandler recoveryCommitRegistrationHandler,
         SharedBlobCacheWarmingService warmingService,
@@ -74,10 +65,9 @@ class StatelessSearchNodeRecoveryListener implements IndexEventListener {
         Executor bccHeaderReadExecutor,
         ClusterService clusterService
     ) {
-        this.objectStoreService = objectStoreService;
+        super(objectStoreService, projectResolver);
         this.recoveryCommitRegistrationHandler = recoveryCommitRegistrationHandler;
         this.warmingService = warmingService;
-        this.projectResolver = projectResolver;
         this.bccHeaderReadExecutor = bccHeaderReadExecutor;
         this.useInternalFilesReplicatedContentForSearchShards = clusterService.getClusterSettings()
             .get(SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT);
@@ -96,19 +86,7 @@ class StatelessSearchNodeRecoveryListener implements IndexEventListener {
             store.incRef();
             boolean success = false;
             try {
-                final var projectId = projectResolver.getProjectId();
-                final var shardId = indexShard.shardId();
-                assert objectStoreService.assertProjectIdAndShardIdConsistency(projectId, shardId);
-
-                final BlobStore blobStore = objectStoreService.getProjectBlobStore(projectId);
-                final BlobPath shardBasePath = objectStoreService.shardBasePath(projectId, shardId);
-                final BlobContainer existingBlobContainer = hasNoExistingBlobContainer(indexShard.recoveryState().getRecoverySource())
-                    ? null
-                    : blobStore.blobContainer(shardBasePath);
-
-                BlobStoreCacheDirectory.unwrapDirectory(store.directory())
-                    .setBlobContainer(primaryTerm -> blobStore.blobContainer(shardBasePath.add(String.valueOf(primaryTerm))));
-
+                final var existingBlobContainer = initializeBlobContainer(indexShard, store);
                 final var releaseAfterListener = ActionListener.releaseAfter(listener, store::decRef);
                 beforeRecoveryOnSearchShard(indexShard, existingBlobContainer, releaseAfterListener);
                 success = true;
@@ -129,9 +107,8 @@ class StatelessSearchNodeRecoveryListener implements IndexEventListener {
     }
 
     private static void afterSearchShardRecovery(final IndexShard indexShard, final ActionListener<Void> listener) {
-        ActionListener.run(listener, l -> {
-            final Engine engineOrNull = indexShard.getEngineOrNull();
-            switch (engineOrNull) {
+        ActionListener.run(listener, l -> indexShard.withEngineException(engine -> {
+            switch (engine) {
                 case SearchEngine searchEngine -> {
                     /*
                      * The shard can be closed underneath us, so we assert that we're either
@@ -146,28 +123,10 @@ class StatelessSearchNodeRecoveryListener implements IndexEventListener {
                     l.onResponse(null);
                 }
                 case NoOpEngine ignored -> l.onResponse(null);
-                case null -> throw new AlreadyClosedException("engine is closed");
-                default -> throw new AssertionError("unexpected engine type: " + engineOrNull);
+                default -> throw new AssertionError("unexpected engine type: " + engine);
             }
-        });
-    }
-
-    private static boolean hasNoExistingBlobContainer(RecoverySource recoverySource) {
-        return recoverySource == RecoverySource.EmptyStoreRecoverySource.INSTANCE
-            || recoverySource instanceof RecoverySource.SnapshotRecoverySource
-            || recoverySource == RecoverySource.LocalShardsRecoverySource.INSTANCE;
-    }
-
-    private static void logBootstrappingFromObjectStore(IndexShard indexShard, BatchedCompoundCommit latestCommit) {
-        logger.info(
-            "{} with UUID [{}] bootstrapping [{}] shard on primary term [{}] with {} from object store ({})",
-            indexShard.shardId(),
-            indexShard.shardId().getIndex().getUUID(),
-            indexShard.routingEntry().role(),
-            indexShard.getOperationPrimaryTerm(),
-            latestCommit != null ? latestCommit.lastCompoundCommit().toShortDescription() : "empty commit",
-            describe(indexShard.recoveryState())
-        );
+            return null;
+        }));
     }
 
     private static void logBootstrappingFromIndexingShard(
@@ -189,12 +148,6 @@ class StatelessSearchNodeRecoveryListener implements IndexEventListener {
             latestUploaded,
             describe(indexShard.recoveryState())
         );
-    }
-
-    private static String describe(RecoveryState recoveryState) {
-        return recoveryState.getRecoverySource() == RecoverySource.PeerRecoverySource.INSTANCE
-            ? recoveryState.getRecoverySource() + " from " + recoveryState.getSourceNode().getName()
-            : recoveryState.getRecoverySource().toString();
     }
 
     private void beforeRecoveryOnSearchShard(IndexShard indexShard, BlobContainer blobContainer, ActionListener<Void> listener)
@@ -232,7 +185,7 @@ class StatelessSearchNodeRecoveryListener implements IndexEventListener {
                     // should be equal to zero indicated the indexing shard's engine is null or is a NoOpEngine
                     assert PrimaryTermAndGeneration.ZERO.equals(lastUploaded) : lastUploaded;
 
-                    logBootstrappingFromObjectStore(indexShard, batchedCompoundCommit);
+                    logBootstrappingFromObjectStore(logger, indexShard, batchedCompoundCommit);
                     // If there is no batched compound commit found in the object store, then recover from an empty commit
                     if (batchedCompoundCommit == null) {
                         l.onResponse(null);

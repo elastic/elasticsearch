@@ -753,7 +753,8 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
             true,
             RecoverySource.EmptyStoreRecoverySource.INSTANCE,
             new UnassignedInfo(REINITIALIZED, "simulation"),
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED
         ).initialize(randomIdentifier(), null, randomLongBetween(100, 999)).moveToStarted(randomLongBetween(100, 999));
 
         // New shard without relocation
@@ -861,7 +862,8 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
                     targetNodeId,
                     allocation.clusterInfo().getShardSize(shardRouting1, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
                     "relocating shard in test",
-                    allocation.changes()
+                    allocation.changes(),
+                    ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
                 );
             boolean indexRemovedFromSource = allocation.routingNodes()
                 .node(relocationShards.v1().currentNodeId())
@@ -958,7 +960,8 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
                     targetNodeId,
                     allocation.clusterInfo().getShardSize(shardRouting2, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
                     "relocating shard in test",
-                    allocation.changes()
+                    allocation.changes(),
+                    ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
                 );
             boolean indexRemovedFromSource = allocation.routingNodes()
                 .node(relocationShards.v1().currentNodeId())
@@ -1124,7 +1127,8 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
                     targetNodeId,
                     allocation.clusterInfo().getShardSize(shardRouting1, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
                     "relocating shard in test",
-                    allocation.changes()
+                    allocation.changes(),
+                    ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
                 );
 
             simulator.simulateShardStarted(relocationShards.v2());
@@ -1212,7 +1216,8 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
                     targetNodeId,
                     allocation.clusterInfo().getShardSize(shardRouting1, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
                     "relocating shard in test",
-                    allocation.changes()
+                    allocation.changes(),
+                    ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
                 );
 
             simulator.simulateShardStarted(relocationShards.v2());
@@ -1372,7 +1377,8 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
                     targetNodeId,
                     randomNonNegativeLong(),
                     "relocating shard in test",
-                    allocationForRelocation.changes()
+                    allocationForRelocation.changes(),
+                    ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
                 );
 
             simulatorForRelocation.simulateShardStarted(relocationShards.v2());

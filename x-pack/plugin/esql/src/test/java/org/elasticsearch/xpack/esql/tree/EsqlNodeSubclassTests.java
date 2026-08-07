@@ -650,7 +650,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         }
         if (argClass == IndexProperties.class) {
             IndexMode mode = randomFrom(IndexMode.availableModes());
-            return new IndexProperties(mode, mode == IndexMode.LOOKUP ? 1 : between(0, 10));
+            return new IndexProperties(mode, between(0, 10));
         }
         if (argClass == JoinConfig.class) {
             return new JoinConfig(

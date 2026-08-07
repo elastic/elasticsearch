@@ -141,6 +141,8 @@ import org.elasticsearch.xpack.stateless.recovery.PITRelocationService;
 import org.elasticsearch.xpack.stateless.recovery.PitRelocationMetrics;
 import org.elasticsearch.xpack.stateless.recovery.RecoveryCommitRegistrationHandler;
 import org.elasticsearch.xpack.stateless.recovery.RemoveRefreshClusterBlockService;
+import org.elasticsearch.xpack.stateless.recovery.StatelessIndexNodeRecoveryListener;
+import org.elasticsearch.xpack.stateless.recovery.StatelessSearchNodeRecoveryListener;
 import org.elasticsearch.xpack.stateless.recovery.TransportRegisterCommitForRecoveryAction;
 import org.elasticsearch.xpack.stateless.recovery.TransportSendRecoveryCommitRegistrationAction;
 import org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction;
@@ -761,7 +763,13 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                 new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
             );
 
-            this.cacheBlobReaderService = new CacheBlobReaderService(settings, cacheService, client, threadPool);
+            this.cacheBlobReaderService = new CacheBlobReaderService(
+                settings,
+                cacheService,
+                client,
+                threadPool,
+                TestUtils.unmeteredFillCacheMemoryPressure(settings, threadPool)
+            );
             this.cacheWarmingService = new SharedBlobCacheWarmingService(
                 cacheService,
                 threadPool,
@@ -984,7 +992,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
 
             if (hasIndexRole) {
                 indexModule.addIndexEventListener(
-                    TestUtils.newStatelessIndexNodeRecoveryListener(
+                    new StatelessIndexNodeRecoveryListener(
                         threadPool,
                         statelessCommitService,
                         objectStoreService,
@@ -1003,7 +1011,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
             }
             if (hasSearchRole) {
                 indexModule.addIndexEventListener(
-                    TestUtils.newStatelessSearchNodeRecoveryListener(
+                    new StatelessSearchNodeRecoveryListener(
                         objectStoreService,
                         new RecoveryCommitRegistrationHandler(client, clusterService),
                         cacheWarmingService,

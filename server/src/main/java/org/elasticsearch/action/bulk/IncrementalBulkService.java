@@ -281,27 +281,13 @@ public class IncrementalBulkService {
         }
 
         /**
-         * Cancels the bulk session task and propagates the cancellation ban to every node holding a
-         * descendant task.
-         *
-         * <p>Stashes the thread context before cancelling. Propagating a cancellation sends
-         * {@code internal:admin/tasks/ban} (and later the matching unban) to peer nodes. Those actions
-         * can never be granted to a user — they must run as the system user. When the bulk timeout
-         * fires, {@link ThreadPool#schedule} preserves the REST caller's context (including any
-         * authentication) into the timeout lambda without the originating-action transient that
-         * would normally cause the security interceptor to swap to the system user. Stashing here
-         * produces a user-less context so the interceptor can swap correctly. The same pattern is
-         * applied in {@link org.elasticsearch.tasks.TaskCancellationService} when sending
-         * {@code internal:admin/tasks/cancel_child}.
-         *
-         * <p>The stash is sufficient for both the ban and the unban: the unban is scheduled via
-         * {@link ThreadContext#preserveContext} on the context active when
-         * {@code cancelTaskAndDescendants} is invoked, so using this stashed context as the base
-         * means the unban inherits a user-less context too.
+         * Stashes the thread context before propagating the cancellation. {@code internal:admin/tasks/ban}
+         * (and its matching unban) can never be granted to a user and must run as the system user.
+         * {@link ThreadPool#schedule} preserves the REST caller's context into the timeout lambda, so
+         * without the stash the security interceptor would deny the ban request. Mirrors
+         * {@link org.elasticsearch.tasks.TaskCancellationService} sending {@code cancel_child}.
          */
         public void cancel(String reason, Runnable listener) {
-            // internal:admin/tasks/ban cannot be granted to a user; stash to let the security
-            // interceptor run it as the system user instead of denying it.
             try (ThreadContext.StoredContext ignored = threadPool.getThreadContext().stashContext()) {
                 taskManager.cancelTaskAndDescendants(bulkSessionTask, reason, false, ActionListener.running(listener));
             }

@@ -2874,6 +2874,59 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         as(readMetrics.child(), EsQueryExec.class);
     }
 
+    public void testBareTimeSeriesImplicitSortAndLimitPushedToSource() {
+        var plan = plannerOptimizerTimeSeries.plan("TS k8s | KEEP @timestamp", EsqlTestUtils.TEST_SEARCH_STATS, timeSeriesAnalyzer);
+        var project = as(plan, ProjectExec.class);
+        var topN = as(project.child(), TopNExec.class);
+        var exchange = as(topN.child(), ExchangeExec.class);
+        var dataNodeProject = as(exchange.child(), ProjectExec.class);
+        var fieldExtract = as(dataNodeProject.child(), FieldExtractExec.class);
+        final EsQueryExec esQueryExec = as(fieldExtract.child(), EsQueryExec.class);
+        assertTrue(esQueryExec.indexMode().isTsdb());
+        final List<EsQueryExec.Sort> sorts = esQueryExec.sorts();
+        assertThat(sorts, not(nullValue()));
+        assertFalse(sorts.isEmpty());
+        assertThat(sorts.getFirst().field().name(), equalTo("@timestamp"));
+        assertThat(sorts.getFirst().direction(), equalTo(Order.OrderDirection.DESC));
+        assertThat(esQueryExec.limit(), not(nullValue()));
+    }
+
+    public void testBareTimeSeriesImplicitSortAndLimitPushedToSourceNoProjection() {
+        var plan = plannerOptimizerTimeSeries.plan("TS k8s", EsqlTestUtils.TEST_SEARCH_STATS, timeSeriesAnalyzer);
+        var topN = as(plan, TopNExec.class);
+        var exchange = as(topN.child(), ExchangeExec.class);
+        var dataNodeProject = as(exchange.child(), ProjectExec.class);
+        var fieldExtract = as(dataNodeProject.child(), FieldExtractExec.class);
+        final EsQueryExec esQueryExec = as(fieldExtract.child(), EsQueryExec.class);
+        assertTrue(esQueryExec.indexMode().isTsdb());
+        final List<EsQueryExec.Sort> sorts = esQueryExec.sorts();
+        assertThat(sorts, not(nullValue()));
+        assertFalse(sorts.isEmpty());
+        assertThat(sorts.getFirst().field().name(), equalTo("@timestamp"));
+        assertThat(sorts.getFirst().direction(), equalTo(Order.OrderDirection.DESC));
+        assertThat(esQueryExec.limit(), not(nullValue()));
+    }
+
+    public void testBareTimeSeriesExplicitAscSortAndLimitPushedToSource() {
+        var plan = plannerOptimizerTimeSeries.plan(
+            "TS k8s | SORT @timestamp ASC | LIMIT 5",
+            EsqlTestUtils.TEST_SEARCH_STATS,
+            timeSeriesAnalyzer
+        );
+        var topN = as(plan, TopNExec.class);
+        var exchange = as(topN.child(), ExchangeExec.class);
+        var dataNodeProject = as(exchange.child(), ProjectExec.class);
+        var fieldExtract = as(dataNodeProject.child(), FieldExtractExec.class);
+        final EsQueryExec esQueryExec = as(fieldExtract.child(), EsQueryExec.class);
+        assertTrue(esQueryExec.indexMode().isTsdb());
+        final List<EsQueryExec.Sort> sorts = esQueryExec.sorts();
+        assertThat(sorts, not(nullValue()));
+        assertFalse(sorts.isEmpty());
+        assertThat(sorts.getFirst().field().name(), equalTo("@timestamp"));
+        assertThat(sorts.getFirst().direction(), equalTo(Order.OrderDirection.ASC));
+        assertThat(esQueryExec.limit(), not(nullValue()));
+    }
+
     /**
      * ProjectExec[[first_name{f}#6]]
      * \_TopNExec[[Order[last_name{f}#9,ASC,LAST]],1000[INTEGER],100]

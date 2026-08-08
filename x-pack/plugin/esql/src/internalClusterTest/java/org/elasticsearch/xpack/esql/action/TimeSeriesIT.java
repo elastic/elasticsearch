@@ -262,6 +262,44 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testBareTimeSeriesImplicitDescSortIsRespected() {
+        try (EsqlQueryResponse resp = run("TS hosts | KEEP @timestamp")) {
+            List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
+            assertThat(rows, hasSize(docs.size()));
+            for (int i = 1; i < rows.size(); i++) {
+                long prev = DEFAULT_DATE_TIME_FORMATTER.parseMillis((String) rows.get(i - 1).getFirst());
+                long curr = DEFAULT_DATE_TIME_FORMATTER.parseMillis((String) rows.get(i).getFirst());
+                assertTrue("expected @timestamp DESC order at row " + i, prev >= curr);
+            }
+        }
+    }
+
+    public void testBareTimeSeriesExplicitLimitIsRespected() {
+        int limit = between(1, docs.size() - 1);
+        try (EsqlQueryResponse resp = run("TS hosts | KEEP @timestamp | LIMIT " + limit)) {
+            List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
+            assertThat(rows, hasSize(limit));
+            for (int i = 1; i < rows.size(); i++) {
+                long prev = DEFAULT_DATE_TIME_FORMATTER.parseMillis((String) rows.get(i - 1).getFirst());
+                long curr = DEFAULT_DATE_TIME_FORMATTER.parseMillis((String) rows.get(i).getFirst());
+                assertTrue("expected @timestamp DESC order at row " + i, prev >= curr);
+            }
+        }
+    }
+
+    public void testBareTimeSeriesExplicitAscSortIsRespected() {
+        int limit = between(1, docs.size() - 1);
+        try (EsqlQueryResponse resp = run("TS hosts | SORT @timestamp ASC | KEEP @timestamp | LIMIT " + limit)) {
+            List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
+            assertThat(rows, hasSize(limit));
+            for (int i = 1; i < rows.size(); i++) {
+                long prev = DEFAULT_DATE_TIME_FORMATTER.parseMillis((String) rows.get(i - 1).getFirst());
+                long curr = DEFAULT_DATE_TIME_FORMATTER.parseMillis((String) rows.get(i).getFirst());
+                assertTrue("expected @timestamp ASC order at row " + i, prev <= curr);
+            }
+        }
+    }
+
     public void testImplicitAggregate() {
         List<String> sortedGroups = docs.stream().map(d -> d.host).distinct().sorted().toList();
         client().admin().indices().prepareRefresh("hosts").get();

@@ -86,6 +86,7 @@ import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.index.ES95CodecClusterSettingProvider;
 import org.elasticsearch.index.IndexSettingProvider;
+import org.elasticsearch.index.RunTableOrdinalClusterSettingProvider;
 import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
@@ -324,7 +325,8 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
     public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders(IndexSettingProvider.Parameters parameters) {
         return List.of(
             new DataStreamIndexSettingsProvider(parameters.mapperServiceFactory(), settings),
-            new ES95CodecClusterSettingProvider(parameters.clusterService().getClusterSettings())
+            new ES95CodecClusterSettingProvider(parameters.clusterService().getClusterSettings()),
+            new RunTableOrdinalClusterSettingProvider(parameters.clusterService().getClusterSettings())
         );
     }
 

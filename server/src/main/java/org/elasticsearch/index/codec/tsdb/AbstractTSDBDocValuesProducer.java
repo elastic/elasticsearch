@@ -65,9 +65,9 @@ import java.util.Arrays;
  * Base class for TSDB doc values producers.
  *
  * <p>Owns the wire-format reading for numeric, binary, sorted, sorted-numeric, and sorted-set
- * doc values. Concrete subclasses construct this class with a {@link NumericBlockCodec} and an
- * {@link OrdinalBlockCodec}; those codecs supply the per-field readers and decoders the wire-format
- * code drives during segment open and value iteration.
+ * doc values. Concrete subclasses construct this class with a {@link NumericBlockCodec}, a
+ * {@link SortedOrdinalCodec}, and a {@link SortedSetOrdinalCodec}; those codecs supply the per-field readers and
+ * decoders the wire-format code drives during segment open and value iteration.
  */
 public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
 
@@ -93,7 +93,8 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
     private final TSDBDocValuesFormatConfig formatConfig;
     private final DocOffsetsCodec.Decoder docOffsetsDecoder;
     private final NumericBlockCodec numericCodec;
-    private final OrdinalBlockCodec ordinalCodec;
+    private final SortedOrdinalCodec sortedCodec;
+    private final SortedSetOrdinalCodec sortedSetCodec;
     private NumericReadContext readContext;
 
     @SuppressWarnings("this-escape")
@@ -108,11 +109,13 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         final TSDBDocValuesFormatConfig formatConfig,
         final DocOffsetsCodec.Decoder docOffsetsDecoder,
         final NumericBlockCodec numericCodec,
-        final OrdinalBlockCodec ordinalCodec
+        final SortedOrdinalCodec sortedCodec,
+        final SortedSetOrdinalCodec sortedSetCodec
     ) throws IOException {
         this.docOffsetsDecoder = docOffsetsDecoder;
         this.numericCodec = numericCodec;
-        this.ordinalCodec = ordinalCodec;
+        this.sortedCodec = sortedCodec;
+        this.sortedSetCodec = sortedSetCodec;
         this.numerics = new IntObjectHashMap<>();
         this.binaries = new IntObjectHashMap<>();
         this.sorted = new IntObjectHashMap<>();
@@ -147,7 +150,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 if (version >= TSDBDocValuesFormatConfig.VERSION_NUMERIC_LARGE_BLOCKS) {
                     blockShift = in.readByte();
                 }
-                this.readContext = new NumericReadContext(1 << blockShift, formatConfig, version);
+                this.readContext = new NumericReadContext(1 << blockShift, formatConfig, version, this);
                 readFields(in, state.fieldInfos, version, blockShift);
                 if (version < TSDBDocValuesFormatConfig.VERSION_SKIPPER_MAX_VALUE_COUNT) {
                     inferMaxValueCounts(state.fieldInfos);
@@ -219,7 +222,8 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
     protected AbstractTSDBDocValuesProducer(final AbstractTSDBDocValuesProducer original) {
         this.docOffsetsDecoder = original.docOffsetsDecoder;
         this.numericCodec = original.numericCodec;
-        this.ordinalCodec = original.ordinalCodec;
+        this.sortedCodec = original.sortedCodec;
+        this.sortedSetCodec = original.sortedSetCodec;
         this.readContext = original.readContext;
         this.numerics = original.numerics;
         this.binaries = original.binaries;
@@ -255,7 +259,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
     @Override
     public NumericDocValues getNumeric(FieldInfo field) throws IOException {
         NumericEntry entry = numerics.get(field.number);
-        return getNumeric(entry, AbstractTSDBDocValuesConsumer.NO_MAX_ORD, field);
+        return getNumeric(entry, AbstractTSDBDocValuesConsumer.NO_MAX_ORD, field, null);
     }
 
     @Override
@@ -1239,7 +1243,8 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
             return DocValues.emptySorted();
         }
 
-        final NumericDocValues ords = getNumeric(entry.ordsEntry, entry.termsDictEntry.termsDictSize, null);
+        final NumericDocValues ords = sortedCodec.createReader(readContext, data, maxDoc)
+            .ordinals(entry.ordsEntry, entry.termsDictEntry.termsDictSize);
         return new BaseSortedDocValues(entry) {
 
             @Override
@@ -1332,7 +1337,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                         BytesRef b = lookupOrd(Math.toIntExact(startValue));
                         return factory.constantBytes(BytesRef.deepCopyOf(b), docCount - offset);
                     }
-                    var ordinalReader = denseOrds.sortedOrdinalReader();
+                    var ordinalReader = denseOrds.rangeOrdinalReader();
                     if (ordinalReader != null) {
                         try (var builder = factory.singletonOrdinalsBuilder(this, docCount - offset, true)) {
                             int docIndex = offset;
@@ -1505,7 +1510,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         }
 
         @Nullable
-        abstract SortedOrdinalReader sortedOrdinalReader();
+        abstract RangeOrdinalReader rangeOrdinalReader();
     }
 
     abstract static class BaseSparseNumericValues extends NumericDocValues implements BlockLoader.OptionalColumnAtATimeReader {
@@ -1836,7 +1841,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
     @Override
     public SortedNumericDocValues getSortedNumeric(FieldInfo field) throws IOException {
         SortedNumericEntry entry = sortedNumerics.get(field.number);
-        return getSortedNumeric(entry, AbstractTSDBDocValuesConsumer.NO_MAX_ORD, field);
+        return getSortedNumeric(entry, AbstractTSDBDocValuesConsumer.NO_MAX_ORD, field, null);
     }
 
     @Override
@@ -1847,7 +1852,8 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         }
 
         SortedNumericEntry ordsEntry = entry.ordsEntry;
-        final SortedNumericDocValues ords = getSortedNumeric(ordsEntry, entry.termsDictEntry.termsDictSize, null);
+        final SortedNumericDocValues ords = sortedSetCodec.createReader(readContext, data, maxDoc)
+            .ordinals(ordsEntry, entry.termsDictEntry.termsDictSize);
         return new BaseSortedSetDocValues(entry, data, merging, formatConfig.termsBlockLz4Shift()) {
 
             int i = 0;
@@ -2169,9 +2175,12 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         numericFieldReader.readFieldEntry(meta, entry, numericBlockShift);
     }
 
-    private void readOrdinalField(IndexInput meta, NumericEntry entry, int numericBlockShift) throws IOException {
-        var ordinalFieldReader = ordinalCodec.createReader(readContext);
-        ordinalFieldReader.readFieldEntry(meta, entry, numericBlockShift);
+    private void readSortedOrdinalField(IndexInput meta, NumericEntry entry, int numericBlockShift) throws IOException {
+        sortedCodec.createReader(readContext, data, maxDoc).readOrdinalMeta(meta, entry, numericBlockShift);
+    }
+
+    private void readSortedSetOrdinalField(IndexInput meta, NumericEntry entry, int numericBlockShift) throws IOException {
+        sortedSetCodec.createReader(readContext, data, maxDoc).readOrdinalMeta(meta, entry, numericBlockShift);
     }
 
     private BinaryEntry readBinary(IndexInput meta, int version) throws IOException {
@@ -2239,8 +2248,11 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
     }
 
     private void readSortedOrdinal(IndexInput meta, SortedNumericEntry entry, int numericBlockShift) throws IOException {
-        readOrdinalField(meta, entry, numericBlockShift);
-        if (entry.numDocsWithField != entry.numValues) {
+        readSortedSetOrdinalField(meta, entry, numericBlockShift);
+        // A run-table SortedSet field (runTableMeta set by the codec's readOrdinalMeta) delimits each doc's
+        // ord slice from its own run columns and writes no addresses table, so it is not read here. The
+        // default layout keeps the value-vs-doc gate exactly as before.
+        if (entry.runTableMeta == null && entry.numDocsWithField != entry.numValues) {
             entry.addressesOffset = meta.readLong();
             final int blockShift = meta.readVInt();
             entry.addressesMeta = DirectMonotonicReader.loadMeta(meta, entry.numDocsWithField + 1, blockShift);
@@ -2255,7 +2267,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         entry.termsDictEntry = new TermsDictEntry();
         if (version >= TSDBDocValuesFormatConfig.VERSION_PREFIX_PARTITIONS) {
             readTermDict(meta, entry.termsDictEntry, termsDictBlockLz4Shift);
-            readOrdinalField(meta, entry.ordsEntry, numericBlockShift);
+            readSortedOrdinalField(meta, entry.ordsEntry, numericBlockShift);
             if (primarySorted && meta.readByte() == 1) {
                 PrefixPartitionedEntry partitioned = new PrefixPartitionedEntry();
                 partitioned.ordsEntry = entry.ordsEntry;
@@ -2266,7 +2278,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 return partitioned;
             }
         } else {
-            readOrdinalField(meta, entry.ordsEntry, numericBlockShift);
+            readSortedOrdinalField(meta, entry.ordsEntry, numericBlockShift);
             readTermDict(meta, entry.termsDictEntry, termsDictBlockLz4Shift);
         }
         return entry;
@@ -2327,12 +2339,10 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         void decode(DataInput input, long[] values) throws IOException;
     }
 
-    private BlockDecoder blockDecoder(NumericEntry entry, long maxOrd) {
+    private BlockDecoder blockDecoder(NumericEntry entry, long maxOrd, OrdinalFieldReader.Decoder ordinalDecoder) {
         if (maxOrd != AbstractTSDBDocValuesConsumer.NO_MAX_ORD) {
             final int bitsPerOrd = PackedInts.bitsRequired(maxOrd - 1);
-            var ordinalFieldReader = ordinalCodec.createReader(readContext);
-            final OrdinalFieldReader.Decoder decoder = ordinalFieldReader.decoder(entry.blockSize);
-            return (input, values) -> decoder.decodeOrdinals(input, values, bitsPerOrd);
+            return (input, values) -> ordinalDecoder.decodeOrdinals(input, values, bitsPerOrd);
         } else {
             var numericFieldReader = numericCodec.createReader(readContext);
             final NumericFieldReader.Decoder decoder = numericFieldReader.decoder(entry.pipelineDescriptor);
@@ -2341,13 +2351,13 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         }
     }
 
-    static final class SortedOrdinalReader {
+    static final class RangeOrdinalReader {
         final long maxOrd;
         final DirectMonotonicReader startDocs;
         private long currentIndex = -1;
         long rangeEndExclusive = -1;
 
-        SortedOrdinalReader(long maxOrd, DirectMonotonicReader startDocs) {
+        RangeOrdinalReader(long maxOrd, DirectMonotonicReader startDocs) {
             this.maxOrd = maxOrd;
             this.startDocs = startDocs;
         }
@@ -2383,7 +2393,31 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         }
     }
 
-    private NumericDocValues getNumeric(NumericEntry entry, long maxOrd, @Nullable FieldInfo fieldInfo) throws IOException {
+    /**
+     * Builds the per-doc ordinal doc values for a {@code Sorted} field. Shared construction the
+     * baseline {@link SortedOrdinalCodec} reader delegates to; {@code ordinalDecoder} is the block decoder
+     * that reader supplies for the field's block size.
+     */
+    NumericDocValues buildSortedOrdinals(NumericEntry entry, long maxOrd, OrdinalFieldReader.Decoder ordinalDecoder) throws IOException {
+        return getNumeric(entry, maxOrd, null, ordinalDecoder);
+    }
+
+    /**
+     * Builds the per-doc ordinal doc values for a multi-valued {@code SortedSet} field. Shared
+     * construction the baseline {@link SortedSetOrdinalCodec} reader delegates to; {@code ordinalDecoder}
+     * is the block decoder that reader supplies for the field's block size.
+     */
+    SortedNumericDocValues buildSortedSetOrdinals(SortedNumericEntry entry, long maxOrd, OrdinalFieldReader.Decoder ordinalDecoder)
+        throws IOException {
+        return getSortedNumeric(entry, maxOrd, null, ordinalDecoder);
+    }
+
+    private NumericDocValues getNumeric(
+        NumericEntry entry,
+        long maxOrd,
+        @Nullable FieldInfo fieldInfo,
+        @Nullable OrdinalFieldReader.Decoder ordinalDecoder
+    ) throws IOException {
         if (entry.docsWithFieldOffset == -2) {
             return DocValues.emptyNumeric();
         }
@@ -2402,7 +2436,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                     }
 
                     @Override
-                    SortedOrdinalReader sortedOrdinalReader() {
+                    RangeOrdinalReader rangeOrdinalReader() {
                         return null;
                     }
                 };
@@ -2437,7 +2471,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         if (entry.docsWithFieldOffset == -1) {
             // dense
             return new BaseDenseNumericValues(maxDoc) {
-                private final BlockDecoder decoder = blockDecoder(entry, maxOrd);
+                private final BlockDecoder decoder = blockDecoder(entry, maxOrd, ordinalDecoder);
                 private long currentBlockIndex = -1;
                 private final long[] currentBlock = new long[numericBlockSize];
                 private long lookaheadBlockIndex = -1;
@@ -2741,7 +2775,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 }
 
                 @Override
-                SortedOrdinalReader sortedOrdinalReader() {
+                RangeOrdinalReader rangeOrdinalReader() {
                     return null;
                 }
             };
@@ -2755,7 +2789,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 entry.numValues
             );
             return new BaseSparseNumericValues(disi) {
-                private final BlockDecoder decoder = blockDecoder(entry, maxOrd);
+                private final BlockDecoder decoder = blockDecoder(entry, maxOrd, ordinalDecoder);
                 private IndexedDISI lookAheadDISI;
                 private long currentBlockIndex = -1;
                 private final long[] currentBlock = new long[numericBlockSize];
@@ -2851,7 +2885,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
     }
 
     private NumericDocValues getRangeEncodedNumericDocValues(NumericEntry entry, long maxOrd) throws IOException {
-        final var ordinalsReader = new SortedOrdinalReader(
+        final var ordinalsReader = new RangeOrdinalReader(
             maxOrd,
             DirectMonotonicReader.getInstance(entry.sortedOrdinals, data.randomAccessSlice(entry.valuesOffset, entry.valuesLength), true)
         );
@@ -2868,7 +2902,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 }
 
                 @Override
-                SortedOrdinalReader sortedOrdinalReader() {
+                RangeOrdinalReader rangeOrdinalReader() {
                     return ordinalsReader;
                 }
             };
@@ -2890,7 +2924,8 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         }
     }
 
-    private NumericValues getValues(NumericEntry entry, final long maxOrd) throws IOException {
+    private NumericValues getValues(NumericEntry entry, final long maxOrd, @Nullable OrdinalFieldReader.Decoder ordinalDecoder)
+        throws IOException {
         assert entry.numValues > 0;
         final RandomAccessInput indexSlice = data.randomAccessSlice(entry.indexOffset, entry.indexLength);
         final DirectMonotonicReader indexReader = DirectMonotonicReader.getInstance(entry.indexMeta, indexSlice, merging);
@@ -2902,7 +2937,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         final int numericBlockMask = numericBlockSize - 1;
         final long[] currentBlockIndex = { -1 };
         final long[] currentBlock = new long[numericBlockSize];
-        final BlockDecoder decoder = blockDecoder(entry, maxOrd);
+        final BlockDecoder decoder = blockDecoder(entry, maxOrd, ordinalDecoder);
         return index -> {
             final long blockIndex = index >>> numericBlockShift;
             final int blockInIndex = (int) (index & numericBlockMask);
@@ -2917,10 +2952,14 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         };
     }
 
-    private SortedNumericDocValues getSortedNumeric(SortedNumericEntry entry, long maxOrd, @Nullable FieldInfo fieldInfo)
-        throws IOException {
+    private SortedNumericDocValues getSortedNumeric(
+        SortedNumericEntry entry,
+        long maxOrd,
+        @Nullable FieldInfo fieldInfo,
+        @Nullable OrdinalFieldReader.Decoder ordinalDecoder
+    ) throws IOException {
         if (entry.numValues == entry.numDocsWithField) {
-            return DocValues.singleton(getNumeric(entry, maxOrd, fieldInfo));
+            return DocValues.singleton(getNumeric(entry, maxOrd, fieldInfo, ordinalDecoder));
         }
 
         final RandomAccessInput addressesInput = data.randomAccessSlice(entry.addressesOffset, entry.addressesLength);
@@ -2931,7 +2970,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
             NumericDocValues values = getRangeEncodedNumericDocValues(entry, maxOrd);
             return DocValues.singleton(values);
         }
-        final NumericValues values = getValues(entry, maxOrd);
+        final NumericValues values = getValues(entry, maxOrd, ordinalDecoder);
 
         if (entry.docsWithFieldOffset == -1) {
             // dense
@@ -3109,6 +3148,9 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         // the numeric block shift header byte, used by ES819 entries and ordinal-stream
         // entries that have no pipeline descriptor.
         public int blockSize;
+        // TODO: type this as the concrete Meta record once this moves out of POC — Object avoids a
+        // dependency from the base package on the es95 run-table package; the reader that set it casts it back.
+        public Object runTableMeta;
     }
 
     static class BinaryEntry {

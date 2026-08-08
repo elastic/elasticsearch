@@ -70,7 +70,9 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
             ES95TSDBDocValuesFormat.BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT,
             NumericCodecFactory.DEFAULT,
             ES95NumericFieldReader::defaultFallbackDecoder,
-            null
+            null,
+            new RunTableSortedCodec(new ES95SortedCodec()),
+            new RunTableSortedSetCodec(new ES95SortedSetCodec())
         );
 
         @Override
@@ -314,7 +316,9 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
                     ES95TSDBDocValuesFormat.BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT,
                     NumericCodecFactory.DEFAULT,
                     ES95NumericFieldReader::defaultFallbackDecoder,
-                    null
+                    null,
+                    new RunTableSortedCodec(new ES95SortedCodec()),
+                    new RunTableSortedSetCodec(new ES95SortedSetCodec())
                 );
                 try (IndexWriter writer = new IndexWriter(dir, writerConfig(format))) {
                     for (int i = 0; i < numDocs; i++) {
@@ -552,7 +556,9 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
             blockSize -> (input, values, count) -> {
                 throw new AssertionError("fallback decoder should not be reached for pipeline-encoded numeric fields");
             },
-            null
+            null,
+            new RunTableSortedCodec(new ES95SortedCodec()),
+            new RunTableSortedSetCodec(new ES95SortedSetCodec())
         );
 
         final int numDocs = ESTestCase.randomIntBetween(128, 4096);
@@ -1240,7 +1246,9 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
             ES95TSDBDocValuesFormat.BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT,
             NumericCodecFactory.DEFAULT,
             ES95NumericFieldReader::defaultFallbackDecoder,
-            null
+            null,
+            new RunTableSortedCodec(new ES95SortedCodec()),
+            new RunTableSortedSetCodec(new ES95SortedSetCodec())
         );
     }
 
@@ -1254,7 +1262,7 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
             } else {
                 blockSize = defaultBlockSize;
             }
-            return new FieldContext(blockSize, fieldName, null, null);
+            return new FieldContext(blockSize, fieldName, null, null, false);
         };
         return new ES95TSDBDocValuesFormat(
             DEFAULT_SKIP_INDEX_INTERVAL_SIZE,
@@ -1268,7 +1276,9 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
             ES95TSDBDocValuesFormat.BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT,
             NumericCodecFactory.DEFAULT,
             ES95NumericFieldReader::defaultFallbackDecoder,
-            perFieldResolver
+            perFieldResolver,
+            new RunTableSortedCodec(new ES95SortedCodec()),
+            new RunTableSortedSetCodec(new ES95SortedSetCodec())
         );
     }
 
@@ -1288,15 +1298,15 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
 
     private static final FieldContextResolver ROLE_RESOLVER = (fieldName, blockSize) -> {
         if (DOUBLE_GAUGE_FIELD.equals(fieldName)) {
-            return new FieldContext(blockSize, fieldName, DataType.DOUBLE, MetricRole.GAUGE);
+            return new FieldContext(blockSize, fieldName, DataType.DOUBLE, MetricRole.GAUGE, false);
         }
         if (DOUBLE_COUNTER_FIELD.equals(fieldName)) {
-            return new FieldContext(blockSize, fieldName, DataType.DOUBLE, MetricRole.COUNTER);
+            return new FieldContext(blockSize, fieldName, DataType.DOUBLE, MetricRole.COUNTER, false);
         }
         if (LONG_COUNTER_FIELD.equals(fieldName)) {
-            return new FieldContext(blockSize, fieldName, DataType.LONG, MetricRole.COUNTER);
+            return new FieldContext(blockSize, fieldName, DataType.LONG, MetricRole.COUNTER, false);
         }
-        return new FieldContext(blockSize, fieldName, null, null);
+        return new FieldContext(blockSize, fieldName, null, null, false);
     };
 
     private void assertDoubleRoundTrip(final String field, int blockShift, final double[] values) throws IOException {
@@ -1400,7 +1410,7 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
         final DataType dataType,
         final MetricRole metricRole
     ) {
-        final FieldContext context = new FieldContext(1 << blockShift, fieldName, dataType, metricRole);
+        final FieldContext context = new FieldContext(1 << blockShift, fieldName, dataType, metricRole, false);
         assertEquals(expectedStages, StaticPipelineConfigResolver.INSTANCE.resolve(context).describeStages());
     }
 
@@ -1457,7 +1467,9 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
             blockSize -> (input, values, count) -> {
                 throw new AssertionError("fallback decoder should not be reached for pipeline-encoded numeric fields");
             },
-            ROLE_RESOLVER
+            ROLE_RESOLVER,
+            new RunTableSortedCodec(new ES95SortedCodec()),
+            new RunTableSortedSetCodec(new ES95SortedSetCodec())
         );
     }
 

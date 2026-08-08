@@ -100,6 +100,7 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.MergePolicyConfig;
+import org.elasticsearch.index.RunTableOrdinalClusterSettingProvider;
 import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
 import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
 import org.elasticsearch.index.search.stats.SearchStatsSettings;
@@ -479,6 +480,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         IndexSettings.QUERY_STRING_ANALYZE_WILDCARD,
         IndexSettings.QUERY_STRING_ALLOW_LEADING_WILDCARD,
         ES95CodecClusterSettingProvider.TIME_SERIES_ES95_CODEC_CLUSTER_ENABLED_SETTING,
+        RunTableOrdinalClusterSettingProvider.TIME_SERIES_RUN_TABLE_ORDINAL_CLUSTER_ENABLED_SETTING,
         ScriptService.SCRIPT_CACHE_SIZE_SETTING,
         ScriptService.SCRIPT_CACHE_EXPIRE_SETTING,
         ScriptService.SCRIPT_DISABLE_MAX_COMPILATIONS_RATE_SETTING,

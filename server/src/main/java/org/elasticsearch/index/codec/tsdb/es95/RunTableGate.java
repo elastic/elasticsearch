@@ -54,6 +54,18 @@ final class RunTableGate {
         if (field.number == primarySortFieldNumber) {
             return false;
         }
+        // NOTE: The isDimension() check is a policy gate, not a correctness requirement. Both
+        // mid-scan checks are structurally general: they measure actual run density and bail early
+        // when the ordinal stream is not run-shaped, regardless of field type or index mode. Any
+        // sorted index whose non-primary-sort fields cluster by value (logs sorted by
+        // host+@timestamp, any custom-sorted keyword index) exhibits the same piecewise-constant
+        // structure the run table exploits. This gate exists because without it every sorted field
+        // starts a doc walk, paying a re-read fallback cost when ordinals are not run-shaped and
+        // adding a per-field discriminator byte regardless. Restricting to TSDB dimensions keeps
+        // the fallback rate near zero because those fields are structurally guaranteed to be
+        // run-shaped in a TSDB segment. To generalize, replace this check with a broader pre-walk
+        // signal (cardinality-to-doc ratio, index sort configuration, or field-level statistics)
+        // that bounds the fallback rate without relying on the TSDB dimension predicate.
         if (resolver == null || resolver.resolve(field.name, 0).isDimension() == false) {
             return false;
         }

@@ -75,7 +75,6 @@ import org.elasticsearch.xpack.inference.services.custom.response.NoopResponsePa
 import org.elasticsearch.xpack.inference.services.custom.response.RerankResponseParser;
 import org.elasticsearch.xpack.inference.services.custom.response.SparseEmbeddingResponseParser;
 import org.elasticsearch.xpack.inference.services.deepseek.DeepSeekServiceSettings;
-import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceChatCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankServiceSettings;
@@ -137,7 +136,11 @@ import org.elasticsearch.xpack.inference.services.openshiftai.rerank.OpenShiftAi
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModel;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerSchemas;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
-import org.elasticsearch.xpack.inference.services.settings.ImmutableEmptyTaskSettings;
+import org.elasticsearch.xpack.inference.services.tencentcloud.completion.TencentCloudChatCompletionServiceSettings;
+import org.elasticsearch.xpack.inference.services.tencentcloud.embeddings.TencentCloudEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.tencentcloud.embeddings.TencentCloudEmbeddingsTaskSettings;
+import org.elasticsearch.xpack.inference.services.tencentcloud.rerank.TencentCloudRerankServiceSettings;
+import org.elasticsearch.xpack.inference.services.tencentcloud.rerank.TencentCloudRerankTaskSettings;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsTaskSettings;
 import org.elasticsearch.xpack.inference.services.voyageai.rerank.VoyageAIRerankServiceSettings;
@@ -162,9 +165,6 @@ public class InferenceNamedWriteablesProvider {
 
         // Empty default task settings
         namedWriteables.add(new NamedWriteableRegistry.Entry(TaskSettings.class, EmptyTaskSettings.NAME, EmptyTaskSettings::new));
-        namedWriteables.add(
-            new NamedWriteableRegistry.Entry(TaskSettings.class, ImmutableEmptyTaskSettings.NAME, ImmutableEmptyTaskSettings::new)
-        );
 
         // Empty default secret settings
         namedWriteables.add(new NamedWriteableRegistry.Entry(SecretSettings.class, EmptySecretSettings.NAME, EmptySecretSettings::new));
@@ -200,6 +200,7 @@ public class InferenceNamedWriteablesProvider {
         addNvidiaNamedWriteables(namedWriteables);
         addFireworksAiNamedWriteables(namedWriteables);
         addDeepSeekNamedWriteables(namedWriteables);
+        addTencentCloudNamedWriteables(namedWriteables);
 
         addUnifiedNamedWriteables(namedWriteables);
 
@@ -226,6 +227,40 @@ public class InferenceNamedWriteablesProvider {
     private static void addDeepSeekNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(ServiceSettings.class, DeepSeekServiceSettings.NAME, DeepSeekServiceSettings::new)
+        );
+    }
+
+    private static void addTencentCloudNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                TencentCloudEmbeddingsServiceSettings.NAME,
+                TencentCloudEmbeddingsServiceSettings::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                TaskSettings.class,
+                TencentCloudEmbeddingsTaskSettings.NAME,
+                TencentCloudEmbeddingsTaskSettings::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                TencentCloudChatCompletionServiceSettings.NAME,
+                TencentCloudChatCompletionServiceSettings::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                TencentCloudRerankServiceSettings.NAME,
+                TencentCloudRerankServiceSettings::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(TaskSettings.class, TencentCloudRerankTaskSettings.NAME, TencentCloudRerankTaskSettings::new)
         );
     }
 
@@ -976,13 +1011,6 @@ public class InferenceNamedWriteablesProvider {
                 ServiceSettings.class,
                 ElasticInferenceServiceCompletionServiceSettings.NAME,
                 ElasticInferenceServiceCompletionServiceSettings::new
-            )
-        );
-        namedWriteables.add(
-            new NamedWriteableRegistry.Entry(
-                TaskSettings.class,
-                ElasticInferenceServiceChatCompletionTaskSettings.NAME,
-                ElasticInferenceServiceChatCompletionTaskSettings::new
             )
         );
 

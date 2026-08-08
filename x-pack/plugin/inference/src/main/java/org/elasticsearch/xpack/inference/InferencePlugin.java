@@ -204,6 +204,7 @@ import org.elasticsearch.xpack.inference.services.sagemaker.SageMakerService;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerConfiguration;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModelBuilder;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerSchemas;
+import org.elasticsearch.xpack.inference.services.tencentcloud.TencentCloudService;
 import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIService;
 import org.elasticsearch.xpack.inference.vectors.EmbeddingQueryVectorBuilder;
 
@@ -655,6 +656,7 @@ public class InferencePlugin extends Plugin
             context -> new JinaAIService(httpFactory.get(), serviceComponents.get(), context),
             context -> new VoyageAIService(httpFactory.get(), serviceComponents.get(), context),
             context -> new DeepSeekService(httpFactory.get(), serviceComponents.get(), context),
+            context -> new TencentCloudService(httpFactory.get(), serviceComponents.get(), context),
             context -> new LlamaService(httpFactory.get(), serviceComponents.get(), context),
             context -> new Ai21Service(httpFactory.get(), serviceComponents.get(), context),
             context -> new OpenShiftAiService(httpFactory.get(), serviceComponents.get(), context),

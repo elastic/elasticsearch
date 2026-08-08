@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.upgrades;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -35,27 +37,31 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
+public class MlMappingsUpgradeIT extends AbstractXpackRollingUpgradeTestCase {
 
     private static final String JOB_ID = "ml-mappings-upgrade-job";
+
+    public MlMappingsUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
+        super(upgradedNodes);
+    }
 
     /**
      * Mirrors {@code MlIndexTemplateRegistry#ML_INDEX_TEMPLATE_VERSION}; kept here because rolling-upgrade
      * tests cannot depend on the ML plugin module.
      */
-    private static final int ML_INDEX_TEMPLATE_VERSION = 10000003 + AnomalyDetectorsIndex.RESULTS_INDEX_MAPPINGS_VERSION
+    private static final int ML_INDEX_TEMPLATE_VERSION = 10000002 + AnomalyDetectorsIndex.RESULTS_INDEX_MAPPINGS_VERSION
         + NotificationsIndex.NOTIFICATIONS_INDEX_MAPPINGS_VERSION + MlStatsIndex.STATS_INDEX_MAPPINGS_VERSION
         + NotificationsIndex.NOTIFICATIONS_INDEX_TEMPLATE_VERSION;
 
     @BeforeClass
     public static void maybeSkip() {
-        assumeFalse("Skip ML tests on unsupported glibc versions", SKIP_ML_TESTS);
+        assumeFalse("Skip ML tests on unsupported glibc versions", skipMlTests());
     }
 
     @Override
     protected Collection<String> templatesToWaitFor() {
         // We shouldn't wait for ML templates during the upgrade - production won't
-        if (CLUSTER_TYPE != ClusterType.OLD) {
+        if (isOldCluster() == false) {
             return super.templatesToWaitFor();
         }
         return Stream.concat(XPackRestTestConstants.ML_POST_V7120_TEMPLATES.stream(), super.templatesToWaitFor().stream())
@@ -68,40 +74,36 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
      */
     public void testMappingsUpgrade() throws Exception {
 
-        switch (CLUSTER_TYPE) {
-            case OLD:
-                createAndOpenTestJob();
-                break;
-            case MIXED:
-                // We don't know whether the job is on an old or upgraded node, so cannot assert that the mappings have been upgraded
-                break;
-            case UPGRADED:
-                assertUpgradedResultsMappings();
-                assertUpgradedAnnotationsMappings();
-                closeAndReopenTestJob();
-                assertUpgradedConfigMappings();
-                assertMlLegacyTemplatesDeleted();
-                IndexMappingTemplateAsserter.assertMlMappingsMatchTemplates(client());
-                assertNotificationsIndexAliasCreated();
-                assertBusy(
-                    () -> IndexMappingTemplateAsserter.assertTemplateVersionAndPattern(
-                        client(),
-                        ".ml-anomalies-",
-                        ML_INDEX_TEMPLATE_VERSION,
-                        List.of(".ml-anomalies-*", ".reindexed-v7-ml-anomalies-*", ".reindexed-v8-ml-anomalies-*")
-                    )
-                );
-                assertBusy(
-                    () -> IndexMappingTemplateAsserter.assertTemplateVersionAndPattern(
-                        client(),
-                        ".ml-state",
-                        ML_INDEX_TEMPLATE_VERSION,
-                        Arrays.asList(AnomalyDetectorsIndex.jobStateIndexPatterns())
-                    )
-                );
-                break;
-            default:
-                throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
+        if (isOldCluster()) {
+            createAndOpenTestJob();
+        } else if (isMixedCluster()) {
+            // We don't know whether the job is on an old or upgraded node, so cannot assert that the mappings have been upgraded
+        } else if (isUpgradedCluster()) {
+            assertUpgradedResultsMappings();
+            assertUpgradedAnnotationsMappings();
+            closeAndReopenTestJob();
+            assertUpgradedConfigMappings();
+            assertMlLegacyTemplatesDeleted();
+            IndexMappingTemplateAsserter.assertMlMappingsMatchTemplates(client());
+            assertNotificationsIndexAliasCreated();
+            assertBusy(
+                () -> IndexMappingTemplateAsserter.assertTemplateVersionAndPattern(
+                    client(),
+                    ".ml-anomalies-",
+                    ML_INDEX_TEMPLATE_VERSION,
+                    List.of(".ml-anomalies-*", ".reindexed-v7-ml-anomalies-*")
+                )
+            );
+            assertBusy(
+                () -> IndexMappingTemplateAsserter.assertTemplateVersionAndPattern(
+                    client(),
+                    ".ml-state",
+                    ML_INDEX_TEMPLATE_VERSION,
+                    Arrays.asList(AnomalyDetectorsIndex.jobStateIndexPatterns())
+                )
+            );
+        } else {
+            throw new AssertionError("Unknown cluster type");
         }
     }
 
@@ -299,13 +301,13 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
             Response response = client().performRequest(getMappings);
             Map<String, Object> responseMap = entityAsMap(response);
             assertThat(responseMap.entrySet(), hasSize(1));
-            var aliases = (Map<String, Object>) responseMap.get(".ml-notifications-000002");
+            Map<String, Object> aliases = (Map<String, Object>) responseMap.get(".ml-notifications-000002");
             assertThat(aliases.entrySet(), hasSize(1));
-            var allAliases = (Map<String, Object>) aliases.get("aliases");
-            var writeAlias = (Map<String, Object>) allAliases.get(".ml-notifications-write");
+            Map<String, Object> allAliases = (Map<String, Object>) aliases.get("aliases");
+            Map<String, Object> writeAlias = (Map<String, Object>) allAliases.get(".ml-notifications-write");
 
             assertThat(writeAlias, hasEntry("is_hidden", Boolean.TRUE));
-            var isWriteIndex = (Boolean) writeAlias.get("is_write_index");
+            Boolean isWriteIndex = (Boolean) writeAlias.get("is_write_index");
             assertThat(isWriteIndex, anyOf(is(Boolean.TRUE), nullValue()));
         });
     }

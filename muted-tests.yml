@@ -17,6 +17,9 @@ tests:
 - class: org.elasticsearch.xpack.analytics.cumulativecardinality.CumulativeCardinalityAggregatorTests
   method: testSimple
   issue: https://github.com/elastic/elasticsearch/issues/142408
+- class: org.elasticsearch.xpack.esql.common.spatial.H3SphericalGeometryTests
+  method: testIndexPoints
+  issue: https://github.com/elastic/elasticsearch/issues/142439
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test {feature:METRICS}
   issue: https://github.com/elastic/elasticsearch/issues/155496
@@ -316,7 +319,7 @@ tests:
 - class: org.elasticsearch.upgrades.MLModelDeploymentsUpgradeIT
   method: testTrainedModelDeployment
   issue: https://github.com/elastic/elasticsearch/issues/153416
-- class: org.elasticsearch.upgrades.IndexingIT
+- class: org.elasticsearch.upgrades.XpackIndexingIT
   method: testIndexing
   issue: https://github.com/elastic/elasticsearch/issues/140728
 - class: org.elasticsearch.upgrades.MlAssignmentPlannerUpgradeIT

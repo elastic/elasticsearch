@@ -6,21 +6,17 @@
  */
 package org.elasticsearch.upgrades;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
-import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.elasticsearch.xpack.test.rest.XPackRestTestConstants;
 import org.elasticsearch.xpack.test.rest.XPackRestTestHelper;
 import org.junit.Before;
 
-import java.nio.charset.StandardCharsets;
-import java.util.Base64;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -28,7 +24,34 @@ import java.util.concurrent.TimeUnit;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
-public class UpgradeClusterClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
+public class UpgradeClusterClientYamlTestSuiteIT extends AbstractXpackYamlRollingUpgradeTestCase {
+
+    public UpgradeClusterClientYamlTestSuiteIT(@Name("upgradedNodes") int upgradedNodes, ClientYamlTestCandidate testCandidate) {
+        super(upgradedNodes, testCandidate);
+    }
+
+    /**
+     * Builds the cross product of {@code upgradedNodes} (0..3, mirroring the old
+     * oldClusterTest/oneThirdUpgradedTest/twoThirdsUpgradedTest/upgradedClusterTest Gradle tasks) and the YAML
+     * test candidates from the corresponding resource directory.
+     */
+    @ParametersFactory(shuffle = false)
+    public static Iterable<Object[]> parameters() throws Exception {
+        List<Object[]> parameters = new ArrayList<>();
+        for (Object[] testCandidate : createParameters("old_cluster")) {
+            parameters.add(new Object[] { 0, testCandidate[0] });
+        }
+        for (Object[] testCandidate : createParameters("mixed_cluster")) {
+            parameters.add(new Object[] { 1, testCandidate[0] });
+        }
+        for (Object[] testCandidate : createParameters("mixed_cluster")) {
+            parameters.add(new Object[] { 2, testCandidate[0] });
+        }
+        for (Object[] testCandidate : createParameters("upgraded_cluster")) {
+            parameters.add(new Object[] { 3, testCandidate[0] });
+        }
+        return parameters;
+    }
 
     /**
      * Waits for the Machine Learning templates to be created by {@link org.elasticsearch.plugins.MetadataUpgrader}.
@@ -37,7 +60,7 @@ public class UpgradeClusterClientYamlTestSuiteIT extends ESClientYamlSuiteTestCa
      */
     @Before
     public void waitForTemplates() throws Exception {
-        if (AbstractUpgradeTestCase.CLUSTER_TYPE == AbstractUpgradeTestCase.ClusterType.OLD) {
+        if (isOldCluster()) {
             try {
                 XPackRestTestHelper.waitForTemplates(client(), XPackRestTestConstants.ML_POST_V7120_TEMPLATES);
             } catch (AssertionError e) {
@@ -64,71 +87,5 @@ public class UpgradeClusterClientYamlTestSuiteIT extends ESClientYamlSuiteTestCa
         } catch (AssertionError e) {
             throw new AssertionError("Failure in test setup: Failed to initialize at least 3 watcher nodes", e);
         }
-    }
-
-    @Override
-    protected boolean resetFeatureStates() {
-        return false;
-    }
-
-    @Override
-    protected boolean preserveIndicesUponCompletion() {
-        return true;
-    }
-
-    @Override
-    protected boolean preserveTemplatesUponCompletion() {
-        return true;
-    }
-
-    @Override
-    protected boolean preserveRollupJobsUponCompletion() {
-        return true;
-    }
-
-    @Override
-    protected boolean preserveILMPoliciesUponCompletion() {
-        return true;
-    }
-
-    @Override
-    protected boolean preserveDataStreamsUponCompletion() {
-        return true;
-    }
-
-    @Override
-    protected boolean preserveReposUponCompletion() {
-        return true;
-    }
-
-    @Override
-    protected boolean preserveSnapshotsUponCompletion() {
-        return true;
-    }
-
-    @Override
-    protected boolean preserveSearchableSnapshotsIndicesUponCompletion() {
-        return true;
-    }
-
-    public UpgradeClusterClientYamlTestSuiteIT(ClientYamlTestCandidate testCandidate) {
-        super(testCandidate);
-    }
-
-    @ParametersFactory
-    public static Iterable<Object[]> parameters() throws Exception {
-        return createParameters();
-    }
-
-    @Override
-    protected Settings restClientSettings() {
-        String token = "Basic " + Base64.getEncoder().encodeToString(("test_user:x-pack-test-password").getBytes(StandardCharsets.UTF_8));
-        return Settings.builder()
-            .put(ThreadContext.PREFIX + ".Authorization", token)
-            // we increase the timeout here to 90 seconds to handle long waits for a green
-            // cluster health. the waits for green need to be longer than a minute to
-            // account for delayed shards
-            .put(ESRestTestCase.CLIENT_SOCKET_TIMEOUT, "90s")
-            .build();
     }
 }

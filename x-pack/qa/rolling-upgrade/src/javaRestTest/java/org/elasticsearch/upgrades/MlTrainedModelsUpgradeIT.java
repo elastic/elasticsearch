@@ -7,6 +7,8 @@
 
 package org.elasticsearch.upgrades;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -28,7 +30,11 @@ import java.util.stream.Stream;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class MlTrainedModelsUpgradeIT extends AbstractUpgradeTestCase {
+public class MlTrainedModelsUpgradeIT extends AbstractXpackRollingUpgradeTestCase {
+
+    public MlTrainedModelsUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
+        super(upgradedNodes);
+    }
 
     static final String BOOLEAN_FIELD = "boolean-field";
     static final String NUMERICAL_FIELD = "numerical-field";
@@ -42,13 +48,13 @@ public class MlTrainedModelsUpgradeIT extends AbstractUpgradeTestCase {
 
     @BeforeClass
     public static void maybeSkip() {
-        assumeFalse("Skip ML tests on unsupported glibc versions", SKIP_ML_TESTS);
+        assumeFalse("Skip ML tests on unsupported glibc versions", skipMlTests());
     }
 
     @Override
     protected Collection<String> templatesToWaitFor() {
         // We shouldn't wait for ML templates during the upgrade - production won't
-        if (CLUSTER_TYPE != ClusterType.OLD) {
+        if (isOldCluster() == false) {
             return super.templatesToWaitFor();
         }
         return Stream.concat(XPackRestTestConstants.ML_POST_V7120_TEMPLATES.stream(), super.templatesToWaitFor().stream())
@@ -56,25 +62,23 @@ public class MlTrainedModelsUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     public void testTrainedModelInference() throws Exception {
-        switch (CLUSTER_TYPE) {
-            case OLD -> {
-                createIndexWithName(INDEX_NAME);
-                indexData(INDEX_NAME, 1000);
-                createAndRunClassificationJob("classification-upgrade-job");
-                createAndRunRegressionJob();
-                List<String> oldModels = getTrainedModels();
-                createPipelines(oldModels);
-                testInfer(oldModels);
-            }
-            case MIXED, UPGRADED -> {
-                ensureYellowAndNoInitializingShards(".ml-inference-*,.ml-config*", "120s");
-                List<String> modelIds = getTrainedModels();
-                // Test that stats are serializable and can be gathered
-                getTrainedModelStats();
-                // Verify that the pipelines still work and inference is possible
-                testInfer(modelIds);
-            }
-            default -> throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
+        if (isOldCluster()) {
+            createIndexWithName(INDEX_NAME);
+            indexData(INDEX_NAME, 1000);
+            createAndRunClassificationJob("classification-upgrade-job");
+            createAndRunRegressionJob();
+            List<String> oldModels = getTrainedModels();
+            createPipelines(oldModels);
+            testInfer(oldModels);
+        } else if (isMixedCluster() || isUpgradedCluster()) {
+            ensureYellowAndNoInitializingShards(".ml-inference-*,.ml-config*", "120s");
+            List<String> modelIds = getTrainedModels();
+            // Test that stats are serializable and can be gathered
+            getTrainedModelStats();
+            // Verify that the pipelines still work and inference is possible
+            testInfer(modelIds);
+        } else {
+            throw new AssertionError("Unknown cluster type");
         }
     }
 

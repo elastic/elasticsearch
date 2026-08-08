@@ -7,6 +7,8 @@
 
 package org.elasticsearch.upgrades;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -22,7 +24,11 @@ import java.util.Map;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 
-public class DiskBBQVectorSearchIT extends AbstractUpgradeTestCase {
+public class DiskBBQVectorSearchIT extends AbstractXpackRollingUpgradeTestCase {
+
+    public DiskBBQVectorSearchIT(@Name("upgradedNodes") int upgradedNodes) {
+        super(upgradedNodes);
+    }
 
     private static final String BBQ_DISK_SUPPORT_FEATURE = "mapper.bbq_disk_support";
     private static final String ES940_DISK_BBQ_FEATURE = "mapper.es940_disk_bbq";
@@ -31,7 +37,7 @@ public class DiskBBQVectorSearchIT extends AbstractUpgradeTestCase {
     private static final int[] SUPPORTED_BITS = new int[] { 1, 2, 4, 7 };
 
     public void testSingleBitDiskBBQVectorSearch() throws Exception {
-        if (CLUSTER_TYPE == ClusterType.OLD) {
+        if (isOldCluster()) {
             assumeTrue("DiskBBQ vector format is not supported on this version", clusterSupportsFeature(BBQ_DISK_SUPPORT_FEATURE));
             String mapping = """
                 {
@@ -60,7 +66,7 @@ public class DiskBBQVectorSearchIT extends AbstractUpgradeTestCase {
     }
 
     public void testDiskBBQVectorSearchWithExplicitBits() throws Exception {
-        if (CLUSTER_TYPE == ClusterType.OLD) {
+        if (isOldCluster()) {
             assumeTrue("DiskBBQ bits are not supported on this version", clusterSupportsFeature(ES940_DISK_BBQ_FEATURE));
             for (int bits : SUPPORTED_BITS) {
                 String mapping = String.format(Locale.ROOT, """
@@ -173,7 +179,7 @@ public class DiskBBQVectorSearchIT extends AbstractUpgradeTestCase {
     }
 
     private boolean clusterSupportsFeature(String feature) throws IOException {
-        return collectNodeInfos(adminClient()).stream().allMatch(node -> node.supportsFeature(feature));
+        return NodeInfo.getAll(adminClient()).stream().allMatch(node -> node.supportsFeature(feature));
     }
 
     private boolean indexExistsOnCluster(String indexName) throws IOException {

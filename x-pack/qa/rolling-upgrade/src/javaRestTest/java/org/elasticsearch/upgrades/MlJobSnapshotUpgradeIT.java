@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.upgrades;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
@@ -39,19 +41,23 @@ import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
-public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
+public class MlJobSnapshotUpgradeIT extends AbstractXpackRollingUpgradeTestCase {
 
     private static final String JOB_ID = "ml-snapshots-upgrade-job";
 
+    public MlJobSnapshotUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
+        super(upgradedNodes);
+    }
+
     @BeforeClass
     public static void maybeSkip() {
-        assumeFalse("Skip ML tests on unsupported glibc versions", SKIP_ML_TESTS);
+        assumeFalse("Skip ML tests on unsupported glibc versions", skipMlTests());
     }
 
     @Override
     protected Collection<String> templatesToWaitFor() {
         // We shouldn't wait for ML templates during the upgrade - production won't
-        if (CLUSTER_TYPE != ClusterType.OLD) {
+        if (isOldCluster() == false) {
             return super.templatesToWaitFor();
         }
         return Stream.concat(XPackRestTestConstants.ML_POST_V7120_TEMPLATES.stream(), super.templatesToWaitFor().stream())
@@ -71,32 +77,31 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
         adjustLoggingLevels.setJsonEntity("""
             {"persistent": {"logger.org.elasticsearch.xpack.ml": "trace"}}""");
         client().performRequest(adjustLoggingLevels);
-        switch (CLUSTER_TYPE) {
-            case OLD -> createJobAndSnapshots();
-            case MIXED -> {
-                assumeTrue("We should only test if old cluster is before new cluster", isOriginalClusterCurrent() == false);
-                assumeTrue(
-                    "Older versions could not always reliably determine if we were in a mixed cluster state",
-                    Version.fromString(UPGRADE_FROM_VERSION).onOrAfter(Version.V_9_3_0)
-                );
-                ensureHealth((request -> {
-                    request.addParameter("timeout", "70s");
-                    request.addParameter("wait_for_nodes", "3");
-                    request.addParameter("wait_for_status", "yellow");
-                }));
-                testSnapshotUpgradeFailsOnMixedCluster();
-            }
-            case UPGRADED -> {
-                assumeTrue("We should only test if old cluster is before new cluster", isOriginalClusterCurrent() == false);
-                ensureHealth((request -> {
-                    request.addParameter("timeout", "70s");
-                    request.addParameter("wait_for_nodes", "3");
-                    request.addParameter("wait_for_status", "yellow");
-                }));
-                testSnapshotUpgrade();
-                waitForPendingUpgraderTasks();
-            }
-            default -> throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
+        if (isOldCluster()) {
+            createJobAndSnapshots();
+        } else if (isMixedCluster()) {
+            assumeTrue("We should only test if old cluster is before new cluster", isOriginalClusterCurrent() == false);
+            assumeTrue(
+                "Older versions could not always reliably determine if we were in a mixed cluster state",
+                Version.fromString(getOldClusterVersion()).onOrAfter(Version.V_9_3_0)
+            );
+            ensureHealth((request -> {
+                request.addParameter("timeout", "70s");
+                request.addParameter("wait_for_nodes", "3");
+                request.addParameter("wait_for_status", "yellow");
+            }));
+            testSnapshotUpgradeFailsOnMixedCluster();
+        } else if (isUpgradedCluster()) {
+            assumeTrue("We should only test if old cluster is before new cluster", isOriginalClusterCurrent() == false);
+            ensureHealth((request -> {
+                request.addParameter("timeout", "70s");
+                request.addParameter("wait_for_nodes", "3");
+                request.addParameter("wait_for_status", "yellow");
+            }));
+            testSnapshotUpgrade();
+            waitForPendingUpgraderTasks();
+        } else {
+            throw new AssertionError("Unknown cluster type");
         }
     }
 
@@ -162,14 +167,14 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
         assertThat(upgradedSnapshot.get(0).get("latest_record_time_stamp"), equalTo(snapshotToUpgrade.get("latest_record_time_stamp")));
 
         // Does the snapshot still work?
-        var stats = entityAsMap(getJobStats(JOB_ID));
+        Map<String, Object> stats = entityAsMap(getJobStats(JOB_ID));
         List<Map<String, Object>> jobStats = (List<Map<String, Object>>) XContentMapValues.extractValue("jobs", stats);
         assertThat(
             (long) XContentMapValues.extractValue("data_counts.latest_record_timestamp", jobStats.get(0)),
             greaterThan((long) snapshotToUpgrade.get("latest_record_time_stamp"))
         );
 
-        var revertResponse = entityAsMap(revertModelSnapshot(JOB_ID, snapshotToUpgradeId, true));
+        Map<String, Object> revertResponse = entityAsMap(revertModelSnapshot(JOB_ID, snapshotToUpgradeId, true));
         assertThat((String) XContentMapValues.extractValue("model.snapshot_id", revertResponse), equalTo(snapshotToUpgradeId));
         assertThat(entityAsMap(openJob(JOB_ID)).get("opened"), is(true));
 
@@ -189,7 +194,7 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
 
         buildAndPutJob(JOB_ID, bucketSpan);
         openJob(JOB_ID);
-        var dataCounts = entityAsMap(
+        Map<String, Object> dataCounts = entityAsMap(
             postData(
                 JOB_ID,
                 String.join(
@@ -235,8 +240,8 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
         flushJob(JOB_ID);
         closeJob(JOB_ID);
 
-        var modelSnapshots = entityAsMap(getModelSnapshots(JOB_ID));
-        var snapshots = (List<Map<String, Object>>) modelSnapshots.get("model_snapshots");
+        Map<String, Object> modelSnapshots = entityAsMap(getModelSnapshots(JOB_ID));
+        List<Map<String, Object>> snapshots = (List<Map<String, Object>>) modelSnapshots.get("model_snapshots");
         assertThat(snapshots, hasSize(2));
         MlConfigVersion snapshotConfigVersion = MlConfigVersion.fromString(snapshots.get(0).get("min_version").toString());
         assertTrue(

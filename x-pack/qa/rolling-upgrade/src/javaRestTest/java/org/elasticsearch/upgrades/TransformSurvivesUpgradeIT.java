@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.upgrades;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+
 import org.apache.http.HttpHost;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
@@ -17,7 +19,6 @@ import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
@@ -43,7 +44,11 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.oneOf;
 
-public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
+public class TransformSurvivesUpgradeIT extends AbstractXpackRollingUpgradeTestCase {
+
+    public TransformSurvivesUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
+        super(upgradedNodes);
+    }
 
     private static final String TRANSFORM_ENDPOINT = "/_transform/";
     private static final String CONTINUOUS_TRANSFORM_ID = "continuous-transform-upgrade-job";
@@ -84,27 +89,24 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
         Request waitForYellow = new Request("GET", "/_cluster/health");
         waitForYellow.addParameter("wait_for_nodes", "3");
         waitForYellow.addParameter("wait_for_status", "yellow");
-        switch (CLUSTER_TYPE) {
-            case OLD -> {
-                client().performRequest(waitForYellow);
-                createAndStartContinuousTransform();
+        if (isOldCluster()) {
+            client().performRequest(waitForYellow);
+            createAndStartContinuousTransform();
+        } else if (isMixedCluster()) {
+            client().performRequest(waitForYellow);
+            long lastCheckpoint = 1;
+            if (isFirstMixedCluster() == false) {
+                lastCheckpoint = 2;
             }
-            case MIXED -> {
-                client().performRequest(waitForYellow);
-                long lastCheckpoint = 1;
-                if (Booleans.parseBoolean(System.getProperty("tests.first_round")) == false) {
-                    lastCheckpoint = 2;
-                }
-                verifyContinuousTransformHandlesData(lastCheckpoint);
-                verifyUpgradeFailsIfMixedCluster();
-            }
-            case UPGRADED -> {
-                client().performRequest(waitForYellow);
-                verifyContinuousTransformHandlesData(3);
-                verifyUpgrade();
-                cleanUpTransforms();
-            }
-            default -> throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
+            verifyContinuousTransformHandlesData(lastCheckpoint);
+            verifyUpgradeFailsIfMixedCluster();
+        } else if (isUpgradedCluster()) {
+            client().performRequest(waitForYellow);
+            verifyContinuousTransformHandlesData(3);
+            verifyUpgrade();
+            cleanUpTransforms();
+        } else {
+            throw new AssertionError("Unknown cluster type");
         }
     }
 
@@ -130,7 +132,7 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
         waitUntilAfterCheckpoint(CONTINUOUS_TRANSFORM_ID, 0L);
 
         assertBusy(() -> {
-            var stateAndStats = getTransformStats(CONTINUOUS_TRANSFORM_ID);
+            Map<String, Object> stateAndStats = getTransformStats(CONTINUOUS_TRANSFORM_ID);
             assertThat((Integer) XContentMapValues.extractValue("stats.documents_indexed", stateAndStats), equalTo(ENTITIES.size()));
             assertThat(
                 ((Integer) XContentMapValues.extractValue("stats.documents_processed", stateAndStats)).longValue(),
@@ -187,11 +189,11 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
         // A continuous transform should automatically become started when it gets assigned to a node
         // if it was assigned to the node that was removed from the cluster
         assertBusy(() -> {
-            var stateAndStats = getTransformStats(CONTINUOUS_TRANSFORM_ID);
+            Map<String, Object> stateAndStats = getTransformStats(CONTINUOUS_TRANSFORM_ID);
             assertThat(stateAndStats.get("state"), oneOf("started", "indexing"));
         }, 120, TimeUnit.SECONDS);
 
-        var previousStateAndStats = getTransformStats(CONTINUOUS_TRANSFORM_ID);
+        Map<String, Object> previousStateAndStats = getTransformStats(CONTINUOUS_TRANSFORM_ID);
 
         // Add a new user and write data to it
         // This is so we can have more reliable data counts, as writing to existing entities requires
@@ -213,7 +215,7 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
             );
         }, 120, TimeUnit.SECONDS);
 
-        var stateAndStats = getTransformStats(CONTINUOUS_TRANSFORM_ID);
+        Map<String, Object> stateAndStats = getTransformStats(CONTINUOUS_TRANSFORM_ID);
 
         assertThat(stateAndStats.get("state"), oneOf("started", "indexing"));
         awaitWrittenIndexerState(CONTINUOUS_TRANSFORM_ID, (responseBody) -> {
@@ -237,7 +239,7 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
         if (isOriginalClusterCurrent()) {
             return;
         }
-        var oldestVersion = Version.fromString(UPGRADE_FROM_VERSION);
+        Version oldestVersion = Version.fromString(getOldClusterVersion());
         if (oldestVersion.onOrAfter(Version.V_9_3_0)) {
             final Request upgradeTransformRequest = new Request("POST", getTransformEndpoint() + "_upgrade");
             Exception ex = expectThrows(Exception.class, () -> client().performRequest(upgradeTransformRequest));
@@ -324,15 +326,15 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
         final Request getStats = new Request("GET", getTransformEndpoint() + id + "/_stats");
         Response response = client().performRequest(getStats);
         assertEquals(200, response.getStatusLine().getStatusCode());
-        var responseMap = entityAsMap(response);
-        var stats = (List<Map<String, Object>>) responseMap.get("transforms");
+        Map<String, Object> responseMap = entityAsMap(response);
+        List<Map<String, Object>> stats = (List<Map<String, Object>>) responseMap.get("transforms");
         assertThat(stats, hasSize(1));
         return stats.get(0);
     }
 
     private void waitUntilAfterCheckpoint(String id, long currentCheckpoint) throws Exception {
         assertBusy(() -> {
-            var statsMap = getTransformStats(id);
+            Map<String, Object> statsMap = getTransformStats(id);
             assertThat(
                 ((Integer) XContentMapValues.extractValue("checkpointing.last.checkpoint", statsMap)).longValue(),
                 greaterThan(currentCheckpoint)

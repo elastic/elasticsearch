@@ -7,6 +7,8 @@
 
 package org.elasticsearch.upgrades;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -31,7 +33,11 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.oneOf;
 
-public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
+public class MLModelDeploymentsUpgradeIT extends AbstractXpackRollingUpgradeTestCase {
+
+    public MLModelDeploymentsUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
+        super(upgradedNodes);
+    }
 
     // See PyTorchModelIT for how this model was created
     static final String BASE_64_ENCODED_MODEL =
@@ -64,7 +70,7 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
 
     @BeforeClass
     public static void maybeSkip() {
-        assumeFalse("Skip ML tests on unsupported glibc versions", SKIP_ML_TESTS);
+        assumeFalse("Skip ML tests on unsupported glibc versions", skipMlTests());
     }
 
     @Before
@@ -110,47 +116,41 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
     public void testTrainedModelDeployment() throws Exception {
         final String modelId = "upgrade-deployment-test";
 
-        switch (CLUSTER_TYPE) {
-            case OLD -> {
-                setupDeployment(modelId);
+        if (isOldCluster()) {
+            setupDeployment(modelId);
+            assertInfer(modelId);
+        } else if (isMixedCluster()) {
+            ensureYellowAndNoInitializingShards(".ml-inference-*,.ml-config*", "120s");
+            waitForDeploymentStarted(modelId);
+            // attempt inference on new and old nodes multiple times
+            for (int i = 0; i < 10; i++) {
                 assertInfer(modelId);
             }
-            case MIXED -> {
-                ensureYellowAndNoInitializingShards(".ml-inference-*,.ml-config*", "120s");
-                waitForDeploymentStarted(modelId);
-                // attempt inference on new and old nodes multiple times
-                for (int i = 0; i < 10; i++) {
-                    assertInfer(modelId);
-                }
-            }
-            case UPGRADED -> {
-                ensureYellowAndNoInitializingShards(".ml-inference-*,.ml-config*", "120s");
+        } else if (isUpgradedCluster()) {
+            ensureYellowAndNoInitializingShards(".ml-inference-*,.ml-config*", "120s");
 
-                waitForDeploymentStarted(modelId);
-                assertInfer(modelId);
-                stopDeployment(modelId);
-            }
-            default -> throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
+            waitForDeploymentStarted(modelId);
+            assertInfer(modelId);
+            stopDeployment(modelId);
+        } else {
+            throw new AssertionError("Unknown cluster type");
         }
     }
 
     public void testTrainedModelDeploymentStopOnMixedCluster() throws Exception {
         final String modelId = "upgrade-deployment-test-stop-mixed-cluster";
 
-        switch (CLUSTER_TYPE) {
-            case OLD -> {
-                setupDeployment(modelId);
-                assertInfer(modelId);
-            }
-            case MIXED -> {
-                ensureYellowAndNoInitializingShards(".ml-inference-*,.ml-config*", "120s");
-                stopDeployment(modelId);
-            }
-            case UPGRADED -> {
-                ensureYellowAndNoInitializingShards(".ml-inference-*,.ml-config*", "120s");
-                assertThatTrainedModelAssignmentMetadataIsEmpty(modelId);
-            }
-            default -> throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
+        if (isOldCluster()) {
+            setupDeployment(modelId);
+            assertInfer(modelId);
+        } else if (isMixedCluster()) {
+            ensureYellowAndNoInitializingShards(".ml-inference-*,.ml-config*", "120s");
+            stopDeployment(modelId);
+        } else if (isUpgradedCluster()) {
+            ensureYellowAndNoInitializingShards(".ml-inference-*,.ml-config*", "120s");
+            assertThatTrainedModelAssignmentMetadataIsEmpty(modelId);
+        } else {
+            throw new AssertionError("Unknown cluster type");
         }
     }
 
@@ -164,11 +164,11 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
     @SuppressWarnings("unchecked")
     private void waitForDeploymentStarted(String modelId) throws Exception {
         assertBusy(() -> {
-            var response = getTrainedModelStats(modelId);
+            Response response = getTrainedModelStats(modelId);
             Map<String, Object> map = entityAsMap(response);
             List<Map<String, Object>> stats = (List<Map<String, Object>>) map.get("trained_model_stats");
             assertThat(stats, hasSize(1));
-            var stat = stats.get(0);
+            Map<String, Object> stat = stats.get(0);
             assertThat(stat.toString(), XContentMapValues.extractValue("deployment_stats.state", stat), equalTo("started"));
         }, 30, TimeUnit.SECONDS);
     }
@@ -226,7 +226,7 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
         String inferenceThreadParamName = "threads_per_allocation";
         String modelThreadParamName = "number_of_allocations";
         String compatibleHeader = null;
-        if (CLUSTER_TYPE.equals(ClusterType.OLD) || CLUSTER_TYPE.equals(ClusterType.MIXED)) {
+        if (isOldCluster() || isMixedCluster()) {
             compatibleHeader = compatibleMediaType(XContentType.VND_JSON, RestApiVersion.V_8);
             inferenceThreadParamName = "inference_threads";
             modelThreadParamName = "model_threads";
@@ -248,7 +248,7 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
             request.setOptions(request.getOptions().toBuilder().addHeader("Accept", compatibleHeader).build());
         }
         request.setOptions(request.getOptions().toBuilder().setWarningsHandler(PERMISSIVE).build());
-        var response = client().performRequest(request);
+        Response response = client().performRequest(request);
         assertOK(response);
         return response;
     }
@@ -281,7 +281,7 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
 
     private Response getTrainedModelStats(String modelId) throws IOException {
         Request request = new Request("GET", "/_ml/trained_models/" + modelId + "/_stats");
-        var response = client().performRequest(request);
+        Response response = client().performRequest(request);
         assertOK(response);
         return response;
     }
@@ -291,7 +291,7 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
         request.setJsonEntity(Strings.format("""
             {  "docs": [{"input":"%s"}] }
             """, input));
-        var response = client().performRequest(request);
+        Response response = client().performRequest(request);
         assertOK(response);
         return response;
     }

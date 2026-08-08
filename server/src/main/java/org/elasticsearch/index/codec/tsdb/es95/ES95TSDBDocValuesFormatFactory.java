@@ -32,6 +32,9 @@ public final class ES95TSDBDocValuesFormatFactory {
     static final int BINARY_BLOCK_BYTES_LARGE = 512 * 1024;
     static final int BINARY_BLOCK_COUNT_LARGE = 8096;
 
+    private static final ES95SortedCodec SORTED_FALLBACK = new ES95SortedCodec();
+    private static final ES95SortedSetCodec SORTED_SET_FALLBACK = new ES95SortedSetCodec();
+
     private ES95TSDBDocValuesFormatFactory() {}
 
     /**
@@ -64,11 +67,11 @@ public final class ES95TSDBDocValuesFormatFactory {
         final int blockBytesThreshold = useLargeBinaryBlockSize ? BINARY_BLOCK_BYTES_LARGE : BINARY_BLOCK_BYTES_SMALL;
         final int blockCountThreshold = useLargeBinaryBlockSize ? BINARY_BLOCK_COUNT_LARGE : BINARY_BLOCK_COUNT_SMALL;
         final SortedOrdinalCodec sortedCodec = useRunTableOrdinals
-            ? new RunTableSortedCodec(new ES95SortedCodec(), fieldContextResolver)
-            : new ES95SortedCodec();
+            ? new RunTableSortedCodec(SORTED_FALLBACK, fieldContextResolver)
+            : SORTED_FALLBACK;
         final SortedSetOrdinalCodec sortedSetCodec = useRunTableOrdinals
-            ? new RunTableSortedSetCodec(new ES95SortedSetCodec(), fieldContextResolver)
-            : new ES95SortedSetCodec();
+            ? new RunTableSortedSetCodec(SORTED_SET_FALLBACK, fieldContextResolver)
+            : SORTED_SET_FALLBACK;
         return new ES95TSDBDocValuesFormat(
             ES95TSDBDocValuesFormat.DEFAULT_SKIP_INDEX_INTERVAL_SIZE,
             ES95TSDBDocValuesFormat.ORDINAL_RANGE_ENCODING_MIN_DOC_PER_ORDINAL,

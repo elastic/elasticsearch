@@ -72,7 +72,6 @@ public class TimeSeriesRunTableOrdinalFullClusterRestartIT extends Parameterized
     private static final String REGION_B = "eu-west-1";
 
     public void testPreUpgradeIndexReadableAfterRestart() throws IOException {
-        requireRunTableOrdinal();
         final String index = "rto-readable";
         if (isRunningAgainstOldCluster()) {
             createTSDBIndex(index, null);
@@ -91,7 +90,6 @@ public class TimeSeriesRunTableOrdinalFullClusterRestartIT extends Parameterized
     }
 
     public void testPreUpgradeIndexKeepsOriginalCodec() throws IOException {
-        requireRunTableOrdinal();
         final String index = "rto-codec-check";
         if (isRunningAgainstOldCluster()) {
             createTSDBIndex(index, null);
@@ -199,7 +197,6 @@ public class TimeSeriesRunTableOrdinalFullClusterRestartIT extends Parameterized
     }
 
     public void testQueryAcrossOldAndNewCodecIndices() throws IOException {
-        requireRunTableOrdinal();
         final String preIndex = "rto-mixed-pre";
         final String postIndex = "rto-mixed-post";
         final String target = preIndex + "," + postIndex;
@@ -231,7 +228,6 @@ public class TimeSeriesRunTableOrdinalFullClusterRestartIT extends Parameterized
     }
 
     public void testForceMergeBothMixedCodecIndicesToOneSegment() throws IOException {
-        requireRunTableOrdinal();
         final String preIndex = "rto-mixed-fm-pre";
         final String postIndex = "rto-mixed-fm-post";
         final String target = preIndex + "," + postIndex;
@@ -285,7 +281,6 @@ public class TimeSeriesRunTableOrdinalFullClusterRestartIT extends Parameterized
     }
 
     public void testRandomAccessDocValuesAfterRestart() throws IOException {
-        requireRunTableOrdinal();
         final String preIndex = "rto-random-pre";
         final String postIndex = "rto-random-post";
         final String target = preIndex + "," + postIndex;
@@ -564,9 +559,6 @@ public class TimeSeriesRunTableOrdinalFullClusterRestartIT extends Parameterized
     }
 
     private static void requireRunTableOrdinal() {
-        assumeTrue(
-            "run-table ordinal codec is not available on the OLD cluster",
-            oldClusterHasFeature("index.time_series_run_table_ordinal")
-        );
+        assumeTrue("run-table ordinal codec is not available on this cluster", clusterHasFeature("index.time_series_run_table_ordinal"));
     }
 }

@@ -50,7 +50,6 @@ public class TimeSeriesRunTableOrdinalRollingUpgradeIT extends AbstractRollingUp
     }
 
     public void testPreUpgradeIndexSurvivesAllPhases() throws IOException {
-        requireRunTableOrdinal();
         final String index = "rto-rolling-survives";
         if (isOldCluster()) {
             createTSDBIndex(index, null);
@@ -129,7 +128,6 @@ public class TimeSeriesRunTableOrdinalRollingUpgradeIT extends AbstractRollingUp
     }
 
     public void testPreUpgradeIndexForceMergeAfterRollingUpgrade() throws IOException {
-        requireRunTableOrdinal();
         final String index = "rto-rolling-codec-check";
         if (isOldCluster()) {
             createTSDBIndex(index, null);
@@ -165,7 +163,6 @@ public class TimeSeriesRunTableOrdinalRollingUpgradeIT extends AbstractRollingUp
     }
 
     public void testQueryAcrossOldAndNewCodecIndices() throws IOException {
-        requireRunTableOrdinal();
         final String preIndex = "rto-rolling-mixed-pre";
         final String postIndex = "rto-rolling-mixed-post";
         final String target = preIndex + "," + postIndex;
@@ -207,7 +204,6 @@ public class TimeSeriesRunTableOrdinalRollingUpgradeIT extends AbstractRollingUp
     }
 
     public void testRandomAccessDocValuesAcrossPhases() throws IOException {
-        requireRunTableOrdinal();
         final String preIndex = "rto-rolling-random-pre";
         final String postIndex = "rto-rolling-random-post";
         final String target = preIndex + "," + postIndex;
@@ -533,9 +529,6 @@ public class TimeSeriesRunTableOrdinalRollingUpgradeIT extends AbstractRollingUp
     }
 
     private static void requireRunTableOrdinal() {
-        assumeTrue(
-            "run-table ordinal codec is not available on the OLD cluster",
-            oldClusterHasFeature("index.time_series_run_table_ordinal")
-        );
+        assumeTrue("run-table ordinal codec is not available on this cluster", clusterHasFeature("index.time_series_run_table_ordinal"));
     }
 }

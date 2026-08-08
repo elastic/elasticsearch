@@ -746,7 +746,9 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
                     String id = trace.getId();
                     // Duplicates are expected as we query multiple indices - do a quick pre-check before we deserialize a response
                     if (stackTracePerId.containsKey(id) == false) {
-                        StackTrace stacktrace = StackTrace.fromSource(trace.getResponse().getSource());
+                        StackTrace stacktrace = otelSchema
+                            ? StackTrace.fromOtelSource(trace.getResponse().getSource())
+                            : StackTrace.fromSource(trace.getResponse().getSource());
                         // Guard against concurrent access and ensure we only handle each item once
                         if (stackTracePerId.putIfAbsent(id, stacktrace) == null) {
                             totalFrames.addAndGet(stacktrace.frameIds.length);
@@ -933,7 +935,9 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
                 } else if (frame.getResponse().isExists()) {
                     // Duplicates are expected as we query multiple indices - do a quick pre-check before we deserialize a response
                     if (stackFrames.containsKey(frame.getId()) == false) {
-                        StackFrame stackFrame = StackFrame.fromSource(frame.getResponse().getSource());
+                        StackFrame stackFrame = otelSchema
+                            ? StackFrame.fromOtelSource(frame.getResponse().getSource())
+                            : StackFrame.fromSource(frame.getResponse().getSource());
                         if (stackFrame.isEmpty() == false) {
                             if (stackFrames.putIfAbsent(frame.getId(), stackFrame) == null) {
                                 totalInlineFrames.addAndGet(stackFrame.inlineFrameCount());

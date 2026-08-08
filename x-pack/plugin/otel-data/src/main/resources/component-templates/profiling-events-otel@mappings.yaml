@@ -45,13 +45,13 @@ template:
       "@timestamp":
         type: date_nanos
         format: strict_date_optional_time_nanos||epoch_second
-      Stacktrace.id:
+      stacktrace.id:
         type: keyword
         index: false
-      Stacktrace.count:
+      count:
         type: short
         index: false
-      Stacktrace.sampling_frequency:
+      sampling_frequency:
         type: long
         index: false
       resource:
@@ -94,6 +94,13 @@ template:
               os.version:
                 type: keyword
                 index: false
+      # Aliases for ECS field names used in queries so TransportGetStackTracesAction needs no OTel branching
+      Stacktrace.id:
+        type: alias
+        path: stacktrace.id
+      Stacktrace.sampling_frequency:
+        type: alias
+        path: sampling_frequency
       process.thread.name:
         type: alias
         path: resource.attributes.thread.name

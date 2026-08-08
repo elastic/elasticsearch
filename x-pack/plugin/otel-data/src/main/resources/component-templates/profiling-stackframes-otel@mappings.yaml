@@ -18,22 +18,22 @@ template:
       enabled: true
     dynamic: false
     properties:
-      Stackframe.line.number:
+      line.number:
         type: integer
         index: false
         doc_values: false
         store: false
-      Stackframe.file.name:
+      function.filename:
         type: keyword
         index: false
         doc_values: false
         store: false
-      Stackframe.function.name:
+      function.name:
         type: keyword
         index: false
         doc_values: false
         store: false
-      Stackframe.function.offset:
+      function.offset:
         type: integer
         index: false
         doc_values: false

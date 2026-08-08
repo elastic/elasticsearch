@@ -150,10 +150,6 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         assertThat(responsePath.evaluate("data.result"), empty());
     }
 
-    /**
-     * {@code by (...)} must key on the named label whichever side of the {@code labels.} passthrough prefix it sorts
-     * on, and the result must carry that label and nothing else.
-     */
     public void testInstantQuerySumByEachLabel() throws Exception {
         ingestLabelledSeries(METRIC);
 
@@ -166,7 +162,6 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         assertThat(instantSeries("sum by (job) (" + METRIC + ")"), contains(of("job", "test_job", 10.0)));
     }
 
-    /** {@code without (...)} must drop the named label and leave every other label, and value, untouched. */
     public void testInstantQuerySumWithoutEachLabel() throws Exception {
         ingestLabelledSeries(METRIC);
 
@@ -179,26 +174,22 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         }
     }
 
-    /** {@code topk} ranks across series and keeps the full labelset of the ones it selects. */
     public void testInstantQueryTopKKeepsSeriesLabels() throws Exception {
         ingestLabelledSeries(METRIC);
 
         assertThat(instantSeries("topk(2, " + METRIC + ")"), containsInAnyOrder(seriesWithValueAbove(2.0)));
     }
 
-    /** A comparison against a scalar drops the series that fail it and leaves the rest untouched. */
     public void testInstantQueryComparisonFiltersSeries() throws Exception {
         ingestLabelledSeries(METRIC);
 
         assertThat(instantSeries(METRIC + " > 1"), containsInAnyOrder(seriesWithValueAbove(1.0)));
     }
 
-    /** The ingested fixture series whose value exceeds {@code threshold}, as an array of matchers-by-equality. */
     private static PromqlSeries[] seriesWithValueAbove(double threshold) {
         return LABELLED_SERIES.stream().filter(series -> series.value() > threshold).toArray(PromqlSeries[]::new);
     }
 
-    /** Series returned by an instant query evaluated inside the ingested sample's lookback window. */
     private List<PromqlSeries> instantSeries(String promql) throws Exception {
         return PromqlSeries.ofInstant(executeInstantQuery(promql, "2026-01-01T00:05:00Z", null));
     }

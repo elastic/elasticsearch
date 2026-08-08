@@ -266,13 +266,11 @@ public abstract class AbstractPrometheusRestIT extends ESRestTestCase {
         assertThat(((Number) failuresPath.evaluate("hits.total.value")).intValue(), equalTo(0));
     }
 
-    /** The one sample {@link #ingestLabelledSeries} writes per series: 2026-01-01T00:01:00Z. */
-    protected static final long LABELLED_SERIES_TIMESTAMP = 1767225660000L;
+    private static final long LABELLED_SERIES_TIMESTAMP = 1767225660000L; // 2026-01-01T00:01:00Z
 
     /**
-     * The series {@link #ingestLabelledSeries} writes. {@code cluster}, {@code pod} and {@code region} vary while
-     * {@code job} and {@code instance} stay constant, and any two of the three varying labels identify a series
-     * uniquely - so dropping any single label still leaves four distinct series, each keeping its own value.
+     * Any two of the varying labels identify a series uniquely, so dropping any single label still leaves four
+     * distinct series, each keeping its own value.
      */
     protected static final List<PromqlSeries> LABELLED_SERIES = List.of(
         labelledSeries("a", "p1", "r1", 1.0),
@@ -282,10 +280,9 @@ public abstract class AbstractPrometheusRestIT extends ESRestTestCase {
     );
 
     /**
-     * Every label {@link #LABELLED_SERIES} carries. Remote-write labels live under a {@code labels} passthrough field,
-     * so each dimension surfaces both as a concrete field ({@code labels.pod}) and as a short alias ({@code pod}).
-     * These names straddle that prefix lexically - {@code cluster}, {@code instance} and {@code job} sort before
-     * {@code "labels"}, {@code pod} and {@code region} after - so a resolver that picks by sort order rather than by
+     * Remote-write labels live under a {@code labels} passthrough field, so each dimension surfaces both as a concrete
+     * field ({@code labels.pod}) and as a short alias ({@code pod}). These names straddle that prefix lexically -
+     * cluster/instance/job sort before it, pod/region after - so a resolver that picks by sort order rather than by
      * meaning is caught on one side or the other.
      */
     protected static final List<String> LABELLED_SERIES_LABELS = List.of("cluster", "instance", "job", "pod", "region");
@@ -297,7 +294,6 @@ public abstract class AbstractPrometheusRestIT extends ESRestTestCase {
         );
     }
 
-    /** Ingests {@link #LABELLED_SERIES} as {@code metricName}, one sample each at {@link #LABELLED_SERIES_TIMESTAMP}. */
     protected void ingestLabelledSeries(String metricName) throws IOException {
         RemoteWrite.WriteRequest.Builder writeRequest = RemoteWrite.WriteRequest.newBuilder();
         for (PromqlSeries series : LABELLED_SERIES) {

@@ -94,10 +94,6 @@ public class PrometheusQueryRangeRestIT extends AbstractPrometheusRestIT {
         assertMetricResults(responsePath);
     }
 
-    /**
-     * {@code by (...)} must key on the named label whichever side of the {@code labels.} passthrough prefix it sorts
-     * on, and the result must carry that label and nothing else.
-     */
     public void testQueryRangeSumByEachLabel() throws Exception {
         ingestLabelledSeries(METRIC);
 
@@ -108,7 +104,6 @@ public class PrometheusQueryRangeRestIT extends AbstractPrometheusRestIT {
         assertThat(rangeSeries("sum by (instance) (" + METRIC + ")"), contains(of("instance", "localhost:9090", 10.0)));
     }
 
-    /** {@code without (...)} must drop the named label and leave every other label, and value, untouched. */
     public void testQueryRangeSumWithoutEachLabel() throws Exception {
         ingestLabelledSeries(METRIC);
 
@@ -121,10 +116,7 @@ public class PrometheusQueryRangeRestIT extends AbstractPrometheusRestIT {
         }
     }
 
-    /**
-     * An opaque {@code without} child feeding a {@code by} parent: the inner aggregation packs its identity into
-     * {@code _timeseries}, and the outer one must still resolve {@code pod} out of it.
-     */
+    /** The inner aggregation packs its identity into {@code _timeseries}; the outer one must still resolve pod out of it. */
     public void testQueryRangeNestedRegrouping() throws Exception {
         ingestLabelledSeries(METRIC);
 
@@ -134,10 +126,7 @@ public class PrometheusQueryRangeRestIT extends AbstractPrometheusRestIT {
         );
     }
 
-    /**
-     * {@code or} aligns its branches by column name, so branches carrying different label sets are the interesting
-     * case: neither side's labelset appears on the other, so all four series survive.
-     */
+    /** {@code or} aligns branches by column name, and here neither branch's labelset appears on the other. */
     public void testQueryRangeUnionOfDifferentlyShapedBranches() throws Exception {
         ingestLabelledSeries(METRIC);
 
@@ -147,19 +136,16 @@ public class PrometheusQueryRangeRestIT extends AbstractPrometheusRestIT {
         );
     }
 
-    /** Elementwise arithmetic applies to every sample and keeps the operand's labels. */
     public void testQueryRangeArithmeticKeepsSeriesLabels() throws Exception {
         ingestLabelledSeries(METRIC);
 
         assertThat(rangeSeries(METRIC + " * 2"), containsInAnyOrder(expected(series -> series.withValue(series.value() * 2))));
     }
 
-    /** The ingested fixture mapped through {@code transform}, as an array of matchers-by-equality. */
     private static PromqlSeries[] expected(UnaryOperator<PromqlSeries> transform) {
         return LABELLED_SERIES.stream().map(transform).toArray(PromqlSeries[]::new);
     }
 
-    /** Series returned by a range query spanning the ingested sample, each taken at its last step. */
     private List<PromqlSeries> rangeSeries(String promql) throws Exception {
         Request request = prometheusReadRequest(
             "/_prometheus/api/v1/query_range",

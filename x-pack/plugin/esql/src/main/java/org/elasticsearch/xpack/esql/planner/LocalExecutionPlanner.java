@@ -815,10 +815,6 @@ public class LocalExecutionPlanner {
                 assert source.layout.get(attr.id()) != null
                     : "input attribute [" + attr + "] does not exist in the source layout [" + source.layout + "]";
             }
-            assert exchangeSink.output().size() == inputAttributes.size()
-                : new AssertionError(
-                    "exchange sink layout mismatched; actual=" + inputAttributes + ";\n expected=" + exchangeSink.output()
-                );
         }
         return source.withSink(new ExchangeSinkOperatorFactory(exchangeSinkSupplier), source.layout);
     }

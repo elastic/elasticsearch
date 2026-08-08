@@ -3,7 +3,7 @@
 four_rates
 required_capability: disable_replace_null_rule_for_time_series
 required_capability: ts_command_v0
-TS k8s, k8s-empty
+TS k8s, empty-k8s
 | STATS r1 = sum(rate(network.total_bytes_in)),
         r2 = sum(rate(network.total_bytes_out)),
         r3 = sum(rate(extra.total_bytes_in)),
@@ -21,7 +21,7 @@ r1:double          | r2:double | r3:double | r4:double | cluster:keyword
 by_four_dims
 required_capability: disable_replace_null_rule_for_time_series
 required_capability: ts_command_v0
-TS k8s, k8s-empty
+TS k8s, empty-k8s
 | STATS r = sum(rate(network.total_bytes_in)) BY cluster, pod, extra.cluster, extra.pod
 | SORT cluster
 | LIMIT 5
@@ -37,7 +37,7 @@ r:double           | cluster:keyword | pod:keyword | extra.cluster:keyword | ext
 four_rates_by_four_dims
 required_capability: disable_replace_null_rule_for_time_series
 required_capability: ts_command_v0
-TS k8s, k8s-empty
+TS k8s, empty-k8s
 | STATS r1 = sum(rate(network.total_bytes_in)),
         r2 = sum(rate(network.total_bytes_out)),
         r3 = sum(rate(extra.total_bytes_in)),
@@ -58,7 +58,7 @@ r1:double          | r2:double | r3:double | r4:double | cluster:keyword | pod:k
 one_rate_no_grouping
 required_capability: disable_replace_null_rule_for_time_series
 required_capability: ts_command_v0
-TS k8s, k8s-empty
+TS k8s, empty-k8s
 | STATS r = sum(rate(extra.total_bytes_in))
 ;
 r:double
@@ -68,7 +68,7 @@ null
 one_gauge_by_one_dimension
 required_capability: disable_replace_null_rule_for_time_series
 required_capability: ts_command_v0
-TS k8s, k8s-empty
+TS k8s, empty-k8s
 | STATS g = max(last_over_time(extra.tx)) BY cluster
 | SORT cluster
 | LIMIT 3
@@ -80,7 +80,7 @@ g:integer | cluster:keyword
 one_rate_one_gauge_by_two_dimensions
 required_capability: disable_replace_null_rule_for_time_series
 required_capability: ts_command_v0
-TS k8s, k8s-empty
+TS k8s, empty-k8s
 | STATS r = sum(rate(extra.total_bytes_in)),
         g = max(last_over_time(extra.tx))
   BY cluster, pod
@@ -94,7 +94,7 @@ r:double | g:integer | cluster:keyword | pod:keyword
 two_rates_by_three_dimensions
 required_capability: disable_replace_null_rule_for_time_series
 required_capability: ts_command_v0
-TS k8s, k8s-empty
+TS k8s, empty-k8s
 | STATS r1 = sum(rate(extra.total_bytes_in)),
         r2 = sum(rate(extra.total_bytes_out))
   BY cluster, pod, extra.cluster
@@ -110,7 +110,7 @@ skip_flattened_rewrite: without_unsupported
 required_capability: disable_replace_null_rule_for_time_series
 required_capability: esql_without_grouping
 required_capability: ts_command_v0
-TS k8s, k8s-empty
+TS k8s, empty-k8s
 | STATS g1 = max(last_over_time(extra.tx)),
         g2 = max(last_over_time(extra.rx))
   BY WITHOUT(pod, region, extra.cluster, extra.pod, extra.proc)
@@ -124,7 +124,7 @@ g1:integer | g2:integer | _timeseries:keyword
 two_rates_two_gauges
 required_capability: disable_replace_null_rule_for_time_series
 required_capability: ts_command_v0
-TS k8s, k8s-empty
+TS k8s, empty-k8s
 | STATS r1 = sum(rate(extra.total_bytes_in)),
         r2 = sum(rate(extra.total_bytes_out)),
         g1 = max(last_over_time(extra.tx)),

@@ -39,7 +39,7 @@ public final class ShardBatchIndexer {
     private static final Logger logger = LogManager.getLogger(ShardBatchIndexer.class);
 
     public static final FeatureFlag BATCH_INDEXING_FEATURE_FLAG = new FeatureFlag("batch_indexing");
-    public static final Setting<Boolean> BATCH_INDEXING = boolSetting("indices.batch_indexing", false, value -> {
+    public static final Setting<Boolean> BATCH_INDEXING = boolSetting("indices.batch_indexing", true, value -> {
         if (value && BATCH_INDEXING_FEATURE_FLAG.isEnabled() == false) {
             throw new IllegalArgumentException(
                 "[indices.batch_indexing] can only be enabled when the batch_indexing feature flag is enabled"

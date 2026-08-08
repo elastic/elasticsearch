@@ -149,15 +149,17 @@ public final class AsymmetricHashingQuantizer {
      */
     public record PrecomputedCentroid(float[] centroidProjected, float centroidNormSq) {}
 
-    private static PrecomputedCentroid centralizeVector(float[] vector, float[] centroid) {
+    /** Result of centering and normalizing a vector against its centroid. */
+    private record CenteredVector(float[] normalized, float normSq) {}
+
+    private static CenteredVector centralizeVector(float[] vector, float[] centroid) {
         int originalDim = vector.length;
         float[] centered = new float[originalDim];
         for (int d = 0; d < originalDim; d++) {
             centered[d] = vector[d] - centroid[d];
         }
         float normSq = ESVectorUtil.l2Normalize(centered);
-        // re-use the PrecomputedCentroid record for simplicity...
-        return normSq == 0f ? new PrecomputedCentroid(new float[originalDim], 0) : new PrecomputedCentroid(centered, normSq);
+        return normSq == 0f ? new CenteredVector(new float[originalDim], 0) : new CenteredVector(centered, normSq);
     }
 
     /**
@@ -197,7 +199,7 @@ public final class AsymmetricHashingQuantizer {
         // Project using transposed W: xLatent[j] = dot(centered, wT[j])
         float[] xLatent = new float[nDims];
         for (int j = 0; j < nDims; j++) {
-            xLatent[j] = ESVectorUtil.dotProduct(centered.centroidProjected, wT[j]);
+            xLatent[j] = ESVectorUtil.dotProduct(centered.normalized, wT[j]);
         }
 
         // Quantize
@@ -206,14 +208,13 @@ public final class AsymmetricHashingQuantizer {
         float codeNorm = qr.codeNorm();
 
         // Scale: norm / codeNorm
-        float scale = codeNorm > 0 ? (float) Math.sqrt(centered.centroidNormSq) / codeNorm : 0;
+        float scale = codeNorm > 0 ? (float) Math.sqrt(centered.normSq) / codeNorm : 0;
 
-        // Offset per ASH paper Equation 19: ⟨x, μ⟩ - scale * ⟨Wμ, v⟩ - ‖μ‖²
-        // The cross-term ⟨Wμ, v⟩ accounts for using the raw projected query q̆ = Wq (Eq. 18)
-        // rather than the centered query W(q-μ). This is derived in Eq. 17:
-        // ⟨q-μ, x̃⟩ ≈ ‖v‖⁻¹ (⟨Wq, v⟩ - ⟨Wμ, v⟩)
-        // The ⟨Wμ, v⟩ term is baked into the stored offset so that at query time we only
-        // need to compute ⟨q̆, v⟩ without per-posting-list centroid recomputation.
+        // Offset per ASH paper Equation 19: ⟨x, μ⟩ - scale * ⟨centroid@W, code⟩ - ‖μ‖²
+        // The cross-term ⟨centroid@W, code⟩ accounts for using the raw projected query Wq (Eq. 18)
+        // rather than the centered query W(q-μ). At query time the scorer computes ⟨Wq, code⟩,
+        // and the centroid's contribution is pre-subtracted here so no per-posting-list centroid
+        // recomputation is needed during search.
         float dotVecCent = ESVectorUtil.dotProduct(vector, centroid);
         float offset = dotVecCent - precomputed.centroidNormSq();
         float[] centroidProjected = precomputed.centroidProjected();

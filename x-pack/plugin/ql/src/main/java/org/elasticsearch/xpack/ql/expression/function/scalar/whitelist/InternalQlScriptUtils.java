@@ -51,6 +51,10 @@ public class InternalQlScriptUtils {
         return sort == null ? 0.0d : sort.doubleValue();
     }
 
+    public static long nullSafeSortLong(Number sort) {
+        return sort == null ? 0L : sort.longValue();
+    }
+
     public static String nullSafeSortString(Object sort) {
         return sort == null ? StringUtils.EMPTY : sort.toString();
     }

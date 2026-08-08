@@ -65,7 +65,10 @@ public class DataType {
     }
 
     public ScriptSortBuilder.ScriptSortType scriptSortType() {
-        return isNumeric() ? ScriptSortBuilder.ScriptSortType.NUMBER
+        return isNumeric()
+            ? (isRational() || this.equals(DataTypes.UNSIGNED_LONG)
+                ? ScriptSortBuilder.ScriptSortType.NUMBER
+                : ScriptSortBuilder.ScriptSortType.LONG)
             : this == DataTypes.VERSION ? ScriptSortBuilder.ScriptSortType.VERSION
             : ScriptSortBuilder.ScriptSortType.STRING;
     }

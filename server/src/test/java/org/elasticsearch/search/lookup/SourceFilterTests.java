@@ -34,6 +34,17 @@ public class SourceFilterTests extends ESTestCase {
         assertFalse(filtered.source().containsKey("field1"));
     }
 
+    public void testIncludeNestedFieldUnderBackslashNamedParent() {
+        SourceFilter filter = new SourceFilter(new String[] { "\\.nested_value" }, new String[] {});
+        Map<String, Object> expected = Map.of("\\", Map.of("nested_value", "value"));
+
+        Source fromMap = Source.fromMap(Map.of("\\", Map.of("nested_value", "value", "other", "ignored")), XContentType.JSON);
+        assertEquals(expected, fromMap.filter(filter).source());
+
+        Source fromBytes = Source.fromBytes(new BytesArray("{\"\\\\\": { \"nested_value\": \"value\", \"other\": \"ignored\" }}"));
+        assertEquals(expected, fromBytes.filter(filter).source());
+    }
+
     public void testSimpleExclude() {
         Source s = Source.fromBytes(new BytesArray("""
             { "field1" : "value1", "field2" : "value2" }"""));

@@ -28,6 +28,7 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * Implements source filtering based on a list of included and excluded fields.  To use,
@@ -162,8 +163,8 @@ public final class SourceFilter {
         }
         final XContentParserConfiguration parserConfig = XContentParserConfiguration.EMPTY.withFiltering(
             null,
-            Set.copyOf(Arrays.asList(includes)),
-            Set.copyOf(Arrays.asList(excludes)),
+            escapeBackslashes(includes),
+            escapeBackslashes(excludes),
             true
         );
         return in -> {
@@ -184,6 +185,14 @@ public final class SourceFilter {
                 throw new UncheckedIOException(e);
             }
         };
+    }
+
+    /**
+     * Source field patterns treat backslashes as literals, while {@link org.elasticsearch.xcontent.support.filtering.FilterPath}
+     * uses them as escape characters.
+     */
+    private static Set<String> escapeBackslashes(String[] filters) {
+        return Arrays.stream(filters).map(filter -> filter.replace("\\", "\\\\")).collect(Collectors.toUnmodifiableSet());
     }
 
     public boolean excludesAll() {

@@ -25,6 +25,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.function.UnaryOperator;
 
 import static org.elasticsearch.index.engine.ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING;
 import static org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryTestUtils.getCacheService;
@@ -56,39 +60,56 @@ public class StatelessComponentsOrderIT extends AbstractStatelessPluginIntegTest
         final var indicesService = internalCluster().getInstance(IndicesService.class, indexNode);
         final var indexShard = findIndexShard(indexName);
 
-        logger.info("--> indexing and flush docs to trigger background merge");
-        for (int i = 0; i < 11; i++) {
-            indexDocs(indexName, 10);
-            flush(indexName);
-        }
-
-        // Wait for merge to trigger and evict cache so that merge will attempt to fill the cache
-        safeAwait(plugin.mergeReadStartedLatch);
-        logger.info("--> evict cache after merge read started");
-        final var blobStoreCacheDirectory = BlobStoreCacheDirectory.unwrapDirectory(indexShard.store().directory());
-        getCacheService(blobStoreCacheDirectory).forceEvict((key) -> true);
-
-        logger.info("--> deleting index to remove the shard from IndicesService");
-        safeGet(indicesAdmin().prepareDelete(indexName).execute());
-        assertNull(indicesService.indexService(indexShard.shardId().getIndex()));
-
-        logger.info("--> shutting down the index node");
-        final Thread shuttingDownThread = new Thread(() -> {
+        try (ExecutorService executorService = Executors.newCachedThreadPool()) {
+            final Future<?> shuttingDownFuture;
+            final Future<?> indexingFuture;
             try {
-                internalCluster().stopNode(indexNode);
-            } catch (IOException e) {
-                fail(e);
+                logger.info("--> indexing and flush docs to trigger background merge");
+                indexingFuture = executorService.submit(() -> {
+                    try {
+                        for (int i = 0; i < 11; i++) {
+                            if (plugin.mergeReadStartedLatch.getCount() == 0) {
+                                logger.info("--> merge read started, stopping indexing loop");
+                                break;
+                            }
+                            indexDocs(indexName, 10, UnaryOperator.identity(), null, null, false);
+                            flush(indexName);
+                        }
+                    } catch (Exception e) {
+                        logger.info("--> indexing loop threw, this is fine", e);
+                    }
+                });
+
+                // Wait for merge to trigger and evict cache so that merge will attempt to fill the cache
+                safeAwait(plugin.mergeReadStartedLatch);
+                logger.info("--> evict cache after merge read started");
+                final var blobStoreCacheDirectory = BlobStoreCacheDirectory.unwrapDirectory(indexShard.store().directory());
+                getCacheService(blobStoreCacheDirectory).forceEvict((key) -> true);
+
+                logger.info("--> deleting index to remove the shard from IndicesService");
+                safeGet(indicesAdmin().prepareDelete(indexName).execute());
+                assertNull(indicesService.indexService(indexShard.shardId().getIndex()));
+
+                logger.info("--> shutting down the index node");
+                shuttingDownFuture = executorService.submit(() -> {
+                    try {
+                        internalCluster().stopNode(indexNode);
+                    } catch (IOException e) {
+                        fail(e);
+                    }
+                });
+
+                safeAwait(plugin.statelessCloseCalledLatch);
+            } finally {
+                // Let merge continue, and it should not run into exceptions such as ClosedChannelException or EsRejectedExecutionException
+                // Do this even if the test is failing, so we don't interfere with the teardown
+                logger.info("--> resume the merge thread");
+                plugin.cacheEvictedLatch.countDown();
             }
-        });
-        shuttingDownThread.start();
 
-        safeAwait(plugin.statelessCloseCalledLatch);
-        // Let merge continue, and it should not run into exceptions such as ClosedChannelException or EsRejectedExecutionException
-        logger.info("--> resume the merge thread");
-        plugin.cacheEvictedLatch.countDown();
-
-        shuttingDownThread.join(30000);
-        assertFalse(shuttingDownThread.isAlive());
+            safeGet(indexingFuture);
+            safeGet(shuttingDownFuture);
+        }
     }
 
     public static class TestStatelessPlugin extends TestUtils.StatelessPluginWithTrialLicense {

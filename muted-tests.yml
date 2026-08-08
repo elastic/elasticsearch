@@ -140,6 +140,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.spatial.SpatialPushDownGeoShapeIT
   method: testQuantizedXY
   issue: https://github.com/elastic/elasticsearch/issues/156084
+- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
+  method: test {yaml=search.vectors/100_knn_nested_search/nested kNN search inner_hits & boosting}
+  issue: https://github.com/elastic/elasticsearch/issues/156227
 
 # Examples:
 #

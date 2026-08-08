@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.bulk.ShardBatchIndexer;
 import org.elasticsearch.action.index.IndexRequest;
@@ -25,6 +26,8 @@ import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.sourcebatch.SourceRow;
 import org.elasticsearch.sourcebatch.SourceSchema;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentLocation;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -256,7 +259,15 @@ public final class ShardBatchMapper {
             }
             rowParser.positionAtLeafValue(leaf);
             ctx.setParser(rowParser);
-            mapper.parse(ctx);
+            if (rowParser.currentToken() == XContentParser.Token.START_ARRAY && mapper.isSingleValueEnforced()) {
+                // Iterate array elements so that multi_value:false enforcement sees each scalar in turn.
+                // The second element triggers MultiValueViolation which must be routed to ._on_failure.
+                while (rowParser.nextToken() != XContentParser.Token.END_ARRAY) {
+                    handleParseResult(ctx, mapper, mapper.parse(ctx));
+                }
+            } else {
+                handleParseResult(ctx, mapper, mapper.parse(ctx));
+            }
         }
         ctx.setParser(null);
 
@@ -275,6 +286,22 @@ public final class ShardBatchMapper {
             null,
             XContentMeteringParserDecorator.UNKNOWN_SIZE
         );
+    }
+
+    private static void handleParseResult(BatchDocumentParserContext ctx, FieldMapper mapper, FieldMapper.ParseResult result)
+        throws IOException {
+        if (result instanceof FieldMapper.ParseResult.MultiValueViolation(BytesRef capturedValue)) {
+            if (ctx.mappingLookup().isSourceSynthetic() || ctx.mappingLookup().isSourceColumnarStored()) {
+                OnFailureStoredValues.storeEncoded(ctx, mapper.fullPath(), capturedValue);
+            } else {
+                throw new DocumentParsingException(
+                    XContentLocation.UNKNOWN,
+                    "batch indexing: unhandled multi_value=false violation on field ["
+                        + mapper.fullPath()
+                        + "] in non-synthetic/columnar source index"
+                );
+            }
+        }
     }
 
     private static BytesReference rowToSource(SourceRow row, SourceSchema schema, XContentType xContentType) throws IOException {

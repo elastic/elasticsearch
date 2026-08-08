@@ -12,12 +12,14 @@ package org.elasticsearch.action.bulk;
 import org.elasticsearch.Build;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
+import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
@@ -69,7 +71,6 @@ public class BatchBulkIT extends ESIntegTestCase {
                         .put("index.number_of_shards", shards)
                         .put("index.number_of_replicas", replicas)
                         .put("index.mapping.source.mode", "synthetic")
-
                 )
                 .setMapping(mapping)
         );
@@ -1459,5 +1460,91 @@ public class BatchBulkIT extends ESIntegTestCase {
                 }
             }
         );
+    }
+
+    /**
+     * Regression test: a keyword field with {@code multi_value: false, on_failure: ignore} indexed via the batch
+     * path must index the first value as a normal doc value and route the second (violating) value to
+     * {@code ._on_failure} so that synthetic source can reconstruct the full array.
+     */
+    @SuppressWarnings("unchecked")
+    public void testMultiValueFalseOnFailureIgnoreInBatchPath() throws IOException {
+        String index = "test-batch-mvf";
+        XContentBuilder mapping = JsonXContent.contentBuilder();
+        mapping.startObject();
+        {
+            mapping.startObject("_doc");
+            {
+                mapping.field("dynamic", "strict");
+                mapping.startObject("properties");
+                {
+                    mapping.startObject("field");
+                    {
+                        mapping.field("type", "keyword");
+                        mapping.startObject("doc_values");
+                        {
+                            mapping.field("multi_value", false);
+                            mapping.field("on_failure", "ignore");
+                        }
+                        mapping.endObject();
+                    }
+                    mapping.endObject();
+                }
+                mapping.endObject();
+            }
+            mapping.endObject();
+        }
+        mapping.endObject();
+
+        assertAcked(
+            indicesAdmin().prepareCreate(index)
+                .setSettings(
+                    Settings.builder()
+                        .put("index.number_of_shards", 1)
+                        .put("index.number_of_replicas", 0)
+                        .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                        // prevent random index templates from overriding seq_no options, which columnar mode defaults
+                        .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
+                )
+                .setMapping(mapping)
+        );
+        ensureGreen(index);
+        String coordinatingNode = findCoordinatingNode();
+
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(
+            new IndexRequest(index).id("doc-1")
+                .opType(DocWriteRequest.OpType.INDEX)
+                .source("{\"field\": [\"val1\", \"val2\"]}", XContentType.JSON)
+        );
+        BulkResponse bulkResponse = client(coordinatingNode).bulk(bulkRequest).actionGet();
+        assertNoFailures(bulkResponse);
+
+        refresh(index);
+
+        // The first value must be indexed and searchable.
+        assertResponse(prepareSearch(index).setQuery(QueryBuilders.termQuery("field", "val1")).setSize(1), searchResponse -> {
+            assertNoFailures(searchResponse);
+            assertThat(
+                "first value must be indexed and searchable in the batch path",
+                searchResponse.getHits().getTotalHits().value(),
+                equalTo(1L)
+            );
+        });
+
+        // The second value must not be indexed as a regular doc value (it was routed to ._on_failure).
+        assertResponse(prepareSearch(index).setQuery(QueryBuilders.termQuery("field", "val2")).setSize(1), searchResponse -> {
+            assertNoFailures(searchResponse);
+            assertThat(
+                "second value must not be indexed as a regular keyword value in the batch path",
+                searchResponse.getHits().getTotalHits().value(),
+                equalTo(0L)
+            );
+        });
+
+        // Document must exist and its source must contain the first value.
+        var getResponse = client().get(new GetRequest(index).id("doc-1")).actionGet();
+        assertTrue(getResponse.isExists());
+        assertThat("first value must appear in source", getResponse.getSourceAsMap().get("field"), equalTo("val1"));
     }
 }

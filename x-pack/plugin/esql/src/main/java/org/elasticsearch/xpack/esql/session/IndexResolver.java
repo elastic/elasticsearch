@@ -346,7 +346,9 @@ public class IndexResolver {
         boolean trackUnmappedFieldIndices,
         OriginalIndexExtractor originalIndexExtractor
     ) {
-        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION); // too expensive to run this on a transport worker
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH, ThreadPool.Names.SEARCH_COORDINATION); // too expensive to run
+                                                                                                                  // this on a transport
+                                                                                                                  // worker
         List<FieldCapabilitiesIndexResponse> indexResponses = fieldsInfo.caps.getIndexResponses();
         int numberOfIndices = indexResponses.size();
         if (numberOfIndices == 0) {

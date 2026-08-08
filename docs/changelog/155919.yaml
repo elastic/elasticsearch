@@ -1,0 +1,6 @@
+pr: 155919
+summary: Use direct I/O for merge-time reads of raw vectors
+area: Vector Search
+type: enhancement
+issues:
+ - 155021

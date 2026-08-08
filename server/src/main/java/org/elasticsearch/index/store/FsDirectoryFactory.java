@@ -177,21 +177,36 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
     public static final class HybridDirectory extends NIOFSDirectory {
         private final MMapDirectory delegate;
         private final DirectIODirectory directIODelegate;
+        private final DirectIODirectory mergeDirectIODelegate;
 
         public HybridDirectory(LockFactory lockFactory, MMapDirectory delegate, int asyncPrefetchLimit) throws IOException {
             super(delegate.getDirectory(), lockFactory);
             this.delegate = delegate;
 
             DirectIODirectory directIO;
+            DirectIODirectory mergeDirectIO;
             try {
-                // use 8kB buffer (two pages) to guarantee it can load all of an un-page-aligned 1024-dim float vector
-                directIO = new AlwaysDirectIODirectory(delegate, 8192, DirectIODirectory.DEFAULT_MIN_BYTES_DIRECT, asyncPrefetchLimit);
+                directIO = new AlwaysDirectIODirectory(
+                    delegate,
+                    AlwaysDirectIODirectory.RANDOM_ACCESS_BUFFER_SIZE,
+                    DirectIODirectory.DEFAULT_MIN_BYTES_DIRECT,
+                    asyncPrefetchLimit
+                );
+                // merge reads are long sequential streams: they get a merge-sized buffer and no async prefetch
+                mergeDirectIO = new AlwaysDirectIODirectory(
+                    delegate,
+                    DirectIODirectory.DEFAULT_MERGE_BUFFER_SIZE,
+                    DirectIODirectory.DEFAULT_MIN_BYTES_DIRECT,
+                    0
+                );
             } catch (Exception e) {
                 // directio not supported
                 Log.warn("Could not initialize DirectIO access", e);
                 directIO = null;
+                mergeDirectIO = null;
             }
             this.directIODelegate = directIO;
+            this.mergeDirectIODelegate = mergeDirectIO;
         }
 
         @Override
@@ -202,8 +217,9 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
                 ensureCanRead(name);
                 try {
                     Log.debug("Opening {} with direct IO", name);
-                    return directIODelegate.openInput(name, context);
-                } catch (FileSystemException e) {
+                    DirectIODirectory dio = context.context() == IOContext.Context.MERGE ? mergeDirectIODelegate : directIODelegate;
+                    return dio.openInput(name, context);
+                } catch (FileSystemException | UnsupportedOperationException e) {
                     Log.debug(() -> Strings.format("Could not open %s with direct IO", name), e);
                     directIOException = e;
                     // and fallthrough to normal opening below
@@ -306,13 +322,18 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
     }
 
     public static final class AlwaysDirectIODirectory extends DirectIODirectory {
+        // two pages, guaranteeing a single buffer can load all of an un-page-aligned 1024-dim float vector
+        public static final int RANDOM_ACCESS_BUFFER_SIZE = 8192;
+
         private final int blockSize;
+        private final int bufferSize;
         private final int asyncPrefetchLimit;
 
-        public AlwaysDirectIODirectory(FSDirectory delegate, int mergeBufferSize, long minBytesDirect, int asyncPrefetchLimit)
+        public AlwaysDirectIODirectory(FSDirectory delegate, int bufferSize, long minBytesDirect, int asyncPrefetchLimit)
             throws IOException {
-            super(delegate, mergeBufferSize, minBytesDirect);
+            super(delegate, bufferSize, minBytesDirect);
             blockSize = getBlockSize(delegate.getDirectory());
+            this.bufferSize = bufferSize;
             this.asyncPrefetchLimit = asyncPrefetchLimit;
         }
 
@@ -325,8 +346,9 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
         public IndexInput openInput(String name, IOContext context) throws IOException {
             ensureOpen();
             if (asyncPrefetchLimit > 0) {
-                return new AsyncDirectIOIndexInput(getDirectory().resolve(name), blockSize, 8192, asyncPrefetchLimit);
+                return new AsyncDirectIOIndexInput(getDirectory().resolve(name), blockSize, bufferSize, asyncPrefetchLimit);
             } else {
+                // no async prefetching: a plain direct-IO input at this instance's buffer size
                 return super.openInput(name, context);
             }
         }

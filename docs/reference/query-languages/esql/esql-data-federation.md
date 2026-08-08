@@ -12,6 +12,8 @@ products:
 
 You can query data stored in compatible external data sources, using the same syntax you use for native indices and other index abstractions, without any ingestion into {{es}}. You query the files in place: nothing is copied into {{es}}, and there is no mapping to define up front: the schema is discovered from the files.
 
+In {{kib}}, you can query datasets from any app that uses the {{esql}} editor, such as **Discover** and **Dashboards**. Refer to [Use ES|QL in the Kibana UI](docs-content://explore-analyze/query-filter/languages/esql-kibana.md).
+
 :::{include} _snippets/data-federation/experimental-warning.md
 :::
 

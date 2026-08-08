@@ -461,12 +461,8 @@ public class EsqlSession {
 
                     TransportVersion minimumVersion = analyzedPlan.minimumVersion();
 
-                    // Apply the out-of-band request filter to external-source (dataset) leaves, translated
-                    // against each source's schema. Index leaves keep their existing filter path. Version-gated:
-                    // the translated predicate can contain mv_in_range, which older nodes cannot deserialize.
-                    // The rewrite is fail-closed: an unsupported construct throws IllegalArgumentException (a 400).
-                    // This callback runs outside the SubscribableListener chain below, so a synchronous throw here
-                    // would not be routed to the listener — catch it and fail the query explicitly.
+                    // Apply the request filter to dataset leaves (version-gated: may emit mv_in_range / mv_greater /
+                    // mv_less). Fail-closed — catch here because this callback is outside the listener chain.
                     final LogicalPlan plan;
                     try {
                         plan = RequestFilterRewriter.rewrite(

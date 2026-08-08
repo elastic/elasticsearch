@@ -80,7 +80,7 @@ public class EstimatedHeapUsageAllocationDeciderTests extends ESAllocationTestCa
             routingAllocation
         );
         assertThat(canRemainDecision.type(), equalTo(Decision.Type.YES));
-        assertThat(canRemainDecision.getExplanation(), equalTo("heap decider can remain disabled"));
+        assertThat(canRemainDecision.getExplanation(), equalTo("estimated heap decider can remain disabled"));
     }
 
     public void testYesDecisionWhenDisabled() {
@@ -606,7 +606,7 @@ public class EstimatedHeapUsageAllocationDeciderTests extends ESAllocationTestCa
     ) {
         final var clusterSettings = new ClusterSettings(
             Settings.builder()
-                .put(EstimatedHeapUsageAllocationDecider.MINIMUM_HEAP_SIZE_FOR_ENABLEMENT.getKey(), minimumHeapSizeForEnabled)
+                .put(AbstractEstimatedHeapAllocationDecider.MINIMUM_HEAP_SIZE_FOR_ENABLEMENT.getKey(), minimumHeapSizeForEnabled)
                 .put(InternalClusterInfoService.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_THRESHOLD_DECIDER_ENABLED.getKey(), enabled)
                 .put(
                     EstimatedHeapUsageAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_HIGH_WATERMARK_ENABLED.getKey(),
@@ -623,11 +623,11 @@ public class EstimatedHeapUsageAllocationDeciderTests extends ESAllocationTestCa
                 .build(),
             Set.of(
                 InternalClusterInfoService.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_THRESHOLD_DECIDER_ENABLED,
-                EstimatedHeapUsageAllocationDecider.MINIMUM_LOGGING_INTERVAL,
+                AbstractEstimatedHeapAllocationDecider.MINIMUM_LOGGING_INTERVAL,
                 EstimatedHeapUsageAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_LOW_WATERMARK,
                 EstimatedHeapUsageAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_HIGH_WATERMARK,
                 EstimatedHeapUsageAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_HIGH_WATERMARK_ENABLED,
-                EstimatedHeapUsageAllocationDecider.MINIMUM_HEAP_SIZE_FOR_ENABLEMENT
+                AbstractEstimatedHeapAllocationDecider.MINIMUM_HEAP_SIZE_FOR_ENABLEMENT
             )
         );
         return new EstimatedHeapUsageAllocationDecider(clusterSettings);

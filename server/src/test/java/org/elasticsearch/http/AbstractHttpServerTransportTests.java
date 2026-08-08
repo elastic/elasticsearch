@@ -26,11 +26,13 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.SecureReleasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
@@ -42,6 +44,7 @@ import org.elasticsearch.rest.RestHeaderDefinition;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.SecureReleasableRestChannel;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.TelemetryProvider;
@@ -77,6 +80,7 @@ import java.util.concurrent.BlockingDeque;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.net.InetAddress.getByName;
@@ -414,6 +418,79 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             assertThat(threadPool.getThreadContext().getHeader(Task.TRACE_PARENT_HTTP_HEADER), nullValue());
             assertThat(threadPool.getThreadContext().getTransient(Task.PARENT_TRACE_PARENT_HEADER), nullValue());
         }
+    }
+
+    public void testDispatchRequestReleasesSecureTransientsOnClose() {
+        final AtomicBoolean secureReleased = new AtomicBoolean();
+        final SecureReleasable secureReleasable = () -> secureReleased.set(true);
+        final AtomicBoolean plainReleased = new AtomicBoolean();
+        final Releasable plainReleasable = () -> plainReleased.set(true);
+        final AtomicReference<RestChannel> dispatchedChannel = new AtomicReference<>();
+        final AtomicReference<RestResponse> sentResponse = new AtomicReference<>();
+
+        final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
+            @Override
+            public void dispatchRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
+                dispatchedChannel.set(channel);
+                assertFalse("must not release before the response is even sent", secureReleased.get());
+                final RestResponse response = new RestResponse(RestStatus.OK, "test");
+                channel.sendResponse(response);
+                assertFalse("sendResponse alone must not release -- only closing the sent response does", secureReleased.get());
+                sentResponse.set(response);
+            }
+
+            @Override
+            public void dispatchBadRequest(final RestChannel channel, final ThreadContext threadContext, final Throwable cause) {
+                fail("should not hit the bad request path");
+            }
+        };
+
+        final RestRequest fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).build();
+        final RestControllerTests.AssertingChannel channel = new RestControllerTests.AssertingChannel(
+            fakeRequest,
+            randomBoolean(),
+            RestStatus.OK
+        );
+
+        try (
+            AbstractHttpServerTransport transport = new AbstractHttpServerTransport(
+                Settings.EMPTY,
+                networkService,
+                recycler,
+                threadPool,
+                xContentRegistry(),
+                dispatcher,
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                TelemetryProvider.NOOP
+            ) {
+                @Override
+                protected HttpServerChannel bind(InetSocketAddress hostAddress) {
+                    return null;
+                }
+
+                @Override
+                protected void startInternal() {}
+
+                @Override
+                protected void stopInternal() {}
+
+                @Override
+                protected void populatePerRequestThreadContext(RestRequest restRequest, ThreadContext threadContext) {
+                    threadContext.putTransient("test_secure_transient", secureReleasable);
+                    threadContext.putTransient("test_plain_transient", plainReleasable);
+                }
+            }
+        ) {
+            transport.dispatchRequest(fakeRequest, channel, null);
+        }
+
+        // the channel handed to the dispatcher must always be decorated
+        assertThat(dispatchedChannel.get(), instanceOf(SecureReleasableRestChannel.class));
+        assertFalse("must still not be released once dispatch has returned", secureReleased.get());
+
+        sentResponse.get().close();
+        assertTrue("must release the SecureReleasable transient once the sent response is closed", secureReleased.get());
+        assertFalse("a plain Releasable transient should not be released", plainReleased.get());
     }
 
     public void testHandlingCompatibleVersionParsingErrors() {

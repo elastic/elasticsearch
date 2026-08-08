@@ -930,18 +930,14 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 int numDocsInBlock = blockEndDocId - blockStartDocId;
 
                 var header = decompressOffsets(blockId, numDocsInBlock);
+                assert header.isCompressed() : "uncompressed blocks shouldn't exist";
                 int fullBlockLength = uncompressedDocStarts[numDocsInBlock];
 
                 // Decompress directly into valuesBuffer at valuesBufferIndex. decompressDirect writes
                 // at bytes.offset, so no intermediate buffer or arraycopy is needed.
-                if (header.isCompressed()) {
-                    decompressor.decompressDirect(compressedData, valuesBuffer, valuesBufferIndex, fullBlockLength);
-                } else {
-                    // Currently this will not happen in production, because compression mode is always zstd and
-                    // block compression is always enabled in production code.
-                    // Only TsdbDocValueBwcTests.testMixedIndexDocValueBinaryPerBlockCompression test will trigger this branch.
-                    compressedData.readBytes(valuesBuffer, valuesBufferIndex, fullBlockLength);
-                }
+                // Note that in production no uncompressed blocks exists. Only tests run with configuration that do that,
+                // but that doesn't happen for tests that test bulk decoding.
+                decompressor.decompressDirect(compressedData, valuesBuffer, valuesBufferIndex, fullBlockLength);
 
                 int startDocId = blockId == firstBlockId ? firstDocId : blockStartDocId;
                 int endDocId = blockId == endBlockId ? lastDocId + 1 : blockEndDocId;

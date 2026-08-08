@@ -53,7 +53,6 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
     // version 13: Added 'container.id' keyword mapping to profiling-events
     // version 14: Stop using using _source.mode attribute in index templates
     // version 15: Use LogsDB mode for profiling-events-* (~30% smaller storage footprint)
-    // version 16: Added 'profiling.executable.name' keyword mapping to profiling-events
     public static final int INDEX_TEMPLATE_VERSION = 15;
 
     // history for individual indices / index templates. Only bump these for breaking changes that require to create a new index
@@ -84,6 +83,10 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
 
     public void setTemplatesEnabled(boolean templatesEnabled) {
         this.templatesEnabled = templatesEnabled;
+    }
+
+    public boolean isTemplatesEnabled() {
+        return templatesEnabled;
     }
 
     public void close() {
@@ -118,7 +121,7 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
         return templatesEnabled ? lifecyclePolicies : Collections.emptyList();
     }
 
-    private final Map<String, ComponentTemplate> componentTemplates = parseComponentTemplates(
+    private final Map<String, ComponentTemplate> ecsComponentTemplates = parseComponentTemplates(
         new IndexTemplateConfig(
             "profiling-events",
             "/profiling/component-template/profiling-events.json",
@@ -188,10 +191,10 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
 
     @Override
     protected Map<String, ComponentTemplate> getComponentTemplateConfigs() {
-        return templatesEnabled ? componentTemplates : Collections.emptyMap();
+        return templatesEnabled ? ecsComponentTemplates : Collections.emptyMap();
     }
 
-    private final Map<String, ComposableIndexTemplate> composableIndexTemplates = parseComposableTemplates(
+    private final Map<String, ComposableIndexTemplate> ecsComposableIndexTemplates = parseComposableTemplates(
         new IndexTemplateConfig(
             "profiling-events",
             "/profiling/index-template/profiling-events.json",
@@ -266,7 +269,7 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
 
     @Override
     protected Map<String, ComposableIndexTemplate> getComposableTemplateConfigs() {
-        return templatesEnabled ? composableIndexTemplates : Collections.emptyMap();
+        return templatesEnabled ? ecsComposableIndexTemplates : Collections.emptyMap();
     }
 
     @Override
@@ -301,15 +304,15 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
      * @return <code>true</code> if and only if all resources managed by this registry have been created and are current.
      */
     public boolean isAllResourcesCreated(ClusterState state, Settings settings) {
-        for (String name : componentTemplates.keySet()) {
-            ComponentTemplate componentTemplate = state.metadata().getProject().componentTemplates().get(name);
-            if (componentTemplate == null || componentTemplate.version() < INDEX_TEMPLATE_VERSION) {
+        for (String name : ecsComponentTemplates.keySet()) {
+            ComponentTemplate ct = state.metadata().getProject().componentTemplates().get(name);
+            if (ct == null || ct.version() < INDEX_TEMPLATE_VERSION) {
                 return false;
             }
         }
-        for (String name : composableIndexTemplates.keySet()) {
-            ComposableIndexTemplate composableIndexTemplate = state.metadata().getProject().templatesV2().get(name);
-            if (composableIndexTemplate == null || composableIndexTemplate.version() < INDEX_TEMPLATE_VERSION) {
+        for (String name : ecsComposableIndexTemplates.keySet()) {
+            ComposableIndexTemplate cit = state.metadata().getProject().templatesV2().get(name);
+            if (cit == null || cit.version() < INDEX_TEMPLATE_VERSION) {
                 return false;
             }
         }

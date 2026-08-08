@@ -147,14 +147,25 @@ public class TransportGetStatusAction extends TransportMasterNodeAction<GetStatu
         }
 
         private boolean isResourcesCreated(ClusterState state) {
-            IndexStateResolver indexStateResolver = indexStateResolver(state);
-            boolean templatesCreated = templateRegistry.isAllResourcesCreated(state, clusterService.getSettings());
-            boolean indicesCreated = ProfilingIndexManager.isAllResourcesCreated(state, indexStateResolver);
-            boolean dataStreamsCreated = ProfilingDataStreamManager.isAllResourcesCreated(state, indexStateResolver);
-            return templatesCreated && indicesCreated && dataStreamsCreated;
+            return isResourcesCreated(state, templateRegistry.isTemplatesEnabled());
         }
 
-        private boolean isAnyPre891Data(ClusterState state) {
+        private boolean isResourcesCreated(ClusterState state, boolean ecsEnabled) {
+            // In OTel-only mode the profiling plugin manages no resources; OTel templates are installed
+            // unconditionally by the otel-data plugin, so there is nothing to wait for here.
+            if (ecsEnabled == false) {
+                return true;
+            }
+            IndexStateResolver indexStateResolver = indexStateResolver(state);
+            return templateRegistry.isAllResourcesCreated(state, clusterService.getSettings())
+                && ProfilingIndexManager.isAllResourcesCreated(state, indexStateResolver)
+                && ProfilingDataStreamManager.isAllResourcesCreated(state, indexStateResolver);
+        }
+
+        private boolean isAnyPre891Data(ClusterState state, boolean ecsEnabled) {
+            if (ecsEnabled == false) {
+                return false;
+            }
             IndexStateResolver indexStateResolver = indexStateResolver(state);
             boolean indicesPre891 = ProfilingIndexManager.isAnyResourceTooOld(state, indexStateResolver);
             boolean dataStreamsPre891 = ProfilingDataStreamManager.isAnyResourceTooOld(state, indexStateResolver);
@@ -168,11 +179,15 @@ public class TransportGetStatusAction extends TransportMasterNodeAction<GetStatu
         private void execute(ClusterState state, ActionListener<GetStatusAction.Response> listener) {
             boolean pluginEnabled = getValue(state, XPackSettings.PROFILING_ENABLED);
             boolean resourceManagementEnabled = getValue(state, ProfilingPlugin.PROFILING_TEMPLATES_ENABLED);
-            boolean resourcesCreated = isResourcesCreated(state);
-            boolean anyPre891Data = isAnyPre891Data(state);
+            boolean ecsEnabled = templateRegistry.isTemplatesEnabled();
+            boolean resourcesCreated = isResourcesCreated(state, ecsEnabled);
+            boolean anyPre891Data = isAnyPre891Data(state, ecsEnabled);
             // only issue a search if there is any chance that we have data
             if (resourcesCreated) {
-                SearchRequest countRequest = new SearchRequest(EventsIndex.FULL_INDEX.getName());
+                // Use a wildcard to cover both ECS (profiling-events-all) and OTel
+                // (profiling-events-all.otel-*) in a single search. LENIENT_EXPAND_OPEN
+                // silently treats missing indices as zero hits.
+                SearchRequest countRequest = new SearchRequest(EventsIndex.FULL_INDEX.getName() + "*");
                 countRequest.indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
                 countRequest.allowPartialSearchResults(true);
                 // we don't need an exact hit count, just whether there are any data at all

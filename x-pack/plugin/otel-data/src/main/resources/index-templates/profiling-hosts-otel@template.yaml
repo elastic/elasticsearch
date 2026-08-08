@@ -1,0 +1,17 @@
+---
+version: ${xpack.oteldata.template.version}
+index_patterns: ["profiling-hosts.otel-*"]
+priority: 250
+data_stream: {}
+allow_auto_create: true
+_meta:
+  description: OTel data stream template for eBPF Profiler hosts
+  managed: true
+composed_of:
+  - profiling-hosts-otel@mappings
+  - profiling-hosts-otel@custom
+ignore_missing_component_templates:
+  - profiling-hosts-otel@custom
+template:
+  lifecycle:
+    data_retention: 60d

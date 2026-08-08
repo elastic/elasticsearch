@@ -1,6 +1,7 @@
-import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 import org.elasticsearch.gradle.OS
 import org.elasticsearch.gradle.plugin.PluginPropertiesExtension
+import org.elasticsearch.gradle.internal.test.rest.RestTestBasePlugin
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the "Elastic License
@@ -15,6 +16,15 @@ import org.elasticsearch.gradle.plugin.PluginPropertiesExtension
  * It is applied by convention in the build.gradle of each stateless plugin.
  */
 
+// New path: plain Test tasks enrolled via RestTestBasePlugin / JUnit-rule-based test clusters
+plugins.withType(RestTestBasePlugin) {
+  restTests.tasks.configureEach {
+    onlyIf("stateless tests skipped on windows") { OS.current() != OS.WINDOWS }
+  }
+}
+
+// Legacy path: Gradle test-cluster framework (LegacyRestTestBasePlugin).
+// Must remain unconditional so that projects not using RestTestBasePlugin still receive this guard.
 tasks.withType(StandaloneRestIntegTestTask).configureEach {
   onlyIf("stateless tests skipped on windows") { OS.current() != OS.WINDOWS }
 }

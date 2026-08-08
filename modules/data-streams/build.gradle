@@ -1,4 +1,4 @@
-import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
+
 
 apply plugin: 'elasticsearch.test-with-dependencies'
 apply plugin: 'elasticsearch.internal-cluster-test'
@@ -26,7 +26,7 @@ dependencies {
   internalClusterTestImplementation project(':modules:reindex')
 }
 
-tasks.withType(StandaloneRestIntegTestTask).configureEach {
+restTests.tasks.configureEach {
   usesDefaultDistribution("to be triaged")
 }
 

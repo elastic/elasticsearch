@@ -17,6 +17,7 @@ toc:
       - file: configuration-reference/index-recovery-settings.md
       - file: configuration-reference/indexing-buffer-settings.md
       - file: configuration-reference/indexing-pressure-settings.md
+      - file: configuration-reference/ingest-settings.md
       - file: configuration-reference/license-settings.md
       - file: configuration-reference/local-gateway.md
       - file: configuration-reference/machine-learning-settings.md

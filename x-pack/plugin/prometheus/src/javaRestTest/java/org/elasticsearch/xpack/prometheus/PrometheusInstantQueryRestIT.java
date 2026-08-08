@@ -15,11 +15,11 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.test.rest.ObjectPath;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 
+import static org.elasticsearch.xpack.prometheus.PromqlSeries.of;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -152,35 +152,30 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
 
     /**
      * {@code by (...)} must key on the named label whichever side of the {@code labels.} passthrough prefix it sorts
-     * on, and the result must expose that label and nothing else.
+     * on, and the result must carry that label and nothing else.
      */
     public void testInstantQuerySumByEachLabel() throws Exception {
         ingestLabelledSeries(METRIC);
 
         assertThat(
-            valuesOf("sum by (cluster) (" + METRIC + ")"),
-            equalTo(Map.of(Map.of("cluster", "a"), "3", Map.of("cluster", "b"), "7"))
+            instantSeries("sum by (cluster) (" + METRIC + ")"),
+            containsInAnyOrder(of("cluster", "a", 3.0), of("cluster", "b", 7.0))
         );
-        assertThat(valuesOf("sum by (pod) (" + METRIC + ")"), equalTo(Map.of(Map.of("pod", "p1"), "4", Map.of("pod", "p2"), "6")));
-        assertThat(valuesOf("sum by (region) (" + METRIC + ")"), equalTo(Map.of(Map.of("region", "r1"), "5", Map.of("region", "r2"), "5")));
-        assertThat(valuesOf("sum by (job) (" + METRIC + ")"), equalTo(Map.of(Map.of("job", "test_job"), "10")));
+        assertThat(instantSeries("sum by (pod) (" + METRIC + ")"), containsInAnyOrder(of("pod", "p1", 4.0), of("pod", "p2", 6.0)));
+        assertThat(instantSeries("sum by (region) (" + METRIC + ")"), containsInAnyOrder(of("region", "r1", 5.0), of("region", "r2", 5.0)));
+        assertThat(instantSeries("sum by (job) (" + METRIC + ")"), contains(of("job", "test_job", 10.0)));
     }
 
-    /**
-     * {@code without (...)} must drop the named label and keep the rest. Every series stays distinct after dropping
-     * any single label, so the four input values survive unchanged.
-     */
+    /** {@code without (...)} must drop the named label and leave every other label, and value, untouched. */
     public void testInstantQuerySumWithoutEachLabel() throws Exception {
         ingestLabelledSeries(METRIC);
 
-        for (String dropped : List.of("cluster", "instance", "job", "pod", "region")) {
-            Map<Map<String, String>, String> series = valuesOf("sum without (" + dropped + ") (" + METRIC + ")");
-            assertThat("without(" + dropped + ")", series.keySet(), hasSize(4));
-            for (Map<String, String> labels : series.keySet()) {
-                assertThat("without(" + dropped + ") leaked [" + dropped + "]: " + labels, labels.containsKey(dropped), equalTo(false));
-                assertThat("without(" + dropped + ") lost labels: " + labels, labels.keySet(), hasSize(4));
-            }
-            assertThat(Set.copyOf(series.values()), equalTo(Set.of("1", "2", "3", "4")));
+        for (String dropped : LABELLED_SERIES_LABELS) {
+            assertThat(
+                "without(" + dropped + ")",
+                instantSeries("sum without (" + dropped + ") (" + METRIC + ")"),
+                containsInAnyOrder(LABELLED_SERIES.stream().map(series -> series.without(dropped)).toArray(PromqlSeries[]::new))
+            );
         }
     }
 
@@ -188,47 +183,24 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
     public void testInstantQueryTopKKeepsSeriesLabels() throws Exception {
         ingestLabelledSeries(METRIC);
 
-        Map<Map<String, String>, String> top = valuesOf("topk(2, " + METRIC + ")");
-        assertThat(top.keySet(), hasSize(2));
-        assertThat(Set.copyOf(top.values()), equalTo(Set.of("3", "4")));
-        for (Map<String, String> labels : top.keySet()) {
-            assertThat(labels.keySet(), equalTo(Set.of("cluster", "instance", "job", "pod", "region")));
-        }
+        assertThat(instantSeries("topk(2, " + METRIC + ")"), containsInAnyOrder(seriesWithValueAbove(2.0)));
     }
 
-    /** A comparison against a scalar filters series out and leaves the survivors' labels and values untouched. */
+    /** A comparison against a scalar drops the series that fail it and leaves the rest untouched. */
     public void testInstantQueryComparisonFiltersSeries() throws Exception {
         ingestLabelledSeries(METRIC);
 
-        Map<Map<String, String>, String> above = valuesOf(METRIC + " > 1");
-        assertThat(above.keySet(), hasSize(3));
-        assertThat(Set.copyOf(above.values()), equalTo(Set.of("2", "3", "4")));
+        assertThat(instantSeries(METRIC + " > 1"), containsInAnyOrder(seriesWithValueAbove(1.0)));
     }
 
-    /**
-     * Evaluates an instant query inside the ingested lookback window and maps each returned series to its labels
-     * (without {@code __name__}) and its value.
-     */
-    private Map<Map<String, String>, String> valuesOf(String promql) throws Exception {
-        ObjectPath path = executeInstantQuery(promql, "2026-01-01T00:05:00Z", null);
-
-        List<Map<String, Object>> result = path.evaluate("data.result");
-        Map<Map<String, String>, String> seriesByLabels = new HashMap<>();
-        for (Map<String, Object> series : result) {
-            // The Prometheus response shape: "metric" is a label map, "value" is a single [epochSeconds, value] pair.
-            @SuppressWarnings("unchecked")
-            Map<String, String> metric = new HashMap<>((Map<String, String>) series.get("metric"));
-            metric.remove("__name__");
-            @SuppressWarnings("unchecked")
-            List<Object> value = (List<Object>) series.get("value");
-            seriesByLabels.put(Map.copyOf(metric), stripTrailingZero((String) value.get(1)));
-        }
-        return seriesByLabels;
+    /** The ingested fixture series whose value exceeds {@code threshold}, as an array of matchers-by-equality. */
+    private static PromqlSeries[] seriesWithValueAbove(double threshold) {
+        return LABELLED_SERIES.stream().filter(series -> series.value() > threshold).toArray(PromqlSeries[]::new);
     }
 
-    /** Prometheus renders whole numbers as {@code 3} or {@code 3.0} depending on the path; compare on the integer. */
-    private static String stripTrailingZero(String value) {
-        return value.endsWith(".0") ? value.substring(0, value.length() - 2) : value;
+    /** Series returned by an instant query evaluated inside the ingested sample's lookback window. */
+    private List<PromqlSeries> instantSeries(String promql) throws Exception {
+        return PromqlSeries.ofInstant(executeInstantQuery(promql, "2026-01-01T00:05:00Z", null));
     }
 
     private static void assertMetricResult(ObjectPath responsePath) throws IOException {

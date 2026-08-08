@@ -13,16 +13,17 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.test.rest.ObjectPath;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
+import java.util.function.UnaryOperator;
 
+import static org.elasticsearch.xpack.prometheus.PromqlSeries.of;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.not;
 
 /**
  * Integration tests for the Prometheus {@code /api/v1/query_range} endpoint.
@@ -95,47 +96,41 @@ public class PrometheusQueryRangeRestIT extends AbstractPrometheusRestIT {
 
     /**
      * {@code by (...)} must key on the named label whichever side of the {@code labels.} passthrough prefix it sorts
-     * on, and the result must expose that label and nothing else.
+     * on, and the result must carry that label and nothing else.
      */
     public void testQueryRangeSumByEachLabel() throws Exception {
         ingestLabelledSeries(METRIC);
 
-        assertThat(sumOf("sum by (cluster) (" + METRIC + ")"), equalTo(Map.of(Map.of("cluster", "a"), "3", Map.of("cluster", "b"), "7")));
-        assertThat(sumOf("sum by (pod) (" + METRIC + ")"), equalTo(Map.of(Map.of("pod", "p1"), "4", Map.of("pod", "p2"), "6")));
-        assertThat(sumOf("sum by (region) (" + METRIC + ")"), equalTo(Map.of(Map.of("region", "r1"), "5", Map.of("region", "r2"), "5")));
-        assertThat(sumOf("sum by (job) (" + METRIC + ")"), equalTo(Map.of(Map.of("job", "test_job"), "10")));
-        assertThat(sumOf("sum by (instance) (" + METRIC + ")"), equalTo(Map.of(Map.of("instance", "localhost:9090"), "10")));
+        assertThat(rangeSeries("sum by (cluster) (" + METRIC + ")"), containsInAnyOrder(of("cluster", "a", 3.0), of("cluster", "b", 7.0)));
+        assertThat(rangeSeries("sum by (pod) (" + METRIC + ")"), containsInAnyOrder(of("pod", "p1", 4.0), of("pod", "p2", 6.0)));
+        assertThat(rangeSeries("sum by (region) (" + METRIC + ")"), containsInAnyOrder(of("region", "r1", 5.0), of("region", "r2", 5.0)));
+        assertThat(rangeSeries("sum by (job) (" + METRIC + ")"), contains(of("job", "test_job", 10.0)));
+        assertThat(rangeSeries("sum by (instance) (" + METRIC + ")"), contains(of("instance", "localhost:9090", 10.0)));
     }
 
-    /**
-     * {@code without (...)} must drop the named label and keep the rest, again regardless of how the label sorts
-     * against the passthrough prefix. Every series stays distinct after dropping any single label, so the four input
-     * values survive unchanged.
-     */
+    /** {@code without (...)} must drop the named label and leave every other label, and value, untouched. */
     public void testQueryRangeSumWithoutEachLabel() throws Exception {
         ingestLabelledSeries(METRIC);
 
-        for (String dropped : List.of("cluster", "instance", "job", "pod", "region")) {
-            Map<Map<String, String>, String> series = sumOf("sum without (" + dropped + ") (" + METRIC + ")");
-            assertThat("without(" + dropped + ")", series.keySet(), hasSize(4));
-            for (Map<String, String> labels : series.keySet()) {
-                assertThat("without(" + dropped + ") leaked [" + dropped + "]: " + labels, labels.containsKey(dropped), equalTo(false));
-                assertThat("without(" + dropped + ") lost labels: " + labels, labels.keySet(), hasSize(4));
-            }
-            assertThat(Set.copyOf(series.values()), equalTo(Set.of("1", "2", "3", "4")));
+        for (String dropped : LABELLED_SERIES_LABELS) {
+            assertThat(
+                "without(" + dropped + ")",
+                rangeSeries("sum without (" + dropped + ") (" + METRIC + ")"),
+                containsInAnyOrder(expected(series -> series.without(dropped)))
+            );
         }
     }
 
     /**
-     * An opaque {@code without} child feeding a {@code by} parent: the inner aggregation packs its identity, and the
-     * outer one must still resolve {@code pod} out of it.
+     * An opaque {@code without} child feeding a {@code by} parent: the inner aggregation packs its identity into
+     * {@code _timeseries}, and the outer one must still resolve {@code pod} out of it.
      */
     public void testQueryRangeNestedRegrouping() throws Exception {
         ingestLabelledSeries(METRIC);
 
         assertThat(
-            sumOf("sum by (pod) (sum without (region) (" + METRIC + "))"),
-            equalTo(Map.of(Map.of("pod", "p1"), "4", Map.of("pod", "p2"), "6"))
+            rangeSeries("sum by (pod) (sum without (region) (" + METRIC + "))"),
+            containsInAnyOrder(of("pod", "p1", 4.0), of("pod", "p2", 6.0))
         );
     }
 
@@ -147,28 +142,25 @@ public class PrometheusQueryRangeRestIT extends AbstractPrometheusRestIT {
         ingestLabelledSeries(METRIC);
 
         assertThat(
-            sumOf("sum by (cluster) (" + METRIC + ") or sum by (pod) (" + METRIC + ")"),
-            equalTo(Map.of(Map.of("cluster", "a"), "3", Map.of("cluster", "b"), "7", Map.of("pod", "p1"), "4", Map.of("pod", "p2"), "6"))
+            rangeSeries("sum by (cluster) (" + METRIC + ") or sum by (pod) (" + METRIC + ")"),
+            containsInAnyOrder(of("cluster", "a", 3.0), of("cluster", "b", 7.0), of("pod", "p1", 4.0), of("pod", "p2", 6.0))
         );
     }
 
-    /** Elementwise arithmetic keeps every label of the operand series. */
+    /** Elementwise arithmetic applies to every sample and keeps the operand's labels. */
     public void testQueryRangeArithmeticKeepsSeriesLabels() throws Exception {
         ingestLabelledSeries(METRIC);
 
-        Map<Map<String, String>, String> doubled = sumOf(METRIC + " * 2");
-        assertThat(doubled.keySet(), hasSize(4));
-        assertThat(Set.copyOf(doubled.values()), equalTo(Set.of("2", "4", "6", "8")));
-        for (Map<String, String> labels : doubled.keySet()) {
-            assertThat(labels.keySet(), equalTo(Set.of("cluster", "instance", "job", "pod", "region")));
-        }
+        assertThat(rangeSeries(METRIC + " * 2"), containsInAnyOrder(expected(series -> series.withValue(series.value() * 2))));
     }
 
-    /**
-     * Runs a range query over the ingested window and maps each returned series to its labels (without
-     * {@code __name__}) and its last sample value.
-     */
-    private Map<Map<String, String>, String> sumOf(String promql) throws Exception {
+    /** The ingested fixture mapped through {@code transform}, as an array of matchers-by-equality. */
+    private static PromqlSeries[] expected(UnaryOperator<PromqlSeries> transform) {
+        return LABELLED_SERIES.stream().map(transform).toArray(PromqlSeries[]::new);
+    }
+
+    /** Series returned by a range query spanning the ingested sample, each taken at its last step. */
+    private List<PromqlSeries> rangeSeries(String promql) throws Exception {
         Request request = prometheusReadRequest(
             "/_prometheus/api/v1/query_range",
             new BasicNameValuePair("query", promql),
@@ -178,27 +170,11 @@ public class PrometheusQueryRangeRestIT extends AbstractPrometheusRestIT {
         );
         Response response = client().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
-        ObjectPath path = ObjectPath.createFromResponse(response);
-        assertThat(path.evaluate("status"), equalTo("success"));
 
-        List<Map<String, Object>> result = path.evaluate("data.result");
-        Map<Map<String, String>, String> seriesByLabels = new HashMap<>();
-        for (Map<String, Object> series : result) {
-            // The Prometheus response shape: "metric" is a label map, "values" a list of [epochSeconds, value] pairs.
-            @SuppressWarnings("unchecked")
-            Map<String, String> metric = new HashMap<>((Map<String, String>) series.get("metric"));
-            metric.remove("__name__");
-            @SuppressWarnings("unchecked")
-            List<List<Object>> values = (List<List<Object>>) series.get("values");
-            assertThat("no samples for " + metric + " in [" + promql + "]", values, not(empty()));
-            seriesByLabels.put(Map.copyOf(metric), stripTrailingZero((String) values.getLast().get(1)));
-        }
-        return seriesByLabels;
-    }
-
-    /** Prometheus renders whole numbers as {@code 3} or {@code 3.0} depending on the path; compare on the integer. */
-    private static String stripTrailingZero(String value) {
-        return value.endsWith(".0") ? value.substring(0, value.length() - 2) : value;
+        ObjectPath responsePath = ObjectPath.createFromResponse(response);
+        assertThat(responsePath.evaluate("status"), equalTo("success"));
+        assertThat(responsePath.evaluate("data.resultType"), equalTo("matrix"));
+        return PromqlSeries.ofRange(responsePath);
     }
 
     private static void assertMetricResults(ObjectPath responsePath) throws IOException {

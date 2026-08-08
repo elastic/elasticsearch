@@ -513,8 +513,6 @@ public class SharedCacheCapacityAllocationDeciderIT extends AbstractStatelessPlu
             mockLog.assertAllExpectationsMatched();
         }
 
-        // Drive an actual reroute pass so canRemain's NOT_PREFERRED is exercised during real reconciliation, not just in the
-        // explain API above. The shard must stay assigned and started rather than being unassigned.
         ClusterRerouteUtils.reroute(client());
         ensureGreen(indexName);
         assertThat(findSearchShard(indexName).routingEntry().currentNodeId(), equalTo(soleSearchNodeId));

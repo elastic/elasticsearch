@@ -20,7 +20,7 @@ public class PrefixPartitionTests extends AbstractPrefixPartitionTests {
     @Override
     protected Codec getCodec(boolean writePrefixPartitions) {
         return TestUtil.alwaysDocValuesFormat(
-            new ES95TSDBDocValuesFormat(
+            new ES95RunTableTSDBDocValuesFormat(
                 random().nextInt(4, 16),
                 random().nextInt(1, 32),
                 random().nextBoolean(),
@@ -32,9 +32,7 @@ public class PrefixPartitionTests extends AbstractPrefixPartitionTests {
                 ES95TSDBDocValuesFormat.BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT,
                 NumericCodecFactory.DEFAULT,
                 ES95NumericFieldReader::defaultFallbackDecoder,
-                null,
-                new RunTableSortedCodec(new ES95SortedCodec()),
-                new RunTableSortedSetCodec(new ES95SortedSetCodec())
+                null
             )
         );
     }

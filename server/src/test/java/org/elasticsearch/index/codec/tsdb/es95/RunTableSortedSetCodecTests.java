@@ -362,7 +362,7 @@ public class RunTableSortedSetCodecTests extends ESTestCase {
     }
 
     private static DocValuesFormat runTableFormat() {
-        return new ES95TSDBDocValuesFormat(
+        return new ES95RunTableTSDBDocValuesFormat(
             DEFAULT_SKIP_INDEX_INTERVAL_SIZE,
             ORDINAL_RANGE_ENCODING_MIN_DOC_PER_ORDINAL,
             true,
@@ -374,9 +374,7 @@ public class RunTableSortedSetCodecTests extends ESTestCase {
             ES95TSDBDocValuesFormat.BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT,
             NumericCodecFactory.DEFAULT,
             ES95NumericFieldReader::defaultFallbackDecoder,
-            null,
-            new RunTableSortedCodec(new ES95SortedCodec(), (name, bs) -> new FieldContext(bs, name, null, null, true)),
-            new RunTableSortedSetCodec(new ES95SortedSetCodec(), (name, bs) -> new FieldContext(bs, name, null, null, true))
+            (name, bs) -> new FieldContext(bs, name, null, null, true)
         );
     }
 

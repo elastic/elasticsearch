@@ -46,6 +46,7 @@ public class TimeSeriesRunTableOrdinalFullClusterRestartIT extends Parameterized
         .module("mapper-extras")
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
+        .setting("xpack.ml.enabled", "false")
         .build();
 
     public TimeSeriesRunTableOrdinalFullClusterRestartIT(@Name("cluster") FullClusterRestartUpgradeStatus upgradeStatus) {

@@ -58,7 +58,7 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
 
     private final Codec codec = new Elasticsearch93Lucene104Codec() {
 
-        final DocValuesFormat docValuesFormat = new ES95TSDBDocValuesFormat(
+        final DocValuesFormat docValuesFormat = new ES95RunTableTSDBDocValuesFormat(
             ESTestCase.randomIntBetween(2, 4096),
             ESTestCase.randomIntBetween(1, 512),
             random().nextBoolean(),
@@ -70,9 +70,7 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
             ES95TSDBDocValuesFormat.BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT,
             NumericCodecFactory.DEFAULT,
             ES95NumericFieldReader::defaultFallbackDecoder,
-            null,
-            new RunTableSortedCodec(new ES95SortedCodec()),
-            new RunTableSortedSetCodec(new ES95SortedSetCodec())
+            null
         );
 
         @Override
@@ -304,7 +302,7 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
 
         for (int blockShift : new int[] { NUMERIC_BLOCK_SHIFT, NUMERIC_LARGE_BLOCK_SHIFT }) {
             try (Directory dir = newDirectory()) {
-                final DocValuesFormat format = new ES95TSDBDocValuesFormat(
+                final DocValuesFormat format = new ES95RunTableTSDBDocValuesFormat(
                     DEFAULT_SKIP_INDEX_INTERVAL_SIZE,
                     ORDINAL_RANGE_ENCODING_MIN_DOC_PER_ORDINAL,
                     true,
@@ -316,9 +314,7 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
                     ES95TSDBDocValuesFormat.BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT,
                     NumericCodecFactory.DEFAULT,
                     ES95NumericFieldReader::defaultFallbackDecoder,
-                    null,
-                    new RunTableSortedCodec(new ES95SortedCodec()),
-                    new RunTableSortedSetCodec(new ES95SortedSetCodec())
+                    null
                 );
                 try (IndexWriter writer = new IndexWriter(dir, writerConfig(format))) {
                     for (int i = 0; i < numDocs; i++) {
@@ -542,7 +538,7 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
     }
 
     public void testPipelinePathIsUsedForNumericFields() throws IOException {
-        final DocValuesFormat format = new ES95TSDBDocValuesFormat(
+        final DocValuesFormat format = new ES95RunTableTSDBDocValuesFormat(
             DEFAULT_SKIP_INDEX_INTERVAL_SIZE,
             ORDINAL_RANGE_ENCODING_MIN_DOC_PER_ORDINAL,
             true,
@@ -556,9 +552,7 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
             blockSize -> (input, values, count) -> {
                 throw new AssertionError("fallback decoder should not be reached for pipeline-encoded numeric fields");
             },
-            null,
-            new RunTableSortedCodec(new ES95SortedCodec()),
-            new RunTableSortedSetCodec(new ES95SortedSetCodec())
+            null
         );
 
         final int numDocs = ESTestCase.randomIntBetween(128, 4096);
@@ -1234,7 +1228,7 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
     }
 
     private static DocValuesFormat buildOrdinalFormat(int blockShift) {
-        return new ES95TSDBDocValuesFormat(
+        return new ES95RunTableTSDBDocValuesFormat(
             DEFAULT_SKIP_INDEX_INTERVAL_SIZE,
             ORDINAL_RANGE_ENCODING_MIN_DOC_PER_ORDINAL,
             true,
@@ -1246,9 +1240,7 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
             ES95TSDBDocValuesFormat.BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT,
             NumericCodecFactory.DEFAULT,
             ES95NumericFieldReader::defaultFallbackDecoder,
-            null,
-            new RunTableSortedCodec(new ES95SortedCodec()),
-            new RunTableSortedSetCodec(new ES95SortedSetCodec())
+            null
         );
     }
 
@@ -1264,7 +1256,7 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
             }
             return new FieldContext(blockSize, fieldName, null, null, false);
         };
-        return new ES95TSDBDocValuesFormat(
+        return new ES95RunTableTSDBDocValuesFormat(
             DEFAULT_SKIP_INDEX_INTERVAL_SIZE,
             ORDINAL_RANGE_ENCODING_MIN_DOC_PER_ORDINAL,
             true,
@@ -1276,9 +1268,7 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
             ES95TSDBDocValuesFormat.BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT,
             NumericCodecFactory.DEFAULT,
             ES95NumericFieldReader::defaultFallbackDecoder,
-            perFieldResolver,
-            new RunTableSortedCodec(new ES95SortedCodec()),
-            new RunTableSortedSetCodec(new ES95SortedSetCodec())
+            perFieldResolver
         );
     }
 
@@ -1453,7 +1443,7 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
     }
 
     private static DocValuesFormat buildRolePipelineFormat(int blockShift) {
-        return new ES95TSDBDocValuesFormat(
+        return new ES95RunTableTSDBDocValuesFormat(
             DEFAULT_SKIP_INDEX_INTERVAL_SIZE,
             ORDINAL_RANGE_ENCODING_MIN_DOC_PER_ORDINAL,
             true,
@@ -1467,9 +1457,7 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
             blockSize -> (input, values, count) -> {
                 throw new AssertionError("fallback decoder should not be reached for pipeline-encoded numeric fields");
             },
-            ROLE_RESOLVER,
-            new RunTableSortedCodec(new ES95SortedCodec()),
-            new RunTableSortedSetCodec(new ES95SortedSetCodec())
+            ROLE_RESOLVER
         );
     }
 

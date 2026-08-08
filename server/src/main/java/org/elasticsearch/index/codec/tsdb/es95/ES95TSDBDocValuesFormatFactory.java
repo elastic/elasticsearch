@@ -12,18 +12,16 @@ package org.elasticsearch.index.codec.tsdb.es95;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
-import org.elasticsearch.index.codec.tsdb.SortedOrdinalCodec;
-import org.elasticsearch.index.codec.tsdb.SortedSetOrdinalCodec;
 import org.elasticsearch.index.codec.tsdb.pipeline.FieldContextResolver;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericCodecFactory;
 
 /**
- * Factory for creating {@link ES95TSDBDocValuesFormat} instances with block size
- * configuration matching index settings. Every call allocates a fresh format because
- * every production caller supplies a per index {@link FieldContextResolver}, which
+ * Factory for creating {@link ES95TSDBDocValuesFormat} or {@link ES95RunTableTSDBDocValuesFormat}
+ * instances with block size configuration matching index settings. Every call allocates a fresh
+ * format because every production caller supplies a per index {@link FieldContextResolver}, which
  * closes over {@code MapperService} state and cannot be globally cached.
- * {@code PerFieldFormatSupplier} caches one format per supplier, which is the right
- * boundary for the per index per shard reuse pattern.
+ * {@code PerFieldFormatSupplier} caches one format per supplier, which is the right boundary for
+ * the per index per shard reuse pattern.
  */
 public final class ES95TSDBDocValuesFormatFactory {
 
@@ -31,9 +29,6 @@ public final class ES95TSDBDocValuesFormatFactory {
     static final int BINARY_BLOCK_COUNT_SMALL = 1024;
     static final int BINARY_BLOCK_BYTES_LARGE = 512 * 1024;
     static final int BINARY_BLOCK_COUNT_LARGE = 8096;
-
-    private static final ES95SortedCodec SORTED_FALLBACK = new ES95SortedCodec();
-    private static final ES95SortedSetCodec SORTED_SET_FALLBACK = new ES95SortedSetCodec();
 
     private ES95TSDBDocValuesFormatFactory() {}
 
@@ -48,11 +43,8 @@ public final class ES95TSDBDocValuesFormatFactory {
      *                                 per field, or {@code null} when mapper metadata
      *                                 is not available (the codec then uses a context
      *                                 with no data type or metric type information)
-     * @param useRunTableOrdinals      when {@code true}, wraps the sorted and sorted-set codecs
-     *                                 with the run-table ordinal layout for dimension fields;
-     *                                 when {@code false}, the baseline ES95 sorted codecs are
-     *                                 used directly and ordinals are never run-table encoded
-     * @return a freshly allocated format with the requested parameters
+     * @param useRunTableOrdinals      when {@code true}, returns an {@link ES95RunTableTSDBDocValuesFormat};
+     *                                 when {@code false}, returns an {@link ES95TSDBDocValuesFormat}
      */
     public static DocValuesFormat create(
         boolean useLargeNumericBlockSize,
@@ -66,13 +58,24 @@ public final class ES95TSDBDocValuesFormatFactory {
             : ES95TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT;
         final int blockBytesThreshold = useLargeBinaryBlockSize ? BINARY_BLOCK_BYTES_LARGE : BINARY_BLOCK_BYTES_SMALL;
         final int blockCountThreshold = useLargeBinaryBlockSize ? BINARY_BLOCK_COUNT_LARGE : BINARY_BLOCK_COUNT_SMALL;
-        final SortedOrdinalCodec sortedCodec = useRunTableOrdinals
-            ? new RunTableSortedCodec(SORTED_FALLBACK, fieldContextResolver)
-            : SORTED_FALLBACK;
-        final SortedSetOrdinalCodec sortedSetCodec = useRunTableOrdinals
-            ? new RunTableSortedSetCodec(SORTED_SET_FALLBACK, fieldContextResolver)
-            : SORTED_SET_FALLBACK;
+        if (useRunTableOrdinals) {
+            return new ES95RunTableTSDBDocValuesFormat(
+                ES95TSDBDocValuesFormat.DEFAULT_SKIP_INDEX_INTERVAL_SIZE,
+                ES95TSDBDocValuesFormat.ORDINAL_RANGE_ENCODING_MIN_DOC_PER_ORDINAL,
+                true,
+                BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1,
+                true,
+                numericBlockShift,
+                writePartitions,
+                blockBytesThreshold,
+                blockCountThreshold,
+                NumericCodecFactory.DEFAULT,
+                ES95NumericFieldReader::defaultFallbackDecoder,
+                fieldContextResolver
+            );
+        }
         return new ES95TSDBDocValuesFormat(
+            ES95TSDBDocValuesFormat.CODEC_NAME,
             ES95TSDBDocValuesFormat.DEFAULT_SKIP_INDEX_INTERVAL_SIZE,
             ES95TSDBDocValuesFormat.ORDINAL_RANGE_ENCODING_MIN_DOC_PER_ORDINAL,
             true,
@@ -85,8 +88,8 @@ public final class ES95TSDBDocValuesFormatFactory {
             NumericCodecFactory.DEFAULT,
             ES95NumericFieldReader::defaultFallbackDecoder,
             fieldContextResolver,
-            sortedCodec,
-            sortedSetCodec
+            new ES95SortedCodec(),
+            new ES95SortedSetCodec()
         );
     }
 }

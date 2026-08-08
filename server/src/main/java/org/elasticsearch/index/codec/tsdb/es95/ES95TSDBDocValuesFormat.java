@@ -92,13 +92,9 @@ public class ES95TSDBDocValuesFormat extends DocValuesFormat {
     @Nullable
     final FieldContextResolver fieldContextResolver;
 
-    /**
-     * Creates a new ES95 format with default configuration.
-     * NOTE: required by SPI but not used at runtime; codec selection goes through
-     * {@link ES95TSDBDocValuesFormatFactory}.
-     */
     public ES95TSDBDocValuesFormat() {
         this(
+            CODEC_NAME,
             DEFAULT_SKIP_INDEX_INTERVAL_SIZE,
             ORDINAL_RANGE_ENCODING_MIN_DOC_PER_ORDINAL,
             true,
@@ -111,12 +107,13 @@ public class ES95TSDBDocValuesFormat extends DocValuesFormat {
             NumericCodecFactory.DEFAULT,
             ES95NumericFieldReader::defaultFallbackDecoder,
             null,
-            new RunTableSortedCodec(new ES95SortedCodec()),
-            new RunTableSortedSetCodec(new ES95SortedSetCodec())
+            new ES95SortedCodec(),
+            new ES95SortedSetCodec()
         );
     }
 
     ES95TSDBDocValuesFormat(
+        String codecName,
         int skipIndexIntervalSize,
         int minDocsPerOrdinalForRangeEncoding,
         boolean enableOptimizedMerge,
@@ -132,7 +129,7 @@ public class ES95TSDBDocValuesFormat extends DocValuesFormat {
         final SortedOrdinalCodec sortedCodec,
         final SortedSetOrdinalCodec sortedSetCodec
     ) {
-        super(CODEC_NAME);
+        super(codecName);
         assert numericBlockShift >= NUMERIC_BLOCK_SHIFT : numericBlockShift;
         if (skipIndexIntervalSize < 2) {
             throw new IllegalArgumentException("skipIndexIntervalSize must be > 1, got [" + skipIndexIntervalSize + "]");

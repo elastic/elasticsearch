@@ -114,6 +114,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.blobcache.common.BlobCacheBufferedIndexInput.BUFFER_SIZE;
+import static org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils.randomRegionTimestampMillis;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.Type.INDEXING;
 import static org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.Type.INDEXING_EARLY;
@@ -178,7 +179,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             SharedBlobCacheService<FileCacheKey>.CacheFile cacheFile = sharedCacheService.getCacheFile(
                 new FileCacheKey(vbcc.getShardId(), vbcc.getPrimaryTermAndGeneration().primaryTerm(), vbcc.getBlobName()),
                 vbcc.getTotalSizeInBytes(),
-                SharedBlobCacheService.CacheMissHandler.NOOP
+                SharedBlobCacheService.CacheMissHandler.NOOP,
+                randomRegionTimestampMillis()
             );
 
             ByteBuffer buffer = ByteBuffer.allocate(Math.toIntExact(vbcc.getTotalSizeInBytes()));
@@ -227,7 +229,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             SharedBlobCacheService<FileCacheKey>.CacheFile cacheFile = sharedCacheService.getCacheFile(
                 new FileCacheKey(vbcc.getShardId(), vbcc.getPrimaryTermAndGeneration().primaryTerm(), vbcc.getBlobName()),
                 totalSize,
-                SharedBlobCacheService.CacheMissHandler.NOOP
+                SharedBlobCacheService.CacheMissHandler.NOOP,
+                randomRegionTimestampMillis()
             );
 
             // Verify all regions are warmed
@@ -294,7 +297,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             SharedBlobCacheService<FileCacheKey>.CacheFile cacheFile = sharedCacheService.getCacheFile(
                 new FileCacheKey(vbcc.getShardId(), vbcc.getPrimaryTermAndGeneration().primaryTerm(), vbcc.getBlobName()),
                 totalSize,
-                SharedBlobCacheService.CacheMissHandler.NOOP
+                SharedBlobCacheService.CacheMissHandler.NOOP,
+                randomRegionTimestampMillis()
             );
 
             // Regions within the prewarm limit should be warmed with correct data
@@ -357,7 +361,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             SharedBlobCacheService<FileCacheKey>.CacheFile cacheFile = sharedCacheService.getCacheFile(
                 new FileCacheKey(vbcc.getShardId(), vbcc.getPrimaryTermAndGeneration().primaryTerm(), vbcc.getBlobName()),
                 totalSize,
-                SharedBlobCacheService.CacheMissHandler.NOOP
+                SharedBlobCacheService.CacheMissHandler.NOOP,
+                randomRegionTimestampMillis()
             );
 
             // ALL regions should be warmed with correct data
@@ -814,7 +819,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                             public SharedBlobCacheService.CacheMissHandler copy() {
                                 return this;
                             }
-                        }
+                        },
+                        randomRegionTimestampMillis()
                     );
                     // this read should be served up from the warmed cache
                     var read = cacheFile.populateAndRead(
@@ -1370,7 +1376,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             SharedBlobCacheService<FileCacheKey>.CacheFile cacheFile = fakeNode.sharedCacheService.getCacheFile(
                 cacheKey,
                 vbcc.getTotalSizeInBytes(),
-                SharedBlobCacheService.CacheMissHandler.NOOP
+                SharedBlobCacheService.CacheMissHandler.NOOP,
+                randomRegionTimestampMillis()
             );
 
             var writeBuffer = ByteBuffer.allocate(8192);
@@ -1561,7 +1568,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 final var cacheFile = node.sharedCacheService.getCacheFile(
                     new FileCacheKey(node.shardId, blobLocation.primaryTerm(), blobLocation.blobName()),
                     minimizedEnd,
-                    SharedBlobCacheService.CacheMissHandler.NOOP
+                    SharedBlobCacheService.CacheMissHandler.NOOP,
+                    randomRegionTimestampMillis()
                 );
                 assertTrue(cacheFile.tryRead(ByteBuffer.allocate(Math.toIntExact(minimizedEnd - rangeStart)), rangeStart));
             }
@@ -1624,7 +1632,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             final var cacheFile = node.sharedCacheService.getCacheFile(
                 new FileCacheKey(node.shardId, blobLocation.primaryTerm(), blobLocation.blobName()),
                 rangeSize,
-                SharedBlobCacheService.CacheMissHandler.NOOP
+                SharedBlobCacheService.CacheMissHandler.NOOP,
+                randomRegionTimestampMillis()
             );
             assertTrue(cacheFile.tryRead(ByteBuffer.allocate(Math.toIntExact(rangeSize)), 0));
         }
@@ -1680,7 +1689,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             final var cacheFile = node.sharedCacheService.getCacheFile(
                 new FileCacheKey(node.shardId, blobFile.primaryTerm(), blobFile.blobName()),
                 currentOffset,
-                SharedBlobCacheService.CacheMissHandler.NOOP
+                SharedBlobCacheService.CacheMissHandler.NOOP,
+                randomRegionTimestampMillis()
             );
 
             // For each file, verify the expected caching behavior based on shouldPreWarmForIdLookup and ratio.

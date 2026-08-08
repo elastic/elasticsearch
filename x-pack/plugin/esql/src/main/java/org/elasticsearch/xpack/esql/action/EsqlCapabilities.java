@@ -1503,6 +1503,13 @@ public class EsqlCapabilities {
         WHERE_IN_SUBQUERY_FORK_UNKNOWN_COLUMN_FIX,
 
         /**
+         * Support IN non-correlated subqueries inside the STATS command's per-aggregate WHERE filter, e.g.
+         * {@code STATS c = COUNT(*) WHERE id IN (FROM other | KEEP id) BY dept}, including filters that wrap the IN subquery in
+         * {@code CASE}, {@code COALESCE}, and {@code IS [NOT] NULL}. INLINE STATS remains unsupported.
+         */
+        STATS_WHERE_IN_SUBQUERY,
+
+        /**
          * Support for views in cluster state (and REST API).
          */
         VIEWS_IN_CLUSTER_STATE,

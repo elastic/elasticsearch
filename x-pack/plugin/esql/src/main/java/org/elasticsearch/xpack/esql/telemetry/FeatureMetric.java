@@ -54,8 +54,10 @@ import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
-import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
@@ -90,9 +92,7 @@ public enum FeatureMetric {
     SORT(OrderBy.class::isInstance),
     // the STATS is checked in Analyzer.gatherPreAnalysisMetrics, because it can also be part of an INLINE STATS command
     STATS(plan -> false),
-    // SemiJoin/AntiJoin/MarkJoin only originate from `WHERE x IN (sub)` (rewritten by InSubqueryResolver),
-    // so seeing one in the plan implies the user wrote a WHERE clause — count it for WHERE.
-    WHERE(plan -> plan instanceof Filter || plan instanceof AbstractSubqueryJoin),
+    WHERE(plan -> plan instanceof Filter || plan instanceof SemiJoin || plan instanceof AntiJoin),
     ENRICH(Enrich.class::isInstance),
     EXPLAIN(Explain.class::isInstance),
     MV_EXPAND(MvExpand.class::isInstance),
@@ -144,6 +144,7 @@ public enum FeatureMetric {
         Limit.class, // LIMIT is managed in another way, see above
         FuseScoreEval.class,
         Aggregate.class, // STATS is managed in another way, see above
+        MarkJoin.class, // produced for STATS WHERE too; WHERE-originating MarkJoin nodes retain their enclosing Filter
         LocalRelation.class, // produced as a short-circuit for empty index patterns (e.g. PROMQL on missing index)
         NamedSubquery.class, // temporary plan node used as part of view resolution, but is removed by Analyzer
         ViewShadowRelation.class, // CPS lenient-lookup marker, stripped by ViewCompactionPostAnalysis after ResolveTable

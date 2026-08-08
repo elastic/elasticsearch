@@ -1,0 +1,2 @@
+FROM employees
+| WHERE salary IN (FROM employees | STATS s = MAX(salary) WHERE languages IN (FROM employees | KEEP languages))

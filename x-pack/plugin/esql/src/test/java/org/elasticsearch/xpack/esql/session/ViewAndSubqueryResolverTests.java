@@ -20,7 +20,9 @@ import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.parser.AbstractStatementParserTests;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
@@ -31,6 +33,7 @@ import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
+import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
 import org.elasticsearch.xpack.esql.telemetry.FeatureMetric;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
@@ -593,6 +596,36 @@ public class ViewAndSubqueryResolverTests extends AbstractStatementParserTests {
                 + "(FROM (FROM dept_view_a | KEEP dept_id), (FROM dept_view_b | KEEP dept_id) | KEEP dept_id)"
         );
         assertEquals("IN_SUBQUERY must be counted once per query", 1L, inSubqueryCount);
+    }
+
+    /*
+     * InlineStats
+     * \_Aggregate[cnt = COUNT(*) WHERE $$in_subquery_mark]
+     *   \_MarkJoin[[?dept_id],[]]
+     *     |_UnresolvedRelation[employees]
+     *     \_Keep[[?dept_id]]
+     *       \_NamedSubquery[dept_view]
+     *         \_Keep[[?dept_id]]
+     *           \_UnresolvedRelation[departments]
+     */
+    public void testInSubqueryInInlineStatsWhereReferencingView() {
+        addView("dept_view", "FROM departments | KEEP dept_id");
+        ViewResolver.ViewResolutionResult result = resolve(
+            "FROM employees | INLINE STATS cnt = COUNT(*) WHERE dept_id IN (FROM dept_view | KEEP dept_id)"
+        );
+
+        assertTrue(result.hasInSubquery());
+        assertEquals(Set.of("dept_view"), result.viewQueries().keySet());
+
+        InlineStats inlineStats = as(result.plan(), InlineStats.class);
+        Aggregate aggregate = as(inlineStats.child(), Aggregate.class);
+        MarkJoin markJoin = as(aggregate.child(), MarkJoin.class);
+        assertInSubqueryJoinKey(markJoin, "dept_id");
+        assertUnresolvedRelation(markJoin.left(), "employees");
+        Keep keep = as(markJoin.right(), Keep.class);
+        NamedSubquery namedSubquery = as(keep.child(), NamedSubquery.class);
+        keep = as(namedSubquery.child(), Keep.class);
+        assertUnresolvedRelation(keep.child(), "departments");
     }
 
     // ---- helpers ----

@@ -79,22 +79,6 @@ public class InSubqueryFailureIT extends AbstractEsqlIntegTestCase {
         assertThat(e.getMessage(), containsString("IN subquery is not supported in [STATS c = COUNT(*) BY id IN (FROM test | KEEP id)]"));
     }
 
-    public void testRejectsInSubqueryInStatsWhereFilter() {
-        var e = expectThrows(VerificationException.class, () -> run("FROM test | STATS c = COUNT(*) WHERE id IN (FROM test | KEEP id)"));
-        assertThat(
-            e.getMessage(),
-            containsString("IN subquery is not supported in [STATS c = COUNT(*) WHERE id IN (FROM test | KEEP id)]")
-        );
-    }
-
-    public void testRejectsInSubqueryInWhereInsideCaseExpression() {
-        var e = expectThrows(VerificationException.class, () -> run("FROM test | WHERE CASE(id IN (FROM test | KEEP id), true, false)"));
-        assertThat(
-            e.getMessage(),
-            containsString("IN subquery is not supported within other expressions [CASE(id IN (FROM test | KEEP id), true, false)]")
-        );
-    }
-
     public void testRejectInSubqueryUsedInWhereInsideMvContains() {
         var e = expectThrows(
             VerificationException.class,

@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -80,6 +81,9 @@ import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_DEFAULT;
  *   <li>{@link AbstractSubqueryJoin}: Recursively processes the left and right sides</li>
  *   <li>{@link Filter}: Calls {@link InSubqueryResolver} to expand any {@code InSubquery} into a {@code SemiJoin}/{@code AntiJoin}/
  *       {@code MarkJoin}, then recurses into the newly created subquery plans to resolve view references nested there</li>
+ *   <li>{@link Aggregate}: Calls {@link InSubqueryResolver} to expand any {@code InSubquery} inside a per-aggregate {@code WHERE}
+ *       filter (of a {@code STATS} or {@code INLINE STATS}) into a {@code MarkJoin} below the aggregate, then recurses like the
+ *       {@link Filter} case</li>
  *   <li>{@link ViewUnionAll}: Skipped (already the result of view resolution)</li>
  * </ul>
  * <p>
@@ -269,6 +273,30 @@ public class ViewResolver {
                         planListener.onResponse(filter);
                     } else {
                         // InSubquery rewritten to SemiJoin/AntiJoin/MarkJoin — record it for telemetry, then resolve any view
+                        // references introduced in the subquery plans.
+                        hasInSubquery.set(true);
+                        replaceViews(
+                            resolved,
+                            projectRouting,
+                            parser,
+                            seenInner,
+                            viewQueries,
+                            hasInSubquery,
+                            depth,
+                            planListener.delegateFailureAndWrap((l, result) -> {
+                                result.forEachDown(resolvedPlans::add);
+                                l.onResponse(result);
+                            })
+                        );
+                    }
+                }
+                case Aggregate aggregate -> {
+                    LogicalPlan resolved = InSubqueryResolver.resolveInSubqueryInAggregate(aggregate);
+                    if (resolved == aggregate) {
+                        // No InSubquery in the aggregate filters — let transformDown process its children normally.
+                        planListener.onResponse(aggregate);
+                    } else {
+                        // InSubquery rewritten to MarkJoin(s) below the aggregate — record it for telemetry, then resolve any view
                         // references introduced in the subquery plans.
                         hasInSubquery.set(true);
                         replaceViews(

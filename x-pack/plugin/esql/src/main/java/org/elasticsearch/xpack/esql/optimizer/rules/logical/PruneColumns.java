@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -77,6 +78,7 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                 p = switch (p) {
                     case Aggregate agg -> pruneColumnsInAggregate(agg, used, inlineJoin);
                     case InlineJoin inj -> pruneColumnsInInlineJoin(inj, used, recheck);
+                    case MarkJoin mj -> pruneUnusedMarkJoin(mj, used, recheck);
                     case Eval eval -> pruneColumnsInEval(eval, used, recheck);
                     case Project project -> pruneColumnsInProject(project, used, recheck);
                     case EsRelation esr -> pruneColumnsInEsRelation(esr, used);
@@ -154,6 +156,14 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
         }
 
         return p;
+    }
+
+    private static LogicalPlan pruneUnusedMarkJoin(MarkJoin markJoin, AttributeSet.Builder used, Holder<Boolean> recheck) {
+        if (used.contains(markJoin.markAttribute())) {
+            return markJoin;
+        }
+        recheck.set(true);
+        return markJoin.left();
     }
 
     /*

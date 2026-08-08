@@ -376,4 +376,147 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
             )
         );
     }
+
+    // -- IN subquery in INLINE STATS WHERE (per-aggregate) filters --
+
+    public void testInSubqueryInInlineStatsWhere() {
+        runGoldenTest("""
+            FROM employees
+            | INLINE STATS cnt = COUNT(*) WHERE emp_no IN (FROM employees | KEEP emp_no)
+            """, STAGES);
+    }
+
+    public void testNotInSubqueryInInlineStatsWhere() {
+        runGoldenTest("""
+            FROM employees
+            | INLINE STATS cnt = COUNT(*) WHERE emp_no NOT IN (FROM employees | KEEP emp_no)
+            """, STAGES);
+    }
+
+    public void testInSubqueryInInlineStatsWhereWithGrouping() {
+        runGoldenTest("""
+            FROM employees
+            | INLINE STATS cnt = COUNT(*) WHERE emp_no IN (FROM employees | KEEP emp_no) BY languages
+            """, STAGES);
+    }
+
+    /** Keeping only {@code cnt} must also prune the MarkJoin used exclusively by {@code mx}. */
+    public void testInSubqueryInInlineStatsWhereMultipleAggs() {
+        runGoldenTest("""
+            FROM employees
+            | INLINE STATS cnt = COUNT(*) WHERE emp_no IN (FROM employees | KEEP emp_no),
+                           mx = MAX(salary) WHERE languages IN (FROM employees | KEEP languages)
+            | KEEP cnt
+            """, STAGES);
+    }
+
+    public void testInSubqueryWithLimitInInlineStatsWhere() {
+        runGoldenTest("""
+            FROM employees
+            | INLINE STATS cnt = COUNT(*) WHERE emp_no IN (FROM employees | SORT emp_no | LIMIT 3 | KEEP emp_no)
+            """, STAGES);
+    }
+
+    public void testInSubqueryWithLimitBeforeInlineStats() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE emp_no IN (FROM employees | SORT emp_no | LIMIT 3 | KEEP emp_no)
+            | INLINE STATS cnt = COUNT(*)
+            """, STAGES);
+    }
+
+    public void testInSubqueryWithTSSourceInInlineStatsWhere() {
+        runGoldenTest("""
+            FROM employees
+            | INLINE STATS cnt = COUNT(*) WHERE salary IN (TS k8s | KEEP network.eth0.tx)
+            """, STAGES);
+    }
+
+    public void testCaseInSubqueryInInlineStatsWhere() {
+        runGoldenTest("""
+            FROM employees
+            | INLINE STATS cnt = COUNT(*) WHERE CASE(emp_no IN (FROM employees | KEEP emp_no), true, false)
+            """, STAGES);
+    }
+
+    public void testInSubqueryInWhereAndInlineStatsWhere() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE emp_no IN (FROM employees | SORT emp_no | LIMIT 3 | KEEP emp_no)
+            | INLINE STATS cnt = COUNT(*) WHERE languages IN (FROM employees | KEEP languages)
+            """, STAGES);
+    }
+
+    /**
+     * Two INLINE STATS aggregates filtered by the textually identical IN subquery: each still gets its own MarkJoin and mark
+     * attribute — the marks share a name but have distinct ids and each aggregate filter references its own.
+     */
+    public void testInSubqueryInInlineStatsWhereTwoAggsSameSubquery() {
+        runGoldenTest("""
+            FROM employees
+            | INLINE STATS cnt = COUNT(*) WHERE emp_no IN (FROM employees | KEEP emp_no),
+                           mx = MAX(salary) WHERE emp_no IN (FROM employees | KEEP emp_no)
+            """, STAGES);
+    }
+
+    public void testConstantInSubqueryInInlineStatsWhere() {
+        runGoldenTest("""
+            FROM employees
+            | INLINE STATS cnt = COUNT(*) WHERE 10001 IN (FROM employees | KEEP emp_no)
+            """, STAGES);
+    }
+
+    public void testInSubqueryInInlineStatsWhereAndGreaterThan() {
+        runGoldenTest("""
+            FROM employees
+            | INLINE STATS cnt = COUNT(*) WHERE emp_no IN (FROM employees | KEEP emp_no) AND salary > 50000
+            """, STAGES);
+    }
+
+    public void testDisjunctiveInSubqueriesInInlineStatsWhere() {
+        runGoldenTest("""
+            FROM employees
+            | INLINE STATS cnt = COUNT(*) WHERE emp_no IN (FROM employees | KEEP emp_no) OR languages IN (FROM employees | KEEP languages)
+            """, STAGES);
+    }
+
+    public void testInSubqueryInCoalesceInInlineStatsWhere() {
+        runGoldenTest("""
+            FROM employees
+            | INLINE STATS cnt = COUNT(*) WHERE COALESCE(emp_no IN (FROM employees | KEEP emp_no), false)
+            """, STAGES);
+    }
+
+    public void testInSubqueryInIsNullInInlineStatsWhere() {
+        runGoldenTest("""
+            FROM employees
+            | INLINE STATS cnt = COUNT(*) WHERE (emp_no IN (FROM employees | KEEP emp_no)) IS NULL
+            """, STAGES);
+    }
+
+    public void testInSubqueryInIsNotNullInInlineStatsWhere() {
+        runGoldenTest("""
+            FROM employees
+            | INLINE STATS cnt = COUNT(*) WHERE (emp_no IN (FROM employees | KEEP emp_no)) IS NOT NULL
+            """, STAGES);
+    }
+
+    public void testInSubqueryInInlineStatsWhereNestedInsideInSubquery() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE salary IN (FROM employees
+                              | INLINE STATS s = MAX(salary) WHERE languages IN (FROM employees | KEEP languages)
+                              | KEEP s)
+            """, STAGES);
+    }
+
+    public void testInlineStatsWithInSubqueryFilterGetsPrunedEntirely() {
+        // validate pruneUnusedMarkJoin in PruneColumns
+        runGoldenTest("""
+            FROM employees
+            | INLINE STATS c = COUNT(*) WHERE emp_no IN (FROM employees | KEEP emp_no)
+            | KEEP emp_no
+            | LIMIT 1
+            """, STAGES);
+    }
 }

@@ -1735,3 +1735,184 @@ ROW cluster = "qa"
 cluster:keyword
 qa
 ;
+
+inSubqueryInInlineStatsWhere
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_ts
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+required_capability: inline_stats_where_in_subquery
+
+TS k8s
+| STATS mb = max(to_long(network.total_bytes_in)) BY cluster
+| INLINE STATS c = COUNT(*) WHERE cluster IN (TS k8s
+                                              | STATS mb = max(to_long(network.total_bytes_in)) BY cluster
+                                              | WHERE mb > 10000
+                                              | KEEP cluster)
+| KEEP cluster, mb, c
+| SORT cluster
+;
+
+cluster:keyword | mb:long | c:long
+prod            | 10277   | 2
+qa              | 10797   | 2
+staging         | 7403    | 2
+;
+
+notInSubqueryInInlineStatsWhere
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_ts
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+required_capability: inline_stats_where_in_subquery
+
+TS k8s
+| STATS mb = max(to_long(network.total_bytes_in)) BY cluster
+| INLINE STATS c = COUNT(*) WHERE cluster NOT IN (TS k8s
+                                                 | STATS mb = max(to_long(network.total_bytes_in)) BY cluster
+                                                 | WHERE mb > 10000
+                                                 | KEEP cluster)
+| KEEP cluster, mb, c
+| SORT cluster
+;
+
+cluster:keyword | mb:long | c:long
+prod            | 10277   | 1
+qa              | 10797   | 1
+staging         | 7403    | 1
+;
+
+inSubqueryInInlineStatsWhereWithGrouping
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_ts
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+required_capability: inline_stats_where_in_subquery
+
+TS k8s
+| STATS mb = max(to_long(network.total_bytes_in)) BY cluster
+| INLINE STATS c = COUNT(*) WHERE cluster IN (TS k8s
+                                              | STATS mb = max(to_long(network.total_bytes_in)) BY cluster
+                                              | WHERE mb > 10000
+                                              | KEEP cluster)
+  BY cluster
+| KEEP cluster, mb, c
+| SORT cluster
+;
+
+cluster:keyword | mb:long | c:long
+prod            | 10277   | 1
+qa              | 10797   | 1
+staging         | 7403    | 0
+;
+
+inSubqueryInInlineStatsWhereWithMultipleAggs
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_ts
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+required_capability: inline_stats_where_in_subquery
+
+TS k8s
+| STATS mb = max(to_long(network.total_bytes_in)) BY cluster
+| INLINE STATS in_set = MAX(mb) WHERE cluster IN (TS k8s
+                                                  | STATS mb = max(to_long(network.total_bytes_in)) BY cluster
+                                                  | WHERE mb > 10000
+                                                  | KEEP cluster),
+               total = MAX(mb)
+| KEEP cluster, in_set, total
+| SORT cluster
+;
+
+cluster:keyword | in_set:long | total:long
+prod            | 10797       | 10797
+qa              | 10797       | 10797
+staging         | 10797       | 10797
+;
+
+inSubqueryOrGreaterThanInInlineStatsWhere
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_ts
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+required_capability: inline_stats_where_in_subquery
+
+TS k8s
+| STATS mb = max(to_long(network.total_bytes_in)) BY cluster
+| INLINE STATS c = COUNT(*) WHERE cluster IN (TS k8s
+                                              | STATS mb = max(to_long(network.total_bytes_in)) BY cluster
+                                              | WHERE mb > 10500
+                                              | KEEP cluster)
+                            OR mb < 8000
+| KEEP cluster, mb, c
+| SORT cluster
+;
+
+cluster:keyword | mb:long | c:long
+prod            | 10277   | 2
+qa              | 10797   | 2
+staging         | 7403    | 2
+;
+
+inSubqueryInInlineStatsWhereBeforeFilter
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_ts
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+required_capability: inline_stats_where_in_subquery
+
+TS k8s
+| STATS r = max(rate(network.total_bytes_in)) BY cluster
+| INLINE STATS c = COUNT(*) WHERE cluster IN (TS k8s
+                                              | STATS mb = max(to_long(network.total_bytes_in)) BY cluster
+                                              | WHERE mb > 10500
+                                              | KEEP cluster)
+| WHERE r > 10
+| KEEP cluster, c
+;
+
+cluster:keyword | c:long
+qa              | 1
+;
+
+inSubqueryInInlineStatsWhereWithRate
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_ts
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+required_capability: inline_stats_where_in_subquery
+
+TS k8s
+| STATS mb = max(to_long(network.total_bytes_in)) BY cluster
+| INLINE STATS c = COUNT(*) WHERE cluster IN (TS k8s
+                    | STATS r = max(rate(network.total_bytes_in)) BY cluster
+                    | WHERE r > 10
+                    | KEEP cluster)
+| KEEP cluster, mb, c
+| SORT cluster
+;
+
+cluster:keyword | mb:long | c:long
+prod            | 10277   | 1
+qa              | 10797   | 1
+staging         | 7403    | 1
+;
+
+inSubqueryWithLimitInInlineStatsWhere
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_ts
+required_capability: ts_command_v0
+required_capability: inline_stats_where_in_subquery
+
+TS k8s
+| STATS mb = max(to_long(network.total_bytes_in)) BY cluster
+| INLINE STATS c = COUNT(*) WHERE cluster IN (FROM employees | EVAL env = "qa" | KEEP env | LIMIT 1)
+| KEEP cluster, mb, c
+| SORT cluster
+;
+
+cluster:keyword | mb:long | c:long
+prod            | 10277   | 1
+qa              | 10797   | 1
+staging         | 7403    | 1
+;

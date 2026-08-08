@@ -2104,11 +2104,34 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private List<Alias> resolveFields(List<Alias> fields, List<Attribute> initialInputs) {
+            Set<String> evalFieldNames = new HashSet<>(fields.size());
+            for (Alias f : fields) {
+                evalFieldNames.add(f.name());
+            }
             List<Attribute> allResolvedInputs = new ArrayList<>(initialInputs);
             List<Alias> newFields = new ArrayList<>();
             boolean changed = false;
             for (Alias field : fields) {
-                Alias result = (Alias) field.transformUp(UnresolvedAttribute.class, ua -> resolveAttribute(ua, allResolvedInputs));
+                Alias result = (Alias) field.transformUp(UnresolvedAttribute.class, ua -> {
+                    Attribute resolved = resolveAttribute(ua, allResolvedInputs);
+                    /* If the unresolved attribute references another EVAL field, give it another opportunity to resolve
+                       in the next pass. If we set customMessage() it won't try to resolve again
+
+                       This means if we have a query where we need an implicit casting ("127.0.0.1" to ip datatype in this example):
+
+                            FROM hosts
+                            | EVAL ip = CASE(CIDR_MATCH(ip0, "10.0.0.0/8") OR ip0 == "127.0.0.1", TO_STRING(ip0), null),
+                                   field = CASE(ip IS NOT NULL, "a", "unknown")
+
+                        where ip would stay unresolved in a first pass (because the analyzer runs ResolveRefs -> ImplicitCasting)
+                        we need to give ip another chance to resolve
+                     */
+
+                    if (resolved instanceof UnresolvedAttribute u && u.customMessage() && evalFieldNames.contains(ua.name())) {
+                        return ua;
+                    }
+                    return resolved;
+                });
 
                 changed |= result != field;
                 newFields.add(result);

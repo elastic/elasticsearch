@@ -160,6 +160,10 @@ import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.namedcredentials.DecryptNamedCredentialAction;
+import org.elasticsearch.xpack.core.security.action.namedcredentials.DeleteNamedCredentialAction;
+import org.elasticsearch.xpack.core.security.action.namedcredentials.GetNamedCredentialsAction;
+import org.elasticsearch.xpack.core.security.action.namedcredentials.PutNamedCredentialAction;
 import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.privilege.GetBuiltinPrivilegesAction;
@@ -528,6 +532,12 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(kibanaRole.cluster().check(ActivateProfileAction.NAME, request, authentication), is(true));
         assertThat(kibanaRole.cluster().check(SuggestProfilesAction.NAME, request, authentication), is(true));
         assertThat(kibanaRole.cluster().check(ProfileHasPrivilegesAction.NAME, request, authentication), is(true));
+
+        // Named credentials
+        assertThat(kibanaRole.cluster().check(PutNamedCredentialAction.NAME, request, authentication), is(true));
+        assertThat(kibanaRole.cluster().check(GetNamedCredentialsAction.NAME, request, authentication), is(true));
+        assertThat(kibanaRole.cluster().check(DeleteNamedCredentialAction.NAME, request, authentication), is(true));
+        assertThat(kibanaRole.cluster().check(DecryptNamedCredentialAction.NAME, request, authentication), is(true));
         UpdateProfileDataRequest updateProfileDataRequest = randomBoolean()
             ? new UpdateProfileDataRequest(
                 randomAlphaOfLength(10),

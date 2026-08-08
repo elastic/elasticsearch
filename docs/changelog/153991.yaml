@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 153991
+summary: Add Named Credentials Store API
+type: feature

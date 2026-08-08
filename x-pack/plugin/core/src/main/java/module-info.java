@@ -151,6 +151,7 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.searchablesnapshots;
     exports org.elasticsearch.xpack.core.security.action.apikey;
     exports org.elasticsearch.xpack.core.security.action.enrollment;
+    exports org.elasticsearch.xpack.core.security.action.namedcredentials;
     exports org.elasticsearch.xpack.core.security.action.oidc;
     exports org.elasticsearch.xpack.core.security.action.privilege;
     exports org.elasticsearch.xpack.core.security.action.profile;

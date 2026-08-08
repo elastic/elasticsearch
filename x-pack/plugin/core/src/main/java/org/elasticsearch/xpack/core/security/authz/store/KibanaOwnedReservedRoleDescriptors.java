@@ -95,6 +95,8 @@ class KibanaOwnedReservedRoleDescriptors {
                 SuggestProfilesAction.NAME,
                 ProfileHasPrivilegesAction.NAME,
                 "write_fleet_secrets",
+                // To allow Kibana to manage named credentials
+                "manage_named_credentials",
                 // To facilitate ML UI functionality being controlled using Kibana security
                 // privileges
                 "manage_ml",

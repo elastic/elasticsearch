@@ -240,7 +240,7 @@ xpack.subprojects.findAll { it.parent == xpack || it.parent == esqlFunctions }.e
     }
     distro.copyModule(processDefaultOutputsTaskProvider, xpackModule)
     dependencies.add('featuresMetadata', dependencies.project(path: xpackModule.path))
-    if (xpackModule.name.equals('core') || xpackModule.name.equals('security')) {
+    if (xpackModule.name.equals('core') || xpackModule.name.equals('security') || xpackModule.name.equals('encryption')) {
       distro.copyModule(processIntegTestOutputsTaskProvider, xpackModule)
     }
   }

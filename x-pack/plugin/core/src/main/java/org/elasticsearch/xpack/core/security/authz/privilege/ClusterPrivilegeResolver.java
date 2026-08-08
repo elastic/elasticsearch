@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.core.security.action.apikey.CloneApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.namedcredentials.GetNamedCredentialsAction;
 import org.elasticsearch.xpack.core.security.action.privilege.GetBuiltinPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.profile.GetProfilesAction;
@@ -94,6 +95,8 @@ public class ClusterPrivilegeResolver {
     );
     private static final Set<String> MANAGE_SERVICE_ACCOUNT_PATTERN = Set.of("cluster:admin/xpack/security/service_account/*");
     private static final Set<String> MANAGE_USER_PROFILE_PATTERN = Set.of("cluster:admin/xpack/security/profile/*");
+    private static final Set<String> MANAGE_NAMED_CREDENTIALS_PATTERN = Set.of("cluster:admin/xpack/security/named_credentials/*");
+    private static final Set<String> READ_NAMED_CREDENTIALS_PATTERN = Set.of(GetNamedCredentialsAction.NAME);
     private static final Set<String> GRANT_API_KEY_PATTERN = Set.of(GrantApiKeyAction.NAME + "*");
     private static final Set<String> CLONE_API_KEY_PATTERN = Set.of(CloneApiKeyAction.NAME + "*");
     private static final Set<String> MONITOR_PATTERN = Set.of(
@@ -317,7 +320,8 @@ public class ClusterPrivilegeResolver {
             ActionTypes.QUERY_USER_ACTION.name(),
             GetUserPrivilegesAction.NAME, // normally authorized under the "same-user" authz check, but added here for uniformity
             HasPrivilegesAction.NAME,
-            GetSecuritySettingsAction.INSTANCE.name()
+            GetSecuritySettingsAction.INSTANCE.name(),
+            GetNamedCredentialsAction.NAME
         )
     );
     public static final NamedClusterPrivilege MANAGE_SAML = new ActionClusterPrivilege("manage_saml", MANAGE_SAML_PATTERN);
@@ -330,6 +334,14 @@ public class ClusterPrivilegeResolver {
     public static final NamedClusterPrivilege MANAGE_USER_PROFILE = new ActionClusterPrivilege(
         "manage_user_profile",
         MANAGE_USER_PROFILE_PATTERN
+    );
+    public static final NamedClusterPrivilege MANAGE_NAMED_CREDENTIALS = new ActionClusterPrivilege(
+        "manage_named_credentials",
+        MANAGE_NAMED_CREDENTIALS_PATTERN
+    );
+    public static final NamedClusterPrivilege READ_NAMED_CREDENTIALS = new ActionClusterPrivilege(
+        "read_named_credentials",
+        READ_NAMED_CREDENTIALS_PATTERN
     );
     public static final NamedClusterPrivilege GRANT_API_KEY = new ActionClusterPrivilege("grant_api_key", GRANT_API_KEY_PATTERN);
     public static final NamedClusterPrivilege CLONE_API_KEY = new ActionClusterPrivilege("clone_api_key", CLONE_API_KEY_PATTERN);
@@ -484,6 +496,8 @@ public class ClusterPrivilegeResolver {
             CLONE_API_KEY,
             MANAGE_SERVICE_ACCOUNT,
             MANAGE_USER_PROFILE,
+            MANAGE_NAMED_CREDENTIALS,
+            READ_NAMED_CREDENTIALS,
             MANAGE_PIPELINE,
             MANAGE_PROJECT_ROUTING,
             MANAGE_ROLLUP,

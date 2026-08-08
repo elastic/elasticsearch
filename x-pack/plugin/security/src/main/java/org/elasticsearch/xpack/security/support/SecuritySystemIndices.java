@@ -49,11 +49,15 @@ public class SecuritySystemIndices {
     private static final int INTERNAL_TOKENS_INDEX_MAPPINGS_FORMAT = 1;
     private static final int INTERNAL_PROFILE_INDEX_FORMAT = 8;
     private static final int INTERNAL_PROFILE_INDEX_MAPPINGS_FORMAT = 2;
+    private static final int INTERNAL_NAMED_CREDENTIALS_INDEX_FORMAT = 1;
+    private static final int INTERNAL_NAMED_CREDENTIALS_INDEX_MAPPINGS_FORMAT = 1;
 
     public static final String SECURITY_MAIN_ALIAS = ".security";
     private static final String MAIN_INDEX_CONCRETE_NAME = ".security-7";
     public static final String SECURITY_TOKENS_ALIAS = ".security-tokens";
     private static final String TOKENS_INDEX_CONCRETE_NAME = ".security-tokens-7";
+    public static final String SECURITY_NAMED_CREDENTIALS_ALIAS = ".security-named-credentials";
+    private static final String NAMED_CREDENTIALS_INDEX_CONCRETE_NAME = ".security-named-credentials-1";
 
     public static final String INTERNAL_SECURITY_PROFILE_INDEX_8 = ".security-profile-8";
     public static final String SECURITY_PROFILE_ALIAS = ".security-profile";
@@ -72,23 +76,27 @@ public class SecuritySystemIndices {
     private final SystemIndexDescriptor mainDescriptor;
     private final SystemIndexDescriptor tokenDescriptor;
     private final SystemIndexDescriptor profileDescriptor;
+    private final SystemIndexDescriptor namedCredentialsDescriptor;
     private final AtomicBoolean initialized;
     private SecurityIndexManager mainIndexManager;
     private SecurityIndexManager tokenIndexManager;
     private SecurityIndexManager profileIndexManager;
+    private SecurityIndexManager namedCredentialsIndexManager;
 
     public SecuritySystemIndices(Settings settings) {
         this.mainDescriptor = getSecurityMainIndexDescriptor();
         this.tokenDescriptor = getSecurityTokenIndexDescriptor();
         this.profileDescriptor = getSecurityProfileIndexDescriptor(settings);
+        this.namedCredentialsDescriptor = getSecurityNamedCredentialsIndexDescriptor();
         this.initialized = new AtomicBoolean(false);
         this.mainIndexManager = null;
         this.tokenIndexManager = null;
         this.profileIndexManager = null;
+        this.namedCredentialsIndexManager = null;
     }
 
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors() {
-        return List.of(mainDescriptor, tokenDescriptor, profileDescriptor);
+        return List.of(mainDescriptor, tokenDescriptor, profileDescriptor, namedCredentialsDescriptor);
     }
 
     public void init(Client client, FeatureService featureService, ClusterService clusterService, ProjectResolver projectResolver) {
@@ -116,6 +124,13 @@ public class SecuritySystemIndices {
             projectResolver,
             profileDescriptor
         );
+        this.namedCredentialsIndexManager = SecurityIndexManager.buildSecurityIndexManager(
+            client,
+            clusterService,
+            featureService,
+            projectResolver,
+            namedCredentialsDescriptor
+        );
     }
 
     public SecurityIndexManager getMainIndexManager() {
@@ -129,7 +144,13 @@ public class SecuritySystemIndices {
     }
 
     public SecurityIndexManager getProfileIndexManager() {
+        checkInitialized();
         return profileIndexManager;
+    }
+
+    public SecurityIndexManager getNamedCredentialsIndexManager() {
+        checkInitialized();
+        return this.namedCredentialsIndexManager;
     }
 
     private void checkInitialized() {
@@ -897,6 +918,80 @@ public class SecuritySystemIndices {
             return builder;
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to build " + TOKENS_INDEX_CONCRETE_NAME + " index mappings", e);
+        }
+    }
+
+    private static SystemIndexDescriptor getSecurityNamedCredentialsIndexDescriptor() {
+        return SystemIndexDescriptor.builder()
+            .setIndexPattern(".security-named-credentials-[0-9]+*")
+            .setPrimaryIndex(NAMED_CREDENTIALS_INDEX_CONCRETE_NAME)
+            .setDescription("Contains named credentials for third-party services")
+            .setMappings(getNamedCredentialsIndexMappings())
+            .setSettings(getNamedCredentialsIndexSettings())
+            .setAliasName(SECURITY_NAMED_CREDENTIALS_ALIAS)
+            .setIndexFormat(INTERNAL_NAMED_CREDENTIALS_INDEX_FORMAT)
+            .setOrigin(SECURITY_ORIGIN)
+            .setThreadPools(ExecutorNames.CRITICAL_SYSTEM_INDEX_THREAD_POOLS)
+            .build();
+    }
+
+    private static Settings getNamedCredentialsIndexSettings() {
+        return Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
+            .put(DataTier.TIER_PREFERENCE, "data_hot,data_content")
+            .put(IndexMetadata.SETTING_PRIORITY, 1000)
+            .put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), INTERNAL_NAMED_CREDENTIALS_INDEX_FORMAT)
+            .build();
+    }
+
+    private static XContentBuilder getNamedCredentialsIndexMappings() {
+        try {
+            final XContentBuilder builder = jsonBuilder();
+            builder.startObject();
+            {
+                builder.startObject("_meta");
+                builder.field(SECURITY_VERSION_STRING, BWC_MAPPINGS_VERSION);
+                builder.field(SystemIndexDescriptor.VERSION_META_KEY, INTERNAL_NAMED_CREDENTIALS_INDEX_MAPPINGS_FORMAT);
+                builder.endObject();
+                builder.field("dynamic", "strict");
+                builder.startObject("properties");
+                {
+                    builder.startObject("auth_type");
+                    builder.field("type", "keyword");
+                    builder.endObject();
+
+                    builder.startObject("url");
+                    builder.field("type", "keyword");
+                    builder.endObject();
+
+                    // Free-form per-auth-type fields; stored in _source, not indexed.
+                    builder.startObject("config");
+                    builder.field("type", "object");
+                    builder.field("dynamic", false);
+                    builder.endObject();
+
+                    // Base64 of the serialized EncryptedData carrier; opaque to Elasticsearch.
+                    builder.startObject("auth");
+                    builder.field("type", "binary");
+                    builder.endObject();
+
+                    builder.startObject("created_at");
+                    builder.field("type", "date");
+                    builder.field("format", "epoch_millis");
+                    builder.endObject();
+
+                    builder.startObject("updated_at");
+                    builder.field("type", "date");
+                    builder.field("format", "epoch_millis");
+                    builder.endObject();
+                }
+                builder.endObject();
+            }
+            builder.endObject();
+            return builder;
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to build \"" + NAMED_CREDENTIALS_INDEX_CONCRETE_NAME + "\" index mappings", e);
         }
     }
 

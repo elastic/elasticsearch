@@ -60,6 +60,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 /**
  * A {@link FilterLeafReader} that exposes only a subset
@@ -365,21 +366,23 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
     /**
      * Wraps {@link BinaryDocValues} for the {@code _ignored_source} field to apply field-level security filtering.
      * <p>
-     * Per-document values are decoded via {@link MultiValuedSortedBinaryDocValues} (which handles both
-     * {@link MultiValuedBinaryDocValuesField.SeparateCount} and {@link MultiValuedBinaryDocValuesField.IntegratedCount}
-     * formats), filtered through the FLS field automaton, and re-encoded in the
-     * {@link MultiValuedBinaryDocValuesField.IntegratedCount} format so that callers only observe field values
-     * the current user is authorised to see. Returning the integrated-count format allows the caller to treat
-     * the counts numeric field as absent, avoiding stale count mismatches after filtering.
+     * Per-document values are decoded via {@link MultiValuedSortedBinaryDocValues}, filtered through the FLS field automaton, and the
+     * surviving values are stored as a list. Extending {@link MultiValuedSortedBinaryDocValues.DecodedBinaryDocValues} lets
+     * {@link MultiValuedSortedBinaryDocValues#fromMultiValued} read those values directly, avoiding the otherwise-necessary step of
+     * re-encoding them into a blob that the caller would immediately parse apart again. {@link #binaryValue()} encodes on demand as a
+     * fallback for anything that reads this instance as a plain {@link BinaryDocValues}.
      */
-    private static final class FilteredIgnoredSourceDocValues extends BinaryDocValues {
+    private static final class FilteredIgnoredSourceDocValues extends MultiValuedSortedBinaryDocValues.DecodedBinaryDocValues {
 
         private final BinaryDocValues delegate;
         private final MultiValuedSortedBinaryDocValues multiValues;
         private final IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat;
-        private final CharacterRunAutomaton filter;
-
-        private BytesRef filteredValue;
+        /** Held rather than built per entry: both capture {@link #filter}, so constructing them in the loop allocates on every value. */
+        private final Function<Map<String, Object>, Map<String, Object>> mapFilter;
+        private final Predicate<String> nameFilter;
+        private final List<BytesRef> filteredValues = new ArrayList<>();
+        private int nextValueIndex;
+        private BytesRef encodedValue;
 
         FilteredIgnoredSourceDocValues(
             LeafReader reader,
@@ -389,42 +392,57 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         ) throws IOException {
             this.delegate = dv;
             this.ignoredSourceFormat = ignoredSourceFormat;
-            this.filter = filter;
+            this.mapFilter = v -> filter(v, filter, 0);
+            this.nameFilter = filter::run;
             // convert incoming binary doc values to reuse the code provided by MultiValuedSortedBinaryDocValues
             this.multiValues = MultiValuedSortedBinaryDocValues.fromMultiValued(reader, IgnoredSourceFieldMapper.NAME, dv);
         }
 
         @Override
         public boolean advanceExact(int target) throws IOException {
-            filteredValue = null;
+            clear();
+
             if (multiValues.advanceExact(target) == false) {
                 return false;
             }
 
             // iterate over all ignored-source entries for this document and apply FLS filtering
-            List<BytesRef> filteredValues = new ArrayList<>();
             int count = multiValues.docValueCount();
             for (int i = 0; i < count; i++) {
                 BytesRef value = multiValues.nextValue();
-                BytesRef filtered = ignoredSourceFormat.filterValue(value, v -> filter(v, filter, 0));
+                BytesRef filtered = ignoredSourceFormat.filterValue(value, mapFilter, nameFilter);
                 if (filtered != null) {
                     // deep copy because nextValue() reuses an internal scratch buffer
                     filteredValues.add(BytesRef.deepCopyOf(filtered));
                 }
             }
 
-            if (filteredValues.isEmpty()) {
-                return false;
-            }
+            return filteredValues.isEmpty() == false;
+        }
 
-            // re-encode surviving values into IntegratedCount format
-            filteredValue = MultiValuedBinaryDocValuesField.IntegratedCount.encode(filteredValues);
-            return true;
+        private void clear() {
+            filteredValues.clear();
+            nextValueIndex = 0;
+            encodedValue = null;
+        }
+
+        @Override
+        public int docValueCount() {
+            return filteredValues.size();
+        }
+
+        @Override
+        public BytesRef nextValue() {
+            return filteredValues.get(nextValueIndex++);
         }
 
         @Override
         public BytesRef binaryValue() {
-            return filteredValue;
+            if (encodedValue == null && filteredValues.isEmpty() == false) {
+                // Only for callers that read this as a plain BinaryDocValues; readers of _ignored_source take the decoded path.
+                encodedValue = MultiValuedBinaryDocValuesField.IntegratedCount.encode(filteredValues);
+            }
+            return encodedValue;
         }
 
         @Override
@@ -551,7 +569,7 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
             } else if (IgnoredSourceFieldMapper.NAME.equals(fieldInfo.name)) {
                 assert ignoredSourceFormat != IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE;
                 BytesRef valueRef = new BytesRef(value);
-                BytesRef filtered = ignoredSourceFormat.filterValue(valueRef, v -> filter(v, filter, 0));
+                BytesRef filtered = ignoredSourceFormat.filterValue(valueRef, v -> filter(v, filter, 0), filter::run);
                 if (filtered != null) {
                     byte[] filteredBytes = ArrayUtil.copyOfSubArray(filtered.bytes, filtered.offset, filtered.offset + filtered.length);
                     visitor.binaryField(fieldInfo, filteredBytes);

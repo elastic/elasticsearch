@@ -89,6 +89,7 @@ import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
+import org.elasticsearch.indices.recovery.RecoveryGate;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.StatelessPrimaryRelocationAction;
 import org.elasticsearch.indices.recovery.StatelessUnpromotableRelocationAction;
@@ -111,6 +112,7 @@ import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.HealthPlugin;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.RecoveryPlugin;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
@@ -130,6 +132,7 @@ import org.elasticsearch.xpack.stateless.action.TransportFetchShardCommitsInUseA
 import org.elasticsearch.xpack.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
 import org.elasticsearch.xpack.stateless.allocation.DisableSimulationRebalancingDecider;
+import org.elasticsearch.xpack.stateless.allocation.EstimatedHeapSettings;
 import org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageAllocationDecider;
 import org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageMonitor;
 import org.elasticsearch.xpack.stateless.allocation.SharedCacheCapacityAllocationDecider;
@@ -195,6 +198,7 @@ import org.elasticsearch.xpack.stateless.memory.TransportPublishMergeMemoryEstim
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.objectstore.gc.ObjectStoreGCTask;
 import org.elasticsearch.xpack.stateless.objectstore.gc.ObjectStoreGCTaskExecutor;
+import org.elasticsearch.xpack.stateless.recovery.EstimatedHeapUsageRecoveryGate;
 import org.elasticsearch.xpack.stateless.recovery.PITRelocationService;
 import org.elasticsearch.xpack.stateless.recovery.PitRelocationMetrics;
 import org.elasticsearch.xpack.stateless.recovery.RecoveryCommitRegistrationHandler;
@@ -276,7 +280,8 @@ public class StatelessPlugin extends Plugin
         CircuitBreakerPlugin,
         ExtensiblePlugin,
         HealthPlugin,
-        PersistentTaskPlugin {
+        PersistentTaskPlugin,
+        RecoveryPlugin {
 
     private static final Logger logger = LogManager.getLogger(StatelessPlugin.class);
 
@@ -528,6 +533,7 @@ public class StatelessPlugin extends Plugin
     private final SetOnce<SnapshotsCommitService> snapshotsCommitServiceRef = new SetOnce<>();
     private final SetOnce<StatelessMemoryMetricsService> statelessMemoryMetricsService = new SetOnce<>();
     private final SetOnce<ShardsMappingSizeCollector> shardsMappingSizeCollector = new SetOnce<>();
+    private final SetOnce<EstimatedHeapUsageRecoveryGate> estimatedHeapUsageRecoveryGate = new SetOnce<>();
     private final SetOnce<Client> clientRef = new SetOnce<>();
 
     private final PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricHolder = new ThreadLocalDirectoryMetricHolder<>(
@@ -980,6 +986,11 @@ public class StatelessPlugin extends Plugin
 
         if (hasIndexRole) {
             components.add(new IndexingDiskController(nodeEnvironment, settings, threadPool, indicesService, commitService));
+        }
+        if (EstimatedHeapSettings.appliesToNode(settings)) {
+            this.estimatedHeapUsageRecoveryGate.set(
+                EstimatedHeapUsageRecoveryGate.create(clusterService, memoryMetricsService, shardsMappingSizeCollector)
+            );
         }
         components.add(
             setAndGet(
@@ -1902,6 +1913,12 @@ public class StatelessPlugin extends Plugin
             new SharedCacheCapacityAllocationDecider(clusterSettings),
             new StatelessThrottlingConcurrentRecoveriesAllocationDecider(clusterSettings)
         );
+    }
+
+    @Override
+    public Collection<RecoveryGate> getRecoveryGates() {
+        final EstimatedHeapUsageRecoveryGate gate = estimatedHeapUsageRecoveryGate.get();
+        return gate != null ? List.of(gate) : List.of();
     }
 
     @Override

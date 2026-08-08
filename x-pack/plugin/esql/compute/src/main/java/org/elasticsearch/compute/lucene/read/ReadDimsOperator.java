@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.OrdinalBytesRefVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.AlwaysReferencedIndexedByShardId;
+import org.elasticsearch.compute.operator.DimsPacker;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.Releasables;
@@ -26,13 +27,13 @@ import java.util.Arrays;
  * Loads dimension fields after a time-series aggregation.
  */
 public final class ReadDimsOperator implements Operator {
-    public record Factory(ValuesSourceReaderOperator.Factory valuesSourceReader, int docChannel, int tsidChannel)
+    public record Factory(ValuesSourceReaderOperator.Factory valuesSourceReader, int docChannel, int tsidChannel, boolean packed)
         implements
             OperatorFactory {
 
         @Override
         public Operator get(DriverContext driverContext) {
-            return new ReadDimsOperator(valuesSourceReader.get(driverContext), docChannel, tsidChannel);
+            return new ReadDimsOperator(driverContext, valuesSourceReader.get(driverContext), docChannel, tsidChannel, packed);
         }
 
         @Override
@@ -41,17 +42,22 @@ public final class ReadDimsOperator implements Operator {
         }
     }
 
+    private final DriverContext driverContext;
     private final Operator valuesReader;
     private final int docChannel;
     private final int tsidChannel;
+    private final boolean packed;
+
     private Page prevPage;
     private int[] firstPos = new int[0];
     private int[] ordsArray = new int[0];
 
-    ReadDimsOperator(Operator valuesReader, int docChannel, int tsidChannel) {
+    ReadDimsOperator(DriverContext driverContext, Operator valuesReader, int docChannel, int tsidChannel, boolean packed) {
+        this.driverContext = driverContext;
         this.valuesReader = valuesReader;
         this.docChannel = docChannel;
         this.tsidChannel = tsidChannel;
+        this.packed = packed;
     }
 
     @Override
@@ -99,7 +105,12 @@ public final class ReadDimsOperator implements Operator {
         DocBlock docBlock = page.getBlock(docChannel);
         OrdinalBytesRefVector tsidOrdinals = ordinalVector(page.getBlock(tsidChannel));
         if (tsidOrdinals == null) {
-            return page.appendBlocks(readFields(docBlock));
+            if (packed) {
+                var packed = packFields(readFields(docBlock));
+                return page.appendBlock(packed.asBlock());
+            } else {
+                return page.appendBlocks(readFields(docBlock));
+            }
         }
         IntVector ords = tsidOrdinals.getOrdinalsVector();
         int dictSize = tsidOrdinals.getDictionaryVector().getPositionCount();
@@ -107,7 +118,13 @@ public final class ReadDimsOperator implements Operator {
         try (var filteredDocs = filterDocBlock(docBlock, dictSize, ords)) {
             fields = readFields(filteredDocs);
         }
-        return page.appendBlocks(expand(fields, ords));
+        if (packed) {
+            BytesRefVector packed = packFields(fields);
+            ords.incRef();
+            return page.appendBlock(new OrdinalBytesRefVector(ords, packed).asBlock());
+        } else {
+            return page.appendBlocks(expand(fields, ords));
+        }
     }
 
     private OrdinalBytesRefVector ordinalVector(BytesRefBlock tsidBlock) {
@@ -182,6 +199,17 @@ public final class ReadDimsOperator implements Operator {
             }
         }
         return fields;
+    }
+
+    BytesRefVector packFields(Block[] fields) {
+        try {
+            if (fields.length == 1) {
+                return DimsPacker.packSingleColumn(driverContext, fields[0]);
+            }
+            return DimsPacker.packMultiColumns(driverContext, fields);
+        } finally {
+            Releasables.close(fields);
+        }
     }
 
     @Override

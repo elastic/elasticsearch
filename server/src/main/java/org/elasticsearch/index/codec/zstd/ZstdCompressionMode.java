@@ -106,7 +106,7 @@ public class ZstdCompressionMode extends CompressionMode {
         public void close() throws IOException {}
     }
 
-    static final class ZstdDecompressor extends Decompressor {
+    public static final class ZstdDecompressor extends Decompressor {
 
         // we can safely store and share a single Zstd instance, since we only use thread-safe decompress
         static final Zstd ZSTD = Objects.requireNonNull(NativeAccess.instance().getZstd());
@@ -140,6 +140,23 @@ public class ZstdCompressionMode extends CompressionMode {
             checkLength(decompressedLen, origLen, in);
             bytes.offset = off;
             bytes.length = len;
+        }
+
+        /**
+         * Decompresses a full zstd frame from {@code in} into {@code out[outOffset..outOffset+outLength)}.
+         * This allows callers to directly copy into any slot of an array. Avoiding the need of an additional buffer.
+         *
+         * {@link #decompress(DataInput, int, int, int, BytesRef)} always decompresses using out offset zero.
+         */
+        public void decompressDirect(DataInput in, byte[] out, int outOffset, int outLength) throws IOException {
+            assert out.length >= outLength || isFullDecompress(outOffset, out.length, outLength);
+            if (outLength == 0) {
+                return;
+            }
+            final int compressedLength = in.readVInt();
+            MemorySegment dstSegment = MemorySegment.ofArray(out).asSlice(outOffset, outLength);
+            int decompressedLen = decompressInput(in, compressedLength, dstSegment);
+            checkLength(decompressedLen, outLength, in);
         }
 
         /** Decompress into a temporary off-heap buffer, copy only the needed range into bytes.bytes. */

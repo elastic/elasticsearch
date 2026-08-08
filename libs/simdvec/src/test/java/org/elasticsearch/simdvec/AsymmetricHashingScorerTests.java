@@ -152,4 +152,50 @@ public class AsymmetricHashingScorerTests extends ESTestCase {
         // dot = 0, result = 0 * 2.0 + 1.5 + 0.3 = 1.8
         assertEquals(1.8f, score, 1e-6f);
     }
+
+    public void testReconstructedDotProductApproximatesTrueDotProduct() {
+        // With an identity projection (nDims == originalDim, W = I) and an *unquantized* encoded
+        // vector (scale = 1, encodedVector = the exact residual), the scorer's formula is an exact
+        // algebraic identity:
+        //
+        // dot(query, vector) = dot(query - centroid, vector - centroid) + dot(query, centroid) + offset
+        //
+        // where offset = dot(vector, centroid) - dot(centroid, centroid). This verifies the scorer
+        // reconstructs the true dot product between the original (un-centered, un-projected)
+        // vectors, up to floating-point rounding.
+        //
+        // Note: we deliberately don't layer real (lossy) quantization on top here. Once the
+        // residual is quantized down to a handful of bits per dimension, the worst-case
+        // reconstruction error grows linearly with the dimension and can dwarf the true dot
+        // product whenever it happens to be small -- the same reason the full-pipeline test in
+        // AsymmetricHashingQuantizerTests only checks rank correlation, not closeness, once real
+        // quantization is involved.
+        for (int iter = 0; iter < 50; iter++) {
+            int dim = randomIntBetween(1, 64);
+
+            float[] query = new float[dim];
+            float[] vector = new float[dim];
+            float[] centroid = new float[dim];
+            for (int d = 0; d < dim; d++) {
+                query[d] = (float) random().nextGaussian();
+                vector[d] = (float) random().nextGaussian();
+                centroid[d] = (float) random().nextGaussian();
+            }
+
+            float trueDot = ESVectorUtil.dotProduct(query, vector, dim);
+
+            float[] queryTransformed = new float[dim];
+            float[] encodedVector = new float[dim];
+            for (int d = 0; d < dim; d++) {
+                queryTransformed[d] = query[d] - centroid[d];
+                encodedVector[d] = vector[d] - centroid[d];
+            }
+            float queryDotCentroid = ESVectorUtil.dotProduct(query, centroid, dim);
+            float offset = ESVectorUtil.dotProduct(vector, centroid, dim) - ESVectorUtil.dotProduct(centroid, centroid, dim);
+
+            float reconstructed = AsymmetricHashingScorer.scoreOneVector(queryTransformed, queryDotCentroid, encodedVector, 1.0f, offset);
+
+            assertEquals("Mismatch at iter " + iter + " dim=" + dim, trueDot, reconstructed, Math.max(1e-3f, Math.abs(trueDot) * 1e-4f));
+        }
+    }
 }

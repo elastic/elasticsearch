@@ -51,6 +51,7 @@ import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.test.ListMatcher.matchesList;
@@ -915,6 +916,73 @@ public class CsvFlattenedKeywordIT extends CsvIT {
             // Workaround for https://github.com/elastic/elasticsearch/issues/151369
             // See BucketColumnMetadataIT#waitForAllTasks for additional context
             assertNoTimeout(client.admin().cluster().prepareHealth(CsvIT.TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).get());
+        }
+
+        /**
+         * Matches a single injected {@code field_extract(<field>, "v")} call inside a warning
+         * string so it can be collapsed back to the bare {@code <field>} the unmodified query
+         * would have named. The first argument is always a bare (possibly backtick-quoted)
+         * attribute &mdash; the rewriter never nests a call there &mdash; so it contains neither a
+         * comma nor a parenthesis; the second argument is always the constant wrapper sub-key
+         * {@link KeywordToFlattenedTransformer#WRAPPER_SUBKEY}. Group 1 captures the field.
+         * <p>
+         * The double quotes around the sub-key may be backslash-escaped in the warning: warning
+         * headers are RFC 7234 quoted-strings, so {@code HeaderWarning.escapeAndEncode} escapes
+         * every {@code "} to {@code \"}, and {@code HeaderWarning.extractWarningValueFromWarningHeader}
+         * (called by {@link CsvIT}) does not undo that escaping. The csv-spec expected warnings are
+         * written in the same escaped form, so the optional {@code \\?} before each quote lets this
+         * pattern match the value as it actually appears.
+         */
+        private static final Pattern FIELD_EXTRACT_CALL = Pattern.compile(
+            "field_extract\\(([^,()]+),\\s*\\\\?\"" + Pattern.quote(KeywordToFlattenedTransformer.WRAPPER_SUBKEY) + "\\\\?\"\\)"
+        );
+
+        /**
+         * Matches a {@code Line <line>:<col>} source position in a warning. Wrapping a field
+         * reference in {@code field_extract(field, "v")} lengthens the query line, so any position
+         * that points <em>after</em> the first wrap on the same line reports a shifted column. Both
+         * the leading {@code Line l:c:} prefix ES|QL prepends to evaluation warnings and the
+         * lowercase {@code at line l:c} references embedded inside some analyzer messages (e.g. the
+         * field-shadowing warning) shift this way, so the match is case-insensitive on the leading
+         * word. The position carries no meaning once the query has been mechanically rewritten, so
+         * it is replaced with a constant placeholder on both the expected and the actual warning and
+         * thereby dropped from the comparison.
+         * <p>
+         * The placeholder is the numeric literal {@code 0:0} rather than a symbolic token so that a
+         * {@code warningRegex:} spec whose position is written as the wildcard {@code \d+:\d+} (which
+         * this pattern deliberately leaves untouched in the expected regex, since it matches literal
+         * digits, not the backslash-{@code d} regex source) still matches the normalized actual
+         * warning: {@code 0:0} satisfies {@code \d+:\d+}. A symbolic placeholder would not.
+         */
+        private static final Pattern LINE_POSITION = Pattern.compile("[Ll]ine \\d+:\\d+");
+        private static final String LINE_POSITION_PLACEHOLDER = "Line 0:0";
+
+        /**
+         * Reconciles the two purely mechanical differences the keyword&rarr;flattened rewrite
+         * introduces into ES|QL warning strings, so a silenced test whose only failure was a
+         * warning mismatch can be re-enabled by deleting its {@code skip_flattened_rewrite}
+         * directive:
+         * <ol>
+         *   <li>the wrapped expression text &mdash; {@code field_extract(field, "v")} is collapsed
+         *       back to {@code field}, matching the expression the original query named, and</li>
+         *   <li>the {@code Line <line>:<col>} source position &mdash; normalized to a placeholder
+         *       so the column shift caused by the longer wrapped line does not fail the match.</li>
+         * </ol>
+         * Everything else in the warning (the function name, the offending value, the exception
+         * class and message) is left untouched, so the assertion still verifies that the same
+         * warning fired for the same reason. Applying this symmetrically to the expected and the
+         * actual warnings (see the warning comparison in {@link CsvIT}) means an
+         * {@code AllowedRegexes} spec whose
+         * pattern collapses to {@code Line LINE:COL: ...} still matches, and an {@code ExactStrings}
+         * spec matches after both sides are collapsed identically. The transform is idempotent.
+         */
+        @Override
+        public String normalizeWarning(String warning) {
+            if (warning == null) {
+                return null;
+            }
+            String unwrapped = FIELD_EXTRACT_CALL.matcher(warning).replaceAll("$1");
+            return LINE_POSITION.matcher(unwrapped).replaceAll(LINE_POSITION_PLACEHOLDER);
         }
 
         /**

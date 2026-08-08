@@ -33,6 +33,7 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
@@ -178,6 +179,22 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         );
     }
 
+    private Engine.Get newEngineGet(
+        String id,
+        String routing,
+        boolean realtime,
+        long version,
+        VersionType versionType,
+        long ifSeqNo,
+        long ifPrimaryTerm
+    ) {
+        final Uid uid = Uid.create(indexSettings.isSliceEnabled(), id, routing);
+        return new Engine.Get(realtime, realtime, uid).version(version)
+            .versionType(versionType)
+            .setIfSeqNo(ifSeqNo)
+            .setIfPrimaryTerm(ifPrimaryTerm);
+    }
+
     private GetResult doGet(
         String id,
         String routing,
@@ -196,11 +213,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         currentMetric.inc();
         final long now = System.nanoTime();
         try {
-            final Uid uid = Uid.create(indexSettings.isSliceEnabled(), id, routing);
-            var engineGet = new Engine.Get(realtime, realtime, uid).version(version)
-                .versionType(versionType)
-                .setIfSeqNo(ifSeqNo)
-                .setIfPrimaryTerm(ifPrimaryTerm);
+            var engineGet = newEngineGet(id, routing, realtime, version, versionType, ifSeqNo, ifPrimaryTerm);
 
             final GetResult getResult;
             try (Engine.GetResult get = engineGetOperator.apply(engineGet, splitShardCountSummary)) {
@@ -309,7 +322,8 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         @Nullable String routing,
         long ifSeqNo,
         long ifPrimaryTerm,
-        FetchSourceContext fetchSourceContext
+        FetchSourceContext fetchSourceContext,
+        SplitShardCountSummary splitShardCountSummary
     ) throws IOException {
         return doGet(
             id,
@@ -326,6 +340,100 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             false,
             indexShard::get
         );
+    }
+
+    /**
+     * A document pre-resolved by {@link #preResolveForUpdate}, paired with the id and routing it was resolved for.
+     */
+    public interface PreResolved {
+        String id();
+
+        @Nullable
+        String routing();
+
+        /** Returns the pre-resolved engine get result, transferring ownership to the caller. */
+        Engine.GetResult takeGetResult();
+    }
+
+    /**
+     * Variant of {@link #getForUpdate(String, String, long, long, FetchSourceContext, SplitShardCountSummary)} that consumes a pre-resolved
+     * document instead of resolving it at call time, validating the sequence-number conditions against it. The
+     * pre-resolved result is released before returning.
+     */
+    public GetResult getForUpdate(
+        PreResolved preResolved,
+        long ifSeqNo,
+        long ifPrimaryTerm,
+        FetchSourceContext fetchSourceContext,
+        SplitShardCountSummary splitShardCountSummary
+    ) throws IOException {
+        return doGet(
+            preResolved.id(),
+            preResolved.routing(),
+            new String[] { RoutingFieldMapper.NAME },
+            true,
+            Versions.MATCH_ANY,
+            VersionType.INTERNAL,
+            ifSeqNo,
+            ifPrimaryTerm,
+            fetchSourceContext,
+            false,
+            splitShardCountSummary,
+            false,
+            // ownership transfers inside doGet's try-with-resources: a throw before this point leaves the get result
+            // with the PreResolved, whose owner releases it
+            (engineGet, summary) -> validatePreResolved(engineGet, preResolved.takeGetResult())
+        );
+    }
+
+    private Engine.GetResult validatePreResolved(Engine.Get get, Engine.GetResult preResolvedGet) {
+        final DocIdAndVersion docIdAndVersion = preResolvedGet.docIdAndVersion();
+        if (get.getIfSeqNo() != UNASSIGNED_SEQ_NO
+            && (get.getIfSeqNo() != docIdAndVersion.seqNo || get.getIfPrimaryTerm() != docIdAndVersion.primaryTerm)) {
+            preResolvedGet.close();
+            throw new VersionConflictEngineException(
+                shardId,
+                get.id(),
+                get.getIfSeqNo(),
+                get.getIfPrimaryTerm(),
+                docIdAndVersion.seqNo,
+                docIdAndVersion.primaryTerm
+            );
+        }
+        return preResolvedGet;
+    }
+
+    /**
+     * Resolves the document targeted by an update ahead of its execution. OCC validation happens on consumption via
+     * {@link #getForUpdate(PreResolved, long, long, FetchSourceContext, SplitShardCountSummary)}. The caller must release the result.
+     */
+    public Engine.GetResult preResolveForUpdate(String id, @Nullable String routing) {
+        currentMetric.inc();
+        final long now = System.nanoTime();
+        try {
+            // must not carry seq_no OCC: a conflict thrown here would abort pre-resolution for the whole bulk;
+            // the conditions are validated per item when the pre-resolved get is consumed
+            var engineGet = newEngineGet(
+                id,
+                routing,
+                true,
+                Versions.MATCH_ANY,
+                VersionType.INTERNAL,
+                UNASSIGNED_SEQ_NO,
+                UNASSIGNED_PRIMARY_TERM
+            );
+            final Engine.GetResult getResult = indexShard.get(engineGet, SplitShardCountSummary.UNSET);
+
+            // counted in addition to the consuming get: the id resolution and the fetch are accounted separately
+            if (getResult.exists()) {
+                existsMetric.inc(System.nanoTime() - now);
+            } else {
+                missingMetric.inc(System.nanoTime() - now);
+            }
+            return getResult;
+        } finally {
+            currentMetric.dec();
+        }
     }
 
     /**

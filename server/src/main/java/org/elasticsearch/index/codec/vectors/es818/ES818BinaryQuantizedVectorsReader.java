@@ -146,6 +146,11 @@ public class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader impleme
         return new ES818BinaryQuantizedVectorsReader(this, rawVectorsReader.getMergeInstance());
     }
 
+    @Override
+    public void finishMerge() throws IOException {
+        rawVectorsReader.finishMerge();
+    }
+
     private void readFields(ChecksumIndexInput meta, FieldInfos infos) throws IOException {
         for (int fieldNumber = meta.readInt(); fieldNumber != -1; fieldNumber = meta.readInt()) {
             FieldInfo info = infos.fieldInfo(fieldNumber);

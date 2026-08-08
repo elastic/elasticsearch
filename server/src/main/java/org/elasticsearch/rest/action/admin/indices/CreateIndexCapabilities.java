@@ -35,6 +35,12 @@ public class CreateIndexCapabilities {
     private static final String COLUMNAR_INDEX_MODES_CAPABILITY = "columnar_index_modes";
 
     /**
+     * Support for the {@code layout} mapping parameter on {@code flattened} fields, which enables
+     * a columnar doc values layout ({@code layout: columnar}) for the {@code ._keyed} column.
+     */
+    private static final String COLUMNAR_FLATTENED_LAYOUT_CAPABILITY = "columnar_flattened_layout";
+
+    /**
      * Support vectordb_document index mode
      */
     private static final String VECTORDB_DOCUMENT_INDEX_MODE_CAPABILITY = "vectordb_document_index_mode";
@@ -70,6 +76,7 @@ public class CreateIndexCapabilities {
             )
         );
         caps.add(COLUMNAR_INDEX_MODES_CAPABILITY);
+        caps.add(COLUMNAR_FLATTENED_LAYOUT_CAPABILITY);
         caps.add(VECTORDB_DOCUMENT_INDEX_MODE_CAPABILITY);
         if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()) {
             caps.add(SLICE_INDEXING_CAPABILITY);

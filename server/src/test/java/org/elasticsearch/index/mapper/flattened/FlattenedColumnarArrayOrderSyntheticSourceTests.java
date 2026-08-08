@@ -11,12 +11,15 @@ package org.elasticsearch.index.mapper.flattened;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.test.WildcardFieldMaskingReader;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Set;
@@ -38,6 +41,45 @@ public class FlattenedColumnarArrayOrderSyntheticSourceTests extends MapperServi
             settings,
             mapping(b -> b.startObject("field").field("type", "flattened").field("preserve_leaf_arrays", "exact").endObject())
         ).documentMapper();
+    }
+
+    /**
+     * Creates a mapper service with {@code layout: columnar} so that {@code withLuceneIndex} uses
+     * {@link org.elasticsearch.index.codec.flattened.FlattenedDocValuesFormat} for the {@code ._keyed} column.
+     */
+    private MapperService columnarLayoutMapperService() throws IOException {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        return createMapperService(
+            settings,
+            mapping(
+                b -> b.startObject("field")
+                    .field("type", "flattened")
+                    .field("preserve_leaf_arrays", "exact")
+                    .field("layout", "columnar")
+                    .endObject()
+            )
+        );
+    }
+
+    /**
+     * Reconstructs synthetic source for a single document stored with the columnar layout. Uses
+     * {@link MapperServiceTestCase#withLuceneIndex} so the segment is written with
+     * {@link org.elasticsearch.index.codec.PerFieldMapperCodec}, which routes the {@code ._keyed}
+     * field through {@link org.elasticsearch.index.codec.flattened.FlattenedDocValuesFormat}.
+     * Reading then exercises the full-blob transpose path of
+     * {@link org.elasticsearch.index.codec.flattened.ColumnarKeyedBinaryDocValues#binaryValue()}.
+     */
+    private String syntheticSourceColumnarLayout(CheckedConsumer<XContentBuilder, IOException> build) throws IOException {
+        return syntheticSourceColumnarLayout(columnarLayoutMapperService(), build);
+    }
+
+    private String syntheticSourceColumnarLayout(MapperService ms, CheckedConsumer<XContentBuilder, IOException> build) throws IOException {
+        DocumentMapper mapper = ms.documentMapper();
+        String[] captured = { null };
+        withLuceneIndex(ms, iw -> iw.addDocument(mapper.parse(source(build)).rootDoc()), reader -> {
+            captured[0] = syntheticSource(mapper, reader, 0);
+        });
+        return captured[0];
     }
 
     /**
@@ -209,5 +251,132 @@ public class FlattenedColumnarArrayOrderSyntheticSourceTests extends MapperServi
         ).documentMapper();
         assertEquals("""
             {"field":{"k":"toolong"}}""", syntheticSource(mapper, b -> b.startObject("field").field("k", "toolong").endObject()));
+    }
+
+    // --- Columnar layout variants: same scenarios read from FlattenedDocValuesFormat via binaryValue() transpose ---
+
+    public void testStoresArrayValuesInOrder_columnarLayout() throws IOException {
+        MapperService ms = columnarLayoutMapperService();
+        var fieldMapper = ms.documentMapper().mappers().getMapper("field");
+        assertTrue("flattened columnar layout must store array values in order", fieldMapper.storesArrayValuesInOrder());
+        assertNull("flattened columnar layout must not use an offsets sidecar field", fieldMapper.getOffsetFieldName());
+    }
+
+    public void testSingleValueCollapsesToScalar_columnarLayout() throws IOException {
+        assertEquals("""
+            {"field":{"key":"a"}}""", syntheticSourceColumnarLayout(b -> b.startObject("field").field("key", "a").endObject()));
+    }
+
+    public void testOrderAndDuplicatesPreservedWithinKey_columnarLayout() throws IOException {
+        assertEquals(
+            """
+                {"field":{"key":["b","a","a","c"]}}""",
+            syntheticSourceColumnarLayout(
+                b -> b.startObject("field").startArray("key").value("b").value("a").value("a").value("c").endArray().endObject()
+            )
+        );
+    }
+
+    public void testInterleavedNullsPreservedWithinKey_columnarLayout() throws IOException {
+        assertEquals(
+            """
+                {"field":{"key":["a",null,"b"]}}""",
+            syntheticSourceColumnarLayout(
+                b -> b.startObject("field").startArray("key").value("a").nullValue().value("b").endArray().endObject()
+            )
+        );
+    }
+
+    public void testAllNullArray_columnarLayout() throws IOException {
+        assertEquals(
+            """
+                {"field":{"key":[null,null]}}""",
+            syntheticSourceColumnarLayout(b -> b.startObject("field").startArray("key").nullValue().nullValue().endArray().endObject())
+        );
+    }
+
+    public void testLoneNull_columnarLayout() throws IOException {
+        assertEquals(
+            """
+                {"field":{"key":null}}""",
+            syntheticSourceColumnarLayout(b -> b.startObject("field").startArray("key").nullValue().endArray().endObject())
+        );
+    }
+
+    public void testMultipleKeysSortedInOutput_columnarLayout() throws IOException {
+        assertEquals(
+            """
+                {"field":{"a":"x","z":"y"}}""",
+            syntheticSourceColumnarLayout(b -> b.startObject("field").field("z", "y").field("a", "x").endObject())
+        );
+    }
+
+    public void testMultipleKeysEachWithArrayOrder_columnarLayout() throws IOException {
+        assertEquals(
+            """
+                {"field":{"a":["c","b"],"z":["x","y"]}}""",
+            syntheticSourceColumnarLayout(
+                b -> b.startObject("field")
+                    .startArray("a")
+                    .value("c")
+                    .value("b")
+                    .endArray()
+                    .startArray("z")
+                    .value("x")
+                    .value("y")
+                    .endArray()
+                    .endObject()
+            )
+        );
+    }
+
+    public void testMultipleKeysWithArraysAndNulls_columnarLayout() throws IOException {
+        assertEquals(
+            """
+                {"field":{"a":["v2",null,"v1"],"b":"w"}}""",
+            syntheticSourceColumnarLayout(
+                b -> b.startObject("field").startArray("a").value("v2").nullValue().value("v1").endArray().field("b", "w").endObject()
+            )
+        );
+    }
+
+    public void testIgnoreAboveValuesTailAppended_columnarLayout() throws IOException {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        MapperService ms = createMapperService(
+            settings,
+            mapping(
+                b -> b.startObject("field")
+                    .field("type", "flattened")
+                    .field("preserve_leaf_arrays", "exact")
+                    .field("layout", "columnar")
+                    .field("ignore_above", 3)
+                    .endObject()
+            )
+        );
+        assertEquals(
+            """
+                {"field":{"k":["cc","bb","aaaa"]}}""",
+            syntheticSourceColumnarLayout(
+                ms,
+                b -> b.startObject("field").startArray("k").value("cc").value("aaaa").value("bb").endArray().endObject()
+            )
+        );
+    }
+
+    public void testIgnoreAboveOnlyIgnoredValues_columnarLayout() throws IOException {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        MapperService ms = createMapperService(
+            settings,
+            mapping(
+                b -> b.startObject("field")
+                    .field("type", "flattened")
+                    .field("preserve_leaf_arrays", "exact")
+                    .field("layout", "columnar")
+                    .field("ignore_above", 3)
+                    .endObject()
+            )
+        );
+        assertEquals("""
+            {"field":{"k":"toolong"}}""", syntheticSourceColumnarLayout(ms, b -> b.startObject("field").field("k", "toolong").endObject()));
     }
 }

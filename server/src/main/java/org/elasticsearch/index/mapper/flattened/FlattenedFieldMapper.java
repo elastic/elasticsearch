@@ -63,6 +63,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.codec.flattened.ColumnarKeyedBinaryDocValues;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -70,6 +71,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.N
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.KeyFilteredSortingArrayOrderBinaryDocValues;
+import org.elasticsearch.index.fielddata.KeyLookupArrayOrderBinaryDocValues;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
@@ -104,8 +106,8 @@ import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.lucene.queries.KeyedArrayOrderInlineNullPrefixQuery;
-import org.elasticsearch.lucene.queries.KeyedArrayOrderInlineNullTermQuery;
+import org.elasticsearch.lucene.queries.KeyedFlattenedExistsQuery;
+import org.elasticsearch.lucene.queries.KeyedFlattenedTermQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesPrefixQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermQuery;
 import org.elasticsearch.lucene.queries.SortedSetDocValuesRangeQuery;
@@ -202,6 +204,28 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         }
     }
 
+    /**
+     * Controls the on-disk layout of the {@code ._keyed} binary doc-values column.
+     * <p>
+     * The default is {@link #COLUMNAR} when the index mode is strictly columnar and the index uses the time
+     * series doc values format (a prerequisite for binary doc values), and {@link #ROW} otherwise. The default
+     * is never serialized into the mapping; an explicit value is serialized only when it deviates from it.
+     * <p>
+     * {@link #COLUMNAR} additionally requires {@code preserve_leaf_arrays: exact}, which is enforced at build
+     * time. Since {@code exact} is also the default in strictly columnar index modes, this only surfaces when
+     * {@code preserve_leaf_arrays: lossy} is set explicitly, in which case {@code layout: row} must be set as
+     * well.
+     */
+    public enum Layout {
+        ROW,
+        COLUMNAR;
+
+        @Override
+        public final String toString() {
+            return name().toLowerCase(Locale.ROOT);
+        }
+    }
+
     private static Builder builder(Mapper in) {
         return ((FlattenedFieldMapper) in).builder;
     }
@@ -248,6 +272,8 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         private final Parameter<List<String>> dimensions;
 
         private final Parameter<PreserveLeafArrays> preserveLeafArrays;
+
+        private final Parameter<Layout> layout;
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
@@ -391,6 +417,11 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                     && indexSettings.getMode().isStrictColumnar() == false ? PreserveLeafArrays.LOSSY : PreserveLeafArrays.EXACT,
                 PreserveLeafArrays.class
             );
+            // Default selection is documented on the Layout enum. Columnar layout requires binary doc values
+            // (see the [layout: columnar] check in build()), hence the row fallback when they are unavailable.
+            Layout defaultLayout = usesBinaryDocValues && indexSettings.getMode().isStrictColumnar() ? Layout.COLUMNAR : Layout.ROW;
+            layout = Parameter.enumParam("layout", false, m -> builder(m).layout.get(), defaultLayout, Layout.class)
+                .setSerializerCheck((includeDefaults, isConfigured, v) -> v != defaultLayout);
             this.indexDisabledByDefault = indexDisabledByDefault;
         }
 
@@ -422,7 +453,8 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                 dimensions,
                 properties,
                 passthrough,
-                preserveLeafArrays };
+                preserveLeafArrays,
+                layout };
         }
 
         @Override
@@ -455,6 +487,13 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             boolean usesArrayOrderBinaryDocValues = usesBinaryDocValues
                 && indexSettings.getMode().isStrictColumnar()
                 && preserveLeafArrays.get() == PreserveLeafArrays.EXACT;
+            if (layout.get() == Layout.COLUMNAR && usesArrayOrderBinaryDocValues == false) {
+                throw new MapperParsingException(
+                    "[layout: columnar] requires a strictly columnar index mode and [preserve_leaf_arrays: exact] on field ["
+                        + leafName()
+                        + "]"
+                );
+            }
             MappedFieldType ft = new RootFlattenedFieldType(
                 context.buildFullName(leafName()),
                 IndexType.terms(indexed.get(), hasDocValues.get()),
@@ -471,6 +510,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                 mappedSubFields,
                 storeIgnoredFieldsInBinaryDocValues,
                 preserveLeafArrays.get(),
+                layout.get(),
                 indexSettings.getIndexVersionCreated()
             );
             return new FlattenedFieldMapper(leafName(), ft, builderParams(this, context), this, mappedSubFields);
@@ -736,7 +776,9 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                 if (usesBinaryDocValues) {
                     BytesRef keyedValue = indexedValueForSearch(value);
                     if (usesArrayOrderBinaryDocValues) {
-                        return new KeyedArrayOrderInlineNullTermQuery(name(), keyedValue);
+                        // key is passed separately so that on columnar segments the query can resolve it to a
+                        // key ordinal and read only that column, rather than transposing all K columns back into a blob.
+                        return new KeyedFlattenedTermQuery(name(), key, keyedValue);
                     }
                     return new ScanningBinaryDocValuesTermQuery(name(), keyedValue, false);
                 } else {
@@ -764,8 +806,8 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                 // DV-only storage (e.g. columnar) has no inverted terms, so a key-specific exists must scan the doc-values for the prefix.
                 if (usesBinaryDocValues) {
                     if (usesArrayOrderBinaryDocValues) {
-                        // Columnar keyed-inline-null blob: slots carry the key\0 prefix, so scan it with a prefix predicate.
-                        return new KeyedArrayOrderInlineNullPrefixQuery(name(), new BytesRef(keyPrefix));
+                        // Columnar keyed-inline-null blob: on columnar segments, resolve the key ordinal once and read only that column.
+                        return new KeyedFlattenedExistsQuery(name(), key);
                     }
                     // Separate-count binary blob: slots are full key\0value, so a prefix scan finds any value under this key.
                     return new ScanningBinaryDocValuesPrefixQuery(name(), keyPrefix, false, false);
@@ -1284,9 +1326,14 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         private LeafFieldData loadArrayOrder(LeafReaderContext context) {
             try {
                 var binary = context.reader().getBinaryDocValues(delegate.getFieldName());
-                var counts = context.reader()
-                    .getNumericDocValues(delegate.getFieldName() + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX);
-                var dv = new KeyFilteredSortingArrayOrderBinaryDocValues(binary, counts, new BytesRef(key));
+                final SortedBinaryDocValues dv;
+                if (binary instanceof ColumnarKeyedBinaryDocValues columnar) {
+                    dv = new KeyLookupArrayOrderBinaryDocValues(columnar, new BytesRef(key));
+                } else {
+                    var counts = context.reader()
+                        .getNumericDocValues(delegate.getFieldName() + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX);
+                    dv = new KeyFilteredSortingArrayOrderBinaryDocValues(binary, counts, new BytesRef(key));
+                }
                 return new LeafFieldData() {
                     @Override
                     public long ramBytesUsed() {
@@ -1350,6 +1397,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         private final Map<String, FieldMapper> mappedSubFields;
         private final boolean storeIgnoredFieldsInBinaryDocValues;
         private final PreserveLeafArrays preserveLeafArrays;
+        private final Layout layout;
 
         RootFlattenedFieldType(
             String name,
@@ -1380,6 +1428,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                 Collections.emptyMap(),
                 false,
                 preserveLeafArrays,
+                Layout.ROW,
                 IndexVersion.current()
             );
         }
@@ -1400,6 +1449,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             Map<String, FieldMapper> mappedSubFields,
             boolean storeIgnoredFieldsInBinaryDocValues,
             PreserveLeafArrays preserveLeafArrays,
+            Layout layout,
             IndexVersion indexVersion
         ) {
             super(
@@ -1423,6 +1473,12 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             this.mappedSubFields = mappedSubFields;
             this.storeIgnoredFieldsInBinaryDocValues = storeIgnoredFieldsInBinaryDocValues;
             this.preserveLeafArrays = preserveLeafArrays;
+            this.layout = layout;
+        }
+
+        /** Returns the on-disk layout of the {@code ._keyed} binary doc-values column. */
+        public Layout layout() {
+            return layout;
         }
 
         @Override

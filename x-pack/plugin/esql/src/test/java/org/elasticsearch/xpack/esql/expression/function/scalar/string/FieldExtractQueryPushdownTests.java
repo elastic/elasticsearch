@@ -53,7 +53,7 @@ import static org.hamcrest.Matchers.equalTo;
  * against the synthetic keyed sub-field name ({@code <root>.<key>}). The comparison reports
  * {@link TranslationAware.Translatable#RECHECK}, so the FilterOperator re-applies the predicate on the
  * extracted keyword column to restore ES|QL single-value semantics instead of wrapping the query in a
- * {@code SingleValueQuery}. Pushdown only fires when the flattened root is indexed.
+ * {@code SingleValueQuery}. Pushdown fires regardless of whether the flattened root has a postings index.
  * <p>
  *     The {@link FieldExtract#tryAsKeyedSubfieldName(LucenePushdownPredicates)} helper drives the
  *     recognition. The translation lives inside {@code EsqlBinaryComparison.asQuery} (for
@@ -246,10 +246,10 @@ public class FieldExtractQueryPushdownTests extends ESTestCase {
     }
 
     /**
-     * A doc-values-only flattened root (not indexed) must not push: the keyed term query would degrade to a
-     * full doc-values scan. The predicate stays in the FilterExec instead.
+     * A doc-values-only flattened root (not indexed) still pushes: the isIndexed guard was removed so that
+     * benchmarks can measure the actual gain from the keyed binary DV path without an inverted index.
      */
-    public void testEqualsTranslatableNoWhenRootNotIndexed() {
+    public void testEqualsTranslatableRecheckWhenRootNotIndexed() {
         assumeQueryPushdownEnabled();
         Equals eq = new Equals(
             Source.EMPTY,
@@ -257,7 +257,7 @@ public class FieldExtractQueryPushdownTests extends ESTestCase {
             Literal.keyword(Source.EMPTY, "node-a")
         );
 
-        assertThat(eq.translatable(docValuesOnlyKeyPredicates()), equalTo(TranslationAware.Translatable.NO));
+        assertThat(eq.translatable(docValuesOnlyKeyPredicates()), equalTo(TranslationAware.Translatable.RECHECK));
     }
 
     /**

@@ -14,7 +14,9 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.index.codec.flattened.ColumnarKeyedBinaryDocValues;
 import org.elasticsearch.index.fielddata.KeyFilteredSortingArrayOrderBinaryDocValues;
+import org.elasticsearch.index.fielddata.KeyLookupArrayOrderBinaryDocValues;
 import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.BlockLoader;
@@ -51,14 +53,24 @@ public class KeyedFlattenedDocValuesBlockLoader extends BlockDocValuesReader.Doc
         if (usesBinaryDocValues) {
             if (usesArrayOrderBinaryDocValues) {
                 var binary = context.reader().getBinaryDocValues(keyedFieldName);
+                if (binary instanceof ColumnarKeyedBinaryDocValues columnar) {
+                    final BytesRef keyBytes = new BytesRef(key);
+                    final int ord = columnar.lookupKeyOrdinal(keyBytes);
+                    final BlockLoader.OptionalColumnAtATimeReader batchReader = ord < 0 ? null : columnar.keyColumnReader(ord);
+                    return new BinaryKeyedBlockDocValuesReader(
+                        breaker,
+                        new KeyLookupArrayOrderBinaryDocValues(columnar, keyBytes),
+                        batchReader
+                    );
+                }
                 var counts = context.reader()
                     .getNumericDocValues(keyedFieldName + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX);
-                SortedBinaryDocValues filtered = new KeyFilteredSortingArrayOrderBinaryDocValues(binary, counts, new BytesRef(key));
-                return new BinaryKeyedBlockDocValuesReader(breaker, filtered);
+                final SortedBinaryDocValues filtered = new KeyFilteredSortingArrayOrderBinaryDocValues(binary, counts, new BytesRef(key));
+                return new BinaryKeyedBlockDocValuesReader(breaker, filtered, null);
             }
             MultiValuedSortedBinaryDocValues dv = MultiValuedSortedBinaryDocValues.fromMultiValued(context.reader(), keyedFieldName);
             SortedBinaryDocValues filtered = BinaryKeyedFlattenedLeafFieldData.getKeyFilteredSortedBinaryDocValues(dv, key);
-            return new BinaryKeyedBlockDocValuesReader(breaker, filtered);
+            return new BinaryKeyedBlockDocValuesReader(breaker, filtered, null);
         } else {
             SortedSetDocValues dv = DocValues.getSortedSet(context.reader(), keyedFieldName);
             if (dv.getValueCount() == 0) {
@@ -97,12 +109,23 @@ public class KeyedFlattenedDocValuesBlockLoader extends BlockDocValuesReader.Doc
 
     private static final class BinaryKeyedBlockDocValuesReader extends KeyedBlockDocValuesReader {
         private final SortedBinaryDocValues filteredDocValues;
+
+        /**
+         * Optional batch reader for the columnar layout. When non-null, {@link #read(BlockFactory,
+         * Docs, int, boolean)} tries this path first and falls back to the per-doc loop only if
+         * {@link BlockLoader.OptionalColumnAtATimeReader#tryRead} returns {@code null}.
+         */
+        private final BlockLoader.OptionalColumnAtATimeReader batchReader;
         private int curDocId = -1;
 
-        BinaryKeyedBlockDocValuesReader(CircuitBreaker circuitBreaker, SortedBinaryDocValues filteredDocValues) {
+        BinaryKeyedBlockDocValuesReader(
+            CircuitBreaker circuitBreaker,
+            SortedBinaryDocValues filteredDocValues,
+            BlockLoader.OptionalColumnAtATimeReader batchReader
+        ) {
             super(circuitBreaker);
-
             this.filteredDocValues = filteredDocValues;
+            this.batchReader = batchReader;
         }
 
         @Override
@@ -113,6 +136,19 @@ public class KeyedFlattenedDocValuesBlockLoader extends BlockDocValuesReader.Doc
         @Override
         public String toString() {
             return getClass().getSimpleName();
+        }
+
+        @Override
+        public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
+            if (batchReader != null) {
+                Block block = batchReader.tryRead(factory, docs, offset, nullsFiltered, null, false, false);
+                if (block != null) {
+                    // Keep curDocId consistent so canReuse() returns the right answer.
+                    curDocId = docs.get(docs.count() - 1);
+                    return block;
+                }
+            }
+            return super.read(factory, docs, offset, nullsFiltered);
         }
 
         @Override

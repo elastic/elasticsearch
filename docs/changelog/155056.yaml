@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 151974
+pr: 155056
+summary: Fix PromQL delta and idelta with short windows
+type: bug

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -64,13 +65,14 @@ public class ApplyWindowFilter extends AnalyzerRules.ParameterizedAnalyzerRule<T
     }
 
     private static AggregateFunction replaceWindowWithFilter(AggregateFunction af, Bucket bucket, Expression timestamp) {
+        Rounding.Prepared preparedRounding = bucket.getDateRoundingOrNull(FoldContext.small());
         AggregateFunction newAggregateFunction;
         if (af.hasFilter()) {
             newAggregateFunction = af.withFilter(
-                Predicates.combineAnd(List.of(af.filter(), new WindowFilter(af.source(), af.window(), bucket, timestamp)))
+                Predicates.combineAnd(List.of(af.filter(), new WindowFilter(af.source(), af.window(), bucket, timestamp, preparedRounding)))
             );
         } else {
-            newAggregateFunction = af.withFilter(new WindowFilter(af.source(), af.window(), bucket, timestamp));
+            newAggregateFunction = af.withFilter(new WindowFilter(af.source(), af.window(), bucket, timestamp, preparedRounding));
         }
         // Do not clear the function's window.
         // rate()/increase() rely on group start/end timestamps (by default, bucket) for extrapolation;

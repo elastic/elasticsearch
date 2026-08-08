@@ -106,7 +106,12 @@ public final class ColumnGroupResolver {
      */
     public static final class Builder {
 
-        /** owner path → accumulator, insertion-ordered so group dispatch order is deterministic */
+        /**
+         * owner path → accumulator. Insertion order is not required for correctness: distinct groups own distinct
+         * mappers, whose output field names are disjoint, so their dispatch order does not affect what is emitted.
+         * It is kept so the resulting column layout follows first-seen document order, which makes batches easier to
+         * read and compare.
+         */
         private final LinkedHashMap<String, GroupEntry> groups = new LinkedHashMap<>();
 
         public void add(ColumnGroupLookup.Owned owned, int leafIndex) {

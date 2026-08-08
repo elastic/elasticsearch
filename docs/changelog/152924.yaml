@@ -1,0 +1,6 @@
+area: Infra/Core
+issues:
+ - 66555
+pr: 152924
+summary: Add regression coverage for YAML hexadecimal number parsing
+type: bug

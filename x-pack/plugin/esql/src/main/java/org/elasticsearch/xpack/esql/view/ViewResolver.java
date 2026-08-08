@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -66,9 +67,10 @@ import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_DEFAULT;
 
 /**
  * Resolves view references in a logical plan by expanding each view into the plan parsed from its definition. As part of the same
- * traversal it also rewrites {@code InSubquery} expressions (in {@link Filter} conditions) into {@code SemiJoin}/{@code AntiJoin}/
- * {@code MarkJoin} nodes, so a single pass fully expands the plan — including views referenced from inside IN subqueries and IN
- * subqueries nested in view bodies.
+ * traversal it also rewrites {@code InSubquery} expressions (in {@link Filter} conditions and
+ * {@link org.elasticsearch.xpack.esql.plan.logical.Eval Eval} field definitions) into {@code SemiJoin}/{@code AntiJoin}/{@code MarkJoin}
+ * nodes, so a single pass fully expands the plan — including views referenced from inside IN subqueries and IN subqueries nested in view
+ * bodies.
  * <p>
  * Resolution (see {@link #replaceViews}) is a depth-first, top-down (pre-order) traversal of the plan tree. During traversal it
  * intercepts specific node types:
@@ -80,6 +82,8 @@ import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_DEFAULT;
  *   <li>{@link AbstractSubqueryJoin}: Recursively processes the left and right sides</li>
  *   <li>{@link Filter}: Calls {@link InSubqueryResolver} to expand any {@code InSubquery} into a {@code SemiJoin}/{@code AntiJoin}/
  *       {@code MarkJoin}, then recurses into the newly created subquery plans to resolve view references nested there</li>
+ *   <li>{@link org.elasticsearch.xpack.esql.plan.logical.Eval Eval}: Calls {@link InSubqueryResolver} to expand any {@code InSubquery}
+ *       in field definitions into a {@code MarkJoin}, then recurses into the newly created subquery plans</li>
  *   <li>{@link ViewUnionAll}: Skipped (already the result of view resolution)</li>
  * </ul>
  * <p>
@@ -192,7 +196,7 @@ public class ViewResolver {
         // provided by the ActionListener plumbing, the same way the viewQueries map threaded through these callbacks is.
         Holder<Boolean> hasInSubquery = new Holder<>(false);
         boolean noViews = viewsFeatureEnabled() == false || getMetadata().views().isEmpty();
-        if (noViews && InSubqueryResolver.hasInSubqueryInFilter(plan) == false) {
+        if (noViews && InSubqueryResolver.hasInSubquery(plan) == false) {
             listener.onResponse(new ViewResolutionResult(plan, viewQueries, false));
             return;
         }
@@ -270,6 +274,30 @@ public class ViewResolver {
                     } else {
                         // InSubquery rewritten to SemiJoin/AntiJoin/MarkJoin — record it for telemetry, then resolve any view
                         // references introduced in the subquery plans.
+                        hasInSubquery.set(true);
+                        replaceViews(
+                            resolved,
+                            projectRouting,
+                            parser,
+                            seenInner,
+                            viewQueries,
+                            hasInSubquery,
+                            depth,
+                            planListener.delegateFailureAndWrap((l, result) -> {
+                                result.forEachDown(resolvedPlans::add);
+                                l.onResponse(result);
+                            })
+                        );
+                    }
+                }
+                case Eval eval -> {
+                    LogicalPlan resolved = InSubqueryResolver.resolveInSubqueryInEval(eval);
+                    if (resolved == eval) {
+                        // No InSubquery in this eval — let transformDown process its children normally.
+                        planListener.onResponse(eval);
+                    } else {
+                        // InSubquery rewritten to MarkJoin — record it for telemetry, then resolve any view
+                        // references introduced in the new subquery plans.
                         hasInSubquery.set(true);
                         replaceViews(
                             resolved,

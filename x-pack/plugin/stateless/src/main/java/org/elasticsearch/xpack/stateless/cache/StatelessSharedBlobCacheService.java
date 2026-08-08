@@ -150,9 +150,10 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
     /// (and, if necessary, disabled) at runtime on its own. Obsolete-region eviction keys off active/inactive regions per
     /// batched-compound-commit generation and needs neither content timestamps nor the pinned-window eviction policy, so
     /// unlike the boost-preference flag it needs no validator and a dynamic flip can never leave the cache in an invalid state.
+    /// Defaults to [#STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING], but an explicit value wins.
     public static final Setting<Boolean> STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING = Setting.boolSetting(
         "stateless.cache.evict_obsolete_regions.enabled",
-        false,
+        STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING,
         Setting.Property.OperatorDynamic,
         Setting.Property.NodeScope
     );
@@ -162,9 +163,10 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
     /// being evicted, so they are the first eviction candidates while remaining usable if the shard relocates and relocates back.
     /// Index deletion and node shutdown are handled separately.
     /// A flip takes effect on the next store close; a demotion already submitted still runs.
+    /// Defaults to [#STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING], but an explicit value wins.
     public static final Setting<Boolean> STATELESS_CACHE_DEMOTE_CLOSED_SHARD_REGIONS_ENABLED_SETTING = Setting.boolSetting(
         "stateless.cache.demote_closed_shard_regions.enabled",
-        false,
+        STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING,
         Setting.Property.OperatorDynamic,
         Setting.Property.NodeScope
     );
@@ -172,9 +174,10 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
     /// Setting gating force-eviction of a deleted index's cache regions (see [SharedBlobCacheService#forceEvictAsync]). The regions of a
     /// deleted index can never be read again, so they are dropped as soon as the index is removed rather than left for the LFU to
     /// reclaim. A flip takes effect on the next index removal; an eviction already submitted still runs.
+    /// Defaults to [#STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING], but an explicit value wins.
     public static final Setting<Boolean> STATELESS_CACHE_EVICT_DELETED_INDEX_REGIONS_ENABLED_SETTING = Setting.boolSetting(
         "stateless.cache.evict_deleted_index_regions.enabled",
-        false,
+        STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING,
         Setting.Property.OperatorDynamic,
         Setting.Property.NodeScope
     );

@@ -164,6 +164,86 @@ public class AshSphericalScalarQuantizerTests extends ESTestCase {
         assertTrue("Expected positive correlation, got " + correlation, correlation > 0.3);
     }
 
+    public void testGeneralPathMatchesBruteForceOptimum() {
+        // Regression test for a bug where the general (bitsPerDim >= 3) quantization path relied on
+        // a mis-sorted event order and could land on a strictly suboptimal level assignment -- e.g.
+        // it once returned all-base-level codes even though better assignments were reachable within
+        // the same level budget. Brute force is only tractable for small d and bitsPerDim, so we
+        // restrict this test to those.
+        for (int bitsPerDim = 3; bitsPerDim <= 4; bitsPerDim++) {
+            int numAbsLevels = 1 << (bitsPerDim - 1);
+            AshSphericalScalarQuantizer ssq = new AshSphericalScalarQuantizer(bitsPerDim);
+            int d = 4;
+            for (int iter = 0; iter < 20; iter++) {
+                float[] z = randomGaussianVector(d);
+                AshSphericalScalarQuantizer.SingleQuantizeResult result = ssq.encodeOne(z);
+                double greedyCos = dotProduct(z, result.centeredCode()) / result.codeNorm();
+
+                double bestCos = bruteForceBestCosSimilarity(z, numAbsLevels);
+
+                assertEquals("Mismatch at bitsPerDim=" + bitsPerDim + " iter=" + iter, bestCos, greedyCos, 1e-4);
+            }
+        }
+    }
+
+    public void testCosineSimilarityImprovesMonotonicallyWithMoreBits() {
+        // A quantizer's level set at bitsPerDim=b is a strict subset of the level set at any b' > b
+        // (magnitudes {0.5, ..., 0.5+2^(b-1)-1} vs {0.5, ..., 0.5+2^(b'-1)-1}), so the achievable
+        // cosine similarity between a vector and its quantized code can only improve (never worsen)
+        // as bitsPerDim increases. This was violated by the sort-direction bug above.
+        int d = 128;
+        for (int iter = 0; iter < 10; iter++) {
+            float[] z = randomGaussianVector(d);
+            double previousCos = -1;
+            for (int bitsPerDim = 1; bitsPerDim <= 8; bitsPerDim++) {
+                AshSphericalScalarQuantizer ssq = new AshSphericalScalarQuantizer(bitsPerDim);
+                AshSphericalScalarQuantizer.SingleQuantizeResult result = ssq.encodeOne(z);
+                double cos = dotProduct(z, result.centeredCode()) / result.codeNorm();
+                assertTrue(
+                    "cos similarity regressed going from fewer to more bits at bitsPerDim=" + bitsPerDim + ": " + cos + " < " + previousCos,
+                    cos >= previousCos - 1e-6
+                );
+                previousCos = cos;
+            }
+        }
+    }
+
+    private static double bruteForceBestCosSimilarity(float[] z, int numAbsLevels) {
+        int d = z.length;
+        float[] absZ = new float[d];
+        for (int j = 0; j < d; j++) {
+            absZ[j] = Math.abs(z[j]);
+        }
+        return bruteForceRecurse(absZ, new int[d], 0, numAbsLevels);
+    }
+
+    private static double bruteForceRecurse(float[] absZ, int[] levels, int idx, int numAbsLevels) {
+        if (idx == absZ.length) {
+            double dot = 0;
+            double normSq = 0;
+            for (int j = 0; j < absZ.length; j++) {
+                double mag = 0.5 + levels[j];
+                dot += absZ[j] * mag;
+                normSq += mag * mag;
+            }
+            return dot / Math.sqrt(normSq);
+        }
+        double best = -1;
+        for (int l = 0; l < numAbsLevels; l++) {
+            levels[idx] = l;
+            best = Math.max(best, bruteForceRecurse(absZ, levels, idx + 1, numAbsLevels));
+        }
+        return best;
+    }
+
+    private static double dotProduct(float[] a, float[] b) {
+        double dot = 0;
+        for (int j = 0; j < a.length; j++) {
+            dot += (double) a[j] * b[j];
+        }
+        return dot;
+    }
+
     private float[] randomGaussianVector(int d) {
         float[] v = new float[d];
         for (int j = 0; j < d; j++) {

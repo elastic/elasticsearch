@@ -8,17 +8,26 @@
  */
 package org.elasticsearch.cluster.health;
 
+import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.cluster.health.ClusterShardHealth.getInactivePrimaryHealth;
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.hamcrest.Matchers.equalTo;
 
 public class ClusterShardHealthTests extends AbstractXContentSerializingTestCase<ClusterShardHealth> {
 
@@ -101,6 +110,32 @@ public class ClusterShardHealthTests extends AbstractXContentSerializingTestCase
     protected Predicate<String> getRandomFieldsExcludeFilter() {
         // don't inject random fields at the root, which contains arbitrary shard ids
         return ""::equals;
+    }
+
+    public void testGetInactivePrimaryHealthWithRecoveryCancelled() {
+        final RecoverySource recoverySource = randomFrom(
+            RecoverySource.EmptyStoreRecoverySource.INSTANCE,
+            RecoverySource.LocalShardsRecoverySource.INSTANCE
+        );
+        final int failedAllocations = randomIntBetween(1, 5);
+        final ShardRouting primary = shardRoutingBuilder(new ShardId("index", "_na_", 0), null, true, ShardRoutingState.UNASSIGNED)
+            .withRecoverySource(recoverySource)
+            .withUnassignedInfo(
+                new UnassignedInfo(
+                    UnassignedInfo.Reason.RECOVERY_CANCELLED,
+                    null,
+                    null,
+                    failedAllocations,
+                    System.nanoTime(),
+                    System.currentTimeMillis(),
+                    false,
+                    UnassignedInfo.AllocationStatus.NO_ATTEMPT,
+                    Collections.emptySet(),
+                    null
+                )
+            )
+            .build();
+        assertThat(getInactivePrimaryHealth(primary), equalTo(ClusterHealthStatus.YELLOW));
     }
 
     @Override

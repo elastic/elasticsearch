@@ -109,6 +109,7 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.FlattenedCases;
+import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohash;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohex;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeotile;
@@ -119,6 +120,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
@@ -177,9 +179,11 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.Period;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Deque;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -190,6 +194,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.function.Predicate;
 import java.util.jar.JarInputStream;
 import java.util.regex.Pattern;
@@ -1653,6 +1658,43 @@ public final class EsqlTestUtils {
     }
 
     private static final Pattern SET_SPLIT_PATTERN = Pattern.compile("^(\\s*SET\\b[^;]+;)+\\s*\\b", Pattern.CASE_INSENSITIVE);
+
+    /**
+     * The function-existence capabilities (see {@link EsqlFunctionRegistry#functionCapabilityName}) for every function
+     * the query calls. A node that lacks a function never advertises that capability, so a mixed-cluster test uses this
+     * to refuse to run against an older node missing a function the query relies on, instead of flaking with
+     * {@code Unknown function [X]}.
+     * <p>
+     * Names are resolved against the snapshot registry so functions still under development are recognized. A query that
+     * cannot be parsed (e.g. an intentionally invalid test case) yields an empty set — this is a best-effort extractor.
+     */
+    public static Set<String> functionCapabilitiesUsedBy(String query) {
+        LogicalPlan plan;
+        try {
+            plan = TEST_PARSER.unvalidatedStatement(query, new QueryParams()).plan();
+        } catch (Exception e) {
+            // Best effort: any parse-time failure (ParsingException, and validation/PROMQL errors that surface here)
+            // means we cannot inspect the functions, so gate nothing rather than error the test.
+            return Set.of();
+        }
+        EsqlFunctionRegistry registry = TEST_FUNCTION_REGISTRY.snapshotRegistry();
+        Set<String> capabilities = new TreeSet<>();
+        Deque<LogicalPlan> pending = new ArrayDeque<>();
+        pending.add(plan);
+        while (pending.isEmpty() == false) {
+            LogicalPlan next = pending.removeFirst();
+            next.forEachExpressionDown(UnresolvedFunction.class, function -> {
+                String name = registry.resolveAlias(function.name());
+                if (registry.functionExists(name)) {
+                    capabilities.add(EsqlFunctionRegistry.functionCapabilityName(name));
+                }
+            });
+            // An IN-subquery is an expression holding a whole nested plan; the expression walk above won't descend into
+            // it, so enqueue those plans to scan the functions they call too.
+            next.forEachExpressionDown(InSubquery.class, in -> pending.add(in.subquery()));
+        }
+        return capabilities;
+    }
 
     /**
      * Checks if a query contains any of the specified indices in its source command.

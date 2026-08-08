@@ -1158,12 +1158,20 @@ public class EsqlFunctionRegistry {
         }
     }
 
+    /**
+     * The capability a node advertises for a function. Single source of the {@code fn_} prefix so callers can gate on a
+     * function's existence without re-deriving it.
+     */
+    public static String functionCapabilityName(String functionName) {
+        return "fn_" + functionName;
+    }
+
     protected final void addCapabilities(Set<String> filterAliases, EsqlCapabilities.Builder capabilities, boolean enabled) {
         for (FunctionDefinition def : defs.values()) {
             if (false == filterAliases.add(def.name())) {
                 continue;
             }
-            String name = "fn_" + def.name();
+            String name = functionCapabilityName(def.name());
             capabilities.add(name, enabled);
             for (String sub : def.capabilities()) {
                 capabilities.add(name + "_" + sub, enabled);

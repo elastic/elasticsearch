@@ -11,9 +11,31 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Set;
 
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
 public class EsqlTestUtilsTests extends ESTestCase {
+
+    public void testFunctionCapabilitiesUsedBy() {
+        assertThat(EsqlTestUtils.functionCapabilitiesUsedBy("FROM x | STATS f = FIRST(a, b)"), contains("fn_first"));
+        // SET preamble is handled, and multiple functions are all reported.
+        assertThat(
+            EsqlTestUtils.functionCapabilitiesUsedBy("SET unmapped_fields=\"nullify\"\n; FROM x | STATS MAX(a), FIRST(b, c)"),
+            contains("fn_first", "fn_max")
+        );
+        // Functions nested in an IN subquery are reached.
+        assertThat(EsqlTestUtils.functionCapabilitiesUsedBy("FROM x | WHERE a IN (FROM y | WHERE FIRST(b, c) > 0)"), contains("fn_first"));
+        // Aliases resolve to the canonical function capability (to_str -> to_string).
+        assertThat(EsqlTestUtils.functionCapabilitiesUsedBy("ROW x = 1 | EVAL s = TO_STR(x)"), contains("fn_to_string"));
+    }
+
+    public void testFunctionCapabilitiesUsedByHandlesNoFunctionsAndBadQueries() {
+        // A query with no function calls (operators are not functions).
+        assertThat(EsqlTestUtils.functionCapabilitiesUsedBy("FROM x | WHERE a > 1 | KEEP a"), empty());
+        // An unparseable query yields an empty set rather than throwing.
+        assertThat(EsqlTestUtils.functionCapabilitiesUsedBy("this is not a valid esql query"), empty());
+    }
 
     public void testPromQL() {
         assertThat(

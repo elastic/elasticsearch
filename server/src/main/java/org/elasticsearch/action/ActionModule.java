@@ -1001,7 +1001,7 @@ public class ActionModule extends AbstractModule {
 
         // CAT API
         registerHandler.accept(new RestAllocationAction());
-        registerHandler.accept(new RestShardsAction());
+        registerHandler.accept(new RestShardsAction(projectResolver));
         registerHandler.accept(new RestMasterAction());
         registerHandler.accept(new RestNodesAction());
         registerHandler.accept(new RestClusterInfoAction(projectResolver));

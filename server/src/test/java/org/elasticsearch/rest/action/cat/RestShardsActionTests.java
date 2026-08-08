@@ -15,14 +15,22 @@ import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.ProjectIdResolver;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.Table;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.test.ESTestCase;
@@ -45,11 +53,12 @@ public class RestShardsActionTests extends ESTestCase {
     private List<ShardRouting> shardRoutings;
     private ClusterStateResponse clusterStateResponse;
     private IndicesStatsResponse indicesStatsResponse;
+    private ProjectIdResolver projectIdResolver;
 
     public void testBuildTable() {
         mockShardStats(randomBoolean());
 
-        final RestShardsAction action = new RestShardsAction();
+        final RestShardsAction action = new RestShardsAction(projectIdResolver);
         final Table table = action.buildTable(new FakeRestRequest(), clusterStateResponse, indicesStatsResponse);
 
         // now, verify the table is correct
@@ -64,7 +73,9 @@ public class RestShardsActionTests extends ESTestCase {
         assertThat(headers.get(7).value, equalTo("ip"));
         assertThat(headers.get(8).value, equalTo("id"));
         assertThat(headers.get(9).value, equalTo("node"));
-        assertThat(headers.get(10).value, equalTo("unassigned.reason"));
+        assertThat(headers.get(10).value, equalTo("node.role"));
+        assertThat(headers.get(11).value, equalTo("tier"));
+        assertThat(headers.get(12).value, equalTo("unassigned.reason"));
 
         final List<List<Table.Cell>> rows = table.getRows();
         assertThat(rows.size(), equalTo(shardRoutings.size()));
@@ -79,27 +90,28 @@ public class RestShardsActionTests extends ESTestCase {
             assertThat(row.get(3).value, equalTo(shardRouting.state()));
             assertThat(row.get(7).value, equalTo(localNode.getHostAddress()));
             assertThat(row.get(8).value, equalTo(localNode.getId()));
-            assertThat(row.get(70).value, equalTo(shardStats.getDataPath()));
-            assertThat(row.get(71).value, equalTo(shardStats.getStatePath()));
+            assertThat(row.get(72).value, equalTo(shardStats.getDataPath()));
+            assertThat(row.get(73).value, equalTo(shardStats.getStatePath()));
         }
     }
 
     public void testShardStatsForIndexing() {
         mockShardStats(true);
 
-        final RestShardsAction action = new RestShardsAction();
+        final RestShardsAction action = new RestShardsAction(projectIdResolver);
         final Table table = action.buildTable(new FakeRestRequest(), clusterStateResponse, indicesStatsResponse);
 
         // now, verify the table is correct
         List<Table.Cell> headers = table.getHeaders();
-        assertThat(headers.get(29).value, equalTo("indexing.delete_current"));
-        assertThat(headers.get(30).value, equalTo("indexing.delete_time"));
-        assertThat(headers.get(31).value, equalTo("indexing.delete_total"));
-        assertThat(headers.get(32).value, equalTo("indexing.index_current"));
-        assertThat(headers.get(33).value, equalTo("indexing.index_time"));
-        assertThat(headers.get(34).value, equalTo("indexing.index_total"));
-        assertThat(headers.get(35).value, equalTo("indexing.index_failed"));
-        assertThat(headers.get(36).value, equalTo("indexing.index_failed_due_to_version_conflict"));
+        // the two new columns (node.role at 10, tier at 11) shift all subsequent headers by 2
+        assertThat(headers.get(31).value, equalTo("indexing.delete_current"));
+        assertThat(headers.get(32).value, equalTo("indexing.delete_time"));
+        assertThat(headers.get(33).value, equalTo("indexing.delete_total"));
+        assertThat(headers.get(34).value, equalTo("indexing.index_current"));
+        assertThat(headers.get(35).value, equalTo("indexing.index_time"));
+        assertThat(headers.get(36).value, equalTo("indexing.index_total"));
+        assertThat(headers.get(37).value, equalTo("indexing.index_failed"));
+        assertThat(headers.get(38).value, equalTo("indexing.index_failed_due_to_version_conflict"));
 
         final List<List<Table.Cell>> rows = table.getRows();
         assertThat(rows.size(), equalTo(shardRoutings.size()));
@@ -108,15 +120,15 @@ public class RestShardsActionTests extends ESTestCase {
         for (final List<Table.Cell> row : rows) {
             ShardRouting shardRouting = shardRoutingsIt.next();
             ShardStats shardStats = indicesStatsResponse.asMap().get(shardRouting);
-            assertThat(row.get(29).value, equalTo(shardStats.getStats().getIndexing().getTotal().getDeleteCurrent()));
-            assertThat(row.get(30).value, equalTo(shardStats.getStats().getIndexing().getTotal().getDeleteTime()));
-            assertThat(row.get(31).value, equalTo(shardStats.getStats().getIndexing().getTotal().getDeleteCount()));
-            assertThat(row.get(32).value, equalTo(shardStats.getStats().getIndexing().getTotal().getIndexCurrent()));
-            assertThat(row.get(33).value, equalTo(shardStats.getStats().getIndexing().getTotal().getIndexTime()));
-            assertThat(row.get(34).value, equalTo(shardStats.getStats().getIndexing().getTotal().getIndexCount()));
-            assertThat(row.get(35).value, equalTo(shardStats.getStats().getIndexing().getTotal().getIndexFailedCount()));
+            assertThat(row.get(31).value, equalTo(shardStats.getStats().getIndexing().getTotal().getDeleteCurrent()));
+            assertThat(row.get(32).value, equalTo(shardStats.getStats().getIndexing().getTotal().getDeleteTime()));
+            assertThat(row.get(33).value, equalTo(shardStats.getStats().getIndexing().getTotal().getDeleteCount()));
+            assertThat(row.get(34).value, equalTo(shardStats.getStats().getIndexing().getTotal().getIndexCurrent()));
+            assertThat(row.get(35).value, equalTo(shardStats.getStats().getIndexing().getTotal().getIndexTime()));
+            assertThat(row.get(36).value, equalTo(shardStats.getStats().getIndexing().getTotal().getIndexCount()));
+            assertThat(row.get(37).value, equalTo(shardStats.getStats().getIndexing().getTotal().getIndexFailedCount()));
             assertThat(
-                row.get(36).value,
+                row.get(38).value,
                 equalTo(shardStats.getStats().getIndexing().getTotal().getIndexFailedDueToVersionConflictCount())
             );
         }
@@ -127,10 +139,16 @@ public class RestShardsActionTests extends ESTestCase {
         this.localNode = DiscoveryNodeUtils.create("local");
         this.shardRoutings = new ArrayList<>(numShards);
         Map<ShardRouting, ShardStats> shardStatsMap = new HashMap<>();
-        String index = "index";
+        String indexName = "index";
         for (int i = 0; i < numShards; i++) {
             ShardRoutingState shardRoutingState = ShardRoutingState.fromValue((byte) randomIntBetween(2, 3));
-            ShardRouting shardRouting = TestShardRouting.newShardRouting(index, i, localNode.getId(), randomBoolean(), shardRoutingState);
+            ShardRouting shardRouting = TestShardRouting.newShardRouting(
+                indexName,
+                i,
+                localNode.getId(),
+                randomBoolean(),
+                shardRoutingState
+            );
             Path path = createTempDir().resolve("indices")
                 .resolve(shardRouting.shardId().getIndex().getUUID())
                 .resolve(String.valueOf(shardRouting.shardId().id()));
@@ -180,12 +198,34 @@ public class RestShardsActionTests extends ESTestCase {
         DiscoveryNodes discoveryNodes = mock(DiscoveryNodes.class);
         when(discoveryNodes.get(localNode.getId())).thenReturn(localNode);
 
+        // Mock IndexMetadata with a tier preference for the test index
+        Index index = shardRoutings.get(0).shardId().getIndex();
+        IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put("index.routing.allocation.include._tier_preference", "data_hot")
+                    .build()
+            )
+            .build();
+
+        ProjectMetadata projectMetadata = mock(ProjectMetadata.class);
+        when(projectMetadata.index(index)).thenReturn(indexMetadata);
+
+        Metadata metadata = mock(Metadata.class);
+        when(metadata.getProject(Metadata.DEFAULT_PROJECT_ID)).thenReturn(projectMetadata);
+
+        this.projectIdResolver = () -> Metadata.DEFAULT_PROJECT_ID;
+
         this.clusterStateResponse = mock(ClusterStateResponse.class);
         RoutingTable routingTable = mock(RoutingTable.class);
         when(routingTable.allShardsIterator()).thenReturn(shardRoutings);
         ClusterState clusterState = mock(ClusterState.class);
         when(clusterState.routingTable()).thenReturn(routingTable);
         when(clusterState.nodes()).thenReturn(discoveryNodes);
+        when(clusterState.metadata()).thenReturn(metadata);
         when(clusterStateResponse.getState()).thenReturn(clusterState);
     }
 }

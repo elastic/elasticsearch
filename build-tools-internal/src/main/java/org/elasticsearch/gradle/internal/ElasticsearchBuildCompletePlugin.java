@@ -46,9 +46,12 @@ import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import javax.inject.Inject;
 
@@ -79,6 +82,10 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
             File daemonsLogDir = new File(target.getGradle().getGradleUserHomeDir(), "daemon/" + target.getGradle().getGradleVersion());
 
             File preemptionMarker = new File(projectDir, "build/.preemption-marker.json");
+            // Written incrementally by GradleRunner's TaskTracker as each task finishes. Reading it
+            // in the flow action is configuration-cache safe: the file path is a stable value captured
+            // at configuration time; the file contents are read at execution time after all tasks finish.
+            File taskStatusFile = new File(projectDir, "build/task-status-incremental.jsonl");
             getFlowScope().always(BuildFinishedFlowAction.class, spec -> {
                 spec.getParameters().getBuildScan().set(extension);
                 spec.getParameters().getUploadFile().set(targetFile);
@@ -88,9 +95,18 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
                         System.out.println("Build Finished Action: Skipping archive collection (build was preempted)");
                         return List.<File>of();
                     }
+                    if (result.getFailures().isEmpty()) {
+                        System.out.println("Build Finished Action: Build succeeded, skipping archive collection");
+                        return List.<File>of();
+                    }
                     System.out.println("Build Finished Action: Collecting archive files...");
+                    // If GradleRunner tracked task failures, collect only from those projects.
+                    // Otherwise fall back to the whole project tree (e.g. configuration-cache miss
+                    // or dependency resolution error where no individual task ran and failed).
+                    Set<File> failedProjectDirs = readFailedTaskProjectDirs(taskStatusFile, projectDir);
+                    Set<File> dirsToCollect = failedProjectDirs.isEmpty() ? Set.of(projectDir) : failedProjectDirs;
                     List<File> files = new ArrayList<>();
-                    files.addAll(resolveProjectLogs(projectDir, preemptionMarker));
+                    files.addAll(resolveProjectLogs(projectDir, preemptionMarker, dirsToCollect));
                     if (files.isEmpty() == false) {
                         files.addAll(resolveDaemonLogs(daemonsLogDir));
                         files.addAll(getFileOperations().fileTree(gradleWorkersDir).getFiles());
@@ -111,57 +127,102 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
         return uploadFile;
     }
 
-    private List<File> resolveProjectLogs(File projectDir, File preemptionMarker) {
+    /**
+     * Reads the incremental task-status JSONL file written by GradleRunner's TaskTracker and
+     * returns the project directories for all tasks that finished with outcome {@code FAILED}.
+     * Returns an empty set if the file does not exist or cannot be read.
+     */
+    private static Set<File> readFailedTaskProjectDirs(File taskStatusFile, File rootProjectDir) {
+        if (taskStatusFile.exists() == false) {
+            return Set.of();
+        }
+        try {
+            return Files.readAllLines(taskStatusFile.toPath())
+                .stream()
+                .filter(line -> line.contains("\"outcome\":\"FAILED\""))
+                .map(line -> {
+                    int pathStart = line.indexOf("\"path\":\"") + 8;
+                    int pathEnd = line.indexOf("\"", pathStart);
+                    return taskPathToProjectDir(line.substring(pathStart, pathEnd), rootProjectDir);
+                })
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        } catch (IOException e) {
+            System.out.println("Build Finished Action: Failed to read incremental task status file: " + e.getMessage());
+            return Set.of();
+        }
+    }
+
+    /**
+     * Converts a Gradle task path (e.g. {@code :x-pack:plugin:esql:test}) to the filesystem
+     * directory of its project by stripping the task name and translating path separators.
+     * Assumes the project directory layout mirrors the Gradle project path, which is true for
+     * this repository.
+     */
+    private static File taskPathToProjectDir(String taskPath, File rootProjectDir) {
+        int lastColon = taskPath.lastIndexOf(':');
+        String projectSubpath = lastColon > 0 ? taskPath.substring(1, lastColon).replace(':', File.separatorChar) : "";
+        return projectSubpath.isEmpty() ? rootProjectDir : new File(rootProjectDir, projectSubpath);
+    }
+
+    private List<File> resolveProjectLogs(File rootProjectDir, File preemptionMarker, Set<File> projectDirsToCollect) {
         // HACK: Some tests leave behind symlinks, and gradle throws an exception if it encounters symlinks.
         // Here we remove them before collecting logs to upload. We could instead build our own path matcher
         // but that seemed more complex than just deleting the irrelevant files.
-        try {
-            Files.walkFileTree(projectDir.toPath(), new SimpleFileVisitor<>() {
-                @Override
-                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                    if (preemptionMarker.exists()) {
-                        return FileVisitResult.TERMINATE;
-                    }
-                    try {
-                        if (Files.isSymbolicLink(file)) {
-                            Files.delete(file);
+        for (File dir : projectDirsToCollect) {
+            try {
+                Files.walkFileTree(dir.toPath(), new SimpleFileVisitor<>() {
+                    @Override
+                    public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                        if (preemptionMarker.exists()) {
+                            return FileVisitResult.TERMINATE;
                         }
-                    } catch (java.nio.file.NoSuchFileException e) {
-                        System.out.println("Symlink : " + file + " already deleted.");
+                        try {
+                            if (Files.isSymbolicLink(file)) {
+                                Files.delete(file);
+                            }
+                        } catch (java.nio.file.NoSuchFileException e) {
+                            System.out.println("Symlink : " + file + " already deleted.");
+                        }
+                        return FileVisitResult.CONTINUE;
                     }
-                    return FileVisitResult.CONTINUE;
-                }
-            });
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
+                });
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+            if (preemptionMarker.exists()) {
+                System.out.println("Build Finished Action: Aborting file collection (preemption detected during walk)");
+                return List.of();
+            }
         }
 
-        if (preemptionMarker.exists()) {
-            System.out.println("Build Finished Action: Aborting file collection (preemption detected during walk)");
-            return List.of();
+        Set<File> collectedFiles = new LinkedHashSet<>();
+        for (File dir : projectDirsToCollect) {
+            var projectDirFiles = getFileOperations().fileTree(dir);
+            projectDirFiles.include("**/*.hprof");
+            projectDirFiles.include("**/build/reports/configuration-cache/**");
+            projectDirFiles.include("**/build/test-results/**/*.xml");
+            projectDirFiles.include("**/build/testclusters/**");
+            projectDirFiles.include("**/build/testrun/*/temp/**");
+            projectDirFiles.include("**/build/**/hs_err_pid*.log");
+            projectDirFiles.include("**/build/**/replay_pid*.log");
+            projectDirFiles.exclude("**/build/testclusters/**/data/**");
+            projectDirFiles.exclude("**/build/testclusters/**/distro/**");
+            projectDirFiles.exclude("**/build/testclusters/**/repo/**");
+            projectDirFiles.exclude("**/build/testclusters/**/extract/**");
+            projectDirFiles.exclude("**/build/testclusters/**/tmp/**");
+            projectDirFiles.exclude("**/build/testrun/*/temp/**/data/**");
+            projectDirFiles.exclude("**/build/testrun/*/temp/**/distro/**");
+            projectDirFiles.exclude("**/build/testrun/*/temp/**/repo/**");
+            projectDirFiles.exclude("**/build/testrun/*/temp/**/extract/**");
+            projectDirFiles.exclude("**/build/testrun/*/temp/**/tmp/**");
+            projectDirFiles.getFiles().stream().filter(f -> Files.isRegularFile(f.toPath())).forEach(collectedFiles::add);
         }
-
-        var projectDirFiles = getFileOperations().fileTree(projectDir);
-        projectDirFiles.include("**/*.hprof");
-        projectDirFiles.include("**/build/reports/configuration-cache/**");
-        projectDirFiles.include("**/build/test-results/**/*.xml");
-        projectDirFiles.include("**/build/testclusters/**");
-        projectDirFiles.include("**/build/testrun/*/temp/**");
-        projectDirFiles.include("**/build/**/hs_err_pid*.log");
-        projectDirFiles.include("**/build/**/replay_pid*.log");
         // core dump files are in the working directory of the installation, which is not project specific
-        projectDirFiles.include("distribution/**/build/install/*/core.*");
-        projectDirFiles.exclude("**/build/testclusters/**/data/**");
-        projectDirFiles.exclude("**/build/testclusters/**/distro/**");
-        projectDirFiles.exclude("**/build/testclusters/**/repo/**");
-        projectDirFiles.exclude("**/build/testclusters/**/extract/**");
-        projectDirFiles.exclude("**/build/testclusters/**/tmp/**");
-        projectDirFiles.exclude("**/build/testrun/*/temp/**/data/**");
-        projectDirFiles.exclude("**/build/testrun/*/temp/**/distro/**");
-        projectDirFiles.exclude("**/build/testrun/*/temp/**/repo/**");
-        projectDirFiles.exclude("**/build/testrun/*/temp/**/extract/**");
-        projectDirFiles.exclude("**/build/testrun/*/temp/**/tmp/**");
-        return projectDirFiles.getFiles().stream().filter(f -> Files.isRegularFile(f.toPath())).toList();
+        var distributionFiles = getFileOperations().fileTree(rootProjectDir);
+        distributionFiles.include("distribution/**/build/install/*/core.*");
+        distributionFiles.getFiles().stream().filter(f -> Files.isRegularFile(f.toPath())).forEach(collectedFiles::add);
+
+        return new ArrayList<>(collectedFiles);
     }
 
     private List<File> resolveDaemonLogs(File daemonsLogDir) {

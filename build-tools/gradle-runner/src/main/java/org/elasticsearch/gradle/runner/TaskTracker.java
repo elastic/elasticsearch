@@ -23,6 +23,11 @@ import org.gradle.tooling.events.test.TestFinishEvent;
 import org.gradle.tooling.events.test.TestSkippedResult;
 import org.gradle.tooling.events.test.TestSuccessResult;
 
+import java.io.File;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -45,9 +50,11 @@ public class TaskTracker implements ProgressListener {
     private final Queue<SuiteRecord> suiteResults = new ConcurrentLinkedQueue<>();
     private final Queue<TestRecord> testResults = new ConcurrentLinkedQueue<>();
     private final BuildCanceller canceller;
+    private final File taskStatusFile;
 
-    public TaskTracker(BuildCanceller canceller) {
+    public TaskTracker(BuildCanceller canceller, File taskStatusFile) {
         this.canceller = canceller;
+        this.taskStatusFile = taskStatusFile;
     }
 
     @Override
@@ -65,6 +72,7 @@ public class TaskTracker implements ProgressListener {
                 TaskRecord record = tasksByPath.get(path);
                 if (record != null) {
                     record.finish(finishEvent, canceller.isCancelled());
+                    appendTaskStatus(path, record.status.name());
                 }
             }
         } else if (event instanceof TestFinishEvent testFinish) {
@@ -108,6 +116,25 @@ public class TaskTracker implements ProgressListener {
             parent = parent.getParent();
         }
         return "<unknown>";
+    }
+
+    /**
+     * Appends a single-line JSON entry to the incremental task-status file.
+     * This file is read by Gradle's flow action during build finalization to determine
+     * which project directories to include in the CI log archive, so it must be written
+     * before the build completes (not in a post-build step like {@link #buildReport()}).
+     */
+    private void appendTaskStatus(String taskPath, String outcome) {
+        if (taskStatusFile == null) {
+            return;
+        }
+        try {
+            taskStatusFile.getParentFile().mkdirs();
+            String line = "{\"path\":\"" + taskPath + "\",\"outcome\":\"" + outcome + "\"}\n";
+            Files.write(taskStatusFile.toPath(), line.getBytes(StandardCharsets.UTF_8), StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+        } catch (IOException e) {
+            System.err.println("Failed to write incremental task status: " + e.getMessage());
+        }
     }
 
     /**

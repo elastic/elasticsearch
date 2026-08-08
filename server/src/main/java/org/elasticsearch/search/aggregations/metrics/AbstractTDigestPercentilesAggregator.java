@@ -12,6 +12,7 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.apache.lucene.search.DoubleValues;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
@@ -87,7 +88,7 @@ abstract class AbstractTDigestPercentilesAggregator extends NumericMetricsAggreg
         states = bigArrays.grow(states, bucket + 1);
         HistogramUnionState state = states.get(bucket);
         if (state == null) {
-            state = HistogramUnionState.create(HistogramUnionState.NOOP_BREAKER, executionHint, compression);
+            state = HistogramUnionState.create(context.breaker(), executionHint, compression);
             states.set(bucket, state);
         }
         return state;
@@ -105,8 +106,38 @@ abstract class AbstractTDigestPercentilesAggregator extends NumericMetricsAggreg
         return states.get(bucketOrd);
     }
 
+    /**
+     * Removes the state for {@code bucketOrd} from this aggregator and returns it to the caller.
+     * Breaker bytes are returned to {@code context.breaker()} here, while the aggregation context
+     * is still open. {@link org.elasticsearch.search.aggregations.InternalAggregation} has no close
+     * lifecycle, so the breaker is already closed by the time the result is serialized.
+     * {@link #doClose()} will not touch the returned state. Returns {@code null} if the bucket
+     * ordinal was never collected (no documents matched that bucket), or if the state was already
+     * removed by a prior call.
+     */
+    @Nullable
+    protected HistogramUnionState takeState(long bucketOrd) {
+        if (bucketOrd >= states.size()) {
+            return null;
+        }
+        HistogramUnionState state = states.get(bucketOrd);
+        states.set(bucketOrd, null);
+        if (state != null) {
+            // Release accounting while the breaker is still open. The state's data stays intact.
+            context.breaker().addWithoutBreaking(-state.ramBytesUsed());
+        }
+        return state;
+    }
+
     @Override
     protected void doClose() {
+        // That the super registers itself in the constructor so doClose might be called before construction is finished
+        if (states == null) {
+            return;
+        }
+        for (long i = 0; i < states.size(); i++) {
+            Releasables.closeWhileHandlingException(states.get(i));
+        }
         Releasables.close(states);
     }
 

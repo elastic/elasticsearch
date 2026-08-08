@@ -20,11 +20,19 @@ public class ES95TSDBDocValuesFormatFactoryTests extends ESTestCase {
         assertNotSame(a, b);
     }
 
+    public void testCreateReturnsFreshInstanceWithRunTableEnabled() {
+        final DocValuesFormat a = ES95TSDBDocValuesFormatFactory.create(true, false, true, null, true);
+        final DocValuesFormat b = ES95TSDBDocValuesFormatFactory.create(true, false, true, null, true);
+        assertNotSame(a, b);
+    }
+
     public void testCreateReturnsValidInstanceForEachParameterCombination() {
         for (int n = 0; n < 2; n++) {
             for (int b = 0; b < 2; b++) {
                 for (int p = 0; p < 2; p++) {
-                    assertNotNull(ES95TSDBDocValuesFormatFactory.create(n == 1, b == 1, p == 1, null, false));
+                    for (int r = 0; r < 2; r++) {
+                        assertNotNull(ES95TSDBDocValuesFormatFactory.create(n == 1, b == 1, p == 1, null, r == 1));
+                    }
                 }
             }
         }

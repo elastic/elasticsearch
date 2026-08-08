@@ -107,7 +107,12 @@ final class RunTableSortedSetCodec implements SortedSetOrdinalCodec {
 
     @Override
     public SortedSetOrdinalWriter createWriter(final NumericWriteContext ctx) {
-        return new RunTableSortedSetWriter(ctx, fallback, accumulatorFactory, fieldContextResolver);
+        return new RunTableSortedSetWriter(
+            ctx,
+            fallback,
+            accumulatorFactory,
+            new RunTableGate(fieldContextResolver, ctx.primarySortFieldNumber(), ctx.maxDoc())
+        );
     }
 
     @Override
@@ -122,19 +127,18 @@ final class RunTableSortedSetCodec implements SortedSetOrdinalCodec {
         private final NumericWriteContext ctx;
         private final SortedSetOrdinalCodec fallback;
         private final IntFunction<RunTableSortedSetOrdinalWriter> accumulatorFactory;
-        @Nullable
-        private final FieldContextResolver fieldContextResolver;
+        private final RunTableGate policy;
 
         RunTableSortedSetWriter(
             final NumericWriteContext ctx,
             final SortedSetOrdinalCodec fallback,
             final IntFunction<RunTableSortedSetOrdinalWriter> accumulatorFactory,
-            @Nullable final FieldContextResolver fieldContextResolver
+            final RunTableGate policy
         ) {
             this.ctx = ctx;
             this.fallback = fallback;
             this.accumulatorFactory = accumulatorFactory;
-            this.fieldContextResolver = fieldContextResolver;
+            this.policy = policy;
         }
 
         @Override
@@ -145,10 +149,7 @@ final class RunTableSortedSetCodec implements SortedSetOrdinalCodec {
             final DocValueCountConsumer docValueCountConsumer,
             final SortedFieldObserver sortedFieldObserver
         ) throws IOException {
-            if (field.number == ctx.primarySortFieldNumber() || maxOrd <= 1) {
-                return writeDefault(field, values, maxOrd, docValueCountConsumer, sortedFieldObserver);
-            }
-            if (fieldContextResolver == null || fieldContextResolver.resolve(field.name, 0).isDimension() == false) {
+            if (policy.allow(field, maxOrd) == false) {
                 return writeDefault(field, values, maxOrd, docValueCountConsumer, sortedFieldObserver);
             }
 
@@ -176,7 +177,7 @@ final class RunTableSortedSetCodec implements SortedSetOrdinalCodec {
                 } else {
                     runTable.add(EMPTY);
                 }
-                if (runTable.exceedsThreshold(maxDoc)) {
+                if (policy.allow(runTable.numRuns(), doc + 1) == false) {
                     return writeDefault(field, values, maxOrd, docValueCountConsumer, sortedFieldObserver);
                 }
             }

@@ -52,6 +52,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
@@ -127,6 +128,51 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
         assertThat(shardHeapUsages.get(shardId1).indexHeapUsageBytes(), equalTo(service.computeIndexHeapUsage(shardMemoryMetrics1)));
         assertThat(shardHeapUsages.get(shardId2).shardHeapUsageBytes(), equalTo(service.computeShardHeapUsage(shardMemoryMetrics2)));
         assertThat(shardHeapUsages.get(shardId2).indexHeapUsageBytes(), equalTo(service.computeIndexHeapUsage(shardMemoryMetrics2)));
+    }
+
+    /**
+     * Verifies that the shard heap usage returned to the allocation decider
+     * ({@link StatelessMemoryMetricsService#computeShardHeapUsage} and {@link StatelessMemoryMetricsService#getShardHeapUsages})
+     * is the plain adaptive estimate without inflation from the adaptive minimum threshold.
+     * The threshold is a tier-level autoscaling floor only; it must not affect per-shard allocation decisions.
+     */
+    public void testShardHeapUsageForAllocationDeciderIsNotInflatedByThreshold() {
+        clusterSettings.applySettings(
+            Settings.builder()
+                .put(StatelessMemoryMetricsService.FIXED_SHARD_MEMORY_OVERHEAD_SETTING.getKey(), "-1b")
+                .put(StatelessMemoryMetricsService.ADAPTIVE_EXTRA_OVERHEAD_SETTING.getKey(), "0%")
+                .put(StatelessMemoryMetricsService.ADAPTIVE_SHARD_MEMORY_ESTIMATION_MIN_THRESHOLD_ENABLED_SETTING.getKey(), true)
+                .build()
+        );
+
+        // A shard with no segments, fields, postings, live-docs, or points: the adaptive estimate
+        // is just ADAPTIVE_SHARD_MEMORY_OVERHEAD (75 KB), well below the adaptive min threshold (~1.55 MiB).
+        var emptyShardMetrics = new StatelessMemoryMetricsService.ShardMemoryMetrics(
+            0L,
+            0,
+            0,
+            0L,
+            0L,
+            0L,
+            UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES,
+            0L,
+            MetricQuality.EXACT,
+            "node-0",
+            System.nanoTime()
+        );
+
+        long threshold = service.getAdaptiveShardMemoryEstimationMinThreshold();
+        long heapUsage = service.computeShardHeapUsage(emptyShardMetrics);
+
+        // Precondition: the estimate must be below the threshold for this test to distinguish
+        // the two behaviors (plain adaptive vs. threshold-inflated).
+        assertThat(heapUsage, lessThan(threshold));
+        assertThat(heapUsage, equalTo(StatelessMemoryMetricsService.ADAPTIVE_SHARD_MEMORY_OVERHEAD.getBytes()));
+
+        // Verify via getShardHeapUsages() — the actual allocation decider feed — returns the same value.
+        var shardId = new ShardId(new Index(randomIdentifier(), randomUUID()), 0);
+        service.getShardMemoryMetrics().put(shardId, emptyShardMetrics);
+        assertThat(service.getShardHeapUsages().get(shardId).shardHeapUsageBytes(), equalTo(heapUsage));
     }
 
     public void testShardHeapUsageIncludesPointsMemory() {

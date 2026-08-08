@@ -2337,6 +2337,11 @@ public class EsqlCapabilities {
         FIX_TIME_SERIES_WINDOW_BACKWARD,
 
         /**
+         * Disable ReplaceFieldWithConstantOrNull rule for time-series aggregation
+         */
+        DISABLE_REPLACE_NULL_RULE_FOR_TIME_SERIES,
+
+        /**
          * Window filters use the rounded bucket label's floor and ceiling when filtering windows
          * smaller than a {@code TSTEP} bucket. Also covers {@code rate()}/{@code increase()} now
          * extrapolating over the window's own range instead of the outer time bucket's range when

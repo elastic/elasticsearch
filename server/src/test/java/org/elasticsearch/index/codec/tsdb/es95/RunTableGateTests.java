@@ -52,7 +52,12 @@ public class RunTableGateTests extends ESTestCase {
     public void testAllowPrimarySortFieldReturnsFalse() {
         final int primarySort = randomBoolean() ? 0 : 1;
         final int maxDoc = randomIntBetween(2, 4096);
-        assertFalse(new RunTableGate(DIMENSION, primarySort, maxDoc).allow(fieldInfo("host", primarySort), randomIntBetween(1, maxDoc)));
+        assertFalse(
+            new RunTableGate(randomBoolean() ? DIMENSION : NON_DIMENSION, primarySort, maxDoc).allow(
+                fieldInfo("host", primarySort),
+                randomIntBetween(1, maxDoc)
+            )
+        );
     }
 
     public void testAllowNullResolverReturnsFalse() {
@@ -74,7 +79,7 @@ public class RunTableGateTests extends ESTestCase {
     public void testAllowMaxOrdExceedsThresholdReturnsFalse() {
         final int maxDoc = randomIntBetween(2, 4096);
         final int maxOrd = randomIntBetween(maxDoc / 2 + 1, maxDoc);
-        assertFalse(new RunTableGate(DIMENSION, -1, maxDoc).allow(fieldInfo("host", 0), maxOrd));
+        assertFalse(new RunTableGate(randomBoolean() ? DIMENSION : NON_DIMENSION, -1, maxDoc).allow(fieldInfo("host", 0), maxOrd));
     }
 
     public void testAllowAtThresholdBoundaryReturnsTrue() {

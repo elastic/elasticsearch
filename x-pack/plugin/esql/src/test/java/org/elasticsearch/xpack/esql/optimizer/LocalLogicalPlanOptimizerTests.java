@@ -850,6 +850,18 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         as(eval.child(), EsRelation.class);
     }
 
+    public void testRLikeAfterShadowingEvalDoesNotReferenceShadowedField() {
+        var plan = localPlan("""
+            FROM test
+            | EVAL first_name = MV_CONCAT(first_name, ", ")
+            | WHERE NOT first_name RLIKE ".*"
+            """);
+
+        var filter = as(as(plan, Limit.class).child(), Filter.class);
+        assertThat(filter.condition().references(), hasSize(1));
+        assertThat(filter.condition().references().stream().noneMatch(FieldAttribute.class::isInstance), is(true));
+    }
+
     public void testVerifierOnMissingReferences() throws Exception {
         var plan = localPlan("""
             from test

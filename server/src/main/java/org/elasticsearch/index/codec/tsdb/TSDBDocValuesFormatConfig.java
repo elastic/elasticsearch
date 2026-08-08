@@ -143,35 +143,5 @@ public record TSDBDocValuesFormatConfig(
     public static final int VERSION_ORDINAL_BLOCK_SHIFT = 6;
     public static final int VERSION_SKIPPER_MAX_VALUE_COUNT = 7;
     public static final int VERSION_REMOVE_ORDINAL_BLOCK_SHIFT = 8;
-    /**
-     * First version whose ES95 segments may carry the run-table ordinal layout for dimension fields.
-     * Unused on this POC branch: {@link #VERSION_CURRENT} is not bumped, so run-table segments are
-     * written at {@link #VERSION_CURRENT} and distinguished per field by a layout discriminator byte
-     * (the {@code LAYOUT_DEFAULT}/{@code LAYOUT_RUN_TABLE} bytes defined in
-     * {@code org.elasticsearch.index.codec.tsdb.es95.RunTableLayout}), and the addresses table is
-     * dropped for run-table SortedSet fields. That mutates the on-disk ES95 format in place, so this
-     * branch cannot read pre-POC ES95 segments and pre-POC ES95 cannot read these segments.
-     *
-     * <p>TODO: production would preserve backward compatibility one of two ways.
-     *
-     * <p>Option 1, an internal version gate that stays within ES95. Bump {@link #VERSION_CURRENT} to
-     * {@code VERSION_RUN_TABLE} and write the layout discriminator and run-table layout (and drop the
-     * SortedSet addresses table) only for segments at the new version. The reader branches on the
-     * persisted format version: segments below {@code VERSION_RUN_TABLE} read the old way (no
-     * discriminator byte, addresses table present), segments at or above it read the run-table layout.
-     * {@code ES95OrdinalFieldReader} already branches on {@code segmentVersion} across
-     * {@link #VERSION_ORDINAL_BLOCK_SHIFT} and {@link #VERSION_REMOVE_ORDINAL_BLOCK_SHIFT} for a
-     * removed per-field {@code blockShift} byte, so the version-gated read mechanism is in place.
-     *
-     * <p>Option 2, a distinct codec, which is the ES96 plan. Ship the run-table as a new SPI-named
-     * doc values format gated by {@code IndexVersion}, alongside ES95, exactly as ES95 shipped
-     * alongside ES819. Old ES95 segments keep reading through an unchanged ES95 format.
-     *
-     * <p>Per-segment read resolution is automatic in Lucene under either option: the format SPI name
-     * and format version are persisted per segment, so a reader always resolves the writer that
-     * produced each segment. New-index write selection is gated by {@code IndexVersion}. The POC
-     * skips all of this because Rally uses fresh indices, so no old segment is ever read.
-     */
-    public static final int VERSION_RUN_TABLE = 9;
     public static final int VERSION_CURRENT = VERSION_REMOVE_ORDINAL_BLOCK_SHIFT;
 }

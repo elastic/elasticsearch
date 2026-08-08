@@ -755,6 +755,32 @@ x:ul
 9223372036854775800
 ;
 
+roundNegativeDecimalsRoundsUpToNextPowerOfTen
+required_capability: fn_round_negative_decimals_round_up
+// a leading digit of 5 or more rounds up to the next power of ten rather than down to zero
+row a = round(5, -1), b = round(9, -1), c = round(50, -2), d = round(99, -2), e = round(-5, -1), f = round(-50, -2);
+
+a:integer | b:integer | c:integer | d:integer | e:integer | f:integer
+10        | 10        | 100       | 100       | -10       | -100
+;
+
+roundNegativeDecimalsBelowHalfTheScale
+required_capability: fn_round_negative_decimals_round_up
+row a = round(4, -1), b = round(49, -2), c = round(499, -3), d = round(-4, -1);
+
+a:integer | b:integer | c:integer | d:integer
+0         | 0         | 0         | 0
+;
+
+roundNegativeDecimalsMatchesDoubles
+required_capability: fn_round_negative_decimals_round_up
+// the same value must round the same way whether it is a whole number or a double
+row i = round(5, -1), l = round(5::long, -1), d = round(5.0, -1);
+
+i:integer | l:long | d:double
+10        | 10     | 10.0
+;
+
 roundUL
 row x = round(9223372036854775808, -1);
 

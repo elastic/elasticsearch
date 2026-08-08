@@ -50,7 +50,10 @@ public class Round extends EsqlScalarFunction implements OptionalArgument, AnyNu
         .binary(Round::new)
         .capabilities(
             // Fixes on function {@code ROUND} that avoid it throwing exceptions on runtime for unsigned long cases.
-            "ul_fixes"
+            "ul_fixes",
+            // Fix for whole numbers with a negative precision rounding to zero instead of up to the
+            // next power of ten, e.g. ROUND(5, -1) returning 0 rather than 10.
+            "negative_decimals_round_up"
         )
         .name("round");
 
@@ -145,7 +148,9 @@ public class Round extends EsqlScalarFunction implements OptionalArgument, AnyNu
         return Maths.round(val, decimals).intValue();
     }
 
-    @Evaluator(extraName = "Long")
+    // rounding a long up at a negative precision can exceed Long.MAX_VALUE, which is reported the same
+    // way the unsigned_long path reports it: a warning and a null rather than a failed query
+    @Evaluator(extraName = "Long", warnExceptions = ArithmeticException.class)
     static long process(long val, long decimals) {
         return Maths.round(val, decimals);
     }

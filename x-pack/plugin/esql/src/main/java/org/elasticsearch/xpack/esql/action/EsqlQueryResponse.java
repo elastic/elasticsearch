@@ -57,6 +57,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
     private static final TransportVersion ESQL_EXTERNAL_SOURCE_PROFILE = TransportVersion.fromName("esql_external_source_profile");
 
     public static final String DROP_NULL_COLUMNS_OPTION = "drop_null_columns";
+    public static final String ALL_COLUMNS_OPTION = "all_columns";
 
     private final List<ColumnInfoImpl> columns;
     private final List<Page> pages;
@@ -381,6 +382,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
     @SuppressWarnings("unchecked")
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         boolean dropNullColumns = params.paramAsBoolean(DROP_NULL_COLUMNS_OPTION, false);
+        boolean includeAllColumns = params.paramAsBoolean(ALL_COLUMNS_OPTION, true);
         boolean[] nullColumns = dropNullColumns ? nullColumns() : null;
 
         var content = new ArrayList<Iterator<? extends ToXContent>>(25);
@@ -430,7 +432,9 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             return builder;
         }));
         if (dropNullColumns) {
-            content.add(ResponseXContentUtils.allColumns(columns, "all_columns"));
+            if (includeAllColumns) {
+                content.add(ResponseXContentUtils.allColumns(columns, "all_columns"));
+            }
             content.add(ResponseXContentUtils.nonNullColumns(columns, nullColumns, "columns"));
         } else {
             content.add(ResponseXContentUtils.allColumns(columns, "columns"));

@@ -228,7 +228,7 @@ FROM logs-*
 Use wildcards in [`KEEP`](/reference/query-languages/esql/commands/keep.md) sparingly. `host.*` is better than no `KEEP` at all, but `host.name` is better than `host.*` because it avoids pulling in adjacent fields.
 :::
 
-When using the REST API on sparse datasets where many columns are `null`, consider setting the [`drop_null_columns`](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-async-query-get#operation-esql-async-query-get-drop_null_columns) query parameter. This removes columns that contain only `null` values from the response, which can significantly reduce serialization overhead.
+When using the REST API on sparse datasets where many columns are `null`, consider setting the [`drop_null_columns`](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-async-query-get#operation-esql-async-query-get-drop_null_columns) query parameter. This removes columns that contain only `null` values from the response, which can significantly reduce serialization overhead. `drop_null_columns` also adds an `all_columns` section to the response listing the original columns; if you don't need that section, pass `all_columns=false` alongside `drop_null_columns=true` to suppress it and cut serialization overhead further.
 
 ### Cap rows with LIMIT
 

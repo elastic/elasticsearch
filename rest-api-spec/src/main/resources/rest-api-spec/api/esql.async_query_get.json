@@ -54,6 +54,11 @@
         "type": "boolean",
         "description": "Should entirely null columns be removed from the results? Their name and type will be returning in a new `all_columns` section.",
         "default": false
+      },
+      "all_columns": {
+        "type": "boolean",
+        "description": "When used with `drop_null_columns`, controls whether the `all_columns` section listing the original columns is included in the response. Set to `false` to omit it and reduce response size.",
+        "default": true
       }
     }
   }

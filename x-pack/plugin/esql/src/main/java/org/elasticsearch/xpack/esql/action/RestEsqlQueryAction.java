@@ -75,6 +75,6 @@ public class RestEsqlQueryAction extends BaseRestHandler {
 
     @Override
     protected Set<String> responseParams() {
-        return Set.of(URL_PARAM_DELIMITER, EsqlQueryResponse.DROP_NULL_COLUMNS_OPTION);
+        return Set.of(URL_PARAM_DELIMITER, EsqlQueryResponse.DROP_NULL_COLUMNS_OPTION, EsqlQueryResponse.ALL_COLUMNS_OPTION);
     }
 }

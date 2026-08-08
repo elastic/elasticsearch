@@ -1608,9 +1608,9 @@ public final class KeywordFieldMapper extends FieldMapper {
         final BytesRefBuilder docBlob = emitDvs ? new BytesRefBuilder() : null;
         int pos = 0;
         int docSlotCount = 0;
-        // A lone non-null slot is stored raw, so remember where the first slot's value bytes landed.
-        int firstValueStart = 0;
-        int firstValueLength = 0;
+        // Length of the most recent value slot. Only read when the finished doc holds exactly one slot, in which case
+        // that slot was this one, and it is stored raw without the length prefix appendSlot wrote for it.
+        int lastValueLength = 0;
         // True when the current doc has at least one non-null slot; gates binary dv blob emission.
         boolean hasNonNull = false;
 
@@ -1623,9 +1623,9 @@ public final class KeywordFieldMapper extends FieldMapper {
                     dvCounts.setLong(currentDoc, docSlotCount);
                     if (hasNonNull) {
                         // TODO: considering appending slots straight into the column builder's stream.
-                        // A single non-null slot is stored raw, so skip the length prefix appendSlot wrote for it.
-                        final boolean raw = docSlotCount == 1;
-                        binaryDvs.setString(currentDoc, docBlob.bytes(), raw ? firstValueStart : 0, raw ? firstValueLength : pos);
+                        // A single non-null slot is stored raw, so drop its length prefix; both cases end at pos.
+                        final int length = docSlotCount == 1 ? lastValueLength : pos;
+                        binaryDvs.setString(currentDoc, docBlob.bytes(), pos - length, length);
                     }
                     pos = 0;
                     docSlotCount = 0;
@@ -1688,13 +1688,8 @@ public final class KeywordFieldMapper extends FieldMapper {
                 terms.setString(currentDoc, binaryValue);
             }
             if (binaryDvs != null) {
-                final boolean firstSlot = docSlotCount == 0;
                 pos = MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.appendSlot(docBlob, pos, binaryValue);
-                if (firstSlot) {
-                    // appendSlot wrote [len+1][value], so the value bytes end at pos.
-                    firstValueLength = binaryValue.length;
-                    firstValueStart = pos - firstValueLength;
-                }
+                lastValueLength = binaryValue.length;
                 docSlotCount++;
                 hasNonNull = true;
             }

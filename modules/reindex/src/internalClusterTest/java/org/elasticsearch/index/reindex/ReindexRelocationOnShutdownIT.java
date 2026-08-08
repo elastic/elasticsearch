@@ -702,7 +702,8 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
             .setShouldStoreResult(true)
             .setEligibleForRelocationOnShutdown(true)
             .setRequestsPerSecond(requestsPerSecond);
-        request.getSearchRequest().source().size(5);
+        // Batches of 1 should only delay ~300ms, meaning the relocation should start sooner
+        request.getSearchRequest().source().size(1);
 
         final CountDownLatch listenerDone = new CountDownLatch(1);
         final AtomicReference<Throwable> failure = new AtomicReference<>();
@@ -745,12 +746,10 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
 
             // Run prepareForShutdown in a background thread: it marks the task for relocation then blocks
             // waiting for the task to exit (which won’t happen until we release the transport block).
-            Future<?> shutdownFuture = executor.submit(
-                () -> internalCluster().getInstance(ShutdownPrepareService.class, coordNodeName).prepareForShutdown()
-            );
-
-            // Wait until the ResumeReindexAction is in-flight: the task is now in HANDOFF_INITIATED state.
-            safeAwait(resumeStarted);
+            final var shutdownPrepareService = internalCluster().getInstance(ShutdownPrepareService.class, coordNodeName);
+            // Prevent the cancellation from beginning until the task is in HANDOFF_INITIATED state.
+            shutdownPrepareService.setPreCancelRelocationsHook(() -> safeAwait(resumeStarted));
+            Future<?> shutdownFuture = executor.submit(shutdownPrepareService::prepareForShutdown);
 
             // Wait for the cancellation to fail
             mockLog.awaitAllExpectationsMatched();

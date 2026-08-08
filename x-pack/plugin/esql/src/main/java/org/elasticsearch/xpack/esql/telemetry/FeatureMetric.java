@@ -55,6 +55,7 @@ import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.InnerJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
@@ -150,7 +151,8 @@ public enum FeatureMetric {
         DatasetShadowRelation.class, // CPS lenient-lookup marker for datasets, stripped by StripDatasetShadowRelations after ResolveTable
         TimeSeriesCollapse.class, // TS_COLLAPSE is rolled into the PROMQL counter via the wrapped PromqlCommand below it
         TopNBy.class, // produced by PROMQL `or` (union) translation for left-preferring dedup; otherwise only appears post-analysis
-        InsertEmptyBuckets.class // not a user command; produced by setting BUCKET(..., {"include_empty_buckets": true})
+        InsertEmptyBuckets.class, // not a user command; produced by setting BUCKET(..., {"include_empty_buckets": true})
+        InnerJoin.class // produced by PROMQL vector-matching translation; rolled into the PROMQL counter via PromqlCommand
     );
 
     private Predicate<LogicalPlan> planCheck;

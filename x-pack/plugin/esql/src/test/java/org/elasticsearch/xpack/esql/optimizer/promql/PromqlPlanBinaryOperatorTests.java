@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.join.InnerJoin;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 
 import java.time.Duration;
@@ -277,14 +278,19 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
               )
             | SORT in_n_out""");
         assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("in_n_out", "step", "_timeseries")));
+        // A bare vector-vector operator joins the two independently compiled operand pipelines 1:1 per series.
+        assertThat(plan.collect(InnerJoin.class), hasSize(1));
         Add add = plan.collect(Eval.class)
             .stream()
-            .map(e -> e.fields().getLast().child())
+            .flatMap(e -> e.fields().stream())
+            .map(Alias::unwrap)
             .filter(Add.class::isInstance)
             .map(Add.class::cast)
             .findFirst()
-            .get();
-        assertThat(add.children().stream().map(Expression::sourceText).toList(), containsInAnyOrder("network.eth0.rx", "network.eth0.tx"));
+            .orElseThrow();
+        ReferenceAttribute addLeft = as(as(add.left(), ToDouble.class).field(), ReferenceAttribute.class);
+        ReferenceAttribute addRight = as(as(add.right(), ToDouble.class).field(), ReferenceAttribute.class);
+        assertFalse(addLeft.semanticEquals(addRight));
     }
 
     public void testBinaryWithDifferentSelectorsPreserveDistinctAggregates() {
@@ -292,16 +298,17 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
         var plan = planPromql("PROMQL index=k8s step=1m result=(sum(avg_over_time(network.cost[1m]) + avg_over_time(network.cost[10m])))");
         assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step")));
 
-        TimeSeriesAggregate tsAgg = plan.collect(TimeSeriesAggregate.class).getFirst();
-        // Both aggregate components should survive with their original windows (1m and 10m).
-        var sumWindows = tsAgg.aggregates()
-            .stream()
+        // Each operand compiles as its own pipeline, so both windows survive - one per side of the join.
+        var tsAggs = plan.collect(TimeSeriesAggregate.class);
+        assertThat(tsAggs, hasSize(2));
+        var sumWindows = tsAggs.stream()
+            .flatMap(tsAgg -> tsAgg.aggregates().stream())
             .map(Alias::unwrap)
             .flatMap(agg -> agg.collect(Sum.class).stream())
             .map(agg -> agg.window().fold(FoldContext.small()))
             .toList();
-        var countWindows = tsAgg.aggregates()
-            .stream()
+        var countWindows = tsAggs.stream()
+            .flatMap(tsAgg -> tsAgg.aggregates().stream())
             .map(Alias::unwrap)
             .flatMap(agg -> agg.collect(Count.class).stream())
             .map(agg -> agg.window().fold(FoldContext.small()))
@@ -367,14 +374,19 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
         var plan = planPromql("PROMQL index=k8s step=1m ratio=(sum(network.total_bytes_in) / max(network.total_bytes_in))");
         assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("ratio", "step")));
 
-        // Find the outer Aggregate (not TimeSeriesAggregate) that should contain both sum and max
-        var outerAggs = plan.collect(Aggregate.class).stream().filter(a -> a instanceof TimeSeriesAggregate == false).toList();
-        assertThat("binary agg expressions should fold into a single outer Aggregate", outerAggs, hasSize(1));
-
-        var aggregate = outerAggs.getFirst();
-        // Aggregates should contain both sum and max
-        assertThat(aggregate.aggregates().stream().filter(e -> e.anyMatch(Sum.class::isInstance)).count(), equalTo(1L));
-        assertThat(aggregate.aggregates().stream().filter(e -> e.anyMatch(Max.class::isInstance)).count(), equalTo(1L));
+        // Each aggregation compiles as its own pipeline; the division joins the two tables 1:1 per step.
+        assertThat(plan.collect(InnerJoin.class), hasSize(1));
+        assertThat(plan.collect(TimeSeriesAggregate.class), hasSize(2));
+        // Post-optimization the across-series functions live in the phase-2 Aggregates the optimizer splits out.
+        var aggs = plan.collect(Aggregate.class);
+        assertThat(
+            aggs.stream().filter(a -> a.aggregates().stream().anyMatch(e -> e.anyMatch(Sum.class::isInstance))).count(),
+            equalTo(1L)
+        );
+        assertThat(
+            aggs.stream().filter(a -> a.aggregates().stream().anyMatch(e -> e.anyMatch(Max.class::isInstance))).count(),
+            equalTo(1L)
+        );
     }
 
     public void testBinaryAcrossSeriesAggregationsDoNotLoseReferences() {
@@ -382,12 +394,19 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
         var plan = planPromql("PROMQL index=k8s step=1m ratio=(sum(network.total_bytes_in) / max(network.bytes_in))");
         assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("ratio", "step")));
 
-        var outerAggs = plan.collect(Aggregate.class).stream().filter(a -> a instanceof TimeSeriesAggregate == false).toList();
-        assertThat("both aggregations should be folded into single outer Aggregate", outerAggs, hasSize(1));
-
-        var aggregate = outerAggs.getFirst();
-        assertThat(aggregate.aggregates().stream().filter(e -> e.anyMatch(Sum.class::isInstance)).count(), equalTo(1L));
-        assertThat(aggregate.aggregates().stream().filter(e -> e.anyMatch(Max.class::isInstance)).count(), equalTo(1L));
+        // Each side keeps its own aggregate over its own field; the division joins the two tables.
+        assertThat(plan.collect(InnerJoin.class), hasSize(1));
+        assertThat(plan.collect(TimeSeriesAggregate.class), hasSize(2));
+        // Post-optimization the across-series functions live in the phase-2 Aggregates the optimizer splits out.
+        var aggs = plan.collect(Aggregate.class);
+        assertThat(
+            aggs.stream().filter(a -> a.aggregates().stream().anyMatch(e -> e.anyMatch(Sum.class::isInstance))).count(),
+            equalTo(1L)
+        );
+        assertThat(
+            aggs.stream().filter(a -> a.aggregates().stream().anyMatch(e -> e.anyMatch(Max.class::isInstance))).count(),
+            equalTo(1L)
+        );
     }
 
     public void testBinaryScalarAndNestedAggregationFailsCleanly() {
@@ -405,8 +424,8 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
         var plan = planPromql("PROMQL index=k8s step=1m result=(sum(network.total_bytes_in) / max(network.total_bytes_in) * 100)");
         assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step")));
 
-        var outerAggs = plan.collect(Aggregate.class).stream().filter(a -> a instanceof TimeSeriesAggregate == false).toList();
-        assertThat("all aggregations should fold into single outer Aggregate", outerAggs, hasSize(1));
+        // The vector-vector division joins; the scalar multiply composes over the joined value.
+        assertThat(plan.collect(InnerJoin.class), hasSize(1));
     }
 
     public void testBinaryFilteredRateAggregationsDoNotLoseReferences() {
@@ -415,12 +434,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
                 + "sum(rate(network.total_bytes_in{network.bytes_in =~\"1..\"}[10m])) / sum(rate(network.total_bytes_in[10m])) * 100)"
         );
         assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("value", "step")));
-
-        var outerAggs = plan.collect(Aggregate.class).stream().filter(a -> a instanceof TimeSeriesAggregate == false).toList();
-        assertThat("both rate sums should fold into single outer Aggregate", outerAggs, hasSize(1));
-
-        var aggregate = outerAggs.getFirst();
-        assertThat(aggregate.aggregates().stream().filter(e -> e.anyMatch(Sum.class::isInstance)).count(), equalTo(2L));
+        assertThat(plan.collect(InnerJoin.class), hasSize(1));
     }
 
     public void testFunctionOnBinaryAggregations() {
@@ -428,10 +442,8 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
         var plan = planPromql("PROMQL index=k8s step=1m result=(ceil(sum(network.total_bytes_in) / max(network.total_bytes_in)))");
         assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step")));
 
-        var outerAggs = plan.collect(Aggregate.class).stream().filter(a -> a instanceof TimeSeriesAggregate == false).toList();
-        assertThat("aggregations should fold into single outer Aggregate", outerAggs, hasSize(1));
-
-        // Verify ceil is applied via Eval
+        // The vector-vector division joins; ceil is applied via Eval over the joined value.
+        assertThat(plan.collect(InnerJoin.class), hasSize(1));
         var evals = plan.collect(Eval.class);
         assertThat("should have Eval nodes for ceil and value conversion", evals.size(), org.hamcrest.Matchers.greaterThanOrEqualTo(1));
     }
@@ -441,8 +453,8 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
         var plan = planPromql("PROMQL index=k8s step=1m result=(sum(network.total_bytes_in) + max(network.total_bytes_in))");
         assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step")));
 
-        var outerAggs = plan.collect(Aggregate.class).stream().filter(a -> a instanceof TimeSeriesAggregate == false).toList();
-        assertThat("all aggregations should fold into single outer Aggregate", outerAggs, hasSize(1));
+        // The vector-vector addition joins the two aggregated tables.
+        assertThat(plan.collect(InnerJoin.class), hasSize(1));
     }
 
     public void testComparisonAcrossSeriesWithScalar() {
@@ -468,13 +480,134 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
         assertNoIndexBackedPromqlPlan(plan);
     }
 
-    public void testBinaryOperatorWithDifferentGroupingKeysReturns400() {
-        // sum by (cluster) (...) + sum by (pod) (...) has incompatible groupings — should be a 400, not a 500.
-        VerificationException e = expectThrows(
-            VerificationException.class,
-            () -> planPromql("PROMQL index=k8s step=5m result=(sum by (cluster) (network.eth0.tx) + sum by (pod) (network.eth0.rx))")
+    public void testVectorMatchOnProducesInnerJoin() {
+        // `on (cluster)` matches 1:1 on cluster + step; no group_left/right so the join enforces uniqueness.
+        var plan = planPromql(
+            "PROMQL index=k8s step=5m result=(sum by (cluster) (network.eth0.tx) / on (cluster) sum by (cluster) (network.eth0.rx))"
         );
-        assertThat(e.getMessage(), containsString("binary operations between vectors with mismatched grouping keys are not yet supported"));
+        var joins = plan.collect(InnerJoin.class);
+        assertThat(joins, hasSize(1));
+        InnerJoin join = joins.getFirst();
+        assertThat(join.unique(), equalTo(true));
+        assertThat(join.leftFields().stream().map(Attribute::name).toList(), containsInAnyOrder("step", "cluster"));
+        assertThat(join.rightFields().stream().map(Attribute::name).toList(), containsInAnyOrder("step", "cluster"));
+    }
+
+    public void testVectorMatchGroupLeftIsManyToOne() {
+        // group_left: LHS is the "many"/probe side, RHS the "one"/build side; the join is not unique.
+        var plan = planPromql(
+            "PROMQL index=k8s step=5m result=(sum by (cluster, pod) (network.eth0.tx) "
+                + "/ on (cluster) group_left sum by (cluster) (network.eth0.rx))"
+        );
+        var joins = plan.collect(InnerJoin.class);
+        assertThat(joins, hasSize(1));
+        InnerJoin join = joins.getFirst();
+        assertThat(join.unique(), equalTo(false));
+        assertThat(join.leftFields().stream().map(Attribute::name).toList(), containsInAnyOrder("step", "cluster"));
+        assertThat(join.rightFields().stream().map(Attribute::name).toList(), containsInAnyOrder("step", "cluster"));
+    }
+
+    public void testVectorMatchGroupRightSwapsInputs() {
+        // group_right: RHS is the "many" side, so the inputs are swapped to keep the "one" side as the build (join right).
+        var plan = planPromql(
+            "PROMQL index=k8s step=5m result=(sum by (cluster) (network.eth0.tx) "
+                + "/ on (cluster) group_right sum by (cluster, pod) (network.eth0.rx))"
+        );
+        var joins = plan.collect(InnerJoin.class);
+        assertThat(joins, hasSize(1));
+        InnerJoin join = joins.getFirst();
+        assertThat(join.unique(), equalTo(false));
+        // After the swap the probe (left of the join) is the RHS "many" side, grouped by (cluster, pod).
+        assertThat(join.leftFields().stream().map(Attribute::name).toList(), containsInAnyOrder("step", "cluster"));
+    }
+
+    public void testVectorMatchComparisonBoolProducesInnerJoin() {
+        // `> bool on (cluster)` compares two vectors and yields 1.0/0.0 for each matched pair (no rows dropped).
+        var plan = planPromql(
+            "PROMQL index=k8s step=5m result=(sum by (cluster) (network.eth0.tx) > bool on (cluster) sum by (cluster) (network.eth0.rx))"
+        );
+        var joins = plan.collect(InnerJoin.class);
+        assertThat(joins, hasSize(1));
+        assertThat(joins.getFirst().leftFields().stream().map(Attribute::name).toList(), containsInAnyOrder("step", "cluster"));
+    }
+
+    public void testVectorMatchComparisonFilterProducesInnerJoinAndFilter() {
+        // `> on (cluster)` (no bool) keeps the LHS series where the comparison holds; the comparison becomes a Filter.
+        var plan = planPromql(
+            "PROMQL index=k8s step=5m result=(sum by (cluster) (network.eth0.tx) > on (cluster) sum by (cluster) (network.eth0.rx))"
+        );
+        assertThat(plan.collect(InnerJoin.class), hasSize(1));
+        boolean hasGreaterThanFilter = plan.collect(Filter.class)
+            .stream()
+            .anyMatch(f -> f.condition().anyMatch(GreaterThan.class::isInstance));
+        assertTrue("expected a Filter carrying the > comparison", hasGreaterThanFilter);
+    }
+
+    public void testVectorMatchAndIsSemiJoin() {
+        // `and on (cluster)` keeps LHS series whose cluster matches some RHS series; realized as an InnerJoin that adds no build columns.
+        var plan = planPromql(
+            "PROMQL index=k8s step=5m result=(sum by (cluster) (network.eth0.tx) and on (cluster) sum by (cluster) (network.eth0.rx))"
+        );
+        var joins = plan.collect(InnerJoin.class);
+        assertThat(joins, hasSize(1));
+        assertThat(joins.getFirst().addedFields(), hasSize(0));
+    }
+
+    public void testBinaryOperatorWithDifferentGroupingKeysJoins() {
+        // sum by (cluster) (...) + sum by (pod) (...): the operands compile as independent tables and join on their
+        // shared identity - previously rejected with a 400 (https://github.com/elastic/elasticsearch/issues/142596).
+        var plan = planPromql("PROMQL index=k8s step=5m result=(sum by (cluster) (network.eth0.tx) + sum by (pod) (network.eth0.rx))");
+        assertThat(plan.collect(InnerJoin.class), hasSize(1));
+    }
+
+    public void testVectorMatchOnLabelAbsentFromBothOperandsJoinsOnStep() {
+        // on (pod) references a label neither operand exposes (both are sum by (cluster)). PromQL matches an absent
+        // label as the empty string on both sides, so it cannot discriminate: the key set degrades to step only, and a
+        // resulting many-to-many match surfaces as the runtime's unique-build-key error, exactly like Prometheus.
+        var plan = planPromql(
+            "PROMQL index=k8s step=5m result=(sum by (cluster) (network.eth0.tx) / on (pod) sum by (cluster) (network.eth0.rx))"
+        );
+        var joins = plan.collect(InnerJoin.class);
+        assertThat(joins, hasSize(1));
+        assertThat(joins.getFirst().leftFields().stream().map(Attribute::name).toList(), containsInAnyOrder("step"));
+    }
+
+    public void testVectorMatchOnLabelWithOpaqueOperandsJoins() {
+        // Both operands aggregate `without`, packing their identity into `_timeseries` with no label columns of their
+        // own; the on (cluster) demand makes each operand materialize `cluster` alongside its packed grouping.
+        var plan = planPromql(
+            "PROMQL index=k8s step=5m result=(sum without (pod) (network.eth0.tx) / on (cluster) sum without (pod) (network.eth0.rx))"
+        );
+        var joins = plan.collect(InnerJoin.class);
+        assertThat(joins, hasSize(1));
+        assertThat(joins.getFirst().leftFields().stream().map(Attribute::name).toList(), containsInAnyOrder("step", "cluster"));
+    }
+
+    public void testVectorMatchNestedInScalarArithmetic() {
+        // The vector match is nested as the right operand of `1 + (...)`; the join is built and the scalar op wraps its value.
+        var plan = planPromql(
+            "PROMQL index=k8s step=5m result=(1 + (sum by (cluster) (network.eth0.tx) "
+                + "/ on (cluster) sum by (cluster) (network.eth0.rx)))"
+        );
+        assertThat(plan.collect(InnerJoin.class), hasSize(1));
+    }
+
+    public void testVectorMatchNestedInAggregation() {
+        // sum(...) aggregates over the vector-match result.
+        var plan = planPromql(
+            "PROMQL index=k8s step=5m result=(sum(sum by (cluster) (network.eth0.tx) "
+                + "/ on (cluster) sum by (cluster) (network.eth0.rx)))"
+        );
+        assertThat(plan.collect(InnerJoin.class), hasSize(1));
+    }
+
+    public void testVectorMatchNestedInFunction() {
+        // abs(...) applies over the vector-match result value.
+        var plan = planPromql(
+            "PROMQL index=k8s step=5m result=(abs(sum by (cluster) (network.eth0.tx) "
+                + "/ on (cluster) sum by (cluster) (network.eth0.rx)))"
+        );
+        assertThat(plan.collect(InnerJoin.class), hasSize(1));
     }
 
     private static void assertNoIndexBackedPromqlPlan(LogicalPlan plan) {

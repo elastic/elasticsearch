@@ -245,32 +245,40 @@ public class PromqlPlanSelectorTests extends AbstractPromqlPlanOptimizerTests {
         var plan = planPromql("PROMQL index=k8s step=1m ratio=(sum(network.bytes_in{pod=\"p1\"}) / sum(network.bytes_in{pod=\"p2\"}))");
         var lots = collectInnerLastOverTimes(plan);
         assertThat(lots, hasSize(2));
-        assertTrue(lots.stream().allMatch(LastOverTime::hasFilter));
-        assertFalse(anyFilterContains(plan, Equals.class));
+        // Each operand compiles over its own source, so each selector pushes down to its own relation.
+        assertTrue(lots.stream().noneMatch(LastOverTime::hasFilter));
+        assertThat(collectSelectorFilters(plan), hasSize(2));
+        assertTrue(anyFilterContains(plan, Equals.class));
     }
 
     public void testBinaryOpDifferentLabelKeys() {
         var plan = planPromql("PROMQL index=k8s step=1m ratio=(sum(network.bytes_in{cluster=\"c1\"}) / sum(network.bytes_in{pod=\"p1\"}))");
         var lots = collectInnerLastOverTimes(plan);
         assertThat(lots, hasSize(2));
-        assertTrue(lots.stream().allMatch(LastOverTime::hasFilter));
-        assertFalse(anyFilterContains(plan, Equals.class));
+        // Each operand compiles over its own source, so each selector pushes down to its own relation.
+        assertTrue(lots.stream().noneMatch(LastOverTime::hasFilter));
+        assertThat(collectSelectorFilters(plan), hasSize(2));
+        assertTrue(anyFilterContains(plan, Equals.class));
     }
 
     public void testBinaryOpSelectorOnOneSideOnly() {
         var plan = planPromql("PROMQL index=k8s step=1m ratio=(sum(network.bytes_in{pod=\"p1\"}) / sum(network.bytes_in))");
         var lots = collectInnerLastOverTimes(plan);
         assertThat(lots, hasSize(2));
-        assertThat(lots.stream().filter(LastOverTime::hasFilter).count(), equalTo(1L));
-        assertFalse(anyFilterContains(plan, Equals.class));
+        // Only the filtered operand's source carries a selector predicate.
+        assertTrue(lots.stream().noneMatch(LastOverTime::hasFilter));
+        assertThat(collectSelectorFilters(plan), hasSize(1));
+        assertTrue(anyFilterContains(plan, Equals.class));
     }
 
     public void testBinaryOpConflictingSelectorsInFunction() {
         var plan = planPromql("PROMQL index=k8s step=1m r=(ceil(sum(network.bytes_in{pod=\"p1\"}) / sum(network.bytes_in{pod=\"p2\"})))");
         var lots = collectInnerLastOverTimes(plan);
         assertThat(lots, hasSize(2));
-        assertTrue(lots.stream().allMatch(LastOverTime::hasFilter));
-        assertFalse(anyFilterContains(plan, Equals.class));
+        // Each operand compiles over its own source, so each selector pushes down to its own relation.
+        assertTrue(lots.stream().noneMatch(LastOverTime::hasFilter));
+        assertThat(collectSelectorFilters(plan), hasSize(2));
+        assertTrue(anyFilterContains(plan, Equals.class));
     }
 
     private static List<String> outputColumns(LogicalPlan plan) {

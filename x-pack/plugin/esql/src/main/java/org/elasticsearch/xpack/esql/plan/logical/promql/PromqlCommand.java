@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.parser.promql.PromqlLogicalPlanBuilder;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryArithmetic;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryComparison;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryOperator;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinarySet;
@@ -500,23 +501,29 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                             );
                         }
                     });
-                    if (binaryOperator.match() != VectorMatch.NONE) {
-                        failures.add(
-                            fail(
-                                lp,
-                                "{} queries with group modifiers are not supported at this time [{}]",
-                                lp.getClass().getSimpleName(),
-                                lp.sourceText()
-                            )
-                        );
+                    // on/ignoring (+ group_left/group_right) vector matching translates arithmetic and comparison operators to an
+                    // InnerJoin,
+                    // either at the expression root or nested inside an outer operation. Set operators (and/unless/or) are validated
+                    // separately by verifySetOperator below.
+                    if (binaryOperator.match() != VectorMatch.NONE
+                        && (binaryOperator instanceof VectorBinaryArithmetic || binaryOperator instanceof VectorBinaryComparison)) {
+                        if (PromqlPlan.returnsScalar(binaryOperator.left()) || PromqlPlan.returnsScalar(binaryOperator.right())) {
+                            // Mirrors Prometheus: on/ignoring describe how two labelsets match, and a scalar has none.
+                            failures.add(fail(lp, "vector matching only allowed between instant vectors [{}]", lp.sourceText()));
+                        }
                     }
                     if (binaryOperator instanceof VectorBinaryComparison comp) {
-                        if (root.get() == false) {
+                        // A vector-matched comparison translates to an InnerJoin and can nest inside an outer operation; a scalar
+                        // comparison
+                        // (no on/ignoring) is still only supported at the expression root.
+                        if (comp.match() == VectorMatch.NONE && root.get() == false) {
                             failures.add(
                                 fail(lp, "comparison operators are only supported at the top-level at this time [{}]", lp.sourceText())
                             );
                         }
-                        if (comp.right() instanceof LiteralSelector == false) {
+                        // A vector-matched comparison (on/ignoring) compares two vectors via an InnerJoin; without matching, only a
+                        // scalar (literal) right-hand side is supported.
+                        if (comp.match() == VectorMatch.NONE && comp.right() instanceof LiteralSelector == false) {
                             failures.add(
                                 fail(
                                     lp,
@@ -530,9 +537,16 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                         }
                     }
                     if (binaryOperator instanceof VectorBinarySet setOp) {
-                        verifySetOperator(failures, setOp, topLevelUnions.contains(setOp));
+                        verifySetOperator(failures, setOp, topLevelUnions.contains(setOp), root.get());
                     }
-                    if (usesWithoutGrouping(binaryOperator.left()) || usesWithoutGrouping(binaryOperator.right())) {
+                    // A WITHOUT-shaped operand is opaque: its identity is packed into `_timeseries` with no label
+                    // columns of its own. on(...)/ignoring(...) matching lowers its keys to concrete labels demanded
+                    // from both operand compilations, so opaque operands are supported; the unmatched (merge/bare)
+                    // forms match on the operands' explicit grouping labels and cannot see into the packed identity.
+                    boolean labelMatched = binaryOperator.match() != VectorMatch.NONE
+                        && binaryOperator.match().filter() != VectorMatch.Filter.NONE;
+                    if (labelMatched == false
+                        && (usesWithoutGrouping(binaryOperator.left()) || usesWithoutGrouping(binaryOperator.right()))) {
                         failures.add(fail(lp, "binary expressions with WITHOUT are not supported at this time [{}]", lp.sourceText()));
                     }
                     if (hasSourceBackedExpression(binaryOperator.left())
@@ -579,17 +593,33 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
      *       implementation limitations, flagged with "at this time".</li>
      * </ul>
      */
-    private static void verifySetOperator(Failures failures, VectorBinarySet setOp, boolean isTopLevelUnion) {
+    private static void verifySetOperator(Failures failures, VectorBinarySet setOp, boolean isTopLevelUnion, boolean root) {
         if (PromqlPlan.returnsScalar(setOp.left()) || PromqlPlan.returnsScalar(setOp.right())) {
             failures.add(fail(setOp, "set operator \"{}\" not allowed in binary scalar expression", setOp.op().keyword()));
             return;
         }
-        if (setOp.op() != VectorBinarySet.SetOp.UNION) {
-            failures.add(fail(setOp, "set operator [{}] is not supported at this time [{}]", setOp.op().keyword(), setOp.sourceText()));
-            return;
-        }
-        if (isTopLevelUnion == false) {
-            failures.add(fail(setOp, "set operator [or] is only supported at the top-level at this time [{}]", setOp.sourceText()));
+        switch (setOp.op()) {
+            case UNION -> {
+                if (setOp.match() != VectorMatch.NONE) {
+                    // `or` with on/ignoring is not translated yet; the union path matches on the full label set.
+                    failures.add(fail(setOp, "set operator [or] with on/ignoring is not supported at this time [{}]", setOp.sourceText()));
+                } else if (isTopLevelUnion == false) {
+                    failures.add(fail(setOp, "set operator [or] is only supported at the top-level at this time [{}]", setOp.sourceText()));
+                }
+            }
+            case INTERSECT -> {
+                // `and` (optionally with on/ignoring) is translated to a top-level INNER equi-join (a semi-join),
+                // mirroring arithmetic/comparison vector matching.
+                if (root == false) {
+                    failures.add(
+                        fail(setOp, "set operator [and] is only supported at the top-level at this time [{}]", setOp.sourceText())
+                    );
+                }
+            }
+            // `unless` (anti-join) has no physical executor yet; keep rejecting it.
+            case SUBTRACT -> failures.add(
+                fail(setOp, "set operator [{}] is not supported at this time [{}]", setOp.op().keyword(), setOp.sourceText())
+            );
         }
     }
 

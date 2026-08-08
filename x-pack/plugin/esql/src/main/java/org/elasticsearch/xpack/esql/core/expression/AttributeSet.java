@@ -40,6 +40,12 @@ public class AttributeSet implements Set<Attribute> {
         return new AttributeSet(delegate.subtract(other.delegate));
     }
 
+    public AttributeSet subtract(Predicate<? super Attribute> filter) {
+        Builder b = asBuilder();
+        b.removeIf(filter);
+        return b.build();
+    }
+
     public AttributeSet intersect(AttributeSet other) {
         return new AttributeSet(delegate.intersect(other.delegate));
     }

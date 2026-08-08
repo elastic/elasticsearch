@@ -2416,6 +2416,13 @@ public class EsqlCapabilities {
         PROMQL_BINARY_COMPARISON_V0,
 
         /**
+         * Initial support for PromQL vector matching ({@code on}/{@code ignoring}, optionally with {@code group_left}/
+         * {@code group_right}) on arithmetic operators, translated to a coordinator-side INNER equi-join. Only top-level
+         * matching between two aggregated instant vectors (e.g. {@code sum by (...)} ) is supported.
+         */
+        PROMQL_VECTOR_MATCHING_V0(Build.current().isSnapshot()),
+
+        /**
          * Support for PromQL time() function.
          */
         PROMQL_TIME,

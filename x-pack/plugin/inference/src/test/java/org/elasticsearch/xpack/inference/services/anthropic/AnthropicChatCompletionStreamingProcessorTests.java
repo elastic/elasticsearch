@@ -12,6 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionUsage;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEvent;
 import org.hamcrest.Matchers;
 
@@ -169,8 +170,8 @@ public class AnthropicChatCompletionStreamingProcessorTests extends ESTestCase {
         var choices = chatCompletionChunk.choices();
         assertThat(choices.size(), is(1));
         assertThat(choices.getFirst().index(), is(0));
-        assertNull(choices.getFirst().delta().toolCalls());
-        assertNull(choices.getFirst().delta().content());
+        assertNull(choices.getFirst().message().toolCalls());
+        assertNull(choices.getFirst().message().content());
         assertThat(choices.getFirst().finishReason(), is("tool_calls"));
         assertUsage(chatCompletionChunk.usage(), 99, 0, 99);
     }
@@ -183,7 +184,7 @@ public class AnthropicChatCompletionStreamingProcessorTests extends ESTestCase {
         assertThat(chatCompletionChunk.choices().size(), is(1));
         var choice = chatCompletionChunk.choices().getFirst();
         assertThat(choice.index(), is(0));
-        assertThat(choice.delta().role(), is("assistant"));
+        assertThat(choice.message().role(), is("assistant"));
     }
 
     private static void assertToolUseContentStartBlock(
@@ -195,7 +196,7 @@ public class AnthropicChatCompletionStreamingProcessorTests extends ESTestCase {
         var choices = response.chunks().remove().choices();
         assertThat(choices.size(), is(1));
         assertThat(choices.getFirst().index(), is(0));
-        var toolCalls = choices.getFirst().delta().toolCalls();
+        var toolCalls = choices.getFirst().message().toolCalls();
         assertThat(toolCalls.size(), is(1));
         assertThat(toolCalls.getFirst().index(), is(toolCallIndex));
         assertThat(toolCalls.getFirst().id(), is(id));
@@ -212,7 +213,7 @@ public class AnthropicChatCompletionStreamingProcessorTests extends ESTestCase {
         var choices = response.chunks().remove().choices();
         assertThat(choices.size(), is(1));
         assertThat(choices.getFirst().index(), is(0));
-        var toolCalls = choices.getFirst().delta().toolCalls();
+        var toolCalls = choices.getFirst().message().toolCalls();
         assertThat(toolCalls.size(), is(1));
         assertThat(toolCalls.getFirst().index(), is(toolCallIndex));
         assertNull(toolCalls.getFirst().id());
@@ -225,15 +226,10 @@ public class AnthropicChatCompletionStreamingProcessorTests extends ESTestCase {
         var choices = response.chunks().remove().choices();
         assertThat(choices.size(), is(1));
         assertThat(choices.getFirst().index(), is(0));
-        assertThat(choices.getFirst().delta().content(), Matchers.is(content));
+        assertThat(choices.getFirst().message().content(), Matchers.is(content));
     }
 
-    private static void assertUsage(
-        StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Usage usage,
-        int completion,
-        int prompt,
-        int total
-    ) {
+    private static void assertUsage(ChatCompletionUsage usage, int completion, int prompt, int total) {
         assertThat(usage.completionTokens(), is(completion));
         assertThat(usage.promptTokens(), is(prompt));
         assertThat(usage.totalTokens(), is(total));

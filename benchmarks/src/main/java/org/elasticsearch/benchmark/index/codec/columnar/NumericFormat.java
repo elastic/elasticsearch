@@ -86,7 +86,8 @@ public enum NumericFormat {
                     useLargeNumericBlockSize,
                     useLargeBinaryBlockSize,
                     writePartitions,
-                    (f, bs) -> es95FieldContext(workload, f, bs)
+                    (f, bs) -> es95FieldContext(workload, f, bs),
+                    false
                 );
             }
             case COLUMNAR -> new ColumNARDocValuesFormat((f, t) -> bs -> selectPipeline(workload, bs), blockSize);

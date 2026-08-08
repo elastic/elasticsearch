@@ -24,6 +24,7 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
+import org.elasticsearch.index.codec.tsdb.pipeline.FieldContext;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericCodecFactory;
 import org.elasticsearch.test.ESTestCase;
 
@@ -310,8 +311,8 @@ public class RunTableSortedCodecTests extends ESTestCase {
             NumericCodecFactory.DEFAULT,
             ES95NumericFieldReader::defaultFallbackDecoder,
             null,
-            new RunTableSortedCodec(new ES95SortedCodec()),
-            new RunTableSortedSetCodec(new ES95SortedSetCodec())
+            new RunTableSortedCodec(new ES95SortedCodec(), (name, bs) -> new FieldContext(bs, name, null, null, true)),
+            new RunTableSortedSetCodec(new ES95SortedSetCodec(), (name, bs) -> new FieldContext(bs, name, null, null, true))
         );
     }
 

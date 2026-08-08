@@ -97,7 +97,7 @@ public class TSDBDocValuesBulkWriteBenchmark {
             false,
             false
         );
-        final DocValuesFormat es95Format = ES95TSDBDocValuesFormatFactory.create(false, false, false, null);
+        final DocValuesFormat es95Format = ES95TSDBDocValuesFormatFactory.create(false, false, false, null, false);
         es819Codec = wrapCodec(es819Format);
         es95Codec = wrapCodec(es95Format);
         es95UncachedCodec = wrapUncachedES95Codec();
@@ -173,7 +173,7 @@ public class TSDBDocValuesBulkWriteBenchmark {
         return new Elasticsearch93Lucene104Codec() {
             @Override
             public DocValuesFormat getDocValuesFormatForField(String field) {
-                return ES95TSDBDocValuesFormatFactory.create(false, false, false, null);
+                return ES95TSDBDocValuesFormatFactory.create(false, false, false, null, false);
             }
         };
     }

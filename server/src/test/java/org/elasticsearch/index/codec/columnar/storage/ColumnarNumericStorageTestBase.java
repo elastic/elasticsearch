@@ -122,7 +122,7 @@ abstract class ColumnarNumericStorageTestBase extends ESTestCase {
             case "GAUGE" -> new FieldContext(bs, f, DataType.LONG, MetricRole.GAUGE, false);
             case "TSDB_SPLIT", "MONOTONIC_TIMESTAMPS" -> new FieldContext(bs, "@timestamp", null, null, false);
             default -> new FieldContext(bs, f, null, null, false);
-        });
+        }, false);
     }
 
     private static SegmentWriteState segmentWriteState(ByteBuffersDirectory dir, FieldInfo fieldInfo, int maxDoc) throws IOException {

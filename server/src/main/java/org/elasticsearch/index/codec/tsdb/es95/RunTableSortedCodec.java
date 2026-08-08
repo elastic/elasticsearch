@@ -67,8 +67,8 @@ final class RunTableSortedCodec implements SortedOrdinalCodec {
      * @param accumulatorFactory   creates the accumulator for each field write; receives the sentinel
      *                             value count and returns a fresh writer
      * @param fieldContextResolver resolves whether a field is a TSDB dimension at write time;
-     *                             {@code null} disables dimension filtering (run-table is attempted
-     *                             for all structurally eligible fields)
+     *                             {@code null} disables the run-table path entirely and falls back
+     *                             to the baseline layout for every field
      */
     RunTableSortedCodec(
         final SortedOrdinalCodec fallback,
@@ -133,7 +133,7 @@ final class RunTableSortedCodec implements SortedOrdinalCodec {
             if (field.number == ctx.primarySortFieldNumber() || maxOrd <= 1) {
                 return writeDefault(field, values, maxOrd, docValueCountConsumer, sortedFieldObserver);
             }
-            if (fieldContextResolver != null && fieldContextResolver.resolve(field.name, 0).isDimension() == false) {
+            if (fieldContextResolver == null || fieldContextResolver.resolve(field.name, 0).isDimension() == false) {
                 return writeDefault(field, values, maxOrd, docValueCountConsumer, sortedFieldObserver);
             }
 

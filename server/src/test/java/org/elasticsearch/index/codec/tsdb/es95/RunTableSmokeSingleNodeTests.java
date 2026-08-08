@@ -25,14 +25,6 @@ import org.elasticsearch.xcontent.XContentFactory;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 
-/**
- * Integration coverage for the run-table ordinal layout over a real {@code time_series} index, where the
- * enabling setting defaults on so both the single-valued {@code host} dimension (Sorted) and the multi-valued
- * {@code tags} dimension (SortedSet) are written and read through the run-table selection. Exercises the query
- * surface that reads the ordinal stream end to end: term filters, terms aggregations grouping by each
- * dimension, a metric range with a sort, and exists/missing, asserting query results rather than storage
- * layout. This is the integration owner; the codec and ordinal suites cover the format and unit layers.
- */
 public class RunTableSmokeSingleNodeTests extends ESSingleNodeTestCase {
 
     private static final int NUM_SERIES = 8;

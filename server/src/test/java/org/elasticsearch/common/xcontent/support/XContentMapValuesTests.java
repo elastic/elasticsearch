@@ -503,6 +503,29 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
         assertThat(((Map<String, Object>) filteredSource.get("obj")).size(), equalTo(0));
     }
 
+    @SuppressWarnings("unchecked")
+    public void testWildcardExcludeDeferredSuffixMapParity() {
+        Map<String, Object> doc = Map.of("a", Map.of("obj1", Map.of()), "b", Map.of("obj2", Map.of("objX", "v")));
+        Map<String, Object> filtered = XContentMapValues.filter(doc, Strings.EMPTY_ARRAY, new String[] { "*.obj*" });
+        assertThat(filtered, equalTo(Map.of("a", Map.of(), "b", Map.of())));
+
+        doc = Map.of("a", Map.of("foo", Map.of("x", 1)), "b", Map.of("foo", Map.of("bar", Map.of("v", 1))));
+        filtered = XContentMapValues.filter(doc, Strings.EMPTY_ARRAY, new String[] { "*.foo.bar" });
+        assertThat(filtered, equalTo(Map.of("a", Map.of("foo", Map.of("x", 1)), "b", Map.of("foo", Map.of()))));
+
+        doc = Map.of("foo", Map.of("middle", Map.of("bar", Map.of("v", 1))));
+        filtered = XContentMapValues.filter(doc, Strings.EMPTY_ARRAY, new String[] { "foo.*.bar" });
+        assertThat(filtered, equalTo(Map.of("foo", Map.of("middle", Map.of()))));
+
+        doc = Map.of("myArray", List.of(Map.of("myObject", Map.of("excluded", "x"))));
+        filtered = XContentMapValues.filter(doc, new String[] { "myArray.myObject" }, new String[] { "myArray.myObject.excluded" });
+        assertThat(filtered, equalTo(Map.of("myArray", List.of(Map.of("myObject", Map.of())))));
+
+        doc = Map.of("obj1", Map.of("obj2", Map.of("obj3", Map.of())));
+        filtered = XContentMapValues.filter(doc, Strings.EMPTY_ARRAY, new String[] { "*.obj3" });
+        assertThat(filtered, equalTo(Map.of("obj1", Map.of("obj2", Map.of()))));
+    }
+
     @SuppressWarnings({ "unchecked" })
     public void testNotOmittingObjectWithNestedExcludedObject() throws Exception {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject();

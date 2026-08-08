@@ -81,4 +81,15 @@ public interface XContentParserConfiguration {
         Set<String> excludeStrings,
         boolean filtersMatchFieldNamesWithDots
     );
+
+    /**
+     * Configures exclude-only wildcard filtering that preserves map-based source-filter semantics for empty containers and wildcard suffix
+     * matching. This specialized mode is used only for safe wildcard patterns selected by the server's source filter.
+     */
+    XContentParserConfiguration withSourceFilterWildcardFiltering(
+        String prefixPath,
+        Set<String> includeStrings,
+        Set<String> excludeStrings,
+        boolean filtersMatchFieldNamesWithDots
+    );
 }

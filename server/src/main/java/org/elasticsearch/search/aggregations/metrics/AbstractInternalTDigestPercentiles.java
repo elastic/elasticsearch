@@ -142,9 +142,10 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
                 final AbstractInternalTDigestPercentiles percentiles = (AbstractInternalTDigestPercentiles) aggregation;
                 if (percentiles.state != null) {
                     if (merged == null) {
-                        // NOOP_BREAKER: AggregatorReducer.close() is a no-op, so the accumulator is
-                        // never explicitly released. A real breaker would charge bytes that are never
-                        // returned, leaking coordinator-side breaker accounting.
+                        // NOOP_BREAKER for two reasons: (1) for same-node reduction, the shard's
+                        // PreallocatedCircuitBreaker is already closed before reduction runs, so any
+                        // charge would throw IllegalStateException; (2) AggregatorReducer.close() is
+                        // a no-op, so a live breaker would charge bytes that are never returned.
                         merged = HistogramUnionState.createUsingParamsFrom(percentiles.state, HistogramUnionState.NOOP_BREAKER);
                     }
                     merged = merge(merged, percentiles.state);

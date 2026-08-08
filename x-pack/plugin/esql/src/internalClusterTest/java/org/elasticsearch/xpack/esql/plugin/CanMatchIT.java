@@ -378,6 +378,46 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testSkipOnNonExistingField() {
+        assertAcked(client().admin().indices().prepareCreate("index1").setMapping("filed1", "type=keyword"));
+        client().prepareBulk("index1")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .add(new IndexRequest().source("field1", "a"))
+            .get();
+
+        assertAcked(client().admin().indices().prepareCreate("index2").setMapping("filed2", "type=keyword"));
+        client().prepareBulk("index2")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .add(new IndexRequest().source("field2", "b"))
+            .get();
+
+        try {
+            Set<String> queriedIndices = ConcurrentCollections.newConcurrentSet();
+            for (var transportService : internalCluster().getInstances(TransportService.class)) {
+                as(transportService, MockTransportService.class).addRequestHandlingBehavior(
+                    ComputeService.DATA_ACTION_NAME,
+                    (handler, request, channel, task) -> {
+                        DataNodeRequest dataNodeRequest = (DataNodeRequest) request;
+                        for (ShardId shardId : dataNodeRequest.shardIds()) {
+                            queriedIndices.add(shardId.getIndexName());
+                        }
+                        handler.messageReceived(request, channel, task);
+                    }
+                );
+
+            }
+            try (var resp = run("from index* | WHERE field1 == \"a\"")) {
+                assertThat(getValuesList(resp), hasSize(1));
+                assertThat(queriedIndices, equalTo(Set.of("index1")));
+                queriedIndices.clear();
+            }
+        } finally {
+            for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
+                as(transportService, MockTransportService.class).clearAllRules();
+            }
+        }
+    }
+
     public void testSkipOnIndexName() {
         internalCluster().ensureAtLeastNumDataNodes(2);
         int numIndices = between(2, 10);

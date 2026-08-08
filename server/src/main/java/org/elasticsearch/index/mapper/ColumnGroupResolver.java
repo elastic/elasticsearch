@@ -9,6 +9,8 @@
 
 package org.elasticsearch.index.mapper;
 
+import com.carrotsearch.hppc.IntArrayList;
+
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -129,7 +131,7 @@ public final class ColumnGroupResolver {
 
         private static final class GroupEntry {
             private final FieldMapper mapper;
-            private final List<Integer> leafIndexList = new ArrayList<>();
+            private final IntArrayList leafIndexList = new IntArrayList();
             private final List<String> relativeKeyList = new ArrayList<>();
 
             GroupEntry(FieldMapper mapper) {

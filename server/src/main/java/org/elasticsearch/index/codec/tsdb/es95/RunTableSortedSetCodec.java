@@ -170,6 +170,8 @@ final class RunTableSortedSetCodec implements SortedSetOrdinalCodec {
                     for (int i = 0; i < count; i++) {
                         set[i] = (int) ords.nextValue();
                     }
+                    // ArrayUtil.grow may return a buffer longer than count; trim to count so the
+                    // accumulator validates and compares exactly the live ordinals, not stale tail values.
                     runTable.add(Arrays.copyOf(set, count));
                     numDocsWithField++;
                     numValues += count;

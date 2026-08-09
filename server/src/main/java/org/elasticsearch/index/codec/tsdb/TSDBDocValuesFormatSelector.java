@@ -12,6 +12,7 @@ package org.elasticsearch.index.codec.tsdb;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.elasticsearch.cluster.routing.TsidBuilder;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -50,7 +51,7 @@ public final class TSDBDocValuesFormatSelector {
                 useLargeBinaryBlockSize,
                 writePartitions,
                 fieldContextResolver,
-                indexSettings.isTimeSeriesRunTableOrdinalEnabled()
+                useES95RunTable(indexSettings)
             );
         }
         return ES819TSDBDocValuesFormatFactory.createDocValuesFormat(
@@ -65,5 +66,9 @@ public final class TSDBDocValuesFormatSelector {
         return indexSettings.getMode().isTsdb()
             && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.ES95_TSDB_CODEC_FEATURE_FLAG)
             && indexSettings.isTimeSeriesEs95CodecEnabled();
+    }
+
+    static boolean useES95RunTable(final IndexSettings indexSettings) {
+        return indexSettings.getMode() == IndexMode.TIME_SERIES && indexSettings.isTimeSeriesRunTableOrdinalEnabled();
     }
 }

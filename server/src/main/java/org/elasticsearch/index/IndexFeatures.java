@@ -82,7 +82,7 @@ public class IndexFeatures implements FeatureSpecification {
         if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()) {
             features.add(SLICE_INDEXING);
         }
-        if (IndexSettings.RUN_TABLE_ORDINAL_FEATURE_FLAG.isEnabled()) {
+        if (IndexSettings.ES95_RUNTABLE_ENCODING_FEATURE_FLAG.isEnabled()) {
             features.add(TIME_SERIES_RUN_TABLE_ORDINAL);
         }
         return Set.copyOf(features);

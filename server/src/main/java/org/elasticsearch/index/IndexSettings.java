@@ -1108,11 +1108,11 @@ public final class IndexSettings {
     }
 
     /** Feature flag gating the run-table ordinal TSDB doc values encoding. */
-    public static final FeatureFlag RUN_TABLE_ORDINAL_FEATURE_FLAG = new FeatureFlag("run_table_ordinal");
+    public static final FeatureFlag ES95_RUNTABLE_ENCODING_FEATURE_FLAG = new FeatureFlag("es95_runtable_encoding");
 
     /**
      * Controls whether the run-table ordinal encoding is used for TSDB dimension fields in the ES95 codec,
-     * allowing per-index opt-out. Registered only when {@link #RUN_TABLE_ORDINAL_FEATURE_FLAG} is enabled.
+     * allowing per-index opt-out. Registered only when {@link #ES95_RUNTABLE_ENCODING_FEATURE_FLAG} is enabled.
      * Defaults to {@code true} for time series indices when the feature flag is enabled, {@code false} otherwise.
      */
     public static final Setting<Boolean> TIME_SERIES_RUN_TABLE_ORDINAL_ENABLED_SETTING = Setting.boolSetting(
@@ -1123,10 +1123,10 @@ public final class IndexSettings {
     );
 
     private static boolean runTableOrdinalEnabledByDefault(final Settings settings) {
-        if (settings == null || MODE.get(settings).isTsdb() == false) {
+        if (settings == null || MODE.get(settings) != IndexMode.TIME_SERIES) {
             return false;
         }
-        return RUN_TABLE_ORDINAL_FEATURE_FLAG.isEnabled();
+        return ES95_RUNTABLE_ENCODING_FEATURE_FLAG.isEnabled();
     }
 
     /**
@@ -1666,7 +1666,7 @@ public final class IndexSettings {
         useTimeSeriesDocValuesFormatLargeNumericBlockSize = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BLOCK_SIZE);
         useTimeSeriesDocValuesFormatLargeBinaryBlockSize = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK_SIZE);
         timeSeriesEs95CodecEnabled = scopedSettings.get(TIME_SERIES_ES95_CODEC_ENABLED_SETTING);
-        timeSeriesRunTableOrdinalEnabled = RUN_TABLE_ORDINAL_FEATURE_FLAG.isEnabled()
+        timeSeriesRunTableOrdinalEnabled = ES95_RUNTABLE_ENCODING_FEATURE_FLAG.isEnabled()
             && scopedSettings.get(TIME_SERIES_RUN_TABLE_ORDINAL_ENABLED_SETTING);
         useEs812PostingsFormat = scopedSettings.get(USE_ES_812_POSTINGS_FORMAT);
         intraMergeParallelismEnabled = scopedSettings.get(INTRA_MERGE_PARALLELISM_ENABLED_SETTING);

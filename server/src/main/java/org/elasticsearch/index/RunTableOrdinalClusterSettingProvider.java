@@ -64,7 +64,7 @@ public final class RunTableOrdinalClusterSettingProvider implements IndexSetting
         final IndexVersion indexVersion,
         final Settings.Builder additionalSettings
     ) {
-        if (IndexSettings.RUN_TABLE_ORDINAL_FEATURE_FLAG.isEnabled() == false) {
+        if (IndexSettings.ES95_RUNTABLE_ENCODING_FEATURE_FLAG.isEnabled() == false) {
             return;
         }
         if (enabled) {

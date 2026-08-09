@@ -96,7 +96,7 @@ public final class QueryPhaseCollector implements TwoPhaseCollector {
             assert aggsScoreMode != ScoreMode.TOP_SCORES : "aggs never rely on setMinCompetitiveScore";
             if (topDocsScoreMode == aggsScoreMode) {
                 scoreMode = topDocsScoreMode;
-            } else if (skipsViaCompetitiveIterator(topDocsScoreMode) && skipsViaCompetitiveIterator(aggsScoreMode)) {
+            } else if (allowsSkippingViaCompetitiveIterator(topDocsScoreMode) && allowsSkippingViaCompetitiveIterator(aggsScoreMode)) {
                 // the two collectors only disagree on whether they need scores: no need to make collection exhaustive, given that
                 // CompositeLeafCollector exposes a competitive iterator only once one of the two has early terminated
                 scoreMode = ScoreMode.TOP_DOCS_WITH_SCORES;
@@ -106,20 +106,27 @@ public final class QueryPhaseCollector implements TwoPhaseCollector {
                 scoreMode = ScoreMode.COMPLETE_NO_SCORES;
             }
         }
-        if (minScore != null && scoreMode.needsScores() == false) {
-            // min_score needs scores, yet it does not require exhaustive collection
-            scoreMode = scoreMode == ScoreMode.TOP_DOCS ? ScoreMode.TOP_DOCS_WITH_SCORES : ScoreMode.COMPLETE;
+        if (minScore != null) {
+            // min_score needs scores, yet it does not require exhaustive collection; modes that already need scores are unchanged.
+            scoreMode = switch (scoreMode) {
+                case COMPLETE, COMPLETE_NO_SCORES -> ScoreMode.COMPLETE;
+                case TOP_DOCS, TOP_DOCS_WITH_SCORES -> ScoreMode.TOP_DOCS_WITH_SCORES;
+                case TOP_SCORES -> ScoreMode.TOP_SCORES;
+            };
         }
         return scoreMode;
     }
 
     /**
-     * Whether the provided score mode skips non-competitive documents via {@link LeafCollector#competitiveIterator()}.
-     * {@link ScoreMode#TOP_SCORES} is left out because it skips via {@link Scorable#setMinCompetitiveScore(float)}, which is never
+     * Whether the provided score mode allows skipping non-competitive documents via {@link LeafCollector#competitiveIterator()}.
+     * {@link ScoreMode#TOP_SCORES} does not, because it skips via {@link Scorable#setMinCompetitiveScore(float)}, which is never
      * supported when aggs are collected.
      */
-    private static boolean skipsViaCompetitiveIterator(ScoreMode scoreMode) {
-        return scoreMode == ScoreMode.TOP_DOCS || scoreMode == ScoreMode.TOP_DOCS_WITH_SCORES;
+    private static boolean allowsSkippingViaCompetitiveIterator(ScoreMode scoreMode) {
+        return switch (scoreMode) {
+            case TOP_DOCS, TOP_DOCS_WITH_SCORES -> true;
+            case COMPLETE, COMPLETE_NO_SCORES, TOP_SCORES -> false;
+        };
     }
 
     /**

@@ -69,7 +69,6 @@ public class IndexFeatures implements FeatureSpecification {
                 TIME_SERIES_SYNTHETIC_ID_DEFAULT,
                 TIME_SERIES_NO_SEQNO,
                 TIME_SERIES_ES95_CODEC,
-                TIME_SERIES_RUN_TABLE_ORDINAL,
                 SYNONYMS_SET_LENIENT_ON_NON_EXISTING,
                 THROW_EXCEPTION_FOR_UNKNOWN_TOKEN_IN_REST_INDEX_PUT_ALIAS_ACTION,
                 THROW_EXCEPTION_ON_INDEX_CREATION_IF_UNSUPPORTED_VALUE_TYPE_IN_ALIAS,
@@ -82,6 +81,9 @@ public class IndexFeatures implements FeatureSpecification {
         );
         if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()) {
             features.add(SLICE_INDEXING);
+        }
+        if (IndexSettings.RUN_TABLE_ORDINAL_FEATURE_FLAG.isEnabled()) {
+            features.add(TIME_SERIES_RUN_TABLE_ORDINAL);
         }
         return Set.copyOf(features);
     }

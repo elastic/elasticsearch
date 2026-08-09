@@ -25,6 +25,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.codec.CodecService;
@@ -1106,10 +1107,13 @@ public final class IndexSettings {
         return SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(IndexVersions.TIME_SERIES_ES95_CODEC_DEFAULT);
     }
 
+    /** Feature flag gating the run-table ordinal TSDB doc values encoding. */
+    public static final FeatureFlag RUN_TABLE_ORDINAL_FEATURE_FLAG = new FeatureFlag("run_table_ordinal");
+
     /**
      * Controls whether the run-table ordinal encoding is used for TSDB dimension fields in the ES95 codec,
-     * allowing per-index opt-out. Defaults to {@code true} for time series indices created on or after
-     * {@link IndexVersions#TIME_SERIES_RUN_TABLE_ORDINAL_DEFAULT}, and {@code false} otherwise.
+     * allowing per-index opt-out. Registered only when {@link #RUN_TABLE_ORDINAL_FEATURE_FLAG} is enabled.
+     * Defaults to {@code true} for time series indices when the feature flag is enabled, {@code false} otherwise.
      */
     public static final Setting<Boolean> TIME_SERIES_RUN_TABLE_ORDINAL_ENABLED_SETTING = Setting.boolSetting(
         "index.time_series.run_table_ordinal.enabled",
@@ -1122,7 +1126,7 @@ public final class IndexSettings {
         if (settings == null || MODE.get(settings).isTsdb() == false) {
             return false;
         }
-        return SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(IndexVersions.TIME_SERIES_RUN_TABLE_ORDINAL_DEFAULT);
+        return RUN_TABLE_ORDINAL_FEATURE_FLAG.isEnabled();
     }
 
     /**
@@ -1662,7 +1666,8 @@ public final class IndexSettings {
         useTimeSeriesDocValuesFormatLargeNumericBlockSize = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BLOCK_SIZE);
         useTimeSeriesDocValuesFormatLargeBinaryBlockSize = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK_SIZE);
         timeSeriesEs95CodecEnabled = scopedSettings.get(TIME_SERIES_ES95_CODEC_ENABLED_SETTING);
-        timeSeriesRunTableOrdinalEnabled = scopedSettings.get(TIME_SERIES_RUN_TABLE_ORDINAL_ENABLED_SETTING);
+        timeSeriesRunTableOrdinalEnabled = RUN_TABLE_ORDINAL_FEATURE_FLAG.isEnabled()
+            && scopedSettings.get(TIME_SERIES_RUN_TABLE_ORDINAL_ENABLED_SETTING);
         useEs812PostingsFormat = scopedSettings.get(USE_ES_812_POSTINGS_FORMAT);
         intraMergeParallelismEnabled = scopedSettings.get(INTRA_MERGE_PARALLELISM_ENABLED_SETTING);
         useTimeSeriesSyntheticId = scopedSettings.get(SYNTHETIC_ID);

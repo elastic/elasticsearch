@@ -46,6 +46,17 @@ public class TSDBDocValuesFormatSelectorTests extends ESTestCase {
         );
     }
 
+    public void testRunTableOrdinalSettingRegisteredOnlyWhenFeatureFlagEnabled() {
+        final boolean registered = IndexScopedSettings.BUILT_IN_INDEX_SETTINGS.contains(
+            IndexSettings.TIME_SERIES_RUN_TABLE_ORDINAL_ENABLED_SETTING
+        );
+        assertEquals(
+            "run-table ordinal setting registration must match feature flag state",
+            IndexSettings.RUN_TABLE_ORDINAL_FEATURE_FLAG.isEnabled(),
+            registered
+        );
+    }
+
     public void testES95OnlySelectedForTimeSeriesWhenSettingEnabled() {
         final IndexVersion version = IndexVersionUtils.randomVersionBetween(
             IndexVersions.ES95_TSDB_CODEC_FEATURE_FLAG,
@@ -54,9 +65,7 @@ public class TSDBDocValuesFormatSelectorTests extends ESTestCase {
         for (IndexMode mode : indexModesUnderTest()) {
             final DocValuesFormat format = TSDBDocValuesFormatSelector.select(indexSettings(mode, version, true), null);
             if (mode == IndexMode.TIME_SERIES) {
-                final String expectedName = version.onOrAfter(IndexVersions.TIME_SERIES_RUN_TABLE_ORDINAL_DEFAULT)
-                    ? ES95RT_CODEC_NAME
-                    : ES95_CODEC_NAME;
+                final String expectedName = IndexSettings.RUN_TABLE_ORDINAL_FEATURE_FLAG.isEnabled() ? ES95RT_CODEC_NAME : ES95_CODEC_NAME;
                 assertThat("mode=" + mode + " version=" + version, format.getName(), equalTo(expectedName));
             } else {
                 assertThat("mode=" + mode + " version=" + version, format.getName(), startsWith("ES819"));
@@ -79,9 +88,10 @@ public class TSDBDocValuesFormatSelectorTests extends ESTestCase {
             TSDBDocValuesFormatSelector.select(indexSettings(IndexMode.TIME_SERIES, justBefore, true), null).getName(),
             startsWith("ES819")
         );
+        final String expectedAtExact = IndexSettings.RUN_TABLE_ORDINAL_FEATURE_FLAG.isEnabled() ? ES95RT_CODEC_NAME : ES95_CODEC_NAME;
         assertThat(
             TSDBDocValuesFormatSelector.select(indexSettings(IndexMode.TIME_SERIES, exact, true), null).getName(),
-            equalTo(ES95_CODEC_NAME)
+            equalTo(expectedAtExact)
         );
     }
 

@@ -107,13 +107,8 @@ abstract class AbstractTDigestPercentilesAggregator extends NumericMetricsAggreg
     }
 
     /**
-     * Removes the state for {@code bucketOrd} from this aggregator and returns it to the caller.
-     * Breaker bytes are returned to {@code context.breaker()} here, while the aggregation context
-     * is still open. {@link org.elasticsearch.search.aggregations.InternalAggregation} has no close
-     * lifecycle, so the breaker is already closed by the time the result is serialized.
-     * {@link #doClose()} will not touch the returned state. Returns {@code null} if the bucket
-     * ordinal was never collected (no documents matched that bucket), or if the state was already
-     * removed by a prior call.
+     * Removes and returns the state for {@code bucketOrd}, releasing its breaker bytes now while
+     * the context is still open. Returns {@code null} if the bucket was never collected or already taken.
      */
     @Nullable
     protected HistogramUnionState takeState(long bucketOrd) {
@@ -123,7 +118,6 @@ abstract class AbstractTDigestPercentilesAggregator extends NumericMetricsAggreg
         HistogramUnionState state = states.get(bucketOrd);
         states.set(bucketOrd, null);
         if (state != null) {
-            // Release accounting while the breaker is still open. The state's data stays intact.
             context.breaker().addWithoutBreaking(-state.ramBytesUsed());
         }
         return state;
@@ -131,7 +125,7 @@ abstract class AbstractTDigestPercentilesAggregator extends NumericMetricsAggreg
 
     @Override
     protected void doClose() {
-        // That the super registers itself in the constructor so doClose might be called before construction is finished
+        // states is null if the constructor threw before assigning it because assignment is after super()
         if (states == null) {
             return;
         }

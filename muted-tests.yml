@@ -1,4 +1,7 @@
 tests:
+- class: org.elasticsearch.xpack.ml.aggs.changepoint.ChangePointAggregatorTests
+  method: testSlopeUp
+  issue: https://github.com/elastic/elasticsearch/issues/156237
 - class: org.elasticsearch.xpack.apmdata.APMYamlTestSuiteIT
   method: test {yaml=/10_apm/Test template reinstallation}
   issue: https://github.com/elastic/elasticsearch/issues/116445
@@ -148,9 +151,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.csv.CsvFormatSpecIT
   method: test {csv-spec:csv-union-by-name.* [LOCAL]}
   issue: https://github.com/elastic/elasticsearch/issues/149482
-- class: org.elasticsearch.gateway.PersistedClusterStateServiceTests
-  method: testLimitsFileCount
-  issue: https://github.com/elastic/elasticsearch/issues/149557
 - class: org.elasticsearch.xpack.ml.integration.RevertModelSnapshotIT
   method: testRevertModelSnapshot
   issue: https://github.com/elastic/elasticsearch/issues/147383
@@ -556,9 +556,6 @@ tests:
 - class: org.elasticsearch.reindex.ReindexFailureTests
   method: testResponseOnSearchFailure
   issue: https://github.com/elastic/elasticsearch/issues/151064
-- class: org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizerInSubqueryGoldenTests
-  method: testTsRateWithNotInSubquery
-  issue: https://github.com/elastic/elasticsearch/issues/155867
 - class: org.elasticsearch.lucene.FullClusterRestartSystemIndexCompatibilityIT
   method: testAsyncSearchIndexMigration {p0=9.6.0}
   issue: https://github.com/elastic/elasticsearch/issues/155871
@@ -610,3 +607,35 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecDenseVectorAggsIT
   method: test {csv-spec:dense_vector_aggs.sumDenseVectorOverflow}
   issue: https://github.com/elastic/elasticsearch/issues/156194
+- class: org.elasticsearch.xpack.esql.CommandDocsTests
+  issue: https://github.com/elastic/elasticsearch/issues/156152
+- class: org.elasticsearch.xpack.stateless.StatelessAbortRunningMergesOnRelocationIT
+  method: testConcurrentForceMergeIsNotAborted
+  issue: https://github.com/elastic/elasticsearch/issues/156224
+- class: org.elasticsearch.xpack.esql.analysis.AnalyzerSubqueryTests
+  method: testTSSubqueryWithConflictingTypesInUnionAll
+  issue: https://github.com/elastic/elasticsearch/issues/156226
+- class: org.elasticsearch.xpack.stateless.recovery.StatelessRecoveryMetricsIT
+  method: testRecoveryMetricPublicationBytesReadToCache
+  issue: https://github.com/elastic/elasticsearch/issues/156228
+- class: org.elasticsearch.xpack.esql.analysis.AnalyzerSubqueryTests
+  method: testTSSubqueryWithConflictingTypesAndExplicitCast
+  issue: https://github.com/elastic/elasticsearch/issues/156229
+- class: org.elasticsearch.xpack.ml.aggs.changepoint.ChangePointAggregatorTests
+  method: testSlopeChange
+  issue: https://github.com/elastic/elasticsearch/issues/156230
+- class: org.elasticsearch.xpack.ml.aggs.changepoint.ChangePointAggregatorTests
+  method: testSlopeDown
+  issue: https://github.com/elastic/elasticsearch/issues/156231
+- class: org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceTests
+  method: testWarmingReadsAreBoundedByFillMemoryBudget
+  issue: https://github.com/elastic/elasticsearch/issues/156232
+- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetCompressedFormatSpecIT
+  method: test {csv-spec:external-basic.aggregateByGender [lz4raw/HTTP]}
+  issue: https://github.com/elastic/elasticsearch/issues/156241
+- class: org.elasticsearch.xpack.esql.CsvFlattenedKeywordIT
+  method: test {csv-spec:k8s-misc.by_four_dims}
+  issue: https://github.com/elastic/elasticsearch/issues/156245
+- class: org.elasticsearch.xpack.esql.CsvFlattenedKeywordIT
+  method: test {csv-spec:k8s-misc.four_rates_by_four_dims}
+  issue: https://github.com/elastic/elasticsearch/issues/156246

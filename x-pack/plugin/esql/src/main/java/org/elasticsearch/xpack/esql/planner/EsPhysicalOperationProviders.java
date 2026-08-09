@@ -92,6 +92,7 @@ import org.elasticsearch.xpack.esql.expression.function.BlockLoaderWarnings;
 import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
+import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec.Sort;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
@@ -307,6 +308,13 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         DefaultShardContext shardContext = (DefaultShardContext) shardContexts.get(shardId);
         if (attr instanceof FieldAttribute fa && fa.field() instanceof PotentiallyUnmappedKeywordEsField) {
             shardContext = wrapWithUnmappedFieldContext(shardContext, getFieldName(fa));
+        }
+        if (attr instanceof UnmappedFieldsAttribute ufa) {
+            // The pattern's excludes cover what field caps reported to the coordinator, not this shard's mapping, so a field mapped
+            // here but missing there - a dynamic mapping update that landed after resolution - is read out of _source and reported
+            // as unmapped. LOAD has the same race, where it instead loads the field with its new type into a column the coordinator
+            // already declared keyword, so both modes are consistent in planning against the schema as of resolution time.
+            return ValuesSourceReaderOperator.load(new UnmappedFieldsBlockLoader(ufa.pattern(), plannerSettings.sourceReservationFactor()));
         }
 
         // Apply any block loader function if present
@@ -843,17 +851,20 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             if (asUnsupportedSource) {
                 return ConstantNull.INSTANCE;
             }
-            // Don't use fieldType() for the existence check — it resolves sub-keys of
-            // flattened fields dynamically, but those are not reported by field caps
-            // and would cause element_type mismatches at runtime.
-            // Use isMappedField() (virtual) so subclasses such as DefaultShardContextForUnmappedField
-            // can allow specific unmapped fields to pass through.
-            if (isMappedField(name) == false) {
-                return ConstantNull.INSTANCE;
-            }
+            // Resolve the field type in a single pass. fieldType() (via the search execution context) applies field-level
+            // security, resolves slice aliases (e.g. _slice -> _routing) and query-time runtime fields, and returns null for
+            // fields absent from this context.
             MappedFieldType fieldType = fieldType(name);
             if (fieldType == null) {
                 // the field does not exist in this context
+                return ConstantNull.INSTANCE;
+            }
+            // Exclude dynamically-resolved flattened sub-keys: fieldType() resolves them to a non-null type, but field caps
+            // does not report them and they must not be extracted (see #154508). Only a dotted name can be such a sub-key,
+            // and for a flat name a non-null fieldType already implies isMappedField(name) == true — so gating the (virtual)
+            // mapped-field probe on the dot keeps flat names (the common case) at a single resolution.
+            if (name.indexOf('.') > 0 // only dotted names can be flattened sub-keys; skip the redundant probe for flat names
+                && isMappedField(name) == false) {
                 return ConstantNull.INSTANCE;
             }
             BlockLoader loader = fieldType.blockLoader(

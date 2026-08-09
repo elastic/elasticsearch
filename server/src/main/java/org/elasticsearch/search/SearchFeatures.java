@@ -81,6 +81,14 @@ public final class SearchFeatures implements FeatureSpecification {
         "search.aggs.date_histogram.hard_bounds_outside_data_fix"
     );
     public static final NodeFeature COUNT_STATS_PARAMETER = new NodeFeature("search.count.stats_parameter");
+    /**
+     * Test-only gate for REST tests asserting that a user-mapped field named {@code _type} is not
+     * surfaced as root-level hit metadata. Old nodes included it in the default metadata fetch
+     * regardless of whether it was a real metadata mapper.
+     */
+    public static final NodeFeature FETCH_FIELDS_EXCLUDES_NON_METADATA_TYPE = new NodeFeature(
+        "search.fetch_fields.excludes_non_metadata_type"
+    );
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -114,7 +122,8 @@ public final class SearchFeatures implements FeatureSpecification {
             PROFILE_COORDINATOR_REQUEST_METADATA,
             SCROLL_EMPTY_CONTEXT_RETURNS_200,
             DATE_HISTOGRAM_HARD_BOUNDS_OUTSIDE_DATA_FIX,
-            COUNT_STATS_PARAMETER
+            COUNT_STATS_PARAMETER,
+            FETCH_FIELDS_EXCLUDES_NON_METADATA_TYPE
         );
     }
 }

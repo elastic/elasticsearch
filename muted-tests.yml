@@ -633,3 +633,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.parquet.ParquetCompressedFormatSpecIT
   method: test {csv-spec:external-basic.aggregateByGender [lz4raw/HTTP]}
   issue: https://github.com/elastic/elasticsearch/issues/156241
+- class: org.elasticsearch.xpack.esql.CsvFlattenedKeywordIT
+  method: test {csv-spec:k8s-misc.by_four_dims}
+  issue: https://github.com/elastic/elasticsearch/issues/156245

@@ -65,7 +65,9 @@ public class TSDBDocValuesFormatSelectorTests extends ESTestCase {
         for (IndexMode mode : indexModesUnderTest()) {
             final DocValuesFormat format = TSDBDocValuesFormatSelector.select(indexSettings(mode, version, true), null);
             if (mode == IndexMode.TIME_SERIES) {
-                final String expectedName = IndexSettings.ES95_RUNTABLE_ENCODING_FEATURE_FLAG.isEnabled() ? ES95RT_CODEC_NAME : ES95_CODEC_NAME;
+                final String expectedName = IndexSettings.ES95_RUNTABLE_ENCODING_FEATURE_FLAG.isEnabled()
+                    ? ES95RT_CODEC_NAME
+                    : ES95_CODEC_NAME;
                 assertThat("mode=" + mode + " version=" + version, format.getName(), equalTo(expectedName));
             } else {
                 assertThat("mode=" + mode + " version=" + version, format.getName(), startsWith("ES819"));

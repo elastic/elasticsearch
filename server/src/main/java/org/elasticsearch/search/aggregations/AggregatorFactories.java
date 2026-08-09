@@ -49,7 +49,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static java.util.stream.Collectors.toList;
-import static java.util.stream.Collectors.toMap;
 
 /**
  * An immutable collection of {@link AggregatorFactories}.
@@ -656,11 +655,20 @@ public class AggregatorFactories {
             if (aggregationBuilders.isEmpty() && pipelineAggregatorBuilders.isEmpty()) {
                 return PipelineTree.EMPTY;
             }
-            Map<String, PipelineTree> subTrees = aggregationBuilders.stream()
-                .collect(toMap(AggregationBuilder::getName, AggregationBuilder::buildPipelineTree));
+            Map<String, PipelineTree> subTrees = new HashMap<>();
+            for (AggregationBuilder builder : aggregationBuilders) {
+                PipelineTree tree = builder.buildPipelineTree();
+                if (tree == PipelineTree.EMPTY) {
+                    continue;
+                }
+                subTrees.put(builder.getName(), tree);
+            }
             List<PipelineAggregator> aggregators = resolvePipelineAggregatorOrder(pipelineAggregatorBuilders, aggregationBuilders).stream()
                 .map(PipelineAggregationBuilder::create)
                 .collect(toList());
+            if (subTrees.isEmpty() && aggregators.isEmpty()) {
+                return PipelineTree.EMPTY;
+            }
             return new PipelineTree(subTrees, aggregators);
         }
     }

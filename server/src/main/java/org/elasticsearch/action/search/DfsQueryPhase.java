@@ -93,6 +93,7 @@ class DfsQueryPhase extends SearchPhase {
             try {
                 connection = context.getConnection(shardTarget.getClusterAlias(), shardTarget.getNodeId());
             } catch (Exception e) {
+                releaseArsReservation(shardTarget);
                 shardFailure(e, querySearchRequest, shardIndex, shardTarget, counter);
                 continue;
             }
@@ -126,7 +127,16 @@ class DfsQueryPhase extends SearchPhase {
                         }
                     }
                 }, context::trackPhaseResultBytesRead, context::trackPhaseRequestBytesWritten);
+            releaseArsReservation(shardTarget);
         }
+    }
+
+    /**
+     * Gives back the ARS probe slot the DFS phase held for this shard across the wait for the other
+     * shards' DFS results. The query is on its way, so the transport layer counts it from here.
+     */
+    private void releaseArsReservation(SearchShardTarget shardTarget) {
+        ArsReservations.releaseFor(context.getTask(), shardTarget.getClusterAlias(), shardTarget.getShardId());
     }
 
     private void onFinish(AggregatedDfs dfs) {

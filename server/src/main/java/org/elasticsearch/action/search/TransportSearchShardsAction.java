@@ -183,7 +183,11 @@ public class TransportSearchShardsAction extends TransportAction<SearchShardsReq
                     searchShardsRequest.clusterAlias(),
                     indicesAndAliases,
                     concreteIndexNames,
-                    false
+                    false,
+                    // This action ranks shards on behalf of another coordinator, which is the one that
+                    // sends the requests. There is nothing here to give a probe slot back, so none is
+                    // claimed.
+                    null
                 );
                 if (SearchService.canRewriteToMatchNone(searchRequest.source()) == false) {
                     CollectionUtil.timSort(shardIts);

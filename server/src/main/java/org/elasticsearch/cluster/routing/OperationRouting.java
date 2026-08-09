@@ -50,6 +50,20 @@ public class OperationRouting {
     static final FeatureFlag ARS_PROBING_FEATURE_FLAG = new FeatureFlag("ars_probing");
 
     /**
+     * Claims an in-flight slot on a node the moment ARS picks it to serve a shard, so that searches
+     * routing concurrently see the choice instead of all reading the same pre-dispatch count. Only
+     * the decisions the probe cap governs are claimed, that is, those landing on a node that is
+     * stat-less or still warming up.
+     * <p>
+     * Implemented by {@code org.elasticsearch.action.search.ArsReservations}, which also owns giving
+     * the slots back.
+     */
+    @FunctionalInterface
+    public interface ProbeReservations {
+        void reserve(ShardId shardId, String nodeId);
+    }
+
+    /**
      * Bundles the state needed for adaptive replica selection (ARS) routing decisions.
      *
      * @param collector        collects per-node EWMA stats (queue size, response time, service time)
@@ -58,10 +72,13 @@ public class OperationRouting {
      *                         single search; each search receives an independent copy, so
      *                         routing-time increments from concurrent searches are invisible to
      *                         each other
-     * @param globalCounts     best-effort live in-flight counts shared across all searches; used by
-     *                         the probe cap as an approximate cross-search load signal (the count is
-     *                         incremented at transport dispatch time, so concurrent routing decisions
-     *                         may transiently under-count)
+     * @param globalCounts     live in-flight counts shared across all searches; used by the probe cap
+     *                         as a cross-search load signal. Probe decisions are counted here as soon
+     *                         as they are made, via {@code reservations}, so that searches routing at
+     *                         the same time observe each other
+     * @param reservations     claims a slot in {@code globalCounts} for a probe decision, or
+     *                         {@code null} when the caller ranks shards without dispatching to them
+     *                         and so has no way to give the slot back. See {@link ProbeReservations}
      * @param probeEnabled     whether ARS probing of stat-less and warming-up nodes is active;
      *                         when {@code false} the original ARS behavior is preserved
      * @param probeInflightCap per-coordinator cap on in-flight requests to a stat-less or warming-up
@@ -75,6 +92,7 @@ public class OperationRouting {
         ResponseCollectorService collector,
         Map<String, Long> searchCounts,
         Map<String, Long> globalCounts,
+        @Nullable ProbeReservations reservations,
         boolean probeEnabled,
         long probeInflightCap,
         int warmupSamples

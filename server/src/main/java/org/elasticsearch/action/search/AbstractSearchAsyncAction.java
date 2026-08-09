@@ -29,6 +29,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.DirectoryMetrics;
@@ -289,6 +290,17 @@ public abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult
     }
 
     private void doPerformPhaseOnShard(int shardIndex, SearchShardIterator shardIt, SearchShardTarget shard, Releasable releasable) {
+        try {
+            dispatchPhaseOnShard(shardIndex, shardIt, shard, releasable);
+        } finally {
+            // The request is on its way, so the transport layer's own in-flight accounting takes over
+            // from here. Releasing in a finally also covers the paths that never got that far, such as
+            // the connection lookup below throwing.
+            releaseArsReservation(shard.getClusterAlias(), shardIt.shardId());
+        }
+    }
+
+    private void dispatchPhaseOnShard(int shardIndex, SearchShardIterator shardIt, SearchShardTarget shard, Releasable releasable) {
         var shardListener = new SearchActionListener<Result>(shard, shardIndex) {
             @Override
             public void innerOnResponse(Result result) {
@@ -442,6 +454,11 @@ public abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult
         // we always add the shard failure for a specific shard instance
         // we do make sure to clean it on a successful response from a shard
         onShardFailure(shardIndex, shard, e);
+        // Covers the batched query phase, which reports outcomes per shard without going through
+        // doPerformPhaseOnShard. A retry claims no new slot: its copy was already picked while ranking,
+        // so there is no cap check to race, and it dispatches right below unless queued behind
+        // max_concurrent_shard_requests.
+        releaseArsReservation(shardIt.getClusterAlias(), shardIt.shardId());
         final SearchShardTarget nextShard = shardIt.nextOrNull();
         final boolean lastShard = nextShard == null;
         final boolean retriable = TransportActions.isRetriableShardLevelException(e);
@@ -462,6 +479,25 @@ public abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult
             onShardGroupFailure(shardIndex, shard, e);
             finishOneShard();
         }
+    }
+
+    /**
+     * Gives back the ARS probe slot claimed for this shard when it was routed, if the search claimed
+     * one. Idempotent, so the several points at which a shard can stop needing its slot can each
+     * call it without coordinating.
+     */
+    private void releaseArsReservation(@Nullable String clusterAlias, ShardId shardId) {
+        ArsReservations.releaseFor(task, clusterAlias, shardId);
+    }
+
+    /**
+     * Whether a shard's ARS probe slot is given back once its result arrives. DFS says no and takes the
+     * slot again instead, because the follow-up query goes to the same node and nothing counts the shard
+     * until {@link DfsQueryPhase} sends it. The slot is still given back on DFS dispatch, so it never
+     * overlaps the request the transport layer is already counting.
+     */
+    protected boolean releasesArsReservationOnResult() {
+        return true;
     }
 
     private void finishOneShard() {
@@ -535,6 +571,10 @@ public abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult
     protected void onShardResult(Result result) {
         assert result.getShardIndex() != -1 : "shard index is not set";
         assert result.getSearchShardTarget() != null : "search shard target must not be null";
+        // Covers the batched query phase, whose shards never go through doPerformPhaseOnShard.
+        if (releasesArsReservationOnResult()) {
+            releaseArsReservation(result.getSearchShardTarget().getClusterAlias(), result.getSearchShardTarget().getShardId());
+        }
         hasShardResponse.set(true);
         if (logger.isTraceEnabled()) {
             logger.trace("got first-phase result from {}", result != null ? result.getSearchShardTarget() : null);

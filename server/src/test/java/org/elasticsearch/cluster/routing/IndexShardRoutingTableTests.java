@@ -19,10 +19,12 @@ import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Consumer;
 
 public class IndexShardRoutingTableTests extends ESTestCase {
 
@@ -293,6 +295,181 @@ public class IndexShardRoutingTableTests extends ESTestCase {
             Map<String, Double> ranksWarmAtCap = IndexShardRoutingTable.rankNodes(nodeStats, snapshotWarmAtCap, Map.of(), cap, 10);
             assertNotNull("warmA must keep its rank regardless of inflight cap", ranksWarmAtCap.get("warmA"));
             assertNotNull(ranksWarmAtCap.get("freshX"));
+        } finally {
+            terminate(threadPool);
+        }
+    }
+
+    /**
+     * The winning node is claimed in the live counts as soon as it is chosen, but only when it is a
+     * node the probe cap governs. A warm winner is not capped, so counting it early would change the
+     * C3 input for ordinary traffic; a non-searchable winner is dropped from the iterator afterwards,
+     * so claiming a slot on it would pin one on a node that is never queried.
+     */
+    public void testRoutingClaimsProbeSlotForStatLessWinnerOnly() {
+        runWithCollector(collector -> {
+            collector.addNodeStatistics("node_measured", 5, 500_000, 200_000);
+
+            List<String> reserved = new ArrayList<>();
+            ShardId shardId = new ShardId(new Index("index", "index_uuid"), 0);
+            IndexShardRoutingTable table = new IndexShardRoutingTable(
+                shardId,
+                List.of(
+                    TestShardRouting.newShardRouting(shardId, "node_measured", true, ShardRoutingState.STARTED),
+                    TestShardRouting.newShardRouting(shardId, "node_fresh", false, ShardRoutingState.STARTED)
+                )
+            );
+
+            ShardIterator it = table.activeInitializingShardsRankedIt(arsContext(collector, reserved, shardId));
+
+            // the stat-less node is probed ahead of the measured one, and that decision is now visible
+            // to any search routing at the same time
+            assertEquals("node_fresh", it.getShardRoutings().getFirst().currentNodeId());
+            assertEquals(List.of("node_fresh"), reserved);
+        });
+    }
+
+    public void testRoutingDoesNotClaimProbeSlotForWarmWinner() {
+        runWithCollector(collector -> {
+            // both peers are past the warmup threshold used below, so neither is capped
+            for (int i = 0; i < 5; i++) {
+                collector.addNodeStatistics("node_fast", 1, 100_000, 50_000);
+                collector.addNodeStatistics("node_slow", 5, 500_000, 200_000);
+            }
+
+            List<String> reserved = new ArrayList<>();
+            ShardId shardId = new ShardId(new Index("index", "index_uuid"), 0);
+            IndexShardRoutingTable table = new IndexShardRoutingTable(
+                shardId,
+                List.of(
+                    TestShardRouting.newShardRouting(shardId, "node_fast", true, ShardRoutingState.STARTED),
+                    TestShardRouting.newShardRouting(shardId, "node_slow", false, ShardRoutingState.STARTED)
+                )
+            );
+
+            ShardIterator it = table.activeInitializingShardsRankedIt(arsContext(collector, reserved, shardId));
+
+            assertEquals("node_fast", it.getShardRoutings().getFirst().currentNodeId());
+            assertTrue(reserved.isEmpty());
+        });
+    }
+
+    /**
+     * On an index with separate indexing and search roles the top-ranked copy can be an indexing one,
+     * which {@link ShardIterator#allSearchableShards} drops before the search is dispatched. The slot
+     * has to be claimed for the search copy that actually receives the query, otherwise the node that
+     * serves it stays invisible to the cap and the flood this guards against is unchanged.
+     */
+    public void testRoutingClaimsProbeSlotForTheCopyThatWillBeQueried() {
+        runWithCollector(collector -> {
+            List<String> reserved = new ArrayList<>();
+            ShardId shardId = new ShardId(new Index("index", "index_uuid"), 0);
+            // both nodes are stat-less, and the indexing copy sorts first
+            IndexShardRoutingTable table = new IndexShardRoutingTable(
+                shardId,
+                List.of(
+                    TestShardRouting.newShardRouting(shardId, "node_index", true, ShardRoutingState.STARTED, ShardRouting.Role.INDEX_ONLY),
+                    TestShardRouting.newShardRouting(
+                        shardId,
+                        "node_search",
+                        false,
+                        ShardRoutingState.STARTED,
+                        ShardRouting.Role.SEARCH_ONLY
+                    )
+                )
+            );
+
+            table.activeInitializingShardsRankedIt(arsContext(collector, reserved, shardId));
+
+            assertEquals(List.of("node_search"), reserved);
+        });
+    }
+
+    public void testRoutingDoesNotClaimProbeSlotForWarmSearchCopy() {
+        runWithCollector(collector -> {
+            for (int i = 0; i < 5; i++) {
+                collector.addNodeStatistics("node_search", 5, 500_000, 200_000);
+            }
+
+            List<String> reserved = new ArrayList<>();
+            ShardId shardId = new ShardId(new Index("index", "index_uuid"), 0);
+            IndexShardRoutingTable table = new IndexShardRoutingTable(
+                shardId,
+                List.of(
+                    TestShardRouting.newShardRouting(shardId, "node_index", true, ShardRoutingState.STARTED, ShardRouting.Role.INDEX_ONLY),
+                    TestShardRouting.newShardRouting(
+                        shardId,
+                        "node_search",
+                        false,
+                        ShardRoutingState.STARTED,
+                        ShardRouting.Role.SEARCH_ONLY
+                    )
+                )
+            );
+
+            table.activeInitializingShardsRankedIt(arsContext(collector, reserved, shardId));
+
+            assertTrue(reserved.isEmpty());
+        });
+    }
+
+    /**
+     * The point of claiming at routing time: a search that routes while another one is still deciding,
+     * or has decided but not yet dispatched, has to see the earlier choice. Before this the count only
+     * rose at dispatch, so every search in a burst read the same zero and piled onto the fresh node.
+     */
+    public void testProbeClaimIsVisibleToTheNextRoutingDecision() {
+        runWithCollector(collector -> {
+            collector.addNodeStatistics("node_measured", 5, 500_000, 200_000);
+
+            ShardId shardId = new ShardId(new Index("index", "index_uuid"), 0);
+            IndexShardRoutingTable table = new IndexShardRoutingTable(
+                shardId,
+                List.of(
+                    TestShardRouting.newShardRouting(shardId, "node_measured", true, ShardRoutingState.STARTED),
+                    TestShardRouting.newShardRouting(shardId, "node_fresh", false, ShardRoutingState.STARTED)
+                )
+            );
+            // stands in for the live cross-search counts, which a claim raises and nothing else does
+            // here: no request is dispatched between the two routing decisions below
+            Map<String, Long> globalCounts = new HashMap<>();
+            OperationRouting.ProbeReservations reservations = (id, nodeId) -> globalCounts.merge(nodeId, 1L, Long::sum);
+
+            ShardIterator first = table.activeInitializingShardsRankedIt(
+                new OperationRouting.ArsContext(collector, new HashMap<>(), globalCounts, reservations, true, 1L, 0)
+            );
+            ShardIterator second = table.activeInitializingShardsRankedIt(
+                new OperationRouting.ArsContext(collector, new HashMap<>(), globalCounts, reservations, true, 1L, 0)
+            );
+
+            assertEquals("node_fresh", first.getShardRoutings().getFirst().currentNodeId());
+            assertEquals(Map.of("node_fresh", 1L), globalCounts);
+            // the second search sees the first one's claim and leaves the fresh node alone
+            assertEquals("node_measured", second.getShardRoutings().getFirst().currentNodeId());
+        });
+    }
+
+    private static OperationRouting.ArsContext arsContext(
+        ResponseCollectorService collector,
+        List<String> reserved,
+        ShardId expectedShardId
+    ) {
+        return new OperationRouting.ArsContext(collector, new HashMap<>(), new HashMap<>(), (shardId, nodeId) -> {
+            assertEquals(expectedShardId, shardId);
+            reserved.add(nodeId);
+        }, true, 2L, 3);
+    }
+
+    private void runWithCollector(Consumer<ResponseCollectorService> test) {
+        TestThreadPool threadPool = new TestThreadPool("test");
+        try {
+            ClusterService clusterService = new ClusterService(
+                Settings.EMPTY,
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                threadPool,
+                null
+            );
+            test.accept(new ResponseCollectorService(clusterService, MeterRegistry.NOOP));
         } finally {
             terminate(threadPool);
         }

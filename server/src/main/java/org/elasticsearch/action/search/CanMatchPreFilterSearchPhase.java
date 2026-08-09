@@ -539,6 +539,10 @@ final class CanMatchPreFilterSearchPhase {
                     assert iter.skip() == false : "Shard shouldn't be marked skipped if possible to match";
                     iterators.add(iter);
                 } else {
+                    // This shard is not queried at all, so the probe slot claimed when it was routed
+                    // has to go back now. Matching shards keep theirs until they are dispatched, so
+                    // that the cap still holds across this round trip.
+                    ArsReservations.releaseFor(task, iter.getClusterAlias(), iter.shardId());
                     skippedByClusterAlias.compute(
                         Objects.requireNonNullElse(iter.getClusterAlias(), RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY),
                         (k, v) -> v == null ? 1 : v + 1

@@ -318,7 +318,7 @@ public class OperationRoutingTests extends ESTestCase {
             indexNames,
             null,
             null,
-            new OperationRouting.ArsContext(collector, new HashMap<>(), Map.of(), false, 0L, 0),
+            new OperationRouting.ArsContext(collector, new HashMap<>(), Map.of(), null, false, 0L, 0),
             true
         );
 
@@ -335,7 +335,7 @@ public class OperationRoutingTests extends ESTestCase {
             indexNames,
             null,
             null,
-            new OperationRouting.ArsContext(collector, new HashMap<>(), Map.of(), false, 0L, 0),
+            new OperationRouting.ArsContext(collector, new HashMap<>(), Map.of(), null, false, 0L, 0),
             true
         );
 
@@ -349,7 +349,7 @@ public class OperationRoutingTests extends ESTestCase {
             indexNames,
             null,
             null,
-            new OperationRouting.ArsContext(collector, new HashMap<>(), Map.of(), false, 0L, 0),
+            new OperationRouting.ArsContext(collector, new HashMap<>(), Map.of(), null, false, 0L, 0),
             false
         );
 
@@ -371,7 +371,7 @@ public class OperationRoutingTests extends ESTestCase {
             indexNames,
             null,
             null,
-            new OperationRouting.ArsContext(collector, new HashMap<>(), Map.of(), false, 0L, 0),
+            new OperationRouting.ArsContext(collector, new HashMap<>(), Map.of(), null, false, 0L, 0),
             false
         );
         ShardRouting shardChoice = groupIterator.get(0).nextOrNull();
@@ -385,7 +385,7 @@ public class OperationRoutingTests extends ESTestCase {
             indexNames,
             null,
             null,
-            new OperationRouting.ArsContext(collector, new HashMap<>(), Map.of(), false, 0L, 0),
+            new OperationRouting.ArsContext(collector, new HashMap<>(), Map.of(), null, false, 0L, 0),
             true
         );
         shardChoice = groupIterator.get(0).nextOrNull();
@@ -398,7 +398,7 @@ public class OperationRoutingTests extends ESTestCase {
             indexNames,
             null,
             null,
-            new OperationRouting.ArsContext(collector, new HashMap<>(), Map.of(), false, 0L, 0),
+            new OperationRouting.ArsContext(collector, new HashMap<>(), Map.of(), null, false, 0L, 0),
             false
         );
         shardChoice = groupIterator.get(0).nextOrNull();
@@ -411,7 +411,7 @@ public class OperationRoutingTests extends ESTestCase {
             indexNames,
             null,
             null,
-            new OperationRouting.ArsContext(collector, new HashMap<>(), Map.of(), false, 0L, 0),
+            new OperationRouting.ArsContext(collector, new HashMap<>(), Map.of(), null, false, 0L, 0),
             true
         );
         shardChoice = groupIterator.get(0).nextOrNull();
@@ -448,7 +448,7 @@ public class OperationRoutingTests extends ESTestCase {
             indexNames,
             null,
             null,
-            new OperationRouting.ArsContext(collector, new HashMap<>(), Map.of(), false, 0L, 0),
+            new OperationRouting.ArsContext(collector, new HashMap<>(), Map.of(), null, false, 0L, 0),
             true
         );
         assertThat("One group per index shard", groupIterator.size(), equalTo(numIndices * numShards));
@@ -464,7 +464,7 @@ public class OperationRoutingTests extends ESTestCase {
                 indexNames,
                 null,
                 null,
-                new OperationRouting.ArsContext(collector, new HashMap<>(), Map.of(), false, 0L, 0),
+                new OperationRouting.ArsContext(collector, new HashMap<>(), Map.of(), null, false, 0L, 0),
                 true
             );
             ShardRouting shardChoice = groupIterator.get(0).nextOrNull();
@@ -480,7 +480,7 @@ public class OperationRoutingTests extends ESTestCase {
             indexNames,
             null,
             null,
-            new OperationRouting.ArsContext(collector, new HashMap<>(), Map.of(), false, 0L, 0),
+            new OperationRouting.ArsContext(collector, new HashMap<>(), Map.of(), null, false, 0L, 0),
             true
         );
         ShardRouting shardChoice = groupIterator.get(0).nextOrNull();
@@ -523,7 +523,7 @@ public class OperationRoutingTests extends ESTestCase {
             indexNames,
             null,
             null,
-            new OperationRouting.ArsContext(collector, outstandingRequests, Map.of(), false, 0L, 0),
+            new OperationRouting.ArsContext(collector, outstandingRequests, Map.of(), null, false, 0L, 0),
             true
         );
 
@@ -544,7 +544,7 @@ public class OperationRoutingTests extends ESTestCase {
             indexNames,
             null,
             null,
-            new OperationRouting.ArsContext(collector, outstandingRequests, Map.of(), false, 0L, 0),
+            new OperationRouting.ArsContext(collector, outstandingRequests, Map.of(), null, false, 0L, 0),
             true
         );
 

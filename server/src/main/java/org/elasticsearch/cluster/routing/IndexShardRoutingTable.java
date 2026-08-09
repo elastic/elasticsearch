@@ -326,7 +326,7 @@ public class IndexShardRoutingTable {
             if (maybeStats.isEmpty()) {
                 // Stat-less: probe ahead of measured peers if below the cap, otherwise skip and
                 // sort last via nullsLast.
-                if (searchCount < probeInflightCap && globalCounts.getOrDefault(nodeId, 0L) < probeInflightCap) {
+                if (belowInflightCap(nodeId, searchCount, globalCounts, probeInflightCap)) {
                     if (probeCandidates == null) {
                         probeCandidates = new ArrayList<>();
                     }
@@ -336,14 +336,13 @@ public class IndexShardRoutingTable {
             }
 
             final ResponseCollectorService.ComputedNodeStats stats = maybeStats.get();
-            final boolean warmingUp = warmupSamples > 0 && stats.observationCount < warmupSamples;
+            final boolean warmingUp = isWarmingUp(stats, warmupSamples);
 
             // Warming-up peers obey the same in-flight cap as stat-less probes. At-or-above the
             // cap they get no rank entry and sort last via nullsLast, hard-capping the burst load
             // a sparsely measured node can absorb before it has graduated to warm.
             if (warmingUp) {
-                if (probeInflightCap > 0
-                    && (searchCount >= probeInflightCap || globalCounts.getOrDefault(nodeId, 0L) >= probeInflightCap)) {
+                if (probeInflightCap > 0 && belowInflightCap(nodeId, searchCount, globalCounts, probeInflightCap) == false) {
                     continue;
                 }
                 if (warmingUpRanked == null) {
@@ -386,6 +385,23 @@ public class IndexShardRoutingTable {
     }
 
     /**
+     * Whether {@code nodeId} is below the probe cap on both the per-search snapshot and the live
+     * cross-search count. Reaching either one gates the node.
+     */
+    private static boolean belowInflightCap(
+        final String nodeId,
+        final long searchCount,
+        final Map<String, Long> globalCounts,
+        final long probeInflightCap
+    ) {
+        return searchCount < probeInflightCap && globalCounts.getOrDefault(nodeId, 0L) < probeInflightCap;
+    }
+
+    private static boolean isWarmingUp(final ResponseCollectorService.ComputedNodeStats stats, final int warmupSamples) {
+        return warmupSamples > 0 && stats.observationCount < warmupSamples;
+    }
+
+    /**
      * Adjust all other nodes' collected stats. In the original ranking paper there is no need to adjust other nodes' stats because
      * Cassandra sends occasional requests to all copies of the data, so their stats will be updated during that broadcast phase. In
      * Elasticsearch, however, we do not have that sort of broadcast-to-all behavior. In order to prevent a node that gets a high score and
@@ -424,6 +440,16 @@ public class IndexShardRoutingTable {
         }
     }
 
+    /**
+     * Orders {@code shards} by adaptive replica selection and records the choice.
+     * <p>
+     * Returns {@code shards} unchanged when {@code size <= 1} or ARS inputs are missing (no count
+     * bump, no probe claim). Otherwise, sorts by {@linkplain #rankNodes node rank} and takes the first
+     * searchable started copy as the winner ({@link ShardIterator#allSearchableShards} may drop a
+     * higher-ranked non-searchable copy). For that winner: bumps the per-search {@code searchCounts}
+     * snapshot; claims a probe reservation if the node is stat-less or still warming up; and blends
+     * stats into other nodes via {@link #adjustStats} when the winner already has stats.
+     */
     private static List<ShardRouting> rankShardsAndUpdateStats(List<ShardRouting> shards, final OperationRouting.ArsContext arsContext) {
         final ResponseCollectorService collector = arsContext.collector();
         final Map<String, Long> searchCounts = arsContext.searchCounts();
@@ -432,15 +458,12 @@ public class IndexShardRoutingTable {
             return shards;
         }
 
-        // Retrieve which nodes we can potentially send the query to
         final Map<String, Optional<ResponseCollectorService.ComputedNodeStats>> nodeStats = getNodeStats(shards, collector);
 
-        // Zeroing the cap suppresses probe candidates; probeEnabled also selects the null-rank
-        // sort order and enables warmup smoothing.
+        // probeEnabled == false zeros the cap (no probes) and selects the legacy nullsFirst sort.
         final long probeInflightCap = arsContext.probeEnabled() ? arsContext.probeInflightCap() : 0L;
         final int warmupSamples = arsContext.probeEnabled() ? arsContext.warmupSamples() : 0;
 
-        // sort all shards based on the shard rank
         ArrayList<ShardRouting> sortedShards = new ArrayList<>(shards);
         sortedShards.sort(
             new NodeRankComparator(
@@ -449,21 +472,26 @@ public class IndexShardRoutingTable {
             )
         );
 
-        // Blend the winner's stats into non-winner nodes so their stale EWMA values
-        // gradually converge toward the winner's, preventing permanent starvation.
-        ShardRouting minShard = sortedShards.getFirst();
-        // If the winning shard is not started we are ranking initializing
-        // shards, don't bother to do adjustments
-        if (minShard.started()) {
+        ShardRouting minShard = null;
+        for (ShardRouting candidate : sortedShards) {
+            if (candidate.isSearchable()) {
+                minShard = candidate;
+                break;
+            }
+        }
+        // No searchable copy, or only initializing ones: nothing to account for yet.
+        if (minShard != null && minShard.started()) {
             String minNodeId = minShard.currentNodeId();
-            // Increase the number of searches for the "winning" node by one.
-            // Note that this doesn't actually affect the "real" counts, instead
-            // it only affects the snapshot, which is shared across shards within
-            // one search for multi-shard spreading. This must happen outside the
-            // stats check so that stat-less probe winners also increment the count,
-            // making the probe cap effective for multi-shard indices.
+            // Per-search snapshot only; must run for stat-less winners too so the probe cap spreads
+            // load across shards of the same search.
             searchCounts.compute(minNodeId, (id, conns) -> conns == null ? 1 : conns + 1);
             Optional<ResponseCollectorService.ComputedNodeStats> maybeMinStats = nodeStats.get(minNodeId);
+            // Routing-time claim for the probe cap. Graduated (fully warm) winners are left to
+            // ConnectionCountingHandler so ordinary C3 traffic is unchanged.
+            final boolean probeTarget = maybeMinStats.isEmpty() || isWarmingUp(maybeMinStats.get(), warmupSamples);
+            if (arsContext.reservations() != null && probeInflightCap > 0 && probeTarget) {
+                arsContext.reservations().reserve(minShard.shardId(), minNodeId);
+            }
             maybeMinStats.ifPresent(computedNodeStats -> adjustStats(collector, nodeStats, minNodeId, computedNodeStats));
         }
 

@@ -58,6 +58,58 @@ public class DfsQueryPhaseTests extends ESTestCase {
         return result;
     }
 
+    /**
+     * The DFS phase holds a probe slot from the moment its DFS result arrives until it sends the real
+     * query, because nothing else counts the shard in between. It has to give the slot back once that
+     * query is on its way, otherwise the node stays gated for the rest of the search.
+     */
+    public void testGivesBackArsProbeSlotWhenTheQueryIsDispatched() throws IOException {
+        final ShardId shardId = new ShardId("test", "na", 0);
+        AtomicArray<DfsSearchResult> results = new AtomicArray<>(1);
+        results.set(0, newSearchResult(0, new ShardSearchContextId("", 1), new SearchShardTarget("node1", shardId, null)));
+        results.get(0).termsStatistics(new Term[0], new TermStatistics[0]);
+
+        SearchTransportService searchTransportService = new SearchTransportService(null, null, null) {
+            @Override
+            public void sendExecuteQuery(
+                Transport.Connection connection,
+                QuerySearchRequest request,
+                SearchTask task,
+                ActionListener<SearchPhaseResult> listener,
+                LongConsumer bytesConsumer,
+                LongConsumer requestBytesConsumer
+            ) {
+                // the transport layer takes over the counting from here, so the slot is not needed anymore
+            }
+        };
+        MockSearchDfsQueryThenFetchAsyncAction mockSearchPhaseContext = new MockSearchDfsQueryThenFetchAsyncAction(1);
+        mockSearchPhaseContext.searchTransport = searchTransportService;
+
+        PendingSearchRequests pendingSearchRequests = new PendingSearchRequests();
+        ArsReservations reservations = new ArsReservations(pendingSearchRequests, null);
+        mockSearchPhaseContext.getTask().setArsReservations(reservations);
+        reservations.reserve(shardId, "node1");
+
+        SearchPhaseController searchPhaseController = searchPhaseController();
+        try (
+            SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                () -> false,
+                SearchProgressListener.NOOP,
+                mockSearchPhaseContext.getRequest(),
+                results.length(),
+                exc -> {}
+            )
+        ) {
+            makeDfsPhase(results, consumer, mockSearchPhaseContext, new AtomicReference<>()).run();
+
+            assertFalse("probe slot was not given back when the query was dispatched", reservations.hasReservations());
+            assertTrue(pendingSearchRequests.liveView().isEmpty());
+            mockSearchPhaseContext.results.close();
+        }
+    }
+
     public void testDfsWith2Shards() throws IOException {
         AtomicArray<DfsSearchResult> results = new AtomicArray<>(2);
         AtomicReference<AtomicArray<SearchPhaseResult>> responseRef = new AtomicReference<>();

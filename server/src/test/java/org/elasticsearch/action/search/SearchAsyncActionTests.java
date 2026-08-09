@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -448,6 +449,83 @@ public class SearchAsyncActionTests extends ESTestCase {
         } finally {
             testResponse.decRef();
         }
+    }
+
+    /**
+     * A shard whose connection lookup fails is never dispatched, so nothing downstream will count it.
+     * Its probe slot has to come back anyway: this harness has no search-level drain behind it, so a
+     * slot left behind here would be one that gates its node for good in production.
+     */
+    public void testArsProbeSlotIsGivenBackWhenTheConnectionLookupFails() throws InterruptedException {
+        SearchRequest request = new SearchRequest();
+        request.allowPartialSearchResults(true);
+        CountDownLatch latch = new CountDownLatch(1);
+        ActionListener<SearchResponse> responseListener = ActionListener.wrap(
+            searchResponse -> { throw new AssertionError("unexpected response"); },
+            exc -> latch.countDown()
+        );
+        DiscoveryNode primaryNode = DiscoveryNodeUtils.create("node_1");
+        List<SearchShardIterator> shardsIter = getShardsIter(
+            "idx",
+            new OriginalIndices(new String[] { "idx" }, SearchRequest.DEFAULT_INDICES_OPTIONS),
+            randomIntBetween(1, 5),
+            false,
+            primaryNode,
+            null
+        );
+        SearchTask task = new SearchTask(0, "n/a", "n/a", () -> "test", TaskId.EMPTY_TASK_ID, Map.of());
+        PendingSearchRequests pendingSearchRequests = new PendingSearchRequests();
+        ArsReservations reservations = new ArsReservations(pendingSearchRequests, null);
+        task.setArsReservations(reservations);
+        for (SearchShardIterator shardIt : shardsIter) {
+            reservations.reserve(shardIt.shardId(), primaryNode.getId());
+        }
+
+        AbstractSearchAsyncAction<TestSearchPhaseResult> asyncAction = new AbstractSearchAsyncAction<>(
+            "test",
+            logger,
+            null,
+            searchTransportService,
+            new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofBytes(Long.MAX_VALUE)),
+            (cluster, node) -> {
+                throw new IllegalStateException("no connection to " + node);
+            },
+            Collections.singletonMap("_na_", AliasFilter.EMPTY),
+            Collections.emptyMap(),
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            request,
+            responseListener,
+            shardsIter,
+            Collections.emptyMap(),
+            new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
+            ClusterState.EMPTY_STATE,
+            task,
+            new ArraySearchPhaseResults<>(shardsIter.size()),
+            request.getMaxConcurrentShardRequests(),
+            SearchResponse.Clusters.EMPTY,
+            mock(SearchResponseMetrics.class),
+            Map.of(),
+            false
+        ) {
+            @Override
+            protected void executePhaseOnShard(
+                SearchShardIterator shardIt,
+                Transport.Connection connection,
+                SearchActionListener<TestSearchPhaseResult> listener
+            ) {
+                throw new AssertionError("should never be dispatched, the connection lookup fails");
+            }
+
+            @Override
+            protected SearchPhase getNextPhase() {
+                throw new AssertionError("should never reach the next phase");
+            }
+        };
+        asyncAction.start();
+        latch.await();
+
+        assertFalse("probe slots were not given back", reservations.hasReservations());
+        assertThat(pendingSearchRequests.liveView(), equalTo(Collections.emptyMap()));
     }
 
     public void testFanOutAndFail() throws InterruptedException {

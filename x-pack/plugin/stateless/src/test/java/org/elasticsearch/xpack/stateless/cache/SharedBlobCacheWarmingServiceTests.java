@@ -618,7 +618,17 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             PlainActionFuture<Void> warmFuture = new PlainActionFuture<>();
             fakeNode.warmingService.warmCacheForBCCHeadersRead(indexShard, directory, lastCommitBlobFiles, warmFuture);
             safeGet(warmFuture);
-            assertWarmingDurationMetricRecorded(recordingMeterRegistry, "region0PreWarm");
+            assertWarmingDurationMetricRecorded(
+                recordingMeterRegistry,
+                Map.of(
+                    "primary",
+                    true,
+                    "prewarming_type",
+                    SharedBlobCacheWarmingService.Type.INDEXING_BCC_HEADER_PREWARM.name(),
+                    SharedBlobCacheWarmingService.WARMING_TYPE_ATTRIBUTE_KEY,
+                    "region0PreWarm"
+                )
+            );
 
             PlainActionFuture<Void> readReferencedCommitsListener = new PlainActionFuture<>();
             ObjectStoreService.readReferencedCompoundCommitsUsingCache(
@@ -2030,7 +2040,15 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 warmListener
             );
             safeGet(warmListener);
-            assertWarmingDurationMetricRecorded(recordingMeterRegistry, "offline");
+            assertWarmingDurationMetricRecorded(
+                recordingMeterRegistry,
+                Map.of(
+                    "prewarming_type",
+                    SharedBlobCacheWarmingService.Type.SEARCH.name(),
+                    SharedBlobCacheWarmingService.WARMING_TYPE_ATTRIBUTE_KEY,
+                    "offline"
+                )
+            );
 
             final var cacheKey = new FileCacheKey(fakeNode.shardId, primaryTerm, vbcc.getBlobName());
             final var captured = capturingPolicy.capturedTimestamps(cacheKey);
@@ -2223,7 +2241,17 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             // warms region 0 of every segment via maybeFetchRange (the call we capture).
             fakeNode.warmingService.warmCache(SEARCH, indexShard, lastCommit, fakeNode.searchDirectory, null, false, warmListener);
             safeGet(warmListener);
-            assertWarmingDurationMetricRecorded(recordingMeterRegistry, "headerFooter");
+            assertWarmingDurationMetricRecorded(
+                recordingMeterRegistry,
+                Map.of(
+                    "primary",
+                    true,
+                    "prewarming_type",
+                    SharedBlobCacheWarmingService.Type.SEARCH.name(),
+                    SharedBlobCacheWarmingService.WARMING_TYPE_ATTRIBUTE_KEY,
+                    "headerFooter"
+                )
+            );
 
             assertFalse("ShardWarmer recovery prewarming should have warmed at least one region", capturedTimestamps.isEmpty());
             for (var entry : capturedTimestamps.entrySet()) {
@@ -2435,16 +2463,13 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
         };
     }
 
-    private static void assertWarmingDurationMetricRecorded(RecordingMeterRegistry meterRegistry, String expectedWarmingType) {
+    private static void assertWarmingDurationMetricRecorded(RecordingMeterRegistry meterRegistry, Map<String, Object> expectedLabels) {
         List<Measurement> measurements = meterRegistry.getRecorder()
             .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, SharedBlobCacheWarmingService.BLOB_CACHE_WARMING_DURATION_METRIC);
         assertThat(measurements, hasSize(1));
         Measurement measurement = measurements.get(0);
         assertThat(measurement.getDouble(), greaterThanOrEqualTo(0.0));
-        assertThat(
-            measurement.attributes(),
-            equalTo(Map.of(SharedBlobCacheWarmingService.WARMING_TYPE_ATTRIBUTE_KEY, expectedWarmingType))
-        );
+        assertThat(measurement.attributes(), equalTo(expectedLabels));
     }
 
     public void testMergeWarmingRecordsDurationMetric() throws Exception {
@@ -2488,7 +2513,15 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 future
             );
             safeGet(future);
-            assertWarmingDurationMetricRecorded(recordingMeterRegistry, "merge");
+            assertWarmingDurationMetricRecorded(
+                recordingMeterRegistry,
+                Map.of(
+                    "prewarming_type",
+                    SharedBlobCacheWarmingService.Type.INDEXING_MERGE.name(),
+                    SharedBlobCacheWarmingService.WARMING_TYPE_ATTRIBUTE_KEY,
+                    "merge"
+                )
+            );
         }
     }
 

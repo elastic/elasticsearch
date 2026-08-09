@@ -69,34 +69,46 @@ public final class RunTableSortedSetOrdinalWriter {
     }
 
     /**
-     * Appends the ordinal set of the next doc, opening a new run whenever it differs from the previous
-     * doc's set. {@code ords} must be a strictly ascending, distinct set of ordinals in
-     * {@code [0, valueCount)}; the array is copied, so the caller may reuse it. The empty set marks an
-     * absent doc and forms empty runs like any other set.
+     * Appends the ordinal set of the next doc using the first {@code count} elements of {@code ords},
+     * opening a new run whenever the set differs from the previous doc's set. {@code ords} does not
+     * need to be trimmed to length {@code count}; the caller may pass a reuse buffer. The first
+     * {@code count} elements must be a strictly ascending, distinct set of ordinals in
+     * {@code [0, valueCount)}. The empty set ({@code count == 0}) marks an absent doc.
      */
-    public void add(final int[] ords) {
-        for (int i = 0; i < ords.length; i++) {
+    public void add(final int[] ords, final int count) {
+        for (int i = 0; i < count; i++) {
             final int ord = ords[i];
             if (ord < 0 || ord >= valueCount) {
                 throw new IllegalArgumentException("ord " + ord + " out of bounds for valueCount " + valueCount);
             }
             if (i > 0 && ord <= ords[i - 1]) {
-                throw new IllegalArgumentException("doc ordinal set must be strictly ascending, got " + Arrays.toString(ords));
+                throw new IllegalArgumentException(
+                    "doc ordinal set must be strictly ascending, got " + Arrays.toString(Arrays.copyOf(ords, count))
+                );
             }
         }
-        if (numRuns == 0 || Arrays.equals(ords, lastSet) == false) {
+        if (numRuns == 0 || lastSet.length != count || Arrays.equals(ords, 0, count, lastSet, 0, count) == false) {
             runStartDocs = ArrayUtil.grow(runStartDocs, numRuns + 1);
             runStartDocs[numRuns] = docCount;
             runOrdCounts = ArrayUtil.grow(runOrdCounts, numRuns + 1);
-            runOrdCounts[numRuns] = ords.length;
-            ordStreamBuffer = ArrayUtil.grow(ordStreamBuffer, ordStreamSize + ords.length);
-            System.arraycopy(ords, 0, ordStreamBuffer, ordStreamSize, ords.length);
-            ordStreamSize += ords.length;
-            lastSet = Arrays.copyOf(ords, ords.length);
+            runOrdCounts[numRuns] = count;
+            ordStreamBuffer = ArrayUtil.grow(ordStreamBuffer, ordStreamSize + count);
+            System.arraycopy(ords, 0, ordStreamBuffer, ordStreamSize, count);
+            ordStreamSize += count;
+            lastSet = Arrays.copyOf(ords, count);
             numRuns++;
-            totalOrds += ords.length;
+            totalOrds += count;
         }
         docCount++;
+    }
+
+    /**
+     * Appends the ordinal set of the next doc. {@code ords} must be a strictly ascending, distinct set
+     * of ordinals in {@code [0, valueCount)}; the array is copied, so the caller may reuse it. The
+     * empty set marks an absent doc and forms empty runs like any other set.
+     */
+    public void add(final int[] ords) {
+        add(ords, ords.length);
     }
 
     int valueCount() {

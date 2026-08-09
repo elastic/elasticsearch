@@ -38,6 +38,6 @@ public class ES95TSDBDocValuesFormatSingleNodeTests extends AbstractTSDBDocValue
 
     @Override
     protected String expectedCodecName() {
-        return ES95TSDBDocValuesFormat.CODEC_NAME;
+        return ES95RunTableTSDBDocValuesFormat.CODEC_NAME;
     }
 }

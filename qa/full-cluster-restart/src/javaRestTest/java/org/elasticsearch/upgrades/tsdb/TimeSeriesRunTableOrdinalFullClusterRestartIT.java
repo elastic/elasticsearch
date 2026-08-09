@@ -25,6 +25,7 @@ import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -137,7 +138,7 @@ public class TimeSeriesRunTableOrdinalFullClusterRestartIT extends Parameterized
         assertSortByTimestampDescendingOrdered(index);
         assertFirstDocByTimestampAsc(index);
 
-        assertThat(getFlatIndexSettings(index).get("index.time_series.run_table_ordinal.enabled"), Matchers.equalTo("true"));
+        assertThat(getFlatIndexSettingsWithDefaults(index).get("index.time_series.run_table_ordinal.enabled"), Matchers.equalTo("true"));
     }
 
     public void testExplicitOptInNewIndex() throws IOException {
@@ -557,6 +558,19 @@ public class TimeSeriesRunTableOrdinalFullClusterRestartIT extends Parameterized
         final Map<String, Object> response = entityAsMap(client().performRequest(request));
         final Map<String, Object> indexResponse = (Map<String, Object>) response.get(indexName);
         return (Map<String, Object>) indexResponse.get("settings");
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> getFlatIndexSettingsWithDefaults(final String indexName) throws IOException {
+        final Request request = new Request("GET", "/" + indexName + "/_settings?flat_settings&include_defaults=true");
+        final Map<String, Object> response = entityAsMap(client().performRequest(request));
+        final Map<String, Object> indexResponse = (Map<String, Object>) response.get(indexName);
+        final Map<String, Object> merged = new HashMap<>((Map<String, Object>) indexResponse.get("settings"));
+        final Map<String, Object> defaults = (Map<String, Object>) indexResponse.get("defaults");
+        if (defaults != null) {
+            merged.putAll(defaults);
+        }
+        return merged;
     }
 
     private static void requireRunTableOrdinal() {

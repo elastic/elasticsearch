@@ -30,6 +30,7 @@ import static org.hamcrest.Matchers.startsWith;
 public class TSDBDocValuesFormatSelectorTests extends ESTestCase {
 
     private static final String ES95_CODEC_NAME = "ES95TSDB";
+    private static final String ES95RT_CODEC_NAME = "ES95RTTSDB";
 
     private static List<IndexMode> indexModesUnderTest() {
         List<IndexMode> modes = new ArrayList<>(List.of(IndexMode.TIME_SERIES, IndexMode.STANDARD, IndexMode.LOGSDB));
@@ -53,7 +54,10 @@ public class TSDBDocValuesFormatSelectorTests extends ESTestCase {
         for (IndexMode mode : indexModesUnderTest()) {
             final DocValuesFormat format = TSDBDocValuesFormatSelector.select(indexSettings(mode, version, true), null);
             if (mode == IndexMode.TIME_SERIES) {
-                assertThat("mode=" + mode + " version=" + version, format.getName(), equalTo(ES95_CODEC_NAME));
+                final String expectedName = version.onOrAfter(IndexVersions.TIME_SERIES_RUN_TABLE_ORDINAL_DEFAULT)
+                    ? ES95RT_CODEC_NAME
+                    : ES95_CODEC_NAME;
+                assertThat("mode=" + mode + " version=" + version, format.getName(), equalTo(expectedName));
             } else {
                 assertThat("mode=" + mode + " version=" + version, format.getName(), startsWith("ES819"));
             }

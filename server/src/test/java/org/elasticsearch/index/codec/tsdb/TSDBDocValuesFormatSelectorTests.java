@@ -52,7 +52,7 @@ public class TSDBDocValuesFormatSelectorTests extends ESTestCase {
         );
         assertEquals(
             "run-table ordinal setting registration must match feature flag state",
-            IndexSettings.RUN_TABLE_ORDINAL_FEATURE_FLAG.isEnabled(),
+            IndexSettings.ES95_RUNTABLE_ENCODING_FEATURE_FLAG.isEnabled(),
             registered
         );
     }
@@ -65,7 +65,7 @@ public class TSDBDocValuesFormatSelectorTests extends ESTestCase {
         for (IndexMode mode : indexModesUnderTest()) {
             final DocValuesFormat format = TSDBDocValuesFormatSelector.select(indexSettings(mode, version, true), null);
             if (mode == IndexMode.TIME_SERIES) {
-                final String expectedName = IndexSettings.RUN_TABLE_ORDINAL_FEATURE_FLAG.isEnabled() ? ES95RT_CODEC_NAME : ES95_CODEC_NAME;
+                final String expectedName = IndexSettings.ES95_RUNTABLE_ENCODING_FEATURE_FLAG.isEnabled() ? ES95RT_CODEC_NAME : ES95_CODEC_NAME;
                 assertThat("mode=" + mode + " version=" + version, format.getName(), equalTo(expectedName));
             } else {
                 assertThat("mode=" + mode + " version=" + version, format.getName(), startsWith("ES819"));
@@ -88,17 +88,37 @@ public class TSDBDocValuesFormatSelectorTests extends ESTestCase {
             TSDBDocValuesFormatSelector.select(indexSettings(IndexMode.TIME_SERIES, justBefore, true), null).getName(),
             startsWith("ES819")
         );
-        final String expectedAtExact = IndexSettings.RUN_TABLE_ORDINAL_FEATURE_FLAG.isEnabled() ? ES95RT_CODEC_NAME : ES95_CODEC_NAME;
+        final String expectedAtExact = IndexSettings.ES95_RUNTABLE_ENCODING_FEATURE_FLAG.isEnabled() ? ES95RT_CODEC_NAME : ES95_CODEC_NAME;
         assertThat(
             TSDBDocValuesFormatSelector.select(indexSettings(IndexMode.TIME_SERIES, exact, true), null).getName(),
             equalTo(expectedAtExact)
         );
     }
 
-    public void testES819AlwaysSelectedForTSDBWithOldVersion() {
-        final IndexVersion oldVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.ES95_TSDB_CODEC_FEATURE_FLAG);
-        final DocValuesFormat format = TSDBDocValuesFormatSelector.select(indexSettings(IndexMode.TIME_SERIES, oldVersion, true), null);
-        assertThat(format.getName(), startsWith("ES819"));
+    public void testUseES95RunTableRequiresTimeSeriesMode() {
+        assumeTrue("run-table ordinal feature flag must be enabled", IndexSettings.ES95_RUNTABLE_ENCODING_FEATURE_FLAG.isEnabled());
+        final IndexVersion version = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.ES95_TSDB_CODEC_FEATURE_FLAG,
+            IndexVersion.current()
+        );
+        assertTrue(TSDBDocValuesFormatSelector.useES95RunTable(indexSettings(IndexMode.TIME_SERIES, version, true)));
+        for (IndexMode mode : indexModesUnderTest()) {
+            if (mode != IndexMode.TIME_SERIES) {
+                assertFalse(
+                    "useES95RunTable must return false for mode=" + mode,
+                    TSDBDocValuesFormatSelector.useES95RunTable(indexSettings(mode, version, true))
+                );
+            }
+        }
+    }
+
+    public void testUseES95RunTableReturnsFalseWhenFeatureFlagDisabled() {
+        assumeFalse("run-table ordinal feature flag must be disabled", IndexSettings.ES95_RUNTABLE_ENCODING_FEATURE_FLAG.isEnabled());
+        final IndexVersion version = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.ES95_TSDB_CODEC_FEATURE_FLAG,
+            IndexVersion.current()
+        );
+        assertFalse(TSDBDocValuesFormatSelector.useES95RunTable(indexSettings(IndexMode.TIME_SERIES, version, true)));
     }
 
     private static IndexSettings indexSettings(final IndexMode mode, final IndexVersion version, boolean es95Enabled) {
@@ -148,7 +168,7 @@ public class TSDBDocValuesFormatSelectorTests extends ESTestCase {
     }
 
     public void testRunTableOrdinalDefaultEnabledForTimeSeriesWhenFeatureFlagEnabled() {
-        assumeTrue("run-table ordinal feature flag must be enabled", IndexSettings.RUN_TABLE_ORDINAL_FEATURE_FLAG.isEnabled());
+        assumeTrue("run-table ordinal feature flag must be enabled", IndexSettings.ES95_RUNTABLE_ENCODING_FEATURE_FLAG.isEnabled());
         final IndexVersion version = IndexVersionUtils.randomVersionBetween(
             IndexVersions.ES95_TSDB_CODEC_FEATURE_FLAG,
             IndexVersion.current()
@@ -163,7 +183,7 @@ public class TSDBDocValuesFormatSelectorTests extends ESTestCase {
     }
 
     public void testRunTableOrdinalDefaultDisabledWhenFeatureFlagDisabled() {
-        assumeFalse("run-table ordinal feature flag must be disabled", IndexSettings.RUN_TABLE_ORDINAL_FEATURE_FLAG.isEnabled());
+        assumeFalse("run-table ordinal feature flag must be disabled", IndexSettings.ES95_RUNTABLE_ENCODING_FEATURE_FLAG.isEnabled());
         final IndexVersion version = IndexVersion.current();
         assertFalse(defaultRunTableOrdinalEnabled(IndexMode.TIME_SERIES, version));
     }

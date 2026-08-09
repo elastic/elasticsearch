@@ -164,6 +164,7 @@ public class TimeSeriesRunTableOrdinalRollingUpgradeIT extends AbstractRollingUp
     }
 
     public void testQueryAcrossOldAndNewCodecIndices() throws IOException {
+        requireRunTableOrdinal();
         final String preIndex = "rto-rolling-mixed-pre";
         final String postIndex = "rto-rolling-mixed-post";
         final String target = preIndex + "," + postIndex;
@@ -205,6 +206,7 @@ public class TimeSeriesRunTableOrdinalRollingUpgradeIT extends AbstractRollingUp
     }
 
     public void testRandomAccessDocValuesAcrossPhases() throws IOException {
+        requireRunTableOrdinal();
         final String preIndex = "rto-rolling-random-pre";
         final String postIndex = "rto-rolling-random-post";
         final String target = preIndex + "," + postIndex;

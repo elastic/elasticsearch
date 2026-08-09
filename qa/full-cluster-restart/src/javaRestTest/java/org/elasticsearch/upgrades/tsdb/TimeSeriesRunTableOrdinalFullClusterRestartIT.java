@@ -199,6 +199,7 @@ public class TimeSeriesRunTableOrdinalFullClusterRestartIT extends Parameterized
     }
 
     public void testQueryAcrossOldAndNewCodecIndices() throws IOException {
+        requireRunTableOrdinal();
         final String preIndex = "rto-mixed-pre";
         final String postIndex = "rto-mixed-post";
         final String target = preIndex + "," + postIndex;
@@ -230,6 +231,7 @@ public class TimeSeriesRunTableOrdinalFullClusterRestartIT extends Parameterized
     }
 
     public void testForceMergeBothMixedCodecIndicesToOneSegment() throws IOException {
+        requireRunTableOrdinal();
         final String preIndex = "rto-mixed-fm-pre";
         final String postIndex = "rto-mixed-fm-post";
         final String target = preIndex + "," + postIndex;
@@ -283,6 +285,7 @@ public class TimeSeriesRunTableOrdinalFullClusterRestartIT extends Parameterized
     }
 
     public void testRandomAccessDocValuesAfterRestart() throws IOException {
+        requireRunTableOrdinal();
         final String preIndex = "rto-random-pre";
         final String postIndex = "rto-random-post";
         final String target = preIndex + "," + postIndex;

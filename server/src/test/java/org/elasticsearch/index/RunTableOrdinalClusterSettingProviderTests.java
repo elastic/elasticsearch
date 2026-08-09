@@ -32,11 +32,13 @@ public class RunTableOrdinalClusterSettingProviderTests extends ESTestCase {
     }
 
     public void testDisabledForcesTimeSeriesSettingOff() {
+        assumeTrue("run-table ordinal feature flag must be enabled", IndexSettings.ES95_RUNTABLE_ENCODING_FEATURE_FLAG.isEnabled());
         final RunTableOrdinalClusterSettingProvider provider = provider(clusterSetting(false));
         assertThat(inject(provider, IndexMode.TIME_SERIES, Settings.EMPTY).get(INDEX_KEY), equalTo("false"));
     }
 
     public void testDisabledForcesOffEvenWhenIndexOptsIn() {
+        assumeTrue("run-table ordinal feature flag must be enabled", IndexSettings.ES95_RUNTABLE_ENCODING_FEATURE_FLAG.isEnabled());
         final RunTableOrdinalClusterSettingProvider provider = provider(clusterSetting(false));
         final Settings indexOptIn = Settings.builder().put(INDEX_KEY, true).build();
         assertThat(inject(provider, IndexMode.TIME_SERIES, indexOptIn).get(INDEX_KEY), equalTo("false"));
@@ -53,12 +55,14 @@ public class RunTableOrdinalClusterSettingProviderTests extends ESTestCase {
     }
 
     public void testModeResolvedFromIndexSettingsWhenTemplateModeMissing() {
+        assumeTrue("run-table ordinal feature flag must be enabled", IndexSettings.ES95_RUNTABLE_ENCODING_FEATURE_FLAG.isEnabled());
         final RunTableOrdinalClusterSettingProvider provider = provider(clusterSetting(false));
         final Settings timeSeriesBySetting = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName()).build();
         assertThat(inject(provider, null, timeSeriesBySetting).get(INDEX_KEY), equalTo("false"));
     }
 
     public void testDynamicUpdateThroughClusterSettings() {
+        assumeTrue("run-table ordinal feature flag must be enabled", IndexSettings.ES95_RUNTABLE_ENCODING_FEATURE_FLAG.isEnabled());
         final ClusterSettings clusterSettings = clusterSettings(Settings.EMPTY);
         final RunTableOrdinalClusterSettingProvider provider = new RunTableOrdinalClusterSettingProvider(clusterSettings);
         assertThat(inject(provider, IndexMode.TIME_SERIES, Settings.EMPTY).isEmpty(), is(true));

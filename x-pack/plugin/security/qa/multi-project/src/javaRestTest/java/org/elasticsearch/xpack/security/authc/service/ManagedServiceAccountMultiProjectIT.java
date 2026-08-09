@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.security.authc.service;
 
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -21,13 +20,22 @@ import org.junit.After;
 import org.junit.ClassRule;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasEntry;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.not;
 
+/**
+ * Managed service accounts are deliberately unavailable in multi-project clusters: the service
+ * account credential caches are keyed without a project dimension, and multi-project deployments
+ * (serverless) replace the token store through a {@code SecurityExtension} which disables the
+ * index-backed stores entirely. This test pins that scoping decision for a multi-project cluster
+ * running the default store wiring; built-in {@code elastic/*} accounts must remain readable.
+ */
 public class ManagedServiceAccountMultiProjectIT extends ESRestTestCase {
 
     private static final String ADMIN_PASSWORD = "hunter2";
@@ -65,95 +73,46 @@ public class ManagedServiceAccountMultiProjectIT extends ESRestTestCase {
         cleanUpProjects();
     }
 
-    public void testManagedServiceAccountsAreIsolatedByProject() throws Exception {
-        final String project1 = randomIdentifier();
-        final String project2 = randomIdentifier();
-        createProject(project1);
-        createProject(project2);
+    public void testManagedServiceAccountsUnavailableInMultiProjectCluster() throws Exception {
+        final String project = randomIdentifier();
+        createProject(project);
 
         final String namespace = "mpoc" + randomAlphaOfLengthBetween(3, 6).toLowerCase(Locale.ROOT);
         final String service = "worker";
-        final String principal = namespace + "/" + service;
-        final String monitorRole = "mpoc_monitor_" + randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
-        final String manageRole = "mpoc_manage_" + randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
 
-        putRole(project1, monitorRole, "monitor");
-        putRole(project2, manageRole, "manage");
-        putManagedAccount(project1, namespace, service, monitorRole);
-        putManagedAccount(project2, namespace, service, manageRole);
+        final Request putRequest = new Request("PUT", "/_security/service/" + namespace + "/" + service);
+        putRequest.setJsonEntity("{\"roles\":[\"superuser\"],\"enabled\":true}");
+        setProjectHeader(putRequest, project);
+        assertBadRequest(putRequest, "managed service accounts are not available in this cluster configuration");
 
-        final String project1Bearer = createToken(project1, namespace, service, "token-1");
-        final String project2Bearer = createToken(project2, namespace, service, "token-1");
+        final Request deleteRequest = new Request("DELETE", "/_security/service/" + namespace + "/" + service);
+        setProjectHeader(deleteRequest, project);
+        assertBadRequest(deleteRequest, "managed service accounts are not available in this cluster configuration");
 
-        assertHasClusterPrivilege(project1, project1Bearer, principal, "monitor", true);
-        assertHasClusterPrivilege(project1, project1Bearer, principal, "manage", false);
+        final Request tokenRequest = new Request("PUT", "/_security/service/" + namespace + "/" + service + "/credential/token/token-1");
+        setProjectHeader(tokenRequest, project);
+        assertBadRequest(tokenRequest, "service account [" + namespace + "/" + service + "] does not exist");
 
-        assertHasClusterPrivilege(project2, project2Bearer, principal, "manage", true);
-        assertHasClusterPrivilege(project2, project2Bearer, principal, "monitor", false);
-
-        assertAuthenticateFails(project2, project1Bearer);
-        assertAuthenticateFails(project1, project2Bearer);
+        final Request getRequest = new Request("GET", "/_security/service");
+        getRequest.addParameter("include_managed", "true");
+        setProjectHeader(getRequest, project);
+        final Map<String, Object> accounts = entityAsMap(client().performRequest(getRequest));
+        assertThat(accounts, hasKey("elastic/kibana"));
+        assertThat(accounts, not(hasKey(namespace + "/" + service)));
     }
 
-    private void putRole(String projectId, String roleName, String clusterPrivilege) throws IOException {
-        final Request request = new Request("PUT", "/_security/role/" + roleName);
-        request.setJsonEntity("{\"cluster\":[\"" + clusterPrivilege + "\"]}");
-        setProjectHeader(request, projectId);
-        client().performRequest(request);
-    }
-
-    private void putManagedAccount(String projectId, String namespace, String service, String roleName) throws IOException {
-        final Request request = new Request("PUT", "/_security/service/" + namespace + "/" + service);
-        request.setJsonEntity("{\"roles\":[\"" + roleName + "\"],\"enabled\":true}");
-        setProjectHeader(request, projectId);
-        client().performRequest(request);
-    }
-
-    private String createToken(String projectId, String namespace, String service, String tokenName) throws IOException {
-        final Request request = new Request(
-            "PUT",
-            "/_security/service/" + namespace + "/" + service + "/credential/token/" + tokenName
-        );
-        setProjectHeader(request, projectId);
-        final Map<String, Object> response = entityAsMap(client().performRequest(request));
-        @SuppressWarnings("unchecked")
-        final Map<String, Object> token = (Map<String, Object>) response.get("token");
-        return token.get("value").toString();
-    }
-
-    @SuppressWarnings("unchecked")
-    private void assertHasClusterPrivilege(
-        String projectId,
-        String bearer,
-        String principal,
-        String privilege,
-        boolean expected
-    ) throws IOException {
-        final Request request = new Request("GET", "/_security/user/_has_privileges");
-        request.setJsonEntity("{\"cluster\":[\"" + privilege + "\"]}");
-        request.setOptions(
-            RequestOptions.DEFAULT.toBuilder()
-                .addHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, projectId)
-                .addHeader("Authorization", "Bearer " + bearer)
-                .build()
-        );
-        final Map<String, Object> response = entityAsMap(client().performRequest(request));
-        @SuppressWarnings("unchecked")
-        final Map<String, Boolean> cluster = (Map<String, Boolean>) response.get("cluster");
-        assertThat(cluster.get(privilege), is(expected));
-        assertThat(response, hasEntry("username", principal));
-    }
-
-    private void assertAuthenticateFails(String projectId, String bearer) {
-        final Request request = new Request("GET", "/_security/_authenticate");
-        request.setOptions(
-            RequestOptions.DEFAULT.toBuilder()
-                .addHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, projectId)
-                .addHeader("Authorization", "Bearer " + bearer)
-                .build()
-        );
+    private void assertBadRequest(Request request, String expectedMessage) {
         final ResponseException exception = expectThrows(ResponseException.class, () -> client().performRequest(request));
-        assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(401));
+        assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(readResponseBody(exception), containsString(expectedMessage));
+    }
+
+    private static String readResponseBody(ResponseException exception) {
+        try {
+            return new String(exception.getResponse().getEntity().getContent().readAllBytes(), StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            throw new AssertionError("failed to read error response body", e);
+        }
     }
 
     private static void setProjectHeader(Request request, String projectId) {

@@ -27,10 +27,8 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
-import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -71,6 +69,14 @@ import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SEC
 
 /**
  * Index-backed store for API-managed service account definitions.
+ * <p>
+ * Not supported in multi-project clusters: service account credential caching
+ * ({@link CachingServiceAccountTokenStore}) is keyed by qualified token name with no project
+ * dimension, so identically named accounts in different projects would share cache entries.
+ * Multi-project deployments (serverless) instead replace the token store wholesale via
+ * {@code SecurityExtension#getServiceAccountTokenStore}, which also disables managed accounts.
+ * {@link org.elasticsearch.xpack.security.Security} therefore does not construct this store when
+ * the project resolver supports multiple projects, and the caches here assume a single project.
  */
 public class ManagedServiceAccountStore implements CacheInvalidatorRegistry.CacheInvalidator {
 
@@ -132,27 +138,21 @@ public class ManagedServiceAccountStore implements CacheInvalidatorRegistry.Cach
             listener.onFailure(new IllegalArgumentException(principalError));
             return;
         }
-        final ProjectId projectId = currentProjectId();
         if (accountCache != null) {
-            final CachedAccount cached = accountCache.get(cacheKeyForPrincipal(projectId, principal));
+            final CachedAccount cached = accountCache.get(principal);
             if (cached != null) {
                 listener.onResponse(cached.account());
                 return;
             }
         }
         final long invalidationCount = accountCache != null ? accountCache.getInvalidationCount() : 0;
-        loadAccountFromIndex(projectId, principal, invalidationCount, listener);
+        loadAccountFromIndex(principal, invalidationCount, listener);
     }
 
-    private void loadAccountFromIndex(
-        ProjectId projectId,
-        String principal,
-        long invalidationCount,
-        ActionListener<ManagedServiceAccount> listener
-    ) {
+    private void loadAccountFromIndex(String principal, long invalidationCount, ActionListener<ManagedServiceAccount> listener) {
         final IndexState projectSecurityIndex = securityIndex.forCurrentProject();
         if (projectSecurityIndex.indexExists() == false) {
-            cacheAccount(projectId, principal, null, invalidationCount);
+            cacheAccount(principal, null, invalidationCount);
             listener.onResponse(null);
             return;
         }
@@ -166,33 +166,16 @@ public class ManagedServiceAccountStore implements CacheInvalidatorRegistry.Cach
                 .request();
             executeAsyncWithOrigin(client, SECURITY_ORIGIN, TransportGetAction.TYPE, getRequest, ActionListener.wrap(response -> {
                 final ManagedServiceAccount account = response.isExists() ? parseAccountDocument(principal, response.getSource()) : null;
-                cacheAccount(projectId, principal, account, invalidationCount);
+                cacheAccount(principal, account, invalidationCount);
                 listener.onResponse(account);
             }, listener::onFailure));
         });
     }
 
-    private void cacheAccount(
-        ProjectId projectId,
-        String principal,
-        @Nullable ManagedServiceAccount account,
-        long invalidationCount
-    ) {
+    private void cacheAccount(String principal, @Nullable ManagedServiceAccount account, long invalidationCount) {
         if (accountCache != null) {
-            accountCache.putIfNoInvalidationSince(
-                cacheKeyForPrincipal(projectId, principal),
-                CachedAccount.of(account),
-                invalidationCount
-            );
+            accountCache.putIfNoInvalidationSince(principal, CachedAccount.of(account), invalidationCount);
         }
-    }
-
-    private ProjectId currentProjectId() {
-        return securityIndex.currentProjectId();
-    }
-
-    static String cacheKeyForPrincipal(ProjectId projectId, String principal) {
-        return projectId.id() + "/" + principal;
     }
 
     public void listAccounts(
@@ -523,8 +506,7 @@ public class ManagedServiceAccountStore implements CacheInvalidatorRegistry.Cach
     }
 
     private void invalidateManagedAccountCache(String principal, ActionListener<Void> listener) {
-        final ClearSecurityCacheRequest clearSecurityCacheRequest = new ClearSecurityCacheRequest().cacheName(CACHE_NAME)
-            .keys(cacheKeyForPrincipal(currentProjectId(), principal));
+        final ClearSecurityCacheRequest clearSecurityCacheRequest = new ClearSecurityCacheRequest().cacheName(CACHE_NAME).keys(principal);
         executeAsyncWithOrigin(
             client,
             SECURITY_ORIGIN,

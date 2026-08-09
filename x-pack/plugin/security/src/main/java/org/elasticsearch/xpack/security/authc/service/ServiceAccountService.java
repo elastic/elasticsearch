@@ -53,6 +53,11 @@ public class ServiceAccountService {
 
     private static final Logger logger = LogManager.getLogger(ServiceAccountService.class);
     private static final int MIN_TOKEN_SECRET_LENGTH = 10;
+    /**
+     * Returned when the {@link ManagedServiceAccountStore} is not wired up: either an extension has
+     * replaced the token store, or the cluster supports multiple projects (see the store's Javadoc).
+     */
+    static final String MANAGED_ACCOUNTS_UNAVAILABLE_MESSAGE = "managed service accounts are not available in this cluster configuration";
 
     private final Client client;
     private final IndexServiceAccountTokenStore indexServiceAccountTokenStore;
@@ -200,7 +205,7 @@ public class ServiceAccountService {
 
     public void putManagedAccount(PutManagedServiceAccountRequest request, ActionListener<PutManagedServiceAccountResponse> listener) {
         if (managedServiceAccountStore == null) {
-            listener.onFailure(new IllegalStateException("managed service accounts are not configured"));
+            listener.onFailure(new IllegalArgumentException(MANAGED_ACCOUNTS_UNAVAILABLE_MESSAGE));
             return;
         }
         managedServiceAccountStore.putAccount(
@@ -226,7 +231,7 @@ public class ServiceAccountService {
         ActionListener<DeleteManagedServiceAccountResponse> listener
     ) {
         if (managedServiceAccountStore == null) {
-            listener.onFailure(new IllegalStateException("managed service accounts are not configured"));
+            listener.onFailure(new IllegalArgumentException(MANAGED_ACCOUNTS_UNAVAILABLE_MESSAGE));
             return;
         }
         final ServiceAccountId accountId = request.getAccountId();

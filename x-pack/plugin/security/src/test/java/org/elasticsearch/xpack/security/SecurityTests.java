@@ -274,7 +274,7 @@ public class SecurityTests extends ESTestCase {
             TelemetryProvider.NOOP,
             mock(PersistentTasksService.class),
             StubLinkedProjectConfigService.INSTANCE,
-            TestProjectResolvers.alwaysThrow(),
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY,
             CrossProjectModeDecider.NOOP,
             ProjectRoutingResolver.NOOP,
             new SystemIndices(List.of())

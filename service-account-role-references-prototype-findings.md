@@ -15,7 +15,7 @@ parse bearer token
        Authentication with empty User.roles() and _elastic_service_account metadata
   -> else:
        validate managed principal grammar
-       load managed account (project-scoped cache keyed by project id + principal, invalidated on PUT/DELETE)
+       load managed account (cached by principal, invalidated on PUT/DELETE)
        reject missing/disabled/malformed
        index token auth with standard credential cache
        Authentication with role names in User.roles() and _managed_service_account metadata
@@ -58,7 +58,7 @@ Observed behavior in unit tests:
 - Named-role create/update/delete invalidates via existing role-cache mechanisms
 - Built-in accounts remain on `ServiceAccountRoleReference` and are unaffected by native role invalidation
 
-**Demonstrated in automated tests:** internal cluster, YAML REST, and multi-project REST tests cover create-account → create-token → authorize, role assignment updates, delete/recreate same-service-account semantics, disabled accounts, reserved `elastic` namespace rejection, `manage_service_account` vs `manage_security` privilege split at HTTP, native role definition changes via `put_role`, project isolation for identically named principals/tokens, and exact `elastic/*` GET without consulting the managed store.
+**Demonstrated in automated tests:** internal cluster, YAML REST, and multi-project REST tests cover create-account → create-token → authorize, role assignment updates, delete/recreate same-service-account semantics, disabled accounts, reserved `elastic` namespace rejection, `manage_service_account` vs `manage_security` privilege split at HTTP, native role definition changes via `put_role`, managed-account unavailability in multi-project clusters, and exact `elastic/*` GET without consulting the managed store.
 
 ## Document shapes (no secrets)
 
@@ -98,14 +98,14 @@ Verified in `ManagedServiceAccountPrivilegeTests`.
 
 | Area | Prototype behavior |
 |---|---|
-| Project scope | Uses `securityIndex.forCurrentProject()` for index reads/writes; managed account cache keys by `{projectId}/{principal}`; index token credential cache remains keyed by qualified token name (pre-multi-project behavior) |
+| Project scope | Multi-project is out of scope. Service account credential caches are keyed by qualified token name with no project dimension, so `Security` does not construct `ManagedServiceAccountStore` when the project resolver supports multiple projects; managed CRUD returns 400 in multi-project clusters. Caches key by principal, assuming a single project. |
 | File tokens | Only built-in `elastic/*`; managed path never consults file store first for non-elastic namespaces |
 | Extension `ServiceAccountTokenStore` | Managed accounts disabled when extension replaces the store (same as index tokens today) |
 | Mixed cluster | `managed_service_accounts` transport version gates CRUD/auth; built-ins continue to work |
-| Serverless | REST handlers marked `INTERNAL`; no serverless CRUD exposure |
+| Serverless | Serverless replaces the token store via `SecurityExtension#getServiceAccountTokenStore` (elasticsearch#126612), which disables index-backed tokens and managed accounts entirely; per-project built-in tokens come from operator secrets files (elasticsearch-serverless#3759). REST handlers marked `INTERNAL`. |
 
 | Malformed account docs | Missing or mistyped fields are rejected during parse; authentication fails without exposing document contents |
-| Cross-project replay | Bearer from project A cannot authenticate in project B even when principal/token names match |
+| Cross-project replay | Not applicable: managed service accounts are unavailable in multi-project clusters (see Project scope) |
 
 ## API compatibility
 
@@ -143,7 +143,6 @@ Verified in `ManagedServiceAccountPrivilegeTests`.
 ## Production gaps
 
 ### Correctness
-- Cross-project isolation not tested
 - Several spec edge cases not tested (e.g. multi-role union, zero roles, file token on managed account)
 - Async existence checks for token delete on managed accounts added but not fully integration-tested
 - PUT update semantics are full replacement (documented); no PATCH/partial update

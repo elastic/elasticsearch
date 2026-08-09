@@ -34,6 +34,12 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
 
+/**
+ * Base class for token stores that cache credential verification results. Cache entries are keyed
+ * by qualified token name ({@code namespace/service/token-name}) with no project dimension; this is
+ * one reason managed service accounts are unavailable in multi-project clusters (see
+ * {@link ManagedServiceAccountStore}).
+ */
 public abstract class CachingServiceAccountTokenStore implements ServiceAccountTokenStore, CacheInvalidatorRegistry.CacheInvalidator {
 
     private static final Logger logger = LogManager.getLogger(CachingServiceAccountTokenStore.class);

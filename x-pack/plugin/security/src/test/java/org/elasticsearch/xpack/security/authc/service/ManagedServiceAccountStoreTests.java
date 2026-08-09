@@ -102,7 +102,6 @@ public class ManagedServiceAccountStoreTests extends ESTestCase {
 
         securityIndex = mock(SecurityIndexManager.class);
         when(securityIndex.forCurrentProject()).thenAnswer(invocation -> indexState(activeProject.get()));
-        when(securityIndex.currentProjectId()).thenAnswer(invocation -> activeProject.get());
 
         final Settings settings = Settings.builder()
             .put(ManagedServiceAccountStore.CACHE_TTL_SETTING.getKey(), "20m")
@@ -111,33 +110,20 @@ public class ManagedServiceAccountStoreTests extends ESTestCase {
         store = new ManagedServiceAccountStore(settings, client, securityIndex, clusterService, new CacheInvalidatorRegistry());
     }
 
-    public void testAccountCacheIsProjectScoped() throws Exception {
-        final ProjectId project1 = randomUniqueProjectId();
-        final ProjectId project2 = randomUniqueProjectId();
-        final Map<ProjectId, Map<String, Object>> docsByProject = Map.of(
-            project1,
-            validAccountDocument(PRINCIPAL, List.of(ROLE_A), true),
-            project2,
-            validAccountDocument(PRINCIPAL, List.of(ROLE_B), true)
-        );
+    public void testGetByPrincipalCachesAccount() throws Exception {
         responseProvider.set((request, listener) -> {
             try {
-                respondToGet(request, docsByProject, listener);
+                respondToGet(request, Map.of(activeProject.get(), validAccountDocument(PRINCIPAL, List.of(ROLE_A), true)), listener);
             } catch (IOException e) {
                 listener.onFailure(e);
             }
         });
 
-        activeProject.set(project1);
         assertThat(getAccountRoles(), equalTo(List.of(ROLE_A)));
         assertThat(getRequestCount.get(), equalTo(1));
 
         assertThat(getAccountRoles(), equalTo(List.of(ROLE_A)));
         assertThat(getRequestCount.get(), equalTo(1));
-
-        activeProject.set(project2);
-        assertThat(getAccountRoles(), equalTo(List.of(ROLE_B)));
-        assertThat(getRequestCount.get(), equalTo(2));
     }
 
     public void testCacheDoesNotRestoreAccountAfterInvalidationDuringLoad() throws Exception {
@@ -145,11 +131,7 @@ public class ManagedServiceAccountStoreTests extends ESTestCase {
         responseProvider.set((request, listener) -> {
             try {
                 releaseGet.await();
-                respondToGet(
-                    request,
-                    Map.of(activeProject.get(), validAccountDocument(PRINCIPAL, List.of(ROLE_A), true)),
-                    listener
-                );
+                respondToGet(request, Map.of(activeProject.get(), validAccountDocument(PRINCIPAL, List.of(ROLE_A), true)), listener);
             } catch (Exception e) {
                 listener.onFailure(e);
             }
@@ -160,20 +142,16 @@ public class ManagedServiceAccountStoreTests extends ESTestCase {
         loadingThread.start();
         assertBusy(() -> assertThat(getRequestCount.get(), equalTo(1)));
 
-        store.invalidate(List.of(ManagedServiceAccountStore.cacheKeyForPrincipal(activeProject.get(), PRINCIPAL)));
+        store.invalidate(List.of(PRINCIPAL));
         releaseGet.countDown();
         loadingThread.join();
 
         assertThat(firstLoad.get().roles(), equalTo(List.of(ROLE_A)));
-        assertNull(store.getAccountCache().get(ManagedServiceAccountStore.cacheKeyForPrincipal(activeProject.get(), PRINCIPAL)));
+        assertNull(store.getAccountCache().get(PRINCIPAL));
 
         responseProvider.set((request, listener) -> {
             try {
-                respondToGet(
-                    request,
-                    Map.of(activeProject.get(), validAccountDocument(PRINCIPAL, List.of(ROLE_B), true)),
-                    listener
-                );
+                respondToGet(request, Map.of(activeProject.get(), validAccountDocument(PRINCIPAL, List.of(ROLE_B), true)), listener);
             } catch (IOException e) {
                 listener.onFailure(e);
             }
@@ -237,11 +215,6 @@ public class ManagedServiceAccountStoreTests extends ESTestCase {
         final Map<String, Object> source = validAccountDocument(PRINCIPAL, List.of(ROLE_A), true);
         source.put("doc_type", "user");
         assertThat(loadAccountFromSource(PRINCIPAL, source), nullValue());
-    }
-
-    public void testCacheKeysIncludeProjectId() {
-        final ProjectId projectId = randomUniqueProjectId();
-        assertThat(ManagedServiceAccountStore.cacheKeyForPrincipal(projectId, PRINCIPAL), equalTo(projectId.id() + "/" + PRINCIPAL));
     }
 
     private List<String> getAccountRoles() throws Exception {

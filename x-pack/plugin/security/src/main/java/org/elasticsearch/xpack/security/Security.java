@@ -1444,22 +1444,32 @@ public class Security extends Plugin
         if (accountTokenStoreByExtension.isEmpty()) {
             var fileServiceAccountTokenStore = fileServiceAccountTokenStoreSupplier.get();
             var indexServiceAccountTokenStore = indexServiceAccountTokenStoreSupplier.get();
-            var managedServiceAccountStore = new ManagedServiceAccountStore(
-                settings,
-                client.get(),
-                systemIndices.getMainIndexManager(),
-                clusterService,
-                cacheInvalidatorRegistry
-            );
+            // Managed service accounts assume a single project: the service account credential caches
+            // are keyed without a project dimension. Multi-project deployments (serverless) replace the
+            // token store via SecurityExtension#getServiceAccountTokenStore, which never reaches this
+            // branch; this guard covers multi-project clusters running the default store wiring.
+            final ManagedServiceAccountStore managedServiceAccountStore;
+            if (extensionComponents.projectResolver().supportsMultipleProjects()) {
+                managedServiceAccountStore = null;
+                cacheInvalidatorRegistry.registerAlias("service", Set.of("file_service_account_token", "index_service_account_token"));
+            } else {
+                managedServiceAccountStore = new ManagedServiceAccountStore(
+                    settings,
+                    client.get(),
+                    systemIndices.getMainIndexManager(),
+                    clusterService,
+                    cacheInvalidatorRegistry
+                );
+                components.add(managedServiceAccountStore);
+                cacheInvalidatorRegistry.registerAlias(
+                    "service",
+                    Set.of("file_service_account_token", "index_service_account_token", ManagedServiceAccountStore.CACHE_NAME)
+                );
+            }
 
             components.add(new PluginComponentBinding<>(NodeLocalServiceAccountTokenStore.class, fileServiceAccountTokenStore));
             components.add(fileServiceAccountTokenStore);
             components.add(indexServiceAccountTokenStore);
-            components.add(managedServiceAccountStore);
-            cacheInvalidatorRegistry.registerAlias(
-                "service",
-                Set.of("file_service_account_token", "index_service_account_token", ManagedServiceAccountStore.CACHE_NAME)
-            );
 
             return new ServiceAccountService(
                 client.get(),

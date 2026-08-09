@@ -230,6 +230,12 @@ public abstract class Plugin implements Closeable {
 
         /** The IP location service for IP-geolocation database lookups and lifecycle management */
         IpLocationService ipLocationService();
+
+        /**
+         * Per-node registry for publishing/consuming components between plugins at {@code createComponents} time, before Guice
+         * wiring is available. See {@link SharedComponentRegistry}.
+         */
+        SharedComponentRegistry sharedComponents();
     }
 
     /**

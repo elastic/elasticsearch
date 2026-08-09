@@ -22,8 +22,9 @@ import org.elasticsearch.xcontent.provider.OptimizedTextCapable;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.List;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
+import java.nio.ByteOrder;
 
 /**
  * Provides the method getValueAsText that is a best-effort optimization for UTF8 fields. If the
@@ -32,11 +33,19 @@ import java.util.List;
  * Once we've already got the parsed UTF-16 value, the optimization isn't necessary.
  */
 public class ESUTF8StreamJsonParser extends UTF8StreamJsonParser implements OptimizedTextCapable {
+
+    /** Reads 8 bytes of the input buffer as a single {@code long}. The SWAR test below is a per-byte
+     *  reduction, so native byte order is correct (and fastest) regardless of platform endianness. */
+    private static final VarHandle LONG_VIEW = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.nativeOrder());
+    private static final long ONES = 0x0101010101010101L;
+    private static final long HIGH = 0x8080808080808080L;
+
     protected int stringEnd = -1;
     protected int stringLength;
     protected byte[] lastOptimisedValue;
 
-    private final List<Integer> backslashes = new ArrayList<>();
+    private int[] backslashes = new int[16];
+    private int backslashCount;
 
     public ESUTF8StreamJsonParser(
         IOContext ctxt,
@@ -85,9 +94,21 @@ public class ESUTF8StreamJsonParser extends UTF8StreamJsonParser implements Opti
         final int max = _inputEnd;
         final byte[] inputBuffer = _inputBuffer;
         stringLength = 0;
-        backslashes.clear();
+        backslashCount = 0;
 
         loop: while (true) {
+            // SWAR fast path: skip whole 8-byte runs of plain ASCII text (code 0) at once. A chunk is
+            // accepted only when every byte is in 0x20..0x7E and is neither '"' nor '\\', which Jackson's
+            // INPUT_CODES_UTF8 maps unconditionally to code 0, so this is equivalent to running the
+            // `case 0` branch eight times. Anything else falls through to the scalar loop below.
+            while (ptr + Long.BYTES <= max) {
+                long word = (long) LONG_VIEW.get(inputBuffer, ptr);
+                if (chunkAllNormal(word) == false) {
+                    break;
+                }
+                ptr += Long.BYTES;
+                stringLength += Long.BYTES;
+            }
             if (ptr >= max) {
                 return null;
             }
@@ -103,7 +124,7 @@ public class ESUTF8StreamJsonParser extends UTF8StreamJsonParser implements Opti
                         break loop;
                     }
                     assert c == INT_BACKSLASH;
-                    backslashes.add(ptr);
+                    addBackslash(ptr);
                     ++ptr;
                     if (ptr >= max) {
                         // Backslash at end of file
@@ -135,13 +156,14 @@ public class ESUTF8StreamJsonParser extends UTF8StreamJsonParser implements Opti
         }
 
         stringEnd = ptr + 1;
-        if (backslashes.isEmpty()) {
+        if (backslashCount == 0) {
             return new Text(new XContentString.UTF8Bytes(inputBuffer, startPtr, ptr - startPtr), stringLength);
         } else {
-            byte[] buff = new byte[ptr - startPtr - backslashes.size()];
+            byte[] buff = new byte[ptr - startPtr - backslashCount];
             int copyPtr = startPtr;
             int destPtr = 0;
-            for (Integer backslash : backslashes) {
+            for (int i = 0; i < backslashCount; i++) {
+                int backslash = backslashes[i];
                 int length = backslash - copyPtr;
                 System.arraycopy(inputBuffer, copyPtr, buff, destPtr, length);
                 destPtr += length;
@@ -169,6 +191,43 @@ public class ESUTF8StreamJsonParser extends UTF8StreamJsonParser implements Opti
     public String nextFieldName() throws IOException {
         resetCurrentTokenState();
         return super.nextFieldName();
+    }
+
+    /**
+     * Returns {@code true} iff every byte in the 8-byte chunk {@code word} is plain ASCII text that
+     * Jackson's {@code INPUT_CODES_UTF8} maps to code 0 (no special handling needed). Specifically, all
+     * bytes must be in the range {@code 0x20..0x7E} and must not be {@code '"'} (0x22) or {@code '\'}
+     * (0x5C). This is a pure bitwise reduction over all 8 bytes; it is endianness-independent.
+     */
+    private static boolean chunkAllNormal(long word) {
+        // Check that no byte is < 0x20 (control character).
+        long sub = (word - (ONES * 0x20L));
+        long ctrl = sub & ~word & HIGH;
+        // Check that no byte is >= 0x80 (high bit set, i.e. UTF-8 multibyte lead or continuation).
+        long hi = word & HIGH;
+        // Check that no byte is 0x7F (DEL — code 0 in Jackson but excluded here for simplicity; the
+        // scalar loop handles it correctly on fallback).
+        long e7f = hasZero(word ^ (ONES * 0x7FL));
+        // Check that no byte is '"' (0x22).
+        long eqq = hasZero(word ^ (ONES * 0x22L));
+        // Check that no byte is '\' (0x5C).
+        long ebs = hasZero(word ^ (ONES * 0x5CL));
+        return (ctrl | hi | e7f | eqq | ebs) == 0L;
+    }
+
+    /** Classic SWAR trick: yields a non-zero HIGH bit in each byte position that is zero in {@code v}. */
+    private static long hasZero(long v) {
+        return (v - ONES) & ~v & HIGH;
+    }
+
+    /** Appends {@code pos} to the primitive backslash-position list, growing the array if needed. */
+    private void addBackslash(int pos) {
+        if (backslashCount == backslashes.length) {
+            int[] grown = new int[backslashes.length * 2];
+            System.arraycopy(backslashes, 0, grown, 0, backslashCount);
+            backslashes = grown;
+        }
+        backslashes[backslashCount++] = pos;
     }
 
     /**

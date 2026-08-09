@@ -296,7 +296,7 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
         }
     }
 
-    private HierarchyCircuitBreakerService requestBreakerService(String requestLimit) {
+    private static HierarchyCircuitBreakerService requestBreakerService(String requestLimit) {
         Settings settings = Settings.builder()
             .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), requestLimit)
             .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)

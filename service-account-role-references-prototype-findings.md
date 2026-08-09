@@ -89,8 +89,11 @@ Deleting an account removes the account document (with refresh), clears the mana
 |---|---|
 | PUT/DELETE managed account | `manage_security` (action prefix `.../managed_service_account/...`) |
 | Create managed index token | `manage_security` |
-| Create built-in index token | `manage_service_account` (unchanged) |
+| Delete managed index token | `manage_security` (dedicated `.../managed_service_account/token/delete` action) |
+| Create/delete built-in index token | `manage_service_account` (unchanged; transport actions reject non-`elastic` namespaces) |
 | GET service accounts | `read_security` (unchanged) |
+
+The entire managed-account lifecycle (account CRUD, token create, token delete) requires `manage_security`; `manage_service_account` remains scoped to built-in `elastic/*` accounts; `read_security` sees both.
 
 Verified in `ManagedServiceAccountPrivilegeTests`.
 

@@ -177,6 +177,15 @@ teardown:
       catch: forbidden
       headers:
         Authorization: "Basic c2VydmljZV9hY2NvdW50X2FkbWluX3VzZXI6eC1wYWNrLXRlc3QtcGFzc3dvcmQ="
+      security.delete_service_token:
+        namespace: yaml_poc
+        service: gap_worker
+        name: gap-managed-token
+
+  - do:
+      catch: forbidden
+      headers:
+        Authorization: "Basic c2VydmljZV9hY2NvdW50X2FkbWluX3VzZXI6eC1wYWNrLXRlc3QtcGFzc3dvcmQ="
       security.delete_managed_service_account:
         namespace: yaml_poc
         service: gap_worker

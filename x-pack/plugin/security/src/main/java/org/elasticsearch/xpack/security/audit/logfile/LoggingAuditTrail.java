@@ -91,6 +91,7 @@ import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccount
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenRequest;
 import org.elasticsearch.xpack.core.security.action.service.DeleteManagedServiceAccountAction;
 import org.elasticsearch.xpack.core.security.action.service.DeleteManagedServiceAccountRequest;
+import org.elasticsearch.xpack.core.security.action.service.DeleteManagedServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenRequest;
 import org.elasticsearch.xpack.core.security.action.service.PutManagedServiceAccountAction;
@@ -316,6 +317,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         CreateServiceAccountTokenAction.NAME,
         CreateManagedServiceAccountTokenAction.NAME,
         DeleteServiceAccountTokenAction.NAME,
+        DeleteManagedServiceAccountTokenAction.NAME,
         PutManagedServiceAccountAction.NAME,
         DeleteManagedServiceAccountAction.NAME,
         ActivateProfileAction.NAME,
@@ -798,9 +800,10 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 } else if (msg instanceof DeleteManagedServiceAccountRequest deleteManagedServiceAccountRequest) {
                     assert DeleteManagedServiceAccountAction.NAME.equals(action);
                     securityChangeLogEntryBuilder(requestId).withRequestBody(deleteManagedServiceAccountRequest).build();
-                } else if (msg instanceof DeleteServiceAccountTokenRequest) {
-                    assert DeleteServiceAccountTokenAction.NAME.equals(action);
-                    securityChangeLogEntryBuilder(requestId).withRequestBody((DeleteServiceAccountTokenRequest) msg).build();
+                } else if (msg instanceof DeleteServiceAccountTokenRequest deleteServiceAccountTokenRequest) {
+                    assert DeleteServiceAccountTokenAction.NAME.equals(action)
+                        || DeleteManagedServiceAccountTokenAction.NAME.equals(action);
+                    securityChangeLogEntryBuilder(requestId).withRequestBody(deleteServiceAccountTokenRequest).build();
                 } else if (msg instanceof final ActivateProfileRequest activateProfileRequest) {
                     assert ActivateProfileAction.NAME.equals(action);
                     securityChangeLogEntryBuilder(requestId).withRequestBody(activateProfileRequest).build();

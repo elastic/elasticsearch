@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.security.action.service;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockUtils;
@@ -19,53 +19,47 @@ import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccount
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.Collections;
 
-import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
-import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
-public class TransportDeleteServiceAccountTokenActionTests extends ESTestCase {
+public class TransportDeleteManagedServiceAccountTokenActionTests extends ESTestCase {
 
     private ServiceAccountService serviceAccountService;
-    private TransportDeleteServiceAccountTokenAction transportDeleteServiceAccountTokenAction;
+    private TransportDeleteManagedServiceAccountTokenAction transportDeleteManagedServiceAccountTokenAction;
 
     @Before
-    public void init() {
+    @SuppressForbidden(reason = "Allow accessing localhost")
+    public void init() throws IOException {
         serviceAccountService = mock(ServiceAccountService.class);
+
         TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
-        transportDeleteServiceAccountTokenAction = new TransportDeleteServiceAccountTokenAction(
+        transportDeleteManagedServiceAccountTokenAction = new TransportDeleteManagedServiceAccountTokenAction(
             transportService,
             new ActionFilters(Collections.emptySet()),
             serviceAccountService
         );
     }
 
-    public void testDoExecuteWillDelegate() {
-        final DeleteServiceAccountTokenRequest request = new DeleteServiceAccountTokenRequest(
-            "elastic",
-            randomAlphaOfLengthBetween(3, 8),
-            randomAlphaOfLengthBetween(3, 8)
-        );
-        @SuppressWarnings("unchecked")
-        final ActionListener<DeleteServiceAccountTokenResponse> listener = mock(ActionListener.class);
-        transportDeleteServiceAccountTokenAction.doExecute(mock(Task.class), request, listener);
-        verify(serviceAccountService).deleteIndexToken(eq(request), anyActionListener());
+    public void testRejectsElasticNamespace() {
+        final DeleteServiceAccountTokenRequest request = new DeleteServiceAccountTokenRequest("elastic", "fleet-server", "token-1");
+        final PlainActionFuture<DeleteServiceAccountTokenResponse> future = new PlainActionFuture<>();
+        transportDeleteManagedServiceAccountTokenAction.doExecute(mock(Task.class), request, future);
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, future::actionGet);
+        assertThat(e.getMessage(), equalTo("the [elastic] namespace is reserved for built-in service accounts"));
+        verifyNoInteractions(serviceAccountService);
     }
 
-    public void testRejectsNonElasticNamespace() {
-        final DeleteServiceAccountTokenRequest request = new DeleteServiceAccountTokenRequest(
-            randomValueOtherThan("elastic", () -> randomAlphaOfLengthBetween(3, 8)),
-            randomAlphaOfLengthBetween(3, 8),
-            randomAlphaOfLengthBetween(3, 8)
-        );
+    public void testExecutionWillDelegate() {
+        final DeleteServiceAccountTokenRequest request = new DeleteServiceAccountTokenRequest("my-team", "worker", "token-1");
         final PlainActionFuture<DeleteServiceAccountTokenResponse> future = new PlainActionFuture<>();
-        transportDeleteServiceAccountTokenAction.doExecute(mock(Task.class), request, future);
-        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, future::actionGet);
-        assertThat(e.getMessage(), containsString("built-in service account token deletion only supports the [elastic] namespace"));
-        verifyNoInteractions(serviceAccountService);
+        transportDeleteManagedServiceAccountTokenAction.doExecute(mock(Task.class), request, future);
+        verify(serviceAccountService).deleteIndexToken(eq(request), any());
     }
 }

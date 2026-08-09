@@ -12,6 +12,8 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.action.service.CreateManagedServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.action.service.DeleteManagedServiceAccountAction;
+import org.elasticsearch.xpack.core.security.action.service.DeleteManagedServiceAccountTokenAction;
+import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.action.service.PutManagedServiceAccountAction;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
@@ -31,6 +33,11 @@ public class ManagedServiceAccountPrivilegeTests extends ESTestCase {
         );
         assertThat(
             ClusterPrivilegeResolver.MANAGE_SERVICE_ACCOUNT.permission()
+                .check(DeleteServiceAccountTokenAction.NAME, request, authentication),
+            is(true)
+        );
+        assertThat(
+            ClusterPrivilegeResolver.MANAGE_SERVICE_ACCOUNT.permission()
                 .check(PutManagedServiceAccountAction.NAME, request, authentication),
             is(false)
         );
@@ -42,6 +49,11 @@ public class ManagedServiceAccountPrivilegeTests extends ESTestCase {
         assertThat(
             ClusterPrivilegeResolver.MANAGE_SERVICE_ACCOUNT.permission()
                 .check(CreateManagedServiceAccountTokenAction.NAME, request, authentication),
+            is(false)
+        );
+        assertThat(
+            ClusterPrivilegeResolver.MANAGE_SERVICE_ACCOUNT.permission()
+                .check(DeleteManagedServiceAccountTokenAction.NAME, request, authentication),
             is(false)
         );
     }
@@ -60,6 +72,11 @@ public class ManagedServiceAccountPrivilegeTests extends ESTestCase {
         assertThat(
             ClusterPrivilegeResolver.MANAGE_SECURITY.permission()
                 .check(CreateManagedServiceAccountTokenAction.NAME, request, authentication),
+            is(true)
+        );
+        assertThat(
+            ClusterPrivilegeResolver.MANAGE_SECURITY.permission()
+                .check(DeleteManagedServiceAccountTokenAction.NAME, request, authentication),
             is(true)
         );
     }

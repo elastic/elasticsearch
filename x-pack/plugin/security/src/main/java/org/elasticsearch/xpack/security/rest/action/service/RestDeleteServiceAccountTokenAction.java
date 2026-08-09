@@ -16,8 +16,10 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xpack.core.security.action.service.DeleteManagedServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenRequest;
+import org.elasticsearch.xpack.core.security.support.ManagedServiceAccountIdValidator;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
@@ -44,8 +46,9 @@ public class RestDeleteServiceAccountTokenAction extends SecurityBaseRestHandler
 
     @Override
     protected RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
+        final String namespace = request.param("namespace");
         final DeleteServiceAccountTokenRequest deleteServiceAccountTokenRequest = new DeleteServiceAccountTokenRequest(
-            request.param("namespace"),
+            namespace,
             request.param("service"),
             request.param("name")
         );
@@ -53,8 +56,11 @@ public class RestDeleteServiceAccountTokenAction extends SecurityBaseRestHandler
         if (refreshPolicy != null) {
             deleteServiceAccountTokenRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.parse(refreshPolicy));
         }
+        final var action = ManagedServiceAccountIdValidator.BUILTIN_NAMESPACE.equals(namespace)
+            ? DeleteServiceAccountTokenAction.INSTANCE
+            : DeleteManagedServiceAccountTokenAction.INSTANCE;
         return channel -> client.execute(
-            DeleteServiceAccountTokenAction.INSTANCE,
+            action,
             deleteServiceAccountTokenRequest,
             new RestToXContentListener<>(channel, r -> r.found() ? RestStatus.OK : RestStatus.NOT_FOUND)
         );

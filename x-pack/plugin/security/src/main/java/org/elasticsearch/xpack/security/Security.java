@@ -180,6 +180,7 @@ import org.elasticsearch.xpack.core.security.action.saml.SamlSpMetadataAction;
 import org.elasticsearch.xpack.core.security.action.service.CreateManagedServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.action.service.DeleteManagedServiceAccountAction;
+import org.elasticsearch.xpack.core.security.action.service.DeleteManagedServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountAction;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsAction;
@@ -287,6 +288,7 @@ import org.elasticsearch.xpack.security.action.saml.TransportSamlSpMetadataActio
 import org.elasticsearch.xpack.security.action.service.TransportCreateManagedServiceAccountTokenAction;
 import org.elasticsearch.xpack.security.action.service.TransportCreateServiceAccountTokenAction;
 import org.elasticsearch.xpack.security.action.service.TransportDeleteManagedServiceAccountAction;
+import org.elasticsearch.xpack.security.action.service.TransportDeleteManagedServiceAccountTokenAction;
 import org.elasticsearch.xpack.security.action.service.TransportDeleteServiceAccountTokenAction;
 import org.elasticsearch.xpack.security.action.service.TransportGetServiceAccountAction;
 import org.elasticsearch.xpack.security.action.service.TransportGetServiceAccountCredentialsAction;
@@ -1863,6 +1865,7 @@ public class Security extends Plugin
             new ActionHandler(CreateServiceAccountTokenAction.INSTANCE, TransportCreateServiceAccountTokenAction.class),
             new ActionHandler(CreateManagedServiceAccountTokenAction.INSTANCE, TransportCreateManagedServiceAccountTokenAction.class),
             new ActionHandler(DeleteServiceAccountTokenAction.INSTANCE, TransportDeleteServiceAccountTokenAction.class),
+            new ActionHandler(DeleteManagedServiceAccountTokenAction.INSTANCE, TransportDeleteManagedServiceAccountTokenAction.class),
             new ActionHandler(PutManagedServiceAccountAction.INSTANCE, TransportPutManagedServiceAccountAction.class),
             new ActionHandler(DeleteManagedServiceAccountAction.INSTANCE, TransportDeleteManagedServiceAccountAction.class),
             new ActionHandler(GetServiceAccountCredentialsAction.INSTANCE, TransportGetServiceAccountCredentialsAction.class),

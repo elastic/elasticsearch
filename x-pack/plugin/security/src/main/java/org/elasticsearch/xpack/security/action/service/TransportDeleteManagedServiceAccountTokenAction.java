@@ -14,26 +14,26 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenAction;
+import org.elasticsearch.xpack.core.security.action.service.DeleteManagedServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenRequest;
 import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenResponse;
 import org.elasticsearch.xpack.core.security.support.ManagedServiceAccountIdValidator;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 
-public class TransportDeleteServiceAccountTokenAction extends HandledTransportAction<
+public class TransportDeleteManagedServiceAccountTokenAction extends HandledTransportAction<
     DeleteServiceAccountTokenRequest,
     DeleteServiceAccountTokenResponse> {
 
     private final ServiceAccountService serviceAccountService;
 
     @Inject
-    public TransportDeleteServiceAccountTokenAction(
+    public TransportDeleteManagedServiceAccountTokenAction(
         TransportService transportService,
         ActionFilters actionFilters,
         ServiceAccountService serviceAccountService
     ) {
         super(
-            DeleteServiceAccountTokenAction.NAME,
+            DeleteManagedServiceAccountTokenAction.NAME,
             transportService,
             actionFilters,
             DeleteServiceAccountTokenRequest::new,
@@ -48,14 +48,9 @@ public class TransportDeleteServiceAccountTokenAction extends HandledTransportAc
         DeleteServiceAccountTokenRequest request,
         ActionListener<DeleteServiceAccountTokenResponse> listener
     ) {
-        if (ManagedServiceAccountIdValidator.BUILTIN_NAMESPACE.equals(request.getNamespace()) == false) {
-            listener.onFailure(
-                new IllegalArgumentException(
-                    "built-in service account token deletion only supports the ["
-                        + ManagedServiceAccountIdValidator.BUILTIN_NAMESPACE
-                        + "] namespace"
-                )
-            );
+        final String namespaceError = ManagedServiceAccountIdValidator.validateNamespace(request.getNamespace());
+        if (namespaceError != null) {
+            listener.onFailure(new IllegalArgumentException(namespaceError));
             return;
         }
         serviceAccountService.deleteIndexToken(

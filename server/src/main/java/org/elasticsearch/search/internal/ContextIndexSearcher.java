@@ -80,7 +80,15 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     @Nullable
     private CircuitBreaker circuitBreaker;
 
-    private final ThreadLocal<long[]> leafExecutionBytes = ThreadLocal.withInitial(() -> new long[1]);
+    // ContextIndexSearcher instances are request-scoped while the threads executing their leaves are long-lived.
+    // Keep the ThreadLocal key static so completed requests cannot leave stale weak keys in worker ThreadLocalMaps.
+    // The active searcher prevents one searcher's leaf from releasing another searcher's out-of-band charge.
+    private static final ThreadLocal<LeafExecutionState> LEAF_EXECUTION_STATE = ThreadLocal.withInitial(LeafExecutionState::new);
+
+    private static final class LeafExecutionState {
+        private ContextIndexSearcher activeSearcher;
+        private long bytes;
+    }
 
     private final AtomicLong outstandingPointRangeExecutionBytes = new AtomicLong();
 
@@ -202,9 +210,9 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     /**
-     * Reserve {@code bytes} of point-range execution RAM on the request breaker for the leaf currently
-     * being scored on this thread, recording it so {@link #searchLeaf} can release it once the leaf is
-     * done. No-op when no breaker is configured or {@code bytes <= 0}. Propagates
+     * Reserve {@code bytes} of point-range execution RAM on the request breaker. When this searcher is
+     * scoring the current leaf, record the charge so {@link #searchLeaf} can release it once the leaf is
+     * done; otherwise {@link #close()} releases it. No-op when no breaker is configured or {@code bytes <= 0}. Propagates
      * {@link org.elasticsearch.common.breaker.CircuitBreakingException} when the reservation trips the
      * breaker; in that case nothing is recorded because the breaker did not commit the bytes.
      */
@@ -213,30 +221,27 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             return;
         }
         circuitBreaker.addEstimateBytesAndMaybeBreak(bytes, "pointrange-execution");
-        leafExecutionBytes.get()[0] += bytes;
+        LeafExecutionState state = LEAF_EXECUTION_STATE.get();
+        if (state.activeSearcher == this) {
+            state.bytes += bytes;
+        }
         outstandingPointRangeExecutionBytes.addAndGet(bytes);
     }
 
     /**
-     * Release any point-range execution RAM charged on this thread since {@code baseline} (the value
-     * returned by an earlier {@link #leafExecutionBytesBaseline()} call), returning the tally to that
-     * baseline. Called from a {@code finally} block in {@link #searchLeaf}.
+     * Release any point-range execution RAM charged to the current leaf since {@code baseline}, returning
+     * the tally to that baseline. Called from a {@code finally} block in {@link #searchLeaf}.
      */
-    private void releaseLeafExecutionBytes(long baseline) {
+    private void releaseLeafExecutionBytes(LeafExecutionState state, long baseline) {
         if (circuitBreaker == null) {
             return;
         }
-        long[] holder = leafExecutionBytes.get();
-        long toRelease = holder[0] - baseline;
+        long toRelease = state.bytes - baseline;
         if (toRelease > 0L) {
             circuitBreaker.addWithoutBreaking(-toRelease);
             outstandingPointRangeExecutionBytes.addAndGet(-toRelease);
         }
-        holder[0] = baseline;
-    }
-
-    private long leafExecutionBytesBaseline() {
-        return circuitBreaker == null ? 0L : leafExecutionBytes.get()[0];
+        state.bytes = baseline;
     }
 
     /**
@@ -564,7 +569,12 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     protected void searchLeaf(LeafReaderContext ctx, int minDocId, int maxDocId, Weight weight, Collector collector) throws IOException {
         cancellable.checkCancelled();
 
-        final long leafExecutionBaseline = leafExecutionBytesBaseline();
+        final LeafExecutionState leafExecutionState = circuitBreaker == null ? null : LEAF_EXECUTION_STATE.get();
+        final ContextIndexSearcher previousLeafSearcher = leafExecutionState == null ? null : leafExecutionState.activeSearcher;
+        final long leafExecutionBaseline = leafExecutionState == null ? 0L : leafExecutionState.bytes;
+        if (leafExecutionState != null) {
+            leafExecutionState.activeSearcher = this;
+        }
         try {
             final LeafCollector leafCollector;
             try {
@@ -614,7 +624,13 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             // This includes any collection that was terminated early via `CollectionTerminatedException`
             leafCollector.finish();
         } finally {
-            releaseLeafExecutionBytes(leafExecutionBaseline);
+            if (leafExecutionState != null) {
+                try {
+                    releaseLeafExecutionBytes(leafExecutionState, leafExecutionBaseline);
+                } finally {
+                    leafExecutionState.activeSearcher = previousLeafSearcher;
+                }
+            }
         }
     }
 

@@ -42,6 +42,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.lang.reflect.Modifier;
 import java.util.Collection;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -84,6 +85,12 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
     @After
     public void closeDirectoryAndReader() throws Exception {
         IOUtils.close(reader, directory);
+    }
+
+    public void testLeafExecutionAccountingUsesStableThreadLocalKey() throws NoSuchFieldException {
+        var field = ContextIndexSearcher.class.getDeclaredField("LEAF_EXECUTION_STATE");
+        assertTrue("the ThreadLocal key must outlive request-scoped searchers", Modifier.isStatic(field.getModifiers()));
+        assertTrue("the shared ThreadLocal key must not be replaceable", Modifier.isFinal(field.getModifiers()));
     }
 
     public void testDenseRangeChargesAndReleasesAcrossSearch() throws IOException {
@@ -162,6 +169,42 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
         assertThat("closing the searcher must release the residual out-of-band charge", breaker.getUsed(), equalTo(0L));
     }
 
+    public void testActiveLeafDoesNotReleaseAnotherSearchersOutOfBandCharge() throws IOException {
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
+        ContextIndexSearcher activeSearcher = new ContextIndexSearcher(
+            reader,
+            IndexSearcher.getDefaultSimilarity(),
+            null,
+            IndexSearcher.getDefaultQueryCachingPolicy(),
+            false
+        );
+        ContextIndexSearcher outOfBandSearcher = new ContextIndexSearcher(
+            reader,
+            IndexSearcher.getDefaultSimilarity(),
+            null,
+            IndexSearcher.getDefaultQueryCachingPolicy(),
+            false
+        );
+        activeSearcher.setCircuitBreaker(breaker);
+        outOfBandSearcher.setCircuitBreaker(breaker);
+
+        int hits;
+        long usedAfterSearch;
+        try {
+            Query dense = LongPoint.newRangeQuery(FIELD, 0L, (NUM_DOCS * 3 / 4));
+            Weight outOfBandWeight = outOfBandSearcher.createWeight(outOfBandSearcher.rewrite(dense), ScoreMode.COMPLETE_NO_SCORES, 1.0f);
+            hits = activeSearcher.search(new TermQuery(new Term(KEYWORD_FIELD, RARE_TERM)), new CountingCollectorManager(outOfBandWeight));
+            usedAfterSearch = breaker.getUsed();
+        } finally {
+            activeSearcher.close();
+            outOfBandSearcher.close();
+        }
+
+        assertThat("the active search must collect documents", hits, greaterThan(0));
+        assertThat("the active leaf must not release the other searcher's out-of-band charge", usedAfterSearch, greaterThan(0L));
+        assertThat("closing both searchers must release the charge exactly once", breaker.getUsed(), equalTo(0L));
+    }
+
     public void testOutOfBandChargeOnAnotherThreadReleasedOnClose() throws Exception {
         TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
         ContextIndexSearcher searcher = new ContextIndexSearcher(
@@ -189,8 +232,7 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
         }
 
         assertThat("the worker thread's out-of-band scorer must charge execution RAM", breaker.getUsed(), greaterThan(0L));
-        // close() runs on the test thread, which never charged anything, so its own thread-local is empty;
-        // the release must come from the shared cross-thread counter.
+        // close() runs on a different thread, so the release must come from the shared cross-thread counter.
         searcher.close();
         assertThat("closing on a different thread must still release the worker thread's charge", breaker.getUsed(), equalTo(0L));
     }
@@ -260,9 +302,19 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
     }
 
     private static final class CountingCollectorManager implements CollectorManager<CountingCollector, Integer> {
+        private final Weight outOfBandWeight;
+
+        CountingCollectorManager() {
+            this(null);
+        }
+
+        CountingCollectorManager(Weight outOfBandWeight) {
+            this.outOfBandWeight = outOfBandWeight;
+        }
+
         @Override
         public CountingCollector newCollector() {
-            return new CountingCollector();
+            return new CountingCollector(outOfBandWeight);
         }
 
         @Override
@@ -276,10 +328,21 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
     }
 
     private static final class CountingCollector implements Collector {
+        private final Weight outOfBandWeight;
         private int count;
 
+        CountingCollector(Weight outOfBandWeight) {
+            this.outOfBandWeight = outOfBandWeight;
+        }
+
         @Override
-        public LeafCollector getLeafCollector(LeafReaderContext context) {
+        public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
+            if (outOfBandWeight != null) {
+                ScorerSupplier scorerSupplier = outOfBandWeight.scorerSupplier(context);
+                if (scorerSupplier != null) {
+                    scorerSupplier.get(Long.MAX_VALUE);
+                }
+            }
             return new LeafCollector() {
                 @Override
                 public void setScorer(Scorable scorer) {}

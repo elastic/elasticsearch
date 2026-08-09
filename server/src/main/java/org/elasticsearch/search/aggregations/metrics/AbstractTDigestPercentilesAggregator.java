@@ -111,7 +111,7 @@ abstract class AbstractTDigestPercentilesAggregator extends NumericMetricsAggreg
      * the context is still open. Returns {@code null} if the bucket was never collected or already taken.
      */
     @Nullable
-    protected HistogramUnionState takeState(long bucketOrd) {
+    protected final HistogramUnionState takeState(long bucketOrd) {
         if (bucketOrd >= states.size()) {
             return null;
         }

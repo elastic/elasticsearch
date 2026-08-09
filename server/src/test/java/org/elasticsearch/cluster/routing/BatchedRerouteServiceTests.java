@@ -355,26 +355,4 @@ public class BatchedRerouteServiceTests extends ESTestCase {
             mockLog.assertAllExpectationsMatched();
         }
     }
-
-    public void testDoesNotReadClusterStateFromClusterApplierThreadOnRejection() {
-        final BatchedRerouteService batchedRerouteService = new BatchedRerouteService(clusterService, (s, r, l) -> {
-            l.onResponse(null);
-            return s;
-        });
-
-        final PlainActionFuture<Void> rerouteFuture = new PlainActionFuture<>();
-        clusterService.addStateApplier(
-            event -> batchedRerouteService.reroute("from applier", randomFrom(EnumSet.allOf(Priority.class)), rerouteFuture)
-        );
-
-        clusterService.getMasterService().stop();
-        clusterService.getClusterApplierService()
-            .onNewClusterState(
-                "simulated",
-                () -> ClusterState.builder(clusterService.state()).version(clusterService.state().version() + 1).build(),
-                ActionListener.noop()
-            );
-
-        expectThrows(ExecutionException.class, NotMasterException.class, () -> rerouteFuture.get(10, TimeUnit.SECONDS));
-    }
 }

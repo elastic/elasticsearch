@@ -200,8 +200,6 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
                 aggregator.postCollection();
                 aggregator.buildTopLevel();
             }
-            // takeState() releases bytes while the PreallocatedCircuitBreaker is still open.
-            // After the context closes nothing should remain on the REQUEST breaker.
             assertThat(breakerService.getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
         });
     }
@@ -251,7 +249,6 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
 
         withSequentialIndex(500, reader -> {
             expectThrows(CircuitBreakingException.class, () -> collectWithBreaker(reader, breakerService, aggBuilder, fieldType));
-            // doClose() must return all partial bytes; nothing should remain on the breaker.
             assertThat(breakerService.getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
         });
     }

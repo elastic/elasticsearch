@@ -1938,12 +1938,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         final EscfColumnBuilder counts = mergeLongColumn();
         final BytesRef nullValueBytes = builder.nullValue.get() != null ? new BytesRef(builder.nullValue.get()) : null;
 
-        // Batch-scoped blob buffer. Each document's slots are appended here as they are read and the finished blob is
-        // handed to keyed.setString, which copies it out immediately — so the buffer is free to be rewritten from
-        // position 0 for the next document.
         final BytesRefBuilder docBlob = new BytesRefBuilder();
-        // Seed the buffer from the first document. Every cursor is parked on its first tuple and value() is a
-        // non-advancing read, so this peeks one slot per key without disturbing the iteration below.
         int seedEstimate = 0;
         for (int k = 0; k < columnCount; k++) {
             if (cursorDocs[k] != DocIdSetIterator.NO_MORE_DOCS) {

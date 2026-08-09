@@ -654,12 +654,6 @@ public class MultiValuedBinaryDocValuesFieldTests extends ESTestCase {
         assertEquals(appendSlotsInto(new BytesRefBuilder(), shortDoc, 2), second);
     }
 
-    /**
-     * {@code ArrayOrderInlineNull} stores a lone non-null slot raw, with no length prefix. {@code appendSlot} always writes the prefix,
-     * so callers recover the raw value as the sub-range ending at the returned position. {@code KeywordFieldMapper} relies on exactly
-     * this arithmetic ({@code firstValueStart = pos - value.length}) to emit single-slot documents, so pin it here. The long value
-     * forces a multi-byte length prefix, which is where a hand-rolled offset would go wrong.
-     */
     public void testArrayOrderAppendSlotValueEndsAtReturnedPosition() {
         for (BytesRef only : List.of(new BytesRef("solo"), new BytesRef(randomAlphanumericOfLength(500)))) {
             BytesRefBuilder blob = new BytesRefBuilder();

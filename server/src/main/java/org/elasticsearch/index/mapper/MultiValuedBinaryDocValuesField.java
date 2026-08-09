@@ -37,7 +37,6 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
 
     // vints are unlike normal ints in that they may require 5 bytes instead of 4
     // see BytesStreamOutput.writeVInt()
-    // Public so batch-mapping callers can size a blob buffer up front from the slot count.
     public static final int VINT_MAX_BYTES = 5;
 
     /**
@@ -712,9 +711,6 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
          * <p>Same wire format as {@link #encode(ArrayList, BitSet)}: {@code [valueLen+1][key\0value]}, with
          * {@code [0][key\0]} for a null slot. Every slot carries a VInt prefix (no single-slot raw passthrough);
          * the separator byte is always written; slot order is load-bearing.
-         *
-         * <p>The value bytes are copied immediately, so a caller streaming from a cursor may advance it as soon as
-         * this returns — no value needs to outlive the read.
          */
         public static int appendSlot(BytesRefBuilder blob, int pos, BytesRef keyPrefix, BytesRef value) {
             assert keyPrefix.length > 0 && keyPrefix.bytes[keyPrefix.offset + keyPrefix.length - 1] == 0

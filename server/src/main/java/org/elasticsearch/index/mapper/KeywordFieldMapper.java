@@ -1575,9 +1575,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         // strings. This is possible as an eventual user option.
 
         if (fieldType().usesArrayOrderBinaryDocValues()) {
-            // retainValues=false: mapColumnBatchArrayOrder appends each value to the document blob before the
-            // cursor advances, so no value has to outlive the nextDoc() that moves past it.
-            mapColumnBatchArrayOrder(ctx, EscfColumnTransforms.utf8Cursor(source, false), emitTerms, emitDvs, emitFallback);
+            mapColumnBatchArrayOrder(ctx, source, emitTerms, emitDvs, emitFallback);
         } else {
             mapColumnBatchSingleValue(ctx, source, emitTerms, emitDvs, emitFallback);
         }
@@ -1585,13 +1583,16 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     private void mapColumnBatchArrayOrder(
         BatchMappingContext ctx,
-        ObjectTupleCursor<BytesRef> cursor,
+        EscfColumn source,
         boolean emitTerms,
         boolean emitDvs,
         boolean emitFallback
     ) {
         final int docCount = ctx.docCount();
 
+        // retainValues=false: each value is appended to the document blob before the cursor advances, so no
+        // value has to outlive the nextDoc() that moves past it.
+        final ObjectTupleCursor<BytesRef> cursor = EscfColumnTransforms.utf8Cursor(source, false);
         // TODO: make the batch return these column builders to wire up recycling
         final EscfColumnBuilder terms = emitTerms ? mergeStringColumn() : null;
         final EscfColumnBuilder binaryDvs = emitDvs ? mergeStringColumn() : null;
@@ -1608,8 +1609,6 @@ public final class KeywordFieldMapper extends FieldMapper {
         final BytesRefBuilder docBlob = emitDvs ? new BytesRefBuilder() : null;
         int pos = 0;
         int docSlotCount = 0;
-        // Length of the most recent value slot. Only read when the finished doc holds exactly one slot, in which case
-        // that slot was this one, and it is stored raw without the length prefix appendSlot wrote for it.
         int lastValueLength = 0;
         // True when the current doc has at least one non-null slot; gates binary dv blob emission.
         boolean hasNonNull = false;

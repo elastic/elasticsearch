@@ -285,11 +285,6 @@ public final class EscfColumnBuilder {
         setBytes(row, EscfColumnKind.STRING, value.bytes, value.offset, value.length);
     }
 
-    /**
-     * Sets a string from a sub-range of a caller-owned array. Lets callers that assemble values in a reusable buffer emit a slice
-     * without wrapping it in a {@link BytesRef} first; the bytes are copied out before this returns, so the buffer may be rewritten
-     * immediately.
-     */
     public void setString(int row, byte[] bytes, int offset, int length) {
         setBytes(row, EscfColumnKind.STRING, bytes, offset, length);
     }

@@ -102,6 +102,7 @@ public class Warnings {
     private final String location;
     private final String firstExceptionWarning;
     private final String nonExceptionWarningPrefix;
+    private final Set<String> emittedExceptionWarnings = new HashSet<>();
     private final Set<String> emittedNonExceptionWarnings = new HashSet<>();
 
     private int addedWarnings;
@@ -131,18 +132,23 @@ public class Warnings {
     /**
      * Register an exception to be included in the warnings.
      * <p>
+     *     Repeated exceptions with the same class and message are emitted only once so that a
+     *     recurring failure does not consume the warning limit.
+     * </p>
+     * <p>
      *     This overload avoids the need to instantiate the exception, which can be expensive.
      *     Instead, it asks only the required pieces to build the warning.
      * </p>
      */
     public void registerException(Class<? extends Exception> exceptionClass, String message) {
-        if (addedWarnings < MAX_ADDED_WARNINGS) {
+        String exceptionWarning = exceptionClass.getName() + ": " + message;
+        if (addedWarnings < MAX_ADDED_WARNINGS && emittedExceptionWarnings.add(exceptionWarning)) {
             if (exceptionWarningEmitted == false) {
                 exceptionWarningEmitted = true;
                 addWarning(firstExceptionWarning);
             }
             // location needs to be added to the exception too, since the headers are deduplicated
-            addWarning(location + exceptionClass.getName() + ": " + message);
+            addWarning(location + exceptionWarning);
             addedWarnings++;
         }
     }

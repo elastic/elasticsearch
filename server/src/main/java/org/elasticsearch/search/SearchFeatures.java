@@ -68,6 +68,14 @@ public final class SearchFeatures implements FeatureSpecification {
     public static final NodeFeature DATE_HISTOGRAM_HARD_BOUNDS_OUTSIDE_DATA_FIX = new NodeFeature(
         "search.aggs.date_histogram.hard_bounds_outside_data_fix"
     );
+    /**
+     * Test-only gate for REST tests asserting that a user-mapped field named {@code _type} is not
+     * surfaced as root-level hit metadata. Old nodes included it in the default metadata fetch
+     * regardless of whether it was a real metadata mapper.
+     */
+    public static final NodeFeature FETCH_FIELDS_EXCLUDES_NON_METADATA_TYPE = new NodeFeature(
+        "search.fetch_fields.excludes_non_metadata_type"
+    );
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -97,7 +105,8 @@ public final class SearchFeatures implements FeatureSpecification {
             EXPONENTIAL_HISTOGRAM_QUERYDSL_RANGE,
             EXPONENTIAL_HISTOGRAM_UPSCALING_REMOVED,
             DEFAULT_DISK_BBQ,
-            DATE_HISTOGRAM_HARD_BOUNDS_OUTSIDE_DATA_FIX
+            DATE_HISTOGRAM_HARD_BOUNDS_OUTSIDE_DATA_FIX,
+            FETCH_FIELDS_EXCLUDES_NON_METADATA_TYPE
         );
     }
 }

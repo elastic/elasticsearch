@@ -137,7 +137,7 @@ public class TimeSeriesRunTableOrdinalFullClusterRestartIT extends Parameterized
         assertSortByTimestampDescendingOrdered(index);
         assertFirstDocByTimestampAsc(index);
 
-        assertThat(getFlatIndexSettings(index).get("index.time_series.run_table_ordinal.enabled"), Matchers.equalTo("true"));
+        assertThat(getFlatIndexSettingsWithDefaults(index).get("index.time_series.run_table_ordinal.enabled"), Matchers.equalTo("true"));
     }
 
     public void testExplicitOptInNewIndex() throws IOException {
@@ -557,6 +557,19 @@ public class TimeSeriesRunTableOrdinalFullClusterRestartIT extends Parameterized
         final Map<String, Object> response = entityAsMap(client().performRequest(request));
         final Map<String, Object> indexResponse = (Map<String, Object>) response.get(indexName);
         return (Map<String, Object>) indexResponse.get("settings");
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> getFlatIndexSettingsWithDefaults(final String indexName) throws IOException {
+        final Request request = new Request("GET", "/" + indexName + "/_settings?flat_settings&include_defaults=true");
+        final Map<String, Object> response = entityAsMap(client().performRequest(request));
+        final Map<String, Object> indexResponse = (Map<String, Object>) response.get(indexName);
+        final Map<String, Object> defaults = (Map<String, Object>) indexResponse.get("defaults");
+        final Map<String, Object> settings = new java.util.HashMap<>((Map<String, Object>) indexResponse.get("settings"));
+        if (defaults != null) {
+            settings.putAll(defaults);
+        }
+        return settings;
     }
 
     private static void requireRunTableOrdinal() {

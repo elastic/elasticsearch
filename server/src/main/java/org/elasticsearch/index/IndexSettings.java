@@ -1123,7 +1123,7 @@ public final class IndexSettings {
     );
 
     private static boolean runTableOrdinalEnabledByDefault(final Settings settings) {
-        if (settings == null || MODE.get(settings) != IndexMode.TIME_SERIES) {
+        if (settings == null || MODE.get(settings).isTsdb() == false) {
             return false;
         }
         return ES95_RUNTABLE_ENCODING_FEATURE_FLAG.isEnabled();

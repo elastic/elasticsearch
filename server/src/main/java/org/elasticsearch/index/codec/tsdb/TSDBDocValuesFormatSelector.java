@@ -12,7 +12,6 @@ package org.elasticsearch.index.codec.tsdb;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.elasticsearch.cluster.routing.TsidBuilder;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -69,6 +68,6 @@ public final class TSDBDocValuesFormatSelector {
     }
 
     static boolean useES95RunTable(final IndexSettings indexSettings) {
-        return indexSettings.getMode() == IndexMode.TIME_SERIES && indexSettings.isTimeSeriesRunTableOrdinalEnabled();
+        return indexSettings.getMode().isTsdb() && indexSettings.isTimeSeriesRunTableOrdinalEnabled();
     }
 }

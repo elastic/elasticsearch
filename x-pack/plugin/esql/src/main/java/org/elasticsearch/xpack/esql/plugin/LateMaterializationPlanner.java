@@ -193,7 +193,10 @@ public class LateMaterializationPlanner {
                 ctx,
                 originalPlan,
                 expectedDataOutput,
-                plan -> plan.transformDown(LimitByExec.class, t -> t.replaceChild(new ExchangeSourceExec(limitBy.source(), expectedDataOutput, false)))
+                plan -> plan.transformDown(
+                    LimitByExec.class,
+                    t -> t.replaceChild(new ExchangeSourceExec(limitBy.source(), expectedDataOutput, false))
+                )
             )
         );
     }
@@ -215,7 +218,7 @@ public class LateMaterializationPlanner {
         }
 
         LogicalPlan pipelineBreaker = topLevelProject.child();
-        LocalPhysicalOptimizerContext context = contextFactory.apply(SEARCH_STATS_TOP_N_REPLACEMENT);
+        LocalPhysicalOptimizerContext context = contextFactory.apply(SEARCH_STATS_LATE_MATERIALIZATION_REPLACEMENT);
 
         List<Attribute> physicalPlanOutput = toNonOptimizedPhysicalDataPlan(pipelineBreaker, context).output();
         Attribute doc = physicalPlanOutput.stream().filter(EsQueryExec::isDocAttribute).findFirst().orElse(null);
@@ -285,7 +288,7 @@ public class LateMaterializationPlanner {
 
     // We don't have real search stats during the reduce planning phase, so we assume all fields exist and have no other meaningful stats.
     // The local data optimizer will use the real statistics.
-    private static final SearchStats SEARCH_STATS_TOP_N_REPLACEMENT = new SearchStats.UnsupportedSearchStats() {
+    private static final SearchStats SEARCH_STATS_LATE_MATERIALIZATION_REPLACEMENT = new SearchStats.UnsupportedSearchStats() {
         @Override
         public boolean exists(FieldAttribute.FieldName field) {
             return true;

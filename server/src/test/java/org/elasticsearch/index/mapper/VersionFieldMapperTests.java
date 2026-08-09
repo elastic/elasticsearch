@@ -18,6 +18,8 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.index.engine.EngineTestCase;
+import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.Source;
@@ -88,7 +90,8 @@ public class VersionFieldMapperTests extends MetadataMapperTestCase {
         assertTrue("supportsColumnarParse must be true for _version", mapper.supportsColumnarParse(mapperService.getIndexSettings()));
 
         IndexRequest[] requests = new IndexRequest[] { new IndexRequest("index").id("1"), new IndexRequest("index").id("2") };
-        BatchMappingContext context = new BatchMappingContext(requests, mapperService.mappingLookup(), mapperService.getIndexSettings());
+        IndexOperationBatch batch = EngineTestCase.initFromRequests(requests);
+        BatchMappingContext context = new BatchMappingContext(batch, mapperService.mappingLookup(), mapperService.getIndexSettings());
 
         mapper.preColumnarParse(context);
 

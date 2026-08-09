@@ -78,7 +78,8 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
             taskQueue.getThreadPool(),
             DefaultProjectResolver.INSTANCE,
             clusterService,
-            RecoverySchedulingListener.NOOP
+            RecoverySchedulingListener.NOOP,
+            new RecoveryGateMonitor(() -> List.of(), taskQueue.getThreadPool())
         );
         throttlingRecoveryService.start();
         action = new TransportCancelRecoveriesAction(
@@ -424,7 +425,8 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
             true,
             new RecoverySource.ReshardSplitRecoverySource(shardId),
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "test"),
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
         ).initialize(randomIdentifier(), allocationId, 0L);
 
         when(indicesService.indexServiceSafe(shardId.getIndex())).thenReturn(indexService);
@@ -528,7 +530,8 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
             true,
             RecoverySource.EmptyStoreRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "test"),
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
         ).initialize(randomIdentifier(), allocationId, 0L);
         when(indexShard.shardId()).thenReturn(shardId);
         when(indexShard.routingEntry()).thenReturn(routing);

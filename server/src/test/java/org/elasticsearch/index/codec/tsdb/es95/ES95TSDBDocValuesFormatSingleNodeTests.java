@@ -23,7 +23,6 @@ public class ES95TSDBDocValuesFormatSingleNodeTests extends AbstractTSDBDocValue
         return Settings.builder()
             .put(super.tsdbSettings())
             .put(IndexSettings.TIME_SERIES_ES95_CODEC_ENABLED_SETTING.getKey(), true)
-            .put(IndexSettings.TIME_SERIES_RUN_TABLE_ORDINAL_ENABLED_SETTING.getKey(), false)
             .build();
     }
 

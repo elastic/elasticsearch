@@ -1621,10 +1621,7 @@ public class SharedBlobCacheWarmingService {
                 (double) byteRangeToWarm.length() / blobSize,
                 Map.of(BCC_SIZE_ATTRIBUTE_KEY, bccSizeBucket(blobSize))
             );
-            warmingRequestedBytesTotalMetric.incrementBy(
-                byteRangeToWarm.length(),
-                Map.of(BCC_SIZE_ATTRIBUTE_KEY, bccSizeBucket(blobSize))
-            );
+            warmingRequestedBytesTotalMetric.incrementBy(byteRangeToWarm.length(), Map.of(BCC_SIZE_ATTRIBUTE_KEY, bccSizeBucket(blobSize)));
             logger.log(
                 duration >= 5000 ? Level.INFO : Level.DEBUG,
                 "offline warming {} {} warming {} completed in {} ms ({}, {} tasks, {} bytes copied to cache)",

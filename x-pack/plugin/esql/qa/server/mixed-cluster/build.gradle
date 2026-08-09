@@ -49,6 +49,7 @@ esqlCsvSpecTests {
     specFilesDir = project(xpackModule('esql:qa:testFixtures')).file('src/main/resources')
     packageName = 'org.elasticsearch.xpack.esql.qa.mixed'
     variant 'MixedClusterEsqlSpec', 'AbstractMixedClusterEsqlSpecIT'
+    variant 'MixedClusterEsqlOldCoordinatorSpec', 'AbstractMixedClusterEsqlOldCoordinatorSpecIT'
 }
 
 // ESQL is available in 8.11 or later
@@ -75,6 +76,19 @@ buildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseN
     testClassesDirs = sourceSets.csvSpecTest.output.classesDirs
     classpath = sourceSets.csvSpecTest.runtimeClasspath
     dependsOn generateEsqlSpecTests
+    // Restrict to the random-coordinator variant; the old-coordinator classes run under csvSpecTestsOldCoordinator.
+    include '**/MixedClusterEsqlSpec*IT.class'
+  }
+
+  def csvSpecTestOldCoordinator = tasks.register("v${bwcVersion}#csvSpecTestsOldCoordinator", StandaloneRestIntegTestTask) {
+    usesBwcDistribution(bwcVersion)
+    systemProperty("tests.old_cluster_version", bwcVersion)
+    // AbstractMixedClusterEsqlOldCoordinatorSpecIT also uses shared(true), incompatible with parallel forks
+    maxParallelForks = 1
+    testClassesDirs = sourceSets.csvSpecTest.output.classesDirs
+    classpath = sourceSets.csvSpecTest.runtimeClasspath
+    dependsOn generateEsqlSpecTests
+    include '**/MixedClusterEsqlOldCoordinatorSpec*IT.class'
   }
 
   def yamlRestTest = tasks.register("v${bwcVersion}#yamlRestTest", StandaloneRestIntegTestTask) {
@@ -85,7 +99,7 @@ buildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseN
   }
 
   tasks.register(bwcTaskName(bwcVersion)) {
-    dependsOn javaRestTest, csvSpecTest, yamlRestTest
+    dependsOn javaRestTest, csvSpecTest, csvSpecTestOldCoordinator, yamlRestTest
   }
 }
 

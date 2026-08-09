@@ -58,6 +58,27 @@ public final class AsymmetricHashingScorer {
         int nDims = codes.length;
         int planeBytes = (nDims + 7) >>> 3;
         byte[] packed = new byte[bitsPerDim * planeBytes];
+        pack(codes, bitsPerDim, packed, 0);
+        return packed;
+    }
+
+    /**
+     * Packs multi-bit quantized codes into a pre-allocated byte buffer at the given offset.
+     * The target region is zeroed before writing. This avoids per-vector allocation in bulk encoding loops.
+     *
+     * @param codes float array of quantized levels from {@code AshSphericalScalarQuantizer}
+     * @param bitsPerDim number of bits per dimension
+     * @param target pre-allocated byte buffer to write into
+     * @param targetOffset starting byte offset within target
+     */
+    public static void pack(float[] codes, int bitsPerDim, byte[] target, int targetOffset) {
+        int nDims = codes.length;
+        int planeBytes = (nDims + 7) >>> 3;
+        int totalBytes = bitsPerDim * planeBytes;
+        // Zero the target range
+        for (int i = 0; i < totalBytes; i++) {
+            target[targetOffset + i] = 0;
+        }
         int numLevels = 1 << bitsPerDim;
         float offset = (numLevels - 1) / 2.0f;
         for (int j = 0; j < nDims; j++) {
@@ -68,11 +89,10 @@ public final class AsymmetricHashingScorer {
             int bitIdx = 7 - (j & 7); // MSB-first
             for (int p = 0; p < bitsPerDim; p++) {
                 if ((unsigned & (1 << p)) != 0) {
-                    packed[p * planeBytes + byteIdx] |= (byte) (1 << bitIdx);
+                    target[targetOffset + p * planeBytes + byteIdx] |= (byte) (1 << bitIdx);
                 }
             }
         }
-        return packed;
     }
 
     /**
@@ -87,7 +107,8 @@ public final class AsymmetricHashingScorer {
      *
      * @param queryTransformed precomputed query @ W (raw projection, not centered)
      * @param queryDotCentroid precomputed query . centroid for this cluster
-     * @param packedCodes bit-plane packed codes
+     * @param packedCodes byte buffer containing packed codes (may contain multiple vectors)
+     * @param codeOffset starting byte offset for this vector's codes within the buffer
      * @param nDims number of projected dimensions
      * @param bitsPerDim bits per dimension
      * @param scale the scale factor for this vector
@@ -98,6 +119,7 @@ public final class AsymmetricHashingScorer {
         float[] queryTransformed,
         float queryDotCentroid,
         byte[] packedCodes,
+        int codeOffset,
         int nDims,
         int bitsPerDim,
         float scale,
@@ -116,13 +138,12 @@ public final class AsymmetricHashingScorer {
             int byteIdx = j >>> 3;
             int bitIdx = 7 - (j & 7);
             for (int p = 0; p < bitsPerDim; p++) {
-                if ((packedCodes[p * planeBytes + byteIdx] & (1 << bitIdx)) != 0) {
+                if ((packedCodes[codeOffset + p * planeBytes + byteIdx] & (1 << bitIdx)) != 0) {
                     planeSums[p] += qt;
                 }
             }
         }
 
-        // unsigned dot = sum_p (2^p * planeSums[p]); centered dot = unsigned dot - centerOffset * sumAll
         double dot = -centerOffset * sumAll;
         for (int p = 0; p < bitsPerDim; p++) {
             dot += (1 << p) * planeSums[p];

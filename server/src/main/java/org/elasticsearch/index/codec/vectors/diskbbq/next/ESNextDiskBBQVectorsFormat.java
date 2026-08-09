@@ -20,6 +20,7 @@ import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.diskbbq.CentroidIndexFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfFlushConfigSource;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfMergeConfigResolver;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfSegmentConfig;
 import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
 import org.elasticsearch.index.codec.vectors.es93.DirectIOCapableLucene99FlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93BFloat16FlatVectorsFormat;
@@ -100,6 +101,13 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
     public static final int MAX_PRECONDITIONING_BLOCK_DIMS = 384;
     public static final int MAX_DIMENSIONS = 4096;
 
+    // ASH (Asymmetric Scalar Hashing) defaults — canonical values defined in IvfSegmentConfig
+    public static final float DEFAULT_ASH_PROJECTED_DIMS_FRACTION = IvfSegmentConfig.DEFAULT_ASH_PROJECTED_DIMS_FRACTION;
+    public static final int DEFAULT_ASH_BITS_PER_DIM = IvfSegmentConfig.DEFAULT_ASH_BITS_PER_DIM;
+    public static final int DEFAULT_ASH_TRAINING_ITERATIONS = IvfSegmentConfig.DEFAULT_ASH_TRAINING_ITERATIONS;
+    public static final int DEFAULT_ASH_TRAINING_FACTOR = IvfSegmentConfig.DEFAULT_ASH_TRAINING_FACTOR;
+    public static final long DEFAULT_ASH_SEED = IvfSegmentConfig.DEFAULT_ASH_SEED;
+
     private final CentroidIndexFormat centroidIndexFormat = CentroidIndexFormat.FLAT;
     private final QuantEncoding quantEncoding;
     private final int vectorPerCluster;
@@ -114,6 +122,12 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
     private final String sliceField;
     private final IvfFlushConfigSource ivfFlushConfigSource;
     private final IvfMergeConfigResolver ivfMergeConfigResolver;
+    private final boolean useAsh;
+    private final float ashProjectedDimsFraction;
+    private final int ashBitsPerDim;
+    private final int ashTrainingIterations;
+    private final int ashTrainingFactor;
+    private final long ashSeed;
 
     public ESNextDiskBBQVectorsFormat(int vectorPerCluster, int centroidsPerParentCluster, String sliceField) {
         this(QuantEncoding.ONE_BIT_4BIT_QUERY, vectorPerCluster, centroidsPerParentCluster, sliceField);
@@ -133,7 +147,8 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
             defaultFlatThreshold(vectorPerCluster),
             sliceField,
             IvfFlushConfigSource.empty(),
-            IvfMergeConfigResolver.useCodecDefault()
+            IvfMergeConfigResolver.useCodecDefault(),
+            false
         );
     }
 
@@ -162,7 +177,8 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
             defaultFlatThreshold(vectorPerCluster),
             sliceField,
             IvfFlushConfigSource.empty(),
-            IvfMergeConfigResolver.useCodecDefault()
+            IvfMergeConfigResolver.useCodecDefault(),
+            false
         );
     }
 
@@ -192,13 +208,15 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
             flatVectorThreshold,
             sliceField,
             IvfFlushConfigSource.empty(),
-            IvfMergeConfigResolver.useCodecDefault()
+            IvfMergeConfigResolver.useCodecDefault(),
+            false
         );
     }
 
     /**
      * @param ivfFlushConfigSource optional per-field config on flush ({@code null} uses writer default)
      * @param ivfMergeConfigResolver optional merged config on merge ({@code null} uses writer default)
+     * @param useAsh whether to enable ASH (Asymmetric Scalar Hashing) for this format
      */
     public ESNextDiskBBQVectorsFormat(
         QuantEncoding quantEncoding,
@@ -213,7 +231,8 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
         int flatVectorThreshold,
         String sliceField,
         IvfFlushConfigSource ivfFlushConfigSource,
-        IvfMergeConfigResolver ivfMergeConfigResolver
+        IvfMergeConfigResolver ivfMergeConfigResolver,
+        boolean useAsh
     ) {
         super(NAME);
         if (vectorPerCluster < MIN_VECTORS_PER_CLUSTER || vectorPerCluster > MAX_VECTORS_PER_CLUSTER) {
@@ -270,6 +289,12 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
         this.sliceField = sliceField;
         this.ivfFlushConfigSource = ivfFlushConfigSource;
         this.ivfMergeConfigResolver = ivfMergeConfigResolver;
+        this.useAsh = useAsh;
+        this.ashProjectedDimsFraction = DEFAULT_ASH_PROJECTED_DIMS_FRACTION;
+        this.ashBitsPerDim = DEFAULT_ASH_BITS_PER_DIM;
+        this.ashTrainingIterations = DEFAULT_ASH_TRAINING_ITERATIONS;
+        this.ashTrainingFactor = DEFAULT_ASH_TRAINING_FACTOR;
+        this.ashSeed = DEFAULT_ASH_SEED;
     }
 
     /** Constructs a format using the given graph construction parameters and scalar quantization. */
@@ -295,7 +320,8 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
             flatVectorThreshold,
             sliceField,
             ivfFlushConfigSource,
-            ivfMergeConfigResolver
+            ivfMergeConfigResolver,
+            useAsh
         );
     }
 

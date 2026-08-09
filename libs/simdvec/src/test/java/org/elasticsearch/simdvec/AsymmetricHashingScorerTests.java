@@ -22,7 +22,7 @@ public class AsymmetricHashingScorerTests extends ESTestCase {
         // result = -0.5 * 1.0 + 0.0 + 0.0 = -0.5
         float[] codes = { 0.5f, -0.5f };
         byte[] packed = AsymmetricHashingScorer.pack(codes, 2);
-        float score = AsymmetricHashingScorer.score(new float[] { 2.0f, 3.0f }, 0.0f, packed, 2, 2, 1.0f, 0.0f);
+        float score = AsymmetricHashingScorer.score(new float[] { 2.0f, 3.0f }, 0.0f, packed, 0, 2, 2, 1.0f, 0.0f);
         float expected = referenceScore(new float[] { 2.0f, 3.0f }, 0.0f, codes, 1.0f, 0.0f);
         assertEquals(expected, score, 1e-4f);
     }
@@ -33,7 +33,7 @@ public class AsymmetricHashingScorerTests extends ESTestCase {
         // result = 2.5 * 2.0 + 1.5 + 0.3 = 6.8
         float[] codes = { 0.5f, 0.5f };
         byte[] packed = AsymmetricHashingScorer.pack(codes, 2);
-        float score = AsymmetricHashingScorer.score(new float[] { 2.0f, 3.0f }, 1.5f, packed, 2, 2, 2.0f, 0.3f);
+        float score = AsymmetricHashingScorer.score(new float[] { 2.0f, 3.0f }, 1.5f, packed, 0, 2, 2, 2.0f, 0.3f);
         float expected = referenceScore(new float[] { 2.0f, 3.0f }, 1.5f, codes, 2.0f, 0.3f);
         assertEquals(expected, score, 1e-4f);
     }
@@ -62,7 +62,7 @@ public class AsymmetricHashingScorerTests extends ESTestCase {
                 float qdc = (float) random().nextGaussian();
 
                 float expected = referenceScore(qt, qdc, codes, scale, offset);
-                float actual = AsymmetricHashingScorer.score(qt, qdc, packed, nDims, bitsPerDim, scale, offset);
+                float actual = AsymmetricHashingScorer.score(qt, qdc, packed, 0, nDims, bitsPerDim, scale, offset);
                 assertEquals("Mismatch at bits=" + bitsPerDim + " iter=" + iter, expected, actual, 1e-3f);
             }
         }
@@ -111,8 +111,84 @@ public class AsymmetricHashingScorerTests extends ESTestCase {
     public void testZeroDimensionScoring() {
         // Edge case: 0-dim vectors; dot = 0, result = 0 * 2.0 + 1.5 + 0.3 = 1.8
         byte[] packed = AsymmetricHashingScorer.pack(new float[0], 2);
-        float score = AsymmetricHashingScorer.score(new float[0], 1.5f, packed, 0, 2, 2.0f, 0.3f);
+        float score = AsymmetricHashingScorer.score(new float[0], 1.5f, packed, 0, 0, 2, 2.0f, 0.3f);
         assertEquals(1.8f, score, 1e-6f);
+    }
+
+    public void testNonZeroCodeOffset() {
+        // Pack multiple vectors into a single contiguous buffer and score each at its offset,
+        // verifying the same result as scoring standalone per-vector arrays at offset 0.
+        int bitsPerDim = 2;
+        int numAbsLevels = 1 << (bitsPerDim - 1);
+        int nVectors = 5;
+        int nDims = 32;
+        int packedLen = AsymmetricHashingScorer.packedLength(nDims, bitsPerDim);
+
+        // Generate random codes and pack each vector
+        float[][] allCodes = new float[nVectors][nDims];
+        byte[][] individualPacked = new byte[nVectors][];
+        for (int v = 0; v < nVectors; v++) {
+            for (int j = 0; j < nDims; j++) {
+                float sign = randomBoolean() ? 1.0f : -1.0f;
+                int level = randomIntBetween(0, numAbsLevels - 1);
+                allCodes[v][j] = sign * (0.5f + level);
+            }
+            individualPacked[v] = AsymmetricHashingScorer.pack(allCodes[v], bitsPerDim);
+        }
+
+        // Build a contiguous bulk buffer (like AshPostingsVisitor reads from disk)
+        byte[] bulkBuffer = new byte[nVectors * packedLen];
+        for (int v = 0; v < nVectors; v++) {
+            System.arraycopy(individualPacked[v], 0, bulkBuffer, v * packedLen, packedLen);
+        }
+
+        // Random query and scoring params
+        float[] qt = new float[nDims];
+        for (int j = 0; j < nDims; j++) {
+            qt[j] = (float) random().nextGaussian();
+        }
+        float qdc = (float) random().nextGaussian();
+        float scale = randomFloat() * 3;
+        float offset = (float) random().nextGaussian();
+
+        // Score each vector from the bulk buffer at its offset and compare to standalone scoring
+        for (int v = 0; v < nVectors; v++) {
+            float standaloneScore = AsymmetricHashingScorer.score(qt, qdc, individualPacked[v], 0, nDims, bitsPerDim, scale, offset);
+            float bulkScore = AsymmetricHashingScorer.score(qt, qdc, bulkBuffer, v * packedLen, nDims, bitsPerDim, scale, offset);
+            assertEquals("Mismatch at vector " + v, standaloneScore, bulkScore, 0f);
+        }
+    }
+
+    public void testInPlacePackMatchesAllocatingPack() {
+        // Verify the in-place pack overload produces identical bytes to the allocating version
+        for (int bitsPerDim = 1; bitsPerDim <= 4; bitsPerDim++) {
+            int numAbsLevels = 1 << (bitsPerDim - 1);
+            int nDims = randomIntBetween(4, 128);
+            int packedLen = AsymmetricHashingScorer.packedLength(nDims, bitsPerDim);
+
+            float[] codes = new float[nDims];
+            for (int j = 0; j < nDims; j++) {
+                float sign = randomBoolean() ? 1.0f : -1.0f;
+                int level = randomIntBetween(0, numAbsLevels - 1);
+                codes[j] = sign * (0.5f + level);
+            }
+
+            byte[] allocating = AsymmetricHashingScorer.pack(codes, bitsPerDim);
+            byte[] inPlace = new byte[packedLen + 10]; // extra padding to verify no overwrite
+            java.util.Arrays.fill(inPlace, (byte) 0xFF); // fill with sentinel
+            AsymmetricHashingScorer.pack(codes, bitsPerDim, inPlace, 5); // offset=5 into padding
+
+            for (int i = 0; i < packedLen; i++) {
+                assertEquals("Mismatch at byte " + i + " for bitsPerDim=" + bitsPerDim, allocating[i], inPlace[5 + i]);
+            }
+            // Verify padding wasn't overwritten
+            for (int i = 0; i < 5; i++) {
+                assertEquals("Leading padding overwritten", (byte) 0xFF, inPlace[i]);
+            }
+            for (int i = 5 + packedLen; i < inPlace.length; i++) {
+                assertEquals("Trailing padding overwritten", (byte) 0xFF, inPlace[i]);
+            }
+        }
     }
 
     /** Reference scorer: computes dot(qt, codes) * scale + qdc + offset using plain float arithmetic. */

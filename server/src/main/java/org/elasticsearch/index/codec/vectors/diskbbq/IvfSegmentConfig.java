@@ -27,14 +27,33 @@ public record IvfSegmentConfig(
     CentroidIndexFormat centroidIndexFormat,
     QuantEncoding quantEncoding,
     boolean usePrecondition,
-    float rescoreOversample
+    float rescoreOversample,
+    boolean useAsh,
+    float ashProjectedDimsFraction,
+    int ashBitsPerDim,
+    int ashTrainingIterations,
+    int ashTrainingFactor,
+    long ashSeed
 ) {
+
+    // ASH (Asymmetric Scalar Hashing) defaults
+    public static final float DEFAULT_ASH_PROJECTED_DIMS_FRACTION = 0.5f;
+    public static final int DEFAULT_ASH_BITS_PER_DIM = 2;
+    public static final int DEFAULT_ASH_TRAINING_ITERATIONS = 5;
+    public static final int DEFAULT_ASH_TRAINING_FACTOR = 10;
+    public static final long DEFAULT_ASH_SEED = 42L;
 
     public static final IvfSegmentConfig NONE = new IvfSegmentConfig(
         CentroidIndexFormat.FLAT,
         QuantEncoding.ONE_BIT_4BIT_QUERY,
         false,
-        Float.NaN
+        Float.NaN,
+        false,
+        DEFAULT_ASH_PROJECTED_DIMS_FRACTION,
+        DEFAULT_ASH_BITS_PER_DIM,
+        DEFAULT_ASH_TRAINING_ITERATIONS,
+        DEFAULT_ASH_TRAINING_FACTOR,
+        DEFAULT_ASH_SEED
     );
 
     public static IvfSegmentConfig fromCodecDefaults(
@@ -42,7 +61,74 @@ public record IvfSegmentConfig(
         QuantEncoding quantEncoding,
         boolean doPrecondition
     ) {
-        return new IvfSegmentConfig(centroidIndexFormat, quantEncoding, doPrecondition, Float.NaN);
+        return new IvfSegmentConfig(
+            centroidIndexFormat,
+            quantEncoding,
+            doPrecondition,
+            Float.NaN,
+            false,
+            DEFAULT_ASH_PROJECTED_DIMS_FRACTION,
+            DEFAULT_ASH_BITS_PER_DIM,
+            DEFAULT_ASH_TRAINING_ITERATIONS,
+            DEFAULT_ASH_TRAINING_FACTOR,
+            DEFAULT_ASH_SEED
+        );
+    }
+
+    /** Convenience constructor for non-ASH configs (uses default ASH params, disabled). */
+    public static IvfSegmentConfig of(
+        CentroidIndexFormat centroidIndexFormat,
+        QuantEncoding quantEncoding,
+        boolean usePrecondition,
+        float rescoreOversample
+    ) {
+        return new IvfSegmentConfig(
+            centroidIndexFormat,
+            quantEncoding,
+            usePrecondition,
+            rescoreOversample,
+            false,
+            DEFAULT_ASH_PROJECTED_DIMS_FRACTION,
+            DEFAULT_ASH_BITS_PER_DIM,
+            DEFAULT_ASH_TRAINING_ITERATIONS,
+            DEFAULT_ASH_TRAINING_FACTOR,
+            DEFAULT_ASH_SEED
+        );
+    }
+
+    public static IvfSegmentConfig fromCodecDefaultsWithAsh(CentroidIndexFormat centroidIndexFormat, QuantEncoding quantEncoding) {
+        return fromCodecDefaultsWithAsh(
+            centroidIndexFormat,
+            quantEncoding,
+            DEFAULT_ASH_PROJECTED_DIMS_FRACTION,
+            DEFAULT_ASH_BITS_PER_DIM,
+            DEFAULT_ASH_TRAINING_ITERATIONS,
+            DEFAULT_ASH_TRAINING_FACTOR,
+            DEFAULT_ASH_SEED
+        );
+    }
+
+    public static IvfSegmentConfig fromCodecDefaultsWithAsh(
+        CentroidIndexFormat centroidIndexFormat,
+        QuantEncoding quantEncoding,
+        float ashProjectedDimsFraction,
+        int ashBitsPerDim,
+        int ashTrainingIterations,
+        int ashTrainingFactor,
+        long ashSeed
+    ) {
+        return new IvfSegmentConfig(
+            centroidIndexFormat,
+            quantEncoding,
+            false,
+            Float.NaN,
+            true,
+            ashProjectedDimsFraction,
+            ashBitsPerDim,
+            ashTrainingIterations,
+            ashTrainingFactor,
+            ashSeed
+        );
     }
 
     /**
@@ -63,7 +149,18 @@ public record IvfSegmentConfig(
      */
     public static IvfSegmentConfig withEffectiveRescoreOversample(IvfSegmentConfig raw, Float queryOverride, float mappingDefault) {
         float effective = effectiveRescoreOversample(raw.rescoreOversample(), queryOverride, mappingDefault);
-        return new IvfSegmentConfig(raw.centroidIndexFormat(), raw.quantEncoding(), raw.usePrecondition(), effective);
+        return new IvfSegmentConfig(
+            raw.centroidIndexFormat(),
+            raw.quantEncoding(),
+            raw.usePrecondition(),
+            effective,
+            raw.useAsh(),
+            raw.ashProjectedDimsFraction(),
+            raw.ashBitsPerDim(),
+            raw.ashTrainingIterations(),
+            raw.ashTrainingFactor(),
+            raw.ashSeed()
+        );
     }
 
     /** Per-leaf IVF collector size (includes 2x factor for overspill duplicates). */

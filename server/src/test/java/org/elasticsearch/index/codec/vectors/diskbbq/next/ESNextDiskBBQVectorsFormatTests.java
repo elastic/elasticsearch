@@ -52,6 +52,8 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfFlushConfigSource;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfMergeConfigResolver;
 import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.search.vectors.ESAcceptDocs;
@@ -762,6 +764,117 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
                         }
                     }
                     assertThat(uniqueDocIds, hasSize(expectedDocs));
+                }
+            }
+        }
+    }
+
+    public void testAshIndexAndSearch() throws IOException {
+        int dimensions = 64;
+        int numDocs = 200;
+        ESNextDiskBBQVectorsFormat ashFormat = new ESNextDiskBBQVectorsFormat(
+            QuantEncoding.TWO_BIT_4BIT_QUERY,
+            MIN_VECTORS_PER_CLUSTER,
+            MIN_CENTROIDS_PER_PARENT_CLUSTER,
+            DenseVectorFieldMapper.ElementType.FLOAT,
+            false,
+            null,
+            1,
+            false,
+            DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
+            0,
+            null,
+            IvfFlushConfigSource.empty(),
+            IvfMergeConfigResolver.useCodecDefault(),
+            true
+        );
+        Codec ashCodec = TestUtil.alwaysKnnVectorsFormat(ashFormat);
+        try (Directory dir = newDirectory()) {
+            IndexWriterConfig iwc = newIndexWriterConfig();
+            iwc.setCodec(ashCodec);
+            try (IndexWriter w = new IndexWriter(dir, iwc)) {
+                for (int i = 0; i < numDocs; i++) {
+                    Document doc = new Document();
+                    doc.add(new KnnFloatVectorField("f", randomVector(dimensions), VectorSimilarityFunction.DOT_PRODUCT));
+                    w.addDocument(doc);
+                }
+                w.forceMerge(1);
+                try (IndexReader reader = DirectoryReader.open(w)) {
+                    for (LeafReaderContext ctx : reader.leaves()) {
+                        LeafReader leafReader = ctx.reader();
+                        float[] query = randomVector(dimensions);
+                        TopDocs topDocs = leafReader.searchNearestVectors(
+                            "f",
+                            query,
+                            10,
+                            AcceptDocs.fromLiveDocs(leafReader.getLiveDocs(), leafReader.maxDoc()),
+                            Integer.MAX_VALUE
+                        );
+                        assertThat(topDocs.scoreDocs, arrayWithSize(Math.min(leafReader.maxDoc(), 10)));
+                        // Verify scores are in descending order
+                        for (int i = 0; i < topDocs.scoreDocs.length - 1; i++) {
+                            assertTrue("Scores should be descending", topDocs.scoreDocs[i].score >= topDocs.scoreDocs[i + 1].score);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    public void testAshAllSimilarityFunctions() throws IOException {
+        int dimensions = 64;
+        int numDocs = 200;
+        ESNextDiskBBQVectorsFormat ashFormat = new ESNextDiskBBQVectorsFormat(
+            QuantEncoding.TWO_BIT_4BIT_QUERY,
+            MIN_VECTORS_PER_CLUSTER,
+            MIN_CENTROIDS_PER_PARENT_CLUSTER,
+            DenseVectorFieldMapper.ElementType.FLOAT,
+            false,
+            null,
+            1,
+            false,
+            DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
+            0,
+            null,
+            IvfFlushConfigSource.empty(),
+            IvfMergeConfigResolver.useCodecDefault(),
+            true
+        );
+        Codec ashCodec = TestUtil.alwaysKnnVectorsFormat(ashFormat);
+        for (VectorSimilarityFunction sim : new VectorSimilarityFunction[] {
+            VectorSimilarityFunction.DOT_PRODUCT,
+            VectorSimilarityFunction.EUCLIDEAN,
+            VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT }) {
+            try (Directory dir = newDirectory()) {
+                IndexWriterConfig iwc = newIndexWriterConfig();
+                iwc.setCodec(ashCodec);
+                try (IndexWriter w = new IndexWriter(dir, iwc)) {
+                    for (int i = 0; i < numDocs; i++) {
+                        Document doc = new Document();
+                        doc.add(new KnnFloatVectorField("f", randomVector(dimensions), sim));
+                        w.addDocument(doc);
+                    }
+                    w.forceMerge(1);
+                    try (IndexReader reader = DirectoryReader.open(w)) {
+                        for (LeafReaderContext ctx : reader.leaves()) {
+                            LeafReader leafReader = ctx.reader();
+                            float[] query = randomVector(dimensions);
+                            TopDocs topDocs = leafReader.searchNearestVectors(
+                                "f",
+                                query,
+                                10,
+                                AcceptDocs.fromLiveDocs(leafReader.getLiveDocs(), leafReader.maxDoc()),
+                                Integer.MAX_VALUE
+                            );
+                            assertThat("similarity=" + sim, topDocs.scoreDocs, arrayWithSize(Math.min(leafReader.maxDoc(), 10)));
+                            for (int i = 0; i < topDocs.scoreDocs.length - 1; i++) {
+                                assertTrue(
+                                    "Scores should be descending for " + sim,
+                                    topDocs.scoreDocs[i].score >= topDocs.scoreDocs[i + 1].score
+                                );
+                            }
+                        }
+                    }
                 }
             }
         }

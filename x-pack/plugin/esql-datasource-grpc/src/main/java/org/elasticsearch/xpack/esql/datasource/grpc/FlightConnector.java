@@ -124,6 +124,13 @@ class FlightConnector implements Connector {
 
     private static Closeable asCloseable(FlightClient client) {
         return () -> {
+            if (client == null) {
+                // defaultClient (and lazily-created endpoint clients) can be null when a connection was never
+                // established -- e.g. the endpoint refused the connection before any FlightClient was built. Closing
+                // must be a no-op in that case rather than NPE, otherwise the close failure escapes the connector's
+                // teardown on the query failure path.
+                return;
+            }
             try {
                 client.close();
             } catch (InterruptedException e) {

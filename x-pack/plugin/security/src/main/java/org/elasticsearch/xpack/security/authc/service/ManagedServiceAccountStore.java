@@ -282,37 +282,37 @@ public class ManagedServiceAccountStore implements CacheInvalidatorRegistry.Cach
             listener.onFailure(validationException);
             return;
         }
-        getByPrincipal(accountId.asPrincipal(), ActionListener.wrap(existing -> {
-            final PutResult.Type type = existing == null ? PutResult.Type.CREATED : PutResult.Type.UPDATED;
-            try (XContentBuilder builder = newAccountDocument(accountId, roles, enabled)) {
-                final IndexRequest indexRequest = client.prepareIndex(SECURITY_MAIN_ALIAS)
-                    .setId(docIdForPrincipal(accountId.asPrincipal()))
-                    .setSource(builder)
-                    .setOpType(DocWriteRequest.OpType.INDEX)
-                    .setRefreshPolicy(refreshPolicy)
-                    .request();
-                final BulkRequest bulkRequest = toSingleItemBulkRequest(indexRequest);
-                securityIndex.forCurrentProject()
-                    .prepareIndexIfNeededThenExecute(
-                        listener::onFailure,
-                        () -> executeAsyncWithOrigin(
-                            client,
-                            SECURITY_ORIGIN,
-                            TransportBulkAction.TYPE,
-                            bulkRequest,
-                            TransportBulkAction.<IndexResponse>unwrappingSingleItemBulkResponse(ActionListener.wrap(response -> {
-                                final ManagedServiceAccount account = new ManagedServiceAccount(accountId, roles, enabled);
-                                invalidateManagedAccountCache(
-                                    accountId.asPrincipal(),
-                                    ActionListener.wrap(ignore -> listener.onResponse(new PutResult(type, account)), listener::onFailure)
-                                );
-                            }, listener::onFailure))
-                        )
-                    );
-            } catch (IOException e) {
-                listener.onFailure(e);
-            }
-        }, listener::onFailure));
+        try (XContentBuilder builder = newAccountDocument(accountId, roles, enabled)) {
+            final IndexRequest indexRequest = client.prepareIndex(SECURITY_MAIN_ALIAS)
+                .setId(docIdForPrincipal(accountId.asPrincipal()))
+                .setSource(builder)
+                .setOpType(DocWriteRequest.OpType.INDEX)
+                .setRefreshPolicy(refreshPolicy)
+                .request();
+            final BulkRequest bulkRequest = toSingleItemBulkRequest(indexRequest);
+            securityIndex.forCurrentProject()
+                .prepareIndexIfNeededThenExecute(
+                    listener::onFailure,
+                    () -> executeAsyncWithOrigin(
+                        client,
+                        SECURITY_ORIGIN,
+                        TransportBulkAction.TYPE,
+                        bulkRequest,
+                        TransportBulkAction.<IndexResponse>unwrappingSingleItemBulkResponse(ActionListener.wrap(response -> {
+                            final PutResult.Type type = response.getResult() == DocWriteResponse.Result.CREATED
+                                ? PutResult.Type.CREATED
+                                : PutResult.Type.UPDATED;
+                            final ManagedServiceAccount account = new ManagedServiceAccount(accountId, roles, enabled);
+                            invalidateManagedAccountCache(
+                                accountId.asPrincipal(),
+                                ActionListener.wrap(ignore -> listener.onResponse(new PutResult(type, account)), listener::onFailure)
+                            );
+                        }, listener::onFailure))
+                    )
+                );
+        } catch (IOException e) {
+            listener.onFailure(e);
+        }
     }
 
     public void deleteAccount(

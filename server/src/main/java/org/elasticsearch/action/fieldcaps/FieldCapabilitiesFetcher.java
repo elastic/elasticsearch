@@ -165,6 +165,7 @@ class FieldCapabilitiesFetcher {
     ) {
         boolean includeParentObjects = checkIncludeParents(filters);
         boolean includeDimensions = checkIncludeDimensions(filters);
+        Set<String> acceptedTypes = types.length > 0 ? Set.of(types) : null;
 
         Predicate<MappedFieldType> filter = buildFilter(filters, types, context);
         boolean isTimeSeriesIndex = context.getIndexSettings().getTimestampBounds() != null;
@@ -213,6 +214,10 @@ class FieldCapabilitiesFetcher {
                     if (context.getFieldType(parentField) == null && isUnderSubobjectsFalseMapper(parentField, objectMappers) == false) {
                         // no field type and not under a subobjects:false context, it must be an object field
                         String type = context.nestedLookup().getNestedMappers().get(parentField) != null ? "nested" : "object";
+                        if (acceptedTypes != null && acceptedTypes.contains(type) == false) {
+                            dotIndex = parentField.lastIndexOf('.');
+                            continue;
+                        }
                         IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
                             parentField,
                             type,

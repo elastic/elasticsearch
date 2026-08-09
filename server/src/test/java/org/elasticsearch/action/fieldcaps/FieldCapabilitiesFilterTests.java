@@ -298,6 +298,69 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
         assertNull(response.get("_index"));
     }
 
+    public void testFieldTypeFilteringExcludesParentObjects() throws IOException {
+        MapperService mapperService = createMapperService("""
+            { "_doc" : {
+              "properties" : {
+                "products" : {
+                  "properties" : {
+                    "name" : { "type" : "keyword" },
+                    "price" : { "type" : "long" }
+                  }
+                },
+                "manufacturer" : { "type" : "keyword" }
+              }
+            } }
+            """);
+        SearchExecutionContext sec = createSearchExecutionContext(mapperService);
+
+        Map<String, IndexFieldCapabilities> response = FieldCapabilitiesFetcher.retrieveFieldCaps(
+            sec,
+            s -> true,
+            Strings.EMPTY_ARRAY,
+            new String[] { "keyword" },
+            FieldPredicate.ACCEPT_ALL,
+            getMockIndexShard(),
+            true
+        );
+        // keyword fields should be present
+        assertNotNull(response.get("products.name"));
+        assertNotNull(response.get("manufacturer"));
+        // parent object type should NOT be present when filtering by keyword
+        assertNull(response.get("products"));
+        // non-keyword fields should not be present
+        assertNull(response.get("products.price"));
+    }
+
+    public void testFieldTypeFilteringIncludesParentObjectsWhenRequested() throws IOException {
+        MapperService mapperService = createMapperService("""
+            { "_doc" : {
+              "properties" : {
+                "products" : {
+                  "properties" : {
+                    "name" : { "type" : "keyword" }
+                  }
+                }
+              }
+            } }
+            """);
+        SearchExecutionContext sec = createSearchExecutionContext(mapperService);
+
+        // When "object" is in the requested types, parent objects should be included
+        Map<String, IndexFieldCapabilities> response = FieldCapabilitiesFetcher.retrieveFieldCaps(
+            sec,
+            s -> true,
+            Strings.EMPTY_ARRAY,
+            new String[] { "keyword", "object" },
+            FieldPredicate.ACCEPT_ALL,
+            getMockIndexShard(),
+            true
+        );
+        assertNotNull(response.get("products.name"));
+        assertNotNull(response.get("products"));
+        assertEquals("object", response.get("products").type());
+    }
+
     public void testPassthroughFieldDoesNotAddIntermediateParentAsObject() throws IOException {
         // Reproduce the scenario from https://github.com/elastic/elasticsearch/issues/144179:
         // A passthrough field (subobjects: false) with a sub-field whose name contains a dot,

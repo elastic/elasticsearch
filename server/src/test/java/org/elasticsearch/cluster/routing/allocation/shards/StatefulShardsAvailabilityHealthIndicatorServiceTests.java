@@ -3349,7 +3349,11 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
             return routing;
         }
         if (allocation.state == RELOCATING) {
-            return routing.relocate(randomNodeId(), ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
+            return routing.relocate(
+                randomNodeId(),
+                ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE,
+                ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+            );
         }
         if (allocation.state == UNAVAILABLE) {
             return routing.moveToUnassigned(

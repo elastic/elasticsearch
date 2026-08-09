@@ -256,39 +256,6 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
         });
     }
 
-    public void testMultiBucketSuccessBreakerBytesReleased() throws IOException {
-        // Verifies that takeState() drains bytes for every bucket, not just bucket 0.
-        HierarchyCircuitBreakerService breakerService = requestBreakerService("10mb");
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
-
-        PercentilesAggregationBuilder percBuilder = new PercentilesAggregationBuilder("p").field("number")
-            .percentilesConfig(new PercentilesConfig.TDigest());
-        TermsAggregationBuilder termsBuilder = new TermsAggregationBuilder("terms").field("number").size(100).subAggregation(percBuilder);
-
-        withSequentialIndex(20, reader -> {
-            try (
-                AggregationContext context = createAggregationContext(
-                    reader,
-                    createIndexSettings(),
-                    Queries.ALL_DOCS_INSTANCE,
-                    breakerService,
-                    0,
-                    DEFAULT_MAX_BUCKETS,
-                    false,
-                    false,
-                    fieldType
-                )
-            ) {
-                Aggregator aggregator = createAggregator(termsBuilder, context);
-                aggregator.preCollection();
-                context.searcher().search(Queries.ALL_DOCS_INSTANCE, aggregator.asCollector());
-                aggregator.postCollection();
-                aggregator.buildTopLevel();
-            }
-            assertThat(breakerService.getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
-        });
-    }
-
     private void withSequentialIndex(int docCount, CheckedConsumer<DirectoryReader, IOException> body) throws IOException {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {

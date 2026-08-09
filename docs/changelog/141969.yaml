@@ -1,0 +1,6 @@
+pr: 141969
+summary: Make SnapshotHistoryStore retry indexing history data on EsRejectedExecutionException
+area: Snapshot/Restore
+type: bug
+issues:
+  - 141887

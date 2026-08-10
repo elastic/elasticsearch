@@ -728,3 +728,4 @@ Now that you have a working data source and dataset, you can:
   - For general {{esql}} query tuning, refer to [optimize {{esql}} query performance](esql-query-performance.md).
 - **Connect your own bucket.** To connect a private bucket with credentials or federated identity, refer to [connect external data sources](esql-data-federation-sources.md).
 - **Tune dataset settings.** To override file formats, customize schema inference, or declare explicit column mappings, refer to [select external datasets](esql-data-federation-datasets.md).
+- **Browse datasets in {{kib}}.** To browse your datasets from the {{esql}} editor's data source browser, refer to [browse indices and fields from the editor](docs-content://explore-analyze/discover/try-esql.md#discover-esql-resource-browsers).

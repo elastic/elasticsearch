@@ -1093,21 +1093,18 @@ public class ESVectorUtil {
     }
 
     /**
-     * Transposes a matrix from (rows x cols) to (cols x rows).
+     * Transposes a row-major matrix from (rows x cols) to (cols x rows).
+     *
+     * @param m    input matrix in row-major order, length rows*cols
+     * @param rows number of rows in the input
+     * @param cols number of columns in the input
+     * @return transposed matrix in row-major order, length cols*rows
      */
-    public static float[][] transposeMatrix(float[][] m) {
-        assert m.length > 0;
-        return transposeMatrix(m, m.length, m[0].length);
-    }
-
-    /**
-     * Transposes a matrix from (rows x cols) to (cols x rows).
-     */
-    public static float[][] transposeMatrix(float[][] m, int rows, int cols) {
-        float[][] t = new float[cols][rows];
+    public static float[] transposeMatrix(float[] m, int rows, int cols) {
+        float[] t = new float[cols * rows];
         for (int i = 0; i < rows; i++) {
             for (int j = 0; j < cols; j++) {
-                t[j][i] = m[i][j];
+                t[j * rows + i] = m[i * cols + j];
             }
         }
         return t;

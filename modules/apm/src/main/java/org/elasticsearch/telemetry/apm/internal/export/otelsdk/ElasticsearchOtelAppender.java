@@ -154,20 +154,17 @@ public class ElasticsearchOtelAppender extends AbstractAppender {
     }
 
     private static Context traceContextFromMapMessage(MapMessage<?, ?> mapMessage, Context fallback) {
-        Object val = mapMessage.getData().get(TRACE_ID_KEY);
-        if (val != null) {
-            String traceId = val.toString();
-            if (traceId.isEmpty() == false) {
-                SpanContext spanCtx = ImmutableSpanContext.create(
-                    traceId,
-                    SpanId.getInvalid(),
-                    TraceFlags.getSampled(),
-                    TraceState.getDefault(),
-                    true,
-                    true
-                );
-                return fallback.with(Span.wrap(spanCtx));
-            }
+        String traceId = mapMessage.get(TRACE_ID_KEY);
+        if (traceId != null && traceId.isEmpty() == false) {
+            SpanContext spanCtx = ImmutableSpanContext.create(
+                traceId,
+                SpanId.getInvalid(),
+                TraceFlags.getSampled(),
+                TraceState.getDefault(),
+                true,
+                true
+            );
+            return fallback.with(Span.wrap(spanCtx));
         }
         return fallback;
     }

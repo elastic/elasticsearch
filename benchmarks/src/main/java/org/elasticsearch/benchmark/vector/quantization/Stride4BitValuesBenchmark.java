@@ -38,7 +38,7 @@ import java.util.concurrent.TimeUnit;
 @Warmup(iterations = 4, time = 1)
 // real iterations. not useful to spend tons of time here, better to fork more
 @Measurement(iterations = 5, time = 1)
-public class TransposeHalfByteBenchmark {
+public class Stride4BitValuesBenchmark {
 
     static {
         Utils.configureBenchmarkLogging();
@@ -82,7 +82,7 @@ public class TransposeHalfByteBenchmark {
     @Benchmark
     public void transposeHalfByte(Blackhole bh) {
         for (int i = 0; i < numVectors; i++) {
-            impl.transposeHalfByte(qVectors[i], packed);
+            impl.stride4BitValues(qVectors[i], packed);
             bh.consume(packed);
         }
     }

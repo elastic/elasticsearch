@@ -583,9 +583,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecUnmappedNullifyIT
   method: test {csv-spec:unmapped-nullify.statsNullifiedLast}
   issue: https://github.com/elastic/elasticsearch/issues/156027
-- class: org.elasticsearch.exponentialhistogram.RankAccuracyTests
-  method: testRandomDistribution
-  issue: https://github.com/elastic/elasticsearch/issues/156057
 - class: org.elasticsearch.xpack.esql.action.ExternalCsvHivePartitionedIT
   method: testHivePartitionShadowWarningReachesClient
   issue: https://github.com/elastic/elasticsearch/issues/153780
@@ -639,3 +636,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvFlattenedKeywordIT
   method: test {csv-spec:k8s-misc.four_rates_by_four_dims}
   issue: https://github.com/elastic/elasticsearch/issues/156246
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecK8sMiscIT
+  method: test {csv-spec:k8s-misc.four_rates_by_four_dims}
+  issue: https://github.com/elastic/elasticsearch/issues/156255
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecApproximationIT
+  method: test {csv-spec:approximation.Inline stats by}
+  issue: https://github.com/elastic/elasticsearch/issues/156264

@@ -3459,13 +3459,47 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // unsupported / unresolved fields can be explicitly retained
             return cleanPlan.transformUp(
                 LogicalPlan.class,
-                p -> p.transformExpressionsOnly(
-                    FieldAttribute.class,
-                    fa -> fa.field() instanceof PotentiallyUnmappedSingleTypeEsField punk
-                        ? fallbackToMappedType(fa, punk)
-                        : fa.flagTypeConflicts()
-                )
+                p -> p.transformExpressionsOnly(FieldAttribute.class, UnionTypesCleanup::cleanTypeConflicts)
             );
+        }
+
+        private static Attribute cleanTypeConflicts(FieldAttribute fa) {
+            EsField field = fa.field();
+            if (field instanceof PotentiallyUnmappedSingleTypeEsField punk) {
+                return fallbackToMappedType(fa, punk);
+            }
+            if (field instanceof TypeConflictedField) {
+                // A top-level conflict is representable as an UnsupportedAttribute.
+                return fa.flagTypeConflicts();
+            }
+            // A conflict nested in a healthy field's properties throws when the parent is serialized to a data node.
+            EsField cleaned = stripNestedConflicts(field);
+            return cleaned == field ? fa : fa.withField(cleaned);
+        }
+
+        /**
+         * Data nodes never read a field's sub-field {@code properties}, so a coordinator-only conflict field
+         * ({@link TypeConflictedField}, {@link InvalidMappedTsField}) nested there is dead weight that throws on transport - drop
+         * it. The sub-field's own top-level attribute is unaffected (it is flagged as unsupported independently).
+         */
+        private static EsField stripNestedConflicts(EsField field) {
+            Map<String, EsField> properties = field.getProperties();
+            if (properties == null || properties.isEmpty()) {
+                return field;
+            }
+            Map<String, EsField> kept = new LinkedHashMap<>(properties.size());
+            boolean changed = false;
+            for (Map.Entry<String, EsField> entry : properties.entrySet()) {
+                EsField child = entry.getValue();
+                if (child instanceof TypeConflictedField || child instanceof InvalidMappedTsField) {
+                    changed = true;
+                    continue;
+                }
+                EsField cleanedChild = stripNestedConflicts(child);
+                kept.put(entry.getKey(), cleanedChild);
+                changed |= cleanedChild != child;
+            }
+            return changed ? field.withProperties(kept) : field;
         }
 
         private static void warnObservedNonLoadablePunks(LogicalPlan plan, AnalyzerContext context) {

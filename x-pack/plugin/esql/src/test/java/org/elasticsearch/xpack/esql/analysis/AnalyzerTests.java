@@ -50,6 +50,8 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedTsField;
+import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
+import org.elasticsearch.xpack.esql.core.type.TypeConflictedField;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.Order;
@@ -178,6 +180,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -4709,6 +4712,66 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(fooAttr.dataType(), equalTo(KEYWORD));
         assertThat(idAttr.dataType(), equalTo(KEYWORD));
         assertThat(idAttr.name(), equalTo("id"));
+    }
+
+    public void testTypeConflictedMultifieldIsCleanedAfterAnalysis() {
+        // A conflicted sub-field must be stripped so its parent FieldAttribute is transportable.
+        LinkedHashMap<String, Set<String>> typesToIndices = new LinkedHashMap<>();
+        typesToIndices.put(KEYWORD.typeName(), Set.of("conflict-a"));
+        typesToIndices.put(DataType.TEXT.typeName(), Set.of("conflict-b"));
+        assertConflictedMultifieldIsCleaned(new InvalidMappedField("analyzed", typesToIndices));
+    }
+
+    public void testTsRoleConflictedMultifieldIsCleanedAfterAnalysis() {
+        // InvalidMappedTsField is not a TypeConflictedField but also throws on transport, so it must be stripped too.
+        EsField cleanedParent = assertConflictedMultifieldIsCleaned(new InvalidMappedTsField("analyzed", "role conflict"));
+        // The rebuilt parent keeps its keyword type so exact-match/sort still work.
+        assertThat(cleanedParent, instanceOf(KeywordEsField.class));
+    }
+
+    private static EsField assertConflictedMultifieldIsCleaned(EsField conflictedMultifield) {
+        EsField parent = new KeywordEsField(
+            "my_field",
+            Map.of("analyzed", conflictedMultifield),
+            true,
+            256,
+            false,
+            false,
+            EsField.TimeSeriesFieldType.NONE
+        );
+        EsIndex index = new EsIndex(
+            "conflict-*",
+            Map.of("my_field", parent),
+            Map.of("conflict-a", IndexMode.STANDARD, "conflict-b", IndexMode.STANDARD),
+            Map.of(),
+            Map.of()
+        );
+
+        LogicalPlan plan = analyzer().addIndex(IndexResolution.valid(index)).query("FROM conflict-* | SORT my_field | LIMIT 2");
+
+        List<FieldAttribute> parentAttributes = new ArrayList<>();
+        plan.forEachExpressionDown(FieldAttribute.class, fieldAttribute -> {
+            assertNoConflicts(fieldAttribute.field());
+            if (fieldAttribute.name().equals("my_field")) {
+                parentAttributes.add(fieldAttribute);
+            }
+        });
+        assertFalse(parentAttributes.isEmpty());
+        EsField cleanedParent = null;
+        for (FieldAttribute parentAttribute : parentAttributes) {
+            assertThat(parentAttribute.field().getProperties(), not(hasKey("analyzed")));
+            cleanedParent = parentAttribute.field();
+        }
+        return cleanedParent;
+    }
+
+    /** Asserts no coordinator-only conflict field ({@link TypeConflictedField} or {@link InvalidMappedTsField}) survives anywhere. */
+    private static void assertNoConflicts(EsField field) {
+        assertThat(field, not(instanceOf(TypeConflictedField.class)));
+        assertThat(field, not(instanceOf(InvalidMappedTsField.class)));
+        if (field.getProperties() != null) {
+            field.getProperties().values().forEach(AnalyzerTests::assertNoConflicts);
+        }
     }
 
     public void testExplicitRetainOriginalFieldWithCast() {

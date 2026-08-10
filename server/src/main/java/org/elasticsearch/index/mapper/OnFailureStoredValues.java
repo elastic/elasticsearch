@@ -18,17 +18,30 @@ import java.io.IOException;
  * Stores the value that violated a strict {@code doc_values} constraint (currently just {@code multi_value=false}) when the field is
  * configured with {@code doc_values.on_failure=ignore}, so indexing can continue instead of rejecting the whole document.
  * <p>
- * Each field gets its own failure column, named by suffixing the field's full path, mirroring how {@link IgnoreMalformedStoredValues}
- * stores overflow from {@code ignore_above}/{@code ignore_malformed} - but kept as a separate column and suffix, since a value redirected
- * here is well-formed and simply violates a cardinality constraint, which is a different failure reason than a malformed value.
+ * Each field gets its own failure column, named by suffixing the field's full path with {@link #ON_FAILURE_FIELD_NAME_SUFFIX}, mirroring
+ * how {@link IgnoreMalformedStoredValues} stores overflow from {@code ignore_above}/{@code ignore_malformed} - but kept as a separate
+ * column and suffix, since a value redirected here is well-formed and simply violates a cardinality constraint, which is a different
+ * failure reason than a malformed value.
  * <p>
- * This is currently write-only: nothing reads this column back yet (it is not wired into synthetic source, block loaders, or search).
+ * On the read side the column is surfaced as a {@link CompositeSyntheticFieldLoader.Layer} via
+ * {@link CompositeSyntheticFieldLoader#onFailureValuesLayer}, which appends the stored values after the primary column so that
+ * {@code _source} reconstruction produces the original multi-valued array.
+ * <p>
+ * The column is deliberately <em>not</em> surfaced to block loaders, ESQL, or aggregations: {@code multi_value=false} advertises a
+ * strictly single-valued column to those paths, and exposing the sidecar would break that contract.
  */
 public final class OnFailureStoredValues {
 
     public static final String ON_FAILURE_FIELD_NAME_SUFFIX = "._on_failure";
 
     private OnFailureStoredValues() {}
+
+    /**
+     * Returns the name of the on-failure sidecar column for {@code fieldName}.
+     */
+    public static String name(String fieldName) {
+        return fieldName + ON_FAILURE_FIELD_NAME_SUFFIX;
+    }
 
     /**
      * Encodes the current parser value and stores it in the failure column for {@code fieldPath}, preserving encounter order and
@@ -46,7 +59,7 @@ public final class OnFailureStoredValues {
     static void storeEncoded(DocumentParserContext context, String fieldPath, BytesRef encoded) {
         MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(
             context.doc(),
-            fieldPath + ON_FAILURE_FIELD_NAME_SUFFIX,
+            name(fieldPath),
             encoded,
             MultiValuedBinaryDocValuesField.ValueOrdering.UNSORTED,
             context.indexSettings().getIndexVersionCreated()

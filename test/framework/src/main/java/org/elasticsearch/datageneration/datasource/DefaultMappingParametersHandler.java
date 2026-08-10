@@ -22,6 +22,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -345,7 +346,7 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
         }
 
         // doc_values can't be disabled here; multi_value:false is exercised separately by SingleValueDocValuesDataSourceHandler.
-        return ESTestCase.randomFrom(
+        var choices = new ArrayList<Object>(
             List.of(
                 true,
                 Map.of("multi_value", true),
@@ -354,6 +355,12 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
                 Map.of("nullability", false, "on_failure", "ignore")
             )
         );
+        // Add the violable on_failure=ignore configuration only when the feature flag is active, so that release builds (flag off)
+        // keep their existing fuzzer coverage unchanged and the tests don't break in unexpected ways.
+        if (org.elasticsearch.index.mapper.FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled()) {
+            choices.add(Map.of("multi_value", false, "on_failure", "ignore"));
+        }
+        return ESTestCase.randomFrom(choices);
     }
 
     @Override

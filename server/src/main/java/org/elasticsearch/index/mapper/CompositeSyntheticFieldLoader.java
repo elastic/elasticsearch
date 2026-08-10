@@ -222,6 +222,35 @@ public class CompositeSyntheticFieldLoader implements SourceLoader.SyntheticFiel
     }
 
     /**
+     * Returns the layer that reconstructs values stored in the {@code ._on_failure} sidecar column for synthetic source.
+     * <p>
+     * The column is written when a field configured with {@code doc_values: {multi_value: false, on_failure: ignore}} receives more than
+     * one value in the same document: the first value goes to the primary column, and values 2..N go here in encounter order. Appending
+     * this layer <em>last</em> in the composite therefore reproduces the original document order exactly.
+     * <p>
+     * There is no stored-field variant (unlike the {@code ignore_malformed} layer) because the {@code ._on_failure} column was always
+     * backed by binary doc values. The {@code indexVersion} parameter is still required so the layer can select the correct on-disk
+     * decoder ({@code IntegratedCount} vs {@code SeparateCount}).
+     */
+    public static Layer onFailureValuesLayer(String fieldName, IndexVersion indexVersion) {
+        return new OnFailureValuesBinaryDocValuesLayer(fieldName, indexVersion);
+    }
+
+    /**
+     * Layer that loads on-failure values from binary doc values for synthetic source.
+     */
+    private static class OnFailureValuesBinaryDocValuesLayer extends BinaryDocValuesSyntheticFieldLoaderLayer {
+        OnFailureValuesBinaryDocValuesLayer(String fieldName, IndexVersion indexVersion) {
+            super(OnFailureStoredValues.name(fieldName), indexVersion);
+        }
+
+        @Override
+        protected void writeValue(XContentBuilder b, BytesRef value) throws IOException {
+            XContentDataHelper.decodeAndWrite(b, value);
+        }
+    }
+
+    /**
      * Layer that loads field values from a provided stored field.
      */
     public abstract static class StoredFieldLayer implements Layer {

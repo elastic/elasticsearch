@@ -168,6 +168,7 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
      * whole-document blob written before the column is pruned.
      */
     public void testMultiValueViolationRestoredIdenticallyAcrossSourceModes() throws Exception {
+        assumeTrue("doc_values on_failure feature flag must be enabled", FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled());
         var mappingXContent = XContentFactory.jsonBuilder()
             .startObject()
             .startObject("properties")
@@ -181,7 +182,8 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
             .endObject()
             .endObject();
         // Two values: "a" is indexed normally, "b" is redirected to ._on_failure. Both must appear in _source.
-        assertEqualSource(mappingXContent, Map.of("kw", List.of("a", "b")), randomBoolean());
+        var document = Map.of("kw", List.of("a", "b"));
+        assertEqualSource(mappingXContent, document, randomBoolean(), document);
         for (String index : List.of("test_synthetic", "test_columnar_stored")) {
             assertIgnoredContains(index, "kw");
         }
@@ -192,6 +194,7 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
      * than rejecting the document. Both source modes must omit the field from the reconstructed {@code _source}.
      */
     public void testNullabilityViolationOmittedIdenticallyAcrossSourceModes() throws Exception {
+        assumeTrue("doc_values on_failure feature flag must be enabled", FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled());
         var mappingXContent = XContentFactory.jsonBuilder()
             .startObject()
             .startObject("properties")
@@ -205,7 +208,8 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
             .endObject()
             .endObject();
         // field is absent — violation is ignored, field must be omitted from _source in both modes
-        assertEqualSource(mappingXContent, Map.of(), randomBoolean());
+        var document = Map.<String, Object>of();
+        assertEqualSource(mappingXContent, document, randomBoolean(), document);
         for (String index : List.of("test_synthetic", "test_columnar_stored")) {
             assertIgnoredContains(index, "kw");
         }
@@ -215,6 +219,7 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
      * Asserts reconstructed sources are the same and that the field is stored in _ignored across both source types when normalizer is used.
      */
     public void testFallbackMultiValueViolationRestoredIdenticallyAcrossSourceModes() throws Exception {
+        assumeTrue("doc_values on_failure feature flag must be enabled", FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled());
         var mappingXContent = XContentFactory.jsonBuilder()
             .startObject()
             .startObject("properties")
@@ -228,7 +233,13 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
             .endObject()
             .endObject()
             .endObject();
-        assertEqualSource(mappingXContent, Map.of("kw", List.of("HELLO", "WORLD")), randomBoolean());
+        // The built-in "lowercase" normalizer sets normalizerSkipStoreOriginalValue=true, keeping the field in NATIVE synthetic-source
+        // mode.
+        // The primary doc-values column stores the normalized form ("hello"), while extra values redirected to ._on_failure retain the raw
+        // input ("WORLD"). So the reconstructed source is ["hello", "WORLD"]: normalized first value, raw subsequent values.
+        var document = Map.of("kw", List.of("HELLO", "WORLD"));
+        var expectedSource = Map.of("kw", List.of("hello", "WORLD"));
+        assertEqualSource(mappingXContent, document, randomBoolean(), expectedSource);
         for (String index : List.of("test_synthetic", "test_columnar_stored")) {
             assertIgnoredContains(index, "kw");
         }
@@ -278,6 +289,22 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
         var columnarStoredSource = client().prepareGet("test_columnar_stored", "1").get().getSourceAsMap();
 
         assertEquals(syntheticSource, columnarStoredSource);
+    }
+
+    /**
+     * Like {@link #assertEqualSource(XContentBuilder, Map, boolean)} but additionally asserts that the reconstructed source
+     * matches {@code expectedSource}. Use this for tests where the exact reconstruction result must be verified (rather than
+     * just confirming that both modes agree with each other).
+     */
+    private void assertEqualSource(
+        XContentBuilder mappingXContent,
+        Map<String, ?> document,
+        boolean useTimeSeriesDocValuesFormat,
+        Map<String, ?> expectedSource
+    ) {
+        assertEqualSource(mappingXContent, document, useTimeSeriesDocValuesFormat);
+        var syntheticSource = client().prepareGet("test_synthetic", "1").get().getSourceAsMap();
+        assertEquals("synthetic source must match expected content", expectedSource, syntheticSource);
     }
 
     private DataGeneratorSpecification buildSpec() {

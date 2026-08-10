@@ -125,9 +125,12 @@ public abstract class FieldMapper extends Mapper {
     );
 
     /**
-     * Guards {@code doc_values.on_failure=ignore} (mapping parameter and {@link #DOC_VALUES_ON_FAILURE_SETTING} index setting) while the
-     * feature is incomplete: the failure column it redirects to isn't wired into synthetic source reconstruction, block loaders, or
-     * search yet, so a field configured with it today would silently lose the offending value on reconstruction.
+     * Guards {@code doc_values.on_failure=ignore} (mapping parameter and {@link #DOC_VALUES_ON_FAILURE_SETTING} index setting).
+     * <p>
+     * The {@code ._on_failure} sidecar column is surfaced in synthetic {@code _source} reconstruction only. It is deliberately
+     * <em>not</em> exposed to block loaders, ESQL, or aggregations: {@code multi_value=false} advertises a strictly single-valued column
+     * to those paths, and surfacing the sidecar would break that contract (the same precedent is set by {@code ignore_above}, whose
+     * overflow column is also invisible to block loaders).
      */
     public static final FeatureFlag DOC_VALUES_ON_FAILURE_FEATURE_FLAG = new FeatureFlag("doc_values_on_failure");
 
@@ -451,6 +454,27 @@ public abstract class FieldMapper extends Mapper {
      */
     protected DocValuesParameter.Values.OnFailure onFailureBehavior() {
         return DocValuesParameter.Values.OnFailure.FAIL;
+    }
+
+    /**
+     * Whether this mapper writes extra values to the {@code ._on_failure} sidecar column, i.e. it is configured with
+     * {@code doc_values: {multi_value: false, on_failure: ignore}} and reconstructs its own source natively.
+     * <p>
+     * When {@code true}, call {@link CompositeSyntheticFieldLoader#onFailureValuesLayer} and add the result as the
+     * <em>last</em> layer of the composite loader, so on-failure values trail the primary column and the original
+     * encounter order of a multi-valued input is preserved.
+     * <p>
+     * Two non-obvious guards:
+     * <ul>
+     *   <li>{@link #onFailureBehavior()} rather than {@link #isSingleValueEnforced()}: {@code NumberFieldMapper} forces
+     *       {@code FAIL} when {@code allowMultipleValues=false}, so the two predicates diverge.</li>
+     *   <li>{@code syntheticSourceMode() != FALLBACK}: a FALLBACK field reconstructs from {@code _ignored_source}, which
+     *       {@code ObjectMapper.prepare()} gives precedence over native loaders for the same field name — adding this
+     *       layer for a FALLBACK field would conflict or double-emit.</li>
+     * </ul>
+     */
+    protected final boolean writesOnFailureColumn() {
+        return onFailureBehavior() == DocValuesParameter.Values.OnFailure.IGNORE && syntheticSourceMode() != SyntheticSourceMode.FALLBACK;
     }
 
     /**

@@ -2139,6 +2139,23 @@ public final class TextFieldMapper extends FieldMapper {
     protected SyntheticSourceSupport syntheticSourceSupport() {
         // if we stored this field in Lucene, then use that for synthetic source
         if (store) {
+            if (onFailureBehavior() == DocValuesParameter.Values.OnFailure.IGNORE) {
+                // on_failure=ignore is configured: wrap the stored-field loader in a composite so the on-failure sidecar values can be
+                // appended and the full multi-valued array is reconstructed correctly.
+                return new SyntheticSourceSupport.Native(() -> {
+                    var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>();
+                    layers.add(new CompositeSyntheticFieldLoader.StoredFieldLayer(fullPath()) {
+                        @Override
+                        protected void writeValue(Object value, XContentBuilder b) throws IOException {
+                            b.value((String) value);
+                        }
+                    });
+                    if (writesOnFailureColumn()) {
+                        layers.add(CompositeSyntheticFieldLoader.onFailureValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
+                    }
+                    return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
+                });
+            }
             return new SyntheticSourceSupport.Native(() -> new StringStoredFieldFieldLoader(fullPath(), leafName()) {
                 @Override
                 protected void write(XContentBuilder b, Object value) throws IOException {
@@ -2185,6 +2202,9 @@ public final class TextFieldMapper extends FieldMapper {
             layers.addAll(kwd.syntheticFieldLoaderLayers());
         }
 
+        if (writesOnFailureColumn()) {
+            layers.add(CompositeSyntheticFieldLoader.onFailureValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
+        }
         return new CompositeSyntheticFieldLoader(leafFieldName, fullFieldName, layers);
     }
 
@@ -2229,6 +2249,9 @@ public final class TextFieldMapper extends FieldMapper {
                     indexSettings.getIndexVersionCreated()
                 )
             );
+        }
+        if (writesOnFailureColumn()) {
+            layers.add(CompositeSyntheticFieldLoader.onFailureValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
         }
         return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
     }

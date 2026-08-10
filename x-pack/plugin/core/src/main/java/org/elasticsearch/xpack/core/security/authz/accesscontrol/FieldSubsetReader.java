@@ -45,6 +45,7 @@ import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.IgnoreMalformedStoredValues;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
+import org.elasticsearch.index.mapper.OnFailureStoredValues;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TextFamilyFieldType;
 import org.elasticsearch.transport.Transports;
@@ -165,15 +166,7 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         super(in);
         ArrayList<FieldInfo> filteredInfos = new ArrayList<>();
         for (FieldInfo fi : in.getFieldInfos()) {
-            String name = fi.name;
-            if (fi.getName().endsWith(TextFamilyFieldType.FALLBACK_FIELD_NAME_SUFFIX) && isMapped.apply(fi.getName()) == false) {
-                name = fi.getName().substring(0, fi.getName().length() - TextFamilyFieldType.FALLBACK_FIELD_NAME_SUFFIX.length());
-            }
-            if (fi.getName().endsWith(IgnoreMalformedStoredValues.IGNORE_MALFORMED_FIELD_NAME_SUFFIX)
-                && isMapped.apply(fi.getName()) == false) {
-                name = fi.getName()
-                    .substring(0, fi.getName().length() - IgnoreMalformedStoredValues.IGNORE_MALFORMED_FIELD_NAME_SUFFIX.length());
-            }
+            String name = sidecarParentName(fi.getName(), isMapped);
             if (filter.run(name)) {
                 filteredInfos.add(fi);
             }
@@ -181,6 +174,40 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         fieldInfos = new FieldInfos(filteredInfos.toArray(new FieldInfo[filteredInfos.size()]));
         this.filter = filter;
         this.ignoredSourceFormat = ignoredSourceFormat;
+    }
+
+    /**
+     * Given a Lucene field name, returns the mapped field name to use for the field-level security filter check.
+     * <p>
+     * Sidecar columns ({@code ._original}, {@code ._ignore_malformed}, and {@code ._on_failure}) are associated with their parent field
+     * for permission checks: a user who can read {@code foo} may also read {@code foo._ignore_malformed}. The optional
+     * {@code .counts} companion suffix (added by {@link MultiValuedBinaryDocValuesField.SeparateCount}) is stripped first,
+     * before checking for any sidecar suffix, so that e.g. {@code foo._ignore_malformed.counts} is correctly attributed to {@code foo}.
+     * <p>
+     * Returns the parent field name for unmapped sidecar fields; returns the original name unchanged for all other fields.
+     */
+    private static String sidecarParentName(String fieldName, Function<String, Boolean> isMapped) {
+        if (isMapped.apply(fieldName)) {
+            return fieldName;
+        }
+        // Strip the .counts companion suffix first (if present) so the remaining suffix can be matched below.
+        String candidate = fieldName;
+        if (candidate.endsWith(MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX)) {
+            candidate = candidate.substring(
+                0,
+                candidate.length() - MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX.length()
+            );
+        }
+        if (candidate.endsWith(TextFamilyFieldType.FALLBACK_FIELD_NAME_SUFFIX)) {
+            return candidate.substring(0, candidate.length() - TextFamilyFieldType.FALLBACK_FIELD_NAME_SUFFIX.length());
+        }
+        if (candidate.endsWith(IgnoreMalformedStoredValues.IGNORE_MALFORMED_FIELD_NAME_SUFFIX)) {
+            return candidate.substring(0, candidate.length() - IgnoreMalformedStoredValues.IGNORE_MALFORMED_FIELD_NAME_SUFFIX.length());
+        }
+        if (candidate.endsWith(OnFailureStoredValues.ON_FAILURE_FIELD_NAME_SUFFIX)) {
+            return candidate.substring(0, candidate.length() - OnFailureStoredValues.ON_FAILURE_FIELD_NAME_SUFFIX.length());
+        }
+        return fieldName;
     }
 
     /** returns true if this field is allowed. */

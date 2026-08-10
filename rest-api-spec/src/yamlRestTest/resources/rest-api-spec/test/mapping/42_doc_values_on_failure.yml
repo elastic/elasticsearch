@@ -1,0 +1,218 @@
+---
+"on_failure=ignore redirects extra values to ._on_failure sidecar (synthetic source)":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      cluster_features: ["mapper.doc_values.on_failure_read_side"]
+      reason: "._on_failure sidecar wired into synthetic source reconstruction"
+
+  - do:
+      indices.create:
+        index: test_on_failure_synthetic
+        body:
+          settings:
+            index.mode: logsdb_columnar
+            index.mapping.source.mode: synthetic
+          mappings:
+            properties:
+              kw:
+                type: keyword
+                doc_values:
+                  multi_value: false
+                  on_failure: ignore
+
+  # Multiple values: first goes to primary column, rest to ._on_failure; _source reconstructs full array in encounter order.
+  - do:
+      index:
+        index: test_on_failure_synthetic
+        id: "1"
+        body:
+          "@timestamp": "2024-01-01T00:00:00Z"
+          kw: ["val1", "val2", "val3"]
+
+  # Single value: no sidecar needed; _source returns a scalar.
+  - do:
+      index:
+        index: test_on_failure_synthetic
+        id: "2"
+        body:
+          "@timestamp": "2024-01-01T00:00:00Z"
+          kw: "only"
+
+  - do:
+      indices.refresh:
+        index: test_on_failure_synthetic
+
+  - do:
+      get:
+        index: test_on_failure_synthetic
+        id: "1"
+
+  - match: { _source.kw: ["val1", "val2", "val3"] }
+
+  - do:
+      get:
+        index: test_on_failure_synthetic
+        id: "2"
+
+  - match: { _source.kw: "only" }
+
+  # The sidecar is not surfaced to search / fields: only the primary doc-value is visible.
+  - do:
+      search:
+        index: test_on_failure_synthetic
+        body:
+          query:
+            term:
+              kw: "val2"
+  - match: { hits.total.value: 0 }
+
+  - do:
+      search:
+        index: test_on_failure_synthetic
+        body:
+          query:
+            term:
+              kw: "val1"
+  - match: { hits.total.value: 1 }
+
+---
+"on_failure=ignore redirects extra values to ._on_failure sidecar (columnar_stored source)":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      cluster_features: ["mapper.doc_values.on_failure_read_side"]
+      reason: "._on_failure sidecar wired into columnar_stored source reconstruction"
+
+  - do:
+      indices.create:
+        index: test_on_failure_columnar_stored
+        body:
+          settings:
+            index.mode: logsdb_columnar
+            index.mapping.source.mode: columnar_stored
+          mappings:
+            properties:
+              kw:
+                type: keyword
+                doc_values:
+                  multi_value: false
+                  on_failure: ignore
+
+  - do:
+      index:
+        index: test_on_failure_columnar_stored
+        id: "1"
+        body:
+          "@timestamp": "2024-01-01T00:00:00Z"
+          kw: ["val1", "val2", "val3"]
+
+  - do:
+      index:
+        index: test_on_failure_columnar_stored
+        id: "2"
+        body:
+          "@timestamp": "2024-01-01T00:00:00Z"
+          kw: "only"
+
+  - do:
+      indices.refresh:
+        index: test_on_failure_columnar_stored
+
+  - do:
+      get:
+        index: test_on_failure_columnar_stored
+        id: "1"
+
+  - match: { _source.kw: ["val1", "val2", "val3"] }
+
+  - do:
+      get:
+        index: test_on_failure_columnar_stored
+        id: "2"
+
+  - match: { _source.kw: "only" }
+
+---
+"on_failure=ignore trailing null round-trips":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      cluster_features: ["mapper.doc_values.on_failure_read_side"]
+      reason: "._on_failure sidecar wired into synthetic source reconstruction"
+
+  - do:
+      indices.create:
+        index: test_on_failure_trailing_null
+        body:
+          settings:
+            index.mode: logsdb_columnar
+            index.mapping.source.mode: synthetic
+          mappings:
+            properties:
+              kw:
+                type: keyword
+                doc_values:
+                  multi_value: false
+                  on_failure: ignore
+
+  # Trailing null: ["val1", null] — the null is stored in ._on_failure and round-trips.
+  - do:
+      index:
+        index: test_on_failure_trailing_null
+        id: "1"
+        body:
+          "@timestamp": "2024-01-01T00:00:00Z"
+          kw: ["val1", null]
+
+  - do:
+      indices.refresh:
+        index: test_on_failure_trailing_null
+
+  - do:
+      get:
+        index: test_on_failure_trailing_null
+        id: "1"
+
+  - match: { _source.kw: ["val1", null] }
+
+---
+"on_failure=ignore mapping serialization roundtrip":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      cluster_features: ["mapper.doc_values.on_failure_read_side"]
+      reason: "._on_failure sidecar wired into synthetic source reconstruction"
+
+  - do:
+      indices.create:
+        index: test_on_failure_mapping_roundtrip
+        body:
+          settings:
+            index.mode: logsdb_columnar
+          mappings:
+            properties:
+              kw:
+                type: keyword
+                doc_values:
+                  multi_value: false
+                  on_failure: ignore
+
+  - do:
+      indices.get_mapping:
+        index: test_on_failure_mapping_roundtrip
+
+  - match: { test_on_failure_mapping_roundtrip.mappings.properties.kw.doc_values.multi_value: false }
+  - match: { test_on_failure_mapping_roundtrip.mappings.properties.kw.doc_values.on_failure: "ignore" }

@@ -87,7 +87,18 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
 
     @Override
     public boolean enforcesSingleValue() {
-        return docValues.multiValue() == false;
+        // multi_value=false with on_failure=FAIL throws on extra values → force single-valued examples only.
+        // multi_value=false with on_failure=IGNORE redirects extra values to ._on_failure → multi-valued examples are valid.
+        return docValues.multiValue() == false && docValues.onFailure() == FieldMapper.DocValuesParameter.Values.OnFailure.FAIL;
+    }
+
+    /**
+     * {@code true} when extra values are silently redirected to the {@code ._on_failure} sidecar column rather than causing a parse error.
+     * The example generator uses this to produce multi-valued inputs whose expected reconstruction equals the original array (encounter
+     * order preserved; primary column carries the first value, sidecar carries the rest).
+     */
+    public boolean redirectsMultipleValues() {
+        return docValues.multiValue() == false && docValues.onFailure() == FieldMapper.DocValuesParameter.Values.OnFailure.IGNORE;
     }
 
     @Override
@@ -113,11 +124,22 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
         boolean flipOrder,
         boolean ignoredValuesSorted
     ) {
-        // When multi_value is disabled a document may only have a single value, so never take the multi-valued branch below.
-        if (enforcesSingleValue() || ESTestCase.randomBoolean()) {
+        // When multi_value is disabled and on_failure=FAIL a document may only have a single value.
+        // When multi_value=false and on_failure=IGNORE, extra values are redirected to ._on_failure and the full array is reconstructed.
+        if (enforcesSingleValue() || (redirectsMultipleValues() == false && ESTestCase.randomBoolean())) {
             Tuple<String, String> v = generateValue();
             Object sourceValue = preservesExactSource() ? v.v1() : v.v2();
             return new MapperTestCase.SyntheticSourceExample(v.v1(), sourceValue, this::mapping);
+        }
+
+        if (redirectsMultipleValues()) {
+            // Generate 2+ values; first goes to the primary column, rest to ._on_failure. Encounter order is preserved end-to-end.
+            List<Tuple<String, String>> values = ESTestCase.randomList(2, maxValues, this::generateValue);
+            List<String> in = values.stream().map(Tuple::v1).toList();
+            // Non-null values only: leading nulls consume the single-value slot and their array position is lost (accepted lossiness).
+            List<String> nonNullIn = in.stream().filter(v -> v != null).toList();
+            Object out = nonNullIn.size() == 1 ? nonNullIn.get(0) : nonNullIn;
+            return new MapperTestCase.SyntheticSourceExample(in, out, this::mapping);
         }
         List<Tuple<String, String>> values = ESTestCase.randomList(1, maxValues, this::generateValue);
         List<String> in = values.stream().map(Tuple::v1).toList();
@@ -184,6 +206,9 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
         } else if (docValues.multiValue() == false) {
             b.startObject("doc_values");
             b.field("multi_value", false);
+            if (docValues.onFailure() == FieldMapper.DocValuesParameter.Values.OnFailure.IGNORE) {
+                b.field("on_failure", "ignore");
+            }
             b.endObject();
         } else {
             b.field("doc_values", true);

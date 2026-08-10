@@ -1,0 +1,12 @@
+{
+  "name": "backport-wrapper",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "backport": "^12.0.4"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.2"
+  }
+}

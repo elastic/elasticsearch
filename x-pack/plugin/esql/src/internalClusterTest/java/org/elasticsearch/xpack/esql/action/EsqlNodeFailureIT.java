@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
@@ -14,10 +15,12 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.FailingFieldPlugin;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.anonymizer.EsqlFailureLogger;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
@@ -98,8 +101,7 @@ public class EsqlNodeFailureIT extends AbstractEsqlIntegTestCase {
         assertThat(e.getMessage(), equalTo("Accessing failing field"));
     }
 
-    public void testPartialResults() throws Exception {
-        Set<String> okIds = populateIndices();
+    private EsqlQueryRequest partialResultsRequest() {
         EsqlQueryRequest request = new EsqlQueryRequest();
         request.query("FROM fail,ok METADATA _id | KEEP _id, fail_me | LIMIT 100");
         request.allowPartialResults(true);
@@ -109,7 +111,12 @@ public class EsqlNodeFailureIT extends AbstractEsqlIntegTestCase {
         );
         request.pragmas(pragma);
         request.acceptedPragmaRisks(true);
-        try (EsqlQueryResponse resp = run(request)) {
+        return request;
+    }
+
+    public void testPartialResults() throws Exception {
+        Set<String> okIds = populateIndices();
+        try (EsqlQueryResponse resp = run(partialResultsRequest())) {
             assertTrue(resp.isPartial());
             List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
             assertThat(rows.size(), equalTo(okIds.size()));
@@ -124,6 +131,32 @@ public class EsqlNodeFailureIT extends AbstractEsqlIntegTestCase {
             assertThat(localInfo.getFailures(), not(empty()));
             assertThat(localInfo.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
             assertThat(localInfo.getFailures().get(0).reason(), containsString("Accessing failing field"));
+        }
+    }
+
+    public void testPartialResultsLogsLocalPlanOnDataNode() throws Exception {
+        populateIndices();
+        try (var mockLog = MockLog.capture(EsqlFailureLogger.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "anonymized local compute failure",
+                    EsqlFailureLogger.class.getCanonicalName(),
+                    Level.ERROR,
+                    "ES|QL local compute failed in session*shards [[idx_*localPhysical:*col_*localExecution:*"
+                )
+            );
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "field name in anonymized log",
+                    EsqlFailureLogger.class.getCanonicalName(),
+                    Level.ERROR,
+                    "*fail_me*"
+                )
+            );
+            try (EsqlQueryResponse resp = run(partialResultsRequest())) {
+                assertTrue(resp.isPartial());
+            }
+            mockLog.assertAllExpectationsMatched();
         }
     }
 

@@ -28,6 +28,11 @@ public final class ES95RunTableTSDBDocValuesFormat extends ES95TSDBDocValuesForm
 
     static final String CODEC_NAME = "ES95RTTSDB";
 
+    /**
+     * No-argument constructor required by the Lucene SPI codec registry. Used exclusively for
+     * reading segments written with this format. Run-table writes are disabled because
+     * {@code fieldContextResolver} is {@code null}; all fields fall back to the baseline layout.
+     */
     public ES95RunTableTSDBDocValuesFormat() {
         this(
             ES95TSDBDocValuesFormat.DEFAULT_SKIP_INDEX_INTERVAL_SIZE,

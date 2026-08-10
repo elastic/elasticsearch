@@ -21,6 +21,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.CircuitBreakerStats;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Lambda;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
@@ -50,7 +51,35 @@ public interface EvaluatorMapper {
         default Analyzer getAnalyzer(String name) {
             throw new UnsupportedOperationException("Analyzer lookup is not available in this evaluator context");
         }
+
+        /**
+         * Compiles the body of a {@link Lambda} into an {@link ExpressionEvaluator.Factory} whose input
+         * page follows the layout described by {@link LambdaBody}: the lambda's upstream references first,
+         * then the lambda parameters. The enclosing function's evaluator is responsible for building such
+         * pages, typically with one row per multivalue element of its field argument.
+         * <p>
+         * The default throws because lambda evaluation requires a {@link Layout} to resolve the body's
+         * upstream references, which is not available in every context (e.g. during folding). Expressions
+         * containing a {@link Lambda} are never foldable, so the folding context never needs this.
+         */
+        default LambdaBody lambdaBody(Lambda lambda) {
+            throw new UnsupportedOperationException("lambda evaluation is not supported in this context");
+        }
     }
+
+    /**
+     * The compiled body of a {@link Lambda}, as returned by {@link ToEvaluator#lambdaBody}.
+     * <p>
+     * {@link #bodyFactory} expects pages laid out as follows: channels {@code 0..k-1} hold the lambda
+     * body's upstream references (the attributes it reads besides the lambda parameters), and channels
+     * {@code k..k+p-1} hold the lambda parameters, where {@code k = outerChannels.length} and {@code p}
+     * is the parameter count. {@link #outerChannels} is the recipe for filling the upstream part: entry
+     * {@code i} is the channel in the <strong>enclosing</strong> evaluator's page whose block must be
+     * placed (suitably row-replicated) at channel {@code i} of the body's input page. This explicit
+     * mapping means only the blocks the body actually reads get replicated, and the parameter channel
+     * position is owned by this contract rather than by an implicit page-width invariant.
+     */
+    record LambdaBody(ExpressionEvaluator.Factory bodyFactory, int[] outerChannels) {}
 
     /**
      * Convert this into an {@link ExpressionEvaluator}.

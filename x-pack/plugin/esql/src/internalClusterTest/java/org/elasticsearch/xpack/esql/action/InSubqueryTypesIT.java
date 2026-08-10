@@ -252,7 +252,8 @@ public class InSubqueryTypesIT extends ESIntegTestCase {
         DataType.TIME_DURATION,
         DataType.GEOHASH,
         DataType.GEOTILE,
-        DataType.GEOHEX
+        DataType.GEOHEX,
+        DataType.LAMBDA
     );
 
     /**

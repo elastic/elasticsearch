@@ -166,6 +166,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Sqrt;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Tan;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Tanh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Tau;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.AnyMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAppend;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAvg;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvConcat;
@@ -173,12 +174,14 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCont
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvDedupe;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvDifference;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvFilter;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvFirst;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersection;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLast;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMap;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMedian;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMedianAbsoluteDeviation;
@@ -670,7 +673,11 @@ public class EsqlFunctionRegistry {
                 // TSTEP is new enough that we only want to expose it on snapshot builds for now.
                 TStep.DEFINITION,
                 // dense vector functions
-                Magnitude.DEFINITION } };
+                Magnitude.DEFINITION,
+                // lambda-accepting MV functions, snapshot-only while the lambda feature is under development
+                AnyMatch.DEFINITION,
+                MvMap.DEFINITION,
+                MvFilter.DEFINITION } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {
@@ -856,6 +863,50 @@ public class EsqlFunctionRegistry {
         }
     }
 
+    /**
+     * An {@link ArgSignature} for a {@code lambda}-typed parameter that carries enough information
+     * for tooling to know the shape of the expected lambda expression.
+     * <p>
+     * {@link #lambdaParamRefs()} names the function's other parameters whose concrete types
+     * become the lambda's own parameter types (in the same order). {@link #lambdaFixedReturnType()}
+     * is the fixed lambda body return type (e.g. {@code "boolean"} for a predicate), or
+     * {@code null} when the lambda's return type should match the function's own return type.
+     * <p>
+     * The {@code constant} hint is always set automatically: a lambda expression is inherently
+     * a literal — there is no mechanism to pass a runtime-computed lambda value — so callers
+     * do not need to specify {@code hint = @Param.Hint(kind = CONSTANT)} on lambda parameters.
+     */
+    public static class LambdaArgSignature extends ArgSignature {
+        private final String[] lambdaParamRefs;
+        private final String lambdaFixedReturnType;
+
+        public LambdaArgSignature(
+            String name,
+            String description,
+            boolean optional,
+            String appliesTo,
+            String[] lambdaParamRefs,
+            String lambdaFixedReturnType
+        ) {
+            super(name, new String[] { "lambda" }, description, optional, false, null, UNSUPPORTED, appliesTo);
+            this.lambdaParamRefs = lambdaParamRefs;
+            this.lambdaFixedReturnType = lambdaFixedReturnType.isEmpty() ? null : lambdaFixedReturnType;
+        }
+
+        /** Names of the referenced function parameters whose types become this lambda's parameter types. */
+        public String[] lambdaParamRefs() {
+            return lambdaParamRefs;
+        }
+
+        /**
+         * The fixed return type of the lambda body, or {@code null} if the lambda's return type
+         * should match the function's return type.
+         */
+        public String lambdaFixedReturnType() {
+            return lambdaFixedReturnType;
+        }
+    }
+
     public record MapEntryArgSignature(String name, String valueHint, String type, String description, String appliesTo) {
         @Override
         public String toString() {
@@ -986,6 +1037,17 @@ public class EsqlFunctionRegistry {
             String kind = param.hint().kind() != Param.Hint.Kind.STANDARD ? param.hint().kind().name().toLowerCase(Locale.ROOT) : null;
             List<String> allowedValues = List.of(param.hint().allowedValues());
             hint = new ArgSignature.Hint(entityType, kind, constraints, allowedValues);
+        }
+
+        if (param.lambda().paramTypes().length > 0) {
+            return new EsqlFunctionRegistry.LambdaArgSignature(
+                param.name(),
+                desc,
+                param.optional(),
+                param.applies_to(),
+                param.lambda().paramTypes(),
+                param.lambda().returnType()
+            );
         }
 
         return new EsqlFunctionRegistry.ArgSignature(

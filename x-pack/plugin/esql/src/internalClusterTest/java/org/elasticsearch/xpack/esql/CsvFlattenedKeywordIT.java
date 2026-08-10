@@ -1315,6 +1315,7 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         "CLAMP_MIN:min is missing",
         "EMBEDDING:value is missing",
         "FIELD_EXTRACT:path is missing",
+        "FILTER:field is missing",
         "JSON_EXTRACT:string is missing",
         "KNN:field is missing",
         "KQL:query is missing",

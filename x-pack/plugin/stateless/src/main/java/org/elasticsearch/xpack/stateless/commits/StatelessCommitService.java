@@ -930,7 +930,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             public void onResponse(BccUploadResult uploadResult) {
                 maybeLogSlowBccUpload(virtualBcc, uploadResult);
                 commitUploadThroughputMiBSec.addValue(uploadResult.uploadThroughputMiBPerSec());
-
+                commitState.pendingUploadBytes.addAndGet(-1 * virtualBcc.getTotalSizeInBytes());
                 final BatchedCompoundCommit uploadedBcc = uploadResult.batchedCompoundCommit();
                 try {
                     // Use the largest translog release file from all CCs to release translog files for cleaning.
@@ -1820,8 +1820,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         }
 
         @Override
-        public long pendingUploadMiB() {
-            return ByteSizeValue.ofBytes(pendingUploadBytes.get()).getMb();
+        public long pendingUploadBytes() {
+            return pendingUploadBytes.get();
         }
 
         private Optional<VirtualBatchedCompoundCommit> getMaxPendingUploadBcc() {

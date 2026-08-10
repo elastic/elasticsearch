@@ -74,7 +74,7 @@ public class UploadQueueControllerServiceIT extends AbstractStatelessPluginInteg
 
         // Now we need to build sufficient backlog.
         var statelessCommitService = internalCluster().getInstance(StatelessCommitService.class, indexNode);
-        while (statelessCommitService.getShardCommitStats().iterator().next().pendingUploadMiB() < 1) {
+        while (statelessCommitService.getShardCommitStats().iterator().next().pendingUploadBytes() < 1) {
             indexDocs(indexName, 1000);
             refresh(indexName);
         }

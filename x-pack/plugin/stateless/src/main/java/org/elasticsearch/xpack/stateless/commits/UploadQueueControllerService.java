@@ -14,6 +14,7 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.IndexShard;
@@ -229,7 +230,7 @@ public class UploadQueueControllerService extends AbstractLifecycleComponent {
 
                 // Otherwise we can make a new decision.
 
-                long queueInMiB = stats.pendingUploadMiB();
+                long queueInMiB = ByteSizeUnit.BYTES.toMB(stats.pendingUploadBytes());
                 long queueInSeconds = Math.round(queueInMiB / uploadThroughputMiBSec);
 
                 if (queueInSeconds > settings.activationThresholdSeconds) {

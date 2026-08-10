@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.stateless.commits;
 
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -37,7 +38,7 @@ public class UploadQueueControllerServiceTests extends ESTestCase {
         var calculator = new ThrottleCalculator(time::get, throttler);
 
         var stats = new ShardCommitUploadStats() {
-            long pendingUploadMiB = 0;
+            long pendingUploadBytes = 0;
 
             @Override
             public ShardId shardId() {
@@ -45,8 +46,8 @@ public class UploadQueueControllerServiceTests extends ESTestCase {
             }
 
             @Override
-            public long pendingUploadMiB() {
-                return pendingUploadMiB;
+            public long pendingUploadBytes() {
+                return pendingUploadBytes;
             }
         };
 
@@ -67,7 +68,7 @@ public class UploadQueueControllerServiceTests extends ESTestCase {
             } else {
                 pendingUploadMiB = randomLongBetween(0, settings.deactivationThresholdSeconds() - 1);
             }
-            stats.pendingUploadMiB = pendingUploadMiB;
+            stats.pendingUploadBytes = ByteSizeValue.ofMb(pendingUploadMiB).getBytes();
 
             currentState = calculator.newState(currentState, Stream.of(stats), settings, 1);
             var shardState = currentState.get(shardId);
@@ -96,8 +97,8 @@ public class UploadQueueControllerServiceTests extends ESTestCase {
             }
 
             @Override
-            public long pendingUploadMiB() {
-                return 50; // higher than 20 in settings below
+            public long pendingUploadBytes() {
+                return ByteSizeValue.ofMb(50).getBytes(); // results in backlog higher than 20 seconds in settings below
             }
         };
         var settings = new ThrottleSettings(20, 10, 10);
@@ -163,7 +164,7 @@ public class UploadQueueControllerServiceTests extends ESTestCase {
         var calculator = new ThrottleCalculator(time::get, throttler);
 
         var stats = new ShardCommitUploadStats() {
-            long pendingUploadMiB = 0;
+            long pendingUploadBytes = 0;
 
             @Override
             public ShardId shardId() {
@@ -171,14 +172,14 @@ public class UploadQueueControllerServiceTests extends ESTestCase {
             }
 
             @Override
-            public long pendingUploadMiB() {
-                return pendingUploadMiB;
+            public long pendingUploadBytes() {
+                return pendingUploadBytes;
             }
         };
 
         var settings = new ThrottleSettings(20, 10, 10);
 
-        stats.pendingUploadMiB = 50;
+        stats.pendingUploadBytes = ByteSizeValue.ofMb(50).getBytes();
 
         Map<ShardId, ThrottleState> throttledState = calculator.newState(Map.of(), Stream.of(stats), settings, 1);
         var throttledShardState = throttledState.get(shardId);
@@ -189,7 +190,7 @@ public class UploadQueueControllerServiceTests extends ESTestCase {
         assertTrue(throttler.history.get(0).throttled);
 
         time.set(settings.cooldownPeriodMs() + 1);
-        stats.pendingUploadMiB = 0;
+        stats.pendingUploadBytes = 0;
 
         long throttleRemovedTime = time.get();
         Map<ShardId, ThrottleState> removeThrottleState = calculator.newState(throttledState, Stream.of(stats), settings, 1);
@@ -199,7 +200,7 @@ public class UploadQueueControllerServiceTests extends ESTestCase {
         assertEquals(2, throttler.history.size());
         assertFalse(throttler.history.get(1).throttled);
 
-        stats.pendingUploadMiB = 50;
+        stats.pendingUploadBytes = ByteSizeValue.ofMb(50).getBytes();
 
         Map<ShardId, ThrottleState> state = removeThrottleState;
         for (int i = 0; i < settings.cooldownPeriodMs(); i++) {

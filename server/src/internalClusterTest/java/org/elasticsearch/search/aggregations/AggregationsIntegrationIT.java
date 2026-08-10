@@ -10,8 +10,10 @@
 package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -24,6 +26,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertScrollResponsesAndHitCount;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.SuiteScopeTestCase
 public class AggregationsIntegrationIT extends ESIntegTestCase {
@@ -63,14 +66,29 @@ public class AggregationsIntegrationIT extends ESIntegTestCase {
         );
     }
 
-    public void testDeeplyNestedAggregationFailsTheRequestWithoutKillingTheNode() {
+    public void testDeeplyNestedAggregationIsRejectedWithoutKillingTheNode() {
         TermsAggregationBuilder agg = terms("a0").field("f");
         for (int i = 1; i < 2000; i++) {
             agg = terms("a" + i).field("f").subAggregation(agg);
         }
         final TermsAggregationBuilder deepAgg = agg;
-        Exception e = expectThrows(Exception.class, () -> prepareSearch("index").addAggregation(deepAgg).get());
-        assertThat(ExceptionsHelper.stackTrace(e), containsString("too deeply nested"));
+        ActionRequestValidationException e = expectThrows(
+            ActionRequestValidationException.class,
+            () -> prepareSearch("index").addAggregation(deepAgg).get()
+        );
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "The nested depth of the aggregations exceeds the maximum nested depth for aggregations of ["
+                    + AggregatorFactories.getMaxNestedDepth()
+                    + "] set in ["
+                    + AggregatorFactories.MAX_NESTED_DEPTH_SETTING.getKey()
+                    + "]"
+            )
+        );
+        assertThat(ExceptionsHelper.status(e), equalTo(RestStatus.BAD_REQUEST));
+
+        ensureGreen("index");
         assertNoFailures(prepareSearch("index").addAggregation(terms("f").field("f")));
     }
 }

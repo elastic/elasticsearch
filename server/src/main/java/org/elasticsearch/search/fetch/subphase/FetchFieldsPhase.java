@@ -29,7 +29,6 @@ import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -40,12 +39,31 @@ import java.util.Set;
  */
 public final class FetchFieldsPhase implements FetchSubPhase {
 
-    private static final List<FieldAndFormat> DEFAULT_METADATA_FIELDS = List.of(
+    // Every entry is kept only when it is a metadata mapper for the index. _ignored and _routing
+    // always are (see IndicesModule#initBuiltInMetadataMappers), so the filter is a no-op for them;
+    // _type only is on pre-6.0 archived indices, which keeps a user field of that name out of
+    // root-level hit metadata.
+    private static final Set<FieldAndFormat> DEFAULT_METADATA_FIELDS = Set.of(
         new FieldAndFormat(IgnoredFieldMapper.NAME, null),
         new FieldAndFormat(RoutingFieldMapper.NAME, null),
-        // will only be fetched when mapped (older archived indices)
         new FieldAndFormat(LegacyTypeFieldMapper.NAME, null)
     );
+
+    /**
+     * Returns a fresh mutable set of default metadata fields that are metadata mappers for
+     * {@code context}. Callers may add further fields to the result. Filtering by
+     * {@link SearchExecutionContext#isMetadataField} avoids surfacing a user-mapped field
+     * (for example a join field named {@code _type}) as root-level hit metadata.
+     */
+    private static Set<FieldAndFormat> defaultMetadataFields(SearchExecutionContext context) {
+        final Set<FieldAndFormat> metadataFields = new HashSet<>();
+        for (FieldAndFormat fieldAndFormat : DEFAULT_METADATA_FIELDS) {
+            if (context.isMetadataField(fieldAndFormat.field)) {
+                metadataFields.add(fieldAndFormat);
+            }
+        }
+        return metadataFields;
+    }
 
     @Override
     public FetchSubPhaseProcessor getProcessor(FetchContext fetchContext) {
@@ -97,7 +115,7 @@ public final class FetchFieldsPhase implements FetchSubPhase {
         if (storedFieldsContext != null
             && storedFieldsContext.fieldNames() != null
             && storedFieldsContext.fieldNames().isEmpty() == false) {
-            final Set<FieldAndFormat> metadataFields = new HashSet<>(DEFAULT_METADATA_FIELDS);
+            final Set<FieldAndFormat> metadataFields = defaultMetadataFields(searchExecutionContext);
             for (final String storedField : storedFieldsContext.fieldNames()) {
                 final Set<String> matchingFieldNames = searchExecutionContext.getMatchingFieldNames(storedField);
                 for (final String matchingFieldName : matchingFieldNames) {
@@ -122,7 +140,7 @@ public final class FetchFieldsPhase implements FetchSubPhase {
             metadataFieldFetcher = FieldFetcher.create(searchExecutionContext, metadataFields);
         } else {
             // NOTE: Include also metadata stored fields requested via `fields`
-            final Set<FieldAndFormat> allMetadataFields = new HashSet<>(DEFAULT_METADATA_FIELDS);
+            final Set<FieldAndFormat> allMetadataFields = defaultMetadataFields(searchExecutionContext);
             allMetadataFields.addAll(fetchContextMetadataFields);
             metadataFieldFetcher = FieldFetcher.create(searchExecutionContext, allMetadataFields);
         }

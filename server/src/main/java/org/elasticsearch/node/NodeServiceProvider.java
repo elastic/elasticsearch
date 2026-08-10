@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.EstimatedHeapUsageCollector;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.NodeUsageStatsForThreadPoolsCollector;
+import org.elasticsearch.cluster.PartitionSizeCollector;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
@@ -107,6 +108,10 @@ class NodeServiceProvider {
             CacheSizesAndCommitmentCollector.class,
             () -> CacheSizesAndCommitmentCollector.EMPTY
         );
+        final PartitionSizeCollector partitionSizeCollector = pluginsService.loadSingletonServiceProvider(
+            PartitionSizeCollector.class,
+            () -> PartitionSizeCollector.EMPTY
+        );
         final InternalClusterInfoService service = new InternalClusterInfoService(
             settings,
             writeLoadConstraintSettings,
@@ -115,6 +120,7 @@ class NodeServiceProvider {
             client,
             estimatedHeapUsageCollector,
             cacheSizesAndCommitmentCollector,
+            partitionSizeCollector,
             new NodeUsageStatsForThreadPoolsCollector()
         );
         if (DiscoveryNode.isMasterNode(settings)) {

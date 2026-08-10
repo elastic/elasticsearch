@@ -37,9 +37,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search.highlight/30_max_analyzed_offset/Plain highlighter with max_analyzed_offset < 0 should FAIL}
   issue: https://github.com/elastic/elasticsearch/issues/156122
-- class: org.elasticsearch.index.shard.StoreRecoveryTests
-  method: testAddIndices
-  issue: https://github.com/elastic/elasticsearch/issues/156123
 - class: org.elasticsearch.search.aggregations.metrics.LargeTopHitsIT
   method: test500Queries
   issue: https://github.com/elastic/elasticsearch/issues/148056
@@ -58,6 +55,13 @@ tests:
 - class: org.elasticsearch.xpack.transform.integration.continuous.TransformContinuousIT
   method: testContinuousEvents
   issue: https://github.com/elastic/elasticsearch/issues/153782
+- class: org.elasticsearch.cluster.remote.test.RemoteClustersIT
+  issue: https://github.com/elastic/elasticsearch/issues/156233
+- class: org.elasticsearch.docker.test.DockerYmlTestSuiteIT
+  issue: https://github.com/elastic/elasticsearch/issues/156234
+- class: org.elasticsearch.search.SearchWithRejectionsIT
+  method: testOpenContextsAfterRejections
+  issue: https://github.com/elastic/elasticsearch/issues/156244
 
 # Examples:
 #

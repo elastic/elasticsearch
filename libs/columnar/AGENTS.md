@@ -35,17 +35,18 @@ handed an explicit pipeline to skip it.
    it) with a new, **frozen** `byte` id.
 2. Register the id in `NumericPipeline.Registry`.
 3. Add it to a pipeline — the default or a per-field one.
+4. Bump `FormatVersion.CURRENT` (new `static final int VERSION_X = N` constant); without it, old
+   readers fail mid-decode on the unknown id instead of at segment open.
 
 A column records its stage ids in metadata, so old data lists only old ids and a newer reader rebuilds
 the exact pipeline and decodes it unchanged. Never reuse or renumber a shipped id.
 
 ## Versioning
 
-Each segment stamps `ColumnarFormat.VERSION_CURRENT`; readers accept `[VERSION_START, VERSION_CURRENT]`
-and reject anything newer. Most evolution needs no bump — new encoders, field types and block-bytes
-codecs ride frozen ids recorded per column. Only a change to the metadata *layout* needs a version
-bump; then branch on the header version (returned by `ColumnarCodecUtil.checkHeader`) in the affected
-`readFrom`.
+Each segment stamps a `FormatVersion` in both headers; `ColumnarCodecUtil.checkHeader` returns it
+and threads it through `readFrom`. Three tiers: format version (header `int`), frozen column ids
+(`byte`, per-column), encoding bitmask (`vint`, per-block). A frozen-id addition or layout change
+requires a `FormatVersion` bump. See `FormatVersion` Javadoc for full policy.
 
 ## Benchmarks & tests
 

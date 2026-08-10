@@ -18,6 +18,7 @@ import org.elasticsearch.columnar.numeric.NumericPipeline;
 import org.elasticsearch.columnar.numeric.NumericPipelineSelector;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * A binary Lucene {@link DocValuesFormat}: every field is a {@code BinaryDocValues} column tagged with a
@@ -26,8 +27,8 @@ import java.io.IOException;
  *
  * <p>Pipeline selection is delegated to the injected {@link NumericPipelineSelector}. Callers that
  * need per-field encoding (e.g. ALP for doubles, SplitDelta for counters) supply a concrete
- * implementation at construction time. The no-arg SPI constructor uses the default pipeline for
- * every field, preserving backward-compatible behavior.
+ * implementation via {@link Builder}. The no-arg SPI constructor uses the default pipeline for
+ * every field.
  */
 public class ColumNARDocValuesFormat extends DocValuesFormat {
 
@@ -43,22 +44,25 @@ public class ColumNARDocValuesFormat extends DocValuesFormat {
     /** Default block size used when none is specified. */
     public static final int DEFAULT_BLOCK_SIZE = MIN_BLOCK_SIZE;
 
-    static final String DATA_CODEC = "ColumNARNumericData";
-    static final String DATA_EXTENSION = "cnvd";
-    static final String META_CODEC = "ColumNARNumericMeta";
-    static final String META_EXTENSION = "cnvm";
+    static final String DATA_CODEC = "ColumNARData";
+    static final String DATA_EXTENSION = "cnd";
+    static final String META_CODEC = "ColumNARMeta";
+    static final String META_EXTENSION = "cnm";
 
     private final NumericPipelineSelector pipelineSelector;
     private final int blockSize;
+    private final ColumnarWriteProfile writeProfile;
 
-    /**
-     * Constructs the format with a custom per-field pipeline selector and an explicit block size.
-     * The block size controls how many values are grouped into each encoded block; it must be a
-     * power of 2 between {@value #MIN_BLOCK_SIZE} and {@value #MAX_BLOCK_SIZE} inclusive.
-     *
-     * @throws IllegalArgumentException if {@code blockSize} is not a power of 2 in [{@value #MIN_BLOCK_SIZE}, {@value #MAX_BLOCK_SIZE}]
-     */
-    public ColumNARDocValuesFormat(NumericPipelineSelector pipelineSelector, int blockSize) {
+    /** SPI constructor. Uses the default pipeline for every field. */
+    public ColumNARDocValuesFormat() {
+        this((fieldName, type) -> (profile, bs) -> NumericPipeline.defaultPipeline(bs), DEFAULT_BLOCK_SIZE, ColumnarWriteProfile.current());
+    }
+
+    private ColumNARDocValuesFormat(
+        final NumericPipelineSelector pipelineSelector,
+        int blockSize,
+        final ColumnarWriteProfile writeProfile
+    ) {
         super(ColumnarFormat.NAME);
         if (blockSize < MIN_BLOCK_SIZE || blockSize > MAX_BLOCK_SIZE || (blockSize & (blockSize - 1)) != 0) {
             throw new IllegalArgumentException(
@@ -67,25 +71,54 @@ public class ColumNARDocValuesFormat extends DocValuesFormat {
         }
         this.pipelineSelector = pipelineSelector;
         this.blockSize = blockSize;
-    }
-
-    /** Constructs the format with a custom per-field pipeline selector and the default block size. */
-    public ColumNARDocValuesFormat(NumericPipelineSelector pipelineSelector) {
-        this(pipelineSelector, DEFAULT_BLOCK_SIZE);
-    }
-
-    /** SPI constructor. Uses the default pipeline for every field. */
-    public ColumNARDocValuesFormat() {
-        this((fieldName, type) -> NumericPipeline::defaultPipeline);
+        this.writeProfile = writeProfile;
     }
 
     @Override
     public DocValuesConsumer fieldsConsumer(SegmentWriteState state) throws IOException {
-        return new ColumNARDocValuesConsumer(state, pipelineSelector, blockSize);
+        return new ColumNARDocValuesConsumer(state, pipelineSelector, blockSize, writeProfile);
     }
 
     @Override
     public DocValuesProducer fieldsProducer(SegmentReadState state) throws IOException {
         return new ColumNARDocValuesProducer(state);
+    }
+
+    /**
+     * Builder for {@link ColumNARDocValuesFormat}. All parameters are optional and default to the
+     * same values as the no-arg SPI constructor.
+     */
+    public static final class Builder {
+
+        private NumericPipelineSelector pipelineSelector = (fieldName, type) -> (profile, bs) -> NumericPipeline.defaultPipeline(bs);
+        private int blockSize = DEFAULT_BLOCK_SIZE;
+        private ColumnarWriteProfile writeProfile = ColumnarWriteProfile.current();
+
+        public Builder() {}
+
+        /** Sets the per-field pipeline selector. */
+        public Builder pipelineSelector(final NumericPipelineSelector pipelineSelector) {
+            this.pipelineSelector = Objects.requireNonNull(pipelineSelector);
+            return this;
+        }
+
+        /**
+         * Sets the block size. Must be a power of 2 between {@value ColumNARDocValuesFormat#MIN_BLOCK_SIZE}
+         * and {@value ColumNARDocValuesFormat#MAX_BLOCK_SIZE} inclusive.
+         */
+        public Builder blockSize(int blockSize) {
+            this.blockSize = blockSize;
+            return this;
+        }
+
+        /** Sets the write profile controlling the format version stamped into new segments and which feature ids may be emitted. */
+        public Builder writeProfile(final ColumnarWriteProfile writeProfile) {
+            this.writeProfile = Objects.requireNonNull(writeProfile);
+            return this;
+        }
+
+        public ColumNARDocValuesFormat build() {
+            return new ColumNARDocValuesFormat(pipelineSelector, blockSize, writeProfile);
+        }
     }
 }

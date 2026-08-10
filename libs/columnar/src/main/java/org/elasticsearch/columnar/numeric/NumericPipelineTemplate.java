@@ -9,18 +9,33 @@
 
 package org.elasticsearch.columnar.numeric;
 
+import org.elasticsearch.columnar.ColumnarWriteProfile;
+
 /**
- * A factory that builds a {@link NumericPipeline} for a given block size. Returned by
- * {@link NumericPipelineSelector#select} so that the selector can express "which pipeline type"
- * without knowing the block size, while {@link org.elasticsearch.columnar.ColumNARDocValuesFormat}
- * remains the sole owner of the block size decision.
+ * A factory that builds a {@link NumericPipeline} for a target write profile and block size.
+ * Returned by {@link NumericPipelineSelector#select} so that the selector can express "which
+ * pipeline type" without knowing the block size or the profile, while
+ * {@link org.elasticsearch.columnar.ColumNARDocValuesFormat} remains the sole owner of the block
+ * size decision and {@link org.elasticsearch.columnar.ColumNARDocValuesConsumer} passes the
+ * profile through.
  *
- * <p>The named factories on {@link NumericPipeline} ({@link NumericPipeline#defaultPipeline},
- * {@link NumericPipeline#monotonicLongPipeline}, etc.) satisfy this interface as method references.
+ * <p>Baseline factories ignore the profile:
+ * <pre>{@code
+ * (profile, bs) -> NumericPipeline.monotonicLongPipeline(bs)
+ * }</pre>
+ *
+ * <p>Future factories that require a minimum version compare
+ * {@link ColumnarWriteProfile#version()} against a {@code FormatVersion.VERSION_*} constant at
+ * build time before constructing the pipeline.
  */
 @FunctionalInterface
 public interface NumericPipelineTemplate {
 
-    /** Builds a pipeline configured for the given block size. */
-    NumericPipeline build(int blockSize);
+    /**
+     * Builds a pipeline configured for the given write profile and block size. Baseline factories
+     * ignore {@code profile}. Factories that require a minimum version compare
+     * {@link ColumnarWriteProfile#version()} against a {@code VERSION_*} constant before
+     * constructing the pipeline.
+     */
+    NumericPipeline build(final ColumnarWriteProfile profile, int blockSize);
 }

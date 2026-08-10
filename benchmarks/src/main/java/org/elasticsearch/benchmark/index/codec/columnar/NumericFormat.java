@@ -89,7 +89,9 @@ public enum NumericFormat {
                     (f, bs) -> es95FieldContext(workload, f, bs)
                 );
             }
-            case COLUMNAR -> new ColumNARDocValuesFormat((f, t) -> bs -> selectPipeline(workload, bs), blockSize);
+            case COLUMNAR -> new ColumNARDocValuesFormat.Builder().numericPipelineSelector(
+                (f, t) -> (profile, bs) -> selectPipeline(workload, bs)
+            ).blockSize(blockSize).build();
         };
         return new Elasticsearch93Lucene104Codec() {
             @Override

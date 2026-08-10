@@ -13,19 +13,26 @@ import org.elasticsearch.columnar.ColumnarFieldType;
 
 /**
  * Selects the {@link NumericPipelineTemplate} to use when writing a numeric column. The library
- * calls {@link #select} once per field at write time and then applies the format's block size to
- * the returned template to obtain the concrete {@link NumericPipeline}.
+ * calls {@link #select} once per field at write time and then applies the format's block size and
+ * write profile to the returned template to obtain the concrete {@link NumericPipeline}.
+ *
+ * <p>The selector only chooses the logical pipeline for a field; compatibility enforcement happens
+ * when the returned template is built with the writer's
+ * {@link org.elasticsearch.columnar.ColumnarWriteProfile}. Implementations must not inspect or
+ * branch on the write profile; that responsibility belongs to the template factory.
  *
  * <p>Implementations live outside {@code libs/columnar}: the server module supplies a concrete
  * implementation that inspects field type, index mode, and metric role via the mapper. The library
- * never imports mapper types. A typical server-side implementation closes over mapper context and
- * routes by field semantics using named pipeline factories as method references:
+ * never imports mapper types. A typical server-side implementation routes by field semantics:
  *
  * <pre>{@code
- * new ColumNARDocValuesFormat((fieldName, type) -> switch (type) {
- *     case DOUBLE -> NumericPipeline::doubleGaugePipeline;
- *     default     -> NumericPipeline::defaultPipeline;
- * }, blockSize);
+ * new ColumNARDocValuesFormat.Builder()
+ *     .pipelineSelector((fieldName, type) -> switch (type) {
+ *         case DOUBLE -> (profile, bs) -> NumericPipeline.doubleGaugePipeline(bs);
+ *         default     -> (profile, bs) -> NumericPipeline.defaultPipeline(bs);
+ *     })
+ *     .blockSize(blockSize)
+ *     .build()
  * }</pre>
  *
  * <p>The no-arg {@link org.elasticsearch.columnar.ColumNARDocValuesFormat} constructor wires a

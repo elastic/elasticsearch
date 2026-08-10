@@ -16,7 +16,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
@@ -203,7 +202,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
     }
 
     public void testAggsMaxNestedDepthIsNotRewrapped() throws IOException {
-        int tooDeep = AggregatorFactories.MAX_NESTED_DEPTH_SETTING.getDefault(Settings.EMPTY) + 1;
+        int tooDeep = AggregatorFactories.MAX_NESTED_DEPTH + 1;
         StringBuilder restContent = new StringBuilder("{\"aggs\":");
         for (int i = 0; i < tooDeep; i++) {
             if (i > 0) {

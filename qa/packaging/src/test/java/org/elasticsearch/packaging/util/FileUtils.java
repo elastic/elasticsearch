@@ -136,11 +136,38 @@ public class FileUtils {
     }
 
     public static Path mv(Path source, Path target) {
+        if (Platforms.WINDOWS) {
+            return mvWithRetries(source, target);
+        }
         try {
             return Files.move(source, target);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    // windows needs leniency due to asinine releasing of file locking async from a process exiting
+    private static Path mvWithRetries(Path source, Path target) {
+        int tries = 10;
+        IOException exception = null;
+        while (tries-- > 0) {
+            try {
+                return Files.move(source, target);
+            } catch (IOException e) {
+                if (exception == null) {
+                    exception = e;
+                } else {
+                    exception.addSuppressed(e);
+                }
+            }
+            try {
+                Thread.sleep(1000);
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException(exception);
+            }
+        }
+        throw new RuntimeException(exception);
     }
 
     /**

@@ -86,6 +86,24 @@ public final class PromqlAttributesTranslationContext {
             return new Header(groupBy, exposed);
         }
 
+        /**
+         * Add named columns that shadow any exposed column of the same canonical name. A derived label (e.g. a
+         * {@code label_replace} destination) thus takes precedence over a stored label of the same name, so downstream
+         * name lookups and nested derivations observe the derived value rather than the stored one.
+         */
+        public Header shadowing(List<Attribute> labels) {
+            Set<String> shadowed = toCanonicalNames(labels);
+            var exposed = new ArrayList<Column>();
+            for (Column column : columns) {
+                if (column instanceof NamedColumn && shadowed.contains(toCanonicalName(column.attribute()))) {
+                    continue;
+                }
+                exposed.add(column);
+            }
+            distinctByCanonicalName(labels).stream().map(NamedColumn::new).forEach(exposed::add);
+            return new Header(groupBy, exposed);
+        }
+
         /** Add a time-series identity requirement without changing the primary grouping. */
         public Header including(TimeSeriesColumn required) {
             var exposed = new ArrayList<>(columns);
@@ -287,6 +305,22 @@ public final class PromqlAttributesTranslationContext {
             return null;
         }
 
+        /**
+         * The exposed column matching {@code name}, ignoring the attribute {@code excluded}. Reading a label's stored value
+         * during a relabel must skip the derived destination's own proxy: an enclosing {@code by(dst)} pushes that proxy
+         * down as a demand column of the same name, so an unqualified lookup would otherwise resolve the destination to
+         * itself.
+         */
+        public Attribute column(String name, Attribute excluded) {
+            for (Column column : columns) {
+                Attribute attribute = column.attribute();
+                if (attribute.id().equals(excluded.id()) == false && toCanonicalName(attribute).equals(name)) {
+                    return attribute;
+                }
+            }
+            return null;
+        }
+
         public boolean isDefined() {
             return columns.isEmpty() == false;
         }
@@ -381,6 +415,24 @@ public final class PromqlAttributesTranslationContext {
     static String toCanonicalName(Attribute attribute) {
         String name = attribute instanceof FieldAttribute field ? field.fieldName().string() : attribute.name();
         return name.startsWith(PROMETHEUS_LABELS_PREFIX) ? name.substring(PROMETHEUS_LABELS_PREFIX.length()) : name;
+    }
+
+    /**
+     * The attribute resolution scope for a PromQL command that derives labels: each derived destination shadows any
+     * stored label of the same name. Stored attributes whose canonical name collides with a destination are dropped and
+     * the destinations added, so an enclosing {@code by(dst)}/{@code KEEP dst} binds unambiguously to the derived label
+     * (a bare destination would otherwise collide with the stored label's bare passthrough alias).
+     */
+    public static List<Attribute> shadowedResolutionScope(List<Attribute> childrenOutput, List<Attribute> destinations) {
+        Set<String> shadowed = toCanonicalNames(destinations);
+        List<Attribute> scope = new ArrayList<>(childrenOutput.size() + destinations.size());
+        for (Attribute attribute : childrenOutput) {
+            if (shadowed.contains(toCanonicalName(attribute)) == false) {
+                scope.add(attribute);
+            }
+        }
+        scope.addAll(destinations);
+        return scope;
     }
 
     public static Attribute findByName(List<Attribute> attributes, String labelName) {

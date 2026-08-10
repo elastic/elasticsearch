@@ -67,6 +67,13 @@ public final class HistogramQuantile extends PromqlFunctionCall {
         return FunctionType.HISTOGRAM;
     }
 
+    @Override
+    public boolean isIdentityTransparent() {
+        // Reshapes labels (drops `le`) but is not a grouping boundary for relabel placement: a relabel below it still
+        // feeds the enclosing aggregation.
+        return true;
+    }
+
     private static String labelName(Attribute attribute) {
         String fieldName;
         if (attribute instanceof FieldAttribute fieldAttribute) {

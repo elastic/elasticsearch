@@ -565,6 +565,70 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
             }
             root.set(false);
         });
+
+        verifyMetadataManipulationPlacement(p, null, failures);
+    }
+
+    /**
+     * Enforces the supported scope for {@code label_replace}/{@code label_join}: because a derived label is materialized as a
+     * concrete column (never by rewriting the series-identity blob), it must be consumed by an enclosing {@code by(...)}
+     * aggregation. Walking down the plan, each relabel is checked against the nearest enclosing <i>identity consumer</i> - the
+     * aggregate, reduction, or binary operator whose output identity it would feed. Only an {@link AcrossSeriesAggregate} with
+     * {@link AcrossSeriesAggregate.Grouping#BY} can consume it; a bare (non-aggregated) call, a {@code without(...)} grouping,
+     * a {@code topk}/{@code bottomk} reduction, or a binary operator would require identity-blob rewriting and is rejected.
+     *
+     * @param consumer the nearest enclosing identity consumer for a relabel at this position, or {@code null} at the root
+     */
+    private static void verifyMetadataManipulationPlacement(LogicalPlan node, LogicalPlan consumer, Failures failures) {
+        if (node instanceof MetadataManipulationFunction relabel) {
+            checkRelabelConsumer(relabel, consumer, failures);
+            // A relabel passes identity through unchanged, so a nested relabel is consumed by the same enclosing consumer.
+            verifyMetadataManipulationPlacement(relabel.child(), consumer, failures);
+            return;
+        }
+        // A relabel appearing beneath an identity-consuming node (see PromqlPlan#isIdentityTransparent) is consumed by it;
+        // identity-transparent nodes (and any non-PromqlPlan node such as a relation) keep the parent's consumer.
+        LogicalPlan childConsumer = node instanceof PromqlPlan promqlPlan && promqlPlan.isIdentityTransparent() == false ? node : consumer;
+        for (LogicalPlan child : node.children()) {
+            verifyMetadataManipulationPlacement(child, childConsumer, failures);
+        }
+    }
+
+    private static void checkRelabelConsumer(MetadataManipulationFunction relabel, LogicalPlan consumer, Failures failures) {
+        String name = relabel.definition().name();
+        if (consumer instanceof AcrossSeriesAggregate agg) {
+            if (agg.grouping() == AcrossSeriesAggregate.Grouping.BY) {
+                return;
+            }
+            String reason = agg.grouping() == AcrossSeriesAggregate.Grouping.WITHOUT
+                ? "with a `without(...)` grouping"
+                : "without a `by(...)` grouping";
+            failures.add(
+                fail(
+                    relabel,
+                    "[{}] is only supported inside a `by(...)` aggregation, but was used {} [{}]",
+                    name,
+                    reason,
+                    relabel.sourceText()
+                )
+            );
+            return;
+        }
+        String context = switch (consumer) {
+            case null -> "as a top-level (non-aggregated) expression";
+            case AcrossSeriesReduction reduction -> "under [" + reduction.definition().name() + "]";
+            case VectorBinaryOperator binaryOperator -> "as an operand of a binary operator";
+            default -> "in an unsupported position";
+        };
+        failures.add(
+            fail(
+                relabel,
+                "[{}] is only supported inside a `by(...)` aggregation, but was used {} [{}]",
+                name,
+                context,
+                relabel.sourceText()
+            )
+        );
     }
 
     /**

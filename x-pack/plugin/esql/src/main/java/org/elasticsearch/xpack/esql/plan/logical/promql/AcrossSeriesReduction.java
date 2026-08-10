@@ -91,4 +91,10 @@ public final class AcrossSeriesReduction extends PromqlFunctionCall {
     public FunctionType functionType() {
         return FunctionType.ACROSS_SERIES_REDUCTION;
     }
+
+    @Override
+    public boolean isIdentityTransparent() {
+        // Partitions series and reduces per partition: a relabel below it feeds this partition boundary.
+        return false;
+    }
 }

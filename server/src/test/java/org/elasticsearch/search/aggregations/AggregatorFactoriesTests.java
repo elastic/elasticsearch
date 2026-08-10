@@ -225,83 +225,24 @@ public class AggregatorFactoriesTests extends ESTestCase {
     }
 
     public void testMaxNestedDepth() throws Exception {
-        int maxDepth = defaultMaxNestedDepth();
+        int maxDepth = AggregatorFactories.MAX_NESTED_DEPTH;
         assertNestedDepthAccepted(maxDepth);
         ParsingException e = expectMaxNestedDepthExceeded(maxDepth + 1);
         assertThat(
             e.getMessage(),
-            equalTo(
-                "The nested depth of the aggregations exceeds the maximum nested depth for aggregations of ["
-                    + maxDepth
-                    + "] set in ["
-                    + AggregatorFactories.MAX_NESTED_DEPTH_SETTING.getKey()
-                    + "]"
-            )
+            equalTo("The nested depth of the aggregations exceeds the maximum nested depth for aggregations of [" + maxDepth + "]")
         );
-    }
-
-    public void testMaxNestedDepthCustomLimit() throws Exception {
-        int maxDepth = randomIntBetween(1, 5);
-        AggregatorFactories.setMaxNestedDepth(maxDepth);
-        try {
-            assertNestedDepthAccepted(maxDepth);
-            ParsingException e = expectMaxNestedDepthExceeded(maxDepth + 1);
-            assertThat(e.getMessage(), containsString("exceeds the maximum nested depth for aggregations of [" + maxDepth + "]"));
-        } finally {
-            AggregatorFactories.setMaxNestedDepth(defaultMaxNestedDepth());
-        }
-    }
-
-    public void testMaxNestedDepthFromNodeSettings() throws Exception {
-        int maxDepth = randomIntBetween(1, 5);
-        Settings settings = Settings.builder()
-            .put("node.name", AbstractQueryTestCase.class.toString())
-            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-            .put(AggregatorFactories.MAX_NESTED_DEPTH_SETTING.getKey(), maxDepth)
-            .build();
-        try {
-            new SearchModule(settings, emptyList());
-            assertNestedDepthAccepted(maxDepth);
-            ParsingException e = expectMaxNestedDepthExceeded(maxDepth + 1);
-            assertThat(e.getMessage(), containsString("exceeds the maximum nested depth for aggregations of [" + maxDepth + "]"));
-        } finally {
-            AggregatorFactories.setMaxNestedDepth(defaultMaxNestedDepth());
-        }
-    }
-
-    public void testMaxNestedDepthSettingIsDynamic() {
-        assertTrue(
-            "search.aggs.max_nested_depth must stay dynamic so operators can adjust it without a node restart",
-            AggregatorFactories.MAX_NESTED_DEPTH_SETTING.isDynamic()
-        );
-    }
-
-    public void testMaxNestedDepthSettingRejectsValuesAboveHardLimit() {
-        int tooHigh = AggregatorFactories.MAX_NESTED_DEPTH_HARD_LIMIT + 1;
-        Settings settings = Settings.builder().put(AggregatorFactories.MAX_NESTED_DEPTH_SETTING.getKey(), tooHigh).build();
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> AggregatorFactories.MAX_NESTED_DEPTH_SETTING.get(settings)
-        );
-        assertThat(e.getMessage(), containsString(String.valueOf(AggregatorFactories.MAX_NESTED_DEPTH_HARD_LIMIT)));
-    }
-
-    public void testMaxNestedDepthSettingAcceptsHardLimit() {
-        Settings settings = Settings.builder()
-            .put(AggregatorFactories.MAX_NESTED_DEPTH_SETTING.getKey(), AggregatorFactories.MAX_NESTED_DEPTH_HARD_LIMIT)
-            .build();
-        assertThat(AggregatorFactories.MAX_NESTED_DEPTH_SETTING.get(settings), equalTo(AggregatorFactories.MAX_NESTED_DEPTH_HARD_LIMIT));
     }
 
     public void testMaxNestedDepthEnforcedAtBuildTime() {
-        int maxDepth = defaultMaxNestedDepth();
+        int maxDepth = AggregatorFactories.MAX_NESTED_DEPTH;
         AggregatorFactories.Builder tooDeep = nestedTermsBuilder(maxDepth + 1);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> tooDeep.build(null, null));
         assertThat(e.getMessage(), containsString("exceeds the maximum nested depth for aggregations of [" + maxDepth + "]"));
     }
 
     public void testMaxNestedDepthEnforcedAfterTransportSerialization() throws IOException {
-        int maxDepth = defaultMaxNestedDepth();
+        int maxDepth = AggregatorFactories.MAX_NESTED_DEPTH;
         AggregatorFactories.Builder tooDeep = nestedTermsBuilder(maxDepth + 1);
         NamedWriteableRegistry registry = new NamedWriteableRegistry(
             new SearchModule(Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build(), emptyList())
@@ -319,7 +260,7 @@ public class AggregatorFactoriesTests extends ESTestCase {
     }
 
     public void testMaxNestedDepthBoundaryAcceptedAtBuildTime() {
-        AggregatorFactories.Builder atLimit = nestedTermsBuilder(defaultMaxNestedDepth());
+        AggregatorFactories.Builder atLimit = nestedTermsBuilder(AggregatorFactories.MAX_NESTED_DEPTH);
         try {
             atLimit.build(null, null);
         } catch (Exception e) {
@@ -340,10 +281,6 @@ public class AggregatorFactoriesTests extends ESTestCase {
             parent = child;
         }
         return new AggregatorFactories.Builder().addAggregator(root);
-    }
-
-    private static int defaultMaxNestedDepth() {
-        return AggregatorFactories.MAX_NESTED_DEPTH_SETTING.getDefault(Settings.EMPTY);
     }
 
     private void assertNestedDepthAccepted(int depth) throws IOException {

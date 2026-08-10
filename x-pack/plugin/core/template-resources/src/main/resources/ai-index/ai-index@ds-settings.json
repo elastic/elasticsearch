@@ -2,7 +2,6 @@
   "template": {
     "settings": {
       "index": {
-        "mode": "columnar",
         "sort": {
           "field": "@timestamp",
           "order": "desc"

@@ -10,6 +10,7 @@ package org.elasticsearch.benchmark.vector.scorer;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.benchmark.store.DirectoryType;
 import org.elasticsearch.benchmark.vector.VectorImplementation;
 import org.elasticsearch.simdvec.VectorSimilarityType;
 
@@ -45,6 +46,7 @@ public class VectorScorerInt8BulkBenchmarkTests extends BenchmarkTest {
         var bench = new VectorScorerInt8BulkBenchmark();
         bench.function = function;
         bench.implementation = impl;
+        bench.directoryType = DirectoryType.MMAP;
         bench.dims = dims;
         bench.numVectors = 1000;
         bench.numVectorsToScore = 200;

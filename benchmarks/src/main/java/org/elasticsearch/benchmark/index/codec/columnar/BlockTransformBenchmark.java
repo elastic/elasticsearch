@@ -98,18 +98,24 @@ public abstract class BlockTransformBenchmark {
     private static final Map<String, IntFunction<NumericPipeline>> PIPELINE_FACTORIES;
     static {
         PIPELINE_FACTORIES = new LinkedHashMap<>();
-        PIPELINE_FACTORIES.put("delta", bs -> new NumericPipeline(new BlockTransform[] { DeltaTransform.INSTANCE }, RawTerminal.INSTANCE));
+        PIPELINE_FACTORIES.put(
+            "delta",
+            bs -> new NumericPipeline(new BlockTransform[] { DeltaTransform.INSTANCE }, RawTerminal.INSTANCE, bs)
+        );
         PIPELINE_FACTORIES.put(
             "offset",
-            bs -> new NumericPipeline(new BlockTransform[] { OffsetTransform.INSTANCE }, RawTerminal.INSTANCE)
+            bs -> new NumericPipeline(new BlockTransform[] { OffsetTransform.INSTANCE }, RawTerminal.INSTANCE, bs)
         );
-        PIPELINE_FACTORIES.put("gcd", bs -> new NumericPipeline(new BlockTransform[] { GcdTransform.INSTANCE }, RawTerminal.INSTANCE));
+        PIPELINE_FACTORIES.put("gcd", bs -> new NumericPipeline(new BlockTransform[] { GcdTransform.INSTANCE }, RawTerminal.INSTANCE, bs));
         PIPELINE_FACTORIES.put(
             "splitDelta",
-            bs -> new NumericPipeline(new BlockTransform[] { new SplitDeltaTransform() }, RawTerminal.INSTANCE)
+            bs -> new NumericPipeline(new BlockTransform[] { new SplitDeltaTransform() }, RawTerminal.INSTANCE, bs)
         );
-        PIPELINE_FACTORIES.put("alp", bs -> new NumericPipeline(new BlockTransform[] { new AlpDoubleTransform(bs) }, RawTerminal.INSTANCE));
-        PIPELINE_FACTORIES.put("for", bs -> new NumericPipeline(new BlockTransform[] {}, new ForTerminal(bs)));
+        PIPELINE_FACTORIES.put(
+            "alp",
+            bs -> new NumericPipeline(new BlockTransform[] { new AlpDoubleTransform(bs) }, RawTerminal.INSTANCE, bs)
+        );
+        PIPELINE_FACTORIES.put("for", bs -> new NumericPipeline(new BlockTransform[] {}, new ForTerminal(bs), bs));
     }
 
     // keep in sync with PIPELINE_FACTORIES.keySet()

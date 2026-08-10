@@ -101,7 +101,7 @@ public class DLMFrozenTransitionsHealthIndicatorService implements HealthIndicat
         "eligible_indices_unmarked",
         "Some indices are eligible for conversion to the frozen tier but have not been marked for conversion, "
             + "even though a default snapshot repository is configured.",
-        "Check the current master node's logs for errors related to the data stream lifecycle and the DLM frozen " + "transition service.",
+        "Check the current master node's logs for errors related to the data stream lifecycle and the DLM frozen transition service.",
         HELP_URL
     );
 

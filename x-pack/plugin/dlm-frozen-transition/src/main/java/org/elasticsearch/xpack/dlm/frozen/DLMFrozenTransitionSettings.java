@@ -34,7 +34,7 @@ public class DLMFrozenTransitionSettings {
      * not yet attempted) before the {@code dlm_frozen_transitions} health indicator reports YELLOW for it.
      */
     public static final Setting<TimeValue> HEALTH_STUCK_THRESHOLD_SETTING = Setting.timeSetting(
-        "dlm.frozen.health.stuck_threshold",
+        "dlm.frozen_transitions.health.stuck_threshold",
         TimeValue.timeValueHours(24),
         TimeValue.timeValueMinutes(1),
         Setting.Property.Dynamic,

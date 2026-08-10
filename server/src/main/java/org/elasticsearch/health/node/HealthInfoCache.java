@@ -109,6 +109,7 @@ public class HealthInfoCache implements ClusterStateListener {
         return diskInfoByNode.isEmpty() == false
             || dslHealthInfo != null
             || repositoriesInfoByNode.isEmpty() == false
+            || fileSettingsHealthInfo != INDETERMINATE
             || dlmFrozenTransitionsHealthInfo != null;
     }
 

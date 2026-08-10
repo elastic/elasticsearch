@@ -48,7 +48,7 @@ import static org.elasticsearch.logging.LogManager.getLogger;
 public class DLMFrozenTransitionHealthInfoPublisher extends AbstractDLMPeriodicMasterOnlyService {
 
     static final Setting<TimeValue> PUBLISH_INTERVAL_SETTING = Setting.timeSetting(
-        "dlm.frozen.health.publish_interval",
+        "dlm.frozen_transitions.health.publish_interval",
         TimeValue.timeValueMinutes(5),
         TimeValue.timeValueSeconds(1),
         Setting.Property.NodeScope

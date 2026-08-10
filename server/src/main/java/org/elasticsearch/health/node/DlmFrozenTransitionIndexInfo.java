@@ -24,7 +24,7 @@ import java.io.IOException;
  * {@code stalledSinceMillis} is {@code max(eligibleSince, masterTenureStart)}: it resets forward on every master
  * failover so that a freshly-elected master does not immediately report an index as stalled before it has had a
  * threshold's worth of time to attempt the transition. This means the value will <em>not</em> match the index's
- * {@code index.lifecycle.origination_date}.
+ * {@code generationLifecycleDate}.
  *
  * <p>For <em>eligible-but-unmarked</em> indices (those past their {@code frozen_after} age but not yet marked),
  * {@code stalledSinceMillis} is the plain eligibility timestamp ({@code generationLifecycleDate + frozenAfter}).

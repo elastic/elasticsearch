@@ -39,7 +39,7 @@ public record HealthInfo(
     @Nullable DlmFrozenTransitionsHealthInfo dlmFrozenTransitionsHealthInfo
 ) implements Writeable {
 
-    public static final HealthInfo EMPTY_HEALTH_INFO = new HealthInfo(Map.of(), NO_DSL_ERRORS, Map.of(), INDETERMINATE, null);
+    public static final HealthInfo EMPTY_HEALTH_INFO = new HealthInfo(Map.of(), NO_DSL_ERRORS, Map.of(), INDETERMINATE);
 
     private static final TransportVersion FILE_SETTINGS_HEALTH_INFO = TransportVersion.fromName("file_settings_health_info");
     private static final TransportVersion DLM_FROZEN_TRANSITIONS_HEALTH_INFO = TransportVersion.fromName(

@@ -219,7 +219,9 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<EsqlResolveF
                         // TODO should we allow selectors on non-data streams?
                         switch (indexAbstraction.getType()) {
                             case CONCRETE_INDEX -> result.indices.add(indexAbstraction);
-                            case ALIAS, DATA_STREAM -> {
+                            // Pass aliases by name, security authorizes at alias level,
+                            case ALIAS -> result.indices.add(indexAbstraction);
+                            case DATA_STREAM -> {
                                 List<Index> source = switch (IndexComponentSelector.getByKey(nameAndSelector.v2())) {
                                     case null -> indexAbstraction.getIndices();
                                     case DATA -> indexAbstraction.getIndices();

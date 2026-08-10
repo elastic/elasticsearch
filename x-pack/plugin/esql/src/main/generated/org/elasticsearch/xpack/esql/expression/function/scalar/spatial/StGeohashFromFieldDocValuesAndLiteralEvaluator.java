@@ -90,7 +90,7 @@ public final class StGeohashFromFieldDocValuesAndLiteralEvaluator implements Exp
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+      this.warnings = driverContext.createWarnings(source);
     }
     return warnings;
   }

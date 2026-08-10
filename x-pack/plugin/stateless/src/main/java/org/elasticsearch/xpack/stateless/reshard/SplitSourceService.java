@@ -178,6 +178,7 @@ public class SplitSourceService {
         long targetPrimaryTerm,
         ActionListener<Releasable> listener
     ) {
+        assert commitService != null : "commit service must be initialized for index nodes";
         Index index = targetShardId.getIndex();
 
         var indexMetadata = clusterService.state().metadata().projectFor(index).getIndexSafe(index);
@@ -425,6 +426,7 @@ public class SplitSourceService {
     }
 
     public void stopCopyingNewCommits(ShardId targetShardId) {
+        assert commitService != null : "commit service must be initialized for index nodes";
         commitService.markSplitEnding(getSplitSource(targetShardId), targetShardId, false);
     }
 

@@ -17,6 +17,7 @@ import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
@@ -24,7 +25,6 @@ import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryMetrics;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
-import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -46,11 +46,6 @@ import static org.hamcrest.Matchers.notNullValue;
 public class CacheMissWaitTimeHeaderIT extends AbstractBlobCacheMetricsIntegTestCase {
 
     private static final ByteSizeValue CACHE_REGION_SIZE = ByteSizeValue.ofBytes(8L * SharedBytes.PAGE_SIZE);
-
-    @Before
-    public void ensureDirectoryMetricsEnabled() {
-        assumeTrue("directory metrics must be enabled", Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled());
-    }
 
     @Override
     protected boolean addMockFsRepository() {
@@ -79,9 +74,18 @@ public class CacheMissWaitTimeHeaderIT extends AbstractBlobCacheMetricsIntegTest
     }
 
     public void testCacheMissWaitTimeHeader() throws InterruptedException {
+        assumeTrue("directory metrics must be enabled", Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled());
+        assertCacheMissWaitTimeHeader("cache-miss-header", true);
+    }
+
+    /**
+     * Cold search asserts {@code cache_miss_wait_nanos > 0}; warm asserts it's absent.
+     * {@code expectStoreBytesRead} gates store metric assertions.
+     */
+    protected void assertCacheMissWaitTimeHeader(String indexNamePrefix, boolean expectStoreBytesRead) throws InterruptedException {
         startMasterAndIndexNode();
 
-        final String indexName = createIndexWithNoReplicas("cache-miss-header");
+        final String indexName = createIndexWithNoReplicas(indexNamePrefix);
         populateIndex(indexName);
         flush(indexName);
 
@@ -95,12 +99,20 @@ public class CacheMissWaitTimeHeaderIT extends AbstractBlobCacheMetricsIntegTest
         Map<String, Long> coldCacheMetrics = searchAndCollectDirectoryMetrics(indexName);
         assertThat(coldCacheMetrics, hasKey(BlobStoreCacheDirectoryMetrics.CACHE_MISS_WAIT_NANOS_HEADER));
         assertThat(coldCacheMetrics.get(BlobStoreCacheDirectoryMetrics.CACHE_MISS_WAIT_NANOS_HEADER), greaterThan(0L));
+        if (expectStoreBytesRead) {
+            assertThat(coldCacheMetrics, hasKey(StoreMetrics.BYTES_READ_METRIC_KEY));
+        } else {
+            assertThat(coldCacheMetrics, not(hasKey(StoreMetrics.BYTES_READ_METRIC_KEY)));
+        }
 
         Map<String, Long> warmCacheMetrics = searchAndCollectDirectoryMetrics(indexName);
         assertThat(warmCacheMetrics, not(hasKey(BlobStoreCacheDirectoryMetrics.CACHE_MISS_WAIT_NANOS_HEADER)));
+        if (expectStoreBytesRead == false) {
+            assertThat(warmCacheMetrics, not(hasKey(StoreMetrics.BYTES_READ_METRIC_KEY)));
+        }
     }
 
-    private Map<String, Long> searchAndCollectDirectoryMetrics(String indexName) throws InterruptedException {
+    protected Map<String, Long> searchAndCollectDirectoryMetrics(String indexName) throws InterruptedException {
         SearchRequest searchRequest = new SearchRequest(indexName).searchType(SearchType.QUERY_THEN_FETCH)
             .source(new SearchSourceBuilder().query(matchAllQuery()).size(10_000));
 

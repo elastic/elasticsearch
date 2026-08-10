@@ -68,52 +68,52 @@ public class FunctionSignaturesTests extends ESTestCase {
     }
 
     public void testReturnRefOutOfRange() {
-        IllegalArgumentException e = expectThrows(
+        expectThrows(
             IllegalArgumentException.class,
+            containsString("out of range"),
             () -> FunctionSignatures.expand(signature(new String[] { "integer" }, "$1"))
         );
-        assertThat(e.getMessage(), containsString("out of range"));
     }
 
     public void testReturnUnionRejected() {
-        IllegalArgumentException e = expectThrows(
+        expectThrows(
             IllegalArgumentException.class,
+            containsString("not a union"),
             () -> FunctionSignatures.expand(signature(new String[] { "integer" }, "integer|long"))
         );
-        assertThat(e.getMessage(), containsString("not a union"));
     }
 
     public void testReturnTypeGroupRejected() {
-        IllegalArgumentException e = expectThrows(
+        expectThrows(
             IllegalArgumentException.class,
+            containsString("not a type group"),
             () -> FunctionSignatures.expand(signature(new String[] { "integer" }, "NUMERIC"))
         );
-        assertThat(e.getMessage(), containsString("not a type group"));
     }
 
     public void testUnknownReturnTypeRejected() {
-        IllegalArgumentException e = expectThrows(
+        expectThrows(
             IllegalArgumentException.class,
+            containsString("not a known data type"),
             () -> FunctionSignatures.expand(signature(new String[] { "integer" }, "not_a_type"))
         );
-        assertThat(e.getMessage(), containsString("not a known data type"));
     }
 
     public void testUnknownParamTypeRejected() {
-        IllegalArgumentException e = expectThrows(
+        expectThrows(
             IllegalArgumentException.class,
+            containsString("not a known data type"),
             () -> FunctionSignatures.expand(signature(new String[] { "not_a_type" }, "integer"))
         );
-        assertThat(e.getMessage(), containsString("not a known data type"));
     }
 
     public void testEmptyUnionPartRejected() {
         // String.split discards a trailing empty segment for "integer|"; use an interior empty part.
-        IllegalArgumentException e = expectThrows(
+        expectThrows(
             IllegalArgumentException.class,
+            containsString("empty type"),
             () -> FunctionSignatures.expand(signature(new String[] { "integer||long" }, "integer"))
         );
-        assertThat(e.getMessage(), containsString("empty type"));
     }
 
     private static Signature signature(String[] params, String returnType) {

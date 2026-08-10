@@ -61,6 +61,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.indices.recovery.RecoveryGateMonitor.ENABLE_RECOVERY_GATES_SETTING;
 import static org.elasticsearch.indices.recovery.ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -1118,7 +1119,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             DefaultProjectResolver.INSTANCE,
             newClusterService(Integer.MAX_VALUE), // plenty of slots, so only the gate can hold recoveries back
             RecoverySchedulingListener.NOOP,
-            new RecoveryGateMonitor(() -> List.of(gate), taskQueue.getThreadPool())
+            new RecoveryGateMonitor(() -> List.of(gate), taskQueue.getThreadPool(), clusterSettingsWithGatesEnabled())
         );
         service.start();
 
@@ -1189,7 +1190,11 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final String gateName = randomIdentifier();
         final var gateDecision = new AtomicReference<>(RecoveryGate.Decision.block(gateName, randomAlphaOfLengthBetween(5, 30)));
         final RecoveryGate gate = gateDecision::get;
-        final var recoveryGateMonitor = new RecoveryGateMonitor(() -> List.of(gate), taskQueue.getThreadPool());
+        final var recoveryGateMonitor = new RecoveryGateMonitor(
+            () -> List.of(gate),
+            taskQueue.getThreadPool(),
+            clusterSettingsWithGatesEnabled()
+        );
         final var service = new ThrottlingRecoveryService(
             taskQueue.getThreadPool(),
             DefaultProjectResolver.INSTANCE,
@@ -1235,6 +1240,61 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         assertFalse("No more scheduled tasks", taskQueue.hasAnyTasks());
     }
 
+    /// The gating escape hatch: dynamically disabling the recovery gates must release recoveries held by a gate that never
+    /// unblocks by itself, via the next periodic recheck.
+    public void testDisablingGatesReleasesBlockedRecoveries() {
+        final var taskQueue = new DeterministicTaskQueue();
+
+        final var unblockedCount = new AtomicInteger();
+        final var reportedBlockedMillis = new AtomicLong(-1);
+        final RecoverySchedulingListener listener = new RecoverySchedulingListener() {
+            @Override
+            public void onRecoveriesUnblocked(long blockedTimeMillis) {
+                unblockedCount.incrementAndGet();
+                reportedBlockedMillis.set(blockedTimeMillis);
+            }
+        };
+        final var clusterSettings = clusterSettingsWithGatesEnabled();
+        // This gate never unblocks by itself: only disabling the gates can release the held recoveries.
+        final RecoveryGate gate = () -> RecoveryGate.Decision.block("stuck", "never unblocks");
+        final var service = new ThrottlingRecoveryService(
+            taskQueue.getThreadPool(),
+            DefaultProjectResolver.INSTANCE,
+            newClusterService(Integer.MAX_VALUE), // plenty of slots, so only the gate can hold recoveries back
+            listener,
+            new RecoveryGateMonitor(() -> List.of(gate), taskQueue.getThreadPool(), clusterSettings)
+        );
+        service.start();
+
+        final long blockedSince = taskQueue.getCurrentTimeMillis();
+        final var started = new AtomicInteger();
+        final int count = between(1, 100);
+        for (int i = 0; i < count; i++) {
+            service.enqueue(ProjectId.DEFAULT, RecoveryListener.NOOP, newRecoveryState(), UUIDs.randomBase64UUID(), stats, l -> {
+                started.incrementAndGet();
+                l.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
+            });
+        }
+        taskQueue.runAllRunnableTasks();
+        // Stay blocked across a few periodic rechecks.
+        for (int i = between(0, 3); i > 0; i--) {
+            taskQueue.advanceTime();
+            taskQueue.runAllRunnableTasks();
+        }
+        assertThat(started.get(), equalTo(0));
+        assertThat(unblockedCount.get(), equalTo(0));
+
+        // The next periodic recheck notices the gates are disabled: it dispatches every held recovery, reports the blocked
+        // duration and stops rescheduling.
+        clusterSettings.applySettings(Settings.builder().put(ENABLE_RECOVERY_GATES_SETTING.getKey(), false).build());
+        taskQueue.advanceTime();
+        taskQueue.runAllRunnableTasks();
+        assertThat(started.get(), equalTo(count));
+        assertThat(unblockedCount.get(), equalTo(1));
+        assertThat(reportedBlockedMillis.get(), equalTo(taskQueue.getCurrentTimeMillis() - blockedSince));
+        assertFalse("No more scheduled tasks", taskQueue.hasAnyTasks());
+    }
+
     /// Hammers the service from multiple real threads while the gate flaps, to catch races between dispatch, the monitor's
     /// evaluations, and the resume callback: a missed wake-up leaves recoveries queued (the latch below never opens) and a deadlock
     /// hangs the test. Unlike the deterministic tests above, this uses a real thread pool.
@@ -1246,7 +1306,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             DefaultProjectResolver.INSTANCE,
             newClusterService(randomBoolean() ? Integer.MAX_VALUE : between(1, 5)),
             RecoverySchedulingListener.NOOP,
-            new RecoveryGateMonitor(() -> List.of(gate), threadPool)
+            new RecoveryGateMonitor(() -> List.of(gate), threadPool, clusterSettingsWithGatesEnabled())
         );
         service.start();
 
@@ -1318,7 +1378,14 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
 
     /// A [RecoveryGateMonitor] with no gates: the decision never transitions, so the change listener never fires.
     private static RecoveryGateMonitor monitorWithNoGates(ThreadPool threadPool) {
-        return new RecoveryGateMonitor(() -> List.of(), threadPool);
+        return new RecoveryGateMonitor(() -> List.of(), threadPool, ClusterSettings.createBuiltInClusterSettings());
+    }
+
+    private static ClusterSettings clusterSettingsWithGatesEnabled() {
+        return new ClusterSettings(
+            Settings.builder().put(ENABLE_RECOVERY_GATES_SETTING.getKey(), true).build(),
+            Set.of(ENABLE_RECOVERY_GATES_SETTING)
+        );
     }
 
     private static RecoveryState newRecoveryState() {

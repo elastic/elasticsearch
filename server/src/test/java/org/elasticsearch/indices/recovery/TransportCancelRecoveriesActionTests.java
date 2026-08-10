@@ -79,7 +79,7 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
             DefaultProjectResolver.INSTANCE,
             clusterService,
             RecoverySchedulingListener.NOOP,
-            new RecoveryGateMonitor(() -> List.of(), taskQueue.getThreadPool())
+            new RecoveryGateMonitor(() -> List.of(), taskQueue.getThreadPool(), clusterSettings)
         );
         throttlingRecoveryService.start();
         action = new TransportCancelRecoveriesAction(

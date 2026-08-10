@@ -659,7 +659,7 @@ public class SnapshotResiliencyTestHelper {
                     projectResolver,
                     clusterService,
                     RecoverySchedulingListener.NOOP,
-                    new RecoveryGateMonitor(List::of, threadPool)
+                    new RecoveryGateMonitor(List::of, threadPool, clusterService.getClusterSettings())
                 );
 
                 indicesService = new IndicesServiceBuilder().settings(settings)

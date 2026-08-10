@@ -69,7 +69,7 @@ final class RunTableGate {
         if (resolver == null || resolver.resolve(field.name, 0).isDimension() == false) {
             return false;
         }
-        return maxOrd * 2 <= maxDoc;
+        return maxOrd > 0 && maxOrd * 2 <= maxDoc;
     }
 
     /**

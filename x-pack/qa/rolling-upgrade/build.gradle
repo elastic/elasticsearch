@@ -15,7 +15,6 @@ apply plugin: 'elasticsearch.bwc-test'
 smartRetry.pruneIndividualTests.set(false)
 
 dependencies {
-  javaRestTestImplementation(testArtifact(project(":qa:rolling-upgrade"), "javaRestTest"))
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
   javaRestTestImplementation(project(':x-pack:qa'))
 }

@@ -98,11 +98,9 @@ public final class AshProjectionMatrix {
     public void write(IndexOutput out) throws IOException {
         out.writeInt(originalDim);
         out.writeInt(nDims);
-        ByteBuffer buffer = ByteBuffer.allocate(nDims * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
-        for (int i = 0; i < originalDim; i++) {
-            buffer.asFloatBuffer().put(w, i * nDims, nDims);
-            out.writeBytes(buffer.array(), nDims * Float.BYTES);
-        }
+        ByteBuffer buffer = ByteBuffer.allocate(w.length * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+        buffer.asFloatBuffer().put(w);
+        out.writeBytes(buffer.array(), buffer.capacity());
     }
 
     /**
@@ -116,12 +114,9 @@ public final class AshProjectionMatrix {
         int originalDim = in.readInt();
         int nDims = in.readInt();
         float[] w = new float[originalDim * nDims];
-        byte[] rowBytes = new byte[nDims * Float.BYTES];
-        ByteBuffer buffer = ByteBuffer.wrap(rowBytes).order(ByteOrder.LITTLE_ENDIAN);
-        for (int i = 0; i < originalDim; i++) {
-            in.readBytes(rowBytes, 0, nDims * Float.BYTES);
-            buffer.asFloatBuffer().get(w, i * nDims, nDims);
-        }
+        ByteBuffer buffer = ByteBuffer.allocate(w.length * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+        in.readBytes(buffer.array(), 0, buffer.capacity());
+        buffer.asFloatBuffer().get(w);
         return new AshProjectionMatrix(w, originalDim, nDims);
     }
 

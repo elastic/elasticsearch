@@ -2282,7 +2282,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             long enqueuedSum = recordingMeterRegistry.getRecorder()
                 .getMeasurements(
                     InstrumentType.LONG_UP_DOWN_COUNTER,
-                    SharedBlobCacheWarmingService.BLOB_CACHE_WARMING_BCC_BLOBS_ENQUEUED_METRIC
+                    SharedBlobCacheWarmingService.BLOB_CACHE_WARMING_BCC_BLOBS_ENQUEUED_CURRENT_METRIC
                 )
                 .stream()
                 .mapToLong(Measurement::getLong)
@@ -2292,7 +2292,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             long runningSum = recordingMeterRegistry.getRecorder()
                 .getMeasurements(
                     InstrumentType.LONG_UP_DOWN_COUNTER,
-                    SharedBlobCacheWarmingService.BLOB_CACHE_WARMING_BCC_BLOBS_RUNNING_METRIC
+                    SharedBlobCacheWarmingService.BLOB_CACHE_WARMING_BCC_BLOBS_RUNNING_CURRENT_METRIC
                 )
                 .stream()
                 .mapToLong(Measurement::getLong)

@@ -131,8 +131,8 @@ public class SharedBlobCacheWarmingService {
     public static final String BLOB_CACHE_WARMING_DURATION_METRIC = "es.blob_cache_warming.duration.histogram";
     public static final String BLOB_CACHE_WARMING_RATIO_METRIC = "es.blob_cache_warming.ratio.histogram";
     public static final String WARMING_TYPE_ATTRIBUTE_KEY = "es_warming_type";
-    public static final String BLOB_CACHE_WARMING_BCC_BLOBS_ENQUEUED_METRIC = "es.blob_cache_warming.bcc_blobs.enqueued";
-    public static final String BLOB_CACHE_WARMING_BCC_BLOBS_RUNNING_METRIC = "es.blob_cache_warming.bcc_blobs.running";
+    public static final String BLOB_CACHE_WARMING_BCC_BLOBS_ENQUEUED_CURRENT_METRIC = "es.blob_cache_warming.bcc_blobs.enqueued.current";
+    public static final String BLOB_CACHE_WARMING_BCC_BLOBS_RUNNING_CURRENT_METRIC = "es.blob_cache_warming.bcc_blobs.running.current";
     public static final String BLOB_CACHE_WARMING_BCC_BLOBS_DONE_TOTAL_METRIC = "es.blob_cache_warming.bcc_blobs.done.total";
 
     /**
@@ -493,13 +493,13 @@ public class SharedBlobCacheWarmingService {
             );
         this.enqueuedBccBlobsMetric = telemetryProvider.getMeterRegistry()
             .registerLongUpDownCounter(
-                BLOB_CACHE_WARMING_BCC_BLOBS_ENQUEUED_METRIC,
+                BLOB_CACHE_WARMING_BCC_BLOBS_ENQUEUED_CURRENT_METRIC,
                 "Number of BCC blobs currently enqueued for warming, waiting to be picked up by the warming executor",
                 "count"
             );
         this.runningBccBlobsMetric = telemetryProvider.getMeterRegistry()
             .registerLongUpDownCounter(
-                BLOB_CACHE_WARMING_BCC_BLOBS_RUNNING_METRIC,
+                BLOB_CACHE_WARMING_BCC_BLOBS_RUNNING_CURRENT_METRIC,
                 "Number of BCC blobs currently warming (picked up by the executor but not yet warmed to the desired ratio)",
                 "count"
             );

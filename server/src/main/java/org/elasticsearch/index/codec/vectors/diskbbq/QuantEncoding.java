@@ -15,23 +15,23 @@ public enum QuantEncoding {
     ONE_BIT_4BIT_QUERY(0, (byte) 1, (byte) 4) {
         @Override
         public void pack(int[] quantized, byte[] destination) {
-            ESVectorUtil.packAsBinary(quantized, destination);
+            ESVectorUtil.pack1BitValues(quantized, destination);
         }
 
         @Override
         public void packQuery(int[] quantized, byte[] destination) {
-            ESVectorUtil.transposeHalfByte(quantized, destination);
+            ESVectorUtil.stride4BitValues(quantized, destination);
         }
     },
     TWO_BIT_4BIT_QUERY(1, (byte) 2, (byte) 4) {
         @Override
         public void pack(int[] quantized, byte[] destination) {
-            ESVectorUtil.packDibitQuad(quantized, destination);
+            ESVectorUtil.pack2BitValues(quantized, destination);
         }
 
         @Override
         public void packQuery(int[] quantized, byte[] destination) {
-            packDibitQueryByStripe(quantized, destination);
+            stripe4Values(quantized, destination);
         }
 
         @Override
@@ -53,7 +53,7 @@ public enum QuantEncoding {
 
         @Override
         public void pack(int[] quantized, byte[] destination) {
-            packNibbles(quantized, destination);
+            pack4BitValues(quantized, destination);
         }
 
         @Override
@@ -102,16 +102,16 @@ public enum QuantEncoding {
     ONE_BIT_1BIT_QUERY(5, (byte) 1, (byte) 1) {
         @Override
         public void pack(int[] quantized, byte[] destination) {
-            ESVectorUtil.packAsBinary(quantized, destination);
+            ESVectorUtil.pack1BitValues(quantized, destination);
         }
 
         @Override
         public void packQuery(int[] quantized, byte[] destination) {
-            ESVectorUtil.packAsBinary(quantized, destination);
+            ESVectorUtil.pack1BitValues(quantized, destination);
         }
     };
 
-    private static void packNibbles(int[] quantized, byte[] destination) {
+    private static void pack4BitValues(int[] quantized, byte[] destination) {
         assert quantized.length == destination.length * 2;
         int packedLength = destination.length;
         for (int i = 0; i < packedLength; i++) {
@@ -119,7 +119,10 @@ public enum QuantEncoding {
         }
     }
 
-    private static void packDibitQueryByStripe(int[] quantized, byte[] destination) {
+    /**
+     * Moves 4 successive byte values into striped format - all the first bytes first, then all the second bytes, then third, then fourth
+     */
+    private static void stripe4Values(int[] quantized, byte[] destination) {
         assert quantized.length == destination.length;
         assert destination.length % 4 == 0;
         int packedLength = destination.length / 4;

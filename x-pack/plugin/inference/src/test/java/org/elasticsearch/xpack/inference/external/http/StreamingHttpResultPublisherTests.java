@@ -64,8 +64,7 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
     private TestCircuitBreakerWithTracking circuitBreaker;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void createPublisher() throws Exception {
         threadPool = mock(ThreadPool.class);
         settings = mock(HttpSettings.class);
         circuitBreaker = new TestCircuitBreakerWithTracking();
@@ -81,8 +80,7 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void clearResult() throws Exception {
         result.set(null);
         circuitBreaker.reset();
     }

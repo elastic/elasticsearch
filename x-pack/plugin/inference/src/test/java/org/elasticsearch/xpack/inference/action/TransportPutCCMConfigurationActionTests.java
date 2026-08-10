@@ -78,8 +78,7 @@ public class TransportPutCCMConfigurationActionTests extends ESTestCase {
     private TransportPutCCMConfigurationAction action;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void createAction() throws Exception {
         webServer.start();
         var webServerUrl = getUrl(webServer);
 
@@ -129,8 +128,7 @@ public class TransportPutCCMConfigurationActionTests extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void shutdownResources() throws Exception {
         clientManager.close();
         terminate(threadPool);
         webServer.close();

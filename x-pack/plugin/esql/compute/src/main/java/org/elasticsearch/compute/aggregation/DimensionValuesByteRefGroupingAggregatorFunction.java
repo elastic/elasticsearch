@@ -125,7 +125,7 @@ public final class DimensionValuesByteRefGroupingAggregatorFunction implements G
     }
 
     // Note that this path can be executed randomly in tests, not in production
-    private void addInputValuesBlock(int positionOffset, IntBlock groups, BytesRefBlock valueBlock) {
+    void addInputValuesBlock(int positionOffset, IntBlock groups, BytesRefBlock valueBlock) {
         var scratch = new BytesRef();
         int positionCount = groups.getPositionCount();
         for (int p = 0; p < positionCount; p++) {
@@ -146,7 +146,7 @@ public final class DimensionValuesByteRefGroupingAggregatorFunction implements G
         }
     }
 
-    private void addInputValuesBlock(int positionOffset, IntVector groups, BytesRefBlock valueBlock) {
+    void addInputValuesBlock(int positionOffset, IntVector groups, BytesRefBlock valueBlock) {
         var scratch = new BytesRef();
         int positionCount = groups.getPositionCount();
         if (groups.isConstant()) {
@@ -168,7 +168,7 @@ public final class DimensionValuesByteRefGroupingAggregatorFunction implements G
         }
     }
 
-    private void addInputValuesVector(int positionOffset, IntVector groups, BytesRefVector valueVector) {
+    void addInputValuesVector(int positionOffset, IntVector groups, BytesRefVector valueVector) {
         var scratch = new BytesRef();
         int positionCount = groups.getPositionCount();
         if (groups.isConstant()) {

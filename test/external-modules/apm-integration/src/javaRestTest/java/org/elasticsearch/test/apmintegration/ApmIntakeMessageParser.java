@@ -197,7 +197,7 @@ public final class ApmIntakeMessageParser {
         String spanId = id != null ? id : "";
         String parentId = getString(transaction, "parent_id");
         Optional<String> parent = (parentId == null || parentId.isEmpty()) ? Optional.empty() : Optional.of(parentId);
-        Map<String, Object> attributes = flattenAttributes(transaction, TRANSACTION_DECODED_KEYS);
+        Map<String, Object> attributes = withRepresentativeCount(flattenAttributes(transaction, TRANSACTION_DECODED_KEYS));
         return new ReceivedTelemetry.ReceivedSpan(name, traceId, spanId, parent, attributes);
     }
 
@@ -218,8 +218,17 @@ public final class ApmIntakeMessageParser {
         if (parentId == null) {
             parentId = getString(span, "transaction_id");
         }
-        Map<String, Object> attributes = flattenAttributes(span, SPAN_DECODED_KEYS);
+        Map<String, Object> attributes = withRepresentativeCount(flattenAttributes(span, SPAN_DECODED_KEYS));
         return new ReceivedTelemetry.ReceivedSpan(name, traceId, id, Optional.ofNullable(parentId), attributes);
+    }
+
+    private static Map<String, Object> withRepresentativeCount(Map<String, Object> attributes) {
+        if (attributes.get("sample_rate") instanceof Number sampleRate) {
+            Map<String, Object> result = new LinkedHashMap<>(attributes);
+            result.put("representative_count", 1 / sampleRate.doubleValue());
+            return Collections.unmodifiableMap(result);
+        }
+        return attributes;
     }
 
     /**

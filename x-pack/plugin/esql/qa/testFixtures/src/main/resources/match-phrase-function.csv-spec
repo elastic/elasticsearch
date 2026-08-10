@@ -1009,3 +1009,76 @@ book_no:keyword | new_title:text
 1937            | TITLE: The Best Short Stories of Dostoevsky (Modern Library)
 1985            | TITLE: Brothers Karamazov
 ;
+
+###############################################
+# Tests for MATCH_PHRASE analyzer option on runtime text expressions
+#
+
+matchPhraseOnRuntimeTextWithWhitespaceAnalyzer
+required_capability: match_phrase_function
+required_capability: fn_match_phrase_runtime_analyzer
+
+// the whitespace analyzer does not lowercase, unlike the standard analyzer
+ROW content = to_text(["a Brown Fox runs", "a brown fox runs"])
+| MV_EXPAND content
+| WHERE match_phrase(content, "Brown Fox", {"analyzer": "whitespace"})
+;
+
+content:text
+a Brown Fox runs
+;
+
+matchPhraseOnRuntimeTextWithKeywordAnalyzer
+required_capability: match_phrase_function
+required_capability: fn_match_phrase_runtime_analyzer
+
+// the keyword analyzer emits the whole value as a single token, so the phrase must equal the entire value
+ROW content = to_text(["brown fox", "a brown fox"])
+| MV_EXPAND content
+| WHERE match_phrase(content, "brown fox", {"analyzer": "keyword"})
+;
+
+content:text
+brown fox
+;
+
+matchPhraseOnRuntimeTextWithEnglishAnalyzer
+required_capability: match_phrase_function
+required_capability: fn_match_phrase_runtime_analyzer
+
+// the english analyzer stems both sides: "dogs running" matches "dog runs"
+ROW content = to_text(["the dog runs", "the cat sleeps"])
+| MV_EXPAND content
+| WHERE match_phrase(content, "dogs running", {"analyzer": "english"})
+;
+
+content:text
+the dog runs
+;
+
+matchPhraseOnRuntimeTextWithAnalyzerAndSlop
+required_capability: match_phrase_function
+required_capability: fn_match_phrase_runtime_analyzer
+
+ROW content = to_text(["the Brown quick Fox", "the brown quick fox"])
+| MV_EXPAND content
+| WHERE match_phrase(content, "Brown Fox", {"analyzer": "whitespace", "slop": 1})
+;
+
+content:text
+the Brown quick Fox
+;
+
+matchPhraseOnRuntimeTextWithIndexAndKeywordAnalyzer
+required_capability: match_phrase_function
+required_capability: fn_match_phrase_runtime_analyzer
+
+FROM books
+| EVAL new_title = to_text(concat("TITLE: ", title))
+| WHERE match_phrase(new_title, "TITLE: The Lord of the Rings - Boxed Set", {"analyzer": "keyword"})
+| KEEP book_no, new_title
+;
+
+book_no:keyword | new_title:text
+2675            | TITLE: The Lord of the Rings - Boxed Set
+;

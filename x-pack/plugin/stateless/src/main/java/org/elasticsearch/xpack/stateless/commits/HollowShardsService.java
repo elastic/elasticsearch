@@ -368,6 +368,7 @@ public class HollowShardsService extends AbstractLifecycleComponent implements M
     }
 
     protected void unhollow(ShardId shardId) {
+        assert commitService != null : "commit service must be initialized for index nodes";
         var hollowShardInfo = hollowShards.get(shardId);
         if (hollowShardInfo != null && hollowShardInfo.unhollowing.compareAndSet(false, true)) {
             threadPool.generic().execute(new AbstractRunnable() {

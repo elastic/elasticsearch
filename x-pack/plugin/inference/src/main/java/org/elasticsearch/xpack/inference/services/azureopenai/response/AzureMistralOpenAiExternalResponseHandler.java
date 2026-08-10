@@ -74,25 +74,26 @@ public class AzureMistralOpenAiExternalResponseHandler extends BaseResponseHandl
         return new StreamingChatCompletionResults(openAiProcessor);
     }
 
-    public void handleFailureStatusCode(OutboundRequest outboundRequest, HttpResult result) throws RetryException {
+    @Override
+    public RetryException buildFailureStatusCodeException(OutboundRequest outboundRequest, HttpResult result) {
         // handle error codes
         int statusCode = result.response().getStatusLine().getStatusCode();
         if (statusCode == 500) {
-            throw handle500Error(outboundRequest, result);
+            return handle500Error(outboundRequest, result);
         } else if (statusCode == 503) {
-            throw handle503Error(outboundRequest, result);
+            return handle503Error(outboundRequest, result);
         } else if (statusCode > 500) {
-            throw handleOther500Error(outboundRequest, result);
+            return handleOther500Error(outboundRequest, result);
         } else if (statusCode == 429) {
-            throw handleRateLimitingError(outboundRequest, result);
+            return handleRateLimitingError(outboundRequest, result);
         } else if (isContentTooLarge(result)) {
-            throw new ContentTooLargeException(buildError(CONTENT_TOO_LARGE, outboundRequest, result));
+            return new ContentTooLargeException(buildError(CONTENT_TOO_LARGE, outboundRequest, result));
         } else if (statusCode == 401) {
-            throw handleAuthenticationError(outboundRequest, result);
+            return handleAuthenticationError(outboundRequest, result);
         } else if (statusCode >= 300 && statusCode < 400) {
-            throw handleRedirectionStatusCode(outboundRequest, result);
+            return handleRedirectionStatusCode(outboundRequest, result);
         } else {
-            throw new RetryException(false, buildError(UNSUCCESSFUL, outboundRequest, result));
+            return new RetryException(false, buildError(UNSUCCESSFUL, outboundRequest, result));
         }
     }
 
@@ -117,7 +118,7 @@ public class AzureMistralOpenAiExternalResponseHandler extends BaseResponseHandl
     }
 
     protected RetryException handleRedirectionStatusCode(OutboundRequest outboundRequest, HttpResult result) {
-        throw new RetryException(false, buildError(REDIRECTION, outboundRequest, result));
+        return new RetryException(false, buildError(REDIRECTION, outboundRequest, result));
     }
 
     public static boolean isContentTooLarge(HttpResult result) {

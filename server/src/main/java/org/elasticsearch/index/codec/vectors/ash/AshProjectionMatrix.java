@@ -11,6 +11,7 @@ package org.elasticsearch.index.codec.vectors.ash;
 
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -64,22 +65,9 @@ public final class AshProjectionMatrix {
      */
     public float[][] wT() {
         if (wT == null) {
-            wT = transposeMatrix(w, originalDim, nDims);
+            wT = ESVectorUtil.transposeMatrix(w, originalDim, nDims);
         }
         return wT;
-    }
-
-    /**
-     * Transposes a matrix from (rows x cols) to (cols x rows).
-     */
-    static float[][] transposeMatrix(float[][] m, int rows, int cols) {
-        float[][] t = new float[cols][rows];
-        for (int i = 0; i < rows; i++) {
-            for (int j = 0; j < cols; j++) {
-                t[j][i] = m[i][j];
-            }
-        }
-        return t;
     }
 
     /**

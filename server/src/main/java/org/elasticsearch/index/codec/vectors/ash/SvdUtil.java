@@ -13,7 +13,7 @@ import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.util.Arrays;
 
-import static org.elasticsearch.index.codec.vectors.ash.AshProjectionMatrix.transposeMatrix;
+import static org.elasticsearch.simdvec.ESVectorUtil.transposeMatrix;
 
 /**
  * Utility class providing thin SVD decomposition via one-sided Jacobi rotations.

@@ -125,7 +125,9 @@ abstract class AbstractTDigestPercentilesAggregator extends NumericMetricsAggreg
 
     @Override
     protected void doClose() {
-        // states is null if the constructor threw before assigning it because assignment is after super()
+        // super() registers this in the constructor, super() called first, object exists
+        // so doClose can be called before the constructor of this class
+        // finishes and states could be null
         if (states == null) {
             return;
         }

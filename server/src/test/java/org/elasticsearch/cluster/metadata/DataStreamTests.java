@@ -74,6 +74,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -809,6 +810,37 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 )
             )
         );
+    }
+
+    public void testUnsafeAddBackingIndex() {
+        Metadata.Builder builder = Metadata.builder();
+
+        DataStream original = createRandomDataStream();
+        builder.put(original);
+
+        createMetadataForIndices(builder, original.getIndices());
+
+        Index indexToAdd = new Index(randomAlphaOfLength(4), UUIDs.randomBase64UUID(random()));
+        builder.put(
+            IndexMetadata.builder(indexToAdd.getName())
+                .settings(settings(IndexVersion.current()))
+                .numberOfShards(1)
+                .numberOfReplicas(1)
+                .build(),
+            false
+        );
+
+        DataStream updated = original.unsafeAddBackingIndex(indexToAdd);
+        assertThat(updated.getName(), equalTo(original.getName()));
+        assertThat(updated.getGeneration(), equalTo(original.getGeneration() + 1));
+        assertThat(updated.getIndices().size(), equalTo(original.getIndices().size() + 1));
+        for (int k = 1; k <= original.getIndices().size(); k++) {
+            assertThat(updated.getIndices().get(k), equalTo(original.getIndices().get(k - 1)));
+        }
+        assertThat(updated.getIndices().getFirst(), equalTo(indexToAdd));
+        // Check if the index is already part of it, we return the same instance
+        DataStream updated2 = updated.unsafeAddBackingIndex(indexToAdd);
+        assertThat(updated2, sameInstance(updated));
     }
 
     public void testAddFailureStoreIndex() {

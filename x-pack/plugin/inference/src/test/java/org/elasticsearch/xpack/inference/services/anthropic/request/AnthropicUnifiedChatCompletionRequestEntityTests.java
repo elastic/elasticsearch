@@ -15,6 +15,7 @@ import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.inference.completion.Tool;
+import org.elasticsearch.inference.completion.ToolCall;
 import org.elasticsearch.inference.completion.ToolChoice;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -28,7 +29,9 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 public class AnthropicUnifiedChatCompletionRequestEntityTests extends ESTestCase {
 
@@ -41,11 +44,11 @@ public class AnthropicUnifiedChatCompletionRequestEntityTests extends ESTestCase
         testToXContent(true, null, null, null, null, null, taskSettings(maxTokens, null, null, null), Strings.format("""
             {
                 "model": "%s",
-                "messages": [{"content": "%s", "role": "%s"}],
+                "messages": [{"role": "%s", "content": [{"type": "text", "text": "%s"}]}],
                 "stream": true,
                 "max_tokens": %d
             }
-            """, MODEL_ID, INPUT_VALUE, ROLE_VALUE, maxTokens));
+            """, MODEL_ID, ROLE_VALUE, INPUT_VALUE, maxTokens));
     }
 
     public void testToXContent_NonStreamingRequest() throws IOException {
@@ -53,11 +56,11 @@ public class AnthropicUnifiedChatCompletionRequestEntityTests extends ESTestCase
         testToXContent(false, null, null, null, null, null, taskSettings(maxTokens, null, null, null), Strings.format("""
             {
                 "model": "%s",
-                "messages": [{"content": "%s", "role": "%s"}],
+                "messages": [{"role": "%s", "content": [{"type": "text", "text": "%s"}]}],
                 "stream": false,
                 "max_tokens": %d
             }
-            """, MODEL_ID, INPUT_VALUE, ROLE_VALUE, maxTokens));
+            """, MODEL_ID, ROLE_VALUE, INPUT_VALUE, maxTokens));
     }
 
     public void testToXContent_RequestOverridesTaskSettings() throws IOException {
@@ -76,13 +79,13 @@ public class AnthropicUnifiedChatCompletionRequestEntityTests extends ESTestCase
             Strings.format("""
                 {
                     "model": "%s",
-                    "messages": [{"content": "%s", "role": "%s"}],
+                    "messages": [{"role": "%s", "content": [{"type": "text", "text": "%s"}]}],
                     "temperature": %s,
                     "top_p": %s,
                     "stream": true,
                     "max_tokens": %d
                 }
-                """, MODEL_ID, INPUT_VALUE, ROLE_VALUE, requestTemperature, requestTopP, requestMaxTokens)
+                """, MODEL_ID, ROLE_VALUE, INPUT_VALUE, requestTemperature, requestTopP, requestMaxTokens)
         );
     }
 
@@ -91,14 +94,14 @@ public class AnthropicUnifiedChatCompletionRequestEntityTests extends ESTestCase
         testToXContent(true, null, null, null, null, null, taskSettings(maxTokens, 0.7, 0.9, 50), Strings.format("""
             {
                 "model": "%s",
-                "messages": [{"content": "%s", "role": "%s"}],
+                "messages": [{"role": "%s", "content": [{"type": "text", "text": "%s"}]}],
                 "temperature": 0.7,
                 "top_p": 0.9,
                 "top_k": 50,
                 "stream": true,
                 "max_tokens": %d
             }
-            """, MODEL_ID, INPUT_VALUE, ROLE_VALUE, maxTokens));
+            """, MODEL_ID, ROLE_VALUE, INPUT_VALUE, maxTokens));
     }
 
     public void testToXContent_WithToolDefinitionsEmitsAnthropicShape() throws IOException {
@@ -107,30 +110,42 @@ public class AnthropicUnifiedChatCompletionRequestEntityTests extends ESTestCase
         testToXContent(true, null, null, null, List.of(tool), null, taskSettings(maxTokens, null, null, null), Strings.format("""
             {
                 "model": "%s",
-                "messages": [{"content": "%s", "role": "%s"}],
-                "tools": [{"name": "get_price", "description": "Get the price of an item", "input_schema": {"type": "object"}}],
+                "messages": [{"role": "%s", "content": [{"type": "text", "text": "%s"}]}],
+                "tools": [
+                    {
+                        "name": "get_price",
+                        "description": "Get the price of an item",
+                        "input_schema": {"type": "object", "properties": {}}
+                    }
+                ],
                 "stream": true,
                 "max_tokens": %d
             }
-            """, MODEL_ID, INPUT_VALUE, ROLE_VALUE, maxTokens));
+            """, MODEL_ID, ROLE_VALUE, INPUT_VALUE, maxTokens));
     }
 
-    public void testToXContent_WithToolStrictFieldRejected() throws IOException {
+    public void testToXContent_WithToolStrictFieldIgnored() throws IOException {
+        // The OpenAI "strict" field has no Anthropic equivalent, so it is silently dropped rather than rejected.
+        var maxTokens = 1024;
         var tool = new Tool(
             "function",
             new Tool.FunctionField("Get the price of an item", "get_price", Map.of("type", "object"), randomBoolean())
         );
-        var entity = entity(true, null, null, null, List.of(tool), null, taskSettings(1024, null, null, null));
-        var exception = expectThrows(ElasticsearchStatusException.class, () -> {
-            try (var builder = JsonXContent.contentBuilder()) {
-                entity.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        testToXContent(true, null, null, null, List.of(tool), null, taskSettings(maxTokens, null, null, null), Strings.format("""
+            {
+                "model": "%s",
+                "messages": [{"role": "%s", "content": [{"type": "text", "text": "%s"}]}],
+                "tools": [
+                    {
+                        "name": "get_price",
+                        "description": "Get the price of an item",
+                        "input_schema": {"type": "object", "properties": {}}
+                    }
+                ],
+                "stream": true,
+                "max_tokens": %d
             }
-        });
-        assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
-        assertThat(
-            exception.getMessage(),
-            is("The [strict] field in tool function definitions is not supported by the Anthropic chat completion API.")
-        );
+            """, MODEL_ID, ROLE_VALUE, INPUT_VALUE, maxTokens));
     }
 
     public void testToXContent_WithToolChoiceObjectEmitsAnthropicShape() throws IOException {
@@ -139,12 +154,12 @@ public class AnthropicUnifiedChatCompletionRequestEntityTests extends ESTestCase
         testToXContent(true, null, null, null, List.of(), toolChoice, taskSettings(maxTokens, null, null, null), Strings.format("""
             {
                 "model": "%s",
-                "messages": [{"content": "%s", "role": "%s"}],
+                "messages": [{"role": "%s", "content": [{"type": "text", "text": "%s"}]}],
                 "tool_choice": {"type": "tool", "name": "get_price"},
                 "stream": true,
                 "max_tokens": %d
             }
-            """, MODEL_ID, INPUT_VALUE, ROLE_VALUE, maxTokens));
+            """, MODEL_ID, ROLE_VALUE, INPUT_VALUE, maxTokens));
     }
 
     public void testToXContent_WithToolChoiceStringNoneTranslatesToAnthropicNone() throws IOException {
@@ -153,12 +168,12 @@ public class AnthropicUnifiedChatCompletionRequestEntityTests extends ESTestCase
         testToXContent(true, null, null, null, List.of(), toolChoice, taskSettings(maxTokens, null, null, null), Strings.format("""
             {
                 "model": "%s",
-                "messages": [{"content": "%s", "role": "%s"}],
+                "messages": [{"role": "%s", "content": [{"type": "text", "text": "%s"}]}],
                 "tool_choice": {"type": "none"},
                 "stream": true,
                 "max_tokens": %d
             }
-            """, MODEL_ID, INPUT_VALUE, ROLE_VALUE, maxTokens));
+            """, MODEL_ID, ROLE_VALUE, INPUT_VALUE, maxTokens));
     }
 
     public void testToXContent_WithToolChoiceStringAutoTranslatesToAnthropicAuto() throws IOException {
@@ -167,12 +182,12 @@ public class AnthropicUnifiedChatCompletionRequestEntityTests extends ESTestCase
         testToXContent(true, null, null, null, List.of(), toolChoice, taskSettings(maxTokens, null, null, null), Strings.format("""
             {
                 "model": "%s",
-                "messages": [{"content": "%s", "role": "%s"}],
+                "messages": [{"role": "%s", "content": [{"type": "text", "text": "%s"}]}],
                 "tool_choice": {"type": "auto"},
                 "stream": true,
                 "max_tokens": %d
             }
-            """, MODEL_ID, INPUT_VALUE, ROLE_VALUE, maxTokens));
+            """, MODEL_ID, ROLE_VALUE, INPUT_VALUE, maxTokens));
     }
 
     public void testToXContent_WithToolChoiceStringRequiredTranslatesToAnthropicAny() throws IOException {
@@ -181,12 +196,12 @@ public class AnthropicUnifiedChatCompletionRequestEntityTests extends ESTestCase
         testToXContent(true, null, null, null, List.of(), toolChoice, taskSettings(maxTokens, null, null, null), Strings.format("""
             {
                 "model": "%s",
-                "messages": [{"content": "%s", "role": "%s"}],
+                "messages": [{"role": "%s", "content": [{"type": "text", "text": "%s"}]}],
                 "tool_choice": {"type": "any"},
                 "stream": true,
                 "max_tokens": %d
             }
-            """, MODEL_ID, INPUT_VALUE, ROLE_VALUE, maxTokens));
+            """, MODEL_ID, ROLE_VALUE, INPUT_VALUE, maxTokens));
     }
 
     public void testToXContent_WithSystemMessageExtractedToTopLevelField() throws IOException {
@@ -199,7 +214,7 @@ public class AnthropicUnifiedChatCompletionRequestEntityTests extends ESTestCase
             {
                 "model": "%s",
                 "system": [{"type": "text", "text": "You are a pirate."}],
-                "messages": [{"content": "Hello!", "role": "user"}],
+                "messages": [{"role": "user", "content": [{"type": "text", "text": "Hello!"}]}],
                 "stream": true,
                 "max_tokens": %d
             }
@@ -220,7 +235,7 @@ public class AnthropicUnifiedChatCompletionRequestEntityTests extends ESTestCase
                     {"type": "text", "text": "You are a pirate."},
                     {"type": "text", "text": "Always respond in verse."}
                 ],
-                "messages": [{"content": "Hello!", "role": "user"}],
+                "messages": [{"role": "user", "content": [{"type": "text", "text": "Hello!"}]}],
                 "stream": true,
                 "max_tokens": %d
             }
@@ -249,12 +264,58 @@ public class AnthropicUnifiedChatCompletionRequestEntityTests extends ESTestCase
         assertThat(Strings.toString(builder), is(XContentHelper.stripWhitespace(Strings.format("""
             {
                 "model": "%s",
-                "messages": [{"content": "%s", "role": "%s"}],
+                "messages": [{"role": "%s", "content": [{"type": "text", "text": "%s"}]}],
                 "stop_sequences": ["END", "STOP"],
                 "stream": true,
                 "max_tokens": %d
             }
-            """, MODEL_ID, INPUT_VALUE, ROLE_VALUE, maxTokens))));
+            """, MODEL_ID, ROLE_VALUE, INPUT_VALUE, maxTokens))));
+    }
+
+    public void testToXContent_MultiTurnToolConversationEmitsAnthropicBlocks() throws IOException {
+        // End-to-end regression for the second-turn 400: a full request carrying an assistant tool_call and a tool result must
+        // serialize as Anthropic tool_use / tool_result content blocks rather than the unified "tool_calls" / "role":"tool" shape.
+        var maxTokens = 1024;
+        var toolCall = new ToolCall("call_1", new ToolCall.FunctionField("{\"location\":\"San Francisco\"}", "get_weather"), "function");
+        var messages = List.of(
+            new Message(new ContentString("What is the weather in San Francisco?"), "user", null, null),
+            new Message(new ContentString(""), "assistant", null, List.of(toolCall)),
+            new Message(new ContentString("72F and sunny"), "tool", "call_1", null)
+        );
+        var unifiedRequest = new UnifiedCompletionRequest(messages, null, null, null, null, null, null, null);
+        var entity = new AnthropicUnifiedChatCompletionRequestEntity(
+            new UnifiedChatInput(unifiedRequest, true),
+            MODEL_ID,
+            taskSettings(maxTokens, null, null, null)
+        );
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        entity.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        var actual = Strings.toString(builder);
+
+        assertThat(actual, is(XContentHelper.stripWhitespace(Strings.format("""
+            {
+                "model": "%s",
+                "messages": [
+                    {"role": "user", "content": [{"type": "text", "text": "What is the weather in San Francisco?"}]},
+                    {
+                        "role": "assistant",
+                        "content": [
+                            {"type": "tool_use", "id": "call_1", "name": "get_weather", "input": {"location": "San Francisco"}}
+                        ]
+                    },
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "tool_result", "tool_use_id": "call_1", "content": [{"type": "text", "text": "72F and sunny"}]}
+                        ]
+                    }
+                ],
+                "stream": true,
+                "max_tokens": %d
+            }
+            """, MODEL_ID, maxTokens))));
+        assertThat(actual, not(containsString("\"role\":\"tool\"")));
+        assertThat(actual, not(containsString("\"tool_calls\"")));
     }
 
     public void testToXContent_WithToolChoiceStringUnknownValueRejected() throws IOException {

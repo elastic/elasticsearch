@@ -7,15 +7,16 @@
 
 package org.elasticsearch.xpack.esql.qa.multi_node;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.datasources.DatasetRegistry;
 import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.DataSourcesS3HttpFixture;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
+import org.junit.AfterClass;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
@@ -31,8 +32,8 @@ import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.SECRET_KEY
 /**
  * Base class for external source distributed integration tests that use the in-memory
  * S3 fixture. Provides a properly-ordered rule chain (fixture then cluster), the REST
- * cluster address, and helpers for building EXTERNAL queries and running them in each
- * distribution mode.
+ * cluster address, and helpers for building {@code FROM <dataset>} queries (backed by an
+ * {@code s3} data source registered over the fixture) and running them in each distribution mode.
  * <p>
  * Extends {@link ESRestTestCase} directly (not {@link RestEsqlTestCase}) to avoid
  * inheriting dozens of unrelated parameterised ESQL REST tests that would run against
@@ -41,6 +42,9 @@ import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.SECRET_KEY
 public abstract class AbstractExternalDistributedIT extends ESRestTestCase {
 
     protected static final List<String> DISTRIBUTION_MODES = List.of("coordinator_only", "round_robin", "adaptive");
+
+    /** The single {@code s3} data source every dataset binds to; registered lazily on first {@link #fromS3}. */
+    private static final String S3_DATA_SOURCE = "distributed_s3_ds";
 
     public static DataSourcesS3HttpFixture s3Fixture = new DataSourcesS3HttpFixture();
 
@@ -51,7 +55,10 @@ public abstract class AbstractExternalDistributedIT extends ESRestTestCase {
         @Override
         public void evaluate() throws Throwable {
             assumeFalse("FIPS mode requires security enabled; this test uses plain HTTP S3 fixtures", inFipsJvm());
-            assumeTrue("EXTERNAL command required; skip in release builds", EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled());
+            assumeTrue(
+                "FROM <dataset> over external data sources required; skip in release builds",
+                EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled()
+            );
             base.evaluate();
         }
     }).around(s3Fixture).around(clusterInstance);
@@ -61,20 +68,32 @@ public abstract class AbstractExternalDistributedIT extends ESRestTestCase {
         return clusterInstance.getHttpAddresses();
     }
 
+    @AfterClass
+    public static void cleanupDatasets() throws IOException {
+        try {
+            DatasetRegistry.cleanup(client());
+        } finally {
+            DatasetRegistry.clearCaches();
+        }
+    }
+
     /**
-     * Build an EXTERNAL query targeting the given S3 path, with credentials pointing at the
-     * in-memory S3 fixture.
+     * Registers a dataset over the given S3 path (or glob) under the shared {@code s3} data source — creating
+     * the data source on first use — and returns a {@code FROM <dataset>} snippet reading it. The dataset name
+     * is derived deterministically from the path, so repeated calls for the same resource reuse one dataset
+     * while distinct paths (e.g. per-test unique prefixes) get their own. Globs are accepted at registration
+     * time (the resource scheme is the only thing validated) and expand the same way the EXTERNAL command did.
      */
-    protected String externalS3Query(String s3Path) {
-        return Strings.format(
-            """
-                EXTERNAL "s3://%s/%s" WITH { "endpoint": "%s", "access_key": "%s", "secret_key": "%s" }""",
-            BUCKET,
-            s3Path,
-            s3Fixture.getAddress(),
-            ACCESS_KEY,
-            SECRET_KEY
+    protected String fromS3(String s3Path) throws IOException {
+        DatasetRegistry.ensureDataSource(
+            client(),
+            S3_DATA_SOURCE,
+            "s3",
+            Map.of("endpoint", s3Fixture.getAddress(), "access_key", ACCESS_KEY, "secret_key", SECRET_KEY)
         );
+        String dataset = DatasetRegistry.sanitizeDatasetName("ds_", s3Path);
+        DatasetRegistry.ensureDataset(client(), dataset, S3_DATA_SOURCE, "s3://" + BUCKET + "/" + s3Path, null);
+        return "FROM " + dataset;
     }
 
     /**

@@ -243,7 +243,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     }
 
     /**
-     * Marks whether the effective routing value was provided via the {@code _slice} API parameter.
+     * Marks whether the effective routing value was provided via the {@code slice} API parameter.
      */
     @Override
     public UpdateRequest setRoutingFromSlice(boolean routingFromSlice) {
@@ -252,7 +252,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     }
 
     /**
-     * Returns {@code true} when this request routing came from the {@code _slice} API parameter.
+     * Returns {@code true} when this request routing came from the {@code slice} API parameter.
      */
     @Override
     public boolean isRoutingFromSlice() {

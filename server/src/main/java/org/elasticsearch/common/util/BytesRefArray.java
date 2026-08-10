@@ -185,6 +185,37 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
         ++size;
     }
 
+    /**
+     * Truncates this array to {@code newSize} elements, discarding all elements at index
+     * {@code >= newSize} and rolling the byte storage back to the end of element
+     * {@code newSize - 1}. Subsequent appends overwrite the discarded bytes. No-op when
+     * {@code newSize == size()}.
+     */
+    public void truncateTo(long newSize) {
+        assert newSize >= 0 && newSize <= size : "cannot truncate " + size + " elements to " + newSize;
+        if (newSize == size) {
+            return;
+        }
+        lastOffset = getOffset(newSize);
+        size = newSize;
+        bytes.truncateTo(lastOffset);
+        if (intOffsets != null) {
+            // Offset tables hold (oldSize + 1) entries; after truncation we need exactly (newSize + 1).
+            long entriesToKeep = newSize + 1;
+            long intEntriesToKeep = Math.min(intOffsets.size, entriesToKeep);
+            intOffsets.truncateTo(intEntriesToKeep);
+            if (longOffsets != null) {
+                long longEntriesToKeep = entriesToKeep - intEntriesToKeep;
+                if (longEntriesToKeep <= 0) {
+                    longOffsets.close();
+                    longOffsets = null;
+                } else {
+                    longOffsets.truncateTo(longEntriesToKeep);
+                }
+            }
+        }
+    }
+
     public BytesRef get(long id, BytesRef dest) {
         final long startOffset = getOffset(id);
         final int length = Math.toIntExact(getOffset(id + 1) - startOffset);
@@ -349,6 +380,34 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
             size++;
         }
 
+        /**
+         * Discards all entries at index {@code >= targetSize}, repositioning the write cursor so
+         * the next {@link #append} overwrites the first discarded slot. Pages that lie entirely
+         * beyond the target are released and their circuit-breaker reservation is returned.
+         */
+        void truncateTo(long targetSize) {
+            if (targetSize == size) {
+                return;
+            }
+            assert targetSize >= 0 && targetSize < size : targetSize + " >= " + size;
+            // PAGE_SHIFT is log2(INTS_PER_PAGE); the formula works for the small-first-page case
+            // too because targetSize < INTS_PER_PAGE implies targetPageIndex == 0.
+            int targetPageIndex = (int) (targetSize >> PAGE_SHIFT);
+            int targetPagePos = (int) (targetSize & PAGE_MASK) * Integer.BYTES;
+            for (int i = pageCount - 1; i > targetPageIndex; i--) {
+                if (caches[i] != null) {
+                    bigArrays.adjustBreaker(-PAGE_SIZE, true);
+                    caches[i].close();
+                    caches[i] = null;
+                }
+                pages[i] = null;
+            }
+            pageCount = targetPageIndex + 1;
+            currentPage = pages[targetPageIndex];
+            posInPage = targetPagePos;
+            size = targetSize;
+        }
+
         int get(long index) {
             int page = (int) (index >> PAGE_SHIFT);
             int off = (int) (index & PAGE_MASK) * Integer.BYTES;
@@ -446,6 +505,32 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
             int page = (int) (index >> PAGE_SHIFT);
             int off = (int) (index & PAGE_MASK) * Long.BYTES;
             return (long) LONG_HANDLE.get(pages[page], off);
+        }
+
+        /**
+         * Discards all entries at index {@code >= targetSize}, repositioning the write cursor so
+         * the next {@link #append} overwrites the first discarded slot. Pages that lie entirely
+         * beyond the target are released and their circuit-breaker reservation is returned.
+         */
+        void truncateTo(long targetSize) {
+            if (targetSize == size) {
+                return;
+            }
+            assert targetSize >= 0 && targetSize < size : targetSize + " >= " + size;
+            int targetPageIndex = (int) (targetSize >> PAGE_SHIFT);
+            int targetPagePos = (int) (targetSize & PAGE_MASK) * Long.BYTES;
+            for (int i = pageCount - 1; i > targetPageIndex; i--) {
+                if (caches[i] != null) {
+                    bigArrays.adjustBreaker(-PAGE_SIZE, true);
+                    caches[i].close();
+                    caches[i] = null;
+                }
+                pages[i] = null;
+            }
+            pageCount = targetPageIndex + 1;
+            currentPage = pages[targetPageIndex];
+            posInPage = targetPagePos;
+            size = targetSize;
         }
 
         @Override
@@ -621,6 +706,31 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
                 cursor.readPageChunk(scratch);
                 append(scratch.bytes, scratch.offset, scratch.length);
             }
+        }
+
+        /**
+         * Rolls the byte stream back to {@code targetByteOffset}, releasing any pages that
+         * lie entirely beyond that offset. The next {@link #append} will overwrite bytes
+         * starting at {@code targetByteOffset}, exactly as though those bytes had never been
+         * written. {@code targetByteOffset} must be {@code >= 0} and {@code <= size()}.
+         */
+        void truncateTo(long targetByteOffset) {
+            if (targetByteOffset == size()) {
+                return;
+            }
+            int targetPageIndex = (int) (targetByteOffset >> PAGE_SHIFT);
+            int targetPagePos = (int) (targetByteOffset & PAGE_MASK);
+            for (int i = pageCount - 1; i > targetPageIndex; i--) {
+                if (caches[i] != null) {
+                    bigArrays.adjustBreaker(-PAGE_SIZE, true);
+                    caches[i].close();
+                    caches[i] = null;
+                }
+                pages[i] = null;
+            }
+            pageCount = targetPageIndex + 1;
+            currentPage = pages[targetPageIndex];
+            currentPagePos = targetPagePos;
         }
 
         private byte[] allocateScratchBuffer(byte[] scratch, int requiredLength) {

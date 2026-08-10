@@ -11,13 +11,12 @@
 //   - MAP types
 //   - CSV / NDJSON dotted-name pruning (NDJSON already flattens but does not prune)
 //
-// Authored as FROM <dataset>: each test declares its source via a `dataset:` directive. On dataset-capable
-// backends (S3) OrcFormatSpecIT registers the dataset and runs the FROM query verbatim; the other backends
-// rebuild the equivalent EXTERNAL query. The fixture template has no index twin, so the dataset keeps the
-// bare name nested_events.
+// Authored as FROM <dataset>: each test declares its source via a `dataset:` directive. OrcFormatSpecIT
+// registers the dataset on every storage backend and runs the FROM query verbatim. The fixture template has
+// no index twin, so the dataset keeps the bare name nested_events.
 
 nestedKeepSingleSubfield
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_source_nested_struct_projection
 dataset: nested_events: "{{nested_events}}"
 
@@ -36,7 +35,7 @@ id:integer | event.action:keyword
 ;
 
 nestedKeepTwoSubfieldsSameParent
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_source_nested_struct_projection
 dataset: nested_events: "{{nested_events}}"
 
@@ -55,7 +54,7 @@ id:integer | event.action:keyword | event.outcome:keyword
 ;
 
 nestedKeepMixedTopLevelAndNested
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_source_nested_struct_projection
 dataset: nested_events: "{{nested_events}}"
 
@@ -71,7 +70,7 @@ id:integer | event.action:keyword
 ;
 
 nestedStatsByNested
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_source_nested_struct_projection
 dataset: nested_events: "{{nested_events}}"
 
@@ -87,7 +86,7 @@ c:long | event.action:keyword
 ;
 
 nestedNullPropagation
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_source_nested_struct_projection
 dataset: nested_events: "{{nested_events}}"
 
@@ -106,7 +105,7 @@ id:integer | event.action:keyword
 // stripes whose statistics rule out the value (see ParquetPushedExpressions /
 // OrcPushedExpressions). FilterExec re-applies the conjunct to catch any leakage.
 nestedWhereEquals
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_source_nested_struct_projection
 dataset: nested_events: "{{nested_events}}"
 
@@ -123,7 +122,7 @@ id:integer | event.action:keyword
 // IS NULL pushdown on a nested leaf. The reader stats expose the per-leaf null count, so
 // a fully-non-null row group / stripe can be pruned; rows that survive are re-checked.
 nestedWhereIsNull
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_source_nested_struct_projection
 dataset: nested_events: "{{nested_events}}"
 
@@ -142,7 +141,7 @@ id:integer | event.outcome:keyword
 // grouping by event.action is evaluated post-read. Exercises both the nested-stats
 // publication path (T2 / T3) and grouping over a nested key.
 nestedStatsMinMax
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_source_nested_struct_projection
 dataset: nested_events: "{{nested_events}}"
 
@@ -162,7 +161,7 @@ min_id:integer | max_id:integer | event.action:keyword
 // alongside top-level pushdown, and verifies that nested columns referenced only by the
 // projection still appear (no over-pruning when a sibling leaf is filtered).
 nestedFilterAndProjectMixed
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_source_nested_struct_projection
 dataset: nested_events: "{{nested_events}}"
 

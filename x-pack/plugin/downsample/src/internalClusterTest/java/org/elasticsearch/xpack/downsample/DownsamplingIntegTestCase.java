@@ -61,6 +61,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.index.mapper.TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM;
@@ -91,8 +92,8 @@ public abstract class DownsamplingIntegTestCase extends ESIntegTestCase {
             LocalStateCompositeXPackPlugin.class,
             Downsample.class,
             AggregateMetricMapperPlugin.class,
-            EsqlPlugin.class,
             EncryptionPlugin.class,
+            EsqlPlugin.class,
             AnalyticsPlugin.class
         );
     }
@@ -219,14 +220,15 @@ public abstract class DownsamplingIntegTestCase extends ESIntegTestCase {
     }
 
     int indexDocuments(String dataStreamName, int docCount, String firstDocTimestamp) {
+        final List<String> dimensionValues = new ArrayList<>(5);
+        for (int j = 0; j < randomIntBetween(1, 5); j++) {
+            dimensionValues.add(randomAlphaOfLength(6));
+        }
+        AtomicLong startTime = new AtomicLong(LocalDateTime.parse(firstDocTimestamp).atZone(ZoneId.of("UTC")).toInstant().toEpochMilli());
         final Supplier<XContentBuilder> sourceSupplier = () -> {
-            long startTime = LocalDateTime.parse(firstDocTimestamp).atZone(ZoneId.of("UTC")).toInstant().toEpochMilli();
-            final String ts = randomDateForInterval(new DateHistogramInterval("1s"), startTime);
+            final String ts = randomDateForInterval(new DateHistogramInterval("1s"), startTime.get());
+            startTime.set(startTime.get() + randomIntBetween(0, 30) * 1000L);
             double counterValue = DATE_FORMATTER.parseMillis(ts);
-            final List<String> dimensionValues = new ArrayList<>(5);
-            for (int j = 0; j < randomIntBetween(1, 5); j++) {
-                dimensionValues.add(randomAlphaOfLength(6));
-            }
             try {
                 return XContentFactory.jsonBuilder()
                     .startObject()

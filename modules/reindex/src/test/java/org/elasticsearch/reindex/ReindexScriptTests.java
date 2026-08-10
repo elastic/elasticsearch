@@ -93,8 +93,8 @@ public class ReindexScriptTests extends AbstractAsyncBulkByPaginatedSearchAction
         String routing = randomRealisticUnicodeOfLengthBetween(5, 20);
         IndexRequest index = applyScript((Map<String, Object> ctx) -> {
             ctx.put("_routing", routing);
-            assertEquals(routing, ctx.get(SliceIndexing.PARAM_NAME));
-            assertTrue(ctx.containsKey(SliceIndexing.PARAM_NAME));
+            assertEquals(routing, ctx.get(SliceIndexing.FIELD_NAME));
+            assertTrue(ctx.containsKey(SliceIndexing.FIELD_NAME));
         });
         assertEquals(routing, index.routing());
         assertFalse(index.isRoutingFromSlice());
@@ -131,7 +131,7 @@ public class ReindexScriptTests extends AbstractAsyncBulkByPaginatedSearchAction
     public void testSetSlice() throws Exception {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         String slice = randomRealisticUnicodeOfLengthBetween(5, 20);
-        IndexRequest index = applyScript((Map<String, Object> ctx) -> ctx.put(SliceIndexing.PARAM_NAME, slice));
+        IndexRequest index = applyScript((Map<String, Object> ctx) -> ctx.put(SliceIndexing.FIELD_NAME, slice));
         assertEquals(slice, index.routing());
         assertTrue(index.isRoutingFromSlice());
     }
@@ -140,9 +140,9 @@ public class ReindexScriptTests extends AbstractAsyncBulkByPaginatedSearchAction
         assumeFalse("slice indexing feature flag must be disabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> applyScript((Map<String, Object> ctx) -> ctx.put(SliceIndexing.PARAM_NAME, "slice1"))
+            () -> applyScript((Map<String, Object> ctx) -> ctx.put(SliceIndexing.FIELD_NAME, "slice1"))
         );
-        assertThat(e.getMessage(), containsString(SliceIndexing.PARAM_NAME + " cannot be updated"));
+        assertThat(e.getMessage(), containsString("Cannot put key [" + SliceIndexing.FIELD_NAME + "]"));
     }
 
     @Override

@@ -33,7 +33,7 @@ dependencies {
 
   // OIDC JWT issuer-client SPI, provided at runtime via the 'workload-identity' extended plugin.
   compileOnly project(':modules:workload-identity:spi')
-  // Async, non-blocking STS AssumeRoleWithWebIdentity credentials provider for keyless auth.
+  // Async, non-blocking STS AssumeRoleWithWebIdentity credentials provider for federated auth.
   implementation project(':libs:workload-identity-aws')
 
   // AWS SDK for S3 access - following repository-s3 pattern
@@ -66,7 +66,7 @@ dependencies {
 
   // Apache HTTP client for AWS SDK (required by apache-client module)
   implementation "org.apache.httpcomponents:httpclient:${versions.httpclient}"
-  
+
   runtimeOnly "commons-codec:commons-codec:${versions.commonscodec}"
   runtimeOnly "commons-logging:commons-logging:${versions.commonslogging}"
   runtimeOnly "org.apache.httpcomponents:httpcore:${versions.httpcore}"
@@ -92,7 +92,7 @@ dependencies {
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(':libs:arrow')
   testImplementation project(xpackModule('esql:compute'))
-  // Workload-identity SPI types used by keyless-auth unit tests (compileOnly in main; tests need them on the classpath).
+  // Workload-identity SPI types used by federated-auth unit tests (compileOnly in main; tests need them on the classpath).
   testImplementation project(':modules:workload-identity:spi')
   // S3 fixture for in-process unit tests of S3StorageProvider against a fake S3 endpoint.
   testImplementation project(':test:fixtures:s3-fixture')

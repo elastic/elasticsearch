@@ -230,7 +230,12 @@ public class DivTests extends AbstractScalarFunctionTestCase {
             // Large scalars (e.g. randomInt/randomLong) divided by near-zero vector elements
             // can overflow to Infinity; the evaluator throws and returns null for the whole vector
             return result.stream().anyMatch(f -> Float.isInfinite(f) || Float.isNaN(f)) ? null : result;
-        }));
+        },
+            List.of(
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: java.lang.ArithmeticException: / by zero"
+            )
+        ));
 
         // Overflows
         suppliers.addAll(

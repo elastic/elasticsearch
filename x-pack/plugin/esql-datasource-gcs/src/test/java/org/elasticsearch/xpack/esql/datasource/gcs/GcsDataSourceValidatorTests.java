@@ -80,7 +80,7 @@ public class GcsDataSourceValidatorTests extends AbstractDataSourceValidatorTest
     public void testValidateDatasourceAnonymousConflict() {
         expectThrows(
             ValidationException.class,
-            () -> validator.validateDatasource(Map.of("auth", "none", "credentials", "{\"type\":\"service_account\"}"))
+            () -> validator.validateDatasource(Map.of("auth", "anonymous", "credentials", "{\"type\":\"service_account\"}"))
         );
     }
 
@@ -92,35 +92,63 @@ public class GcsDataSourceValidatorTests extends AbstractDataSourceValidatorTest
     }
 
     public void testValidateDatasourceAccessTokenConflictsWithAuthNone() {
-        expectThrows(ValidationException.class, () -> validator.validateDatasource(Map.of("auth", "none", "access_token", "ya29.token")));
+        expectThrows(
+            ValidationException.class,
+            () -> validator.validateDatasource(Map.of("auth", "anonymous", "access_token", "ya29.token"))
+        );
     }
 
     public void testValidateDatasourceRejectsWorkloadIdentityWhenDisabled() {
         // default validator has workload identity disabled
         var e = expectThrows(
             ValidationException.class,
-            () -> validator.validateDatasource(Map.of("auth", "workload_identity", "project_id", "proj"))
+            () -> validator.validateDatasource(Map.of("auth", "managed_identity", "project_id", "proj"))
         );
-        assertThat(e.getMessage(), containsString("esql.datasource.workload_identity.enabled"));
+        assertThat(e.getMessage(), containsString("esql.datasource.managed_identity.enabled"));
     }
 
     public void testValidateDatasourceAcceptsWorkloadIdentityWhenEnabled() {
         var workloadIdentityValidator = new FileDataSourceValidator("gcs", GcsConfiguration::fromMap, Set.of("gs"))
-            .withWorkloadIdentityEnabled(() -> true);
-        var result = workloadIdentityValidator.validateDatasource(Map.of("auth", "workload_identity", "project_id", "proj"));
-        assertEquals("workload_identity", result.get("auth").nonSecretValue());
+            .withManagedIdentityEnabled(() -> true);
+        var result = workloadIdentityValidator.validateDatasource(Map.of("auth", "managed_identity", "project_id", "proj"));
+        assertEquals("managed_identity", result.get("auth").nonSecretValue());
         assertFalse(result.get("auth").secret());
     }
 
     public void testValidateDatasourceWorkloadIdentityConflictWithCredentials() {
         var workloadIdentityValidator = new FileDataSourceValidator("gcs", GcsConfiguration::fromMap, Set.of("gs"))
-            .withWorkloadIdentityEnabled(() -> true);
+            .withManagedIdentityEnabled(() -> true);
         expectThrows(
             ValidationException.class,
             () -> workloadIdentityValidator.validateDatasource(
-                Map.of("auth", "workload_identity", "credentials", "{\"type\":\"service_account\"}")
+                Map.of("auth", "managed_identity", "credentials", "{\"type\":\"service_account\"}")
             )
         );
+    }
+
+    public void testValidateDatasourceRejectsExplicitFederatedWhenDisabled() {
+        // default validator has federated authentication disabled
+        var federatedConfig = Map.<String, Object>of("auth", "federated_identity", "jwt_audience", "//aud", "sts_audience", "//sts");
+        var e = expectThrows(ValidationException.class, () -> validator.validateDatasource(federatedConfig));
+        assertThat(e.getMessage(), containsString("esql.datasource.federated_identity.enabled"));
+    }
+
+    public void testValidateDatasourceRejectsImplicitFederatedWhenDisabled() {
+        // default validator has federated authentication disabled
+        var federatedConfig = Map.<String, Object>of("jwt_audience", "//aud", "sts_audience", "//sts");
+        var e = expectThrows(ValidationException.class, () -> validator.validateDatasource(federatedConfig));
+        assertThat(e.getMessage(), containsString("esql.datasource.federated_identity.enabled"));
+    }
+
+    public void testValidateDatasourceAcceptsFederatedWhenEnabled() {
+        var federatedValidator = new FileDataSourceValidator("gcs", GcsConfiguration::fromMap, Set.of("gs")).withFederatedIdentityEnabled(
+            () -> true
+        );
+        var result = federatedValidator.validateDatasource(
+            Map.of("auth", "federated_identity", "jwt_audience", "//aud", "sts_audience", "//sts")
+        );
+        assertEquals("//sts", result.get("sts_audience").nonSecretValue());
+        assertFalse(result.get("sts_audience").secret());
     }
 
     public void testValidateDatasetValid() {
@@ -163,6 +191,8 @@ public class GcsDataSourceValidatorTests extends AbstractDataSourceValidatorTest
 
     public void testValidateDatasourceSkipsNullValues() {
         var settings = new HashMap<String, Object>();
+        // auth=anonymous makes the credential-less config resolvable; the null-skipping behavior is what's under test.
+        settings.put("auth", "anonymous");
         settings.put("project_id", "my-project");
         settings.put("endpoint", null);
         var result = validator.validateDatasource(settings);

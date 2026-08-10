@@ -956,6 +956,7 @@ n:long | host:keyword
 ;
 
 firstOverTime
+skip_flattened_rewrite: junk_injection_breaks_result_shape
 required_capability: flattened_datatype
 required_capability: fn_first_over_time_flattened
 required_capability: ts_command_v0
@@ -971,6 +972,7 @@ v:flattened            | _timeseries:keyword
 ;
 
 lastOverTime
+skip_flattened_rewrite: junk_injection_breaks_result_shape
 required_capability: flattened_datatype
 required_capability: fn_last_over_time_flattened
 required_capability: ts_command_v0

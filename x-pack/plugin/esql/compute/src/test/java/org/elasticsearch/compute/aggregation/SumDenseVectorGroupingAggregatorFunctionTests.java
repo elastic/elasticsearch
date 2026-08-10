@@ -21,6 +21,7 @@ import org.junit.Before;
 import java.util.List;
 import java.util.stream.LongStream;
 
+import static org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase.randomVector;
 import static org.hamcrest.Matchers.closeTo;
 
 public class SumDenseVectorGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
@@ -38,14 +39,6 @@ public class SumDenseVectorGroupingAggregatorFunctionTests extends GroupingAggre
             blockFactory,
             LongStream.range(0, end).mapToObj(l -> Tuple.tuple(randomLongBetween(0, 4), randomVector(vectorDimensions)))
         );
-    }
-
-    private float[] randomVector(int dimensions) {
-        float[] vector = new float[dimensions];
-        for (int i = 0; i < dimensions; i++) {
-            vector[i] = randomFloat();
-        }
-        return vector;
     }
 
     @Override

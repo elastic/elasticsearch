@@ -56,7 +56,7 @@ public enum Releasables {
         }
     }
 
-    /** Release the provided {@link Releasable}s expecting no exception to by thrown by any of them. */
+    /** Release the provided {@link Releasable}s expecting no exception to be thrown by any of them. */
     public static void closeExpectNoException(Releasable... releasables) {
         try {
             close(releasables);
@@ -66,7 +66,12 @@ public enum Releasables {
         }
     }
 
-    /** Release the provided {@link Releasable} expecting no exception to by thrown. */
+    /** Release the provided {@link Releasable}s expecting no exception to be thrown by any of them. */
+    public static void closeExpectNoException(Iterable<? extends Releasable> releasables) {
+        close(Releasables.wrap(releasables));
+    }
+
+    /** Release the provided {@link Releasable} expecting no exception to be thrown. */
     public static void closeExpectNoException(@Nullable Releasable releasable) {
         try {
             close(releasable);

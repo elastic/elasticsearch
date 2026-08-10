@@ -11,11 +11,13 @@ import org.elasticsearch.Version;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlDataType;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
@@ -264,6 +266,7 @@ public final class PromqlFunctionDefinition {
     );
     public static final PromqlParamInfo SCALAR = PromqlParamInfo.child("s", PromqlDataType.SCALAR, "Scalar value.");
     public static final PromqlParamInfo QUANTILE = PromqlParamInfo.of("φ", PromqlDataType.SCALAR, "Quantile value (0 ≤ φ ≤ 1).");
+    public static final PromqlParamInfo K = PromqlParamInfo.of("k", PromqlDataType.SCALAR, "Number of series to keep.");
     public static final PromqlParamInfo TO_NEAREST = PromqlParamInfo.optional(
         "to_nearest",
         PromqlDataType.SCALAR,
@@ -326,7 +329,8 @@ public final class PromqlFunctionDefinition {
      */
     public enum PromqlDocsVersion {
         V_9_4(Version.V_9_4_0),
-        V_9_5(Version.V_9_5_0);
+        V_9_5(Version.V_9_5_0),
+        V_9_6(Version.V_9_6_0);
 
         private final Version version;
 
@@ -379,6 +383,11 @@ public final class PromqlFunctionDefinition {
      * Stack availability for PromQL functions first implemented (and generally available) in 9.5.
      */
     public static final List<StackAvailability> STACK_GA_9_5 = List.of(ga(PromqlDocsVersion.V_9_5));
+
+    /**
+     * Stack availability for PromQL functions that ship as generally available in 9.6.
+     */
+    public static final List<StackAvailability> STACK_GA_9_6 = List.of(ga(PromqlDocsVersion.V_9_6));
 
     /**
      * Scales a PromQL quantile φ (in the range [0, 1]) to the percentile value (in the range [0, 100]) expected by
@@ -580,6 +589,38 @@ public final class PromqlFunctionDefinition {
             return this;
         }
 
+        public PromqlFunctionDefinition.Builder acrossSeriesBinaryReduceSortDesc(PromqlParamInfo paramInfo) {
+            return acrossSeriesBinaryReduceSort(paramInfo, Order.OrderDirection.DESC);
+        }
+
+        public PromqlFunctionDefinition.Builder acrossSeriesBinaryReduceSortAsc(PromqlParamInfo paramInfo) {
+            return acrossSeriesBinaryReduceSort(paramInfo, Order.OrderDirection.ASC);
+        }
+
+        private PromqlFunctionDefinition.Builder acrossSeriesBinaryReduceSort(
+            PromqlParamInfo paramInfo,
+            Order.OrderDirection orderDirection
+        ) {
+            this.functionType = FunctionType.ACROSS_SERIES_REDUCTION;
+            this.arity = PromqlFunctionArity.TWO;
+            this.builder = (source, target, ctx, extraParams) -> new Order(source, target, orderDirection, Order.NullsPosition.LAST);
+            this.params = List.of(paramInfo, INSTANT_VECTOR);
+            return this;
+        }
+
+        /**
+         * Across-series reduction that keeps {@code k} arbitrary elements with no value-based ranking.
+         * The {@link FunctionBuilder} returns {@code null} to signal "no sort order" to the translator,
+         * which emits a {@link org.elasticsearch.xpack.esql.plan.logical.TopNBy} with an empty order list.
+         */
+        public PromqlFunctionDefinition.Builder acrossSeriesBinaryReduceUnordered(PromqlParamInfo paramInfo) {
+            this.functionType = FunctionType.ACROSS_SERIES_REDUCTION;
+            this.arity = PromqlFunctionArity.TWO;
+            this.builder = (source, target, ctx, extraParams) -> null;
+            this.params = List.of(paramInfo, INSTANT_VECTOR);
+            return this;
+        }
+
         public PromqlFunctionDefinition.Builder histogramUnary(BiFunction<Source, Expression, ? extends Expression> ctorRef) {
             this.functionType = FunctionType.HISTOGRAM;
             this.arity = PromqlFunctionArity.ONE;
@@ -613,6 +654,17 @@ public final class PromqlFunctionDefinition {
         }
 
         /**
+         * Builds a required-argument time-extraction function over an instant vector (e.g. {@code timestamp(v)}).
+         */
+        public PromqlFunctionDefinition.Builder unaryTimeExtraction(FunctionBuilder functionBuilder) {
+            this.functionType = FunctionType.TIME_EXTRACTION;
+            this.arity = PromqlFunctionArity.ONE;
+            this.builder = functionBuilder;
+            this.params = List.of(INSTANT_VECTOR);
+            return this;
+        }
+
+        /**
          * Builds a date/time extraction function that accepts an optional instant vector argument.
          * When no argument is provided, the evaluation step timestamp (or fallback timestamp) is used.
          * When the argument is a numeric value (seconds since epoch), it is converted to a datetime first.
@@ -633,7 +685,7 @@ public final class PromqlFunctionDefinition {
                         new ToDatetime(
                             source,
                             new Mul(source, new ToDouble(source, date), Literal.fromDouble(source, 1000.0)),
-                            ctx.configuration().withZoneId(ZoneOffset.UTC)
+                            ctx.configuration().withSetting(QuerySettings.TIME_ZONE, ZoneOffset.UTC)
                         ),
                         ctx.configuration()
                     );

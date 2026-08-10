@@ -133,7 +133,6 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     private final GoogleCloudStorageService storageService;
     private final GcsRepositoryStatsCollector statsCollector;
     private final int bufferSize;
-    private final OptionalInt resumableWriteBufferSize;
     private final BigArrays bigArrays;
     private final BackoffPolicy casBackoffPolicy;
     private volatile boolean closed = false;
@@ -152,7 +151,6 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         GoogleCloudStorageService storageService,
         BigArrays bigArrays,
         int bufferSize,
-        OptionalInt resumableWriteBufferSize,
         BackoffPolicy casBackoffPolicy,
         GcsRepositoryStatsCollector statsCollector,
         @Nullable String dataStorageClass,
@@ -166,7 +164,6 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         this.bigArrays = bigArrays;
         this.statsCollector = statsCollector;
         this.bufferSize = bufferSize;
-        this.resumableWriteBufferSize = resumableWriteBufferSize;
         this.casBackoffPolicy = casBackoffPolicy;
         this.tenaciousRetriesEnabled = storageService.clientSettings(projectId, clientName).getTenaciousRetriesEnabled();
         this.dataStorageClass = initStorageClass(dataStorageClass);
@@ -232,6 +229,10 @@ class GoogleCloudStorageBlobStore implements BlobStore {
 
     long getMegabytesCopiedPerChunk() {
         return storageService.clientSettings(projectId, clientName).getMegabytesCopiedPerChunk();
+    }
+
+    OptionalInt getResumableWriteBufferSize() {
+        return storageService.clientSettings(projectId, clientName).getResumableWriteBufferSize();
     }
 
     RepositoriesMetrics getRepositoriesMetrics() {
@@ -486,6 +487,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                     }
 
                     private void initResumableStream() throws IOException {
+                        final OptionalInt resumableWriteBufferSize = getResumableWriteBufferSize();
                         final var writeChannel = client().meteredWriter(purpose, blobInfo, resumableWriteBufferSize, writeOptions);
                         channelRef.set(writeChannel);
                         resumableStream = new FilterOutputStream(Channels.newOutputStream(new WritableBlobChannel(writeChannel))) {
@@ -562,7 +564,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         }
         for (int retry = 0; retry < 3; ++retry) {
             try {
-                final WriteChannel writeChannel = client().meteredWriter(purpose, blobInfo, resumableWriteBufferSize, writeOptions);
+                final WriteChannel writeChannel = client().meteredWriter(purpose, blobInfo, getResumableWriteBufferSize(), writeOptions);
                 /*
                  * It is not enough to wrap the call to Streams#copy, we have to wrap the privileged calls too; this is because Streams#copy
                  * is in the stacktrace and is not granted the permissions needed to close and write the channel.

@@ -733,6 +733,7 @@ instance-2       | 2.2E-4     | 2.744054   | 0.001571..0.00160683   | 27.7057..2
 
 
 timeseriesAvgOverTimeWithInlineFilterGroupByAll
+skip_flattened_rewrite: junk_injection_breaks_result_shape
 required_capability: fix_group_by_all_aggregation_filters
 required_capability: metrics_group_by_all
 

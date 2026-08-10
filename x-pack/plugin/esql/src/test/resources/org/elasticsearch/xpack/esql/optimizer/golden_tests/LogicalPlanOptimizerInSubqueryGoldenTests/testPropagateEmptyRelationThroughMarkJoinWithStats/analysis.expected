@@ -1,0 +1,8 @@
+Limit[1000[INTEGER],false,false]
+\_Aggregate[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS cnt#0]]
+  \_Filter[emp_no{f}#1 > 0[INTEGER] OR $$in_subquery_mark$0{r$}#2]
+    \_MarkJoin[[emp_no{f}#1],[emp_no{f}#3],$$in_subquery_mark$0{r$}#2]
+      |_Filter[false[BOOLEAN]]
+      | \_EsRelation[employees][avg_worked_seconds{f}#4, birth_date{f}#5, emp_no{f}#1, first_name{f}#6, gender{f}#7, height{f}#8, height.float{f}#9, height.half_float{f}#10, height.scaled_float{f}#11, hire_date{f}#12, is_rehired{f}#13, job_positions{f}#14, languages{f}#15, languages.byte{f}#16, languages.long{f}#17, languages.short{f}#18, last_name{f}#19, salary{f}#20, salary_change{f}#21, salary_change.int{f}#22, salary_change.keyword{f}#23, salary_change.long{f}#24, still_hired{f}#25]
+      \_Project[[emp_no{f}#3]]
+        \_EsRelation[employees][avg_worked_seconds{f}#26, birth_date{f}#27, emp_no{f}#3, first_name{f}#28, gender{f}#29, height{f}#30, height.float{f}#31, height.half_float{f}#32, height.scaled_float{f}#33, hire_date{f}#34, is_rehired{f}#35, job_positions{f}#36, languages{f}#37, languages.byte{f}#38, languages.long{f}#39, languages.short{f}#40, last_name{f}#41, salary{f}#42, salary_change{f}#43, salary_change.int{f}#44, salary_change.keyword{f}#45, salary_change.long{f}#46, still_hired{f}#47]

@@ -51,6 +51,7 @@ import org.elasticsearch.compute.operator.lookup.EnrichQuerySourceOperator;
 import org.elasticsearch.compute.operator.lookup.LookupEnrichQueryGenerator;
 import org.elasticsearch.compute.operator.lookup.MergePositionsOperator;
 import org.elasticsearch.compute.operator.lookup.QueryList;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
@@ -87,6 +88,7 @@ import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.esql.plugin.EsqlSearchExecutionContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -410,7 +412,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                 finishPages = dropDocBlockOperator(request.extractFields);
             }
             releasables.add(finishPages);
-            var warnings = Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, request.source);
+            var warnings = driverContext.createWarnings(request.source);
             LookupEnrichQueryGenerator queryList = queryList(request, shardContext.executionContext, aliasFilter, warnings);
 
             // Stage 1
@@ -855,14 +857,15 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         Releasable release
     ) {
         public static LookupShardContext fromSearchContext(SearchContext searchContext) {
-            return new LookupShardContext(
-                new EsPhysicalOperationProviders.DefaultShardContext(
-                    0,
-                    searchContext,
-                    searchContext.getSearchExecutionContext(),
-                    searchContext.request().getAliasFilter()
-                ),
+            EsqlSearchExecutionContext esqlCtx = new EsqlSearchExecutionContext(
                 searchContext.getSearchExecutionContext(),
+                QueryWarnings.NOOP
+            );
+            // Queries built via the wrapper charge its own accounting pool, which nothing else drains.
+            searchContext.addReleasable(esqlCtx::releaseQueryConstructionMemory);
+            return new LookupShardContext(
+                new EsPhysicalOperationProviders.DefaultShardContext(0, searchContext, esqlCtx, searchContext.request().getAliasFilter()),
+                esqlCtx,
                 searchContext
             );
         }

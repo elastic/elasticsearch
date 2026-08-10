@@ -251,7 +251,7 @@ public class CompletionResponseParserTests extends AbstractBWCWireSerializationT
 
         var parser = new CompletionResponseParser("$.result");
         var exception = expectThrows(
-            IllegalStateException.class,
+            IllegalArgumentException.class,
             () -> parser.parse(new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8)))
         );
 

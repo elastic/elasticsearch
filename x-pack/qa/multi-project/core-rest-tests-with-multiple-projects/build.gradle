@@ -29,6 +29,7 @@ dependencies {
   clusterModules project(xpackModule('mapper-constant-keyword'))
   clusterModules project(xpackModule('wildcard'))
   clusterModules project(':test:external-modules:test-multi-project')
+  clusterModules project(xpackModule('dlm-frozen-transition'))
   restTestConfig project(path: ':modules:data-streams', configuration: "restTests")
   restTestConfig project(path: ':modules:ingest-common', configuration: "basicRestSpecs")
   restTestConfig project(path: ':modules:reindex', configuration: "restTests")
@@ -75,7 +76,6 @@ tasks.named("yamlRestTest").configure {
     '^reindex/90_remote/*',
     '^reindex/95_parent_join/Reindex from remote*',
 
-    // Slice indexing requires the test-slice-indexing-validation module which is not present in this cluster
     '^reindex/50_routing/Slice alias*',
     '^reindex/85_scripting/Add slice alias',
 

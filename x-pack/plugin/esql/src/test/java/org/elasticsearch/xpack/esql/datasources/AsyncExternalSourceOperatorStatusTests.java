@@ -16,6 +16,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvReaderStatus;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonReaderStatus;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderStatus;
 
 import java.io.IOException;
@@ -168,10 +169,52 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
             equalTo(
                 "{\"pages_waiting\":5,\"pages_emitted\":10,\"rows_emitted\":111,\"bytes_buffered\":2048,"
                     + "\"process_nanos\":1000000,\"splits_processed\":2,\"splits_total\":4,\"current_split\":3,"
-                    + "\"bytes_read\":8192,\"read_nanos\":0,\"partial\":false,"
+                    + "\"bytes_read\":8192,\"read_nanos\":0,\"stripes_committed\":0,\"partial\":false,"
                     + "\"format_reader\":{\"format\":\"ndjson\",\"rows_emitted\":7,\"parse_errors\":0,\"read_nanos\":0}}"
             )
         );
+    }
+
+    /**
+     * The cold-harvest vs miss signal: {@code stripesCommitted()} counts only stripe-addressed
+     * contributions (those carrying both {@code _stats.stripe_ordinal} and {@code _stats.stripe_size}),
+     * across all files, including sibling fragments of the same stripe. A whole-file contribution (no
+     * stripe ordinal) does not count.
+     */
+    public void testStripesCommittedCountsStripeAddressedContributions() {
+        Map<String, List<Map<String, Object>>> captured = new HashMap<>();
+        List<Map<String, Object>> fileA = new ArrayList<>();
+        fileA.add(stripeContribution(0));
+        fileA.add(stripeContribution(1));
+        fileA.add(wholeFileContribution()); // not stripe-addressed, must not count
+        List<Map<String, Object>> fileB = new ArrayList<>();
+        fileB.add(stripeContribution(0));
+        captured.put("a.csv", fileA);
+        captured.put("b.csv", fileB);
+
+        AsyncExternalSourceOperator.Status warm = statusWithCaptured(captured);
+        assertThat(warm.stripesCommitted(), equalTo(3L));
+
+        AsyncExternalSourceOperator.Status miss = statusWithCaptured(Map.of());
+        assertThat("a scan that harvested nothing reports zero", miss.stripesCommitted(), equalTo(0L));
+    }
+
+    private static AsyncExternalSourceOperator.Status statusWithCaptured(Map<String, List<Map<String, Object>>> captured) {
+        return new AsyncExternalSourceOperator.Status(0, 0, 0, 0, null, 0L, 0, 0, 0, 0L, 0L, null, captured, false);
+    }
+
+    private static Map<String, Object> stripeContribution(long ordinal) {
+        Map<String, Object> m = new HashMap<>();
+        m.put(ExternalStats.STRIPE_SIZE_KEY, 1024L);
+        m.put(ExternalStats.STRIPE_ORDINAL_KEY, ordinal);
+        m.put(ExternalStats.PARTIAL_CHUNK_KEY, Boolean.TRUE);
+        return m;
+    }
+
+    private static Map<String, Object> wholeFileContribution() {
+        Map<String, Object> m = new HashMap<>();
+        m.put("_stats.row_count", 100L);
+        return m;
     }
 
     public void testToXContentWithFailure() {
@@ -197,7 +240,8 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
             equalTo(
                 "{\"pages_waiting\":5,\"pages_emitted\":10,\"rows_emitted\":111,\"bytes_buffered\":2048,"
                     + "\"process_nanos\":0,\"splits_processed\":0,\"splits_total\":0,\"current_split\":0,"
-                    + "\"bytes_read\":0,\"read_nanos\":0,\"partial\":true,\"format_reader\":{},\"failure\":\"boom\"}"
+                    + "\"bytes_read\":0,\"read_nanos\":0,\"stripes_committed\":0,\"partial\":true,"
+                    + "\"format_reader\":{},\"failure\":\"boom\"}"
             )
         );
     }

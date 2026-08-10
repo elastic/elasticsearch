@@ -1,0 +1,7 @@
+Limit[1000[INTEGER],false,false]
+\_Aggregate[[],[SUM($$partial$$c{r$}#0,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD],long_overflow_throw[KEYWORD]) AS c#1, FROMPARTIAL($$partial$$d{r$}#2,true[BOOLEAN],PT0S[TIME_DURATION],COUNTDISTINCT(emp_no{r}#3,true[BOOLEAN],PT0S[TIME_DURATION])) AS d#4]]
+  \_UnionAll[[$$partial$$c{r$}#0, $$partial$$d{r$}#2]]
+    |_Aggregate[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS $$partial$$c#0, TOPARTIAL(COUNTDISTINCT(emp_no{r}#5,true[BOOLEAN],PT0S[TIME_DURATION]),true[BOOLEAN],PT0S[TIME_DURATION],COUNTDISTINCT(emp_no{r}#5,true[BOOLEAN],PT0S[TIME_DURATION])) AS $$partial$$d#2]]
+    | \_ExternalRelation[s3://bucket/heavy_a.parquet][parquet][emp_no{r}#5, salary{r}#6, dept{r}#7]
+    \_Aggregate[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS $$partial$$c#0, TOPARTIAL(COUNTDISTINCT(emp_no{r}#8,true[BOOLEAN],PT0S[TIME_DURATION]),true[BOOLEAN],PT0S[TIME_DURATION],COUNTDISTINCT(emp_no{r}#8,true[BOOLEAN],PT0S[TIME_DURATION])) AS $$partial$$d#2]]
+      \_ExternalRelation[s3://bucket/heavy_b.parquet][parquet][emp_no{r}#8, salary{r}#9, dept{r}#10]

@@ -10,8 +10,10 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -30,25 +32,26 @@ import java.util.List;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_RANGE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE_RANGE;
 
-public class RangeMax extends UnaryScalarFunction {
+public class RangeMax extends UnaryScalarFunction implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "RangeMax", RangeMax::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(RangeMax.class).unary(RangeMax::new).name("range_max");
 
     @FunctionInfo(
-        returnType = "date",
+        returnType = { "date", "double" },
         preview = true,
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
-        briefSummary = "Returns the end value of a date range.",
-        description = "Returns the maximum (end) value of a date_range. For a date_range [x, y), it returns y.",
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.5.0") },
+        briefSummary = "Returns the end value of a range.",
+        description = "Returns the maximum (end) value of a range. For a range [x, y), it returns y.",
         examples = @Example(file = "date_range", tag = "range_max")
     )
     public RangeMax(
         Source source,
         @Param(
             name = "range",
-            type = { "date_range" },
-            description = "Date range expression. If `null`, the function returns `null`."
+            type = { "date_range", "double_range" },
+            description = "Range expression. If `null`, the function returns `null`."
         ) Expression field
     ) {
         super(source, field);
@@ -65,7 +68,11 @@ public class RangeMax extends UnaryScalarFunction {
 
     @Override
     public DataType dataType() {
-        return DataType.DATETIME;
+        return switch (field().dataType()) {
+            case DATE_RANGE -> DataType.DATETIME;
+            case DOUBLE_RANGE -> DataType.DOUBLE;
+            default -> DataType.NULL;
+        };
     }
 
     @Override
@@ -74,7 +81,7 @@ public class RangeMax extends UnaryScalarFunction {
             return new TypeResolution("Unresolved children");
         }
 
-        return isType(field(), dt -> dt == DATE_RANGE, sourceText(), DEFAULT, "date_range");
+        return isType(field(), dt -> dt == DATE_RANGE || dt == DOUBLE_RANGE, sourceText(), DEFAULT, "date_range", "double_range");
     }
 
     @Override
@@ -92,8 +99,17 @@ public class RangeMax extends UnaryScalarFunction {
         return range.to();
     }
 
+    @Evaluator(extraName = "Double")
+    static double process(DoubleRangeBlockBuilder.DoubleRange range) {
+        return range.to();
+    }
+
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        return new RangeMaxEvaluator.Factory(source(), toEvaluator.apply(field()));
+        return switch (field().dataType()) {
+            case DATE_RANGE -> new RangeMaxEvaluator.Factory(source(), toEvaluator.apply(field()));
+            case DOUBLE_RANGE -> new RangeMaxDoubleEvaluator.Factory(source(), toEvaluator.apply(field()));
+            default -> throw new IllegalArgumentException("unsupported data type [" + field().dataType() + "]");
+        };
     }
 }

@@ -21,7 +21,6 @@ import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -37,11 +36,6 @@ import java.util.List;
 public abstract class AbstractColumnarArrayOrderFieldDataTestCase extends MapperServiceTestCase {
 
     protected abstract String fieldTypeName();
-
-    @Before
-    public void assumeColumnarFeatureEnabled() {
-        assumeTrue("columnar index mode requires a snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-    }
 
     public final void setUp() throws Exception {
         super.setUp();

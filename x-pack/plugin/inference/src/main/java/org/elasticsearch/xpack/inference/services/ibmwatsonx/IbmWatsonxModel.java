@@ -25,7 +25,6 @@ import java.util.function.BiConsumer;
 
 public abstract class IbmWatsonxModel extends RateLimitGroupingModel {
 
-    private final IbmWatsonxRateLimitServiceSettings rateLimitServiceSettings;
     /**
      * This field defines the behaviour used to apply authorization headers to a {@link HttpPost}. By default, this is
      * {@link IbmWatsonxRequestUtils#decorateWithBearerToken(HttpPost, DefaultSecretSettings, String)}. Unit tests may provide different
@@ -33,15 +32,10 @@ public abstract class IbmWatsonxModel extends RateLimitGroupingModel {
      */
     private final BiConsumer<HttpPost, IbmWatsonxModel> authHeaderDecorator;
 
-    public IbmWatsonxModel(
-        ModelConfigurations configurations,
-        ModelSecrets secrets,
-        IbmWatsonxRateLimitServiceSettings rateLimitServiceSettings
-    ) {
+    public IbmWatsonxModel(ModelConfigurations configurations, ModelSecrets secrets) {
         this(
             configurations,
             secrets,
-            rateLimitServiceSettings,
             (httpPost, model) -> IbmWatsonxRequestUtils.decorateWithBearerToken(
                 httpPost,
                 (DefaultSecretSettings) model.getSecretSettings(),
@@ -53,33 +47,30 @@ public abstract class IbmWatsonxModel extends RateLimitGroupingModel {
     public IbmWatsonxModel(
         ModelConfigurations configurations,
         ModelSecrets secrets,
-        IbmWatsonxRateLimitServiceSettings rateLimitServiceSettings,
         BiConsumer<HttpPost, IbmWatsonxModel> authHeaderDecorator
     ) {
         super(configurations, secrets);
 
-        this.rateLimitServiceSettings = Objects.requireNonNull(rateLimitServiceSettings);
         this.authHeaderDecorator = authHeaderDecorator;
     }
 
     public IbmWatsonxModel(IbmWatsonxModel model, ServiceSettings serviceSettings) {
         super(model, serviceSettings);
 
-        rateLimitServiceSettings = model.rateLimitServiceSettings();
         authHeaderDecorator = model.authHeaderDecorator();
     }
 
     public IbmWatsonxModel(IbmWatsonxModel model, TaskSettings taskSettings) {
         super(model, taskSettings);
 
-        rateLimitServiceSettings = model.rateLimitServiceSettings();
         authHeaderDecorator = model.authHeaderDecorator();
     }
 
     public abstract ExecutableAction accept(IbmWatsonxActionVisitor creator, Map<String, Object> taskSettings);
 
-    public IbmWatsonxRateLimitServiceSettings rateLimitServiceSettings() {
-        return rateLimitServiceSettings;
+    @Override
+    public IbmWatsonxServiceSettings getServiceSettings() {
+        return (IbmWatsonxServiceSettings) super.getServiceSettings();
     }
 
     public BiConsumer<HttpPost, IbmWatsonxModel> authHeaderDecorator() {
@@ -88,11 +79,11 @@ public abstract class IbmWatsonxModel extends RateLimitGroupingModel {
 
     @Override
     public int rateLimitGroupingHash() {
-        return Objects.hash(this.rateLimitServiceSettings);
+        return Objects.hash(getServiceSettings());
     }
 
     @Override
     public RateLimitSettings rateLimitSettings() {
-        return this.rateLimitServiceSettings().rateLimitSettings();
+        return getServiceSettings().rateLimitSettings();
     }
 }

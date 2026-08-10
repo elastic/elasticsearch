@@ -10,6 +10,8 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.MockBytesRefRecycler;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.shard.ShardId;
@@ -17,6 +19,9 @@ import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.test.ESTestCase;
+
+import java.io.IOException;
+import java.util.Base64;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -93,5 +98,18 @@ public class TransportSearchHelperTests extends ESTestCase {
         ParsedScrollId parsed = TransportSearchHelper.parseScrollId(scrollId);
         assertEquals(ParsedScrollId.QUERY_THEN_FETCH_TYPE, parsed.getType());
         assertEquals(1, parsed.getContext().length);
+    }
+
+    public void testParseScrollIdRejectsOversizedContextArray() throws IOException {
+        // Forged scroll_id declaring a large context array with no element data.
+        // The size must be rejected before it is used to allocate SearchContextIdForNode[].
+        final byte[] payload;
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.writeString(ParsedScrollId.QUERY_AND_FETCH_TYPE);
+            out.writeVInt(1_000_000_000);
+            payload = BytesReference.toBytes(out.bytes());
+        }
+        String forgedId = Base64.getUrlEncoder().encodeToString(payload);
+        expectThrows(IllegalArgumentException.class, () -> TransportSearchHelper.parseScrollId(forgedId));
     }
 }

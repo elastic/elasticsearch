@@ -26,7 +26,6 @@ import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.telemetry.TelemetryProvider;
@@ -286,18 +285,6 @@ public class StatelessBlobCacheServiceIT extends AbstractStatelessPluginIntegTes
         }
 
         @Override
-        public Collection<Object> createComponents(Plugin.PluginServices services) {
-            final Collection<Object> components = super.createComponents(services);
-            components.add(
-                new PluginComponentBinding<>(
-                    StatelessCommitService.class,
-                    components.stream().filter(c -> c instanceof TestStatelessCommitService).findFirst().orElseThrow()
-                )
-            );
-            return components;
-        }
-
-        @Override
         protected StatelessCommitService createStatelessCommitService(
             Settings settings,
             ObjectStoreService objectStoreService,
@@ -338,7 +325,7 @@ public class StatelessBlobCacheServiceIT extends AbstractStatelessPluginIntegTes
                     IndexShard indexShard,
                     StatelessCompoundCommit commit,
                     BlobStoreCacheDirectory directory,
-                    @Nullable Map<BlobFile, Long> endOffsetsToWarm,
+                    @Nullable Map<BlobFile, WarmTarget> endTargetsToWarm,
                     boolean preWarmForIdLookup,
                     org.elasticsearch.action.ActionListener<Void> listener
                 ) {

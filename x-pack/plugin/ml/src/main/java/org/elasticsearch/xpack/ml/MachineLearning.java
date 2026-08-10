@@ -187,6 +187,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.MlDataFrameAnalysisNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.AnalysisStatsNamedWriteablesProvider;
+import org.elasticsearch.xpack.core.ml.inference.IngestModelMemoryProvider;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelCacheMetadata;
@@ -331,6 +332,7 @@ import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentClu
 import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentService;
 import org.elasticsearch.xpack.ml.inference.deployment.DeploymentManager;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
+import org.elasticsearch.xpack.ml.inference.ingest.IngestModelMemoryService;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 import org.elasticsearch.xpack.ml.inference.ltr.LearningToRankRescorerBuilder;
 import org.elasticsearch.xpack.ml.inference.ltr.LearningToRankService;
@@ -470,6 +472,8 @@ import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields.REINDEXED_V7_STATE_INDEX_PREFIX;
+import static org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields.REINDEXED_V8_STATE_INDEX_PREFIX;
 import static org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX;
 import static org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX;
 import static org.elasticsearch.xpack.core.ml.utils.InferenceProcessorInfoExtractor.countInferenceProcessors;
@@ -803,6 +807,23 @@ public class MachineLearning extends Plugin
     );
 
     /**
+     * Interval between scans of {@code .ml-config} for config-derived ML gauges (CPS datafeed adoption metrics).
+     */
+    public static final Setting<TimeValue> CONFIG_METRICS_POLL_INTERVAL = MlConfigMetrics.POLL_INTERVAL;
+
+    /**
+     * Reserved operator escape hatch. When enabled (the default), user-initiated {@code project_routing} changes on a
+     * datafeed require the associated job to be closed and auto-retain the job's current model snapshot before the
+     * routing update is persisted. Disable only when snapshot retain is blocking legitimate scope updates.
+     */
+    public static final Setting<Boolean> REQUIRE_ROLLBACK_SNAPSHOT_BEFORE_SCOPE_CHANGE = Setting.boolSetting(
+        "xpack.ml.datafeed.require_rollback_snapshot_before_scope_change",
+        true,
+        Property.OperatorDynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
      * The time that has to pass after scaling up, before scaling down is allowed.
      * Note that the ML autoscaling has its own cooldown time to release the hardware.
      */
@@ -836,7 +857,6 @@ public class MachineLearning extends Plugin
         true,
         Property.NodeScope
     );
-    public static final Setting<Boolean> NLP_ENABLED = Setting.boolSetting("xpack.ml.nlp.enabled", true, Property.NodeScope);
 
     /**
      * Each model deployment results in one or more entries in the cluster state
@@ -884,7 +904,7 @@ public class MachineLearning extends Plugin
         this.enabled = XPackSettings.MACHINE_LEARNING_ENABLED.get(settings);
         anomalyDetectionEnabled = ANOMALY_DETECTION_ENABLED.get(settings);
         dataFrameAnalyticsEnabled = DATA_FRAME_ANALYTICS_ENABLED.get(settings);
-        nlpEnabled = NLP_ENABLED.get(settings);
+        nlpEnabled = XPackSettings.NLP_ENABLED.get(settings);
     }
 
     protected XPackLicenseState getLicenseState() {
@@ -905,6 +925,7 @@ public class MachineLearning extends Plugin
             CONCURRENT_JOB_ALLOCATIONS,
             MachineLearningField.MAX_MODEL_MEMORY_LIMIT,
             MachineLearningField.MAX_LAZY_ML_NODES,
+            MachineLearningField.MODEL_PLATFORM_ARCHITECTURES,
             MAX_MACHINE_MEMORY_PERCENT,
             AutodetectBuilder.MAX_ANOMALY_RECORDS_SETTING_DYNAMIC,
             MAX_OPEN_JOBS_PER_NODE,
@@ -923,13 +944,15 @@ public class MachineLearning extends Plugin
             JOB_OPEN_RETRY_TIMEOUT,
             CCS_STABILIZATION_CYCLES,
             CCS_STABILIZATION_FLOOR,
+            CONFIG_METRICS_POLL_INTERVAL,
+            REQUIRE_ROLLBACK_SNAPSHOT_BEFORE_SCOPE_CHANGE,
             DUMMY_ENTITY_MEMORY,
             DUMMY_ENTITY_PROCESSORS,
             SCALE_UP_COOLDOWN_TIME,
             SCALE_TO_ZERO_AFTER_NO_REQUESTS_TIME,
             ANOMALY_DETECTION_ENABLED,
             DATA_FRAME_ANALYTICS_ENABLED,
-            NLP_ENABLED,
+            XPackSettings.NLP_ENABLED,
             MlAnomaliesIndexUpdate.HEAL_REINDEXED_V7_ENABLED
         );
     }
@@ -1064,7 +1087,8 @@ public class MachineLearning extends Plugin
             threadPool,
             client,
             canUseIlm,
-            xContentRegistry
+            xContentRegistry,
+            services.featureService()
         );
         registry.initialize();
 
@@ -1127,6 +1151,7 @@ public class MachineLearning extends Plugin
             jobConfigProvider,
             xContentRegistry,
             settings,
+            clusterService,
             client,
             machineLearningExtension.get(),
             anomalyDetectionAuditor
@@ -1247,7 +1272,8 @@ public class MachineLearning extends Plugin
             System::currentTimeMillis,
             anomalyDetectionAuditor,
             autodetectProcessManager,
-            datafeedContextProvider
+            datafeedContextProvider,
+            telemetryProvider.getMeterRegistry()
         );
         this.datafeedRunner.set(datafeedRunner);
 
@@ -1280,6 +1306,10 @@ public class MachineLearning extends Plugin
             getLicenseState()
         );
         this.modelLoadingService.set(modelLoadingService);
+
+        final IngestModelMemoryService ingestModelMemoryService = new IngestModelMemoryService(trainedModelProvider, threadPool);
+        clusterService.addListener(ingestModelMemoryService);
+        IngestModelMemoryProvider.setInstance(ingestModelMemoryService);
 
         this.learningToRankService.set(
             new LearningToRankService(modelLoadingService, trainedModelProvider, services.scriptService(), services.xContentRegistry())
@@ -1366,8 +1396,13 @@ public class MachineLearning extends Plugin
                 new DatafeedConfigAutoUpdater(datafeedConfigProvider, indexNameExpressionResolver),
                 new MlIndexRollover(
                     List.of(
+                        new MlIndexRollover.IndexPatternAndAlias(STATE_INDEX_PREFIX + "*", AnomalyDetectorsIndex.jobStateIndexWriteAlias()),
                         new MlIndexRollover.IndexPatternAndAlias(
-                            AnomalyDetectorsIndex.jobStateIndexPattern(),
+                            REINDEXED_V7_STATE_INDEX_PREFIX + "*",
+                            AnomalyDetectorsIndex.jobStateIndexWriteAlias()
+                        ),
+                        new MlIndexRollover.IndexPatternAndAlias(
+                            REINDEXED_V8_STATE_INDEX_PREFIX + "*",
                             AnomalyDetectorsIndex.jobStateIndexWriteAlias()
                         ),
                         new MlIndexRollover.IndexPatternAndAlias(MlStatsIndex.indexPattern(), MlStatsIndex.writeAlias()),
@@ -1458,6 +1493,13 @@ public class MachineLearning extends Plugin
             autodetectProcessManager,
             dataFrameAnalyticsManager
         );
+        MlConfigMetrics mlConfigMetrics = new MlConfigMetrics(
+            telemetryProvider.getMeterRegistry(),
+            clusterService,
+            threadPool,
+            datafeedConfigProvider,
+            settings
+        );
         return List.of(
             mlLifeCycleService,
             new MlControllerHolder(mlController),
@@ -1485,6 +1527,7 @@ public class MachineLearning extends Plugin
             dataFrameAnalyticsConfigProvider,
             nativeStorageProvider,
             modelLoadingService,
+            ingestModelMemoryService,
             trainedModelCacheMetadataService,
             trainedModelProvider,
             trainedModelAssignmentService,
@@ -1493,7 +1536,8 @@ public class MachineLearning extends Plugin
             deploymentManager.get(),
             nodeAvailabilityZoneMapper,
             new MachineLearningExtensionHolder(machineLearningExtension.get()),
-            mlMetrics
+            mlMetrics,
+            mlConfigMetrics
         );
     }
 

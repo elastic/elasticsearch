@@ -160,6 +160,40 @@ public class RetryPolicyTests extends ESTestCase {
         assertEquals(3, calls.get());
     }
 
+    public void testExecuteRetriesPermitExhaustionAndSucceeds() throws IOException {
+        // Permit exhaustion surfaces as a 503-class ExternalUnavailableException (throttling=false), which execute()
+        // treats as a transient fault: it catches the exception and re-attempts, succeeding once the permit frees.
+        RetryPolicy policy = new RetryPolicy(3, 1, 10);
+        AtomicInteger calls = new AtomicInteger();
+        StoragePath path = StoragePath.of("s3://bucket/key");
+
+        String result = policy.execute(() -> {
+            if (calls.incrementAndGet() < 3) {
+                throw new ExternalUnavailableException("at admission capacity", (Throwable) null);
+            }
+            return "ok";
+        }, "test", path);
+
+        assertEquals("ok", result);
+        assertEquals(3, calls.get());
+    }
+
+    public void testDecideRetriesPermitExhaustionOnNormalBudgetWithoutRampingBackoff() {
+        // Permit exhaustion is a throttling=false ExternalUnavailableException, so decide() (the shared async/sync
+        // classification point) treats it as a transient, non-throttle fault: it retries on the NORMAL budget, the
+        // higher throttle budget does not apply, and the cross-request adaptive backoff is never fed.
+        AdaptiveBackoff backoff = new AdaptiveBackoff(AdaptiveBackoff.MAX_MULTIPLIER, () -> 0L);
+        RetryPolicy policy = new RetryPolicy(2, 1, 10, 8, 1, 10, RetryPolicy.NO_BUDGET, null).withAdaptiveBackoff(backoff);
+        ExternalUnavailableException permitExhaustion = new ExternalUnavailableException("at admission capacity", (Throwable) null);
+
+        assertTrue("within the normal budget it must retry", policy.decide(permitExhaustion, 0, System.nanoTime()).retry());
+        assertFalse(
+            "at the normal-budget limit it must give up; the higher throttle budget must not apply",
+            policy.decide(permitExhaustion, 2, System.nanoTime()).retry()
+        );
+        assertEquals("node-local exhaustion must not ramp the adaptive backoff", 1, backoff.currentMultiplier());
+    }
+
     public void testExecuteThrowsAfterMaxRetries() {
         RetryPolicy policy = new RetryPolicy(2, 1, 10);
         AtomicInteger calls = new AtomicInteger();

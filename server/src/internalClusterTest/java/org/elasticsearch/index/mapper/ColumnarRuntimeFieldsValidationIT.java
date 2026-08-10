@@ -14,7 +14,6 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentType;
-import org.junit.Before;
 
 import java.util.Random;
 
@@ -49,11 +48,6 @@ public class ColumnarRuntimeFieldsValidationIT extends ESIntegTestCase {
           }
         }
         """;
-
-    @Before
-    public void checkFeatureFlag() {
-        assumeTrue("columnar index modes require snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-    }
 
     @Override
     protected Settings.Builder setRandomIndexSettings(Random random, Settings.Builder builder) {

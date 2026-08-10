@@ -14,17 +14,23 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -47,9 +53,21 @@ import static org.hamcrest.Matchers.hasSize;
  * ids 1–6, {@code color} alternates red (odd) / blue (even), {@code tag} set to the cluster
  * alias ("local", "cluster-a", "remote-b") so rows are attributable in aggregation results.
  */
-public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase {
+public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase implements EnrichClusterPluginSupport {
 
     private static final String EVENTS = "events";
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins(String clusterAlias) {
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins(clusterAlias));
+        plugins.remove(EsqlAsyncActionIT.LocalStateEsqlAsync.class);
+        return addEnrichPlugins(plugins);
+    }
+
+    @Override
+    protected Settings nodeSettings() {
+        return enrichNodeSettings(super.nodeSettings());
+    }
 
     @Before
     public void checkCapabilityAndSetup() throws IOException {
@@ -66,6 +84,14 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase {
         );
         // Remote view stored on cluster-a for the rejection-guard test.
         createViewOnCluster(REMOTE_CLUSTER_1, "remote_events_view", "FROM events | LIMIT 1");
+    }
+
+    private static void checkSubqueryWithRowSupport() {
+        assumeTrue("Requires subquery with ROW as source command support", EsqlCapabilities.Cap.SUBQUERY_WITH_ROW.isEnabled());
+    }
+
+    private static void checkSubqueryWithTSSupport() {
+        assumeTrue("Requires subquery with TS as source command support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
     }
 
     // ---- SEMI join (top-level IN) ----
@@ -573,6 +599,234 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase {
         }
     }
 
+    // ---- ROW + LOOKUP JOIN combinations with WHERE IN subqueries ----
+
+    /**
+     * Two placements of a LOOKUP JOIN relative to a WHERE IN subquery whose source is ROW.
+     *
+     * <ol>
+     *   <li>The LOOKUP JOIN lives <b>inside</b> the IN subquery, on top of a ROW source. A ROW produces data on the
+     *       coordinator and carries no index relation, so the lookup index must be resolved on the local cluster rather
+     *       than on the remote outer FROM. The subquery yields {@code v=4} and {@code cluster-a:logs-*} keeps the matching
+     *       row.</li>
+     *   <li>The LOOKUP JOIN lives in the main query <b>after</b> the WHERE whose IN subquery is a plain ROW. The lookup
+     *       then enriches the (single-remote) outer rows, resolving against {@code cluster-a}.</li>
+     * </ol>
+     *
+     * {@code values_lookup} is populated on both the local cluster and cluster-a so either placement resolves regardless of
+     * whether the ROW-based IN is folded to a literal filter or kept as a join.
+     */
+    public void testRowLookupJoinInsideAndAfterWhereInSubquery() {
+        checkSubqueryWithRowSupport();
+        populateLookupIndex(LOCAL_CLUSTER, "values_lookup", 10);
+        populateLookupIndex(REMOTE_CLUSTER_1, "values_lookup", 10);
+
+        // (1) LOOKUP JOIN inside the IN subquery, on top of a ROW source -> the lookup is resolved on the local cluster.
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM cluster-a:logs-*
+            | WHERE v IN (
+                ROW v = TO_LONG(4)
+                | LOOKUP JOIN values_lookup ON v == lookup_key
+                | KEEP v
+              )
+            | KEEP v
+            """, randomBoolean())) {
+            assertThat(getValuesList(resp), equalTo(List.of(List.of(4L))));
+        }
+
+        // (2) LOOKUP JOIN in the main query after a WHERE whose IN subquery is a plain ROW -> the lookup is resolved on
+        // cluster-a (the single remote outer source).
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM cluster-a:logs-*
+            | WHERE v IN (ROW v = TO_LONG(4) | KEEP v)
+            | LOOKUP JOIN values_lookup ON v == lookup_key
+            | KEEP v, lookup_name
+            """, randomBoolean())) {
+            assertThat(getValuesList(resp), equalTo(List.of(List.of(4L, "lookup_4"))));
+        }
+    }
+
+    // ---- negative cases: LOOKUP JOIN referencing a missing index with ROW/FROM/TS IN-subquery sources ----
+
+    /**
+     * The lookup index ({@code missing_lookup}) does not exist on any cluster. With the LOOKUP JOIN placed <b>inside</b> the
+     * IN subquery (on top of the subquery's own source), the lookup is scoped to that source's cluster(s), so the reported
+     * missing-index name is qualified accordingly: local (no prefix) for a ROW source, {@code remote-b} for a remote FROM
+     * source, and {@code cluster-a} for a TS source.
+     */
+    public void testMissingLookupIndexInsideWhereInSubquery() {
+        checkSubqueryWithRowSupport();
+        checkSubqueryWithTSSupport();
+        setupTsMetricsIndex(REMOTE_CLUSTER_1, "cluster-a");
+
+        // ROW source -> lookup scoped to the local cluster
+        VerificationException ex = expectThrows(VerificationException.class, () -> runQuery("""
+            FROM cluster-a:logs-*
+            | WHERE v IN (
+                ROW v = TO_LONG(4)
+                | LOOKUP JOIN missing_lookup ON v == lookup_key
+                | KEEP v
+              )
+            | KEEP v
+            """, randomBoolean()));
+        assertThat(ex.getMessage(), containsString("Unknown index [missing_lookup]"));
+
+        // remote FROM source -> lookup scoped to remote-b
+        ex = expectThrows(VerificationException.class, () -> runQuery("""
+            FROM cluster-a:logs-*
+            | WHERE v IN (
+                FROM remote-b:logs-*
+                | LOOKUP JOIN missing_lookup ON v == lookup_key
+                | KEEP v
+              )
+            | KEEP v
+            """, randomBoolean()));
+        assertThat(ex.getMessage(), containsString("Unknown index [remote-b:missing_lookup]"));
+
+        // TS source -> lookup scoped to cluster-a
+        ex = expectThrows(VerificationException.class, () -> runQuery("""
+            FROM *:events
+            | WHERE tag IN (
+                TS cluster-a:ts_metrics
+                | STATS top_bytes = max(max_bytes) BY cluster
+                | LOOKUP JOIN missing_lookup ON cluster == lookup_key
+                | KEEP cluster
+              )
+            | KEEP tag
+            """, randomBoolean()));
+        assertThat(ex.getMessage(), containsString("Unknown index [cluster-a:missing_lookup]"));
+    }
+
+    /**
+     * Same missing lookup index, but with the LOOKUP JOIN placed in the main query <b>after</b> the WHERE IN. The lookup
+     * reads only from the outer FROM (the IN subquery is a row filter whose source does not feed the lookup), so the
+     * missing-index error names only the outer cluster(s) - never the IN-subquery's ROW (local) or remote-b source.
+     */
+    public void testMissingLookupIndexAfterWhereInSubquery() {
+        checkSubqueryWithRowSupport();
+        checkSubqueryWithTSSupport();
+        setupTsMetricsIndex(REMOTE_CLUSTER_1, "cluster-a");
+
+        // ROW IN-subquery + lookup after -> scoped to the outer cluster-a only (the ROW filter does not add the local cluster)
+        VerificationException ex = expectThrows(VerificationException.class, () -> runQuery("""
+            FROM cluster-a:logs-*
+            | WHERE v IN (ROW v = TO_LONG(4) | KEEP v)
+            | LOOKUP JOIN missing_lookup ON v == lookup_key
+            | KEEP v
+            """, randomBoolean()));
+        assertThat(ex.getMessage(), containsString("Unknown index [cluster-a:missing_lookup]"));
+
+        // remote FROM IN-subquery + lookup after -> scoped to the outer cluster-a only (the remote-b filter source is not added)
+        ex = expectThrows(VerificationException.class, () -> runQuery("""
+            FROM cluster-a:logs-*
+            | WHERE v IN (FROM remote-b:logs-* | KEEP v)
+            | LOOKUP JOIN missing_lookup ON v == lookup_key
+            | KEEP v
+            """, randomBoolean()));
+        assertThat(ex.getMessage(), containsString("Unknown index [cluster-a:missing_lookup]"));
+
+        // TS IN-subquery + lookup after -> scoped to the outer source *:events, which spans both remotes
+        ex = expectThrows(VerificationException.class, () -> runQuery("""
+            FROM *:events
+            | WHERE tag IN (TS cluster-a:ts_metrics | STATS top_bytes = max(max_bytes) BY cluster | KEEP cluster)
+            | LOOKUP JOIN missing_lookup ON tag == lookup_key
+            | KEEP tag
+            """, randomBoolean()));
+        assertThat(ex.getMessage(), allOf(containsString("cluster-a:missing_lookup"), containsString("remote-b:missing_lookup")));
+    }
+
+    /**
+     * Negative (missing lookup index) counterparts to {@code EsqlSessionTests#testComputeLookupJoinIndexScopeMixedSubqueries},
+     * exercised over the three real clusters (local {@code logs-1}, {@code cluster-a:logs-2}, {@code remote-b:logs-2}). The
+     * lookup index {@code missing_lookup} exists nowhere, so each query fails analysis with an {@code Unknown index} error
+     * whose qualified name(s) reveal the computed lookup scope - confirming a lookup is scoped only to the clusters that feed
+     * rows into it, never to a sibling FROM-union branch or an IN subquery used purely as a row filter.
+     */
+    public void testMissingLookupIndexMixedSubqueries() {
+        // (1) FROM subquery has a WHERE IN subquery, the LOOKUP JOIN sits AFTER that WHERE inside the same FROM subquery.
+        // Scoped to cluster-a (the FROM subquery's own source); the IN-filter source remote-b and the sibling local branch
+        // do not feed the lookup.
+        VerificationException ex = expectThrows(VerificationException.class, () -> runQuery("""
+            FROM (FROM cluster-a:logs-*
+                  | WHERE v IN (FROM remote-b:logs-* | KEEP v)
+                  | LOOKUP JOIN missing_lookup ON v == lookup_key
+                  | KEEP v),
+                 (FROM logs-* | KEEP v)
+            """, randomBoolean()));
+        assertThat(ex.getMessage(), containsString("Unknown index [cluster-a:missing_lookup]"));
+
+        // (2) FROM subquery has a WHERE IN subquery, the LOOKUP JOIN sits INSIDE that IN subquery -> scoped to remote-b.
+        ex = expectThrows(VerificationException.class, () -> runQuery("""
+            FROM (FROM cluster-a:logs-*
+                  | WHERE v IN (FROM remote-b:logs-* | LOOKUP JOIN missing_lookup ON v == lookup_key | KEEP v)
+                  | KEEP v),
+                 (FROM logs-* | KEEP v)
+            """, randomBoolean()));
+        assertThat(ex.getMessage(), containsString("Unknown index [remote-b:missing_lookup]"));
+
+        // (3) WHERE IN subquery is a union of two FROM subqueries, each carrying its own LOOKUP JOIN -> union of both sources
+        // cluster-a and remote-b; the outer local source is only filtered, not a lookup source.
+        ex = expectThrows(VerificationException.class, () -> runQuery("""
+            FROM logs-*
+            | WHERE v IN (FROM (FROM cluster-a:logs-* | LOOKUP JOIN missing_lookup ON v == lookup_key | KEEP v),
+                               (FROM remote-b:logs-* | LOOKUP JOIN missing_lookup ON v == lookup_key | KEEP v))
+            | KEEP v
+            """, randomBoolean()));
+        assertThat(ex.getMessage(), allOf(containsString("cluster-a:missing_lookup"), containsString("remote-b:missing_lookup")));
+
+        // (4) WHERE IN subquery is a union of two FROM subqueries, the LOOKUP JOIN sits in the main query AFTER the WHERE ->
+        // scoped to the outer cluster-a only; the IN-filter sources remote-b and local are excluded.
+        ex = expectThrows(VerificationException.class, () -> runQuery("""
+            FROM cluster-a:logs-*
+            | WHERE v IN (FROM (FROM remote-b:logs-* | KEEP v), (FROM logs-* | KEEP v))
+            | LOOKUP JOIN missing_lookup ON v == lookup_key
+            | KEEP v
+            """, randomBoolean()));
+        assertThat(ex.getMessage(), containsString("Unknown index [cluster-a:missing_lookup]"));
+
+        // (5) Nested IN subqueries, the LOOKUP JOIN sits INSIDE the innermost (local) subquery -> scoped to the local cluster.
+        ex = expectThrows(VerificationException.class, () -> runQuery("""
+            FROM cluster-a:logs-*
+            | WHERE v IN (FROM remote-b:logs-*
+                          | WHERE v IN (FROM logs-* | LOOKUP JOIN missing_lookup ON v == lookup_key | KEEP v)
+                          | KEEP v)
+            | KEEP v
+            """, randomBoolean()));
+        assertThat(ex.getMessage(), containsString("Unknown index [missing_lookup]"));
+
+        // (6) Nested IN subqueries, the LOOKUP JOIN sits AFTER the inner WHERE but inside the outer IN subquery -> scoped to
+        // remote-b (the outer IN subquery's own source); the inner-filter source local and the outermost cluster-a are excluded.
+        ex = expectThrows(VerificationException.class, () -> runQuery("""
+            FROM cluster-a:logs-*
+            | WHERE v IN (FROM remote-b:logs-*
+                          | WHERE v IN (FROM logs-* | KEEP v)
+                          | LOOKUP JOIN missing_lookup ON v == lookup_key
+                          | KEEP v)
+            | KEEP v
+            """, randomBoolean()));
+        assertThat(ex.getMessage(), containsString("Unknown index [remote-b:missing_lookup]"));
+
+        // (7) Everything at once: a FROM-union whose first branch carries a LOOKUP JOIN (local), a WHERE IN subquery carrying
+        // another LOOKUP JOIN (remote-b), and a top-level LOOKUP JOIN after the WHERE that reads the whole FROM-union
+        // (local + cluster-a). The combined field-caps request reports the missing index on all three clusters.
+        ex = expectThrows(VerificationException.class, () -> runQuery("""
+            FROM (FROM logs-* | LOOKUP JOIN missing_lookup ON v == lookup_key | KEEP v),
+                 (FROM cluster-a:logs-* | KEEP v)
+            | WHERE v IN (FROM remote-b:logs-* | LOOKUP JOIN missing_lookup ON v == lookup_key | KEEP v)
+            | LOOKUP JOIN missing_lookup ON v == lookup_key
+            | KEEP v
+            """, randomBoolean()));
+        assertThat(
+            ex.getMessage(),
+            allOf(
+                containsString("cluster-a:missing_lookup"),
+                containsString("remote-b:missing_lookup"),
+                // the local cluster contributes the unqualified name; its position in the comma-joined list is not guaranteed
+                anyOf(containsString("[missing_lookup,"), containsString(",missing_lookup"))
+            )
+        );
+    }
+
     // ---- additional source types: TS, ROW, FROM-union in outer query ----
 
     /**
@@ -585,6 +839,7 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase {
      * events with {@code tag == "cluster-a"} match, yielding 6 rows.
      */
     public void testTsSourceInSubquery() {
+        checkSubqueryWithTSSupport();
         setupTsMetricsIndex(REMOTE_CLUSTER_1, "cluster-a");
         try (EsqlQueryResponse resp = runQuery("""
             FROM *:events
@@ -611,6 +866,7 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase {
      * Events where id == 1 (one per cluster) are returned.
      */
     public void testRowSourceInSubquery() {
+        checkSubqueryWithRowSupport();
         try (EsqlQueryResponse resp = runQuery("""
             FROM *:events, events
             | WHERE id IN (ROW id = 1 | KEEP id)
@@ -657,6 +913,404 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase {
                 resp.getExecutionInfo(),
                 Map.of(LOCAL_CLUSTER, 1, REMOTE_CLUSTER_1, 1, REMOTE_CLUSTER_2, 1)
             );
+        }
+    }
+
+    // ---- ENRICH interaction with WHERE IN subqueries ----
+
+    /**
+     * Happy path, ANY mode ENRICH used inside WHERE IN subquery and policy existing in all clusters the query uses
+     * */
+    public void testEnrichWithAnyModePolicyPresentOnAllClustersSucceeds() {
+        setupEnrichPolicy(client(LOCAL_CLUSTER), "values_enrich", 10);
+        setupEnrichPolicy(client(REMOTE_CLUSTER_1), "values_enrich", 10);
+        setupEnrichPolicy(client(REMOTE_CLUSTER_2), "values_enrich", 10);
+        setSkipUnavailable(REMOTE_CLUSTER_1, false);
+        setSkipUnavailable(REMOTE_CLUSTER_2, false);
+        try {
+            try (EsqlQueryResponse resp = runQuery("""
+                FROM logs-*
+                | WHERE v IN (
+                    FROM *:logs-*
+                    | WHERE v > 1 AND v < 7
+                    | ENRICH values_enrich ON v WITH enrich_name
+                    | KEEP v
+                  )
+                | KEEP v
+                """, false)) {
+                assertThat(getValuesList(resp), equalTo(List.of(List.of(4L))));
+            }
+        } finally {
+            deleteEnrichPolicy(client(LOCAL_CLUSTER), "values_enrich");
+            deleteEnrichPolicy(client(REMOTE_CLUSTER_1), "values_enrich");
+            deleteEnrichPolicy(client(REMOTE_CLUSTER_2), "values_enrich");
+            clearSkipUnavailable(3);
+        }
+    }
+
+    /**
+     * ANY mode ENRICH used inside remote cluster WHERE IN subquery: policy must exist in local and that remote cluster
+     * */
+    public void testEnrichWithAnyModePolicyPresentOnRelevantClustersSucceeds() {
+        setupEnrichPolicy(client(LOCAL_CLUSTER), "values_enrich", 10);
+        setupEnrichPolicy(client(REMOTE_CLUSTER_1), "values_enrich", 10);
+        setSkipUnavailable(REMOTE_CLUSTER_1, false);
+        setSkipUnavailable(REMOTE_CLUSTER_2, false);
+        try {
+            try (EsqlQueryResponse resp = runQuery("""
+                FROM *:logs-*
+                | WHERE v IN (
+                    FROM cluster-a:logs-*
+                    | WHERE v > 1 AND v < 7
+                    | ENRICH values_enrich ON v WITH enrich_name
+                    | KEEP v
+                  )
+                | KEEP v
+                """, false)) {
+                assertThat(getValuesList(resp), equalTo(List.of(List.of(4L), List.of(4L))));
+            }
+        } finally {
+            deleteEnrichPolicy(client(LOCAL_CLUSTER), "values_enrich");
+            deleteEnrichPolicy(client(REMOTE_CLUSTER_1), "values_enrich");
+            clearSkipUnavailable(3);
+        }
+    }
+
+    /**
+     * ANY mode ENRICH used in the outer and the inner subquery: the scope will be a union of both
+     */
+    public void testEnrichWithAnyModePolicyFailsWithMixedScopes() {
+        setupEnrichPolicy(client(LOCAL_CLUSTER), "values_enrich", 10);
+        setupEnrichPolicy(client(REMOTE_CLUSTER_1), "values_enrich", 10);
+        setSkipUnavailable(REMOTE_CLUSTER_1, false);
+        setSkipUnavailable(REMOTE_CLUSTER_2, false);
+        try {
+            VerificationException ex = expectThrows(VerificationException.class, () -> runQuery("""
+                FROM remote-b:logs-*
+                | WHERE v IN (
+                    FROM cluster-a:logs-*
+                    | WHERE v > 1 AND v < 7
+                    | ENRICH values_enrich ON v WITH enrich_name
+                    | KEEP v
+                  )
+                | ENRICH values_enrich ON v WITH enrich_name
+                | KEEP v
+                """, false));
+            assertThat(ex.getMessage(), containsString("cannot find enrich policy [values_enrich] on clusters [remote-b]"));
+        } finally {
+            deleteEnrichPolicy(client(LOCAL_CLUSTER), "values_enrich");
+            deleteEnrichPolicy(client(REMOTE_CLUSTER_1), "values_enrich");
+            clearSkipUnavailable(3);
+        }
+    }
+
+    /**
+     * ANY mode ENRICH used in the outer and the inner subquery: the scope will be a union of both. Which means the policy will have
+     * to be defined in all remote clusters plus local
+     */
+    public void testEnrichWithAnyModePolicySucceedsWithMixedScopes() {
+        setupEnrichPolicy(client(LOCAL_CLUSTER), "values_enrich", 10);
+        setupEnrichPolicy(client(REMOTE_CLUSTER_1), "values_enrich", 10);
+        setupEnrichPolicy(client(REMOTE_CLUSTER_2), "values_enrich", 10);
+        setSkipUnavailable(REMOTE_CLUSTER_1, false);
+        setSkipUnavailable(REMOTE_CLUSTER_2, false);
+
+        try {
+            try (EsqlQueryResponse resp = runQuery("""
+                FROM remote-b:logs-*
+                | WHERE v IN (
+                    FROM cluster-a:logs-*
+                    | WHERE v > 1 AND v < 7
+                    | ENRICH values_enrich ON v WITH enrich_name
+                    | KEEP v
+                  )
+                | ENRICH values_enrich ON v WITH enrich_name
+                | KEEP v
+                """, false)) {
+                assertThat(getValuesList(resp), equalTo(List.of(List.of(4L))));
+            }
+        } finally {
+            deleteEnrichPolicy(client(LOCAL_CLUSTER), "values_enrich");
+            deleteEnrichPolicy(client(REMOTE_CLUSTER_1), "values_enrich");
+            deleteEnrichPolicy(client(REMOTE_CLUSTER_2), "values_enrich");
+            clearSkipUnavailable(3);
+        }
+    }
+
+    /**
+     * COORDINATOR mode ENRICH used in the outer and the inner subquery: the policy has to exist in local cluster
+     */
+    public void testEnrichWithCoordinatorModePolicyPresentOnRelevantClustersSucceeds() {
+        setupEnrichPolicy(client(LOCAL_CLUSTER), "values_enrich", 10);
+        setSkipUnavailable(REMOTE_CLUSTER_1, false);
+        setSkipUnavailable(REMOTE_CLUSTER_2, false);
+        try {
+            try (EsqlQueryResponse resp = runQuery("""
+                FROM *:logs-*
+                | WHERE v IN (
+                    FROM cluster-a:logs-*
+                    | WHERE v > 1 AND v < 7
+                    | ENRICH _coordinator:values_enrich ON v WITH enrich_name
+                    | KEEP v
+                  )
+                | ENRICH _coordinator:values_enrich ON v WITH enrich_name
+                | KEEP v
+                | SORT v
+                """, false)) {
+                assertThat(getValuesList(resp), equalTo(List.of(List.of(4L), List.of(4L))));
+            }
+        } finally {
+            deleteEnrichPolicy(client(LOCAL_CLUSTER), "values_enrich");
+            clearSkipUnavailable(3);
+        }
+    }
+
+    /**
+     * COORDINATOR mode ENRICH used in the outer and the inner subquery: the policy has to exist in local cluster
+     */
+    public void testEnrichWithCoordinatorModePolicyMissingOnRelevantClustersFails() {
+        setupEnrichPolicy(client(REMOTE_CLUSTER_1), "values_enrich", 10);
+        setupEnrichPolicy(client(REMOTE_CLUSTER_2), "values_enrich", 10);
+        setSkipUnavailable(REMOTE_CLUSTER_1, false);
+        setSkipUnavailable(REMOTE_CLUSTER_2, false);
+        try {
+            VerificationException ex = expectThrows(VerificationException.class, () -> runQuery("""
+                FROM logs-*
+                | WHERE v IN (
+                    FROM cluster-a:logs-*
+                    | WHERE v > 1 AND v < 7
+                    | ENRICH _coordinator:values_enrich ON v WITH enrich_name
+                    | KEEP v
+                  )
+                | KEEP v
+                """, false));
+            assertThat(ex.getMessage(), containsString("cannot find enrich policy [values_enrich]"));
+        } finally {
+            deleteEnrichPolicy(client(REMOTE_CLUSTER_1), "values_enrich");
+            deleteEnrichPolicy(client(REMOTE_CLUSTER_2), "values_enrich");
+            clearSkipUnavailable(3);
+        }
+    }
+
+    /**
+     * REMOTE mode ENRICH used in the outer and the inner subquery: the policy has to exist in the remote clusters being targeted
+     */
+    public void testEnrichWithRemoteModePolicyPresentOnRelevantClustersSucceeds() {
+        setupEnrichPolicy(client(REMOTE_CLUSTER_1), "values_enrich", 10);
+        setSkipUnavailable(REMOTE_CLUSTER_1, false);
+        setSkipUnavailable(REMOTE_CLUSTER_2, false);
+        try {
+            try (EsqlQueryResponse resp = runQuery("""
+                FROM cluster-a:logs-*
+                | WHERE v IN (
+                    FROM cluster-a:logs-*
+                    | WHERE v > 1 AND v < 7
+                    | ENRICH _remote:values_enrich ON v WITH enrich_name
+                    | KEEP v
+                  )
+                | KEEP v
+                """, false)) {
+                assertThat(getValuesList(resp), equalTo(List.of(List.of(4L))));
+            }
+        } finally {
+            deleteEnrichPolicy(client(REMOTE_CLUSTER_1), "values_enrich");
+            clearSkipUnavailable(3);
+        }
+    }
+
+    /**
+     * REMOTE mode ENRICH used in the inner subquery with a remote cluster: the policy has to exist in that remote cluster
+     */
+    public void testEnrichWithRemoteModePolicySucceedsEvenIfMissingOnUnrelatedCluster() {
+        setupEnrichPolicy(client(REMOTE_CLUSTER_1), "values_enrich", 10);
+        setSkipUnavailable(REMOTE_CLUSTER_1, false);
+        setSkipUnavailable(REMOTE_CLUSTER_2, false);
+        try {
+            try (EsqlQueryResponse resp = runQuery("""
+                FROM logs-*
+                | WHERE v IN (
+                    FROM cluster-a:logs-*
+                    | WHERE v > 1 AND v < 7
+                    | ENRICH _remote:values_enrich ON v WITH enrich_name
+                    | KEEP v
+                  )
+                | KEEP v
+                """, false)) {
+                assertThat(getValuesList(resp), equalTo(List.of(List.of(4L))));
+            }
+        } finally {
+            deleteEnrichPolicy(client(REMOTE_CLUSTER_1), "values_enrich");
+            clearSkipUnavailable(3);
+        }
+    }
+
+    /**
+     * REMOTE mode ENRICH used in the inner subquery with different remote clusters and policy: each policy has to exist in the
+     * corresponding cluster it's used with
+     */
+    public void testEnrichWithRemoteModePolicyMixedScopesSucceeds() {
+        setupEnrichPolicy(client(REMOTE_CLUSTER_1), "values_enrich_a", 10);
+        setupEnrichPolicy(client(REMOTE_CLUSTER_2), "values_enrich_b", 10);
+        setSkipUnavailable(REMOTE_CLUSTER_1, false);
+        setSkipUnavailable(REMOTE_CLUSTER_2, false);
+        try {
+            try (EsqlQueryResponse resp = runQuery("""
+                FROM remote-b:logs-*
+                | WHERE v IN (
+                    FROM cluster-a:logs-*
+                    | WHERE v > 1 AND v < 7
+                    | ENRICH _remote:values_enrich_a ON v WITH enrich_name
+                    | KEEP v
+                  )
+                | ENRICH _remote:values_enrich_b ON v WITH enrich_name
+                | KEEP v
+                """, false)) {
+                assertThat(getValuesList(resp), equalTo(List.of(List.of(4L))));
+            }
+        } finally {
+            deleteEnrichPolicy(client(REMOTE_CLUSTER_1), "values_enrich_a");
+            deleteEnrichPolicy(client(REMOTE_CLUSTER_2), "values_enrich_b");
+            clearSkipUnavailable(3);
+        }
+    }
+
+    /**
+     * Two occurrences of the same ENRICH command - same policy name, same mode - sharing the exact same {@code Source}
+     */
+    public void testEnrichWithViewReferencedTwiceSharesSource() {
+        assumeTrue("Requires FROM-subquery support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        setupEnrichPolicy(client(LOCAL_CLUSTER), "values_enrich", 10);
+        setSkipUnavailable(REMOTE_CLUSTER_1, false);
+        setSkipUnavailable(REMOTE_CLUSTER_2, false);
+        createViewOnCluster(
+            LOCAL_CLUSTER,
+            "enrich_view",
+            "FROM logs-* | WHERE v > 1 AND v < 7 | ENRICH values_enrich ON v WITH enrich_name | KEEP v"
+        );
+        try {
+            try (EsqlQueryResponse resp = runQuery("""
+                FROM (FROM enrich_view), (FROM cluster-a:logs-*)
+                | WHERE v IN (FROM enrich_view)
+                | KEEP v
+                | SORT v
+                """, false)) {
+                assertThat(
+                    getValuesList(resp),
+                    equalTo(List.of(List.of(2L), List.of(3L), List.of(4L), List.of(4L), List.of(5L), List.of(6L)))
+                );
+            }
+        } finally {
+            deleteEnrichPolicy(client(LOCAL_CLUSTER), "values_enrich");
+            clearSkipUnavailable(3);
+        }
+    }
+
+    /**
+     * The same policy name used with three different modes (ANY, COORDINATOR, REMOTE) in one query: each occurrence has
+     * its own mode-specific target-cluster requirement (see {@code EnrichPolicyResolver#calculateTargetClusters}), so all
+     * three must resolve independently even though they share a policy name - the REMOTE occurrence only needs
+     * {@code cluster-a} (its own scope), the ANY occurrence needs both remotes the outer {@code *:logs-*} touches (that
+     * pattern spans {@code cluster-a} and {@code remote-b}, not the local cluster) plus {@code _local} (ANY always
+     * requires it), and the COORDINATOR occurrence only ever needs {@code _local}.
+     */
+    public void testEnrichSamePolicyDifferentModesAllSucceed() {
+        setupEnrichPolicy(client(LOCAL_CLUSTER), "values_enrich", 10);
+        setupEnrichPolicy(client(REMOTE_CLUSTER_1), "values_enrich", 10);
+        setupEnrichPolicy(client(REMOTE_CLUSTER_2), "values_enrich", 10);
+        setSkipUnavailable(REMOTE_CLUSTER_1, false);
+        setSkipUnavailable(REMOTE_CLUSTER_2, false);
+        try {
+            try (EsqlQueryResponse resp = runQuery("""
+                FROM *:logs-*
+                | WHERE v IN (
+                    FROM cluster-a:logs-*
+                    | WHERE v > 1 AND v < 7
+                    | ENRICH _remote:values_enrich ON v WITH enrich_name
+                    | KEEP v
+                  )
+                | ENRICH values_enrich ON v WITH enrich_name
+                | ENRICH _coordinator:values_enrich ON v WITH enrich_name
+                | KEEP v
+                | SORT v
+                """, false)) {
+                // *:logs-* spans cluster-a and remote-b only; each contributes a single v=4 row (i=2 -> 2^2=4).
+                assertThat(getValuesList(resp), equalTo(List.of(List.of(4L), List.of(4L))));
+            }
+        } finally {
+            deleteEnrichPolicy(client(LOCAL_CLUSTER), "values_enrich");
+            deleteEnrichPolicy(client(REMOTE_CLUSTER_1), "values_enrich");
+            deleteEnrichPolicy(client(REMOTE_CLUSTER_2), "values_enrich");
+            clearSkipUnavailable(3);
+        }
+    }
+
+    /**
+     * The same policy name used with two different modes where only one occurrence's requirement is satisfied: REMOTE
+     * mode (scoped to {@code cluster-a} only) fails because the policy is missing there, while COORDINATOR mode
+     * (scoped to {@code _local} only, elsewhere in the same query) would succeed on its own since the policy exists
+     * locally. The failure must report exactly the REMOTE occurrence's own missing cluster ({@code cluster-a}), proving
+     * the two occurrences are resolved independently rather than one's requirement leaking into the other's error.
+     */
+    public void testEnrichSamePolicyDifferentModesFailureIsolatedPerOccurrence() {
+        setupEnrichPolicy(client(LOCAL_CLUSTER), "values_enrich", 10);
+        setSkipUnavailable(REMOTE_CLUSTER_1, false);
+        setSkipUnavailable(REMOTE_CLUSTER_2, false);
+        try {
+            VerificationException ex = expectThrows(VerificationException.class, () -> runQuery("""
+                FROM logs-*
+                | WHERE v IN (
+                    FROM cluster-a:logs-*
+                    | WHERE v > 1 AND v < 7
+                    | ENRICH _remote:values_enrich ON v WITH enrich_name
+                    | KEEP v
+                  )
+                | ENRICH _coordinator:values_enrich ON v WITH enrich_name
+                | KEEP v
+                """, false));
+            assertThat(ex.getMessage(), containsString("cannot find enrich policy [values_enrich] on clusters [cluster-a]"));
+        } finally {
+            deleteEnrichPolicy(client(LOCAL_CLUSTER), "values_enrich");
+            clearSkipUnavailable(3);
+        }
+    }
+
+    /**
+     * Three ENRICH occurrences in one query, each with a different mode, each in a different subquery scope:
+     * <ul>
+     *   <li>REMOTE mode inside the {@code cluster-a} WHERE IN subquery — scoped to {@code cluster-a}, needs only that remote.</li>
+     *   <li>ANY mode in the outer query — scoped to {@code _local} (outer source is {@code FROM logs-*}), needs only local.</li>
+     *   <li>COORDINATOR mode in the outer query — always runs on the coordinator, needs only local.</li>
+     * </ul>
+     * Each ENRICH uses a distinct policy name, so each resolves independently with no cross-contamination.
+     */
+    public void testEnrichWithMixedModesInSubqueries() {
+        setupEnrichPolicy(client(REMOTE_CLUSTER_1), "values_enrich_a", 10);
+        setupEnrichPolicy(client(LOCAL_CLUSTER), "values_enrich_b", 10);
+        setupEnrichPolicy(client(LOCAL_CLUSTER), "values_enrich_c", 10);
+        setSkipUnavailable(REMOTE_CLUSTER_1, false);
+        try {
+            try (EsqlQueryResponse resp = runQuery("""
+                FROM logs-*
+                | WHERE v IN (
+                    FROM cluster-a:logs-*
+                    | WHERE v > 1 AND v < 7
+                    | ENRICH _remote:values_enrich_a ON v WITH enrich_name
+                    | KEEP v
+                  )
+                | ENRICH values_enrich_b ON v WITH enrich_name
+                | ENRICH _coordinator:values_enrich_c ON v WITH enrich_name
+                | KEEP v
+                | SORT v
+                """, false)) {
+                // cluster-a has v = i*i for i in [0,9]: only v=4 passes the > 1 AND < 7 filter, so IN set = {4}.
+                // Local logs has exactly one row with v=4; after the filter, enrichments, and KEEP v: [[4]].
+                assertThat(getValuesList(resp), equalTo(List.of(List.of(4L))));
+            }
+        } finally {
+            deleteEnrichPolicy(client(REMOTE_CLUSTER_1), "values_enrich_a");
+            deleteEnrichPolicy(client(LOCAL_CLUSTER), "values_enrich_b");
+            deleteEnrichPolicy(client(LOCAL_CLUSTER), "values_enrich_c");
+            clearSkipUnavailable(3);
         }
     }
 

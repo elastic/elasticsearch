@@ -17,7 +17,6 @@ class ElasticsearchJavadocPluginFuncTest extends AbstractGradleInternalPluginFun
 
     Class<? extends org.gradle.api.Plugin> pluginClassUnderTest = org.elasticsearch.gradle.internal.ElasticsearchJavadocPlugin
 
-    
     @Unroll
     def "#versionType created javadoc with inter project linking"() {
         given:

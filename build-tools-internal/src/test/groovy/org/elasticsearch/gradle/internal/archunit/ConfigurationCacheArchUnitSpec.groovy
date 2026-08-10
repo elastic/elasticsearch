@@ -38,8 +38,6 @@ class ConfigurationCacheArchUnitSpec extends AbstractArchUnitSpec {
      * removed as they are made configuration-cache safe (the staleness test enforces this).
      */
     private static final Set<String> KNOWN_GET_PROJECT_IN_TASKS = [
-        "org.elasticsearch.gradle.internal.precommit.FilePermissionsTask",
-        "org.elasticsearch.gradle.internal.test.rest.CopyRestApiTask",
     ] as Set
 
     @Shared

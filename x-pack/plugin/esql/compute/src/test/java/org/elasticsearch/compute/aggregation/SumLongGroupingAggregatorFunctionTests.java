@@ -98,7 +98,7 @@ public class SumLongGroupingAggregatorFunctionTests extends GroupingAggregatorFu
                 () -> warnings.addAll(threadContext.getResponseHeaders().getOrDefault("Warning", List.of()))
             )
         ) {
-            new TestDriverRunner().run(driver);
+            new TestDriverRunner().numThreads(1).run(driver);
         }
 
         assertDriverContext(driverContext);

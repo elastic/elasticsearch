@@ -9,9 +9,13 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
@@ -33,7 +37,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
@@ -260,6 +268,365 @@ public class RetryableStorageObjectTests extends ESTestCase {
         assertEquals(100L, merged.requestNanos());
         assertEquals(4096L, merged.bytesRead());
         assertEquals(2L, merged.retryCount());
+    }
+
+    /**
+     * Wiring test for the retry->node-telemetry bridge on the RECOVERY path: two transient failures that then
+     * succeed must move the registry {@code storage.retries.total} counter (tagged with the scheme), not just the
+     * profile-snapshot {@code retryCount()}. Complements {@link #testMetricsAddsRetryCountObservedByDecorator}
+     * (which asserts only the snapshot). Uses a real registry-backed holder attached to a real
+     * {@link RetryableStorageObject} so the production {@code addRetry()} -> {@code recordRetry()} -> registry path
+     * is exercised end to end on a successful read.
+     */
+    public void testRetriesBridgeToRegistryCounterOnRecovery() throws IOException {
+        RecordingMeterRegistry registry = new RecordingMeterRegistry();
+        ExternalSourceMetrics metrics = new ExternalSourceMetrics(registry);
+
+        RetryPolicy policy = new RetryPolicy(3, 1, 10);
+        // Two SocketTimeoutException failures classify as transient, triggering two retries before the third
+        // newStream() call returns a real ByteArrayInputStream. Delegate carries no SDK-internal retries.
+        FakeStorageObject delegate = new FakeStorageObject(
+            StoragePath.of("s3://bucket/key"),
+            new StorageObjectMetrics(1, 100, 4096, 0),
+            new SocketTimeoutException("read timed out"),
+            new byte[] { 1, 2, 3 },
+            2
+        );
+
+        RetryableStorageObject obj = new RetryableStorageObject(delegate, policy);
+        obj.attachMetrics(metrics, "s3");
+
+        try (InputStream returned = obj.newStream()) {
+            assertEquals(1, returned.read());
+            assertEquals(2, returned.read());
+            assertEquals(3, returned.read());
+            assertEquals(-1, returned.read());
+        }
+
+        // Profile snapshot accumulates the two decorator-observed retries...
+        assertEquals("profile snapshot must observe both retries", 2L, obj.metrics().retryCount());
+
+        // ...and the same two retries reach the registry counter, tagged with the scheme.
+        List<Measurement> retries = measurements(registry, InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_RETRIES_TOTAL);
+        assertThat("each retry publishes one registry observation", retries, hasSize(2));
+        long total = retries.stream().mapToLong(Measurement::getLong).sum();
+        assertThat("registry storage.retries.total must move by the retry count", total, equalTo(2L));
+        for (Measurement m : retries) {
+            assertThat(m.attributes().get(ExternalSourceMetrics.SCHEME_ATTRIBUTE), equalTo("s3"));
+        }
+    }
+
+    /**
+     * Wiring test for the retry->node-telemetry bridge: a terminal give-up on the sync open path must publish a
+     * storage error AND the cumulative backoff as a read stall to the attached {@link ExternalSourceMetrics},
+     * tagged with the storage scheme. Uses a real registry-backed metrics holder (no mock) so the production
+     * {@code attachMetrics} -> {@code recordTerminalFailure} -> counters -> registry path is exercised end to end.
+     */
+    public void testTerminalGiveUpBridgesErrorAndStallToRegistry() {
+        RecordingMeterRegistry registry = new RecordingMeterRegistry();
+        ExternalSourceMetrics metrics = new ExternalSourceMetrics(registry);
+
+        // A transient (non-throttle) fault that never clears: the 1-retry budget is exhausted and the open gives up.
+        AlwaysFailingStorageObject delegate = new AlwaysFailingStorageObject(
+            StoragePath.of("s3://bucket/key"),
+            new SocketTimeoutException("read timed out")
+        );
+        RetryableStorageObject obj = new RetryableStorageObject(delegate, new RetryPolicy(1, 5, 10));
+        obj.attachMetrics(metrics, "s3");
+
+        expectThrows(IOException.class, obj::newStream);
+
+        Measurement error = single(registry, InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_ERRORS_TOTAL);
+        assertThat(error.getLong(), equalTo(1L));
+        assertThat(error.attributes().get(ExternalSourceMetrics.SCHEME_ATTRIBUTE), equalTo("s3"));
+        // One retry backoff was spent before giving up, so a read-stall observation is recorded (>0).
+        assertThat(measurements(registry, InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.STORAGE_READ_STALL_DURATION), hasSize(1));
+        // A non-throttle fault must not touch the throttled counter.
+        assertThat(measurements(registry, InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_THROTTLED_TOTAL), hasSize(0));
+    }
+
+    /**
+     * Wiring test: a terminal give-up whose fault is a provider throttle must additionally bump the throttled
+     * counter (on top of the generic error counter), via the same bridge.
+     */
+    public void testThrottlingGiveUpBridgesThrottledToRegistry() {
+        RecordingMeterRegistry registry = new RecordingMeterRegistry();
+        ExternalSourceMetrics metrics = new ExternalSourceMetrics(registry);
+
+        AlwaysFailingStorageObject delegate = new AlwaysFailingStorageObject(
+            StoragePath.of("gcs://bucket/key"),
+            new ExternalUnavailableException(true, "throttled")
+        );
+        RetryableStorageObject obj = new RetryableStorageObject(delegate, new RetryPolicy(1, 1, 10));
+        obj.attachMetrics(metrics, "gcs");
+
+        expectThrows(ExternalUnavailableException.class, obj::newStream);
+
+        Measurement throttled = single(registry, InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_THROTTLED_TOTAL);
+        assertThat(throttled.getLong(), equalTo(1L));
+        assertThat(throttled.attributes().get(ExternalSourceMetrics.SCHEME_ATTRIBUTE), equalTo("gcs"));
+        // The generic error counter is always bumped on a terminal give-up, throttle or not.
+        assertThat(single(registry, InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_ERRORS_TOTAL).getLong(), equalTo(1L));
+    }
+
+    /**
+     * Wiring test for the retries-disabled config ({@code maxRetries == 0 && throttleMaxRetries == 0}): the
+     * fast path still fires the terminal give-up, so a fatal open is counted as a storage error. There was no
+     * backoff, so no read stall is recorded (the histogram is not seeded with a zero).
+     */
+    public void testRetriesDisabledStillCountsTerminalError() {
+        RecordingMeterRegistry registry = new RecordingMeterRegistry();
+        ExternalSourceMetrics metrics = new ExternalSourceMetrics(registry);
+
+        AlwaysFailingStorageObject delegate = new AlwaysFailingStorageObject(
+            StoragePath.of("s3://bucket/key"),
+            new SocketTimeoutException("read timed out")
+        );
+        RetryableStorageObject obj = new RetryableStorageObject(delegate, RetryPolicy.NONE);
+        obj.attachMetrics(metrics, "s3");
+
+        expectThrows(IOException.class, obj::newStream);
+
+        assertThat(single(registry, InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_ERRORS_TOTAL).getLong(), equalTo(1L));
+        assertThat(measurements(registry, InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.STORAGE_READ_STALL_DURATION), hasSize(0));
+    }
+
+    /**
+     * Regression for the item #3 sync/async asymmetry. The sync driver ({@code RetryPolicy.execute}) only records a
+     * terminal storage error inside {@code catch (IOException | ExternalUnavailableException)}, but the async driver
+     * reaches {@code recordTerminalFailure} for ANY terminal fault. A storage error must mean a storage-classified
+     * fault, so a NON-storage terminal fault on the async path (here a {@link TaskCancelledException}; a
+     * {@code CircuitBreakingException} from a native-async provider takes the same path) must NOT bump
+     * {@code storage.errors} or {@code storage.throttled} — otherwise a breaker trip would double-surface as both a
+     * storage error and {@code breaker.tripped}. The listener is still completed with the fault (best-effort
+     * telemetry never strands it).
+     */
+    public void testAsyncNonStorageTerminalFaultDoesNotCountStorageError() {
+        RecordingMeterRegistry registry = new RecordingMeterRegistry();
+        ExternalSourceMetrics metrics = new ExternalSourceMetrics(registry);
+
+        StoragePath path = StoragePath.of("s3://bucket/key");
+        // A native-async delegate whose read fails with a non-storage, non-transient fault, so the async driver
+        // gives up on the first attempt and records the terminal failure.
+        StorageObject delegate = new StorageObject() {
+            @Override
+            public InputStream newStream() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public long length() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public Instant lastModified() {
+                return null;
+            }
+
+            @Override
+            public boolean exists() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public StoragePath path() {
+                return path;
+            }
+
+            @Override
+            public int readBytes(long position, ByteBuffer target) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public void readBytesAsync(
+                long position,
+                long len,
+                DirectBufferFactory factory,
+                Executor executor,
+                ActionListener<DirectReadBuffer> listener
+            ) {
+                listener.onFailure(new TaskCancelledException("cancelled"));
+            }
+
+            @Override
+            public StorageObjectMetrics metrics() {
+                return new StorageObjectMetrics(0, 0, 0, 0);
+            }
+        };
+
+        RetryableStorageObject obj = new RetryableStorageObject(delegate, new RetryPolicy(3, 5, 50));
+        obj.attachMetrics(metrics, "s3");
+
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        obj.readBytesAsync(
+            0,
+            4,
+            len -> new DirectReadBuffer(ByteBuffer.allocate(len), () -> {}),
+            Runnable::run,
+            ActionListener.wrap(r -> fail("the read must not succeed"), failure::set)
+        );
+
+        assertThat("the listener must still receive the terminal fault", failure.get(), instanceOf(TaskCancelledException.class));
+        assertThat(
+            "a non-storage terminal fault must not count as a storage error",
+            measurements(registry, InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_ERRORS_TOTAL),
+            hasSize(0)
+        );
+        assertThat(
+            "a non-storage terminal fault must not count as a throttle",
+            measurements(registry, InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_THROTTLED_TOTAL),
+            hasSize(0)
+        );
+    }
+
+    /**
+     * B1 scope-invariant regression: a metadata-op retry must NOT move the read-scoped registry
+     * {@code storage.retries.total}. Metadata ops ({@code length}/{@code lastModified}/{@code exists}) never bump the
+     * read-scoped {@code storage.requests.total}, so counting their retries (or errors / read-stall) against the
+     * registry would leak {@code storage.retries.total} past {@code storage.requests.total} — the exact scope
+     * violation this fix restores ({@code retries}/{@code errors}/{@code read_stall} &le; {@code requests} on retryable
+     * providers). The metadata retry MUST still surface in the per-query profile snapshot (pre-existing behaviour). For
+     * contrast, a read-path ({@code newStream()}) retry DOES move {@code storage.retries.total}. Uses real
+     * {@link RecordingMeterRegistry}-backed holders (no mocks) so the production {@code attachMetrics} -> retry ->
+     * registry path is exercised end to end.
+     */
+    public void testMetadataOpRetryIsNotReadScopedButReadPathRetryIs() throws IOException {
+        // --- Metadata-op path: length() throws one transient fault, then succeeds. ---
+        RecordingMeterRegistry metadataRegistry = new RecordingMeterRegistry();
+        ExternalSourceMetrics metadataMetrics = new ExternalSourceMetrics(metadataRegistry);
+        MetadataFailingStorageObject metadataDelegate = new MetadataFailingStorageObject(
+            StoragePath.of("s3://bucket/key"),
+            new SocketTimeoutException("read timed out"),
+            1,
+            4096L
+        );
+        RetryableStorageObject metadataObj = new RetryableStorageObject(metadataDelegate, new RetryPolicy(3, 1, 10));
+        metadataObj.attachMetrics(metadataMetrics, "s3");
+
+        assertEquals("length() recovers after the single transient fault", 4096L, metadataObj.length());
+
+        // The metadata-op retry must NOT reach the read-scoped registry counter.
+        assertThat(
+            "a metadata-op retry must not move the read-scoped storage.retries.total",
+            measurements(metadataRegistry, InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_RETRIES_TOTAL),
+            hasSize(0)
+        );
+        // Nor may its (recovered) retry leak an error or a read-stall to the registry.
+        assertThat(
+            "a recovered metadata-op retry must not record a storage error",
+            measurements(metadataRegistry, InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_ERRORS_TOTAL),
+            hasSize(0)
+        );
+        assertThat(
+            "a metadata-op retry must not record a read-stall on the read-scoped histogram",
+            measurements(metadataRegistry, InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.STORAGE_READ_STALL_DURATION),
+            hasSize(0)
+        );
+        // ...but the retry is still visible in the per-query profile snapshot (pre-existing profile behaviour).
+        assertEquals("the metadata retry is still visible in the profile snapshot", 1L, metadataObj.metrics().retryCount());
+
+        // --- Read-path contrast: newStream() throws one transient fault, then succeeds; this DOES move the registry. ---
+        RecordingMeterRegistry readRegistry = new RecordingMeterRegistry();
+        ExternalSourceMetrics readMetrics = new ExternalSourceMetrics(readRegistry);
+        FakeStorageObject readDelegate = new FakeStorageObject(
+            StoragePath.of("s3://bucket/key"),
+            new StorageObjectMetrics(1, 100, 4096, 0),
+            new SocketTimeoutException("read timed out"),
+            new byte[] { 1, 2, 3 },
+            1
+        );
+        RetryableStorageObject readObj = new RetryableStorageObject(readDelegate, new RetryPolicy(3, 1, 10));
+        readObj.attachMetrics(readMetrics, "s3");
+        try (InputStream in = readObj.newStream()) {
+            in.readAllBytes();
+        }
+
+        List<Measurement> readRetries = measurements(
+            readRegistry,
+            InstrumentType.LONG_COUNTER,
+            ExternalSourceMetrics.STORAGE_RETRIES_TOTAL
+        );
+        assertThat("a read-path retry MUST move the read-scoped storage.retries.total", readRetries, hasSize(1));
+        assertThat("the read-path retry counts exactly once", readRetries.get(0).getLong(), equalTo(1L));
+    }
+
+    /**
+     * B1 scope-invariant tripwire, terminal-give-up case: a metadata op ({@code length()}) whose transient fault
+     * NEVER clears exhausts its retry budget and gives up terminally, yet must publish NONE of the read-scoped
+     * registry metrics — not {@code storage.retries.total}, not {@code storage.errors.total}, not
+     * {@code storage.read_stall.duration}. It stays off the registry only because {@code length}/{@code lastModified}/
+     * {@code exists} pass {@code RetryTelemetry.NONE} (so the give-up records no error / read-stall) and route their
+     * retries through {@code addRetryProfileOnly} (so no {@code storage.retries.total}). This is the exact tripwire that
+     * catches a future edit swapping those ops' {@code RetryTelemetry.NONE} back to {@code storageTelemetry}: that swap
+     * would fire {@code recordTerminalFailure} on the give-up and move {@code storage.errors.total} +
+     * {@code storage.read_stall.duration}, reddening the assertions below.
+     * <p>
+     * Direct invariant assertion: after the give-up, {@code storage.retries.total == 0} AND
+     * {@code storage.requests.total == 0} — a metadata op never bumps requests, so the {@code retries &le; requests}
+     * scope invariant holds as {@code 0 &le; 0}. The retries still surface in the per-query profile snapshot
+     * (pre-existing behaviour), which is where a metadata retry is legitimately visible. Uses a real
+     * {@link RecordingMeterRegistry}-backed holder (no mocks).
+     */
+    public void testMetadataOpGiveUpStaysOffRegistry() {
+        RecordingMeterRegistry registry = new RecordingMeterRegistry();
+        ExternalSourceMetrics metrics = new ExternalSourceMetrics(registry);
+
+        // length() throws a transient fault on EVERY attempt, so the small (1-retry) budget is exhausted and the
+        // metadata op gives up terminally. Integer.MAX_VALUE failures-before-success == never recovers.
+        MetadataFailingStorageObject metadataDelegate = new MetadataFailingStorageObject(
+            StoragePath.of("s3://bucket/key"),
+            new SocketTimeoutException("read timed out"),
+            Integer.MAX_VALUE,
+            4096L
+        );
+        RetryableStorageObject metadataObj = new RetryableStorageObject(metadataDelegate, new RetryPolicy(1, 1, 10));
+        metadataObj.attachMetrics(metrics, "s3");
+
+        // One retry is spent (initial attempt + 1 retry) and then it gives up, surfacing the transient fault.
+        expectThrows(IOException.class, metadataObj::length);
+
+        // NONE of the read-scoped registry metrics may move for a metadata-op terminal give-up.
+        List<Measurement> retries = measurements(registry, InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_RETRIES_TOTAL);
+        List<Measurement> requests = measurements(registry, InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_REQUESTS_TOTAL);
+        assertThat("a metadata-op give-up must not move storage.retries.total", retries, hasSize(0));
+        assertThat("a metadata op never bumps storage.requests.total", requests, hasSize(0));
+        assertThat(
+            "a metadata-op give-up must not record a storage error (RetryTelemetry.NONE swallows it)",
+            measurements(registry, InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_ERRORS_TOTAL),
+            hasSize(0)
+        );
+        assertThat(
+            "a metadata-op give-up must not record a read-stall on the read-scoped histogram",
+            measurements(registry, InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.STORAGE_READ_STALL_DURATION),
+            hasSize(0)
+        );
+
+        // Direct invariant: retries (0) <= requests (0) holds, computed from the registry totals.
+        long retriesTotal = retries.stream().mapToLong(Measurement::getLong).sum();
+        long requestsTotal = requests.stream().mapToLong(Measurement::getLong).sum();
+        assertEquals("registry storage.retries.total is 0 after a metadata give-up", 0L, retriesTotal);
+        assertEquals("registry storage.requests.total is 0 for a metadata op", 0L, requestsTotal);
+        assertThat("the retries <= requests scope invariant holds as 0 <= 0", retriesTotal, lessThanOrEqualTo(requestsTotal));
+
+        // ...but the retry IS still visible in the per-query profile snapshot (pre-existing profile behaviour).
+        assertEquals("the metadata retry is still visible in the profile snapshot", 1L, metadataObj.metrics().retryCount());
+    }
+
+    private static List<Measurement> measurements(RecordingMeterRegistry registry, InstrumentType type, String name) {
+        return registry.getRecorder().getMeasurements(type, name);
+    }
+
+    private static Measurement single(RecordingMeterRegistry registry, InstrumentType type, String name) {
+        List<Measurement> found = measurements(registry, type, name);
+        assertThat("expected exactly one measurement for [" + name + "]", found, hasSize(1));
+        return found.get(0);
     }
 
     /**
@@ -633,6 +1000,137 @@ public class RetryableStorageObjectTests extends ESTestCase {
         }
         assertArrayEquals("resume completes byte-exact despite an unchecked close on the discarded stream", payload, read);
         assertEquals("the resume re-opened exactly once after the unchecked-close discard", 2, opens.get());
+    }
+
+    /**
+     * Test fixture for the terminal-give-up telemetry tests: every {@code newStream} open throws the configured
+     * fault, so the retry budget is always exhausted and the operation gives up. The fault is either a checked
+     * transport {@link IOException} or the unchecked {@link ExternalUnavailableException} a provider raises; it is
+     * rethrown preserving its concrete type so the retry layer classifies it exactly as in production.
+     */
+    private static final class AlwaysFailingStorageObject implements StorageObject {
+        private final StoragePath path;
+        private final Exception failure;
+
+        AlwaysFailingStorageObject(StoragePath path, Exception failure) {
+            this.path = path;
+            this.failure = failure;
+        }
+
+        private InputStream fail() throws IOException {
+            if (failure instanceof IOException io) {
+                throw io;
+            }
+            throw (RuntimeException) failure;
+        }
+
+        @Override
+        public InputStream newStream() throws IOException {
+            return fail();
+        }
+
+        @Override
+        public InputStream newStream(long position, long length) throws IOException {
+            return fail();
+        }
+
+        @Override
+        public long length() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Instant lastModified() {
+            return null;
+        }
+
+        @Override
+        public boolean exists() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public StoragePath path() {
+            return path;
+        }
+
+        @Override
+        public int readBytes(long position, ByteBuffer target) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public StorageObjectMetrics metrics() {
+            return new StorageObjectMetrics(0, 0, 0, 0);
+        }
+    }
+
+    /**
+     * Test fixture for the B1 metadata-op scope test: {@code length()} and {@code exists()} throw the configured
+     * transient fault {@code failuresBeforeSuccess} times, then succeed ({@code length()} returns {@code lengthValue},
+     * {@code exists()} returns {@code true}). The read paths are unsupported — the test drives only metadata ops, and a
+     * real fault beats a silently-mocked default.
+     */
+    private static final class MetadataFailingStorageObject implements StorageObject {
+        private final StoragePath path;
+        private final IOException failure;
+        private final int failuresBeforeSuccess;
+        private final long lengthValue;
+        private int lengthCalls = 0;
+        private int existsCalls = 0;
+
+        MetadataFailingStorageObject(StoragePath path, IOException failure, int failuresBeforeSuccess, long lengthValue) {
+            this.path = path;
+            this.failure = failure;
+            this.failuresBeforeSuccess = failuresBeforeSuccess;
+            this.lengthValue = lengthValue;
+        }
+
+        @Override
+        public long length() throws IOException {
+            if (lengthCalls++ < failuresBeforeSuccess) {
+                throw failure;
+            }
+            return lengthValue;
+        }
+
+        @Override
+        public boolean exists() throws IOException {
+            if (existsCalls++ < failuresBeforeSuccess) {
+                throw failure;
+            }
+            return true;
+        }
+
+        @Override
+        public Instant lastModified() {
+            return null;
+        }
+
+        @Override
+        public InputStream newStream() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public InputStream newStream(long position, long length) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public StoragePath path() {
+            return path;
+        }
+
+        @Override
+        public int readBytes(long position, ByteBuffer target) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public StorageObjectMetrics metrics() {
+            return new StorageObjectMetrics(0, 0, 0, 0);
+        }
     }
 
     /**

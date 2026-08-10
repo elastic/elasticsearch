@@ -66,8 +66,11 @@ dependencies {
   implementation "io.projectreactor:reactor-core:3.4.38"
   // Netty jars provided by esql-datasource-netty-commons via extendedPlugins classloader delegation
   compileOnly project(path: xpackModule('esql-datasource-netty-commons'))
-  implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-xml:${versions.jackson}"
-  implementation "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${versions.jackson}"
+  // Jackson must match the version bundled by the extended x-pack-esql plugin (see libs:arrow):
+  // the dataformat/datatype jars are kept here, but their transitive jackson-core/databind/annotations
+  // are de-duplicated against the parent's copy instead of tripping the jar-hell check at boot.
+  implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-xml:2.21.4"
+  implementation "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.21.4"
   // azure-core's listBlobs XML response is parsed by jackson-dataformat-xml, which requires
   // woodstox-core + stax2-api at runtime. Without them, deserialization fails inside azure-core
   // and is reported as a misleading "Package versions ..." LinkageError; the real cause is
@@ -91,7 +94,7 @@ dependencies {
   javaRestTestImplementation project(':test:fixtures:tls-utils')
 
   // The DEFAULT distribution already bundles repository-azure, workload-identity, and the
-  // datasource modules exercised by AzureWorkloadIdentityAuthIT. Mapper plugins are not part of
+  // datasource modules exercised by AzureManagedIdentityAuthIT. Mapper plugins are not part of
   // DEFAULT and still need to be provisioned explicitly for the test cluster.
   clusterPlugins project(':plugins:mapper-size')
   clusterPlugins project(':plugins:mapper-murmur3')

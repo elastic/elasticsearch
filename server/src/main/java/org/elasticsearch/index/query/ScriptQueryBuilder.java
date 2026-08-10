@@ -13,6 +13,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.FilterDocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
@@ -187,7 +188,7 @@ public class ScriptQueryBuilder extends LeafQueryBuilder<ScriptQueryBuilder> {
 
                 @Override
                 public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
-                    DocIdSetIterator approximation = DocIdSetIterator.all(context.reader().maxDoc());
+                    DocIdSetIterator approximation = new ExpensiveMatchAllIterator(context.reader().maxDoc());
                     final FilterScript leafScript = filterScript.newInstance(new DocValuesDocReader(lookup, context));
                     leafScript._setCancellationCheck(cancellationCheck);
                     TwoPhaseIterator twoPhase = new TwoPhaseIterator(approximation) {
@@ -216,6 +217,26 @@ public class ScriptQueryBuilder extends LeafQueryBuilder<ScriptQueryBuilder> {
                     return false;
                 }
             };
+        }
+
+        /**
+         * A match-all approximation whose {@link #cost()} is deliberately reported as higher than any
+         * real iterator could report, including a worst-case {@link DocIdSetIterator#NO_MORE_DOCS}
+         * estimate from another clause. Running the script in {@code matches()} is the most expensive
+         * part of evaluating this query, so a conjunction with any other clause should always confirm
+         * that clause's approximation first rather than treating this one as cheap to lead with just
+         * because it happens to match every document.
+         */
+        private static final class ExpensiveMatchAllIterator extends FilterDocIdSetIterator {
+
+            ExpensiveMatchAllIterator(int maxDoc) {
+                super(DocIdSetIterator.all(maxDoc));
+            }
+
+            @Override
+            public long cost() {
+                return (long) DocIdSetIterator.NO_MORE_DOCS + 100;
+            }
         }
     }
 

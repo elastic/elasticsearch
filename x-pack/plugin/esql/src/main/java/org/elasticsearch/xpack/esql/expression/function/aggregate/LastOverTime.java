@@ -10,13 +10,13 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AllLastExponentialHistogramByLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AllLastTDigestByLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.LastBytesRefByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.LastDoubleByTimestampAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.LastExponentialHistogramByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.LastFloatByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.LastIntByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.LastLongByTimestampAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.LastTDigestByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -193,8 +193,8 @@ public class LastOverTime extends TimeSeriesAggregateFunction implements Optiona
             case DOUBLE, COUNTER_DOUBLE -> new LastDoubleByTimestampAggregatorFunctionSupplier();
             case FLOAT -> new LastFloatByTimestampAggregatorFunctionSupplier();
             case FLATTENED, TSID_DATA_TYPE, IP, KEYWORD, TEXT -> new LastBytesRefByTimestampAggregatorFunctionSupplier();
-            case EXPONENTIAL_HISTOGRAM -> new LastExponentialHistogramByTimestampAggregatorFunctionSupplier();
-            case TDIGEST -> new LastTDigestByTimestampAggregatorFunctionSupplier();
+            case EXPONENTIAL_HISTOGRAM -> new AllLastExponentialHistogramByLongAggregatorFunctionSupplier();
+            case TDIGEST -> new AllLastTDigestByLongAggregatorFunctionSupplier();
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);
         };
     }

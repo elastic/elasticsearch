@@ -30,7 +30,7 @@ import java.util.stream.Stream;
 
 public class PointFieldBlockLoaderTests extends BlockLoaderTestCase {
     public PointFieldBlockLoaderTests(Params params) {
-        super("point", List.of(new PointDataSourceHandler()), params);
+        super("point", List.of(new PointDataSourceHandler(params.indexMode())), params);
     }
 
     @Override

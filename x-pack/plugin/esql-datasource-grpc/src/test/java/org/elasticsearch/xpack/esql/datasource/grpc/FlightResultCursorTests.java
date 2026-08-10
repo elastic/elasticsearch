@@ -29,6 +29,8 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.junit.After;
+import org.junit.Before;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -40,17 +42,15 @@ public class FlightResultCursorTests extends ESTestCase {
     private BlockFactory blockFactory;
     private BufferAllocator allocator;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initAllocators() throws Exception {
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
         // Flight client creates a child allocator.
         allocator = blockFactory.arrowAllocator().newChildAllocator("flight", 0, Long.MAX_VALUE);
     }
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @After
+    public void closeAllocators() throws Exception {
         allocator.close();
         allocator.getParentAllocator().close();
     }

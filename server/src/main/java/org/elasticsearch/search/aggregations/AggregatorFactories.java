@@ -65,7 +65,7 @@ public class AggregatorFactories {
 
     public static final Setting<Integer> MAX_NESTED_DEPTH_SETTING = Setting.intSetting(
         "search.aggs.max_nested_depth",
-        50,
+        100,
         1,
         MAX_NESTED_DEPTH_HARD_LIMIT,
         Setting.Property.NodeScope,

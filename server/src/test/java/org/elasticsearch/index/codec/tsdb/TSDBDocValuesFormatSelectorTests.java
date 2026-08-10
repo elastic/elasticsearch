@@ -65,9 +65,9 @@ public class TSDBDocValuesFormatSelectorTests extends ESTestCase {
         for (IndexMode mode : indexModesUnderTest()) {
             final DocValuesFormat format = TSDBDocValuesFormatSelector.select(indexSettings(mode, version, true), null);
             if (mode == IndexMode.TIME_SERIES) {
-                final String expectedName = IndexSettings.ES95_RUNTABLE_ENCODING_FEATURE_FLAG.isEnabled()
-                    ? ES95RT_CODEC_NAME
-                    : ES95_CODEC_NAME;
+                final boolean runTable = IndexSettings.ES95_RUNTABLE_ENCODING_FEATURE_FLAG.isEnabled()
+                    && version.onOrAfter(IndexVersions.TIME_SERIES_RUN_TABLE_ORDINAL_DEFAULT);
+                final String expectedName = runTable ? ES95RT_CODEC_NAME : ES95_CODEC_NAME;
                 assertThat("mode=" + mode + " version=" + version, format.getName(), equalTo(expectedName));
             } else {
                 assertThat("mode=" + mode + " version=" + version, format.getName(), startsWith("ES819"));
@@ -84,16 +84,26 @@ public class TSDBDocValuesFormatSelectorTests extends ESTestCase {
 
     public void testVersionBoundary() {
         final IndexVersion justBefore = IndexVersionUtils.getPreviousVersion(IndexVersions.ES95_TSDB_CODEC_FEATURE_FLAG);
-        final IndexVersion exact = IndexVersions.ES95_TSDB_CODEC_FEATURE_FLAG;
+        final IndexVersion es95Exact = IndexVersions.ES95_TSDB_CODEC_FEATURE_FLAG;
+        final IndexVersion rtJustBefore = IndexVersionUtils.getPreviousVersion(IndexVersions.TIME_SERIES_RUN_TABLE_ORDINAL_DEFAULT);
+        final IndexVersion rtExact = IndexVersions.TIME_SERIES_RUN_TABLE_ORDINAL_DEFAULT;
 
         assertThat(
             TSDBDocValuesFormatSelector.select(indexSettings(IndexMode.TIME_SERIES, justBefore, true), null).getName(),
             startsWith("ES819")
         );
-        final String expectedAtExact = IndexSettings.ES95_RUNTABLE_ENCODING_FEATURE_FLAG.isEnabled() ? ES95RT_CODEC_NAME : ES95_CODEC_NAME;
         assertThat(
-            TSDBDocValuesFormatSelector.select(indexSettings(IndexMode.TIME_SERIES, exact, true), null).getName(),
-            equalTo(expectedAtExact)
+            TSDBDocValuesFormatSelector.select(indexSettings(IndexMode.TIME_SERIES, es95Exact, true), null).getName(),
+            equalTo(ES95_CODEC_NAME)
+        );
+        assertThat(
+            TSDBDocValuesFormatSelector.select(indexSettings(IndexMode.TIME_SERIES, rtJustBefore, true), null).getName(),
+            equalTo(ES95_CODEC_NAME)
+        );
+        final String expectedAtRt = IndexSettings.ES95_RUNTABLE_ENCODING_FEATURE_FLAG.isEnabled() ? ES95RT_CODEC_NAME : ES95_CODEC_NAME;
+        assertThat(
+            TSDBDocValuesFormatSelector.select(indexSettings(IndexMode.TIME_SERIES, rtExact, true), null).getName(),
+            equalTo(expectedAtRt)
         );
     }
 

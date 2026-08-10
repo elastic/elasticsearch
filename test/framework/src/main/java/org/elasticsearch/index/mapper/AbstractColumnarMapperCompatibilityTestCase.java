@@ -30,6 +30,7 @@ import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfColumn;
 import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.sourcebatch.MappedColumns;
 import org.elasticsearch.sourcebatch.SourceSchema;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -127,7 +128,8 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
 
         final IndexRequest[] requests = buildIndexRequests(docs, sourceBytesArray);
         final MappingLookup mappingLookup = mapperService.mappingLookup();
-        final BatchMappingContext ctx = new BatchMappingContext(requests, mappingLookup, mapperService.getIndexSettings());
+        final IndexSettings indexSettings = mapperService.getIndexSettings();
+        final BatchMappingContext ctx = new BatchMappingContext(EngineTestCase.initFromRequests(requests), mappingLookup, indexSettings);
 
         // Drive all supported metadata mappers through their columnar hooks, mirroring the
         // preParse-all / postParse-all ordering of the row-major path.
@@ -141,12 +143,10 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
 
         try (EscfBatch escfBatch = EscfEncoder.encode(Arrays.asList(sourceBytesArray), XContentType.JSON)) {
             final SourceSchema schema = escfBatch.schema();
-            final IndexSettings indexSettings = mapperService.getIndexSettings();
 
             // Leaves owned by a group mapper, keyed on the owning mapper's path. Insertion-ordered so groups are mapped in the order
             // their first leaf appears in the schema, making the output column order deterministic.
             final Map<String, ColumnGroup> groups = new LinkedHashMap<>();
-
             for (int c = 0; c < schema.leafCount(); c++) {
                 final String path = schema.getFullPath(c);
                 final Mapper mapper = mappingLookup.getMapper(path);

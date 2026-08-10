@@ -182,7 +182,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         assertEquals(expectedNDims, w[0].length);
 
         // Encode per-cluster using the production path
-        float[][] wT = AsymmetricHashingQuantizer.transposeW(w);
+        float[][] wT = ESVectorUtil.transposeMatrix(w);
         AsymmetricHashingQuantizer.PrecomputedCentroid precomputed = AsymmetricHashingQuantizer.precomputeCentroid(centroids[0], wT);
         for (int i = 0; i < nVectors; i++) {
             AsymmetricHashingQuantizer.EncodedVector enc = quantizer.encode(vectors[i], centroids[0], wT, precomputed);
@@ -230,7 +230,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         float[][] w = quantizer.train(vectors, centroidGetter);
 
         // Encode per-cluster using the production path
-        float[][] wT = AsymmetricHashingQuantizer.transposeW(w);
+        float[][] wT = ESVectorUtil.transposeMatrix(w);
         int nDims = w[0].length;
         AsymmetricHashingQuantizer.PrecomputedCentroid precomputed = AsymmetricHashingQuantizer.precomputeCentroid(centroids[0], wT);
         float[][] encodedVectors = new float[nVectors][nDims];
@@ -303,7 +303,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
                 42L
             );
             float[][] w = quantizer.train(new float[][] { new float[dim] }, i -> new float[dim]);
-            float[][] wT = AsymmetricHashingQuantizer.transposeW(w);
+            float[][] wT = ESVectorUtil.transposeMatrix(w);
 
             float[] centroid = new float[dim];
             float[] query = new float[dim];
@@ -556,7 +556,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         double[][] approx = new double[nQueries][nVectors];
 
         // Precompute per-cluster values
-        float[][] wT = AsymmetricHashingQuantizer.transposeW(w);
+        float[][] wT = ESVectorUtil.transposeMatrix(w);
         AsymmetricHashingQuantizer.PrecomputedCentroid[] precomputedPerCluster =
             new AsymmetricHashingQuantizer.PrecomputedCentroid[nClusters];
         for (int c = 0; c < nClusters; c++) {

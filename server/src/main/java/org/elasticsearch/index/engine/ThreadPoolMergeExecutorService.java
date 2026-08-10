@@ -74,6 +74,21 @@ import static org.elasticsearch.monitor.fs.FsProbe.getFSInfo;
 /// @see ThreadPoolMergeScheduler
 ///
 public class ThreadPoolMergeExecutorService implements Closeable {
+    /// Factor applied to the default `merge` thread pool max size (which is the number of allocated processors on the node).
+    /// Values in `(0.0, 1.0]` reduce the number of merges that may run concurrently on the node, which lowers peak merge heap
+    /// usage (e.g. when merging large HNSW vector graphs) at the cost of merge throughput. The resulting max size is rounded to the
+    /// nearest integer and floored to at least 1, and never exceeds the number of allocated processors.
+    ///
+    /// This is intended as a mitigation knob for nodes prone to running out of memory during concurrent merges. It is node-scoped and
+    /// non-dynamic: the merge thread pool is sized once at node start, so changes take effect only on restart. An explicitly configured
+    /// `thread_pool.merge.max` takes precedence over the value derived from this factor.
+    public static final Setting<Double> INDICES_MERGE_THREAD_POOL_MAX_SIZE_FACTOR_SETTING = Setting.doubleSetting(
+        "indices.merge.thread_pool.max_size_factor",
+        1.0,
+        Math.ulp(0.0),
+        1.0,
+        Property.NodeScope
+    );
     /** How frequently we check disk usage (default: 5 seconds). */
     public static final Setting<TimeValue> INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING = Setting.positiveTimeSetting(
         "indices.merge.disk.check_interval",

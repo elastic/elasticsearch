@@ -116,10 +116,10 @@ public class ProjectRoutingUsageHolder {
         if (hasLinkedProjects == false) {
             return;
         }
-        if (setClauseUsed) {
+        esql.record(info);
+        if (setClauseUsed && info != null) {
             esqlWithSet.increment();
         }
-        esql.record(info);
     }
 
     /**

@@ -21,7 +21,7 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -30,13 +30,17 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsInfo;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.transport.TransportInfo;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.util.List;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Tests the project_routing and tags block assembly in ClusterStatsResponse.toXContent().
@@ -46,45 +50,48 @@ import static org.hamcrest.Matchers.not;
 public class ClusterStatsResponseProjectRoutingTests extends ESTestCase {
 
     public void testProjectRoutingBlock_absent_when_allCountersZero() throws Exception {
-        ClusterStatsResponse response = buildResponse(new ProjectRoutingUsageSnapshot(), null);
-        String json = Strings.toString(response);
-        assertThat(json, not(containsString("\"project_routing\"")));
+        ObjectPath json = toObjectPath(buildResponse(new ProjectRoutingUsageSnapshot(), null));
+        assertThat(json.evaluate("project_routing"), nullValue());
     }
 
     public void testProjectRoutingBlock_present_with_correct_queries_sum() throws Exception {
         // searchQueriesTotal=5, esqlQueriesTotal=3 → queries=8
         ProjectRoutingUsageSnapshot snapshot = new ProjectRoutingUsageSnapshot(5L, 0L, 0L, 0L, 0L, 0L, 0L, 3L, 0L, 0L, 0L, 0L, 0L, 0L, 0L);
-        ClusterStatsResponse response = buildResponse(snapshot, null);
-        String json = Strings.toString(response);
-        assertThat(json, containsString("\"project_routing\""));
-        assertThat(json, containsString("\"queries\":8"));
-        assertThat(json, not(containsString("\"tags\"")));
+        ObjectPath json = toObjectPath(buildResponse(snapshot, null));
+        assertThat(json.evaluate("project_routing.queries"), equalTo(8));
+        assertThat(json.evaluate("tags"), nullValue());
     }
 
     public void testTagsBlock_present_and_independent_of_project_routing() throws Exception {
         // zero-query snapshot — project_routing block must be absent
         ProjectRoutingUsageSnapshot snapshot = new ProjectRoutingUsageSnapshot();
         TagsConfigSnapshot tagsConfig = new TagsConfigSnapshot(List.of("_alias", "mytag"), List.of());
-        ClusterStatsResponse response = buildResponse(snapshot, tagsConfig);
-        String json = Strings.toString(response);
-        assertThat(json, containsString("\"tags\""));
-        assertThat(json, containsString("\"total\":2"));
-        assertThat(json, not(containsString("\"project_routing\"")));
+        ObjectPath json = toObjectPath(buildResponse(snapshot, tagsConfig));
+        assertThat(json.evaluate("tags.total"), equalTo(2));
+        assertThat(json.evaluate("project_routing"), nullValue());
     }
 
     public void testBothBlocks_present_when_both_non_empty() throws Exception {
         ProjectRoutingUsageSnapshot snapshot = new ProjectRoutingUsageSnapshot(10L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L);
         TagsConfigSnapshot tagsConfig = new TagsConfigSnapshot(List.of("_alias"), List.of());
-        ClusterStatsResponse response = buildResponse(snapshot, tagsConfig);
-        String json = Strings.toString(response);
-        assertThat(json, containsString("\"tags\""));
-        assertThat(json, containsString("\"project_routing\""));
-        assertThat(json, containsString("\"queries\":10"));
+        ObjectPath json = toObjectPath(buildResponse(snapshot, tagsConfig));
+        assertThat(json.evaluate("project_routing.queries"), equalTo(10));
+        assertThat(json.evaluate("tags.total"), equalTo(1));
     }
 
     // -----------------------------------------------------------------------
     // helpers
     // -----------------------------------------------------------------------
+
+    private static ObjectPath toObjectPath(ClusterStatsResponse response) throws Exception {
+        XContentType xContentType = XContentType.JSON;
+        try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
+            builder.startObject();
+            response.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            builder.endObject();
+            return ObjectPath.createFromXContent(xContentType.xContent(), BytesReference.bytes(builder));
+        }
+    }
 
     private static ClusterStatsResponse buildResponse(ProjectRoutingUsageSnapshot snapshot, TagsConfigSnapshot tagsConfig) {
         ClusterStatsNodeResponse nodeResponse = buildNodeResponse(snapshot);

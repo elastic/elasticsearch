@@ -144,13 +144,13 @@ public class ProjectRoutingUsageHolderTests extends ESTestCase {
     // ES|QL: with_SET increments independently of info nullness
     // -----------------------------------------------------------------------
 
-    public void testEsql_setClauseWithNullInfo() {
+    public void testEsql_setClauseWithNullInfo_doesNotIncrementWithSet() {
         ProjectRoutingUsageHolder holder = new ProjectRoutingUsageHolder();
         holder.recordEsql(null, true, true);
 
         ProjectRoutingUsageSnapshot snap = holder.getSnapshot();
         assertThat(snap.getEsqlQueriesTotal(), equalTo(1L));
-        assertThat(snap.getEsqlWithSet(), equalTo(1L));
+        assertThat(snap.getEsqlWithSet(), equalTo(0L));
         assertThat(snap.getEsqlWithProjectRouting(), equalTo(0L));
     }
 

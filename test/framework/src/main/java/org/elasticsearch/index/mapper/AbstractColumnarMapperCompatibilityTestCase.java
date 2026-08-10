@@ -26,7 +26,13 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.escf.EscfBatch;
+import org.elasticsearch.escf.EscfColumn;
+import org.elasticsearch.escf.EscfEncoder;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.sourcebatch.MappedColumns;
+import org.elasticsearch.sourcebatch.SourceSchema;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -35,7 +41,9 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Abstract base for compatibility tests that verify the columnar batch-mapping path produces the
@@ -120,7 +128,8 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
 
         final IndexRequest[] requests = buildIndexRequests(docs, sourceBytesArray);
         final MappingLookup mappingLookup = mapperService.mappingLookup();
-        final BatchMappingContext ctx = new BatchMappingContext(requests, mappingLookup, mapperService.getIndexSettings());
+        final IndexSettings indexSettings = mapperService.getIndexSettings();
+        final BatchMappingContext ctx = new BatchMappingContext(EngineTestCase.initFromRequests(requests), mappingLookup, indexSettings);
 
         // Drive all supported metadata mappers through their columnar hooks, mirroring the
         // preParse-all / postParse-all ordering of the row-major path.
@@ -131,57 +140,164 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
         for (MetadataFieldMapper m : supportedMappers) {
             m.preColumnarParse(ctx);
         }
-        for (MetadataFieldMapper m : supportedMappers) {
-            m.postColumnarParse(ctx);
-        }
 
-        // Apply engine values to the backing byte arrays before reading via either cursor path.
-        final MappedColumns mc = ctx.columns();
-        mc.fillPrimaryTerm(scenario.primaryTerm());
-        for (int i = 0; i < docCount; i++) {
-            mc.setSeqNo(i, docs.get(i).seqNo());
-            mc.setVersion(i, docs.get(i).version());
-        }
+        try (EscfBatch escfBatch = EscfEncoder.encode(Arrays.asList(sourceBytesArray), XContentType.JSON)) {
+            final SourceSchema schema = escfBatch.schema();
 
-        // Materialize x-content descriptors up front.
-        final List<List<FieldDescriptor>> xcDescsPerDoc = new ArrayList<>(docCount);
-        for (int i = 0; i < docCount; i++) {
-            final Doc doc = docs.get(i);
-            final SourceToParse sourceToParse = new SourceToParse(doc.id(), sourceBytesArray[i], XContentType.JSON, doc.routing());
-            final ParsedDocument pd = mapperService.documentMapper().parse(sourceToParse);
-            // Apply the same engine values as the columnar path (mirrors InternalEngine lines 1910-1911).
-            pd.updateSeqID(doc.seqNo(), scenario.primaryTerm());
-            pd.version().setLongValue(doc.version());
-            xcDescsPerDoc.add(toDescriptors(pd.rootDoc().getFields()));
-        }
+            // Leaves owned by a group mapper, keyed on the owning mapper's path. Insertion-ordered so groups are mapped in the order
+            // their first leaf appears in the schema, making the output column order deterministic.
+            final Map<String, ColumnGroup> groups = new LinkedHashMap<>();
+            for (int c = 0; c < schema.leafCount(); c++) {
+                final String path = schema.getFullPath(c);
+                final Mapper mapper = mappingLookup.getMapper(path);
+                if (mapper instanceof FieldMapper fm) {
+                    assertSupportsColumnarParse(fm, path, indexSettings);
+                    fm.mapColumnBatch(ctx, escfBatch.column(c));
+                } else if (mapper == null) {
+                    // No mapper at this path: it may still belong to a mapper that owns a whole group of descendant leaves, such as
+                    // a flattened field, whose object value the encoder explodes into one dotted leaf per key.
+                    final GroupMatch match = findColumnGroup(path, mappingLookup);
+                    if (match != null) {
+                        assertSupportsColumnarParse(match.mapper(), match.ownerPath(), indexSettings);
+                        groups.computeIfAbsent(match.ownerPath(), p -> new ColumnGroup(match.mapper()))
+                            .add(escfBatch.column(c), match.relativeKey());
+                    }
+                }
+            }
 
-        // Materialize row-cursor descriptors.
-        final List<List<FieldDescriptor>> descsPerDoc = new ArrayList<>(docCount);
-        final MappedColumns.RowCursor rowCursor = mc.rowCursor();
-        for (int i = 0; i < docCount; i++) {
-            rowCursor.advance();
-            descsPerDoc.add(toDescriptors(rowCursor.fields()));
-        }
+            for (ColumnGroup group : groups.values()) {
+                group.mapper().mapColumnGroupBatch(ctx, group.columns(), group.relativeKeys());
+            }
 
-        // Compare row-cursor against x-content.
-        for (int i = 0; i < docCount; i++) {
-            assertFieldSetsEqual(
-                xcDescsPerDoc.get(i),
-                descsPerDoc.get(i),
-                "Batch [" + scenario.name() + "] doc[" + i + "] id=[" + docs.get(i).id() + "]: x-content vs row-cursor field sets differ"
+            for (MetadataFieldMapper m : supportedMappers) {
+                m.postColumnarParse(ctx);
+            }
+
+            // Apply engine values to the backing byte arrays before reading via either cursor path.
+            final MappedColumns mc = ctx.columns();
+            mc.fillPrimaryTerm(scenario.primaryTerm());
+            for (int i = 0; i < docCount; i++) {
+                mc.setSeqNo(i, docs.get(i).seqNo());
+                mc.setVersion(i, docs.get(i).version());
+            }
+
+            // Materialize x-content descriptors up front.
+            final List<List<FieldDescriptor>> xcDescsPerDoc = new ArrayList<>(docCount);
+            for (int i = 0; i < docCount; i++) {
+                final Doc doc = docs.get(i);
+                final SourceToParse sourceToParse = new SourceToParse(doc.id(), sourceBytesArray[i], XContentType.JSON, doc.routing());
+                final ParsedDocument pd = mapperService.documentMapper().parse(sourceToParse);
+                // Apply the same engine values as the columnar path (mirrors InternalEngine lines 1910-1911).
+                pd.updateSeqID(doc.seqNo(), scenario.primaryTerm());
+                pd.version().setLongValue(doc.version());
+                xcDescsPerDoc.add(toDescriptors(pd.rootDoc().getFields()));
+            }
+
+            // Materialize row-cursor descriptors.
+            final List<List<FieldDescriptor>> descsPerDoc = new ArrayList<>(docCount);
+            final MappedColumns.RowCursor rowCursor = mc.rowCursor();
+            for (int i = 0; i < docCount; i++) {
+                rowCursor.advance();
+                descsPerDoc.add(toDescriptors(rowCursor.fields()));
+            }
+
+            // Compare row-cursor against x-content.
+            for (int i = 0; i < docCount; i++) {
+                assertFieldSetsEqual(
+                    xcDescsPerDoc.get(i),
+                    descsPerDoc.get(i),
+                    "Batch ["
+                        + scenario.name()
+                        + "] doc["
+                        + i
+                        + "] id=["
+                        + docs.get(i).id()
+                        + "]: x-content vs row-cursor field sets differ"
+                );
+                descsPerDoc.get(i).clear();
+            }
+
+            // Populate the same per-doc lists with column-batch descriptors and compare.
+            populateColumnBatchDescriptors(mc, descsPerDoc);
+            for (int i = 0; i < docCount; i++) {
+                assertFieldSetsEqual(
+                    xcDescsPerDoc.get(i),
+                    descsPerDoc.get(i),
+                    "Batch ["
+                        + scenario.name()
+                        + "] doc["
+                        + i
+                        + "] id=["
+                        + docs.get(i).id()
+                        + "]: x-content vs column-batch field sets differ"
+                );
+            }
+        }
+    }
+
+    private static void assertSupportsColumnarParse(FieldMapper mapper, String path, IndexSettings indexSettings) {
+        if (mapper.supportsColumnarParse(indexSettings) == false) {
+            throw new AssertionError(
+                "field ["
+                    + path
+                    + "] has mapper ["
+                    + mapper.typeName()
+                    + "] that does not support columnar parse; "
+                    + "test data must only include fields whose mappers support columnar"
             );
-            descsPerDoc.get(i).clear();
+        }
+    }
+
+    /**
+     * A {@link FieldMapper#resolvesColumnGroup() group mapper} together with the schema leaves it owns, accumulated in schema order.
+     */
+    private static final class ColumnGroup {
+        private final FieldMapper mapper;
+        private final List<EscfColumn> columns = new ArrayList<>();
+        private final List<String> relativeKeys = new ArrayList<>();
+
+        ColumnGroup(FieldMapper mapper) {
+            this.mapper = mapper;
         }
 
-        // Populate the same per-doc lists with column-batch descriptors and compare.
-        populateColumnBatchDescriptors(mc, descsPerDoc);
-        for (int i = 0; i < docCount; i++) {
-            assertFieldSetsEqual(
-                xcDescsPerDoc.get(i),
-                descsPerDoc.get(i),
-                "Batch [" + scenario.name() + "] doc[" + i + "] id=[" + docs.get(i).id() + "]: x-content vs column-batch field sets differ"
-            );
+        void add(EscfColumn column, String relativeKey) {
+            columns.add(column);
+            relativeKeys.add(relativeKey);
         }
+
+        FieldMapper mapper() {
+            return mapper;
+        }
+
+        EscfColumn[] columns() {
+            return columns.toArray(EscfColumn[]::new);
+        }
+
+        String[] relativeKeys() {
+            return relativeKeys.toArray(String[]::new);
+        }
+    }
+
+    /** The group mapper that owns a leaf, its own path, and the leaf's path relative to it. */
+    private record GroupMatch(FieldMapper mapper, String ownerPath, String relativeKey) {}
+
+    /**
+     * Walks up the dotted ancestors of {@code leafPath}. If the nearest ancestor that has a mapper is a {@link FieldMapper} that
+     * {@link FieldMapper#resolvesColumnGroup() resolves a column group}, returns that match; otherwise returns {@code null}. A
+     * non-group {@link FieldMapper} ancestor cannot own descendant leaves, so the walk stops there.
+     */
+    // TODO: Work on combining this to the group resolution code that gets added in ShardBatchMapper
+    private static GroupMatch findColumnGroup(String leafPath, MappingLookup lookup) {
+        int dot = leafPath.lastIndexOf('.');
+        while (dot > 0) {
+            final String ancestorPath = leafPath.substring(0, dot);
+            final Mapper ancestor = lookup.getMapper(ancestorPath);
+            if (ancestor instanceof FieldMapper fieldMapper) {
+                return fieldMapper.resolvesColumnGroup() ? new GroupMatch(fieldMapper, ancestorPath, leafPath.substring(dot + 1)) : null;
+            }
+            dot = leafPath.lastIndexOf('.', dot - 1);
+        }
+        return null;
     }
 
     private void populateColumnBatchDescriptors(MappedColumns mc, List<List<FieldDescriptor>> perDoc) {

@@ -33,6 +33,7 @@ module org.elasticsearch.server {
     requires org.elasticsearch.iplocation.api;
     requires org.elasticsearch.tdigest;
     requires org.elasticsearch.exponentialhistogram;
+    requires org.elasticsearch.lucene.store;
     requires org.elasticsearch.simdvec;
     requires org.elasticsearch.entitlement;
 
@@ -231,6 +232,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.discovery;
     exports org.elasticsearch.eirf;
     exports org.elasticsearch.env;
+    exports org.elasticsearch.escf;
     exports org.elasticsearch.features;
     exports org.elasticsearch.gateway;
     exports org.elasticsearch.health;
@@ -411,6 +413,7 @@ module org.elasticsearch.server {
             org.elasticsearch.settings.secure,
             org.elasticsearch.serverless.constants,
             org.elasticsearch.serverless.apifiltering,
+            org.elasticsearch.serverless.multiproject,
             org.elasticsearch.serverless.stateless,
             org.elasticsearch.internal.security,
             org.elasticsearch.xpack.core,
@@ -453,7 +456,8 @@ module org.elasticsearch.server {
             org.elasticsearch.search.retriever.RetrieversFeatures,
             org.elasticsearch.action.admin.cluster.stats.ClusterStatsFeatures,
             org.elasticsearch.ingest.IngestFeatures,
-            org.elasticsearch.action.admin.indices.resolve.ResolveIndexFeatures;
+            org.elasticsearch.action.admin.indices.resolve.ResolveIndexFeatures,
+            org.elasticsearch.indices.recovery.RecoveryFeatures;
 
     uses org.elasticsearch.plugins.internal.SettingsExtension;
     uses RestExtension;

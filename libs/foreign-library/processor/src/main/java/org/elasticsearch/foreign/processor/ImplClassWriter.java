@@ -55,7 +55,8 @@ import static org.elasticsearch.foreign.processor.ClassWriterUtil.MTD_Arena_ofAu
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.emitValueLayout;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.primitiveClassDesc;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.slotWidth;
-import static org.elasticsearch.foreign.processor.model.LibraryModel.RESOLVER_INTERFACE_FQN;
+import static org.elasticsearch.foreign.processor.model.LibraryModel.MH_RESOLVER_INTERFACE_FQN;
+import static org.elasticsearch.foreign.processor.model.LibraryModel.SYMBOL_RESOLVER_INTERFACE_FQN;
 
 /**
  * Generates {@code <InterfaceName>$Impl} class files for {@code @LibrarySpecification}-annotated interfaces,
@@ -83,11 +84,13 @@ class ImplClassWriter {
     private static final ClassDesc CD_AssertionError = ClassDesc.of("java.lang.AssertionError");
     private static final ClassDesc CD_Class = ClassDesc.of("java.lang.Class");
     private static final ClassDesc CD_Linker = ClassDesc.of("java.lang.foreign.Linker");
+    private static final ClassDesc CD_ResolvedSymbol = ClassDesc.of("org.elasticsearch.foreign.ResolvedSymbol");
     private static final ClassDesc CD_SymbolLookup = ClassDesc.of("java.lang.foreign.SymbolLookup");
     private static final ClassDesc CD_LinkerHelper = ClassDesc.of(LinkerHelper.class.getName());
     private static final ClassDesc CD_LinkerAdapter = ClassDesc.of("org.elasticsearch.foreign.adapter.LinkerAdapter"); // not a dependency
     private static final ClassDesc CD_LoaderHelper = ClassDesc.of(LoaderHelper.class.getName());
     private static final ClassDesc CD_Objects = ClassDesc.of("java.util.Objects");
+    private static final ClassDesc CD_Math = ClassDesc.of("java.lang.Math");
     private static final ClassDesc CD_IllegalArgumentException = ClassDesc.of("java.lang.IllegalArgumentException");
 
     /**
@@ -98,6 +101,7 @@ class ImplClassWriter {
 
     private static final MethodTypeDesc MTD_byteSize = MethodTypeDesc.of(CD_long);
     private static final MethodTypeDesc MTD_checkFromIndexSize = MethodTypeDesc.of(CD_long, CD_long, CD_long, CD_long);
+    private static final MethodTypeDesc MTD_ceilDiv = MethodTypeDesc.of(CD_long, CD_long, CD_long);
     private static final MethodTypeDesc MTD_desiredAssertionStatus = MethodTypeDesc.of(CD_boolean);
     private static final MethodTypeDesc MTD_FunctionDescriptor_ofVoid = MethodTypeDesc.of(CD_FunctionDescriptor, CD_MemoryLayoutArray);
     private static final MethodTypeDesc MTD_FunctionDescriptor_of = MethodTypeDesc.of(
@@ -105,15 +109,16 @@ class ImplClassWriter {
         CD_MemoryLayout,
         CD_MemoryLayoutArray
     );
-    private static final MethodTypeDesc MTD_downcallHandle_byAddress = MethodTypeDesc.of(
-        CD_MethodHandle,
-        CD_MemorySegment,
-        CD_FunctionDescriptor,
-        CD_LinkerOptionArray
-    );
     private static final MethodTypeDesc MTD_nativeLinker = MethodTypeDesc.of(CD_Linker);
     private static final MethodTypeDesc MTD_defaultLookup = MethodTypeDesc.of(CD_SymbolLookup);
-    private static final MethodTypeDesc MTD_resolve = MethodTypeDesc.of(CD_MemorySegment, CD_String, CD_SymbolLookup);
+    private static final MethodTypeDesc MTD_resolve = MethodTypeDesc.of(CD_ResolvedSymbol, CD_String, CD_SymbolLookup);
+    private static final MethodTypeDesc MTD_mhResolve = MethodTypeDesc.of(
+        CD_MethodHandle,
+        CD_ResolvedSymbol,
+        CD_FunctionDescriptor,
+        CD_Linker,
+        CD_LinkerOptionArray
+    );
     private static final MethodTypeDesc MTD_adaptCritical = MethodTypeDesc.of(
         CD_MethodHandle,
         CD_Lookup,
@@ -121,6 +126,7 @@ class ImplClassWriter {
         CD_Class,
         CD_String
     );
+    private static final MethodTypeDesc MTD_unsupportedFallback = MethodTypeDesc.of(CD_MethodHandle, CD_MethodHandle, CD_String);
     private static final MethodTypeDesc MTD_MemorySegmentAdapter_getString = MethodTypeDesc.of(CD_String, CD_MemorySegment, CD_long);
     private static final MethodTypeDesc MTD_Arena_ofConfined = MethodTypeDesc.of(CD_Arena);
     private static final MethodTypeDesc MTD_Arena_close = MethodTypeDesc.of(CD_void);
@@ -144,8 +150,8 @@ class ImplClassWriter {
         // Generate $Pack for record structs and $Impl for interface structs
         for (StructModel struct : model.structs()) {
             switch (struct) {
-                case StructRecordModel r -> packWriter.generate(model, r, sourceElement);
-                case StructInterfaceModel i -> structImplWriter.generate(model, i, sourceElement);
+                case StructRecordModel r -> packWriter.generate(model, struct, sourceElement);
+                case StructInterfaceModel i -> structImplWriter.generate(model, struct, sourceElement);
             }
         }
 
@@ -196,7 +202,14 @@ class ImplClassWriter {
                 }
                 emitAssertionsDisabledInit(clinit, generatedDesc);
                 for (var nm : functionMethods) {
-                    emitMhFieldInit(clinit, generatedDesc, nm, model.symbolResolverClassName(), fieldNames.get(nm));
+                    emitMhFieldInit(
+                        clinit,
+                        generatedDesc,
+                        nm,
+                        model.symbolResolverClassName(),
+                        model.methodHandleResolverClassName(),
+                        fieldNames.get(nm)
+                    );
                 }
                 clinit.return_();
             });
@@ -283,14 +296,15 @@ class ImplClassWriter {
     }
 
     /**
-     * Resolves the native symbol via {@link org.elasticsearch.foreign.SymbolResolver} and stores
-     * the resulting {@code MethodHandle} in the static field identified by {@code fieldName}.
-     * Handles {@code @CaptureErrno}, {@code @Variadic}, and {@code @Critical} options.
+     * Resolves the native symbol via {@link org.elasticsearch.foreign.SymbolResolver} and
+     * {@link org.elasticsearch.foreign.MethodHandleResolver}, then stores the resulting
+     * {@code MethodHandle} in the static field identified by {@code fieldName}. Handles {@code @CaptureErrno},
+     * {@code @Variadic}, and {@code @Critical} options.
      *
      * <p>The generated bytecode is equivalent to:
      * <pre>{@code
-     * MemorySegment addr = resolver.resolve(symbolName, LinkerHelper.defaultLookup());
-     * <fieldName> = Linker.nativeLinker().downcallHandle(addr, descriptor, options);
+     * ResolvedSymbol sym = new SymbolResolver().resolve(symbolName, LinkerHelper.defaultLookup());
+     * foo$mh = new MethodHandleResolver().resolve(sym, descriptor, Linker.nativeLinker(), options);
      * }</pre>
      */
     private static void emitMhFieldInit(
@@ -298,9 +312,13 @@ class ImplClassWriter {
         ClassDesc generatedDesc,
         MethodModel nm,
         String symbolResolverClassName,
+        String methodHandleResolverClassName,
         String fieldName
     ) {
         boolean hasFallbackAdapter = nm.fallbackAdapterClassName() != null;
+        // For @Critical methods with no fallback adapter (using the Critical.UnsupportedFallback sentinel)
+        // we need to call LinkerAdapter.unsupportedFallback()
+        boolean isUnsupportedFallback = nm.isCritical() && hasFallbackAdapter == false;
 
         // For @Critical methods with a fallback adapter we need to call
         // LinkerAdapter.adaptCritical(lookup, rawHandle, adapterClass, methodName). Stack-prep
@@ -309,27 +327,40 @@ class ImplClassWriter {
             cb.invokestatic(CD_MethodHandles, "lookup", MethodTypeDesc.of(CD_Lookup));
         }
 
-        // Linker.nativeLinker() -> linker
-        cb.invokestatic(CD_Linker, "nativeLinker", MTD_nativeLinker, true);
+        // new MethodHandleResolver() -> mhResolver
+        ClassDesc mhResolverDesc = ClassDesc.of(methodHandleResolverClassName);
+        cb.new_(mhResolverDesc);
+        cb.dup();
+        cb.invokespecial(mhResolverDesc, "<init>", MethodTypeDesc.of(CD_void));
 
-        // resolver.resolve(symbolName, LinkerHelper.defaultLookup()) -> resolvedSymbol
+        // new SymbolResolver().resolve(symbolName, LinkerHelper.defaultLookup()) -> resolvedSymbol
         ClassDesc resolverDesc = ClassDesc.of(symbolResolverClassName);
         cb.new_(resolverDesc);
         cb.dup();
         cb.invokespecial(resolverDesc, "<init>", MethodTypeDesc.of(CD_void));
         cb.ldc(nm.cSymbol());
         cb.invokestatic(CD_LinkerHelper, "defaultLookup", MTD_defaultLookup);
-        cb.invokeinterface(ClassDesc.of(RESOLVER_INTERFACE_FQN), "resolve", MTD_resolve);
+        cb.invokeinterface(ClassDesc.of(SYMBOL_RESOLVER_INTERFACE_FQN), "resolve", MTD_resolve);
 
-        // linker.downcallHandle(resolvedSymbol, descriptor, options)
+        // descriptor
         emitFunctionDescriptor(cb, nm.returnType(), nm.paramTypes());
+
+        // Linker.nativeLinker()
+        cb.invokestatic(CD_Linker, "nativeLinker", MTD_nativeLinker, true);
+
+        // options
         emitLinkerOptions(cb, nm);
-        cb.invokeinterface(CD_Linker, "downcallHandle", MTD_downcallHandle_byAddress);
+
+        // mhResolver.resolve(resolvedSymbol, descriptor, linker, options) -> MethodHandle
+        cb.invokeinterface(ClassDesc.of(MH_RESOLVER_INTERFACE_FQN), "resolve", MTD_mhResolve);
 
         if (hasFallbackAdapter) {
             cb.ldc(ClassDesc.of(nm.fallbackAdapterClassName()));
             cb.ldc(nm.methodName());
             cb.invokestatic(CD_LinkerAdapter, "adaptCritical", MTD_adaptCritical);
+        } else if (isUnsupportedFallback) {
+            cb.ldc(nm.methodName());
+            cb.invokestatic(CD_LinkerAdapter, "unsupportedFallback", MTD_unsupportedFallback);
         }
 
         cb.putstatic(generatedDesc, fieldName, CD_MethodHandle);
@@ -483,11 +514,7 @@ class ImplClassWriter {
         emitLongParamLoad(cb, paramTypes.get(check.countParamIndex()), slots[check.countParamIndex()]);
         cb.ldc((long) check.elementBits());
         cb.lmul();
-        // ceil(count * elementBits / 8): round the bit count up to whole bytes via (bits + 7) / 8
-        cb.ldc(7L);
-        cb.ladd();
-        cb.ldc(8L);
-        cb.ldiv();
+        emitCeilDivBy8(cb);
         emitCheckFromIndexSize(cb, slots[check.segParamIndex()]);
         if (check.aligned()) {
             emitAlignmentAssert(cb, generatedDesc, slots[check.segParamIndex()], check.elementBits() / 8);
@@ -511,14 +538,10 @@ class ImplClassWriter {
         // fromIndex arg for checkFromIndexSize
         cb.lconst_0();
 
-        // ceil(cols * elementBits / 8): round the per-row bit count up to whole bytes via (bits + 7) / 8
         emitLongParamLoad(cb, paramTypes.get(check.colsParamIndex()), slots[check.colsParamIndex()]);
         cb.ldc((long) check.elementBits());
         cb.lmul();
-        cb.ldc(7L);
-        cb.ladd();
-        cb.ldc(8L);
-        cb.ldiv();
+        emitCeilDivBy8(cb);
         if (check.hasPaddingBytes()) {
             emitPaddingBytesRelationalCheck(cb, paramTypes, slots, check);
             emitLongParamLoad(cb, paramTypes.get(check.paddingBytesParamIndex()), slots[check.paddingBytesParamIndex()]);
@@ -550,6 +573,12 @@ class ImplClassWriter {
         cb.invokespecial(CD_IllegalArgumentException, "<init>", MethodTypeDesc.of(CD_void, CD_String));
         cb.athrow();
         cb.labelBinding(paddingOk);
+    }
+
+    /** Converts a bit count on the stack into a whole-byte count, rounding up: {@code Math.ceilDiv(bits, 8)}. */
+    private static void emitCeilDivBy8(CodeBuilder cb) {
+        cb.ldc(8L);
+        cb.invokestatic(CD_Math, "ceilDiv", MTD_ceilDiv);
     }
 
     /** Stack on entry: {@code [0L, size]}. Pushes {@code segment.byteSize()}, calls the check, discards the result. */
@@ -602,7 +631,7 @@ class ImplClassWriter {
     /**
      * Generates a method body that marshals {@code String} parameters to native memory before the call.
      * Opens a confined {@code Arena} per call, allocates each {@code String} param via
-     * {@code MemorySegmentUtil.allocateString}, and closes the arena in both normal and exception paths.
+     * {@code MemorySegmentAdapter.allocateString}, and closes the arena in both normal and exception paths.
      *
      * <p>Local variable layout (slots):
      * <ul>
@@ -638,7 +667,7 @@ class ImplClassWriter {
         code.astore(arenaSlot);
 
         code.trying(tryBlock -> {
-            // Marshal each String param: MemorySegment $sN = MemorySegmentUtil.allocateString(arena, strN)
+            // Marshal each String param: MemorySegment $sN = MemorySegmentAdapter.allocateString(arena, strN)
             int slot = 1;
             int marshaledSlot = arenaSlot + 1;
             for (NativeType paramType : paramTypes) {
@@ -835,7 +864,8 @@ class ImplClassWriter {
             return;
         }
 
-        // Resolve the target struct and its array field from the model
+        // Resolve the target struct and its array field from the model. Only field shape is used
+        // below, which is platform-independent.
         StructModel targetStruct = model.structs()
             .stream()
             .filter(s -> s.simpleName().equals(nm.structReturnSimpleName()))

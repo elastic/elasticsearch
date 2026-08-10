@@ -384,6 +384,13 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_FIX_COUNT_ON_UNMAPPED,
 
         /**
+         * Auto-cast a partially unmapped small-numeric field (e.g., {@code short}) to its widened type (e.g., {@code integer}) under
+         * {@code unmapped_fields="load"}, so the unmapped leg loads from _source instead of falling back to null.
+         * See https://github.com/elastic/elasticsearch/issues/152997.
+         */
+        OPTIONAL_FIELDS_FIX_IMPLICIT_CAST_ON_SMALL_NUMERIC_PUNK,
+
+        /**
          * Support specifically for *just* the _index METADATA field. Used by CsvTests, since that is the only metadata field currently
          * supported.
          */
@@ -1481,6 +1488,20 @@ public class EsqlCapabilities {
          * correct time-series index when a join presents.
          */
         WHERE_IN_SUBQUERY_WITH_TS,
+
+        /**
+         * Fix for {@code PropagateEmptyRelation} not folding away {@code AbstractSubqueryJoin} nodes when their left side is an empty
+         * {@code LocalRelation}. Without the fix, a {@code WHERE false} followed by a {@code WHERE … OR field IN (subquery) AND match(…)}
+         * caused the server to hang or error out because the {@code LuceneQueryExpressionEvaluator} found no Lucene shard contexts.
+         */
+        PROPAGATE_EMPTY_RELATION_PAST_WHERE_IN_SUBQUERY,
+
+        /**
+         * Fixed a bug where a FORK or UnionAll preceding a WHERE IN subquery would fail with "Unknown column" because the early-exit tree
+         * traversal triggered by FORK skipped the subquery's right child during field-caps resolution.
+         */
+        WHERE_IN_SUBQUERY_FORK_UNKNOWN_COLUMN_FIX,
+
         /**
          * Support for views in cluster state (and REST API).
          */
@@ -1524,6 +1545,16 @@ public class EsqlCapabilities {
          * See https://github.com/elastic/elasticsearch/issues/146208
          */
         VIEWS_FALSE_CIRCULAR_REFERENCE_FIX,
+        /**
+         * Fixed a bug where explicitly including a view and then explicitly excluding it (either by its
+         * concrete name or by a wildcard that matches it) alongside another concrete index caused an
+         * {@code IndexNotFoundException("no such index [view-name]")} at search-shards time. The view
+         * resolver stripped the exclusion token but left the positive view-name literal in the pattern,
+         * which then leaked into {@code EsRelation#originalIndices} and reached the data-node
+         * search-shards request with options that cannot resolve view names.
+         * See https://github.com/elastic/elasticsearch/issues/147863
+         */
+        VIEWS_EXPLICIT_INCLUDE_EXCLUDE_FIX,
 
         /**
          * Fixes two related bugs where mixing TS-mode and standard sources caused the optimizer to
@@ -1536,6 +1567,14 @@ public class EsqlCapabilities {
          * https://github.com/elastic/elasticsearch/issues/149619.
          */
         FIX_TS_MIXED_WITH_NON_TS_SOURCES,
+
+        /**
+         * Wildcard patterns in {@code TS} commands silently skip matching views — the relation is
+         * returned unchanged so field-caps' {@code _index_mode:time_series} filter excludes them
+         * naturally. Concrete view names in {@code TS} patterns are still rejected with a
+         * {@code VerificationException}.
+         */
+        TS_COMMAND_WILDCARDS_SKIP_VIEWS,
 
         /**
          * Support for the {@code leading_zeros} named parameter.
@@ -1609,6 +1648,15 @@ public class EsqlCapabilities {
          */
         INCREASE,
         DELTA_TS_AGG,
+
+        /**
+         * Fix {@code delta} and {@code idelta} with a window shorter than the time bucket. Previously, the optimizer
+         * could replace the {@code Bucket} child of {@code WindowFilter} with an {@code Attribute}, causing a
+         * {@code ClassCastException} in {@code toEvaluator()}. The fix removes {@code bucket} from the children list
+         * so it is invisible to optimizer rewrites.
+         */
+        FIX_WINDOW_FILTER_BUCKET_CHILD,
+
         CLAMP_FUNCTIONS,
 
         /**
@@ -2101,6 +2149,11 @@ public class EsqlCapabilities {
         DATE_RANGE_FIELD_TYPE_V6,
 
         /**
+         * Support for the DOUBLE_RANGE field type.
+         */
+        DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V9(Build.current().isSnapshot()),
+
+        /**
          * Network direction function.
          */
         NETWORK_DIRECTION(Build.current().isSnapshot()),
@@ -2293,6 +2346,11 @@ public class EsqlCapabilities {
         FIX_TIME_SERIES_WINDOW_BACKWARD,
 
         /**
+         * Disable ReplaceFieldWithConstantOrNull rule for time-series aggregation
+         */
+        DISABLE_REPLACE_NULL_RULE_FOR_TIME_SERIES,
+
+        /**
          * Window filters use the rounded bucket label's floor and ceiling when filtering windows
          * smaller than a {@code TSTEP} bucket. Also covers {@code rate()}/{@code increase()} now
          * extrapolating over the window's own range instead of the outer time bucket's range when
@@ -2333,6 +2391,12 @@ public class EsqlCapabilities {
          * Support like/rlike parameters https://github.com/elastic/elasticsearch/issues/131356
          */
         LIKE_PARAMETER_SUPPORT,
+
+        /**
+         * Support constant expressions on the RHS of LIKE/RLIKE, e.g. {@code WHERE x LIKE CONCAT("prefix", "*")}.
+         * https://github.com/elastic/elasticsearch/issues/147671
+         */
+        LIKE_RLIKE_CONSTANT_EXPRESSION,
 
         /**
          * PromQL support in ESQL, in the state it was when first available in non-snapshot builds.
@@ -2818,13 +2882,22 @@ public class EsqlCapabilities {
         DATA_SOURCES_SERVERLESS_SCOPE,
 
         /**
-         * Signals that this node honors the federation kill switch (see {@code Federation}): when suppressed it reports
-         * no datasets during remote field resolution, so a {@code FROM <remote>:<dataset>} falls through to normal index
-         * resolution instead of surfacing a {@code RemoteDatasetNotSupportedException}. Old nodes in a mixed cluster
-         * predate the switch and will not report this capability via {@code /_capabilities}, so any mixed cluster
-         * containing such a node correctly returns {@code supported=false}.
+         * Signals that this node reports no datasets during remote field resolution whenever federation is unavailable
+         * (see {@code Federation}), whether because the operator property suppressed it or because the setting leaves it
+         * off, so a {@code FROM <remote>:<dataset>} falls through to normal index resolution instead of surfacing a
+         * {@code RemoteDatasetNotSupportedException}. Old nodes in a mixed cluster predate this behavior and will not
+         * report the capability via {@code /_capabilities}, so any mixed cluster containing such a node correctly
+         * returns {@code supported=false}.
          */
         REGISTER_FEDERATION_FEATURE,
+
+        /**
+         * Signals that this node reads the {@code esql.federation.enabled} setting (see {@code Federation}), so a
+         * deployment can turn federation on or off per node. Nodes that only have the operator kill switch report
+         * {@link #REGISTER_FEDERATION_FEATURE} but not this, and they have federation on with no way to turn it off
+         * per node, so a test that drives the setting has to skip against them.
+         */
+        FEDERATION_ENABLED_SETTING,
 
         /**
          * {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneRedundantAggregateGroupings} rebuilds a pruned
@@ -3245,6 +3318,12 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_FORK_DROP_MATERIALIZES_SIBLINGS,
 
         /**
+         * Support for {@code unmapped_fields="LOAD_ALL"}, which loads every unmapped source field as its own
+         * {@code keyword} output column without requiring each field to be referenced in the query.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL(Build.current().isSnapshot()),
+
+        /**
          * Support for the {@code ==} operator on the root of a {@code flattened} field in ES|QL.
          */
         FN_EQUALS_FLATTENED,
@@ -3330,6 +3409,11 @@ public class EsqlCapabilities {
         EQUALITY_DATE_RANGE(DATE_RANGE_FIELD_TYPE_V6.isEnabled()),
 
         /**
+         * Support for equality ({@code ==}, {@code !=}) and {@code IN} with the {@code double_range} type.
+         */
+        EQUALITY_DOUBLE_RANGE(DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V9.isEnabled()),
+
+        /**
          * Fix TopN encoding/decoding of {@code long_range} values.
          * <a href="https://github.com/elastic/elasticsearch/issues/150383">#150383</a>
          */
@@ -3350,6 +3434,12 @@ public class EsqlCapabilities {
          * <a href="https://github.com/elastic/elasticsearch/issues/148620">#148620</a>
          */
         PROMQL_LABEL_MATCHER_PARAMS,
+
+        /**
+         * Support for identifier parameters in PromQL label lists:
+         * <a href="https://github.com/elastic/elasticsearch/issues/152500">#152500</a>
+         */
+        PROMQL_LABEL_LIST_IDENTIFIER_PARAMS,
 
         /**
          * Fix for PromQL scalar integer division losing the fractional part.
@@ -3402,7 +3492,7 @@ public class EsqlCapabilities {
         /**
          * Support for the {@code HIGHLIGHT} command.
          */
-        HIGHLIGHT_V5(Build.current().isSnapshot()),
+        HIGHLIGHT_V6(Build.current().isSnapshot()),
 
         /**
          * Support for PromQL {@code histogram_quantile()} over classic histograms with {@code le} buckets.
@@ -3503,6 +3593,16 @@ public class EsqlCapabilities {
         PROMQL_TOPK,
 
         /**
+         * Support for the PromQL {@code bottomk()} order-statistic aggregation.
+         */
+        PROMQL_BOTTOMK,
+
+        /**
+         * Support for the PromQL {@code limitk()} arbitrary-selection function.
+         */
+        PROMQL_LIMITK,
+
+        /**
          * Fix PromQL {@code topk()} over an already-aggregated vector (e.g. {@code topk(k, sum by (...) (...))}).
          * The outer aggregate must wrap the passthrough value in {@code VALUES} so physical planning registers it
          * in the layout; without that, execution fails with {@code can't find input for [topk(...)]}.
@@ -3521,6 +3621,52 @@ public class EsqlCapabilities {
          * Fix multi value unsigned long conversion to aggregate metric double
          */
         FIX_UNSIGNED_LONG_TO_AGGREGATE_METRIC_DOUBLE,
+
+        /**
+         * Constant folding of logical operators ({@code AND}, {@code OR}, {@code NOT}) applied to multivalue
+         * constants returns {@code null}, matching runtime semantics, instead of throwing a {@code ClassCastException}.
+         */
+        FIX_LOGICAL_OPERATORS_FOLDING_ON_MULTIVALUE_CONSTANTS,
+
+        /**
+         * Support for the {@code {"include_empty_buckets": true}} option on the {@code BUCKET} grouping function, which
+         * makes {@code STATS ... BY BUCKET(...)} emit empty buckets (filled with zero/null aggregate values) across the
+         * whole {@code from}..{@code to} range.
+         */
+        BUCKET_INCLUDE_EMPTY_BUCKETS,
+
+        /**
+         * {@code InferIsNotNull} now only infers {@code IS NOT NULL} on the root fields of an
+         * {@code IS NOT NULL} predicate through null-propagating expressions (an allow-list).
+         * See: <a href="https://github.com/elastic/elasticsearch/issues/155101">#155101</a>
+         */
+        FIX_INFER_IS_NOT_NULL_ALLOWLIST,
+
+        /**
+         * A {@code TS} aggregation whose time bucket is named after the timestamp field, e.g.
+         * {@code TS metrics | STATS max(cost) BY @timestamp = BUCKET(@timestamp, 1 minute)}, no longer fails with
+         * {@code optimized incorrectly due to missing references [@timestamp]}: the internal first-pass bucket alias no
+         * longer shadows the field that the per-time-series aggregation reads.
+         * See: <a href="https://github.com/elastic/elasticsearch/issues/153030">#153030</a>
+         */
+        FIX_TS_TIME_BUCKET_NAMED_AFTER_TIMESTAMP,
+
+        /**
+         * When {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesAggregate} expands a
+         * {@code TS} {@code STATS} with PackDims, drop second-pass aggregate aliases whose names collide with a
+         * grouping key (grouping wins), matching non-TS {@code STATS} shadowing via
+         * {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.RemoveStatsOverride}. Without this, the rewrite
+         * emits {@code Project[[alias, grouping]]} with duplicate names and post-optimization verification fails.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/153507">#153507</a>.
+         */
+        FIX_TS_STATS_ALIAS_GROUPING_SHADOW,
+
+        /*
+         * CHANGE_POINT now uses EventDetector (multiple events, log-space p-values), which can report
+         * a change point at a slightly different bucket and with different p-values than the previous
+         * implementation.
+         */
+        CHANGE_POINT_MULTIPLE_EVENTS,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

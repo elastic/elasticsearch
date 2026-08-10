@@ -158,6 +158,31 @@ public class LibraryProcessorTests extends ProcessorTestCase {
     }
 
     /**
+     * The {@link org.elasticsearch.foreign.Critical.UnsupportedFallback} sentinel satisfies the required
+     * {@code fallbackAdapter} without a real adapter class.
+     */
+    public void testUnsupportedFallbackSentinel() throws Exception {
+        String source = """
+            package test;
+            import java.lang.foreign.MemorySegment;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.Critical;
+            @LibrarySpecification(name = "testlib")
+            public interface GatedLib {
+                @Function("native_fn")
+                @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
+                long fn(MemorySegment dst, long dstCap);
+            }
+            """;
+
+        CompilationResult result = compile("test.GatedLib", source);
+
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+        assertNotNull(result.loadClassNoInit("test.GatedLib$Impl"));
+    }
+
+    /**
      * A {@code @LibrarySpecification} annotation on a non-abstract class should emit an error.
      */
     public void testAnnotationOnClassEmitsError() {

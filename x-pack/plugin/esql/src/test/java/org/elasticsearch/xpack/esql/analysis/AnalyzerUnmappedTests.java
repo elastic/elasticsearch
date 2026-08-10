@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
@@ -96,6 +97,8 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         DataType.COUNTER_INTEGER,
         DataType.COUNTER_LONG,
         DataType.DENSE_VECTOR,
+        // TODO: DOUBLE_RANGE: fix for double range
+        DataType.DOUBLE_RANGE,
         DataType.EXPONENTIAL_HISTOGRAM,
         DataType.FLATTENED,
         DataType.HISTOGRAM,
@@ -865,8 +868,6 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             FROM languages_mixed_numerics, partial_message_types_lookup, (FROM clientips)
             | EVAL x = to_string(language_code_float)
             """));
-        // The raw language_code_float still flows to the default output as a non-loadable float PUNK (null where unmapped).
-        assertWarnings(nonLoadablePunkWarning("language_code_float", "float"));
     }
 
     public void testLoadModeToStringOverMultiTypeUnionFieldInSubqueryBranch() {
@@ -888,8 +889,6 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             FROM clientips, (FROM languages_mixed_numerics, partial_message_types_lookup)
             | EVAL x = to_string(language_code_float)
             """));
-        // The raw language_code_float still flows to the default output as a non-loadable float PUNK (null where unmapped).
-        assertWarnings(nonLoadablePunkWarning("language_code_float", "float"));
     }
 
     public void testLoadModeCrossBranchTextPunkResolvesToTextNotUnsupported() {
@@ -948,7 +947,6 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         assertThat(foo.dataType(), equalTo(DataType.DOUBLE));
         plan.output()
             .forEach(at -> assertThat(at.name() + " should not be UNSUPPORTED", at.dataType(), not(equalTo(DataType.UNSUPPORTED))));
-        assertWarnings(nonLoadablePunkWarning("foo", "float"));
     }
 
     public void testSingleTypeLongUnmappedAutoCast() {
@@ -1462,6 +1460,56 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             "PROMQL index=test start=\"2025-01-01T00:00:00Z\" end=\"2025-01-01T01:00:00Z\" buckets=10 avg(network.bytes_in)",
             allOf(containsString("Found 1 problem"), containsString("line 1:114: PROMQL is not supported with unmapped_fields=\"load\""))
         );
+    }
+
+    /**
+     * The MVP allow-list of {@link Verifier#checkLoadAllModeSupportedCommands} rejects every other command, naming the one it found.
+     */
+    public void testLoadAllModeRejectsUnsupportedCommands() {
+        for (var commandAndLabel : List.of(
+            Tuple.tuple("| STATS COUNT(*) BY languages", "STATS"),
+            Tuple.tuple("| DISSECT first_name \"%{a}\"", "DISSECT"),
+            Tuple.tuple("| GROK first_name \"%{WORD:a}\"", "GROK"),
+            Tuple.tuple("| MV_EXPAND first_name", "MV_EXPAND"),
+            Tuple.tuple("| FORK (WHERE emp_no > 1) (WHERE emp_no < 100)", "FORK"),
+            Tuple.tuple("| EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code", "LOOKUP JOIN")
+        )) {
+            test().addLanguagesLookup()
+                .statementError(
+                    setUnmappedLoadAll("FROM test " + commandAndLabel.v1()),
+                    containsString(
+                        "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT and LIMIT commands; ["
+                            + commandAndLabel.v2()
+                            + "] is not supported yet"
+                    )
+                );
+        }
+    }
+
+    public void testLoadAllModeAllowsSupportedCommands() {
+        LogicalPlan plan = test().statement(setUnmappedLoadAll("""
+            FROM test
+            | WHERE emp_no > 1
+            | EVAL x = salary + 1
+            | RENAME first_name AS name
+            | KEEP name, x, salary
+            | DROP salary
+            | SORT name
+            | LIMIT 10
+            """));
+        assertThat(Expressions.names(plan.output()), equalTo(List.of("name", "x", UnmappedFieldsAttribute.ATTRIBUTE_NAME)));
+    }
+
+    /**
+     * PROMQL is rewritten into a TS aggregate before verification, so LOAD_ALL rejects it via the shared load-mode check - which names
+     * the mode the user asked for - as well as via the allow-list.
+     */
+    public void testLoadAllModeRejectsPromQl() {
+        test().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES)
+            .statementError(
+                setUnmappedLoadAll("PROMQL index=test step=5m avg(network.bytes_in)"),
+                containsString("PROMQL is not supported with unmapped_fields=\"load_all\"")
+            );
     }
 
     // nullify is allowed with PromQL (unlike load), but a field after the collapsing aggregate still fails.
@@ -2010,6 +2058,39 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         assertWarnings(nonLoadablePunkWarning("partial_text", "text"));
     }
 
+    /**
+     * Reproducer for #150375.
+     */
+    public void testTwoLeggedPunkExplicitCastRejectingMappedTypeFails() {
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
+
+        analyzer().addIndex(partialIpIndex())
+            .statementError(
+                setUnmappedLoad("FROM idx* | EVAL x = partial_ip::integer | KEEP x"),
+                containsString("Mapped types [ip] of partially unmapped field [partial_ip] cannot be accepted in [partial_ip::integer]")
+            );
+    }
+
+    /**
+     * Reproducer for #150375.
+     */
+    public void testTwoLeggedPunkConvertFunctionRejectingKeywordFails() {
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
+
+        analyzer().addIndex(partialIpIndex())
+            .statementError(
+                setUnmappedLoad("FROM idx* | EVAL x = TO_DEGREES(partial_ip) | KEEP x"),
+                containsString("[partial_ip] is loaded as [KEYWORD] where unmapped, but [TO_DEGREES(partial_ip)] does not accept [KEYWORD]")
+            );
+    }
+
+    private static EsIndex partialIpIndex() {
+        return partialIndex(
+            Map.of("partial_ip", new EsField("partial_ip", DataType.IP, emptyMap(), true, EsField.TimeSeriesFieldType.NONE)),
+            Set.of("partial_ip")
+        );
+    }
+
     private static final List<DataType> SMALL_NUMERIC_TYPES = List.of(
         DataType.SHORT,
         DataType.BYTE,
@@ -2063,8 +2144,21 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
                 ((AbstractConvertFunction) compact.getUnmappedConversionExpression()).field().dataType(),
                 is(DataType.KEYWORD)
             );
-            // The raw (uncast) field reaches the default output and falls back to null where unmapped.
-            assertWarnings(nonLoadablePunkWarning(smallTypeField, dt.typeName()));
+        }
+    }
+
+    /** Regression test for #152997. */
+    public void testTwoLeggedPunkSmallNumericImplicitAutoCast() {
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
+
+        for (DataType dt : SMALL_NUMERIC_TYPES) {
+            EsIndex esIndex = partialIndex(
+                Map.of("f", new EsField("f", dt, emptyMap(), true, EsField.TimeSeriesFieldType.NONE)),
+                Set.of("f")
+            );
+            var plan = analyzer().addIndex(esIndex).statement(setUnmappedLoad("FROM idx* | SORT f"));
+            assertThat(plan, not(nullValue()));
+            assertTwoLeggedPunkResolution(plan, "f", dt.widenSmallNumeric());
         }
     }
 

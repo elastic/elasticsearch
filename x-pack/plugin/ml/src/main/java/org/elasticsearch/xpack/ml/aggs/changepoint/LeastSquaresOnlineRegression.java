@@ -16,7 +16,8 @@ import java.util.OptionalDouble;
 
 class LeastSquaresOnlineRegression {
 
-    private static final double SINGLE_VALUE_DECOMPOSITION_MAX_COND = 1e+15;
+    private static final double SINGLE_VALUE_DECOMPOSITION_MAX_COND = 1e+12;
+    private static final double VARIANCE_PRECISION_ULP_FACTOR = 32.0;
 
     private final RunningStatistics statistics;
     private final Array2DRowRealMatrix Nx;
@@ -32,35 +33,106 @@ class LeastSquaresOnlineRegression {
         this.Nz = new Array2DRowRealMatrix(this.N, 1);
     }
 
-    double rSquared() {
+    public double residualVariance() {
+        return residualVarianceForDegree(N - 1);
+    }
+
+    /**
+     * Residual variance of the best polynomial fit of the given {@code degree}, computed from the
+     * already-accumulated moments without re-reading the data. The normal-equation system for any
+     * degree is a leading principal submatrix of the order-N system, so one accumulation at the
+     * maximum degree yields the fit for every degree less than that maximum — removing a factor of
+     * {@code degree} from a per-degree model search. Falls back to a lower degree if the requested
+     * one is ill-conditioned, matching the behaviour of {@link #residualVariance()}.
+     */
+    public double residualVarianceForDegree(int degree) {
+        if (statistics.count <= 0.0) {
+            return 0.0;
+        }
+        double meanY = statistics.stats[2 * N - 1];
+        double varRaw = statistics.stats[3 * N - 1] - meanY * meanY;
+        double var = Math.max(varRaw, variancePrecisionFloor(meanY));
+        int n = Math.min(Math.max(degree + 1, 1), N) + 1;
+        boolean done = false;
+        double residualVariance = var;
+        while (--n > 0 && done == false) {
+            if (n == 1) {
+                return var; // Mean-only fit; residual variance is just total variance
+            }
+            Array2DRowRealMatrix x = new Array2DRowRealMatrix(n, n);
+            Array2DRowRealMatrix y = new Array2DRowRealMatrix(n, 1);
+            Array2DRowRealMatrix z = new Array2DRowRealMatrix(n, 1);
+            OptionalDouble maybeResidualVar = residualVariance(n, x, y, z);
+            if (maybeResidualVar.isPresent()) {
+                residualVariance = clampResidualVariance(maybeResidualVar.getAsDouble(), var);
+                done = true;
+            }
+        }
+        return clampResidualVariance(residualVariance, var);
+    }
+
+    public static double variancePrecisionFloor(double mean) {
+        // The noise floor for the trend residual variance estimate given it's calculated as E[y^2] - E[y]^2,
+        // which carries rounding error of order ulp(mean^2) ~ |mean| * ulp(|mean|).
+        double scale = Math.max(Math.abs(mean), 1.0);
+        return VARIANCE_PRECISION_ULP_FACTOR * scale * Math.ulp(scale);
+    }
+
+    public double rSquared() {
         if (statistics.count <= 0.0) {
             return 0.0;
         }
         double var = statistics.stats[3 * N - 1] - statistics.stats[2 * N - 1] * statistics.stats[2 * N - 1];
-        double residualVariance = var;
-        int n = N + 1;
-        boolean done = false;
-        while (--n > 0 && done == false) {
-            if (n == 1) {
-                return 0.0;
-            } else if (n == this.N) {
-                OptionalDouble maybeResidualVar = residualVariance(N, Nx, Ny, Nz);
-                if (maybeResidualVar.isPresent()) {
-                    residualVariance = maybeResidualVar.getAsDouble();
-                    done = true;
-                }
-            } else {
-                Array2DRowRealMatrix x = new Array2DRowRealMatrix(n, n);
-                Array2DRowRealMatrix y = new Array2DRowRealMatrix(n, 1);
-                Array2DRowRealMatrix z = new Array2DRowRealMatrix(n, 1);
-                OptionalDouble maybeResidualVar = residualVariance(n, x, y, z);
-                if (maybeResidualVar.isPresent()) {
-                    residualVariance = maybeResidualVar.getAsDouble();
-                    done = true;
-                }
+        if (var <= 0.0) {
+            return 1.0; // Perfect fit if there is zero total variance
+        }
+
+        double resVar = residualVariance();
+        return Math.min(Math.max(1.0 - resVar / var, 0.0), 1.0);
+    }
+
+    public double slopeSign() {
+        if (N < 2) {
+            return 0.0;
+        }
+        // Sign of the OLS slope = sign of Cov(x, y) = E[xy] - E[x] E[y]. From statisticAdj the moment
+        // layout is E[x] = stats[1], E[y] = stats[2N-1], E[xy] = stats[2N].
+        return Math.signum(statistics.stats[2 * N] - statistics.stats[1] * statistics.stats[2 * N - 1]);
+    }
+
+    /**
+     * The fitted polynomial coefficients (lowest order first) in the coordinate basis the points were
+     * added in, or a mean-only fit ({@code {E[y], 0, ...}}) when the normal-equation system is singular
+     * (the same condition under which {@link #residualVariance()} falls back to a lower degree).
+     */
+    public double[] parameters() {
+        double[] params = new double[N];
+        if (statistics.count <= 0.0) {
+            return params;
+        }
+        params[0] = statistics.stats[2 * N - 1]; // mean-only fallback (intercept = E[y], higher orders zero)
+        if (N < 2) {
+            return params;
+        }
+        Array2DRowRealMatrix m = new Array2DRowRealMatrix(N, N);
+        Array2DRowRealMatrix b = new Array2DRowRealMatrix(N, 1);
+        for (int i = 0; i < N; ++i) {
+            m.setEntry(i, i, statistics.stats[i + i]);
+            b.setEntry(i, 0, statistics.stats[i + 2 * N - 1]);
+            for (int j = i + 1; j < N; ++j) {
+                m.setEntry(i, j, statistics.stats[i + j]);
+                m.setEntry(j, i, statistics.stats[i + j]);
             }
         }
-        return Math.min(Math.max(1.0 - residualVariance / var, 0.0), 1.0);
+        SingularValueDecomposition svd = new SingularValueDecomposition(m);
+        double[] singularValues = svd.getSingularValues();
+        if (singularValues[0] <= SINGLE_VALUE_DECOMPOSITION_MAX_COND * singularValues[N - 1]) {
+            RealMatrix r = svd.getSolver().solve(b);
+            for (int i = 0; i < N; ++i) {
+                params[i] = r.getEntry(i, 0);
+            }
+        }
+        return params;
     }
 
     private double[] statisticAdj(double x, double y) {
@@ -75,6 +147,18 @@ class LeastSquaresOnlineRegression {
         }
         d[3 * N - 1] = y * y;
         return d;
+    }
+
+    void add(double[] yValues, double[] weights, int start, int end) {
+        for (int i = start; i < end && i < yValues.length; i++) {
+            add(i, yValues[i], weights[i]);
+        }
+    }
+
+    void remove(double[] yValues, double[] weights, int start, int end) {
+        for (int i = start; i < end && i < yValues.length; i++) {
+            remove(i, yValues[i], weights[i]);
+        }
     }
 
     void add(double x, double y, double weight) {
@@ -109,7 +193,15 @@ class LeastSquaresOnlineRegression {
         RealMatrix yr = y.transpose().multiply(r);
         RealMatrix zr = z.transpose().multiply(r);
         double t = statistics.stats[2 * N - 1] - zr.getEntry(0, 0);
-        return OptionalDouble.of((statistics.stats[3 * N - 1] - yr.getEntry(0, 0)) - (t * t));
+        double residual = (statistics.stats[3 * N - 1] - yr.getEntry(0, 0)) - (t * t);
+        if (Double.isFinite(residual) == false) {
+            return OptionalDouble.empty();
+        }
+        return OptionalDouble.of(residual);
+    }
+
+    private double clampResidualVariance(double residualVariance, double totalVariance) {
+        return Math.max(0.0, Math.min(residualVariance, totalVariance));
     }
 
     private static class RunningStatistics {

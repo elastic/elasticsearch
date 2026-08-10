@@ -1603,7 +1603,7 @@ public class SharedBlobCacheWarmingService {
 
         void run() {
             scheduleWarmingTask(
-                new WarmBlobByteRangeTask(warmingRun.type, blobFile, byteRangeToWarm, timestampMillis, listeners.acquire())
+                new WarmBlobByteRangeTask(warmingRun.type, blobFile, byteRangeToWarm, blobSize, timestampMillis, listeners.acquire())
             );
         }
 
@@ -1960,11 +1960,13 @@ public class SharedBlobCacheWarmingService {
             private final ActionListener<Void> listener;
             // used to handle a spurious #onFailure invocation after #onResponse has already been invoked
             private final AtomicBoolean dequeued = new AtomicBoolean(false);
+            private final Map<String, Object> bccSizeAttributes;
 
             WarmBlobByteRangeTask(
                 Type type,
                 BlobFile blobFile,
                 ByteRange byteRangeToWarm,
+                long blobSize,
                 long timestampMillis,
                 ActionListener<Void> listener
             ) {
@@ -1972,10 +1974,11 @@ public class SharedBlobCacheWarmingService {
                 this.blobFile = Objects.requireNonNull(blobFile);
                 this.byteRangeToWarm = byteRangeToWarm;
                 this.timestampMillis = timestampMillis;
-                enqueuedBccBlobsMetric.add(1);
+                this.bccSizeAttributes = Map.of(BCC_SIZE_ATTRIBUTE_KEY, bccSizeBucket(blobSize));
+                enqueuedBccBlobsMetric.add(1, bccSizeAttributes);
                 this.listener = ActionListener.runBefore(listener, () -> {
-                    runningBccBlobsMetric.add(-1);
-                    doneBccBlobsMetric.incrementBy(1);
+                    runningBccBlobsMetric.add(-1, bccSizeAttributes);
+                    doneBccBlobsMetric.incrementBy(1, bccSizeAttributes);
                 });
                 logger.trace("{} {}: scheduled {} {}", warmingRun.shardId(), warmingRun.type(), blobFile, byteRangeToWarm);
             }
@@ -1983,8 +1986,8 @@ public class SharedBlobCacheWarmingService {
             @Override
             public void onResponse(Releasable releasable) {
                 if (dequeued.compareAndSet(false, true)) {
-                    enqueuedBccBlobsMetric.add(-1);
-                    runningBccBlobsMetric.add(1);
+                    enqueuedBccBlobsMetric.add(-1, bccSizeAttributes);
+                    runningBccBlobsMetric.add(1, bccSizeAttributes);
                 }
                 if (isCancelled()) {
                     listener.onResponse(null);
@@ -2034,7 +2037,7 @@ public class SharedBlobCacheWarmingService {
                 // If onResponse already ran (dequeued is true), this is the assert-false path in
                 // AbstractThrottledTaskRunner, we'll leave the counters alone to avoid a double-decrement.
                 if (dequeued.compareAndSet(false, true)) {
-                    enqueuedBccBlobsMetric.add(-1);
+                    enqueuedBccBlobsMetric.add(-1, bccSizeAttributes);
                 }
                 logger.warn(
                     () -> format("%s %s failed to warm blob %s %s", warmingRun.shardId(), warmingRun.type(), blobFile, byteRangeToWarm),

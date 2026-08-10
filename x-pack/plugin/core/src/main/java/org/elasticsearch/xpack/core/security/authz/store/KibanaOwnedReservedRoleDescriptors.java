@@ -755,10 +755,7 @@ class KibanaOwnedReservedRoleDescriptors {
                 // Context Engine feedback-loop signals. Per-space, regular (non-system)
                 // user indices that Kibana creates and manages via the storage adapter
                 // (one index per Kibana space: context-engine-signals-<space>).
-                RoleDescriptor.IndicesPrivileges.builder()
-                    .indices("context-engine-signals-*")
-                    .privileges("all")
-                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder().indices("context-engine-signals-*").privileges("all").build(),
                 // Significant events. Kibana system user manages index plumbing and document access.
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".significant_events-*")

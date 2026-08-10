@@ -57,42 +57,35 @@ public final class AsymmetricHashingScorer {
     public static byte[] pack(float[] codes, int bitsPerDim) {
         int nDims = codes.length;
         int planeBytes = (nDims + 7) >>> 3;
-        byte[] packed = new byte[bitsPerDim * planeBytes];
-        pack(codes, bitsPerDim, packed, 0);
-        return packed;
-    }
-
-    /**
-     * Packs multi-bit quantized codes into a pre-allocated byte buffer at the given offset.
-     * The target region is zeroed before writing. This avoids per-vector allocation in bulk encoding loops.
-     *
-     * @param codes float array of quantized levels from {@code AshSphericalScalarQuantizer}
-     * @param bitsPerDim number of bits per dimension
-     * @param target pre-allocated byte buffer to write into
-     * @param targetOffset starting byte offset within target
-     */
-    public static void pack(float[] codes, int bitsPerDim, byte[] target, int targetOffset) {
-        int nDims = codes.length;
-        int planeBytes = (nDims + 7) >>> 3;
-        int totalBytes = bitsPerDim * planeBytes;
-        // Zero the target range
-        for (int i = 0; i < totalBytes; i++) {
-            target[targetOffset + i] = 0;
-        }
         int numLevels = 1 << bitsPerDim;
         float offset = (numLevels - 1) / 2.0f;
-        for (int j = 0; j < nDims; j++) {
-            int unsigned = Math.round(codes[j] + offset);
-            if (unsigned < 0) unsigned = 0;
-            if (unsigned >= numLevels) unsigned = numLevels - 1;
-            int byteIdx = j >>> 3;
-            int bitIdx = 7 - (j & 7); // MSB-first
-            for (int p = 0; p < bitsPerDim; p++) {
-                if ((unsigned & (1 << p)) != 0) {
-                    target[targetOffset + p * planeBytes + byteIdx] |= (byte) (1 << bitIdx);
+
+        int[] rounded = new int[nDims];
+        for (int i = 0; i < nDims; i++) {
+            rounded[i] = Math.clamp(Math.round(codes[i] + offset), 0, numLevels - 1);
+        }
+
+        byte[] packed = new byte[bitsPerDim * planeBytes];
+        switch (bitsPerDim) {
+            case 1 -> ESVectorUtil.pack1BitValues(rounded, packed);
+            case 2 -> ESVectorUtil.stride2BitValues(rounded, packed);
+            case 4 -> ESVectorUtil.stride4BitValues(rounded, packed);
+            case 3, 8 -> {
+                // TODO: optimized implementations
+                for (int j = 0; j < nDims; j++) {
+                    int byteIdx = j >>> 3;
+                    int bitIdx = 7 - (j & 7); // MSB-first
+                    for (int p = 0; p < bitsPerDim; p++) {
+                        if ((rounded[j] & (1 << p)) != 0) {
+                            packed[p * planeBytes + byteIdx] |= (byte) (1 << bitIdx);
+                        }
+                    }
                 }
             }
+            default -> throw new IllegalArgumentException("Unsupported bitsPerDim: " + bitsPerDim);
         }
+
+        return packed;
     }
 
     /**
@@ -135,6 +128,7 @@ public final class AsymmetricHashingScorer {
         for (int j = 0; j < nDims; j++) {
             float qt = queryTransformed[j];
             sumAll += qt;
+            // TODO: this is a more general form of ESVectorUtil.ipFloatBit
             int byteIdx = j >>> 3;
             int bitIdx = 7 - (j & 7);
             for (int p = 0; p < bitsPerDim; p++) {
@@ -146,8 +140,72 @@ public final class AsymmetricHashingScorer {
 
         double dot = -centerOffset * sumAll;
         for (int p = 0; p < bitsPerDim; p++) {
-            dot += (1 << p) * planeSums[p];
+            dot = Math.fma(1 << p, planeSums[p], dot);
         }
         return (float) dot * scale + queryDotCentroid + offset;
+    }
+
+    /**
+     * Scores a single database vector using integer arithmetic with a quantized query.
+     * The query is quantized to {@code queryBitsPerDim} bits and scoring uses AND+popcount
+     * between query and document bit planes, with per-vector correction via stored docSum.
+     * <p>
+     * This generalizes the D2Q4 (document 2-bit, query 4-bit) pattern to arbitrary bit widths.
+     * <p>
+     * Derivation: the float scorer computes {@code dot(qt_float, centeredCode) * scale + qdc + offset}.
+     * We approximate {@code qt_float[j] ≈ invQScale * qt_quantized[j] + qOffset}, so:
+     * <pre>
+     *   dot(qt_float, centeredCode)
+     *     = dot(qt_float, unsignedCode) - centerOffset * sum(qt_float)
+     *     ≈ invQScale * dot(qt_q, unsignedCode) + qOffset * sum(unsignedCode)
+     *       - centerOffset * (invQScale * sum(qt_q) + qOffset * nDims)
+     *     = invQScale * rawDot + qOffset * docSum - constantCorrection
+     * </pre>
+     * where {@code rawDot = dot(qt_q, unsignedCode)} via AND+popcount, {@code docSum = sum(unsignedCode)}
+     * is precomputed at index time, and {@code constantCorrection} is precomputed per query.
+     *
+     * @param queryQuantized quantized query in bit-plane format (queryBitsPerDim × planeBytes)
+     * @param queryBitsPerDim bits per dimension for the quantized query
+     * @param queryDotCentroid precomputed query . centroid for this cluster
+     * @param packedCodes byte buffer containing packed document codes
+     * @param codeOffset starting byte offset for this vector's codes within the buffer
+     * @param bitsPerDim bits per dimension for document codes
+     * @param planeBytes bytes per single bit-plane (ceil(nDims/8))
+     * @param scale the scale factor for this vector
+     * @param offset the offset correction for this vector (includes cross-term per Eq. 19)
+     * @param docSum precomputed sum of unsigned document code values
+     * @param invQScale inverse query quantization scale (queryRange / (numQueryLevels - 1))
+     * @param qOffset query quantization offset (min of queryTransformed)
+     * @param constantCorrection precomputed: centerOffset * (unsignedQuerySum * invQScale + qOffset * nDims)
+     * @return approximate dot product
+     */
+    public static float scoreInteger(
+        byte[] queryQuantized,
+        int queryBitsPerDim,
+        float queryDotCentroid,
+        byte[] packedCodes,
+        int codeOffset,
+        int bitsPerDim,
+        int planeBytes,
+        float scale,
+        float offset,
+        short docSum,
+        float invQScale,
+        float qOffset,
+        float constantCorrection
+    ) {
+        int rawDot = 0;
+        for (int qp = 0; qp < queryBitsPerDim; qp++) {
+            for (int dp = 0; dp < bitsPerDim; dp++) {
+                int weight = (1 << qp) * (1 << dp);
+                int pc = 0;
+                for (int b = 0; b < planeBytes; b++) {
+                    pc += Integer.bitCount((queryQuantized[qp * planeBytes + b] & packedCodes[codeOffset + dp * planeBytes + b]) & 0xFF);
+                }
+                rawDot += weight * pc;
+            }
+        }
+        float floatDot = Math.fma(invQScale, rawDot, Math.fma(qOffset, docSum, -constantCorrection));
+        return Math.fma(floatDot, scale, queryDotCentroid + offset);
     }
 }

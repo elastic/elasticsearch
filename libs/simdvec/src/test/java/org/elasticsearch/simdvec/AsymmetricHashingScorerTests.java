@@ -159,35 +159,104 @@ public class AsymmetricHashingScorerTests extends ESTestCase {
         }
     }
 
-    public void testInPlacePackMatchesAllocatingPack() {
-        // Verify the in-place pack overload produces identical bytes to the allocating version
-        for (int bitsPerDim = 1; bitsPerDim <= 4; bitsPerDim++) {
-            int numAbsLevels = 1 << (bitsPerDim - 1);
-            int nDims = randomIntBetween(4, 128);
-            int packedLen = AsymmetricHashingScorer.packedLength(nDims, bitsPerDim);
+    public void testScoreIntegerApproximatesFloat() {
+        // Verify integer scoring with quantized query produces correlated results with float scoring.
+        // The integer path trades precision for throughput; we verify rank correlation over many vectors
+        // rather than per-vector closeness, since quantization error accumulates across dimensions.
+        int bitsPerDim = 2;
+        int numAbsLevels = 1 << (bitsPerDim - 1);
+        int nDims = 32;
+        int planeBytes = (nDims + 7) >>> 3;
+        int nVectors = 100;
 
-            float[] codes = new float[nDims];
+        for (int queryBits : new int[] { 4, 8 }) {
+            // Random query transform
+            float[] qt = new float[nDims];
             for (int j = 0; j < nDims; j++) {
-                float sign = randomBoolean() ? 1.0f : -1.0f;
-                int level = randomIntBetween(0, numAbsLevels - 1);
-                codes[j] = sign * (0.5f + level);
+                qt[j] = (float) random().nextGaussian();
+            }
+            float qdc = (float) random().nextGaussian();
+
+            // Quantize query
+            float qMin = Float.MAX_VALUE, qMax = -Float.MAX_VALUE;
+            for (int j = 0; j < nDims; j++) {
+                qMin = Math.min(qMin, qt[j]);
+                qMax = Math.max(qMax, qt[j]);
+            }
+            float range = qMax - qMin;
+            int numQueryLevels = 1 << queryBits;
+            float qScale = range > 0 ? (numQueryLevels - 1) / range : 1.0f;
+            float invQScale = range > 0 ? range / (numQueryLevels - 1) : 0f;
+            float centerOff = ((1 << bitsPerDim) - 1) / 2.0f;
+
+            byte[] queryQuantized = new byte[queryBits * planeBytes];
+            int unsignedQuerySum = 0;
+            for (int j = 0; j < nDims; j++) {
+                int qlevel = Math.clamp(Math.round((qt[j] - qMin) * qScale), 0, numQueryLevels - 1);
+                unsignedQuerySum += qlevel;
+                int byteIdx = j >>> 3;
+                int bitIdx = 7 - (j & 7);
+                for (int p = 0; p < queryBits; p++) {
+                    if (((qlevel >> p) & 1) != 0) {
+                        queryQuantized[p * planeBytes + byteIdx] |= (byte) (1 << bitIdx);
+                    }
+                }
+            }
+            float constantCorrection = centerOff * (unsignedQuerySum * invQScale + qMin * nDims);
+
+            // Score many vectors with both paths and check rank correlation
+            float[] floatScores = new float[nVectors];
+            float[] intScores = new float[nVectors];
+            for (int v = 0; v < nVectors; v++) {
+                float[] codes = new float[nDims];
+                for (int j = 0; j < nDims; j++) {
+                    float sign = randomBoolean() ? 1.0f : -1.0f;
+                    int level = randomIntBetween(0, numAbsLevels - 1);
+                    codes[j] = sign * (0.5f + level);
+                }
+                byte[] packed = AsymmetricHashingScorer.pack(codes, bitsPerDim);
+                float scale = 0.5f + randomFloat() * 2;
+                float offset = (float) random().nextGaussian() * 0.5f;
+                int docSum = 0;
+                for (int j = 0; j < nDims; j++) {
+                    docSum += Math.round(codes[j] + centerOff);
+                }
+
+                floatScores[v] = AsymmetricHashingScorer.score(qt, qdc, packed, 0, nDims, bitsPerDim, scale, offset);
+                intScores[v] = AsymmetricHashingScorer.scoreInteger(
+                    queryQuantized,
+                    queryBits,
+                    qdc,
+                    packed,
+                    0,
+                    bitsPerDim,
+                    planeBytes,
+                    scale,
+                    offset,
+                    (short) docSum,
+                    invQScale,
+                    qMin,
+                    constantCorrection
+                );
             }
 
-            byte[] allocating = AsymmetricHashingScorer.pack(codes, bitsPerDim);
-            byte[] inPlace = new byte[packedLen + 10]; // extra padding to verify no overwrite
-            java.util.Arrays.fill(inPlace, (byte) 0xFF); // fill with sentinel
-            AsymmetricHashingScorer.pack(codes, bitsPerDim, inPlace, 5); // offset=5 into padding
+            // Verify Pearson correlation > threshold (rank preservation)
+            double sumF = 0, sumI = 0, sumFF = 0, sumII = 0, sumFI = 0;
+            for (int v = 0; v < nVectors; v++) {
+                sumF += floatScores[v];
+                sumI += intScores[v];
+                sumFF += (double) floatScores[v] * floatScores[v];
+                sumII += (double) intScores[v] * intScores[v];
+                sumFI += (double) floatScores[v] * intScores[v];
+            }
+            double meanF = sumF / nVectors, meanI = sumI / nVectors;
+            double varF = sumFF / nVectors - meanF * meanF;
+            double varI = sumII / nVectors - meanI * meanI;
+            double covFI = sumFI / nVectors - meanF * meanI;
+            double pearson = covFI / Math.sqrt(varF * varI);
 
-            for (int i = 0; i < packedLen; i++) {
-                assertEquals("Mismatch at byte " + i + " for bitsPerDim=" + bitsPerDim, allocating[i], inPlace[5 + i]);
-            }
-            // Verify padding wasn't overwritten
-            for (int i = 0; i < 5; i++) {
-                assertEquals("Leading padding overwritten", (byte) 0xFF, inPlace[i]);
-            }
-            for (int i = 5 + packedLen; i < inPlace.length; i++) {
-                assertEquals("Trailing padding overwritten", (byte) 0xFF, inPlace[i]);
-            }
+            double threshold = queryBits >= 8 ? 0.99 : 0.85;
+            assertTrue("queryBits=" + queryBits + " Pearson correlation " + pearson + " below " + threshold, pearson > threshold);
         }
     }
 

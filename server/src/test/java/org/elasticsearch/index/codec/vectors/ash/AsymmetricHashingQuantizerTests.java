@@ -122,8 +122,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
             bitsPerDim,
             AsymmetricHashingQuantizer.Method.RANDOM,
             0,
-            10,
-            42L
+            10
         );
 
         float[][] w = quantizer.train(vectors, centroidGetter);
@@ -134,7 +133,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         assertEquals(expectedNDims, w[0].length);
 
         // Encode per-cluster using the production path
-        float[][] wT = AsymmetricHashingQuantizer.transposeW(w);
+        float[][] wT = ESVectorUtil.transposeMatrix(w);
         AsymmetricHashingQuantizer.PrecomputedCentroid precomputed = AsymmetricHashingQuantizer.precomputeCentroid(centroids[0], wT);
         for (int i = 0; i < nVectors; i++) {
             AsymmetricHashingQuantizer.EncodedVector enc = quantizer.encode(vectors[i], centroids[0], wT, precomputed);
@@ -175,14 +174,13 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
             bitsPerDim,
             AsymmetricHashingQuantizer.Method.LEARNED,
             5,
-            10,
-            42L
+            10
         );
 
         float[][] w = quantizer.train(vectors, centroidGetter);
 
         // Encode per-cluster using the production path
-        float[][] wT = AsymmetricHashingQuantizer.transposeW(w);
+        float[][] wT = ESVectorUtil.transposeMatrix(w);
         int nDims = w[0].length;
         AsymmetricHashingQuantizer.PrecomputedCentroid precomputed = AsymmetricHashingQuantizer.precomputeCentroid(centroids[0], wT);
         float[][] encodedVectors = new float[nVectors][nDims];
@@ -251,11 +249,10 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
                 bitsPerDim,
                 AsymmetricHashingQuantizer.Method.RANDOM,
                 0,
-                1,
-                42L
+                1
             );
             float[][] w = quantizer.train(new float[][] { new float[dim] }, i -> new float[dim]);
-            float[][] wT = AsymmetricHashingQuantizer.transposeW(w);
+            float[][] wT = ESVectorUtil.transposeMatrix(w);
 
             float[] centroid = new float[dim];
             float[] query = new float[dim];
@@ -338,14 +335,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
 
         IntFunction<float[]> centroidGetter = (i) -> centroids[assignments[i]];
 
-        AsymmetricHashingQuantizer quantizer = new AsymmetricHashingQuantizer(
-            0.25f,
-            2,
-            AsymmetricHashingQuantizer.Method.LEARNED,
-            5,
-            10,
-            42L
-        );
+        AsymmetricHashingQuantizer quantizer = new AsymmetricHashingQuantizer(0.25f, 2, AsymmetricHashingQuantizer.Method.LEARNED, 5, 10);
 
         // Should not throw -- falls back to random
         float[][] w = quantizer.train(vectors, centroidGetter);
@@ -486,8 +476,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
             bitsPerDim,
             AsymmetricHashingQuantizer.Method.LEARNED,
             5,
-            10,
-            seed
+            10
         );
         float[][] w = ash.train(vectors, centroidGetter);
         int nDims = w[0].length;
@@ -509,7 +498,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         double[][] approx = new double[nQueries][nVectors];
 
         // Precompute per-cluster values
-        float[][] wT = AsymmetricHashingQuantizer.transposeW(w);
+        float[][] wT = ESVectorUtil.transposeMatrix(w);
         AsymmetricHashingQuantizer.PrecomputedCentroid[] precomputedPerCluster =
             new AsymmetricHashingQuantizer.PrecomputedCentroid[nClusters];
         for (int c = 0; c < nClusters; c++) {

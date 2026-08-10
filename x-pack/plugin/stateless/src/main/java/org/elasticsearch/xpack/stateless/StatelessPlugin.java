@@ -613,7 +613,6 @@ public class StatelessPlugin extends Plugin
         logger.info("[{}] is enabled", NAME);
         hasIndexRole = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.INDEX_ROLE);
 
-        logSettings(settings);
         // It is dangerous to retain these settings because they will be further modified after this ctor due
         // to the call to #additionalSettings. We only parse out the components that has already been set.
         sharedCachedSettingExplicitlySet = SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.exists(settings);
@@ -2030,19 +2029,6 @@ public class StatelessPlugin extends Plugin
 
     public ShardsMappingSizeCollector getShardsMappingSizeCollector() {
         return shardsMappingSizeCollector.get();
-    }
-
-    private static void logSettings(final Settings settings) {
-        // TODO: Move the logging back to StatelessCommitService#new once ES-8507 is resolved
-        final var bccMaxAmountOfCommits = StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.get(settings);
-        final var bccUploadMaxSize = StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE.get(settings);
-        final var virtualBccUploadMaxAge = StatelessCommitService.STATELESS_UPLOAD_VBCC_MAX_AGE.get(settings);
-        logger.info(
-            "delayed upload with [max_commits={}], [max_size={}], [max_age={}]",
-            bccMaxAmountOfCommits,
-            bccUploadMaxSize.getStringRep(),
-            virtualBccUploadMaxAge.getStringRep()
-        );
     }
 
     private record ShouldSkipMerges(IndicesService indicesService, SplitSourceService splitSourceService) implements Predicate<ShardId> {

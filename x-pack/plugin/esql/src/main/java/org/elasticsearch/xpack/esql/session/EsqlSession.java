@@ -2316,7 +2316,10 @@ public class EsqlSession {
             LogicalPlan plan = analyzedPlan(parsed, unmappedResolution, configuration, result, executionInfo, timestampBounds);
             analysisProfile.stop();
             LOGGER.debug("Analyzed plan ({}):\n{}", description, plan);
-            // the analysis succeeded from the first attempt, irrespective if it had a filter or not, just continue with the planning
+            // Analysis succeeded on the first attempt. For unmapped_fields=nullify/load we intentionally do NOT re-resolve without the
+            // request filter to recover a field that is mapped only in a filter-pruned index: once the filter prunes an index we keep it
+            // gone. Resurrecting it would drop real data from surviving indices and turn working queries into errors. The retry
+            // below stays exception-triggered, so it only fires as a last resort to make an otherwise-failing query valid.
             listener.onResponse(new Versioned<>(plan, result.minimumTransportVersion()));
         } catch (VerificationException ve) {
             LOGGER.debug("Analyzing the plan ({}) failed with {}", description, ve.getDetailedMessage());

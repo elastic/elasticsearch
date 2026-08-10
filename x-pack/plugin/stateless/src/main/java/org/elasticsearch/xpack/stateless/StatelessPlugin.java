@@ -1387,7 +1387,6 @@ public class StatelessPlugin extends Plugin
             StatelessMemoryMetricsService.INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_VALIDITY_SETTING,
             StatelessMemoryMetricsService.MERGE_MEMORY_ESTIMATE_ENABLED_SETTING,
             StatelessMemoryMetricsService.ADAPTIVE_EXTRA_OVERHEAD_SETTING,
-            StatelessMemoryMetricsService.ADAPTIVE_SHARD_MEMORY_ESTIMATION_MIN_THRESHOLD_ENABLED_SETTING,
             StatelessMemoryMetricsService.SELF_REPORTED_SHARD_MEMORY_OVERHEAD_ENABLED_SETTING,
             ShardsMappingSizeCollector.PUBLISHING_FREQUENCY_SETTING,
             ShardsMappingSizeCollector.CUT_OFF_TIMEOUT_SETTING,

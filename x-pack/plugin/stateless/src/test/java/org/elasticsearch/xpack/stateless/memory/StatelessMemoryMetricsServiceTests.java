@@ -44,7 +44,6 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.indices.ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE;
 import static org.elasticsearch.xpack.stateless.memory.ShardMappingSize.UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES;
 import static org.elasticsearch.xpack.stateless.memory.StatelessMemoryMetricsServiceTestUtils.getLastMaxTotalPostingsInMemoryBytes;
 import static org.hamcrest.Matchers.allOf;
@@ -52,7 +51,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
@@ -75,9 +73,7 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
                 StatelessMemoryMetricsService.INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_ENABLED_SETTING,
                 StatelessMemoryMetricsService.MERGE_MEMORY_ESTIMATE_ENABLED_SETTING,
                 StatelessMemoryMetricsService.ADAPTIVE_EXTRA_OVERHEAD_SETTING,
-                StatelessMemoryMetricsService.SELF_REPORTED_SHARD_MEMORY_OVERHEAD_ENABLED_SETTING,
-                StatelessMemoryMetricsService.ADAPTIVE_SHARD_MEMORY_ESTIMATION_MIN_THRESHOLD_ENABLED_SETTING,
-                SETTING_CLUSTER_MAX_SHARDS_PER_NODE
+                StatelessMemoryMetricsService.SELF_REPORTED_SHARD_MEMORY_OVERHEAD_ENABLED_SETTING
             )
         ).collect(Collectors.toSet());
 
@@ -141,12 +137,11 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
             Settings.builder()
                 .put(StatelessMemoryMetricsService.FIXED_SHARD_MEMORY_OVERHEAD_SETTING.getKey(), "-1b")
                 .put(StatelessMemoryMetricsService.ADAPTIVE_EXTRA_OVERHEAD_SETTING.getKey(), "0%")
-                .put(StatelessMemoryMetricsService.ADAPTIVE_SHARD_MEMORY_ESTIMATION_MIN_THRESHOLD_ENABLED_SETTING.getKey(), true)
                 .build()
         );
 
         // A shard with no segments, fields, postings, live-docs, or points: the adaptive estimate
-        // is just ADAPTIVE_SHARD_MEMORY_OVERHEAD (75 KB), well below the adaptive min threshold (~1.55 MiB).
+        // is just ADAPTIVE_SHARD_MEMORY_OVERHEAD (75 KB).
         var emptyShardMetrics = new StatelessMemoryMetricsService.ShardMemoryMetrics(
             0L,
             0,
@@ -161,12 +156,7 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
             System.nanoTime()
         );
 
-        long threshold = service.getAdaptiveShardMemoryEstimationMinThreshold();
         long heapUsage = service.computeShardHeapUsage(emptyShardMetrics);
-
-        // Precondition: the estimate must be below the threshold for this test to distinguish
-        // the two behaviors (plain adaptive vs. threshold-inflated).
-        assertThat(heapUsage, lessThan(threshold));
         assertThat(heapUsage, equalTo(StatelessMemoryMetricsService.ADAPTIVE_SHARD_MEMORY_OVERHEAD.getBytes()));
 
         // Verify via getShardHeapUsages() — the actual allocation decider feed — returns the same value.

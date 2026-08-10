@@ -52,7 +52,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
 
-import static org.elasticsearch.indices.ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE;
 import static org.elasticsearch.xpack.stateless.memory.ShardMappingSize.UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES;
 
 /**
@@ -83,18 +82,6 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         "memory_metrics.adaptive_extra_overhead",
         "50%",
         RatioValue::parseRatioValue,
-        Setting.Property.Dynamic,
-        Setting.Property.NodeScope
-    );
-    /**
-     * Enables the per-shard capacity floor used by the indexing tier autoscaling floor calculation.
-     * The threshold is {@code MAX_HEAP_SIZE / shardLimitPerNode}, allocating the full maximum heap
-     * uniformly across the shard limit. As shard count increases, this floor drives automatic cluster
-     * sizing so nodes are large enough to accommodate the shards within evacuation bounds.
-     */
-    public static final Setting<Boolean> ADAPTIVE_SHARD_MEMORY_ESTIMATION_MIN_THRESHOLD_ENABLED_SETTING = Setting.boolSetting(
-        "memory_metrics.adaptive_min_threshold.enabled",
-        false,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -190,8 +177,6 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
     private final AtomicReference<List<NodeHeapEstimateSnapshot>> lastPerNodeHeapSnapshots = new AtomicReference<>(List.of());
     /** Same snapshots as {@link #lastPerNodeHeapSnapshots}, held in a separate reference so each gauge can consume independently. */
     private final AtomicReference<List<NodeHeapEstimateSnapshot>> lastPerNodeHostedShardsSnapshots = new AtomicReference<>(List.of());
-    protected volatile int shardLimitPerNode;
-    protected volatile boolean adaptiveShardMemoryEstimationMinThresholdEnabled;
 
     @SuppressWarnings("this-escape")
     public StatelessMemoryMetricsService(LongSupplier relativeTimeInNanosSupplier, ClusterSettings clusterSettings) {
@@ -209,11 +194,6 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         clusterSettings.initializeAndWatch(FIXED_SHARD_MEMORY_OVERHEAD_SETTING, value -> fixedShardMemoryOverhead = value);
         clusterSettings.initializeAndWatch(MERGE_MEMORY_ESTIMATE_ENABLED_SETTING, value -> mergeMemoryEstimateEnabled = value);
         clusterSettings.initializeAndWatch(ADAPTIVE_EXTRA_OVERHEAD_SETTING, value -> adaptiveExtraOverheadRatio = value.getAsRatio());
-        clusterSettings.initializeAndWatch(SETTING_CLUSTER_MAX_SHARDS_PER_NODE, value -> shardLimitPerNode = value);
-        clusterSettings.initializeAndWatch(
-            ADAPTIVE_SHARD_MEMORY_ESTIMATION_MIN_THRESHOLD_ENABLED_SETTING,
-            value -> adaptiveShardMemoryEstimationMinThresholdEnabled = value
-        );
     }
 
     /**
@@ -371,13 +351,6 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
             + metrics.totalFields * ADAPTIVE_FIELD_MEMORY_OVERHEAD.getBytes() + metrics.liveDocsBytes + metrics.pointsInMemoryBytes;
         long extraBytes = (long) (estimateBytes * adaptiveExtraOverheadRatio);
         return estimateBytes + extraBytes;
-    }
-
-    public long getAdaptiveShardMemoryEstimationMinThreshold() {
-        if (adaptiveShardMemoryEstimationMinThresholdEnabled == false) {
-            return 0L;
-        }
-        return MAX_HEAP_SIZE / this.shardLimitPerNode;
     }
 
     // visible for testing

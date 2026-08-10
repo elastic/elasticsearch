@@ -14,17 +14,15 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.NodeNamePatternConverter;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
 
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.util.Arrays;
-import java.util.Optional;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static java.lang.foreign.ValueLayout.JAVA_FLOAT_UNALIGNED;
-import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresent;
-import static org.hamcrest.Matchers.not;
 
 public abstract class SimdVecLibraryTests extends ESTestCase {
 
@@ -40,7 +38,7 @@ public abstract class SimdVecLibraryTests extends ESTestCase {
 
     protected final SimdVecLibrary.SimilarityFunction function;
     protected final int size;
-    protected final Optional<SimdVecLibrary> vectorSimilarityFunctions;
+    protected final SimdVecLibrary vectorSimilarityFunctions;
 
     @ParametersFactory
     public static Iterable<Object[]> parametersFactory() {
@@ -55,9 +53,18 @@ public abstract class SimdVecLibraryTests extends ESTestCase {
     protected SimdVecLibraryTests(SimdVecLibrary.SimilarityFunction function, int size) {
         this.function = function;
         this.size = size;
-        vectorSimilarityFunctions = NativeAccess.instance().getVectorSimilarityFunctions();
+        vectorSimilarityFunctions = NativeAccess.instance().getVectorSimilarityFunctions().orElse(null);
 
         logger.info(platformMsg());
+    }
+
+    @Before
+    public void ensureSimilarityFunctionResolved() {
+        if (supported()) {
+            assertNotNull(vectorSimilarityFunctions);
+        } else {
+            assertNull(vectorSimilarityFunctions);
+        }
     }
 
     public static void setup() {
@@ -71,28 +78,12 @@ public abstract class SimdVecLibraryTests extends ESTestCase {
         arena.close();
     }
 
-    public void testSupported() {
-        supported();
-    }
-
     protected SimdVecLibrary getVectorDistance() {
-        return vectorSimilarityFunctions.get();
+        return vectorSimilarityFunctions;
     }
 
-    public boolean supported() {
-        var jdkVersion = Runtime.version().feature();
-        var arch = System.getProperty("os.arch");
-        var osName = System.getProperty("os.name");
-
-        if (jdkVersion >= 21
-            && ((arch.equals("aarch64") && (osName.startsWith("Mac") || osName.equals("Linux")))
-                || (arch.equals("amd64") && osName.equals("Linux")))) {
-            assertThat(vectorSimilarityFunctions, isPresent());
-            return true;
-        } else {
-            assertThat(vectorSimilarityFunctions, not(isPresent()));
-            return false;
-        }
+    public static boolean supported() {
+        return PosixNativeAccess.isNativeVectorLibSupported() && VecCaps.caps() > 0;
     }
 
     public static String notSupportedMsg() {
@@ -106,11 +97,6 @@ public abstract class SimdVecLibraryTests extends ESTestCase {
         return "JDK=" + jdkVersion + ", os=" + osName + ", arch=" + arch;
     }
 
-    // Support for passing on-heap arrays/segments to native
-    protected static boolean supportsHeapSegments() {
-        return Runtime.version().feature() >= 22;
-    }
-
     protected static RuntimeException rethrow(Throwable t) {
         if (t instanceof Error err) {
             throw err;
@@ -118,7 +104,7 @@ public abstract class SimdVecLibraryTests extends ESTestCase {
         return t instanceof RuntimeException re ? re : new RuntimeException(t);
     }
 
-    protected static float[] randomFloatArray(int length) {
+    public static float[] randomFloatArray(int length) {
         float[] fa = new float[length];
         for (int i = 0; i < length; i++) {
             fa[i] = randomFloat();

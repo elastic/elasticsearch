@@ -78,9 +78,7 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
     private final Setup setup;
 
     /**
-     * Warnings raised by the {@link SingleValueMatchQuery} nodes during a single test are written into this
-     * context's per-driver sink (see {@link #warningsFor}); {@link #runCase} snapshots and asserts against it,
-     * mirroring how warnings are actually propagated rather than reading the ambient response headers.
+     * Target for warnings.
      */
     private final DriverContext warningsContext = new DriverContext(
         BigArrays.NON_RECYCLING_INSTANCE,

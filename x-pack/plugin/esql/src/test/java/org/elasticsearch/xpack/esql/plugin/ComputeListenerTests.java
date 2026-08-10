@@ -27,6 +27,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.ExecutionException;
@@ -92,7 +93,7 @@ public class ComputeListenerTests extends ESTestCase {
             ),
             java.util.Map.of(),
             randomBoolean(),
-            randomList(0, 2, () -> randomAlphaOfLengthBetween(1, 64))
+            new LinkedHashSet<>(randomList(0, 2, () -> randomAlphaOfLengthBetween(1, 64)))
         );
     }
 

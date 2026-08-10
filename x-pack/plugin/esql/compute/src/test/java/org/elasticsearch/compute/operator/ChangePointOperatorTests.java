@@ -581,8 +581,7 @@ public class ChangePointOperatorTests extends OperatorTestCase {
     }
 
     /**
-     * Finishes the driver context and asserts its snapshotted per-driver warnings sink, mirroring how warnings
-     * are actually propagated (into the {@link DriverContext} sink) rather than the ambient response headers.
+     * Finishes the {@link DriverContext} and asserts its {@link DriverContext#warnings()}.
      */
     private void assertCollectedWarnings(DriverContext ctx, String... expected) {
         assertThat(collectWarnings(ctx), containsInAnyOrder(expected));

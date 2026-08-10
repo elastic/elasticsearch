@@ -18,6 +18,7 @@ import org.elasticsearch.transport.TransportResponse;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * The compute result of {@link DataNodeRequest}
@@ -54,7 +55,7 @@ final class DataNodeComputeResponse extends TransportResponse {
                 List.of(),
                 java.util.Map.of(),
                 false,
-                List.of()
+                Set.of()
             );
             this.shardLevelFailures = in.readMap(ShardId::new, StreamInput::readException);
             return;

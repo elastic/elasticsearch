@@ -1131,13 +1131,14 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      * of the {@link DriverContext#warnings()} and {@link HeaderWarning}s.
      * We'll later on unpick these two into plan time warnings and compute time
      * warnings. But for now, they remain combined.
+     * <p>
+     *     Evaluation time warnings land in {@link DriverContext#warnings()}.
+     *     Plan time warnings land in {@link HeaderWarning}s because we have
+     *     yet to move them out.
+     * </p>
      */
     private void assertExpectedWarnings(String... expectedWarnings) {
         Set<String> expected = new LinkedHashSet<>(Arrays.asList(expectedWarnings));
-        // Direct expression evaluation accumulates warnings into each DriverContext's per-driver sink; folding of
-        // intermediate results (e.g. aggregation surrogates) still routes through the ambient response-header
-        // ThreadContext. A warning can appear in either or both channels, so assert on their de-duplicated union and
-        // consume both so the per-driver leak-check and ensureNoWarnings each see them as asserted.
         Set<String> actual = new LinkedHashSet<>(consumeDriverWarnings());
         actual.addAll(takeResponseWarnings());
         assertThat(actual, equalTo(expected));

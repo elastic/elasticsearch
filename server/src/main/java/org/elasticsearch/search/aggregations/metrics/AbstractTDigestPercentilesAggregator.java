@@ -131,6 +131,10 @@ abstract class AbstractTDigestPercentilesAggregator extends NumericMetricsAggreg
         if (states == null) {
             return;
         }
+        // doClose can be called before this constructor finishes (same reason states can be null
+        // above), so cleanup may run while an exception is already propagating. Using
+        // closeWhileHandlingException ensures a failure during cleanup never replaces the original
+        // exception, and still closes every element even if one fails.
         for (long i = 0; i < states.size(); i++) {
             Releasables.closeWhileHandlingException(states.get(i));
         }

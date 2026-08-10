@@ -9,47 +9,34 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.bulk.ShardBatchIndexer;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.eirf.EirfRowToXContent;
-import org.elasticsearch.eirf.EirfRowXContentParser;
+import org.elasticsearch.escf.EscfBatch;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.engine.EngineBatch;
+import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.sourcebatch.SourceBatch;
-import org.elasticsearch.sourcebatch.SourceRow;
 import org.elasticsearch.sourcebatch.SourceSchema;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentLocation;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 
 /**
- * Batch-time mapper resolution and per-row field parsing for the bulk batch-indexing fast path.
+ * Batch-time mapper resolution and columnar batch mapping for the bulk batch-indexing fast path.
  *
  * <p>Workflow:
  * <ol>
- *     <li>{@link #resolveMappers(SourceSchema, MappingLookup)} runs once per batch. It walks the
+ *     <li>{@link #resolveMappers(SourceSchema, MappingLookup, IndexSettings)} runs once per batch. It walks the
  *     schema leaves and binds each column to a {@link FieldMapper} (or records {@code null} for
  *     columns that are silently ignored under a {@code dynamic=false} parent). Any configuration
  *     outside the v1 support matrix — runtime fields, index-time scripts, dynamic mapping,
  *     unsupported mapper types, etc. — causes the method to return {@code null}, at which point
  *     {@link ShardBatchIndexer} falls back to the sequential path.</li>
- *     <li>{@link #parseMappings(BulkItemRequest[], SourceBatch, IndexShard, int, int, BatchMapperResolution)}
- *     runs per chunk. For each row it drives the pre-resolved mappers through their
- *     {@link FieldMapper#parse(org.elasticsearch.index.mapper.DocumentParserContext)} entry point
- *     using {@link EirfRowXContentParser#positionAtLeafValue(int)} as the value source, and
- *     assembles {@link Engine.Index} operations.</li>
+ *     <li>{@link #mapColumnBatch(BulkItemRequest[], SourceBatch, IndexShard, int, int, BatchMapperResolution, Engine.Operation.Origin)}
+ *     runs per chunk. It invokes each mapper once for the whole chunk — attaching one Lucene column per batch-wide value
+ *     (id, source, engine-assigned seq-no/version, ...) via {@link BatchMappingContext}, and assembles {@link Engine.Index} operations
+ *     plus the resulting {@link EngineBatch}.</li>
  * </ol>
  */
 public final class ShardBatchMapper {
@@ -59,7 +46,7 @@ public final class ShardBatchMapper {
     private ShardBatchMapper() {}
 
     /**
-     * Result of {@link #resolveMappers(SourceSchema, MappingLookup)}. Holds one entry per schema
+     * Result of {@link #resolveMappers(SourceSchema, MappingLookup, IndexSettings)}. Holds one entry per schema
      * leaf; a {@code null} entry means the column is silently ignored because its nearest
      * existing parent {@link ObjectMapper} has {@code dynamic=false}.
      */
@@ -70,7 +57,7 @@ public final class ShardBatchMapper {
      * falls outside the v1 batch-indexing support matrix and the caller should fall back to the
      * sequential path.
      */
-    public static BatchMapperResolution resolveMappers(SourceSchema schema, MappingLookup lookup) {
+    public static BatchMapperResolution resolveMappers(SourceSchema schema, MappingLookup lookup, IndexSettings indexSettings) {
         // Runtime fields or index-time scripts anywhere in the mapping would require the normal
         // parsing flow; the batch path does not support them.
         if (lookup.getMapping().getRoot().runtimeFields().isEmpty() == false) {
@@ -84,6 +71,16 @@ public final class ShardBatchMapper {
         if (lookup.getMapping().getMetadataMapperByName(IdFieldMapper.NAME) instanceof SliceIdFieldMapper) {
             logger.debug("batch indexing disabled: slice-enabled index");
             return null;
+        }
+
+        for (MetadataFieldMapper mapper : lookup.getMapping().getSortedMetadataMappers()) {
+            if (mapper.supportsColumnarMetadataParse(indexSettings) == false) {
+                logger.debug(
+                    "columnar batch mapping disabled: metadata mapper of type [{}] does not support columnar parsing",
+                    mapper.typeName()
+                );
+                return null;
+            }
         }
 
         final int leafCount = schema.leafCount();
@@ -115,16 +112,14 @@ public final class ShardBatchMapper {
                 return null;
             }
             final FieldMapper fieldMapper = (FieldMapper) resolved;
-
-            if (fieldMapper.supportsBatchIndexing() == false) {
+            if (fieldMapper.supportsColumnarParse(indexSettings) == false) {
                 logger.debug(
-                    "batch indexing disabled: mapper at [{}] of type [{}] does not support batch indexing",
+                    "columnar batch mapping disabled: mapper at [{}] of type [{}] does not support columnar parsing",
                     fullPath,
                     fieldMapper.typeName()
                 );
                 return null;
             }
-
             columnMappers[leaf] = fieldMapper;
         }
 
@@ -149,165 +144,68 @@ public final class ShardBatchMapper {
                 return parent.dynamic();
             }
         }
+        // In COLUMNAR mode, objects are flattened (subobjects:DISABLED) and do not appear in
+        // objectMappers(). Their dynamic settings are instead stored in prefixProperties on
+        // RootObjectMapper. resolveDynamic() consults those when prefixProperties is non-empty,
+        // and returns the fallback unchanged when it is empty (non-COLUMNAR path).
         final ObjectMapper.Dynamic rootDynamic = lookup.getMapping().getRoot().dynamic();
-        return rootDynamic == null ? ObjectMapper.Dynamic.TRUE : rootDynamic;
+        final ObjectMapper.Dynamic rootFallback = rootDynamic == null ? ObjectMapper.Dynamic.TRUE : rootDynamic;
+        return lookup.getMapping().getRoot().resolveDynamic(leafPath, rootFallback);
     }
 
     /**
-     * Parse one chunk of rows into {@link Engine.Index} operations, driving each pre-resolved
-     * mapper through its normal {@link FieldMapper#parse} entry point with an
-     * {@link EirfRowXContentParser} positioned at the leaf's value. Returns {@code null} if any
-     * unexpected condition is hit; the caller will then fall back to the sequential path.
+     * Executes the columnar batch-mapping fast path for one chunk. Returns {@code null} (the
+     * fallback signal — same contract as {@link #resolveMappers}) if mapping hits an unexpected
+     * exception.
      */
-    public static List<Engine.Index> parseMappings(
+    public static EngineBatch mapColumnBatch(
         BulkItemRequest[] items,
         SourceBatch batch,
-        IndexShard primary,
-        int chunkEnd,
+        IndexShard shard,
         int chunkStart,
-        BatchMapperResolution resolution
-    ) throws IOException {
-        final List<Engine.Index> operations = new ArrayList<>(chunkEnd - chunkStart);
-        final SourceSchema schema = batch.schema();
-        final MappingLookup mappingLookup = primary.mapperService().mappingLookup();
+        int chunkEnd,
+        BatchMapperResolution resolution,
+        Engine.Operation.Origin origin
+    ) {
+        final MappingLookup mappingLookup = shard.mapperService().mappingLookup();
         final MetadataFieldMapper[] metadataMappers = mappingLookup.getMapping().getSortedMetadataMappers();
-        // The schema tree is required by the EirfRowXContentParser constructor but is not used
-        // along the per-leaf positioning path; built once per chunk.
-        final EirfRowXContentParser.SchemaNode schemaTree = EirfRowXContentParser.buildSchemaTree(schema);
-        final FieldMapper[] columnMappers = resolution.columnMappers();
 
-        for (int i = chunkStart; i < chunkEnd; i++) {
-            final IndexRequest indexRequest = (IndexRequest) items[i].request();
-            final SourceRow row = batch.row(i);
-            final EirfRowXContentParser rowParser = new EirfRowXContentParser(schemaTree, row);
+        final IndexOperationBatch indexBatch = IndexOperationBatch.initFromBulk(
+            items,
+            chunkStart,
+            chunkEnd,
+            batch.slice(chunkStart, chunkEnd),
+            origin,
+            shard.getOperationPrimaryTerm(),
+            shard.getRelativeTimeInNanos()
+        );
+        final BatchMappingContext context = new BatchMappingContext(indexBatch, mappingLookup, shard.indexSettings());
 
-            final XContentType xContentType = indexRequest.getContentType() != null ? indexRequest.getContentType() : XContentType.JSON;
-            // TODO: Right now we materialize a source back to avoid breaking translog assertions. We should fix the translog assertions
-            // and move to just materializing the original x-content source for stored source mapping
-            final BytesReference source = rowToSource(row, schema, xContentType);
-            // TODO: Metering and getIncludeSourceOnError currently do not work with EIRF parsing
-            final SourceToParse sourceToParse = new SourceToParse(
-                indexRequest.id(),
-                source,
-                xContentType,
-                indexRequest.routing(),
-                indexRequest.getDynamicTemplates(),
-                indexRequest.getDynamicTemplateParams(),
-                indexRequest.getIncludeSourceOnError(),
-                XContentMeteringParserDecorator.NOOP,
-                indexRequest.tsid()
-            );
-
-            final ParsedDocument parsedDoc;
-            try {
-                parsedDoc = parseRow(
-                    sourceToParse,
-                    mappingLookup,
-                    metadataMappers,
-                    rowParser,
-                    columnMappers,
-                    primary.mapperService().parserContext()
-                );
-            } catch (Exception e) {
-                logger.warn("batch indexing on primary failed to parse row [{}], falling back", i, e);
-                return null;
+        try {
+            for (MetadataFieldMapper metadataMapper : metadataMappers) {
+                metadataMapper.preColumnarParse(context);
             }
-            if (parsedDoc.dynamicMappingsUpdate() != null) {
-                // Should not happen given resolve-time guards; defense in depth.
-                logger.debug("batch indexing on primary encountered unexpected dynamic mapping update at item [{}], falling back", i);
-                return null;
-            }
-
-            operations.add(
-                new Engine.Index(
-                    Uid.encodeId(parsedDoc.id()),
-                    parsedDoc,
-                    SequenceNumbers.UNASSIGNED_SEQ_NO,
-                    primary.getOperationPrimaryTerm(),
-                    indexRequest.version(),
-                    indexRequest.versionType(),
-                    Engine.Operation.Origin.PRIMARY,
-                    primary.getRelativeTimeInNanos(),
-                    indexRequest.getAutoGeneratedTimestamp(),
-                    indexRequest.isRetry(),
-                    indexRequest.ifSeqNo(),
-                    indexRequest.ifPrimaryTerm()
-                )
-            );
-        }
-        return operations;
-    }
-
-    private static ParsedDocument parseRow(
-        SourceToParse sourceToParse,
-        MappingLookup mappingLookup,
-        MetadataFieldMapper[] metadataMappers,
-        EirfRowXContentParser rowParser,
-        FieldMapper[] columnMappers,
-        MappingParserContext mappingParserContext
-    ) throws IOException {
-        final BatchDocumentParserContext ctx = new BatchDocumentParserContext(mappingLookup, mappingParserContext, sourceToParse);
-
-        for (MetadataFieldMapper metadataMapper : metadataMappers) {
-            metadataMapper.preParse(ctx);
-        }
-
-        for (int leaf = 0; leaf < columnMappers.length; leaf++) {
-            final FieldMapper mapper = columnMappers[leaf];
-            if (mapper == null) {
-                continue;
-            }
-            rowParser.positionAtLeafValue(leaf);
-            ctx.setParser(rowParser);
-            if (rowParser.currentToken() == XContentParser.Token.START_ARRAY && mapper.isSingleValueEnforced()) {
-                // Iterate array elements so that multi_value:false enforcement sees each scalar in turn.
-                // The second element triggers MultiValueViolation which must be routed to ._on_failure.
-                while (rowParser.nextToken() != XContentParser.Token.END_ARRAY) {
-                    handleParseResult(ctx, mapper, mapper.parse(ctx));
+            // Invoke field mappers
+            final SourceBatch sourceBatch = indexBatch.sourceBatch();
+            if (sourceBatch instanceof EscfBatch escfChunk) {
+                final FieldMapper[] columnMappers = resolution.columnMappers();
+                for (int c = 0; c < columnMappers.length; c++) {
+                    final FieldMapper mapper = columnMappers[c];
+                    if (mapper != null) {
+                        mapper.mapColumnBatch(context, escfChunk.column(c));
+                    }
                 }
             } else {
-                handleParseResult(ctx, mapper, mapper.parse(ctx));
+                throw new IllegalStateException("unexpected batch mapping - only use escf currently");
             }
-        }
-        ctx.setParser(null);
-
-        for (MetadataFieldMapper metadataMapper : metadataMappers) {
-            metadataMapper.postParse(ctx);
-        }
-
-        final LuceneDocument doc = ctx.rootDoc();
-        return new ParsedDocument(
-            ctx.version(),
-            ctx.seqID(),
-            ctx.id(),
-            sourceToParse.routing(),
-            List.of(doc),
-            sourceToParse.source(),
-            null,
-            XContentMeteringParserDecorator.UNKNOWN_SIZE
-        );
-    }
-
-    private static void handleParseResult(BatchDocumentParserContext ctx, FieldMapper mapper, FieldMapper.ParseResult result)
-        throws IOException {
-        if (result instanceof FieldMapper.ParseResult.MultiValueViolation(BytesRef capturedValue)) {
-            if (ctx.mappingLookup().isSourceSynthetic() || ctx.mappingLookup().isSourceColumnarStored()) {
-                OnFailureStoredValues.storeEncoded(ctx, mapper.fullPath(), capturedValue);
-            } else {
-                throw new DocumentParsingException(
-                    XContentLocation.UNKNOWN,
-                    "batch indexing: unhandled multi_value=false violation on field ["
-                        + mapper.fullPath()
-                        + "] in non-synthetic/columnar source index"
-                );
+            for (MetadataFieldMapper metadataMapper : metadataMappers) {
+                metadataMapper.postColumnarParse(context);
             }
+        } catch (Exception e) {
+            logger.warn("columnar batch mapping failed on [{}], falling back", origin, e);
+            return null;
         }
-    }
 
-    private static BytesReference rowToSource(SourceRow row, SourceSchema schema, XContentType xContentType) throws IOException {
-        try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
-            EirfRowToXContent.writeRow(row, schema, builder);
-            return BytesReference.bytes(builder);
-        }
+        return new EngineBatch(indexBatch, context.columns());
     }
 }

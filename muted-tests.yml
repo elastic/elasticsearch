@@ -116,9 +116,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:change_point.values null column}
   issue: https://github.com/elastic/elasticsearch/issues/154877
-- class: org.elasticsearch.indices.stats.IndexStatsIT
-  method: testFilterCacheStats
-  issue: https://github.com/elastic/elasticsearch/issues/155421
 - class: org.elasticsearch.packaging.test.KeystoreManagementTests
   method: test50CreateKeystoreManually
   issue: https://github.com/elastic/elasticsearch/issues/155335

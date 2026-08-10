@@ -583,6 +583,16 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         }
     }
 
+    public void testBuilderCopyConstructorPreservesHeaders() {
+        Map<String, String> headers = Map.of("_xpack_security_authentication", "encoded-auth", "x-trace-id", "trace-1");
+        TransformConfig original = randomTransformConfigWithHeaders(headers);
+
+        TransformConfig copied = new TransformConfig.Builder(original).build();
+
+        assertThat(copied.getHeaders(), equalTo(headers));
+        assertThat(copied.getCredentialId(), equalTo(original.getCredentialId()));
+    }
+
     public void testMaxLengthDescription() {
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,

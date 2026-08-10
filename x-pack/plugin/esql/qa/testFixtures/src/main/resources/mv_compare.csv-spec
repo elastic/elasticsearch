@@ -468,3 +468,58 @@ FROM all_types_mv
 null_r:boolean | pass_r:boolean | fail_r:boolean | none_r:boolean | some_r:boolean
 false          | true           | false          | false          | true
 ;
+
+mvGreaterKeywordField
+required_capability: fn_mv_greater
+// emp 10001: [Accountant, Senior Python Developer]; emp 10002: [Senior Team Lead]
+FROM employees
+| WHERE emp_no <= 10002 AND mv_greater(job_positions, "Senior")
+| KEEP emp_no
+| SORT emp_no
+;
+
+emp_no:integer
+10001
+10002
+;
+
+mvLessKeywordField
+required_capability: fn_mv_less
+// Only 10001 has a value less than "Senior" (Accountant).
+FROM employees
+| WHERE emp_no <= 10002 AND mv_less(job_positions, "Senior")
+| KEEP emp_no
+| SORT emp_no
+;
+
+emp_no:integer
+10001
+;
+
+mvGreaterKeywordFieldBound
+required_capability: fn_mv_greater
+// Bound is the indexed last_name field (single-valued keyword).
+// 10001: Senior Python Developer > Facello; 10002: Senior Team Lead < Simmel.
+FROM employees
+| WHERE emp_no <= 10002 AND mv_greater(job_positions, last_name)
+| KEEP emp_no
+| SORT emp_no
+;
+
+emp_no:integer
+10001
+;
+
+mvLessKeywordFieldBound
+required_capability: fn_mv_less
+// 10001: Accountant < Facello; 10002: Senior Team Lead < Simmel.
+FROM employees
+| WHERE emp_no <= 10002 AND mv_less(job_positions, last_name)
+| KEEP emp_no
+| SORT emp_no
+;
+
+emp_no:integer
+10001
+10002
+;

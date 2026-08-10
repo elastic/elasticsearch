@@ -48,19 +48,19 @@ public class IpPrefixAutomatonUtil {
             Automaton a = Automata.makeChar(c);
             if (c > 0 && c < 10) {
                 // all one digit prefixes expand to the two digit range, i.e. 1 -> [10..19]
-                a = Operations.union(a, Automata.makeCharRange(c * 10, c * 10 + 9));
+                a = Operations.union(List.of(a, Automata.makeCharRange(c * 10, c * 10 + 9)));
                 // 1 and 2 even to three digit ranges
                 if (c == 1) {
-                    a = Operations.union(a, Automata.makeCharRange(100, 199));
+                    a = Operations.union(List.of(a, Automata.makeCharRange(100, 199)));
                 }
                 if (c == 2) {
-                    a = Operations.union(a, Automata.makeCharRange(200, 255));
+                    a = Operations.union(List.of(a, Automata.makeCharRange(200, 255)));
                 }
             }
             if (c >= 10 && c < 26) {
                 int min = c * 10;
                 int max = Math.min(c * 10 + 9, 255);
-                a = Operations.union(a, Automata.makeCharRange(min, max));
+                a = Operations.union(List.of(a, Automata.makeCharRange(min, max)));
             }
             INCOMPLETE_IP4_GROUP_AUTOMATON_LOOKUP.put(c, a);
         }
@@ -75,10 +75,10 @@ public class IpPrefixAutomatonUtil {
         if (ipPrefix.isEmpty() == false) {
             Automaton ipv4Automaton = createIp4Automaton(ipPrefix);
             if (ipv4Automaton != null) {
-                ipv4Automaton = concatenate(IPV4_PREFIX, ipv4Automaton);
+                ipv4Automaton = concatenate(List.of(IPV4_PREFIX, ipv4Automaton));
             }
             Automaton ipv6Automaton = getIpv6Automaton(ipPrefix);
-            result = Operations.union(ipv4Automaton, ipv6Automaton);
+            result = Operations.union(List.of(ipv4Automaton, ipv6Automaton));
         } else {
             result = Automata.makeAnyBinary();
         }
@@ -96,7 +96,7 @@ public class IpPrefixAutomatonUtil {
                 if (group.contains(".")) {
                     // try to parse this as ipv4 ending part, but only if we already have some ipv6 specific stuff in front
                     if (groupsAdded > 0) {
-                        ipv6Automaton = concatenate(ipv6Automaton, createIp4Automaton(group));
+                        ipv6Automaton = concatenate(List.of(ipv6Automaton, createIp4Automaton(group)));
                         groupsAdded += 2; // this counts as two bytes, missing bytes are padded already
                     } else {
                         return EMPTY_AUTOMATON;
@@ -106,10 +106,10 @@ public class IpPrefixAutomatonUtil {
                     // full block
                     if (group.length() > 1) {
                         group = group.substring(0, group.length() - 1);
-                        ipv6Automaton = concatenate(ipv6Automaton, automatonFromIPv6Group(padWithZeros(group, 4 - group.length())));
+                        ipv6Automaton = concatenate(List.of(ipv6Automaton, automatonFromIPv6Group(padWithZeros(group, 4 - group.length()))));
                     } else {
                         // single colon denotes left out zeros
-                        ipv6Automaton = concatenate(ipv6Automaton, Operations.repeat(Automata.makeChar(0)));
+                        ipv6Automaton = concatenate(List.of(ipv6Automaton, Operations.repeat(Automata.makeChar(0))));
                     }
                 } else {
                     // potentially partial block
@@ -128,13 +128,13 @@ public class IpPrefixAutomatonUtil {
                     } else {
                         // we need to create all possibilities of byte sequences this could match
                         groupsAdded++;
-                        ipv6Automaton = concatenate(ipv6Automaton, automatonFromIPv6Group(group));
+                        ipv6Automaton = concatenate(List.of(ipv6Automaton, automatonFromIPv6Group(group)));
                     }
                 }
             }
             // fill up the remainder of the 16 address bytes with wildcard matches, each group added so far counts for two bytes
             for (int i = 0; i < 16 - groupsAdded * 2; i++) {
-                ipv6Automaton = concatenate(ipv6Automaton, Operations.optional(Automata.makeCharRange(0, 255)));
+                ipv6Automaton = concatenate(List.of(ipv6Automaton, Operations.optional(Automata.makeCharRange(0, 255))));
             }
         }
         return ipv6Automaton;
@@ -148,19 +148,19 @@ public class IpPrefixAutomatonUtil {
             String padded = padWithZeros(ipv6Group, leadingZeros);
             Automaton a = Automata.makeString("");
             while (padded.length() >= 2) {
-                a = concatenate(a, Automata.makeChar(Integer.parseInt(padded.substring(0, 2), 16)));
+                a = concatenate(List.of(a, Automata.makeChar(Integer.parseInt(padded.substring(0, 2), 16))));
                 padded = padded.substring(2);
                 bytesAdded++;
             }
             if (padded.length() == 1) {
                 int value = Integer.parseInt(padded, 16);
-                a = concatenate(a, Automata.makeCharRange(value * 16, value * 16 + 15));
+                a = concatenate(List.of(a, Automata.makeCharRange(value * 16, value * 16 + 15)));
                 bytesAdded++;
             }
             if (bytesAdded != 2) {
-                a = concatenate(a, Automata.makeCharRange(0, 255));
+                a = concatenate(List.of(a, Automata.makeCharRange(0, 255)));
             }
-            result = Operations.union(result, a);
+            result = Operations.union(List.of(result, a));
         }
         return result;
     }

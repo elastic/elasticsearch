@@ -10,9 +10,9 @@
 package org.elasticsearch.index.similarity;
 
 import org.apache.lucene.index.FieldInvertState;
-import org.apache.lucene.search.CollectionStatistics;
+import org.apache.lucene.search.FieldStats;
 import org.apache.lucene.search.Explanation;
-import org.apache.lucene.search.TermStatistics;
+import org.apache.lucene.search.TermStats;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.util.SmallFloat;
 import org.elasticsearch.script.SimilarityScript;
@@ -65,7 +65,7 @@ public final class ScriptedSimilarity extends Similarity {
     }
 
     @Override
-    public SimScorer scorer(float boost, CollectionStatistics collectionStats, TermStatistics... termStats) {
+    public SimScorer scorer(float boost, FieldStats collectionStats, TermStats... termStats) {
         Query query = new Query(boost);
         long docCount = collectionStats.docCount();
         if (docCount == -1) {

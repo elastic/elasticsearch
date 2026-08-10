@@ -11,9 +11,9 @@ package org.elasticsearch.index.similarity;
 
 import org.apache.lucene.index.FieldInvertState;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.search.CollectionStatistics;
+import org.apache.lucene.search.FieldStats;
 import org.apache.lucene.search.Explanation;
-import org.apache.lucene.search.TermStatistics;
+import org.apache.lucene.search.TermStats;
 import org.apache.lucene.search.similarities.BooleanSimilarity;
 import org.apache.lucene.search.similarities.PerFieldSimilarityWrapper;
 import org.apache.lucene.search.similarities.Similarity;
@@ -187,8 +187,8 @@ public final class SimilarityService {
     }
 
     private static void validateScoresArePositive(IndexVersion indexCreatedVersion, Similarity similarity) {
-        CollectionStatistics collectionStats = new CollectionStatistics("some_field", 1200, 1100, 3000, 2000);
-        TermStatistics termStats = new TermStatistics(new BytesRef("some_value"), 100, 130);
+        FieldStats collectionStats = new FieldStats("some_field", 1200, 1100, 3000, 2000);
+        TermStats termStats = new TermStats(new BytesRef("some_value"), 100, 130);
         SimScorer scorer = similarity.scorer(2f, collectionStats, termStats);
         FieldInvertState state = new FieldInvertState(
             indexCreatedVersion.luceneVersion().major,
@@ -213,8 +213,8 @@ public final class SimilarityService {
     }
 
     private static void validateScoresDoNotDecreaseWithFreq(IndexVersion indexCreatedVersion, Similarity similarity) {
-        CollectionStatistics collectionStats = new CollectionStatistics("some_field", 1200, 1100, 3000, 2000);
-        TermStatistics termStats = new TermStatistics(new BytesRef("some_value"), 100, 130);
+        FieldStats collectionStats = new FieldStats("some_field", 1200, 1100, 3000, 2000);
+        TermStats termStats = new TermStats(new BytesRef("some_value"), 100, 130);
         SimScorer scorer = similarity.scorer(2f, collectionStats, termStats);
         FieldInvertState state = new FieldInvertState(
             indexCreatedVersion.luceneVersion().major,
@@ -244,8 +244,8 @@ public final class SimilarityService {
     }
 
     private static void validateScoresDoNotIncreaseWithNorm(IndexVersion indexCreatedVersion, Similarity similarity) {
-        CollectionStatistics collectionStats = new CollectionStatistics("some_field", 1200, 1100, 3000, 2000);
-        TermStatistics termStats = new TermStatistics(new BytesRef("some_value"), 100, 130);
+        FieldStats collectionStats = new FieldStats("some_field", 1200, 1100, 3000, 2000);
+        TermStats termStats = new TermStats(new BytesRef("some_value"), 100, 130);
         SimScorer scorer = similarity.scorer(2f, collectionStats, termStats);
 
         long previousNorm = 0;

@@ -895,10 +895,10 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
 
             Automaton a = Automata.makeString(key + FlattenedFieldParser.SEPARATOR);
             if (caseInsensitive) {
-                a = Operations.concatenate(a, AutomatonQueries.caseInsensitivePrefix(prefix));
+                a = Operations.concatenate(List.of(a, AutomatonQueries.caseInsensitivePrefix(prefix)));
             } else {
-                a = Operations.concatenate(a, Automata.makeString(prefix));
-                a = Operations.concatenate(a, Automata.makeAnyString());
+                a = Operations.concatenate(List.of(a, Automata.makeString(prefix)));
+                a = Operations.concatenate(List.of(a, Automata.makeAnyString()));
             }
             assert a.isDeterministic();
 

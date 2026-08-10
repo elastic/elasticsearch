@@ -59,6 +59,15 @@ public final class ESDefaultFlatVectorScorer implements FlatVectorsScorer {
     }
 
     @Override
+    public RandomVectorScorer getRandomVectorScorer(
+        VectorSimilarityFunction similarityFunction,
+        KnnVectorValues vectorValues,
+        short[] target
+    ) throws IOException {
+        return getScorerFor(vectorValues).getRandomVectorScorer(similarityFunction, vectorValues, target);
+    }
+
+    @Override
     public String toString() {
         return "ESDefaultFlatVectorScorer(delegate=" + DELEGATE + ")";
     }

@@ -1076,7 +1076,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             }
             Automaton a = caseInsensitive
                 ? AutomatonQueries.caseInsensitivePrefix(prefix)
-                : Operations.concatenate(Automata.makeString(prefix), Automata.makeAnyString());
+                : Operations.concatenate(List.of(Automata.makeString(prefix), Automata.makeAnyString()));
             assert a.isDeterministic();
 
             CompiledAutomaton automaton = new CompiledAutomaton(a, true, true);

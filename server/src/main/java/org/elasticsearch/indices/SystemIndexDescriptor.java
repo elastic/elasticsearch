@@ -809,7 +809,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, SystemResourc
 
         final Automaton aliasAutomaton = new RegExp(aliasAsRegex, RegExp.ALL | RegExp.DEPRECATED_COMPLEMENT).toAutomaton();
 
-        return Operations.determinize(Operations.union(patternAutomaton, aliasAutomaton), DEFAULT_DETERMINIZE_WORK_LIMIT);
+        return Operations.determinize(Operations.union(List.of(patternAutomaton, aliasAutomaton)), DEFAULT_DETERMINIZE_WORK_LIMIT);
     }
 
     /**

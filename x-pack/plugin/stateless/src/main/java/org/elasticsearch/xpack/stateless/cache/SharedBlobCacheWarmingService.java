@@ -51,6 +51,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.DoubleHistogram;
 import org.elasticsearch.telemetry.metric.LongCounter;
+import org.elasticsearch.telemetry.metric.LongUpDownCounter;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
@@ -87,6 +88,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.PriorityBlockingQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BooleanSupplier;
@@ -129,6 +131,9 @@ public class SharedBlobCacheWarmingService {
     public static final String BLOB_CACHE_WARMING_DURATION_METRIC = "es.blob_cache_warming.duration.histogram";
     public static final String BLOB_CACHE_WARMING_RATIO_METRIC = "es.blob_cache_warming.ratio.histogram";
     public static final String WARMING_TYPE_ATTRIBUTE_KEY = "es_warming_type";
+    public static final String BLOB_CACHE_WARMING_BCC_BLOBS_ENQUEUED_METRIC = "es.blob_cache_warming.bcc_blobs.enqueued";
+    public static final String BLOB_CACHE_WARMING_BCC_BLOBS_RUNNING_METRIC = "es.blob_cache_warming.bcc_blobs.running";
+    public static final String BLOB_CACHE_WARMING_BCC_BLOBS_DONE_TOTAL_METRIC = "es.blob_cache_warming.bcc_blobs.done.total";
 
     /**
      * Why {@link #warmCacheForSearchShardRecovery} stopped waiting and resumed recovery, recorded as an attribute on
@@ -384,6 +389,9 @@ public class SharedBlobCacheWarmingService {
     private final DoubleHistogram searchRecoveryWaitDurationMetric;
     private final DoubleHistogram warmingDurationMetric;
     private final DoubleHistogram warmingRatioMetric;
+    private final LongUpDownCounter enqueuedBccBlobsMetric;
+    private final LongUpDownCounter runningBccBlobsMetric;
+    private final LongCounter doneBccBlobsMetric;
     private final long prewarmingRangeMinimizationStep;
     private volatile boolean prefetchCommitsForSearchShardRecovery;
     private volatile boolean searchOfflineWarmingEnabled;
@@ -482,6 +490,24 @@ public class SharedBlobCacheWarmingService {
                 "The warming ratio (between 0.0 and 1.0) of bcc blobs, broken down by the [" + BCC_SIZE_ATTRIBUTE_KEY + "] size bucket",
                 "1",
                 List.of(0.0, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 1.0)
+            );
+        this.enqueuedBccBlobsMetric = telemetryProvider.getMeterRegistry()
+            .registerLongUpDownCounter(
+                BLOB_CACHE_WARMING_BCC_BLOBS_ENQUEUED_METRIC,
+                "Number of BCC blob byte-range warming tasks currently enqueued, waiting to be picked up by the warming executor",
+                "count"
+            );
+        this.runningBccBlobsMetric = telemetryProvider.getMeterRegistry()
+            .registerLongUpDownCounter(
+                BLOB_CACHE_WARMING_BCC_BLOBS_RUNNING_METRIC,
+                "Number of BCC blob byte-range warming tasks currently running (picked up by the executor but not yet completed)",
+                "count"
+            );
+        this.doneBccBlobsMetric = telemetryProvider.getMeterRegistry()
+            .registerLongCounter(
+                BLOB_CACHE_WARMING_BCC_BLOBS_DONE_TOTAL_METRIC,
+                "Total number of BCC blob byte-range warming tasks completed (includes cancelled tasks)",
+                "count"
             );
         this.prewarmingRangeMinimizationStep = clusterSettings.get(PREWARMING_RANGE_MINIMIZATION_STEP).getBytes();
         clusterSettings.initializeAndWatch(
@@ -1932,6 +1958,10 @@ public class SharedBlobCacheWarmingService {
             protected final ByteRange byteRangeToWarm;
             private final long timestampMillis;
             private final ActionListener<Void> listener;
+            // Guards the enqueued→running transition so that a spurious onFailure after onResponse
+            // has partially executed (guarded by assert false in AbstractThrottledTaskRunner) does not
+            // decrement the enqueued counter a second time.
+            private final AtomicBoolean dequeued = new AtomicBoolean(false);
 
             WarmBlobByteRangeTask(
                 Type type,
@@ -1944,12 +1974,22 @@ public class SharedBlobCacheWarmingService {
                 this.blobFile = Objects.requireNonNull(blobFile);
                 this.byteRangeToWarm = byteRangeToWarm;
                 this.timestampMillis = timestampMillis;
-                this.listener = listener;
+                enqueuedBccBlobsMetric.add(1);
+                // Wrap the listener so that completing the task (success or failure) decrements the
+                // running counter and increments the done counter exactly once.
+                this.listener = ActionListener.runBefore(listener, () -> {
+                    runningBccBlobsMetric.add(-1);
+                    doneBccBlobsMetric.incrementBy(1);
+                });
                 logger.trace("{} {}: scheduled {} {}", warmingRun.shardId(), warmingRun.type(), blobFile, byteRangeToWarm);
             }
 
             @Override
             public void onResponse(Releasable releasable) {
+                if (dequeued.compareAndSet(false, true)) {
+                    enqueuedBccBlobsMetric.add(-1);
+                    runningBccBlobsMetric.add(1);
+                }
                 if (isCancelled()) {
                     listener.onResponse(null);
                     Releasables.close(releasable);
@@ -1994,6 +2034,12 @@ public class SharedBlobCacheWarmingService {
 
             @Override
             public void onFailure(Exception e) {
+                // Task was rejected by the executor before ever running; undo the enqueue increment.
+                // If onResponse already ran (dequeued is true), this is the assert-false path in
+                // AbstractThrottledTaskRunner and we leave the counters alone to avoid a double-decrement.
+                if (dequeued.compareAndSet(false, true)) {
+                    enqueuedBccBlobsMetric.add(-1);
+                }
                 logger.warn(
                     () -> format("%s %s failed to warm blob %s %s", warmingRun.shardId(), warmingRun.type(), blobFile, byteRangeToWarm),
                     e

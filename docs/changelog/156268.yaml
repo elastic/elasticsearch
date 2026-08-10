@@ -1,0 +1,6 @@
+area: Mapping
+issues:
+ - 156057
+pr: 156268
+summary: Fix histogram min/max not being fully respected in rank estimation
+type: bug

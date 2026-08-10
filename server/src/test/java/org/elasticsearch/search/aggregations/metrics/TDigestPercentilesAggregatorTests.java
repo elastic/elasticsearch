@@ -253,7 +253,7 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
         });
     }
 
-    private void withSequentialIndex(int docCount, CheckedConsumer<DirectoryReader, IOException> body) throws IOException {
+    private static void withSequentialIndex(int docCount, CheckedConsumer<DirectoryReader, IOException> body) throws IOException {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
                 for (int i = 0; i < docCount; i++) {

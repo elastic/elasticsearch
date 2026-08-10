@@ -7,7 +7,7 @@ ROW k=[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,2
 | EVAL value=CASE(k<location, 0, k<location+13, 25, 50)
 | CHANGE_POINT value ON k BY location
 | WHERE type IS NOT NULL
-| pvalue = ROUND(pvalue, 6)
+| EVAL pvalue = ROUND(pvalue, 6)
 ```
 
 | k:integer | location:integer | value:integer | type:keyword | pvalue:double |

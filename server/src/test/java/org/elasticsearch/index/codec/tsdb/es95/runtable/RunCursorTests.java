@@ -94,6 +94,48 @@ public class RunCursorTests extends ESTestCase {
         expectThrows(AssertionError.class, () -> cursor.seekDoc(6));
     }
 
+    public void testNumRuns() {
+        final int numRuns = randomIntBetween(1, 200);
+        final long[] startDocs = new long[numRuns];
+        for (int i = 0; i < numRuns; i++) {
+            startDocs[i] = i;
+        }
+        final RunCursor cursor = new RunCursor(longValues(startDocs), numRuns, numRuns);
+        assertEquals(numRuns, cursor.numRuns());
+    }
+
+    public void testStartDocReturnsRunBoundary() {
+        final long[] startDocs = { 0, 10, 25, 40 };
+        final RunCursor cursor = new RunCursor(longValues(startDocs), startDocs.length, 50);
+        for (int run = 0; run < startDocs.length; run++) {
+            assertEquals("run " + run, (int) startDocs[run], cursor.startDoc(run));
+        }
+    }
+
+    public void testPositionOnSkipsDirectly() {
+        final int runLength = randomIntBetween(2, 20);
+        final int numRuns = randomIntBetween(3, 100);
+        final RunCursor cursor = uniformCursor(runLength, numRuns);
+        cursor.seekDoc(0);
+        final int targetRun = randomIntBetween(1, numRuns - 1);
+        cursor.positionOn(targetRun);
+        assertEquals(targetRun, cursor.run());
+        assertEquals(targetRun * runLength, cursor.startDoc(targetRun));
+    }
+
+    public void testResetAfterSeekReturnsRunZero() {
+        final int runLength = randomIntBetween(1, 20);
+        final int numRuns = randomIntBetween(2, 200);
+        final RunCursor cursor = uniformCursor(runLength, numRuns);
+        cursor.seekDoc((numRuns - 1) * runLength); // land on last run
+        assertEquals(numRuns - 1, cursor.run());
+        cursor.reset();
+        assertEquals(0, cursor.run());
+        // After reset, seekDoc must still work correctly.
+        cursor.seekDoc(runLength); // first doc of run 1
+        assertEquals(1, cursor.run());
+    }
+
     private static void assertRun(RunCursor cursor, int target, int expectedRun) {
         cursor.seekDoc(target);
         assertEquals("target " + target, expectedRun, cursor.run());

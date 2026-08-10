@@ -10,6 +10,7 @@ package org.elasticsearch.compute.operator.exchange;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.transport.TransportResponse;
@@ -57,7 +58,13 @@ public final class BatchExchangeStatusResponse extends TransportResponse {
         } else {
             // Old nodes send warnings as transport response headers; the transport layer has already deposited
             // them into the current thread's context before this constructor is called.
-            this.warnings = List.copyOf(threadContext.getResponseHeaders().getOrDefault("Warning", List.of()));
+            // Parse the RFC 7234 warning format (e.g. "299 Elasticsearch-9.5.0 \"message\"") to extract the
+            // plain warning text, so the strings are in the same format as those sent by new nodes.
+            this.warnings = threadContext.getResponseHeaders()
+                .getOrDefault("Warning", List.of())
+                .stream()
+                .map(s -> HeaderWarning.extractWarningValueFromWarningHeader(s, false))
+                .toList();
         }
     }
 

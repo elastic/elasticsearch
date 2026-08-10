@@ -23,13 +23,23 @@ import java.util.Map;
  * reconstruct counter resets when querying the downsampled index.
  * <p>
  * Supports both numeric counters and exponential histograms via the sealed {@link ResetValue} hierarchy.
+ * <p>
+ * Invariant: at most one reset value per (fieldName, timestamp) pair. Callers must not add the same
+ * field name twice for the same timestamp; {@link #addDataPoint} enforces this defensively.
  */
 class ResetDataPoints {
 
     private final Map<Long, List<Tuple<String, ResetValue>>> dataPoints = new HashMap<>();
 
     void addDataPoint(String fieldName, ResetPoint resetPoint) {
-        dataPoints.computeIfAbsent(resetPoint.timestamp(), k -> new ArrayList<>()).add(Tuple.tuple(fieldName, resetPoint.value()));
+        var values = dataPoints.computeIfAbsent(resetPoint.timestamp(), k -> new ArrayList<>());
+        for (var existing : values) {
+            if (existing.v1().equals(fieldName)) {
+                assert false : "duplicate reset data point for field [" + fieldName + "] at timestamp [" + resetPoint.timestamp() + "]";
+                return;
+            }
+        }
+        values.add(Tuple.tuple(fieldName, resetPoint.value()));
     }
 
     public boolean isEmpty() {

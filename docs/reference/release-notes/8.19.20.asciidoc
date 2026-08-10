@@ -1,0 +1,79 @@
+[[release-notes-8.19.20]]
+== {es} version 8.19.20
+
+coming[8.19.20]
+
+Also see <<breaking-changes-8.19,Breaking changes in 8.19>>.
+
+[[breaking-8.19.20]]
+[float]
+=== Breaking changes
+
+ILM::
+* When `number_of_replicas` is specified in the ILM `allocate` action, `auto_expand_replicas` is now explicitly removed from the index settings. {es-pull}155279[#155279] (issue: {es-issue}150407[#150407])
+
+[[bug-8.19.20]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Overestimate memory usage of delayable writables {es-pull}155015[#155015]
+
+Analysis::
+* Add a check against self-referencing filters {es-pull}154793[#154793]
+* Trip request breaker on term and phrase suggesters based on backing array estimates {es-pull}154837[#154837]
+
+ES|QL::
+* Avoid an integer overflow loop in the `REPEAT` function {es-pull}154295[#154295]
+* Fix `FROM_BASE64` generating invalid non-UTF-8 strings. Previously it could create binary values that ES|QL does not support in other operations; only valid UTF-8 is supported, and invalid cases now return null with a warning. {es-pull}154955[#154955]
+* Fix `MV_SORT` incorrectly allowing geospatial types, which are not sortable {es-pull}154417[#154417]
+* Fix a cause of lost ES|QL warnings by preserving thread context {es-pull}154016[#154016]
+* Fix incorrect inclusion of flattened subfields in multi-index queries {es-pull}154508[#154508] (issues: {es-issue}154743[#154743], {es-issue}154484[#154484], {es-issue}154011[#154011])
+* Remove quadratic complexity from `DROP` with field name patterns {es-pull}154716[#154716]
+
+Inference::
+* Deploy text embedding models before the validation call {es-pull}153886[#153886] (issue: {es-issue}144871[#144871])
+* Fix associating an inference endpoint with an ML node deployment {es-pull}153688[#153688] (issue: {es-issue}144860[#144860])
+* Fix SSE parser handling of empty lines and byte order marks {es-pull}154632[#154632]
+* Fix SSE parsing across network read boundaries {es-pull}154155[#154155] (issue: {es-issue}153980[#153980])
+
+Infra/CLI::
+* Upgrade JANSI to 2.4.3 to fix terminal detection on zlib-ng based systems (EL10) {es-pull}155853[#155853] (issue: {es-issue}154510[#154510])
+
+Machine Learning::
+* Fix double decrement of the pending inference request count {es-pull}154577[#154577] (issue: {es-issue}154483[#154483])
+* Use the model's `deployment_id` when waiting for model allocation {es-pull}153213[#153213] (issue: {es-issue}146835[#146835])
+
+Mapping::
+* Fix wildcard queries on keyword fields whose normalizer rewrites wildcard characters {es-pull}153582[#153582] (issue: {es-issue}150699[#150699])
+
+Ranking::
+* Add a hardcoded limit on nested retrievers {es-pull}154814[#154814]
+
+Search::
+* Apply `max_regex_length` limit to intervals regexp and wildcard rules {es-pull}155231[#155231]
+* Bound numeric string length before parsing {es-pull}154689[#154689]
+* Ensure cancelled `_field_caps` tasks are removed from the tasks API {es-pull}153831[#153831] (issue: {es-issue}137475[#137475])
+* Limit dot-separated identifiers per version part {es-pull}154572[#154572]
+* Parse scroll ID from a bounded byte array {es-pull}154542[#154542]
+* Reserve regexp automaton memory on the circuit breaker before building it {es-pull}155076[#155076]
+* Use `readArraySize` in `readImmutableMap` and `readImmutableOpenMap` {es-pull}154525[#154525]
+
+[[upgrade-8.19.20]]
+[float]
+=== Upgrades
+
+Authentication::
+* Upgrade OpenTelemetry in `ms-graph-authz` {es-pull}151968[#151968]
+
+FIPS::
+* Update Bouncy Castle FIPS TLS libraries {es-pull}155937[#155937]
+
+Infra/Core::
+* Upgrade lz4-java to 1.11.1 {es-pull}155598[#155598]
+
+Security::
+* Upgrade Bouncy Castle to 1.85 {es-pull}155819[#155819]
+* Upgrade Jackson to 2.18.9 {es-pull}154569[#154569]
+* Upgrade Log4j to 2.26.1 {es-pull}154115[#154115]
+

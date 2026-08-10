@@ -653,6 +653,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                 () -> listener.onRecoveryFailure(new RecoveryCancelledException(shardId1, null, null), true)
             );
         });
+        taskQueue.runAllRunnableTasks();
 
         final var listener2 = new TestCaptureResultListener(ExpectedRecoveryOutcome.CANCELLED_IN_QUEUE);
         service.enqueue(
@@ -738,6 +739,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                 () -> listener.onRecoveryFailure(new RecoveryCancelledException(blockerShardId, null, null), true)
             );
         });
+        taskQueue.runAllRunnableTasks();
 
         final var shardId = new ShardId(randomIndexName(), UUIDs.randomBase64UUID(), 0);
         final var oldAllocationId = UUIDs.randomBase64UUID();

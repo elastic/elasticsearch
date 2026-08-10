@@ -11,42 +11,33 @@ package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 
-/**
- * A helper class that allows access to package private APIs for testing.
- */
+/// A helper class providing shortcuts for various [ShardRouting] method and constructor calls.
 public class ShardRoutingHelper {
 
-    /// Shorthand for [#relocate(ShardRouting, String, long, ShardRouting.RecoveryPriority)] using a shard size of
-    /// [ShardRouting#UNAVAILABLE_EXPECTED_SHARD_SIZE].
+    /// Shorthand for [ShardRouting#relocate] using an `expectedShardSize` of [ShardRouting#UNAVAILABLE_EXPECTED_SHARD_SIZE].
     public static ShardRouting relocate(ShardRouting routing, String nodeId, ShardRouting.RecoveryPriority recoveryPriority) {
         return routing.relocate(nodeId, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE, recoveryPriority);
     }
 
-    public static ShardRouting relocate(
-        ShardRouting routing,
-        String nodeId,
-        long expectedByteSize,
-        ShardRouting.RecoveryPriority recoveryPriority
-    ) {
-        return routing.relocate(nodeId, expectedByteSize, recoveryPriority);
-    }
-
+    /// Shorthand for [ShardRouting#moveToStarted] using an `expectedShardSize` of [ShardRouting#UNAVAILABLE_EXPECTED_SHARD_SIZE].
     public static ShardRouting moveToStarted(ShardRouting routing) {
         return routing.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
     }
 
-    public static ShardRouting moveToStarted(ShardRouting routing, long expectedShardSize) {
-        return routing.moveToStarted(expectedShardSize);
-    }
-
+    /// Shorthand for [ShardRouting#initialize] using a null `existingAllocationId` and an `expectedShardSize` of
+    /// [ShardRouting#UNAVAILABLE_EXPECTED_SHARD_SIZE].
     public static ShardRouting initialize(ShardRouting routing, String nodeId) {
-        return initialize(routing, nodeId, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
+        return routing.initialize(nodeId, null, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
     }
 
-    public static ShardRouting initialize(ShardRouting routing, String nodeId, long expectedSize) {
-        return routing.initialize(nodeId, null, expectedSize);
+    /// Shorthand for [ShardRouting#initialize] using a null `existingAllocationId`.
+    public static ShardRouting initialize(ShardRouting routing, String nodeId, long expectedShardSize) {
+        return routing.initialize(nodeId, null, expectedShardSize);
     }
 
+    /// Returns a copy of the given [ShardRouting] with its [ShardRoutingState] set to [ShardRoutingState#INITIALIZING], its
+    /// [RecoverySource] set to the given value, and its [ShardRouting.RecoveryPriority], [UnassignedInfo], and [RelocationFailureInfo]
+    /// adjusted for consistency.
     public static ShardRouting initWithSameId(ShardRouting copy, RecoverySource recoverySource) {
         return new ShardRouting(
             copy.shardId(),
@@ -66,10 +57,7 @@ public class ShardRoutingHelper {
         );
     }
 
-    public static ShardRouting moveToUnassigned(ShardRouting routing, UnassignedInfo info, ShardRouting.RecoveryPriority recoveryPriority) {
-        return routing.moveToUnassigned(info, recoveryPriority);
-    }
-
+    /// Returns a copy of the given [ShardRouting] with its [RecoverySource] set to the given value.
     public static ShardRouting newWithRestoreSource(ShardRouting routing, SnapshotRecoverySource recoverySource) {
         return new ShardRouting(
             routing.shardId(),
@@ -78,15 +66,7 @@ public class ShardRoutingHelper {
             routing.primary(),
             routing.state(),
             recoverySource,
-            switch (routing.state()) {
-                // for testing, use arbitrary priority
-                case INITIALIZING -> routing.relocatingNodeId() != null
-                    ? ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
-                    : ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED;
-                case UNASSIGNED -> ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED;
-                case RELOCATING -> ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO;
-                case STARTED -> null;
-            },
+            routing.recoveryPriority(),
             routing.unassignedInfo(),
             routing.relocationFailureInfo(),
             routing.allocationId(),
@@ -95,6 +75,7 @@ public class ShardRoutingHelper {
         );
     }
 
+    /// Returns the [ShardRouting.RecoveryPriority] used for a shard newly created (as if by an API call).
     public static ShardRouting.RecoveryPriority recoveryPriorityForNewlyCreatedShard(boolean primary) {
         return primary ? ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY : ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED;
     }

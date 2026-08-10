@@ -43,6 +43,7 @@ dependencies {
   api project(":libs:tdigest")
   api project(":libs:exponential-histogram")
   testImplementation project(":libs:columnar")
+  implementation project(":libs:lucene-store")
   implementation project(":libs:simdvec")
   implementation project(":libs:entitlement")
 

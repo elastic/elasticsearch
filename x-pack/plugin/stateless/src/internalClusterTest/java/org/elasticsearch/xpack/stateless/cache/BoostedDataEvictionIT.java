@@ -476,21 +476,19 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
     }
 
     private static Settings demoteClosedShardRegionsTestSettings() {
-        return maybeEnableCacheBoostPreference(
-            smallCacheSettings().put(
-                StatelessSharedBlobCacheService.STATELESS_CACHE_DEMOTE_CLOSED_SHARD_REGIONS_ENABLED_SETTING.getKey(),
-                true
-            )
-        ).build();
+        final var builder = maybeEnableCacheBoostPreference(smallCacheSettings());
+        builder.put(StatelessSharedBlobCacheService.STATELESS_CACHE_DEMOTE_CLOSED_SHARD_REGIONS_ENABLED_SETTING.getKey(), true);
+        builder.put(StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING.getKey(), false);
+        builder.put(StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_DELETED_INDEX_REGIONS_ENABLED_SETTING.getKey(), false);
+        return builder.build();
     }
 
     private static Settings evictDeletedIndexRegionsTestSettings() {
-        return maybeEnableCacheBoostPreference(
-            smallCacheSettings().put(
-                StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_DELETED_INDEX_REGIONS_ENABLED_SETTING.getKey(),
-                true
-            )
-        ).build();
+        final var builder = maybeEnableCacheBoostPreference(smallCacheSettings());
+        builder.put(StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_DELETED_INDEX_REGIONS_ENABLED_SETTING.getKey(), true);
+        builder.put(StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING.getKey(), false);
+        builder.put(StatelessSharedBlobCacheService.STATELESS_CACHE_DEMOTE_CLOSED_SHARD_REGIONS_ENABLED_SETTING.getKey(), false);
+        return builder.build();
     }
 
     /// Creates a one-replica index whose search shard is kept off `excludedSearchNode`, then searches it so that the search shard on

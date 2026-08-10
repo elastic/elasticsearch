@@ -630,15 +630,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.parquet.ParquetCompressedFormatSpecIT
   method: test {csv-spec:external-basic.aggregateByGender [lz4raw/HTTP]}
   issue: https://github.com/elastic/elasticsearch/issues/156241
-- class: org.elasticsearch.xpack.esql.CsvFlattenedKeywordIT
-  method: test {csv-spec:k8s-misc.by_four_dims}
-  issue: https://github.com/elastic/elasticsearch/issues/156245
-- class: org.elasticsearch.xpack.esql.CsvFlattenedKeywordIT
-  method: test {csv-spec:k8s-misc.four_rates_by_four_dims}
-  issue: https://github.com/elastic/elasticsearch/issues/156246
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecK8sMiscIT
-  method: test {csv-spec:k8s-misc.four_rates_by_four_dims}
-  issue: https://github.com/elastic/elasticsearch/issues/156255
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecApproximationIT
   method: test {csv-spec:approximation.Inline stats by}
   issue: https://github.com/elastic/elasticsearch/issues/156264
@@ -648,3 +639,15 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.RestEsqlIT
   method: testAutoPartitioning {SYNC}
   issue: https://github.com/elastic/elasticsearch/issues/156243
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecK8sMiscIT
+  method: test {csv-spec:k8s-misc.by_four_dims}
+  issue: https://github.com/elastic/elasticsearch/issues/156307
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingK8sMiscIT
+  method: test {csv-spec:k8s-misc.by_four_dims}
+  issue: https://github.com/elastic/elasticsearch/issues/156312
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:k8s-misc.by_four_dims}
+  issue: https://github.com/elastic/elasticsearch/issues/156313
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:k8s-misc.four_rates_by_four_dims}
+  issue: https://github.com/elastic/elasticsearch/issues/156314

@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.benchmark.esql;
+package org.elasticsearch.benchmark._nightly.esql;
 
 import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
@@ -55,8 +55,8 @@ public class EsqlParsingBenchmark {
     }
 
     /**
-     * Operator used in each EVAL expression. {@code minus} triggers the regression
-     * because every {@code -} character forces ANTLR's predicated DFA path.
+     * Operator used in each EVAL expression. {@code minus} triggered the regression
+     * because every {@code -} character forced ANTLR's predicated DFA path.
      * {@code plus} serves as the unaffected baseline.
      */
     @Param({ "minus", "plus" })

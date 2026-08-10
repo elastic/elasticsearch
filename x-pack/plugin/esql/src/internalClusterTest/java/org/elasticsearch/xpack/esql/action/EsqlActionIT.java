@@ -1986,9 +1986,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             .add(prepareIndex("conflict-b").setSource(Map.of("my_field", "world")))
             .get();
 
-        try (
-            var resp = run(syncEsqlQueryRequest("FROM conflict-a,conflict-b | SORT my_field | LIMIT 2").allowPartialResults(false))
-        ) {
+        try (var resp = run(syncEsqlQueryRequest("FROM conflict-a,conflict-b | SORT my_field | LIMIT 2").allowPartialResults(false))) {
             assertThat(resp.isPartial(), equalTo(false));
             assertThat(resp.columns(), hasItem(equalTo(new ColumnInfoImpl("my_field", "keyword", null))));
             assertThat(getValuesList(resp), hasSize(2));

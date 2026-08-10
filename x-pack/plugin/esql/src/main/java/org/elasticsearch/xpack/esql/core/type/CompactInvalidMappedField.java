@@ -62,12 +62,12 @@ public final class CompactInvalidMappedField extends TypeConflictedField {
 
     @Override
     public void writeContent(StreamOutput out) throws IOException {
-        super.writeContent(out);
+        throw new UnsupportedOperationException("CompactInvalidMappedField shouldn't be transported");
     }
 
     @Override
     public String getWriteableName(TransportVersion transportVersion) {
-        return "EsField";
+        return "CompactInvalidMappedField";
     }
 
     @Override

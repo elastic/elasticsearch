@@ -58,7 +58,7 @@ Observed behavior in unit tests:
 - Named-role create/update/delete invalidates via existing role-cache mechanisms
 - Built-in accounts remain on `ServiceAccountRoleReference` and are unaffected by native role invalidation
 
-**Demonstrated in automated tests:** internal cluster, YAML REST, and multi-project REST tests cover create-account → create-token → authorize, role assignment updates, delete/recreate same-service-account semantics, disabled accounts, reserved `elastic` namespace rejection, `manage_service_account` vs `manage_security` privilege split at HTTP, native role definition changes via `put_role`, managed-account unavailability in multi-project clusters, and exact `elastic/*` GET without consulting the managed store.
+**Demonstrated in automated tests:** internal cluster, YAML REST, multi-project, and multi-cluster (RCS 1.0 and 2.0) REST tests cover create-account → create-token → authorize, role assignment updates, delete/recreate same-service-account semantics, disabled accounts, reserved `elastic` namespace rejection, `manage_service_account` vs `manage_security` privilege split at HTTP (including managed token create/delete), native role definition changes via `put_role`, managed-account unavailability in multi-project clusters, cross-cluster search under both RCS models, and exact `elastic/*` GET without consulting the managed store.
 
 ## Document shapes (no secrets)
 
@@ -93,9 +93,9 @@ Deleting an account removes the account document (with refresh), clears the mana
 | Create/delete built-in index token | `manage_service_account` (unchanged; transport actions reject non-`elastic` namespaces) |
 | GET service accounts | `read_security` (unchanged) |
 
-The entire managed-account lifecycle (account CRUD, token create, token delete) requires `manage_security`; `manage_service_account` remains scoped to built-in `elastic/*` accounts; `read_security` sees both.
+The entire managed-account lifecycle (account CRUD, token create, token delete) requires `manage_security`; `manage_service_account` remains scoped to built-in `elastic/*` accounts; `read_security` sees both (account definitions and token names, no secrets).
 
-Verified in `ManagedServiceAccountPrivilegeTests`.
+Verified in `ManagedServiceAccountPrivilegeTests` (action-name coverage) and the `21_managed_gaps.yml` privilege-boundary test (HTTP-level, including managed token create/delete denial for `manage_service_account`).
 
 ## Project, file-token, extension, mixed-cluster
 
@@ -106,15 +106,21 @@ Verified in `ManagedServiceAccountPrivilegeTests`.
 | Extension `ServiceAccountTokenStore` | Managed accounts disabled when extension replaces the store (same as index tokens today) |
 | Mixed cluster | `managed_service_accounts` transport version gates CRUD/auth; built-ins continue to work |
 | Serverless | Serverless replaces the token store via `SecurityExtension#getServiceAccountTokenStore` (elasticsearch#126612), which disables index-backed tokens and managed accounts entirely; per-project built-in tokens come from operator secrets files (elasticsearch-serverless#3759). REST handlers marked `INTERNAL`. |
-
 | Malformed account docs | Missing or mistyped fields are rejected during parse; authentication fails without exposing document contents |
 | Cross-project replay | Not applicable: managed service accounts are unavailable in multi-project clusters (see Project scope) |
+
+## Cross-cluster search
+
+- **RCS 2.0**: the querying cluster authorizes remote access via `remote_indices` in the assigned role definitions on the querying cluster (standard model). Tested in `RemoteClusterSecuritySpecialUserIT`.
+- **RCS 1.0**: the querying cluster authenticates the service token locally and forwards the `Authentication` object; the fulfilling cluster resolves the assigned role *names* against its own role store — the same semantics as native users, unlike built-in accounts (fixed descriptor, identical on both sides). The fulfilling cluster needs a matching role definition but no managed account document. Tested in `RemoteClusterSecurityManagedServiceAccountRCS1IT`.
+- **RCS 1.0 to pre-feature remotes**: fails closed, with error shape depending on assertions. Production (asserts off): the old node ignores `User.roles()` and fails role resolution with `cannot load role for service account [...] - no such service account`. Asserts on: `Authentication` deserialization trips `checkNoRole`. There is no sending-side guard in `Authentication#maybeRewriteForOlderVersion` (unlike cross-cluster-access and cloud API key subjects); adding one, plus a managed case in `AbstractRemoteClusterSecurityBWCRestIT`, would make the failure deterministic and clearly attributed.
 
 ## API compatibility
 
 - GET `/_security/service` returns built-in `role_descriptor` unchanged; managed entries add `"managed": true`, `"roles"`, `"enabled"`. Requests scoped to the reserved `elastic` namespace skip managed-store lookup so built-in definitions remain available during security-index outages.
+- GET `/_security/service` (no namespace) excludes managed accounts unless `include_managed=true`; namespace-scoped GET for a non-`elastic` namespace always includes them regardless of the parameter. **Open question**: honor the parameter uniformly, or document that an explicit namespace implies managed.
 - PUT/DELETE `/_security/service/{namespace}/{service}` are new routes for managed accounts.
-- Token creation route unchanged; dispatches to managed vs built-in action by namespace.
+- Token creation and deletion routes unchanged; both dispatch to managed vs built-in transport actions by namespace, and the built-in actions reject non-`elastic` namespaces.
 - `ServiceAccountInfo` wire format gated by `managed_service_accounts` transport version.
 
 ## Verification commands
@@ -122,16 +128,18 @@ Verified in `ManagedServiceAccountPrivilegeTests`.
 | Command | Result |
 |---|---|
 | `./gradlew generateTransportVersion` | PASS |
-| `./gradlew :x-pack:plugin:core:test --tests '...ServiceAccountInfoTests' ...ManagedServiceAccountSubjectTests' ...ManagedServiceAccountIdValidatorTests'` | PASS |
-| `./gradlew :x-pack:plugin:security:internalClusterTest --tests '...ManagedServiceAccountSingleNodeTests'` | PASS |
-| `./gradlew :x-pack:plugin:yamlRestTest --tests '...service_accounts/20_managed*' '...service_accounts/21_managed_gaps*'` | PASS |
-| `./gradlew :x-pack:plugin:core:test --tests '...PutManagedServiceAccountRequestTests'` | PASS |
-| `./gradlew :x-pack:plugin:security:test --tests '...ManagedServiceAccountPrivilegeTests' ...ServiceAccountServiceTests' ...IndexServiceAccountTokenStoreTests' ...TransportGetServiceAccountActionTests'` | PASS |
-| `./gradlew :x-pack:plugin:security:test --tests '...LoggingAuditTrailTests.testSecurityConfigChangeEventFormattingForManagedServiceAccount'` | PASS |
+| `./gradlew :x-pack:plugin:core:test --tests '...ServiceAccountInfoTests' --tests '...ManagedServiceAccountSubjectTests' --tests '...ManagedServiceAccountIdValidatorTests' --tests '...PutManagedServiceAccountRequestTests'` | PASS |
+| `./gradlew :x-pack:plugin:security:internalClusterTest --tests '...ManagedServiceAccountSingleNodeTests' --tests '...ServiceAccountSingleNodeTests'` | PASS |
+| `./gradlew :x-pack:plugin:yamlRestTest --tests '...XPackRestIT.test {yaml=service_accounts/2*}'` (the `p0=` filter form matches nothing) | PASS |
+| `./gradlew :x-pack:plugin:security:test --tests '...ManagedServiceAccountPrivilegeTests' --tests '...ManagedServiceAccountStoreTests' --tests '...ServiceAccountServiceTests' --tests '...IndexServiceAccountTokenStoreTests' --tests '...TransportGetServiceAccountActionTests' --tests '...TransportDeleteServiceAccountTokenActionTests' --tests '...TransportDeleteManagedServiceAccountTokenActionTests' --tests '...SecurityTests'` | PASS |
+| `./gradlew :x-pack:plugin:security:test --tests '...LoggingAuditTrailTests'` (managed PUT/DELETE/token-create/token-delete formatting + must-log coverage) | PASS |
 | `./gradlew :x-pack:plugin:security:qa:audit:javaRestTest --tests '...AuditIT.testAuditPutManagedServiceAccount'` | PASS |
+| `./gradlew :x-pack:plugin:security:qa:multi-project:javaRestTest --tests '...ManagedServiceAccountMultiProjectIT'` | PASS |
+| `./gradlew :x-pack:plugin:security:qa:multi-cluster:javaRestTest --tests '...RemoteClusterSecurityManagedServiceAccountRCS1IT'` | PASS (x2 seeds) |
+| `./gradlew :x-pack:plugin:security:qa:multi-cluster:javaRestTest --tests '...RemoteClusterSecuritySpecialUserIT'` (RCS 2.0) | PASS (x2 seeds, after fixing an order-dependent data collision with the sibling test — the managed test now uses a dedicated `shared-managed` index) |
 | `./gradlew :x-pack:plugin:core:spotlessJavaCheck :x-pack:plugin:security:spotlessJavaCheck` | PASS |
 
-**Not run:** rolling-upgrade IT, packaging/QA.
+**Not run:** rolling-upgrade IT, BWC RCS 1.0 (old fulfilling cluster), full `:x-pack:plugin:security:test` sweep, packaging/QA.
 
 ## Prototype questions answered
 
@@ -140,7 +148,7 @@ Verified in `ManagedServiceAccountPrivilegeTests`.
 3. **Reuse role cache without principal graph?** Yes — `NamedRoleReference` only.
 4. **Persistence changes?** New `service_account` doc type using existing mapped fields (`username`, `roles`, `enabled`).
 5. **Credential binding?** Stable principal identity; DELETE revokes via missing account + cache invalidation; RECREATE restores access for surviving index tokens.
-6. **Audit logging?** Managed PUT/DELETE/token-create emit `security_config_change` events; documented in `elasticsearch-audit-events.md`.
+6. **Audit logging?** Managed account PUT/DELETE and token create/delete emit `security_config_change` events; documented in `elasticsearch-audit-events.md`.
 7. **Remaining production gaps?** See below.
 
 ## Production gaps
@@ -152,13 +160,16 @@ Verified in `ManagedServiceAccountPrivilegeTests`.
 
 ### Security
 - Delegated bounded admin (custom role for specific namespaces) not implemented
-- Audit DELETE and managed token-create not covered by REST IT (unit tests only)
+- Audit of account DELETE and managed token create/delete not covered by REST IT (unit tests only; PUT has a REST IT)
 - Rate limiting / brute-force behavior unchanged from built-in tokens
+- Unauthenticated requests with fabricated principals populate the bounded negative account cache (10k entries, 20m TTL); same exposure class as other security caches, not separately mitigated
 
 ### Compatibility
 - Single transport version `managed_service_accounts` for all new wire paths
 - Rolling-upgrade IT omitted
 - `ServiceAccountInfo` old nodes cannot deserialize managed entries (expected; gated)
+- No sending-side guard when a managed-account `Authentication` is serialized to a pre-feature node (see Cross-cluster search); fails closed on the receiver with a non-obvious error
+- GET `/_security/service/{namespace}` with a name failing the new grammar now returns 400 where it previously returned an empty 200 (deliberate; needs a changelog entry)
 
 ### Operability
 - Managed account definition cache (`managed_service_account`) with cluster-wide invalidation on PUT/DELETE
@@ -178,8 +189,9 @@ Verified in `ManagedServiceAccountPrivilegeTests`.
 
 **Proceed with revision.**
 
-Evidence supports the core hypothesis: managed accounts can authorize through `NamedRoleReference` without weakening built-ins. Stable principal identity with cache invalidation on DELETE provides revocation without generation IDs. Before production:
+Evidence supports the core hypothesis: managed accounts can authorize through `NamedRoleReference` without weakening built-ins. Stable principal identity with cache invalidation on DELETE provides revocation without generation IDs. Multi-project is explicitly out of scope (enforced in code); the privilege boundary is uniform (`manage_security` for the whole managed lifecycle). Before production:
 
-1. Add cross-project and rolling-upgrade integration tests.
-2. Expose REST API specs publicly and decide delegated-admin privilege model.
-3. Document recreate semantics for operators (surviving index tokens authenticate again).
+1. Add rolling-upgrade and BWC RCS 1.0 (old fulfilling cluster) integration tests; consider a sending-side version guard in `Authentication#maybeRewriteForOlderVersion`.
+2. Expose REST API specs publicly and decide the delegated-admin privilege model.
+3. Document recreate semantics for operators (surviving index tokens authenticate again), or delete token documents on account delete.
+4. Resolve the `include_managed` parameter semantics for namespace-scoped GET.

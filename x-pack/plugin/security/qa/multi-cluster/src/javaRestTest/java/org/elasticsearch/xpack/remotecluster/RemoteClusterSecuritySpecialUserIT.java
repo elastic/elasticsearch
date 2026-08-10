@@ -250,11 +250,13 @@ public class RemoteClusterSecuritySpecialUserIT extends AbstractRemoteClusterSec
         final String principal = namespace + "/" + service;
 
         final Request putRoleRequest = new Request("PUT", "/_security/role/" + roleName);
+        // a dedicated index (still matching the cross-cluster API key's shared-* access) so this test
+        // neither sees nor pollutes the sibling test's shared-logs documents in either execution order
         putRoleRequest.setJsonEntity("""
             {
               "remote_indices": [
                 {
-                  "names": ["shared-logs"],
+                  "names": ["shared-managed"],
                   "privileges": ["read"],
                   "clusters": ["my_remote_cluster*"]
                 }
@@ -292,12 +294,12 @@ public class RemoteClusterSecuritySpecialUserIT extends AbstractRemoteClusterSec
             final Map<String, Object> metadata = (Map<String, Object>) authenticateResponse.get("metadata");
             assertThat(metadata.get("_managed_service_account"), is(true));
 
-            final Request indexRequest = new Request("POST", "/shared-logs/_doc?refresh=true");
+            final Request indexRequest = new Request("POST", "/shared-managed/_doc?refresh=true");
             indexRequest.setJsonEntity("""
                 { "name": "managed-service-account-ccs" }""");
             assertOK(performRequestAgainstFulfillingCluster(indexRequest));
 
-            final Request allowedSearchRequest = new Request("GET", "/my_remote_cluster:shared-logs/_search");
+            final Request allowedSearchRequest = new Request("GET", "/my_remote_cluster:shared-managed/_search");
             allowedSearchRequest.setOptions(bearerAuth);
             final Response allowedSearchResponse = client().performRequest(allowedSearchRequest);
             assertOK(allowedSearchResponse);
@@ -305,7 +307,7 @@ public class RemoteClusterSecuritySpecialUserIT extends AbstractRemoteClusterSec
             try {
                 assertThat(
                     Arrays.stream(allowedSearch.getHits().getHits()).map(SearchHit::getIndex).collect(Collectors.toList()),
-                    containsInAnyOrder("shared-logs")
+                    containsInAnyOrder("shared-managed")
                 );
             } finally {
                 allowedSearch.decRef();

@@ -10,10 +10,17 @@
 package org.elasticsearch.foreign.processor.model;
 
 /**
- * Classifies how a Java type participates in a native FFM call: which
- * {@code ValueLayout} it maps to and how it is marshaled. {@link #STRING} is the only type that
- * requires marshaling — the Java {@code String} is passed through native code as a {@code char *},
- * laid out as {@link #ADDRESS}.
+ * Classifies how a Java type participates in a native FFM call: which {@code ValueLayout} it
+ * maps to and how it is marshaled.
+ *
+ * <p>Marshaling types:
+ * <ul>
+ *   <li>{@link #STRING}: the Java {@code String} is copied into a native {@code char *} at call
+ *       time, laid out as {@link #ADDRESS}.</li>
+ *   <li>{@link #ADDRESSABLE}: an {@code org.elasticsearch.foreign.Addressable} is unwrapped to
+ *       the {@code long} address of its backing segment; laid out as {@link #LONG}. A
+ *       {@code null} Addressable is passed as {@code 0L}.</li>
+ * </ul>
  */
 public enum NativeType {
     INT,
@@ -25,10 +32,15 @@ public enum NativeType {
     DOUBLE,
     ADDRESS,
     STRING,
+    ADDRESSABLE,
     VOID;
 
-    /** The native layout to use when describing this type to FFM. {@link #STRING} is laid out as {@link #ADDRESS}. */
+    /** The native layout to use when describing this type to FFM. */
     public NativeType layoutType() {
-        return this == STRING ? ADDRESS : this;
+        return switch (this) {
+            case STRING -> ADDRESS;
+            case ADDRESSABLE -> LONG;
+            default -> this;
+        };
     }
 }

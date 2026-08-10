@@ -16,12 +16,14 @@
 | double | double | boolean |
 | double | integer | boolean |
 | double | long | boolean |
+| exponential_histogram {applies_to}`stack: ga 9.6.0` | exponential_histogram {applies_to}`stack: ga 9.6.0` | boolean |
 | flattened {applies_to}`stack: preview 9.5.0` | flattened {applies_to}`stack: preview 9.5.0` | boolean |
 | geo_point | geo_point | boolean |
 | geo_shape | geo_shape | boolean |
 | geohash | geohash | boolean |
 | geohex | geohex | boolean |
 | geotile | geotile | boolean |
+| histogram {applies_to}`stack: ga 9.6.0` | histogram {applies_to}`stack: ga 9.6.0` | boolean |
 | integer | double | boolean |
 | integer | integer | boolean |
 | integer | long | boolean |
@@ -31,6 +33,7 @@
 | long | double | boolean |
 | long | integer | boolean |
 | long | long | boolean |
+| tdigest {applies_to}`stack: ga 9.6.0` | tdigest {applies_to}`stack: ga 9.6.0` | boolean |
 | text | keyword | boolean |
 | text | text | boolean |
 | unsigned_long | unsigned_long | boolean |

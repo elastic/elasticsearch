@@ -122,6 +122,17 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
         return length;
     }
 
+    /**
+     * The object's path. parquet-mr interpolates the {@code InputFile} straight into user-facing failures — the
+     * "is not a Parquet file. Expected magic number at tail" message is built as {@code this + " is not a Parquet
+     * file..."} — so without an override the reader reports {@code ParquetStorageObjectAdapter@6b19422}, an identity
+     * hash that tells the reader nothing about which object was rejected.
+     */
+    @Override
+    public String toString() {
+        return storageObject.path().toString();
+    }
+
     @Override
     public SeekableInputStream newStream() throws IOException {
         // Pass a supplier that re-reads the volatile field on every miss-path lookup. Streams

@@ -13,7 +13,10 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -71,6 +74,37 @@ public final class SourceStatisticsSerializer {
     static final String MAX_UNSERVABLE_SUFFIX = ".max_unservable";
 
     private SourceStatisticsSerializer() {}
+
+    /**
+     * The names of the Hive-partition (path-derived) columns for a source, read from the serialized
+     * {@link #PARTITION_COLUMNS_KEY} stamp in {@code sourceMetadata}. This is the ONE node-safe channel for
+     * partition identity: the {@code FileList} that carries {@code PartitionMetadata} is coordinator-only and
+     * deserializes to {@code UNRESOLVED} on a data node, so any consumer that reads partition names off the
+     * fileList sees an empty set there. Every node-agnostic consumer reads partition identity through this
+     * method (usually via the {@code partitionColumnNames()} accessor on {@code ExternalSourceExec} /
+     * {@code ExternalRelation}), never off the fileList. Returns an empty set when the source is not
+     * partitioned, and otherwise preserves the stamped order (the partition nesting, e.g. {@code region} then
+     * {@code tier}).
+     * <p>
+     * Deliberately a {@link LinkedHashSet} rather than {@code Set.copyOf}: no consumer reads this set by
+     * iteration today (they all use {@code contains} / {@code isEmpty}), but {@code Set.copyOf} randomizes
+     * iteration order <em>per JVM</em>, so a coordinator and a data node would order it differently. The day
+     * these names surface anywhere user-visible — an error message, a plan string, debug output — that would be
+     * nondeterministic and divergent across nodes. Ordering a handful of strings once per plan costs nothing and
+     * removes the failure mode.
+     */
+    @SuppressWarnings("unchecked")
+    public static Set<String> partitionColumnNames(Map<String, Object> sourceMetadata) {
+        if (sourceMetadata == null) {
+            return Set.of();
+        }
+        Object names = sourceMetadata.get(PARTITION_COLUMNS_KEY);
+        if (names instanceof Collection<?> collection) {
+            // The stamp is written as List.copyOf(names), which rejects nulls, so the copy cannot NPE here.
+            return Collections.unmodifiableSet(new LinkedHashSet<>((Collection<String>) collection));
+        }
+        return Set.of();
+    }
 
     /**
      * Merges statistics entries into a new map that includes both the original sourceMetadata
@@ -286,6 +320,87 @@ public final class SourceStatisticsSerializer {
             poisonColumnExtrema(out, column);        // drops .min/.max, writes both unservable markers
             out.remove(columnValueCountKey(column)); // count-family unknown, not zero: SplitStats.of defaults both
             out.remove(columnNullCountKey(column));  // to -1 -> COUNT(col) safe-misses; COUNT(*) is unaffected
+        }
+        return out;
+    }
+
+    /**
+     * The widened-column pin's stats boundary — the sibling of {@link #overlayDeclaredSchemaOnStats} for the
+     * {@code union_by_name} reconciliation path. When a text file's shared column is inferred from a narrow sampled
+     * prefix and then read at the wider reconciled type (the pin), an out-of-sample value that does not fit the narrow
+     * type is null-filled (or its whole row dropped under {@code skip_row}) when that same file is read solo at the
+     * narrow type. The per-file stats cache identity is read-schema-blind ({@code (path, mtime, config)}), so a solo
+     * narrow read and the pinned wider read share one entry: the harvested {@code value_count}/{@code null_count} are
+     * short by the null-filled cells and the extremum is the narrow-read value, none of which a wider read would
+     * produce. These are wrong VALUES, not merely a wrong unit, so {@link #normalizeStatsToReconciled} and the
+     * cache-path coercion cannot rescue them. For each {@code pinnedColumns} entry this POISONS the extrema and DROPS
+     * {@code value_count}/{@code null_count} so the column safe-misses to a scan; {@code dropRowCount} additionally
+     * drops {@code row_count} for the {@code skip_row} case, where the narrow read dropped whole rows and even
+     * {@code COUNT(*)} would be short. {@code size_bytes} and non-column keys are untouched. Returns the input instance
+     * unchanged when there is nothing to do; otherwise a new map (inputs are routinely {@code Map.copyOf}-immutable).
+     *
+     * @param pinnedColumns columns whose read type was pinned above their inferred type
+     * @param dropRowCount  whether the error policy drops whole rows ({@code skip_row}), making {@code row_count} stale too
+     */
+    public static Map<String, Object> overlayPinnedColumnsOnStats(
+        Map<String, Object> statsMap,
+        Set<String> pinnedColumns,
+        boolean dropRowCount
+    ) {
+        if (statsMap == null || statsMap.isEmpty() || pinnedColumns.isEmpty()) {
+            return statsMap;
+        }
+        Map<String, Object> out = new HashMap<>(statsMap);
+        for (String column : pinnedColumns) {
+            poisonColumnExtrema(out, column);
+            out.remove(columnValueCountKey(column));
+            out.remove(columnNullCountKey(column));
+        }
+        if (dropRowCount) {
+            out.remove(STATS_ROW_COUNT);
+        }
+        return out;
+    }
+
+    /**
+     * The widened-column pin's stats boundary on the COMMIT path: the sibling of {@link #overlayPinnedColumnsOnStats},
+     * which is the serve-side boundary. The two guard opposite directions of the same read-schema-blind cache identity
+     * ({@code (path, mtime, config)}, no read-type component; see
+     * {@link org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey}): a solo narrow read and a widening glob's
+     * pinned wider read of the same file share one cache entry. The serve-side overlay stops a widening query from SERVING
+     * the narrow read's stale stats; this stops a widening read's harvest from COMMITTING (and so polluting) the entry a
+     * solo narrow read serves. A pinned wider read parses an out-of-sample value the narrow read null-filled (or
+     * row-dropped under {@code skip_row}), so its harvested {@code value_count} / {@code null_count} / extrema for a pinned
+     * column are values the narrow read never produces.
+     * <p>
+     * Unlike the serve-side overlay this STRIPS each pinned column's whole stat family rather than poisoning it: the commit
+     * is a last-writer-wins {@code putAll} into the shared entry, so removing the pinned column's keys leaves the solo
+     * narrow read's own correct stats intact and warm. A poison marker would instead persist into the shared entry and make
+     * the narrow read safe-miss too. Under {@code dropRowCount} ({@code skip_row}, where a narrow-read parse failure drops
+     * the whole row) {@code row_count} is stripped as well. {@code size_bytes} and non-column keys are untouched. Returns
+     * the input instance unchanged when there is nothing to do; otherwise a new map (inputs are routinely
+     * {@code Map.copyOf}-immutable).
+     *
+     * @param pinnedColumns columns whose read type was pinned above their inferred type for the harvested read
+     * @param dropRowCount  whether the error policy drops whole rows ({@code skip_row}), making {@code row_count} stale too
+     */
+    public static Map<String, Object> removeColumnStatFamilies(
+        Map<String, Object> statsMap,
+        Set<String> pinnedColumns,
+        boolean dropRowCount
+    ) {
+        if (statsMap == null || statsMap.isEmpty() || pinnedColumns.isEmpty()) {
+            return statsMap;
+        }
+        Map<String, Object> out = new HashMap<>(statsMap);
+        for (String column : pinnedColumns) {
+            String prefix = STATS_COL_PREFIX + column;
+            for (String suffix : COLUMN_STAT_SUFFIXES) {
+                out.remove(prefix + suffix);
+            }
+        }
+        if (dropRowCount) {
+            out.remove(STATS_ROW_COUNT);
         }
         return out;
     }

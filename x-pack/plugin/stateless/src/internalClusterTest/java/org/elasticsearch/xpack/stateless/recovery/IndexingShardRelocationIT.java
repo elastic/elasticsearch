@@ -41,8 +41,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergePolicyConfig;
@@ -117,7 +119,9 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
 import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreTestUtils.getObjectStoreMockRepository;
+import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.MAX_SLOW_OPERATION_THREAD_DUMPS;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
+import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.SLOW_RELOCATION_THRESHOLD_SETTING;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.START_RELOCATION_ACTION_NAME;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -796,6 +800,43 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
         } finally {
             indexNodeATransportService.clearAllRules();
         }
+    }
+
+    @TestLogging(
+        reason = "verifying INFO logging of repeated hot threads dumps",
+        value = "org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction:INFO"
+    )
+    public void testSlowRelocationLogsRepeatedHotThreadsDumps() throws Exception {
+        final var nodeSettings = Settings.builder().put(SLOW_RELOCATION_THRESHOLD_SETTING.getKey(), TimeValue.timeValueMillis(100)).build();
+        final var indexNodeA = startMasterAndIndexNode(nodeSettings);
+        final var indexName = randomIdentifier();
+        createIndex(indexName, 1, 0);
+        ensureGreen(indexName);
+        indexDocs(indexName, randomIntBetween(1, 20));
+
+        startIndexNode(nodeSettings);
+
+        final var indexShard = internalCluster().getInstance(IndicesService.class, indexNodeA)
+            .indexServiceSafe(resolveIndex(indexName))
+            .getShard(0);
+        final var permitFuture = new PlainActionFuture<Releasable>();
+        indexShard.acquirePrimaryOperationPermit(permitFuture, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        try (Releasable permit = safeGet(permitFuture); var mockLog = MockLog.capture(TransportStatelessPrimaryRelocationAction.class)) {
+            for (int sample = 1; sample <= MAX_SLOW_OPERATION_THREAD_DUMPS; sample++) {
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
+                        "hot threads dump " + sample,
+                        TransportStatelessPrimaryRelocationAction.class.getCanonicalName(),
+                        Level.INFO,
+                        "* recovery [*]: flush and acquire permits #" + sample + " with [*] operations holding permits*"
+                    )
+                );
+            }
+            updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeA), indexName);
+            mockLog.awaitAllExpectationsMatched();
+        }
+        // release the permit so the relocation can make progress
+        ensureGreen(indexName);
     }
 
     // test for ES-8431

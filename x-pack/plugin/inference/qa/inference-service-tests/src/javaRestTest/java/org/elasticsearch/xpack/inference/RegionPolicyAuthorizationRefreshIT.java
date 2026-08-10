@@ -14,7 +14,6 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -45,7 +44,6 @@ public class RegionPolicyAuthorizationRefreshIT extends ESRestTestCase {
         .distribution(DistributionType.DEFAULT)
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "true")
-        .feature(FeatureFlag.INFERENCE_REGION_POLICY)
         .setting("xpack.inference.elastic.url", mockEISServer::getUrl)
         .setting("xpack.inference.elastic.periodic_authorization_enabled", "false")
         // Disable the initial bootup authorization request so that each PUT/DELETE below triggers exactly one

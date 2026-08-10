@@ -68,10 +68,8 @@ public class RoutingTableTests extends ESAllocationTestCase {
     );
     private ClusterState clusterState;
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initRoutingTable() throws Exception {
         this.numberOfShards = randomIntBetween(1, 5);
         this.numberOfReplicas = randomIntBetween(1, 5);
         this.shardsPerIndex = this.numberOfShards * (this.numberOfReplicas + 1);

@@ -112,6 +112,13 @@ final class FileSourceFactory implements ExternalSourceFactory {
     private final LocalFileAccess localFileAccess;
     // Node telemetry sink, threaded into the operator factory so opened storage objects publish read metrics.
     private final ExternalSourceMetrics externalSourceMetrics;
+    /**
+     * Per-node gate bounding concurrent stream-only-compressed segmentators on the shared {@code esql_external_io}
+     * pool so their per-chunk parser tasks always have a free thread (elastic/esql-planning #1093, item 4). This
+     * factory is a per-node singleton (built once in {@link DataSourceModule}) and every read resolves to the same
+     * node-level pool, so one controller here is shared across all queries/operators — no external registry needed.
+     */
+    private final StreamingSegmentatorAdmission segmentatorAdmission;
 
     FileSourceFactory(
         StorageProviderRegistry storageRegistry,
@@ -190,6 +197,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
         this.blockFactory = blockFactory;
         this.localFileAccess = localFileAccess != null ? localFileAccess : LocalFileAccess.UNRESTRICTED;
         this.externalSourceMetrics = externalSourceMetrics != null ? externalSourceMetrics : ExternalSourceMetrics.NOOP;
+        this.segmentatorAdmission = new StreamingSegmentatorAdmission(ExternalSourceSettings.maxConcurrentSegmentators(this.settings));
     }
 
     @Override
@@ -306,7 +314,10 @@ final class FileSourceFactory implements ExternalSourceFactory {
             }
             return reader.metadata(storageObject);
         } catch (IOException e) {
-            throw new IllegalArgumentException("Failed to resolve metadata for [" + location + "]", e);
+            // The wrapper exists to type a storage/reader I/O failure as client-caused (400); it is not a place to
+            // say anything new. So it keeps the cause's own diagnosis instead of a constant naming only the path —
+            // see ExternalFailures#resolutionFailureMessage for why, and for when the path is prepended.
+            throw new IllegalArgumentException(ExternalFailures.resolutionFailureMessage(location, e), e);
         }
     }
 
@@ -352,12 +363,8 @@ final class FileSourceFactory implements ExternalSourceFactory {
             } else {
                 storageObject = provider.newObject(storagePath);
                 if (storageObject.exists() == false) {
-                    listener.onFailure(
-                        new IllegalArgumentException(
-                            "Failed to resolve metadata for [" + location + "]",
-                            new IOException("File does not exist: " + location)
-                        )
-                    );
+                    IOException missing = new IOException("File does not exist: " + location);
+                    listener.onFailure(new IllegalArgumentException(ExternalFailures.resolutionFailureMessage(location, missing), missing));
                     return;
                 }
             }
@@ -369,7 +376,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
         // the synchronous path produces, so callers see identical exceptions regardless of path.
         reader.metadataAsync(storageObject, executor, listener.delegateResponse((l, e) -> {
             if (e instanceof IOException) {
-                l.onFailure(new IllegalArgumentException("Failed to resolve metadata for [" + location + "]", e));
+                l.onFailure(new IllegalArgumentException(ExternalFailures.resolutionFailureMessage(location, e), e));
             } else {
                 l.onFailure(e);
             }
@@ -414,7 +421,10 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 .withDeclaredDateFormats(physicalDateFormats(context.declaredReadSpec()))
                 // Declared-type columns (licensed to narrow toward their target): same logical->physical last-mile
                 // translation, so the by-name columnar readers can key their null-fill escape on the physical names.
-                .withDeclaredTypeColumns(physicalDeclaredTypeColumns(context.declaredReadSpec()));
+                .withDeclaredTypeColumns(physicalDeclaredTypeColumns(context.declaredReadSpec()))
+                // Keyed on provenance, not renames: a DECLARED schema binds by name even with no `path`, and an
+                // INFERRED (dynamic) schema must never re-bind at the reader (its positions already came from the file).
+                .withDeclaredPathBinding(context.declaredReadSpec().provenance() == SchemaProvenance.DECLARED);
             ErrorPolicy errorPolicy = resolveErrorPolicy(config, format);
 
             Map<String, Object> partitionValues = Map.of();
@@ -477,6 +487,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 .maxRecordBytes(context.maxRecordBytes())
                 .statsStripeSize(ExternalSourceCacheSettings.STRIPE_SIZE.get(settings).getBytes())
                 .statsColumnScope(ExternalSourceCacheSettings.STRIPE_COLUMNS.get(settings))
+                .streamingSegmentatorAdmission(segmentatorAdmission)
                 .parallelism(context.parallelism())
                 .pushedExpressions(pushedExpressions)
                 .pushdownSupport(pushdownSupport)

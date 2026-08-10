@@ -27,6 +27,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchService;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -62,8 +63,7 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
             public void start(Index index, int clusterSize, int shardCount, String coordinator) {
                 var thread = new Thread(() -> {
                     do {
-                        // We don't stop/restart nodes due to #147842.
-                        Failure randomFailure = randomFrom(Failure.LOCAL_FAIL_SHARD, Failure.RELOCATE_SHARD);
+                        Failure randomFailure = randomFrom(Failure.values());
                         try {
                             induceFailure(randomFailure, index, coordinator);
                         } catch (Exception e) {
@@ -97,7 +97,13 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
             .put(RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD.getKey(), TimeValue.timeValueMillis(100))
             // Reduce the delay between retries to speed up the test.
             .put(SplitSourceService.STATE_MACHINE_RETRY_DELAY.getKey(), TimeValue.timeValueMillis(10))
-            .put(SplitTargetService.START_SPLIT_RETRY_TIMEOUT.getKey(), TimeValue.timeValueSeconds(5));
+            .put(SplitTargetService.START_SPLIT_RETRY_TIMEOUT.getKey(), TimeValue.timeValueSeconds(5))
+            // Reader contexts are only cleaned up (outside of search execution) if a shard is reassigned to a node
+            // or when keepalive expires.
+            // With `ISOLATE_NODE` disruption it is possible that a reader context is opened
+            // to execute a search but not closed since the node is isolated and search failed on this shard.
+            // To prevent asserts for leaked reader contexts we shorten the keepalive.
+            .put(SearchService.DEFAULT_KEEPALIVE_SETTING.getKey(), TimeValue.timeValueSeconds(1));
     }
 
     @Override
@@ -606,9 +612,10 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
 
         int shards = randomIntBetween(2, 5);
 
-        int indexNodes = randomIntBetween(1, shards * 2);
+        // At least two of each role so we still have usable nodes when `ISOLATE_NODE` disruption is applied.
+        int indexNodes = randomIntBetween(2, shards * 2);
         startIndexNodes(indexNodes);
-        int searchNodes = randomIntBetween(1, shards * 2);
+        int searchNodes = randomIntBetween(2, shards * 2);
         startSearchNodes(searchNodes);
 
         int clusterSize = 1 + 1 + indexNodes + searchNodes;

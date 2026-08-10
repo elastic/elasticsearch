@@ -1,0 +1,5 @@
+area: "Infra/Logging"
+issues: []
+pr: 151912
+summary: PromQL query logging
+type: enhancement

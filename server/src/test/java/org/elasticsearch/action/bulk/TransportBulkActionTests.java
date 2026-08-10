@@ -197,8 +197,7 @@ public class TransportBulkActionTests extends ESTestCase {
     }
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initServices() throws Exception {
         threadPool = new TestThreadPool(getClass().getName());
         DiscoveryNode discoveryNode = DiscoveryNodeUtils.builder("node")
             .version(
@@ -226,11 +225,10 @@ public class TransportBulkActionTests extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
+    public void closeServices() throws Exception {
         ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
         threadPool = null;
         clusterService.close();
-        super.tearDown();
     }
 
     public void testDeleteNonExistingDocDoesNotCreateIndex() throws Exception {
@@ -347,7 +345,7 @@ public class TransportBulkActionTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> requireSliceRoutingWhenEnabled(request, indexAbstraction, idx -> indexMetadata)
         );
-        assertThat(exception.getMessage(), containsString("[_slice] is required when [index.slice.enabled] is true"));
+        assertThat(exception.getMessage(), containsString("[slice] is required when [index.slice.enabled] is true"));
     }
 
     public void testRequireSliceRoutingWhenSliceEnabledAndRoutingProvided() {
@@ -366,7 +364,7 @@ public class TransportBulkActionTests extends ESTestCase {
             () -> requireSliceRoutingWhenEnabled(request, indexAbstraction, idx -> indexMetadata)
         );
         assertThat(exception.getMessage(), containsString("[routing] is not allowed when [index.slice.enabled] is true"));
-        assertThat(exception.getMessage(), containsString("use [_slice] instead"));
+        assertThat(exception.getMessage(), containsString("use [slice] instead"));
     }
 
     public void testRequireSliceRoutingWhenSliceEnabledAndSliceProvided() {
@@ -398,7 +396,7 @@ public class TransportBulkActionTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> requireSliceRoutingWhenEnabled(request, indexAbstraction, idx -> indexMetadata)
         );
-        assertThat(exception.getMessage(), containsString("[_slice] is not allowed when [index.slice.enabled] is false"));
+        assertThat(exception.getMessage(), containsString("[slice] is not allowed when [index.slice.enabled] is false"));
     }
 
     public void testRoutingAllowedWhenSliceSettingDisabledAndNoSliceProvenance() {
@@ -430,7 +428,7 @@ public class TransportBulkActionTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> requireSliceRoutingWhenEnabled(request, indexAbstraction, idx -> indexMetadata)
         );
-        assertThat(exception.getMessage(), containsString("[_slice] is not allowed when [index.slice.enabled] is false"));
+        assertThat(exception.getMessage(), containsString("[slice] is not allowed when [index.slice.enabled] is false"));
     }
 
     public void testDeleteRoutingAllowedWhenSliceSettingDisabledAndNoSliceProvenance() {

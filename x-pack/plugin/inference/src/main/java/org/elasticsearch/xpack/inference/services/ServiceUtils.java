@@ -995,6 +995,14 @@ public final class ServiceUtils {
         throwUnsupportedTaskOperation(serviceName, "unified completion with reasoning inputs");
     }
 
+    public static void throwUnsupportedCacheControlUnifiedCompletionOperation(String serviceName) {
+        throwUnsupportedTaskOperation(serviceName, "unified completion with cache control");
+    }
+
+    public static void throwUnsupportedSessionIdUnifiedCompletionOperation(String serviceName) {
+        throwUnsupportedTaskOperation(serviceName, "unified completion with session id");
+    }
+
     public static void throwUnsupportedEmbeddingOperation(String serviceName) {
         throwUnsupportedTaskOperation(serviceName, "embedding");
     }

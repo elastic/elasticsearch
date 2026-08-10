@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper.extras;
 
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
@@ -74,5 +75,11 @@ public class RankFeatureMetaFieldMapper extends MetadataFieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
+    }
+
+    @Override
+    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+        // No preParse/postParse override — nothing to port for the columnar path.
+        return true;
     }
 }

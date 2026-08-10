@@ -36,10 +36,8 @@ public class LocalCheckpointTrackerTests extends ESTestCase {
         return new LocalCheckpointTracker(SequenceNumbers.NO_OPS_PERFORMED, SequenceNumbers.NO_OPS_PERFORMED);
     }
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initTracker() throws Exception {
         tracker = createEmptyTracker();
     }
 

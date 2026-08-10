@@ -754,7 +754,8 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
     }
 
     // The tests in this class exercise auth retrieval, not the reasoning task settings, so a fully-upgraded
-    // feature service is used throughout to match the expected endpoints built with ImmutableEmptyTaskSettings.
+    // feature service is used throughout to match the expected endpoints built with
+    // ElasticInferenceServiceChatCompletionTaskSettings.EMPTY / ImmutableEmptyTaskSettings.
     private static FeatureService createFeatureService() {
         var featureService = mock(FeatureService.class);
         when(featureService.clusterHasFeature(any(), any())).thenReturn(true);

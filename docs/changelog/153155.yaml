@@ -1,0 +1,5 @@
+area: Infra/Scripting
+issues: []
+pr: 153155
+summary: Add Painless allowlist allocation annotations and object sizing
+type: enhancement

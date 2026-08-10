@@ -476,7 +476,6 @@ public class NestedObjectMapper extends ObjectMapper {
         private boolean columnar;
         private ColumnarSourceWriter.ReusableColumnarStoredLeafReader columnarChildReader;
         private SourceLoader.Leaf columnarChildLeaf;
-        private LeafStoredFieldLoader columnarChildStoredLoader;
         private final List<LuceneDocument> columnarChildren = new ArrayList<>();
 
         private NestedSyntheticFieldLoader(
@@ -502,10 +501,6 @@ public class NestedObjectMapper extends ObjectMapper {
                 this.columnarChildren.clear();
                 this.columnarChildReader = new ColumnarSourceWriter.ReusableColumnarStoredLeafReader();
                 this.columnarChildLeaf = sourceLoader.leaf(columnarChildReader, ColumnarSourceWriter.DOC_IDS);
-                this.columnarChildStoredLoader = storedFieldLoader.getLoader(
-                    columnarChildReader.getContext(),
-                    ColumnarSourceWriter.DOC_IDS
-                );
                 return parentDoc -> {
                     columnarChildren.clear();
                     LuceneDocument parent = parentReader.currentDoc();
@@ -590,8 +585,10 @@ public class NestedObjectMapper extends ObjectMapper {
 
         private void writeColumnarChild(LuceneDocument child, XContentBuilder b) throws IOException {
             columnarChildReader.repopulate(child);
-            columnarChildStoredLoader.advanceTo(ColumnarSourceWriter.DOC_ID);
-            columnarChildLeaf.write(columnarChildStoredLoader, ColumnarSourceWriter.DOC_ID, b);
+            // A fresh loader per child: every child reuses DOC_ID (0), and a reused loader would skip re-reading stored fields.
+            var childStoredLoader = storedFieldLoader.getLoader(columnarChildReader.getContext(), ColumnarSourceWriter.DOC_IDS);
+            childStoredLoader.advanceTo(ColumnarSourceWriter.DOC_ID);
+            columnarChildLeaf.write(childStoredLoader, ColumnarSourceWriter.DOC_ID, b);
         }
 
         /**

@@ -118,6 +118,7 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.usage.UsageService;
+import org.junit.After;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -156,9 +157,8 @@ public class TransportSearchActionTests extends ESTestCase {
 
     private final ThreadPool threadPool = new TestThreadPool(getClass().getName());
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @After
+    public void closeThreadPool() throws Exception {
         ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
     }
 
@@ -2171,7 +2171,7 @@ public class TransportSearchActionTests extends ESTestCase {
             )
         );
         assertThat(e.getMessage(), containsString("[routing] is not allowed when [index.slice.enabled] is true"));
-        assertThat(e.getMessage(), containsString("use [_slice] instead"));
+        assertThat(e.getMessage(), containsString("use [slice] instead"));
     }
 
     public void testValidateAndResolveSearchSliceRoutingRejectsSliceWhenDisabled() {
@@ -2195,7 +2195,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 false
             )
         );
-        assertThat(e.getMessage(), containsString("[_slice] is not allowed when [index.slice.enabled] is false"));
+        assertThat(e.getMessage(), containsString("[slice] is not allowed when [index.slice.enabled] is false"));
     }
 
     public void testValidateAndResolveSearchSliceRoutingAcceptsMixedTargets() {

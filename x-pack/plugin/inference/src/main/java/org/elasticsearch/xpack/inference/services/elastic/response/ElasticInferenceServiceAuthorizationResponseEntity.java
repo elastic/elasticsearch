@@ -7,12 +7,16 @@
 
 package org.elasticsearch.xpack.inference.services.elastic.response;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.completion.Reasoning;
 import org.elasticsearch.inference.metadata.EndpointMetadata;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
@@ -47,6 +51,8 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 public record ElasticInferenceServiceAuthorizationResponseEntity(List<AuthorizedEndpoint> authorizedEndpoints, Set<String> removedEndpoints)
     implements
         InferenceServiceResults {
+
+    private static final Logger logger = LogManager.getLogger(ElasticInferenceServiceAuthorizationResponseEntity.class);
 
     private static final String INFERENCE_ENDPOINTS = "inference_endpoints";
     private static final String REMOVED_ENDPOINTS = "removed_endpoints";
@@ -165,21 +171,29 @@ public record ElasticInferenceServiceAuthorizationResponseEntity(List<Authorized
         @Nullable String similarity,
         @Nullable Integer dimensions,
         @Nullable String elementType,
-        @Nullable Map<String, Object> chunkingSettings
+        @Nullable Map<String, Object> chunkingSettings,
+        @Nullable Reasoning reasoning
     ) {
 
-        public static final Configuration EMPTY = new Configuration(null, null, null, null);
+        public static final Configuration EMPTY = new Configuration(null, null, null, null, null);
 
         public static final String SIMILARITY = "similarity";
         public static final String DIMENSIONS = "dimensions";
         public static final String ELEMENT_TYPE = "element_type";
         public static final String CHUNKING_SETTINGS = "chunking_settings";
+        public static final String REASONING = "reasoning";
 
         @SuppressWarnings("unchecked")
         public static final ConstructingObjectParser<Configuration, Void> PARSER = new ConstructingObjectParser<>(
             Configuration.class.getSimpleName(),
             true,
-            args -> new Configuration((String) args[0], (Integer) args[1], (String) args[2], (Map<String, Object>) args[3])
+            args -> new Configuration(
+                (String) args[0],
+                (Integer) args[1],
+                (String) args[2],
+                (Map<String, Object>) args[3],
+                (Reasoning) args[4]
+            )
         );
 
         static {
@@ -187,6 +201,28 @@ public record ElasticInferenceServiceAuthorizationResponseEntity(List<Authorized
             PARSER.declareInt(optionalConstructorArg(), new ParseField(DIMENSIONS));
             PARSER.declareString(optionalConstructorArg(), new ParseField(ELEMENT_TYPE));
             PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.mapOrdered(), new ParseField(CHUNKING_SETTINGS));
+            // Lenient parser: this is a server-to-server payload, so unknown reasoning fields (or a new
+            // effort/summary enum value) from a newer EIS gateway should be ignored rather than failing the
+            // whole authorization response. Enum-value and validation failures throw only after the reasoning
+            // object is fully consumed, so the outer parser stays correctly positioned; a structural
+            // type-mismatch mid-object is not handled.
+            PARSER.declareObject(optionalConstructorArg(), (p, c) -> parseReasoningLeniently(p), new ParseField(REASONING));
+        }
+
+        private static Reasoning parseReasoningLeniently(XContentParser parser) {
+            try {
+                return Reasoning.LENIENT_PARSER.apply(parser, null);
+            } catch (Exception e) {
+                logger.info(
+                    Strings.format(
+                        "Failed to parse the [%s] configuration from the Elastic Inference Service "
+                            + "authorization response; ignoring it",
+                        REASONING
+                    ),
+                    e
+                );
+                return null;
+            }
         }
     }
 

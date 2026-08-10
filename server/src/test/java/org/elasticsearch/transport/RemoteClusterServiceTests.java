@@ -35,11 +35,13 @@ import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.tasks.TaskCancellationService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.junit.After;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -79,14 +81,13 @@ public class RemoteClusterServiceTests extends ESTestCase {
     private final ThreadPool threadPool = new TestThreadPool(getClass().getName());
     private final ProjectResolver projectResolver = DefaultProjectResolver.INSTANCE;
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @After
+    public void terminateThreadPool() throws Exception {
         ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
     }
 
     private MockTransportService startTransport(final String id, final List<DiscoveryNode> knownNodes, final Settings settings) {
-        return RemoteClusterConnectionTests.startTransport(
+        final MockTransportService transportService = RemoteClusterConnectionTests.startTransport(
             id,
             knownNodes,
             VersionInformation.CURRENT,
@@ -94,6 +95,8 @@ public class RemoteClusterServiceTests extends ESTestCase {
             threadPool,
             settings
         );
+        transportService.getTaskManager().setTaskCancellationService(new TaskCancellationService(transportService));
+        return transportService;
     }
 
     private MockTransportService startTransport() {

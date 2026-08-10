@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
@@ -90,9 +91,14 @@ public class CsvDataSourcePlugin extends Plugin implements DataSourcePlugin {
         return Set.of(FormatSpec.of("csv", ".csv", FORMAT_CONFIG_KEYS), FormatSpec.of("tsv", ".tsv", FORMAT_CONFIG_KEYS));
     }
 
+    /**
+     * The CSV read path only exists for external data sources, so this knob follows the federation feature: an
+     * operator who unregistered the feature does not accept configuration for it, and a node whose
+     * {@code elasticsearch.yml} carries the key fails to start with the standard {@code unknown setting} error.
+     */
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(CSV_DIRECT_BLOCK_ENABLED);
+        return Federation.isRegistered() ? List.of(CSV_DIRECT_BLOCK_ENABLED) : List.of();
     }
 
     @Override

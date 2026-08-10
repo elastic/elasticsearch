@@ -1,0 +1,214 @@
+setup:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [slice_indexing]
+      reason: slice-enabled indices scope _id by slice
+
+  - do:
+      indices.create:
+          index: slice_index
+          body:
+              settings:
+                  number_of_shards: 1
+                  index.slice.enabled: true
+              mappings:
+                  properties:
+                      value:
+                          type: keyword
+
+---
+"Same _id in different slices are distinct documents":
+  - do:
+      index:
+          index:  slice_index
+          id:     "1"
+          slice: a
+          refresh: true
+          body:   { value: va }
+  - match: { _id: "1" }
+  - match: { result: created }
+
+  - do:
+      index:
+          index:  slice_index
+          id:     "1"
+          slice: b
+          refresh: true
+          body:   { value: vb }
+  - match: { _id: "1" }
+  - match: { result: created }
+
+  # GET is scoped to the slice and returns the plain _id
+  - do:
+      get:
+          index:  slice_index
+          id:     "1"
+          slice: a
+  - match: { _id: "1" }
+  - match: { _source.value: va }
+
+  - do:
+      get:
+          index:  slice_index
+          id:     "1"
+          slice: b
+  - match: { _id: "1" }
+  - match: { _source.value: vb }
+
+  # a slice-scoped search sees only its slice; _all sees both
+  - do:
+      search:
+          index:  slice_index
+          slice: a
+          body:   { query: { match_all: {} } }
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0._source.value: va }
+
+  - do:
+      search:
+          index:  slice_index
+          slice: _all
+          body:   { query: { match_all: {} } }
+  - match: { hits.total.value: 2 }
+
+  # an ids query is slice-scoped too
+  - do:
+      search:
+          index:  slice_index
+          slice: b
+          body:   { query: { ids: { values: ["1"] } } }
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.value: vb }
+
+---
+"Overwrite and delete are scoped to the slice":
+  - do:
+      index:
+          index:  slice_index
+          id:     "1"
+          slice: a
+          refresh: true
+          body:   { value: va }
+  - do:
+      index:
+          index:  slice_index
+          id:     "1"
+          slice: b
+          refresh: true
+          body:   { value: vb }
+
+  # overwriting _id 1 in slice a leaves slice b untouched
+  - do:
+      index:
+          index:  slice_index
+          id:     "1"
+          slice: a
+          refresh: true
+          body:   { value: va2 }
+  - match: { result: updated }
+  - match: { _version: 2 }
+
+  - do:
+      get:
+          index:  slice_index
+          id:     "1"
+          slice: a
+  - match: { _source.value: va2 }
+
+  - do:
+      get:
+          index:  slice_index
+          id:     "1"
+          slice: b
+  - match: { _source.value: vb }
+
+  # deleting _id 1 in slice a leaves slice b intact
+  - do:
+      delete:
+          index:  slice_index
+          id:     "1"
+          slice: a
+          refresh: true
+  - match: { result: deleted }
+
+  - do:
+      catch: missing
+      get:
+          index:  slice_index
+          id:     "1"
+          slice: a
+
+  # delete and update of the now-missing (slice a, id 1) report missing/404, not a wrong-slice error
+  - do:
+      catch: missing
+      delete:
+          index:  slice_index
+          id:     "1"
+          slice: a
+
+  - do:
+      catch: missing
+      update:
+          index:  slice_index
+          id:     "1"
+          slice: a
+          body:   { doc: { value: vX } }
+
+  - do:
+      get:
+          index:  slice_index
+          id:     "1"
+          slice: b
+  - match: { _source.value: vb }
+
+---
+"An id present only in another slice is filtered out":
+  - do:
+      index:
+          index:  slice_index
+          id:     "only-a"
+          slice: a
+          refresh: true
+          body:   { value: va }
+
+  # the id exists in slice a but not slice b; reads/writes in slice b must miss, proving other slices are filtered out
+  - do:
+      catch: missing
+      get:
+          index:  slice_index
+          id:     "only-a"
+          slice: b
+
+  - do:
+      search:
+          index:  slice_index
+          slice: b
+          body:   { query: { ids: { values: ["only-a"] } } }
+  - match: { hits.total.value: 0 }
+
+  - do:
+      catch: missing
+      delete:
+          index:  slice_index
+          id:     "only-a"
+          slice: b
+
+  - do:
+      catch: missing
+      update:
+          index:  slice_index
+          id:     "only-a"
+          slice: b
+          body:   { doc: { value: vb } }
+
+  # slice a is untouched by the missing-slice operations
+  - do:
+      get:
+          index:  slice_index
+          id:     "only-a"
+          slice: a
+  - match: { _source.value: va }

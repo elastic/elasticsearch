@@ -20,6 +20,7 @@ count:long
 
 aggregateMultiFileByGender
 required_capability: dataset_in_from_command
+required_capability: external_csv_empty_string_not_null
 dataset: employees_multifile_split: "{{employees_multifile_split}}"
 
 FROM employees_multifile_split
@@ -27,9 +28,9 @@ FROM employees_multifile_split
 | SORT gender;
 
 count:long | gender:keyword
+10         |
 33         | "F"
 57         | "M"
-10         | null
 ;
 
 multiFileSalaryStats

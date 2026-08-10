@@ -894,13 +894,21 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             public void onResponse(BccUploadResult uploadResult) {
                 maybeLogSlowBccUpload(virtualBcc, uploadResult);
                 final BatchedCompoundCommit uploadedBcc = uploadResult.batchedCompoundCommit();
+                final long ccGeneration = uploadedBcc.lastCompoundCommit().generation();
+                final Set<ShardId> splitTargets = commitState.getSplitTargets();
+                final AtomicBoolean copyTaskOwnsCleanup = new AtomicBoolean();
                 try {
                     // Use the largest translog release file from all CCs to release translog files for cleaning.
-                    // markBccUploaded fires the local-upload generation listeners, allowing the next upload to
-                    // start immediately without waiting for copies to split targets to complete.
                     commitState.markBccUploaded(
                         uploadedBcc,
-                        virtualBcc.getLastPendingCompoundCommit().getCommitReference().getTranslogReleaseEndFile()
+                        virtualBcc.getLastPendingCompoundCommit().getCommitReference().getTranslogReleaseEndFile(),
+                        () -> {
+                            if (splitTargets.isEmpty() == false) {
+                                copyTaskOwnsCleanup.set(
+                                    scheduleSplitTargetCopies(commitState, blobReference, uploadedBcc, ccGeneration, splitTargets)
+                                );
+                            }
+                        }
                     );
                 } catch (Exception e) {
                     // TODO: we should assert false here once we fix ES-8336
@@ -912,33 +920,41 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                         ),
                         e
                     );
-                    cleanup();
+                    if (copyTaskOwnsCleanup.get() == false) {
+                        cleanup();
+                    }
                     return;
                 }
-                // Copies to split targets and search-node notification are dispatched after markBccUploaded
-                // so that the next upload can start concurrently. Both are still gated on copy completion
-                // from the outside world's perspective: the fully-uploaded generation listeners (used for
-                // flush) and sendNewUploadedCommitNotification fire only after copies finish.
-                // We use the upload thread pool rather than the copy pool to avoid depleting it, since this
-                // is conceptually upload work spread across multiple locations. (ES-12456)
-                final long ccGeneration = uploadedBcc.lastCompoundCommit().generation();
-                final Set<ShardId> splitTargets = commitState.getSplitTargets();
                 if (splitTargets.isEmpty()) {
                     afterCopies(commitState, blobReference, uploadedBcc, ccGeneration);
-                } else {
-                    // Acquire a permit so that objectStoreService.doClose() waits for in-flight copies before
-                    // closing the blob store, mirroring the implicit drain the old synchronous copy code provided.
-                    final Releasable copyPermit;
-                    try {
-                        copyPermit = objectStoreService.acquireCopyPermit();
-                    } catch (Exception e) {
-                        // Service is already shutting down; treat the same as a closed shard.
-                        cleanup();
-                        return;
-                    }
-                    // Serialise copies via a per-shard single-slot runner so that
-                    // fireUploadedGenerationListeners is always called in generation order.
-                    // (ES-12456)
+                } else if (copyTaskOwnsCleanup.get() == false) {
+                    cleanup();
+                }
+            }
+
+            private boolean scheduleSplitTargetCopies(
+                ShardCommitState commitState,
+                ShardCommitState.BlobReference blobReference,
+                BatchedCompoundCommit uploadedBcc,
+                long ccGeneration,
+                Set<ShardId> splitTargets
+            ) {
+                // Acquire a permit so that objectStoreService.doClose() waits for in-flight copies before
+                // closing the blob store, mirroring the implicit drain the old synchronous copy code provided.
+                final Releasable copyPermit;
+                try {
+                    copyPermit = objectStoreService.acquireCopyPermit();
+                } catch (Exception e) {
+                    // Service is already shutting down; treat the same as a closed shard.
+                    return false;
+                }
+
+                try {
+                    // Serialise copies via a per-shard single-slot runner. This task is submitted after the
+                    // local-upload state is committed, but before the listeners that start the next upload are
+                    // fired, so submissions and fully-uploaded notifications remain in generation order.
+                    // We use the upload thread pool rather than the copy pool to avoid depleting it, since this
+                    // is conceptually upload work spread across multiple locations. (ES-12456, #154606)
                     commitState.splitTargetCopyExecutor.execute(() -> {
                         try {
                             for (ShardId targetShardId : splitTargets) {
@@ -981,6 +997,10 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                             copyPermit.close();
                         }
                     });
+                    return true;
+                } catch (Exception e) {
+                    copyPermit.close();
+                    return false;
                 }
             }
 
@@ -1663,7 +1683,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             // * We cannot use the translog start file as the release file, as it may have the HOLLOW_TRANSLOG_RECOVERY_START_FILE value.
             // * There should be no translog files to release for a recovering shard.
             // * We do not need to get the translog release end file from the commit user data.
-            handleUploadedBcc(recoveredBcc, false, -1);
+            handleUploadedBcc(recoveredBcc, false, -1, () -> {});
             // Recovered commits are already fully present in the object store; fire generation
             // listeners immediately so that callers of addListenerForUploadedGeneration do not
             // wait indefinitely for an upload that will never happen for these generations.
@@ -2133,11 +2153,20 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             );
         }
 
-        public void markBccUploaded(BatchedCompoundCommit batchedCompoundCommit, final long translogReleaseEndFile) {
-            handleUploadedBcc(batchedCompoundCommit, true, translogReleaseEndFile);
+        public void markBccUploaded(
+            BatchedCompoundCommit batchedCompoundCommit,
+            final long translogReleaseEndFile,
+            Runnable beforeLocalUploadListeners
+        ) {
+            handleUploadedBcc(batchedCompoundCommit, true, translogReleaseEndFile, beforeLocalUploadListeners);
         }
 
-        private void handleUploadedBcc(BatchedCompoundCommit uploadedBcc, boolean isUpload, final long translogReleaseEndFile) {
+        private void handleUploadedBcc(
+            BatchedCompoundCommit uploadedBcc,
+            boolean isUpload,
+            final long translogReleaseEndFile,
+            Runnable beforeLocalUploadListeners
+        ) {
             assert isDeleted == false : "shard " + shardId + " is deleted when trying to handle uploaded commit " + uploadedBcc;
             final long newBccGeneration = uploadedBcc.primaryTermAndGeneration().generation(); // for managing pending uploads
             final long newGeneration = uploadedBcc.lastCompoundCommit().generation(); // for notifying generation listeners
@@ -2147,6 +2176,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             // 2. BCC upload consumers are triggered in generation order
             // 3. latestUploadedBcc, pendingUploadBccGenerations and localUploadedGenerationListeners
             // are updated in a single synchronized block to avoid racing
+            // 4. Work that must be ordered before the next upload is submitted after updating the state and
+            // before firing localUploadedGenerationListeners
 
             final List<ActionListener<UploadedBccInfo>> listenersToFire = new ArrayList<>();
             synchronized (this) {
@@ -2234,6 +2265,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     localUploadedGenerationListeners = listenersToReregister;
                 }
             }
+
+            beforeLocalUploadListeners.run();
 
             // It is OK for generation listeners to be completed out of generation order
             try {

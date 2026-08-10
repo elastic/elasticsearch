@@ -465,6 +465,8 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
             // Wait for gen2's BCC blob to be written (gen2 local upload done while gen1's copy is blocked).
             safeAwait(testHarness.bccWrittenLatch);
+            safeAwait(testHarness.copyStartedLatch);
+            assertThat(testHarness.firstCopyStartedNameRef.get(), equalTo(blobNameFromGeneration(commit1.getGeneration())));
 
             try {
                 // check ordering
@@ -480,6 +482,42 @@ public class StatelessCommitServiceTests extends ESTestCase {
             PlainActionFuture<Void> commit2FullyUploaded = new PlainActionFuture<>();
             testHarness.commitService.addListenerForUploadedGeneration(testHarness.shardId, commit2.getGeneration(), commit2FullyUploaded);
             safeGet(commit2FullyUploaded);
+        }
+    }
+
+    /**
+     * Verifies that split-target copy work cannot start before the corresponding local BCC upload has
+     * been committed to the shard state. The uploaded-BCC consumer runs before that state transition,
+     * so blocking it gives this test a deterministic view of the handoff.
+     */
+    public void testSplitTargetCopyStartsAfterBccIsMarkedUploaded() throws Exception {
+        CountDownLatch bccConsumerStarted = new CountDownLatch(1);
+        CountDownLatch allowBccConsumerToComplete = new CountDownLatch(1);
+        try (var testHarness = new SplitCopyObservingNode()) {
+            StatelessCommitRef commit = testHarness.generateIndexCommits(1).getFirst();
+            ShardId targetShardId = new ShardId(testHarness.shardId.getIndex(), 1);
+            testHarness.commitService.markSplitting(testHarness.shardId, targetShardId);
+            testHarness.commitService.addConsumerForNewUploadedBcc(testHarness.shardId, ignored -> {
+                bccConsumerStarted.countDown();
+                safeAwait(allowBccConsumerToComplete);
+            });
+
+            testHarness.commitService.onCommitCreation(commit);
+            testHarness.commitService.ensureMaxGenerationToUploadForFlush(testHarness.shardId, commit.getGeneration());
+            safeAwait(bccConsumerStarted);
+
+            try {
+                // A copy submitted before markBccUploaded updates the shard state can start while the
+                // uploaded-BCC consumer is blocked here.
+                assertFalse(testHarness.copyStartedLatch.await(50, TimeUnit.MILLISECONDS));
+            } finally {
+                allowBccConsumerToComplete.countDown();
+            }
+
+            PlainActionFuture<Void> fullyUploaded = new PlainActionFuture<>();
+            testHarness.commitService.addListenerForUploadedGeneration(testHarness.shardId, commit.getGeneration(), fullyUploaded);
+            safeGet(fullyUploaded);
+            safeAwait(testHarness.copyStartedLatch);
         }
     }
 
@@ -3524,6 +3562,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
      *       down once that blob is written atomically.</li>
      *   <li>{@link #copyBlockedNameRef} — set to the blob name whose copy should block on
      *       {@link #copyBlocker} until it is counted down.</li>
+     *   <li>{@link #copyStartedLatch} and {@link #firstCopyStartedNameRef} — observe which copy starts first.</li>
      * </ul>
      */
     private class SplitCopyObservingNode extends FakeStatelessNode {
@@ -3531,6 +3570,8 @@ public class StatelessCommitServiceTests extends ESTestCase {
         final CountDownLatch bccWrittenLatch = new CountDownLatch(1);
         final AtomicReference<String> copyBlockedNameRef = new AtomicReference<>();
         final CountDownLatch copyBlocker = new CountDownLatch(1);
+        final CountDownLatch copyStartedLatch = new CountDownLatch(1);
+        final AtomicReference<String> firstCopyStartedNameRef = new AtomicReference<>();
 
         SplitCopyObservingNode() throws IOException {
             super(
@@ -3580,6 +3621,9 @@ public class StatelessCommitServiceTests extends ESTestCase {
                     String blobName,
                     long blobSize
                 ) throws IOException {
+                    if (firstCopyStartedNameRef.compareAndSet(null, blobName)) {
+                        copyStartedLatch.countDown();
+                    }
                     if (blobName.equals(copyBlockedNameRef.get())) {
                         safeAwait(copyBlocker);
                     }

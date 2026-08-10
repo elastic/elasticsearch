@@ -13,16 +13,12 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
-import org.elasticsearch.inference.completion.ReasoningDetailTests;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.CHAT_COMPLETION_CACHE_WRITE_TOKENS_SUPPORT_ADDED;
-import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.CHAT_COMPLETION_REASONING_SUPPORT_ADDED;
-import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.INFERENCE_CACHED_TOKENS;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -35,106 +31,24 @@ public class ChatCompletionChunkTests extends AbstractBWCWireSerializationTestCa
     public static ChatCompletionChunk randomChatCompletionChunk() {
         return new ChatCompletionChunk(
             randomAlphanumericOfLength(5),
-            randomBoolean()
-                ? null
-                : randomList(
-                    randomInt(5),
-                    () -> new ChatCompletionChoice(
-                        new ChatCompletionMessage(
-                            randomAlphaOfLengthOrNull(5),
-                            randomAlphaOfLengthOrNull(5),
-                            randomAlphaOfLengthOrNull(5),
-                            randomBoolean()
-                                ? null
-                                : randomList(
-                                    randomInt(5),
-                                    () -> new ChatCompletionToolCall(
-                                        randomInt(5),
-                                        randomAlphaOfLengthOrNull(5),
-                                        randomBoolean()
-                                            ? null
-                                            : new ChatCompletionToolCall.Function(
-                                                randomAlphaOfLengthOrNull(5),
-                                                randomAlphaOfLengthOrNull(5)
-                                            ),
-                                        randomAlphaOfLengthOrNull(5)
-                                    )
-                                ),
-                            randomAlphaOfLengthOrNull(5),
-                            randomBoolean() ? null : randomList(randomInt(5), ReasoningDetailTests::randomReasoningDetail)
-                        ),
-                        randomAlphaOfLengthOrNull(5),
-                        randomInt(5)
-                    )
-                ),
+            randomBoolean() ? null : randomList(randomInt(5), ChatCompletionChoiceTests::randomChatCompletionChoice),
             randomAlphanumericOfLength(5),
             randomAlphanumericOfLength(5),
-            randomBoolean()
-                ? null
-                : new ChatCompletionUsage(
-                    randomInt(5),
-                    randomInt(5),
-                    randomInt(5),
-                    randomBoolean() ? new ChatCompletionUsage.PromptTokensDetails(randomInt(5), randomInt(5)) : null,
-                    randomBoolean() ? new ChatCompletionUsage.CompletionTokenDetails(randomNonNegativeIntOrNull()) : null
-                )
+            randomBoolean() ? null : ChatCompletionUsageTests.randomChatCompletionUsage()
         );
     }
 
     /**
      * Truncates fields that would not survive serialization to an older transport version.
-     * Mirrors the gating in {@link ChatCompletionUsage#writeTo} and {@link ChatCompletionMessage#writeTo}.
+     * Delegates the per-record truncation rules to {@link ChatCompletionChoiceTests#downgrade} and
+     * {@link ChatCompletionUsageTests#downgrade}.
      * Exposed so that {@code StreamingUnifiedChatCompletionResultsTests.mutateInstanceForVersion} can delegate.
      */
     public static ChatCompletionChunk downgrade(ChatCompletionChunk instance, TransportVersion version) {
-        var choices = instance.choices();
-        var usage = instance.usage();
-
-        if (version.supports(CHAT_COMPLETION_REASONING_SUPPORT_ADDED) == false && choices != null) {
-            choices = choices.stream()
-                .map(
-                    choice -> new ChatCompletionChoice(
-                        new ChatCompletionMessage(
-                            choice.message().content(),
-                            choice.message().refusal(),
-                            choice.message().role(),
-                            choice.message().toolCalls()
-                        ),
-                        choice.finishReason(),
-                        choice.index()
-                    )
-                )
-                .toList();
-        }
-
-        if (usage != null) {
-            var promptTokensDetails = usage.promptTokensDetails();
-            var completionTokenDetails = usage.completionTokenDetails();
-
-            if (version.supports(CHAT_COMPLETION_CACHE_WRITE_TOKENS_SUPPORT_ADDED) == false && promptTokensDetails != null) {
-                // the old wire format only carries cachedTokens; without it the whole details object collapses to null
-                promptTokensDetails = promptTokensDetails.cachedTokens() == null
-                    ? null
-                    : new ChatCompletionUsage.PromptTokensDetails(promptTokensDetails.cachedTokens(), null);
-            }
-
-            if (version.supports(INFERENCE_CACHED_TOKENS) == false) {
-                promptTokensDetails = null;
-            }
-
-            if (version.supports(CHAT_COMPLETION_REASONING_SUPPORT_ADDED) == false) {
-                completionTokenDetails = null;
-            }
-
-            usage = new ChatCompletionUsage(
-                usage.completionTokens(),
-                usage.promptTokens(),
-                usage.totalTokens(),
-                promptTokensDetails,
-                completionTokenDetails
-            );
-        }
-
+        var choices = instance.choices() == null
+            ? null
+            : instance.choices().stream().map(c -> ChatCompletionChoiceTests.downgrade(c, version)).toList();
+        var usage = instance.usage() == null ? null : ChatCompletionUsageTests.downgrade(instance.usage(), version);
         return new ChatCompletionChunk(instance.id(), choices, instance.model(), instance.object(), usage);
     }
 

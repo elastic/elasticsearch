@@ -68,6 +68,9 @@ There are no breaking changes associated with this release.
 
 ## 9.4.0 [elasticsearch-9.4.0-breaking-changes]
 
+CRUD:
+* Document-to-shard routing for newly created indices uses `hash(_routing) % number_of_shards` instead of `(hash(_routing) % number_of_routing_shards) / routing_factor`. Existing indices keep the legacy routing function based on their creation version. Recreating or reindexing into a new index can change how documents are distributed across shards compared to the source index. [#137062](https://github.com/elastic/elasticsearch/pull/137062)
+
 ILM:
 * In earlier versions of Elasticsearch the downsampling API was force merging the downsampled index. In Elasticsearch `9.3.0` and later we moved this behaviour from the downsampling API to the ILM downsampling action and we enabled by default. This allowed users to disabled it if they wished.
 Seeing that the force merge is not inherently needed by the downsampling operation, in Elasticsearch `9.4.0`, we choose to disable it by default. This change only affects the downsampling ILM actions; other actions that force merge an index by default, such as the searchable snapshot action, will remain unchanged.

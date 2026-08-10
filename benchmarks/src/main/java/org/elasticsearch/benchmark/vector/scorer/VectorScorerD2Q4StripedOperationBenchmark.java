@@ -76,7 +76,7 @@ public class VectorScorerD2Q4StripedOperationBenchmark {
 
     // dataset: numVectors * docBytes laid out contiguously in native memory
     private MemorySegment dataset;
-    // query: queryBytes (4 bit-planes back-to-back, produced by transposeHalfByte-style packing)
+    // query: queryBytes (4 bit-planes back-to-back, produced by strided bit packing)
     private MemorySegment query;
     // shuffled ordinals for the random-access offsets path
     private int[] ordinals;

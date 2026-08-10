@@ -177,8 +177,7 @@ public final class ClusterShardHealth implements Writeable, ToXContentFragment {
      * Reshard-split targets are an exception to failed-initialization turning RED: while a target still has
      * {@link RecoverySource.Type#RESHARD_SPLIT}, it remains YELLOW even after failed allocation attempts (for example when the source
      * relocates and cancels an in-flight start-split). The source still serves the data until handoff. Once the target moves to STARTED,
-     * its recovery source is cleared; later failures use other recovery types and follow the normal RED rules. Permanently blocked
-     * allocation ({@link AllocationStatus#DECIDERS_NO}) still yields RED for reshard-split targets.
+     * its recovery source is cleared; later failures use other recovery types and follow the normal RED rules.
      *
      * NB: this method should *not* be called on active shards nor on non-primary shards.
      */
@@ -189,14 +188,12 @@ public final class ClusterShardHealth implements Writeable, ToXContentFragment {
         assert shardRouting.recoverySource() != null : "cannot invoke on a shard that has no recovery source" + shardRouting;
         final UnassignedInfo unassignedInfo = shardRouting.unassignedInfo();
         RecoverySource.Type recoveryType = shardRouting.recoverySource().getType();
-        boolean unexceptionalRecovery = recoveryType == RecoverySource.Type.EMPTY_STORE
-            || recoveryType == RecoverySource.Type.LOCAL_SHARDS
-            || recoveryType == RecoverySource.Type.SNAPSHOT
-            || recoveryType == RecoverySource.Type.RESHARD_SPLIT;
-        // Reshard-split targets may keep YELLOW across failedAllocations; see method javadoc.
-        boolean noHardFailure = unassignedInfo.lastAllocationStatus() != AllocationStatus.DECIDERS_NO
-            && (unassignedInfo.failedAllocations() == 0 || recoveryType == RecoverySource.Type.RESHARD_SPLIT);
-        if (noHardFailure && unexceptionalRecovery) {
+        if (recoveryType == RecoverySource.Type.RESHARD_SPLIT
+            || (unassignedInfo.lastAllocationStatus() != AllocationStatus.DECIDERS_NO
+                && unassignedInfo.failedAllocations() == 0
+                && (recoveryType == RecoverySource.Type.EMPTY_STORE
+                    || recoveryType == RecoverySource.Type.LOCAL_SHARDS
+                    || recoveryType == RecoverySource.Type.SNAPSHOT))) {
             return ClusterHealthStatus.YELLOW;
         } else {
             return ClusterHealthStatus.RED;

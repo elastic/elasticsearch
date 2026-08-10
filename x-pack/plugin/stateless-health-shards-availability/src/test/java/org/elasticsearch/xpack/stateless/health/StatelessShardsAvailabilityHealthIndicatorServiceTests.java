@@ -268,6 +268,10 @@ public class StatelessShardsAvailabilityHealthIndicatorServiceTests extends ESTe
         }
     }
 
+    /**
+     * Pre-handoff reshard targets keep {@link RecoverySource.Type#RESHARD_SPLIT}, including across failed recoveries (e.g. source relocates
+     * and cancels start-split). Those must stay provisional/GREEN rather than RED while the source still serves the data.
+     */
     public void testHealthWhileReshardSplitTargetShardsInactive() {
         final var projectId = randomProjectIdOrDefault();
         final var indexMetadata = IndexMetadata.builder(INDEX_NAME)
@@ -283,80 +287,15 @@ public class StatelessShardsAvailabilityHealthIndicatorServiceTests extends ESTe
         final var sourceShardReplica = shardRouting(sourceShardId, false, nodeB, null, STARTED);
         final var targetShardId = new ShardId(index.getName(), index.getUUID(), 1);
         final var unassignedAt = new TimeValue(System.currentTimeMillis() - TimeValue.timeValueMinutes(5).millis(), TimeUnit.MILLISECONDS);
+        // Include ALLOCATION_FAILED so failedAllocations > 0 still stays provisional for RESHARD_SPLIT targets.
+        final var targetPrimaryUnassignedInfo = randomBoolean()
+            ? unassignedInfo(UnassignedInfo.Reason.RESHARD_ADDED, unassignedAt)
+            : unassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, unassignedAt, UnassignedInfo.AllocationStatus.NO_ATTEMPT);
         var targetShardPrimary = newUnassigned(
             targetShardId,
             true,
             new RecoverySource.ReshardSplitRecoverySource(sourceShardId),
-            unassignedInfo(UnassignedInfo.Reason.RESHARD_ADDED, unassignedAt),
-            ShardRouting.Role.DEFAULT,
-            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
-        );
-        var targetShardReplica = newUnassigned(
-            targetShardId,
-            false,
-            RecoverySource.PeerRecoverySource.INSTANCE,
-            unassignedInfo(UnassignedInfo.Reason.RESHARD_ADDED, unassignedAt),
-            ShardRouting.Role.DEFAULT,
-            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
-        );
-        if (randomBoolean()) {
-            targetShardPrimary = targetShardPrimary.initialize(nodeB, null, 0);
-        }
-        var routingTable = IndexRoutingTable.builder(index)
-            .addShard(sourceShardPrimary)
-            .addShard(sourceShardReplica)
-            .addShard(targetShardPrimary)
-            .addShard(targetShardReplica)
-            .build();
-
-        final var state = clusterState(projectId, routingTable);
-        final var service = createStatelessIndicator(
-            projectId,
-            Settings.builder()
-                .put(ShardsAvailabilityHealthIndicatorService.PRIMARY_INACTIVE_BUFFER_TIME.getKey(), "0s")
-                .put(ShardsAvailabilityHealthIndicatorService.REPLICA_INACTIVE_BUFFER_TIME.getKey(), "0s")
-                .build(),
-            state
-        );
-        final var result = service.calculate(true, 10, HealthInfo.EMPTY_HEALTH_INFO);
-        final var details = ((SimpleHealthIndicatorDetails) result.details()).details();
-
-        assertThat(result.status(), equalTo(HealthStatus.GREEN));
-        assertThat(details.get("indices_with_provisionally_unavailable_primaries"), equalTo(INDEX_NAME));
-        assertThat(details.get("indices_with_unavailable_primaries"), nullValue());
-        assertThat(details.get("indices_with_provisionally_unavailable_replicas"), equalTo(INDEX_NAME));
-        assertThat(details.get("indices_with_unavailable_replicas"), nullValue());
-    }
-
-    /**
-     * Pre-handoff reshard targets keep {@link RecoverySource.Type#RESHARD_SPLIT} across failed recoveries (e.g. source relocates and
-     * cancels start-split). Those failures must stay provisional/GREEN rather than RED while the source still serves the data.
-     */
-    public void testHealthWhileReshardSplitTargetShardsInactiveAfterFailedAllocation() {
-        final var projectId = randomProjectIdOrDefault();
-        final var indexMetadata = IndexMetadata.builder(INDEX_NAME)
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
-            .numberOfShards(2)
-            .numberOfReplicas(1)
-            .build();
-        var nodeA = randomNodeId();
-        var nodeB = randomNodeId();
-        final var index = indexMetadata.getIndex();
-        final var sourceShardId = new ShardId(index.getName(), index.getUUID(), 0);
-        final var sourceShardPrimary = shardRouting(sourceShardId, true, nodeA, null, STARTED);
-        final var sourceShardReplica = shardRouting(sourceShardId, false, nodeB, null, STARTED);
-        final var targetShardId = new ShardId(index.getName(), index.getUUID(), 1);
-        final var unassignedAt = new TimeValue(System.currentTimeMillis() - TimeValue.timeValueMinutes(5).millis(), TimeUnit.MILLISECONDS);
-        final var failedAllocationInfo = unassignedInfo(
-            UnassignedInfo.Reason.ALLOCATION_FAILED,
-            unassignedAt,
-            UnassignedInfo.AllocationStatus.NO_ATTEMPT
-        );
-        var targetShardPrimary = newUnassigned(
-            targetShardId,
-            true,
-            new RecoverySource.ReshardSplitRecoverySource(sourceShardId),
-            failedAllocationInfo,
+            targetPrimaryUnassignedInfo,
             ShardRouting.Role.DEFAULT,
             ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
         );

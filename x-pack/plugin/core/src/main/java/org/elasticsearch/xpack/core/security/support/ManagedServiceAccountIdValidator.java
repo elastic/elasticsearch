@@ -13,7 +13,8 @@ import java.util.regex.Pattern;
 
 /**
  * Validates namespace and service name components for API-managed service accounts.
- * Built-in {@code elastic/*} principals continue to use the legacy {@link org.elasticsearch.xpack.core.security.authc.service.ServiceAccount.ServiceAccountId} parsing rules.
+ * Built-in {@code elastic/*} principals continue to use the legacy
+ * {@link org.elasticsearch.xpack.core.security.authc.service.ServiceAccount.ServiceAccountId} parsing rules.
  */
 public final class ManagedServiceAccountIdValidator {
 

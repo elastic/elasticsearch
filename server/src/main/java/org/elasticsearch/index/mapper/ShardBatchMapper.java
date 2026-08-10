@@ -179,7 +179,12 @@ public final class ShardBatchMapper {
             shard.getOperationPrimaryTerm(),
             shard.getRelativeTimeInNanos()
         );
-        final BatchMappingContext context = new BatchMappingContext(indexBatch, mappingLookup, shard.indexSettings());
+        final BatchMappingContext context = new BatchMappingContext(
+            indexBatch,
+            mappingLookup,
+            shard.indexSettings(),
+            shard.bytesRefRecycler()
+        );
 
         try {
             for (MetadataFieldMapper metadataMapper : metadataMappers) {

@@ -24,6 +24,7 @@ import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.UsageTrackingQueryCachingPolicy;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.SetOnce;
 import org.apache.lucene.util.ThreadInterruptedException;
 import org.elasticsearch.ElasticsearchException;
@@ -56,6 +57,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -234,6 +236,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final MutableOperationGate mutableOperationGate;
     private final SimilarityService similarityService;
     private final TranslogConfig translogConfig;
+    private final Recycler<BytesRef> bytesRefRecycler;
     private final IndexEventListener indexEventListener;
     private final QueryCachingPolicy cachingPolicy;
     private final Supplier<Sort> indexSortSupplier;
@@ -416,6 +419,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
         this.checkIndexOnStartup = indexSettings.getValue(IndexSettings.INDEX_CHECK_ON_STARTUP);
         this.translogConfig = new TranslogConfig(shardId, shardPath().resolveTranslog(), indexSettings, bigArrays);
+        this.bytesRefRecycler = bigArrays.bytesRefRecycler();
         final String aId = shardRouting.allocationId().getId();
         final long primaryTerm = indexSettings.getIndexMetadata().primaryTerm(shardId.id());
         this.pendingPrimaryTerm = primaryTerm;
@@ -487,6 +491,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public MapperService mapperService() {
         return mapperService;
+    }
+
+    public Recycler<BytesRef> bytesRefRecycler() {
+        return bytesRefRecycler;
     }
 
     public SearchOperationListener getSearchOperationListener() {

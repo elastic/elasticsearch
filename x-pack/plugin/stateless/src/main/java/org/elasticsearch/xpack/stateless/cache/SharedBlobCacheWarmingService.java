@@ -1958,9 +1958,7 @@ public class SharedBlobCacheWarmingService {
             protected final ByteRange byteRangeToWarm;
             private final long timestampMillis;
             private final ActionListener<Void> listener;
-            // Guards the enqueued→running transition so that a spurious onFailure after onResponse
-            // has partially executed (guarded by assert false in AbstractThrottledTaskRunner) does not
-            // decrement the enqueued counter a second time.
+            // used to handle a spurious #onFailure invocation after #onResponse has already been invoked
             private final AtomicBoolean dequeued = new AtomicBoolean(false);
 
             WarmBlobByteRangeTask(
@@ -1975,8 +1973,6 @@ public class SharedBlobCacheWarmingService {
                 this.byteRangeToWarm = byteRangeToWarm;
                 this.timestampMillis = timestampMillis;
                 enqueuedBccBlobsMetric.add(1);
-                // Wrap the listener so that completing the task (success or failure) decrements the
-                // running counter and increments the done counter exactly once.
                 this.listener = ActionListener.runBefore(listener, () -> {
                     runningBccBlobsMetric.add(-1);
                     doneBccBlobsMetric.incrementBy(1);
@@ -2036,7 +2032,7 @@ public class SharedBlobCacheWarmingService {
             public void onFailure(Exception e) {
                 // Task was rejected by the executor before ever running; undo the enqueue increment.
                 // If onResponse already ran (dequeued is true), this is the assert-false path in
-                // AbstractThrottledTaskRunner and we leave the counters alone to avoid a double-decrement.
+                // AbstractThrottledTaskRunner, we'll leave the counters alone to avoid a double-decrement.
                 if (dequeued.compareAndSet(false, true)) {
                     enqueuedBccBlobsMetric.add(-1);
                 }

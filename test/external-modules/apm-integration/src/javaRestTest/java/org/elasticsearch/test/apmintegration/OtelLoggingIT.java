@@ -25,6 +25,11 @@ import org.junit.ClassRule;
 import org.junit.rules.TestRule;
 
 import java.util.HexFormat;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.tasks.Task.TRACE_PARENT_HTTP_HEADER;
 import static org.hamcrest.Matchers.equalTo;

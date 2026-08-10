@@ -60,6 +60,9 @@ public class ElasticsearchOtelAppender extends AbstractAppender {
     private static final String TRACE_ID_KEY = "trace.id";
 
     private volatile OpenTelemetry openTelemetry;
+    /**
+     * Optional message filter which can modify or discard log events.
+     */
     @Nullable
     private final TelemetryLogEventFilter filter;
 

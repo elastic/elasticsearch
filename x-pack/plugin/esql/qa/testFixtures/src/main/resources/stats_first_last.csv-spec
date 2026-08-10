@@ -49,8 +49,8 @@ ROW row = [
 | STATS first_val = FIRST(number, @timestamp)
 ;
 
-warning:Line 15:10: evaluation of [TO_LONG(number)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 15:10: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number []
+warningRegex:Line 15:10: evaluation of \[TO_LONG\(number\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:Line 15:10: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[\]
 
 first_val:long
 null
@@ -112,8 +112,8 @@ ROW row = [
 | STATS last_val = LAST(number, @timestamp) BY name
 ;
 
-warning:Line 15:10: evaluation of [TO_LONG(number)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 15:10: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number []
+warningRegex:Line 15:10: evaluation of \[TO_LONG\(number\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:Line 15:10: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[\]
 
 last_val:long | name:keyword
 4             | alpha
@@ -427,8 +427,8 @@ ROW row = [
         last_val = LAST(@timestamp, number)
 ;
 
-warning:Line 15:10: evaluation of [TO_LONG(number)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 15:10: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number []
+warningRegex:Line 15:10: evaluation of \[TO_LONG\(number\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:Line 15:10: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[\]
 
 first_val:datetime       | last_val:datetime
 2025-11-25T00:00:01.000Z | 2025-11-25T00:00:05.000Z

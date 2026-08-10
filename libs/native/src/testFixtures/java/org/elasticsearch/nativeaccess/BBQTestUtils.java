@@ -12,8 +12,8 @@ package org.elasticsearch.nativeaccess;
 /**
  * Shared test utilities for BBQ vector operations in the {@code STRIPED} (bit-plane) layout —
  * the packing convention consumed by {@code vec_dotdNqM} kernels and produced on disk by the
- * existing OSQ writers via {@code ESVectorUtil.transposeHalfByte}, {@code packDibit}, and
- * {@code packAsBinary}.
+ * existing OSQ writers via {@code ESVectorUtil.stride4BitValues}, {@code stride2BitValues}, and
+ * {@code pack1BitValues}.
  *
  * <p>BBQ striped vectors use two representations:
  * <ul>

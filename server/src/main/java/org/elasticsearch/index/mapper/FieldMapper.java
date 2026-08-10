@@ -282,9 +282,42 @@ public abstract class FieldMapper extends Mapper {
      * @param ctx    the batch mapping context; receives output columns via {@code addColumn}
      * @param source the Escf column holding the field's source values for the batch
      */
+    // TODO: See FieldMapper#parse. We need to migrate over multi-value and nullability restricts.
+    // This should be straightforward. We would reject array columns for multi-value and force
+    // dense columns or null replacement for no nullability. We might need to do a check if multi-value
+    // is false and there is an array column scan down the array counts because size 0 or 1 is still valid
     public void mapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
         throw new UnsupportedOperationException(
             "mapColumnBatch not implemented for mapper [" + typeName() + "] on field [" + fullPath() + "]"
+        );
+    }
+
+    /**
+     * Whether this mapper consumes the whole group of schema leaves rooted at its own path rather than a single leaf of its own. Mappers
+     * whose source value is an object that the columnar encoder explodes into one dotted leaf per key — {@code flattened} is the first —
+     * cannot be resolved leaf by leaf, because no mapper exists at those descendant paths. A mapper returning {@code true} receives every
+     * such leaf in one call to {@link #mapColumnGroupBatch}, and those leaves are never handed to a leaf mapper.
+     * <p>
+     * This is orthogonal to {@link #supportsColumnarParse(IndexSettings)}: a group mapper must return {@code true} from both to
+     * participate in the columnar path.
+     */
+    public boolean resolvesColumnGroup() {
+        return false;
+    }
+
+    /**
+     * Maps all documents in a batch for a mapper that {@link #resolvesColumnGroup() resolves a column group}. Called once per field per
+     * batch in place of {@link #mapColumnBatch}, covering every schema leaf rooted below this field's path. Output columns are attached
+     * to {@code ctx} via {@link BatchMappingContext#addColumn}, exactly as for {@link #mapColumnBatch}.
+     *
+     * @param ctx          the batch mapping context; receives output columns via {@code addColumn}
+     * @param columns      the ESCF source columns owned by this mapper, in schema-leaf order
+     * @param relativeKeys {@code relativeKeys[i]} is {@code columns[i]}'s schema path with this field's path and the separating dot
+     *                     stripped — for {@code flattened} that is exactly the flattened key
+     */
+    public void mapColumnGroupBatch(BatchMappingContext ctx, EscfColumn[] columns, String[] relativeKeys) {
+        throw new UnsupportedOperationException(
+            "mapColumnGroupBatch not implemented for mapper [" + typeName() + "] on field [" + fullPath() + "]"
         );
     }
 
@@ -1657,20 +1690,6 @@ public abstract class FieldMapper extends Mapper {
         }
 
         /**
-         * Variant of {@link #of(Values, Function, boolean)} that computes the default value lazily
-         * so it can depend on sibling multi-fields, which are only known after this parameter is
-         * constructed. The {@code subParameterDefaults} provides the {@code multi_value} default.
-         */
-        public static DocValuesParameter of(
-            Supplier<Values> defaultValueSupplier,
-            Values subParameterDefaults,
-            Function<FieldMapper, Values> initializer,
-            boolean supportsExtendedDocValues
-        ) {
-            return new DocValuesParameter(defaultValueSupplier, subParameterDefaults, initializer, supportsExtendedDocValues);
-        }
-
-        /**
          * Computes the default {@link Values} for a field given the index settings. Outside strict-columnar mode returns
          * {@code nonColumnarDefault}; in strict-columnar mode returns enabled values with {@code columnarCardinality} and reads
          * {@code multiValue}, {@code nullability}, and {@code onFailure} from the index-level settings.
@@ -1683,6 +1702,27 @@ public abstract class FieldMapper extends Mapper {
             boolean nullability = DOC_VALUES_NULLABILITY_SETTING.get(indexSettings.getSettings());
             var onFailure = resolveOnFailureSetting(indexSettings.getSettings());
             return new Values(true, columnarCardinality, multiValue, nullability, onFailure);
+        }
+
+        /**
+         * Variant of {@link #defaultValues(IndexSettings, Values, Values.Cardinality)} for the field types that only began
+         * honoring the index-level doc_values settings in {@code settingsHonoredSince}. Indices created before that version
+         * retain the legacy default (the settings are ignored: strict-columnar indices are enabled with permissive
+         * sub-parameter defaults), so their persisted mappings stay stable across re-parse and upgrade.
+         */
+        public static Values defaultValues(
+            IndexSettings indexSettings,
+            Values nonColumnarDefault,
+            Values.Cardinality columnarCardinality,
+            IndexVersion settingsHonoredSince
+        ) {
+            if (indexSettings.getIndexVersionCreated().onOrAfter(settingsHonoredSince)) {
+                return defaultValues(indexSettings, nonColumnarDefault, columnarCardinality);
+            }
+            if (indexSettings.getMode().isStrictColumnar() == false) {
+                return nonColumnarDefault;
+            }
+            return new Values(true, columnarCardinality, true, true, Values.OnFailure.FAIL);
         }
 
         private DocValuesParameter(Values defaultValue, Function<FieldMapper, Values> initializer, boolean supportsExtendedDocValues) {

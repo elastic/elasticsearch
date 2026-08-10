@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.geometry.Point;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -41,7 +42,7 @@ import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isSpat
  * The function `st_x` is defined in the <a href="https://www.ogc.org/standard/sfs/">OGC Simple Feature Access</a> standard.
  * Alternatively, it is well described in PostGIS documentation at <a href="https://postgis.net/docs/ST_X.html">PostGIS:ST_X</a>.
  */
-public class StX extends SpatialUnaryDocValuesFunction {
+public class StX extends SpatialUnaryDocValuesFunction implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "StX", StX::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(StX.class).unary(StX::new).name("st_x");
 

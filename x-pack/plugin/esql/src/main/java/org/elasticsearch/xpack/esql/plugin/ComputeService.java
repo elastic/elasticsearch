@@ -1288,11 +1288,16 @@ public class ComputeService {
             for (String clusterAlias : execInfo.clusterAliases()) {
                 execInfo.swapCluster(
                     clusterAlias,
-                    (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setTotalShards(0)
-                        .setSuccessfulShards(0)
-                        .setSkippedShards(0)
-                        .setFailedShards(0)
-                        .build()
+                    // A subplan may already have searched this cluster's shards (e.g. an IN subquery whose empty result
+                    // folded the main plan to a coordinator-only LocalRelation); only fill in zeros where nothing was
+                    // recorded, so the subplan's accounting survives.
+                    (k, v) -> v.getTotalShards() != null
+                        ? v
+                        : new EsqlExecutionInfo.Cluster.Builder(v).setTotalShards(0)
+                            .setSuccessfulShards(0)
+                            .setSkippedShards(0)
+                            .setFailedShards(0)
+                            .build()
                 );
             }
         }
@@ -1427,9 +1432,6 @@ public class ComputeService {
             );
 
             LOGGER.debug("Received physical plan for {}:\n{}", context.description(), plan);
-
-            List<SearchExecutionContext> localContexts = new ArrayList<>();
-            context.searchExecutionContexts().iterable().forEach(localContexts::add);
             boolean hasExternalSource = plan.anyMatch(
                 p -> p instanceof ExternalSourceExec
                     || (p instanceof FragmentExec f && f.fragment().anyMatch(ExternalRelation.class::isInstance))
@@ -1437,6 +1439,8 @@ public class ComputeService {
             PhysicalPlan localPlan;
             final String logicalPlanString;
             if (localPhysicalOptimization == LocalPhysicalOptimization.ENABLED) {
+                List<SearchExecutionContext> localContexts = new ArrayList<>();
+                context.searchExecutionContexts().iterable().forEach(localContexts::add);
                 if (hasExternalSource) {
                     localPlan = PlannerUtils.localPlan(
                         plannerSettings,

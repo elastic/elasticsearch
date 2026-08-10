@@ -19,8 +19,8 @@ booleanExpression
     ;
 
 regexBooleanExpression
-    : valueExpression (NOT)? LIKE stringOrParameter                                     #likeExpression
-    | valueExpression (NOT)? RLIKE stringOrParameter                                    #rlikeExpression
+    : valueExpression (NOT)? LIKE primaryExpression                                     #likeExpression
+    | valueExpression (NOT)? RLIKE primaryExpression                                    #rlikeExpression
     | valueExpression (NOT)? LIKE LP stringOrParameter (COMMA stringOrParameter )* RP   #likeListExpression
     | valueExpression (NOT)? RLIKE LP stringOrParameter (COMMA stringOrParameter )* RP  #rlikeListExpression
     ;
@@ -65,8 +65,8 @@ functionParam
     ;
 
 lambda
-    : LP (identifier (COMMA identifier)*)? RP ARROW booleanExpression
-    | identifier ARROW booleanExpression
+    : {this.isDevVersion()}? LP (identifier (COMMA identifier)*)? RP ARROW booleanExpression
+    | {this.isDevVersion()}? identifier ARROW booleanExpression
     ;
 
 mapExpression

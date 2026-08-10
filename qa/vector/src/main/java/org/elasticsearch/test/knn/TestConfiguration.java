@@ -316,7 +316,9 @@ public record TestConfiguration(
             new ParameterHelp(
                 "directory_type",
                 "string",
-                "Directory type: default (mmap), frozen (searchable snapshot), or custom types registered by external wrappers."
+                "Directory type: default (mmap), frozen (searchable snapshot), stateless (stateless search-node read path), "
+                    + "stateless-index (stateless indexing-node read path; requires reindex=true and rebuilds its own index path "
+                    + "on every run), or custom types registered by external wrappers."
             )
         );
 

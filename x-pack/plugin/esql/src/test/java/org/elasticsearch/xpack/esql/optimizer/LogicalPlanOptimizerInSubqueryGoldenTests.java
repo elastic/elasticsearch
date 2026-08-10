@@ -379,15 +379,7 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
 
     // -- IN subquery inside CASE, COALESCE, IS [NOT] NULL in WHERE --
 
-    private static void requireInSubqueryInCaseCoalesceIsNull() {
-        assumeTrue(
-            "Requires IN subquery in CASE/COALESCE/IS NULL",
-            EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_CASE_COALESCE_IS_NULL.isEnabled()
-        );
-    }
-
     public void testInSubqueryInCaseWhen() {
-        requireInSubqueryInCaseCoalesceIsNull();
         runGoldenTest("""
             FROM employees
             | WHERE CASE(emp_no IN (FROM employees | KEEP emp_no), true, false)
@@ -395,7 +387,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testNotInSubqueryInCaseWhen() {
-        requireInSubqueryInCaseCoalesceIsNull();
         runGoldenTest("""
             FROM employees
             | WHERE CASE(emp_no NOT IN (FROM employees | KEEP emp_no), true, false)
@@ -403,7 +394,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testInSubqueryInCoalesce() {
-        requireInSubqueryInCaseCoalesceIsNull();
         runGoldenTest("""
             FROM employees
             | WHERE COALESCE(emp_no IN (FROM employees | KEEP emp_no), false)
@@ -411,7 +401,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testInSubqueryInIsNotNull() {
-        requireInSubqueryInCaseCoalesceIsNull();
         runGoldenTest("""
             FROM employees
             | WHERE (emp_no IN (FROM employees | KEEP emp_no)) IS NOT NULL
@@ -419,7 +408,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testInSubqueryInIsNull() {
-        requireInSubqueryInCaseCoalesceIsNull();
         runGoldenTest("""
             FROM employees
             | WHERE (emp_no IN (FROM employees | KEEP emp_no)) IS NULL
@@ -427,7 +415,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testCaseWithConjunctiveInSubqueries() {
-        requireInSubqueryInCaseCoalesceIsNull();
         runGoldenTest("""
             FROM employees
             | WHERE CASE(emp_no IN (FROM employees | KEEP emp_no) AND languages IN (FROM employees | KEEP languages), true, false)
@@ -435,7 +422,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testCaseWithMixedConjunctiveDisjunctiveInSubqueries() {
-        requireInSubqueryInCaseCoalesceIsNull();
         runGoldenTest("""
             FROM employees
             | WHERE CASE(emp_no IN (FROM employees | KEEP emp_no) AND (salary > 50000 OR languages IN (FROM employees | KEEP languages)),
@@ -444,7 +430,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testIsNotNullWithDisjunctiveInSubqueries() {
-        requireInSubqueryInCaseCoalesceIsNull();
         runGoldenTest("""
             FROM employees
             | WHERE (emp_no IN (FROM employees | KEEP emp_no) OR languages IN (FROM employees | KEEP languages)) IS NOT NULL
@@ -452,7 +437,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testIsNullWithConjunctiveInSubqueries() {
-        requireInSubqueryInCaseCoalesceIsNull();
         runGoldenTest("""
             FROM employees
             | WHERE (emp_no IN (FROM employees | KEEP emp_no) AND languages IN (FROM employees | KEEP languages)) IS NULL
@@ -460,7 +444,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testCoalesceWithDisjunctiveInSubqueries() {
-        requireInSubqueryInCaseCoalesceIsNull();
         runGoldenTest("""
             FROM employees
             | WHERE COALESCE(emp_no IN (FROM employees | KEEP emp_no) OR languages IN (FROM employees | KEEP languages), false)
@@ -468,7 +451,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testCoalesceWithConjunctiveInSubqueries() {
-        requireInSubqueryInCaseCoalesceIsNull();
         runGoldenTest("""
             FROM employees
             | WHERE COALESCE(emp_no IN (FROM employees | KEEP emp_no), languages IN (FROM employees | KEEP languages), false)
@@ -476,7 +458,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testCoalesceInSubqueryAsSecondArg() {
-        requireInSubqueryInCaseCoalesceIsNull();
         runGoldenTest("""
             FROM employees
             | WHERE COALESCE(null, emp_no IN (FROM employees | KEEP emp_no))
@@ -484,7 +465,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testCaseMixingCoalesceAndIsNotNull() {
-        requireInSubqueryInCaseCoalesceIsNull();
         runGoldenTest("""
             FROM employees
             | WHERE CASE(COALESCE(emp_no IN (FROM employees | KEEP emp_no), false)
@@ -494,7 +474,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testDisjunctiveIsNotNullAndCoalesceCase() {
-        requireInSubqueryInCaseCoalesceIsNull();
         runGoldenTest("""
             FROM employees
             | WHERE (emp_no IN (FROM employees | KEEP emp_no) AND languages IN (FROM employees | KEEP languages)) IS NOT NULL
@@ -503,7 +482,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testConjunctiveWithCoalesceDisjunctionAndIsNull() {
-        requireInSubqueryInCaseCoalesceIsNull();
         runGoldenTest("""
             FROM employees
             | WHERE salary > 50000
@@ -513,7 +491,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testCaseInSubqueryAndBareInSubqueryWithAnd() {
-        requireInSubqueryInCaseCoalesceIsNull();
         runGoldenTest("""
             FROM employees
             | WHERE CASE(emp_no IN (FROM employees | KEEP emp_no), true, false)
@@ -523,7 +500,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testCaseInSubqueryAndBareInSubqueryWithOr() {
-        requireInSubqueryInCaseCoalesceIsNull();
         runGoldenTest("""
             FROM employees
             | WHERE CASE(emp_no IN (FROM employees | KEEP emp_no), true, false)
@@ -533,7 +509,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testCaseInSubqueryAndOrWithBareIn() {
-        requireInSubqueryInCaseCoalesceIsNull();
         runGoldenTest("""
             FROM employees
             | WHERE CASE(emp_no IN (FROM employees | KEEP emp_no), true, false)

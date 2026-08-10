@@ -3762,7 +3762,7 @@ c:long
 //   every mark is NULL (no match + NULLs present in RHS).
 // ----------------------------------------------------------
 
-isNullCatchesNullMarkFromNullableRhs
+inSubqueryWithRHSContainingNullsNoMatchingInsideIsNull
 required_capability: where_in_subquery_without_view
 required_capability: where_in_subquery_with_case_coalesce_is_null
 
@@ -3776,7 +3776,7 @@ c:long
 100
 ;
 
-isNotNullFilteredByNullMarkFromNullableRhs
+inSubqueryWithRHSContainingNullsNoMatchingInsideIsNotNull
 required_capability: where_in_subquery_without_view
 required_capability: where_in_subquery_with_case_coalesce_is_null
 
@@ -3790,7 +3790,7 @@ c:long
 0
 ;
 
-coalesceNullMarkAsDefault
+inSubqueryWithRHSContainingNullsNoMatchingInsideCoalesce
 required_capability: where_in_subquery_without_view
 required_capability: where_in_subquery_with_case_coalesce_is_null
 
@@ -3804,7 +3804,7 @@ c:long
 0
 ;
 
-caseWithNullMarkDefaultsToElse
+inSubqueryWithRHSContainingNullsNoMatchingInsideCase
 required_capability: where_in_subquery_without_view
 required_capability: where_in_subquery_with_case_coalesce_is_null
 
@@ -3832,7 +3832,7 @@ c:long
 // enabling precise control over how null LHS values are handled.
 // ----------------------------------------------------------
 
-isNullDetectsNullLhsWhenRhsHasNoNulls
+inSubqueryWithLHSContainingNullsNoMatchingInsideIsNull
 required_capability: where_in_subquery_without_view
 required_capability: where_in_subquery_with_case_coalesce_is_null
 
@@ -3847,7 +3847,7 @@ c:long
 10
 ;
 
-isNotNullFiltersOutNullLhsWhenRhsHasNoNulls
+inSubqueryWithLHSContainingNullsNoMatchingInsideIsNotNull
 required_capability: where_in_subquery_without_view
 required_capability: where_in_subquery_with_case_coalesce_is_null
 
@@ -3862,7 +3862,37 @@ c:long
 90
 ;
 
-coalesceDistinguishesNullMarkFromFalseMark
+notInSubqueryWithLHSContainingNullsNoMatchingInsideIsNull
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_case_coalesce_is_null
+
+// IS NULL(FALSE) = FALSE for non-null-language employees (90)
+// IS NULL(NULL)  = TRUE  for null-language employees (10)
+FROM employees
+| WHERE (languages NOT IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)) IS NULL
+| STATS c = COUNT(*)
+;
+
+c:long
+10
+;
+
+notInSubqueryWithLHSContainingNullsNoMatchingInsideIsNotNull
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_case_coalesce_is_null
+
+// IS NOT NULL(FALSE) = TRUE  for non-null-language employees (90)
+// IS NOT NULL(NULL)  = FALSE for null-language employees (10)
+FROM employees
+| WHERE (languages NOT IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)) IS NOT NULL
+| STATS c = COUNT(*)
+;
+
+c:long
+90
+;
+
+inSubqueryWithLHSContainingNullsNoMatchingInsideCoalesce
 required_capability: where_in_subquery_without_view
 required_capability: where_in_subquery_with_case_coalesce_is_null
 
@@ -3870,14 +3900,27 @@ required_capability: where_in_subquery_with_case_coalesce_is_null
 // COALESCE(NULL,  true) = TRUE   (null language employees — NULL is coalesced to the fallback)
 // Only the 10 employees with null languages pass.
 FROM employees
-| WHERE COALESCE(
-    languages IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no),
-    true)
+| WHERE COALESCE(languages IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no), true)
 | STATS c = COUNT(*)
 ;
 
 c:long
 10
+;
+
+notInSubqueryWithLHSContainingNullsNoMatchingInsideCoalesce
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_case_coalesce_is_null
+
+// CASE(TRUE, true, false) = TRUE for non-null-language employees (90)
+// CASE(NULL, true, false) = FALSE  for null-language employees (10)
+FROM employees
+| WHERE CASE(languages NOT IN (FROM employees | KEEP emp_no), true, false)
+| STATS c = COUNT(*)
+;
+
+c:long
+90
 ;
 
 // ----------------------------------------------------------
@@ -3891,7 +3934,7 @@ c:long
 //   emp_no ≠ 10001 → mark = NULL  (no match, NULLs present in RHS)
 // ----------------------------------------------------------
 
-isNullSelectsNonMatchingWhenRhsHasMixedNulls
+inSubqueryWithRHSContainingNullsInsideIsNull
 required_capability: where_in_subquery_without_view
 required_capability: where_in_subquery_with_case_coalesce_is_null
 
@@ -3907,4 +3950,58 @@ FROM employees
 
 c:long
 99
+;
+
+notInSubqueryWithRHSContainingNullsInsideIsNull
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_case_coalesce_is_null
+
+// IS NULL(FALSE) = FALSE → emp_no=10001 is excluded
+// IS NULL(NULL)  = TRUE  → all other 99 employees are included
+FROM employees
+| WHERE (emp_no NOT IN (
+    FROM employees | SORT emp_no ASC | LIMIT 3
+    | EVAL x = CASE(emp_no == 10001, emp_no, null) | KEEP x
+  )) IS NULL
+| STATS c = COUNT(*)
+;
+
+c:long
+99
+;
+
+inSubqueryWithRHSContainingNullsInsideIsNotNull
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_case_coalesce_is_null
+
+// IS NOT NULL(TRUE) = TRUE  → emp_no=10001 is included
+// IS NOT NULL(NULL) = FALSE → all other 99 employees are excluded
+FROM employees
+| WHERE (emp_no IN (
+    FROM employees | SORT emp_no ASC | LIMIT 3
+    | EVAL x = CASE(emp_no == 10001, emp_no, null) | KEEP x
+  )) IS NOT NULL
+| STATS c = COUNT(*)
+;
+
+c:long
+1
+;
+
+notInSubqueryWithRHSContainingNullsInsideIsNotNull
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_case_coalesce_is_null
+
+// IS NOT NULL(FALSE) = TRUE  → emp_no=10001 is included because its mark is non-null
+// IS NOT NULL(NULL)  = FALSE → all other 99 employees are excluded
+FROM employees
+| WHERE (emp_no NOT IN (
+    FROM employees | SORT emp_no ASC | LIMIT 3
+    | EVAL x = CASE(emp_no == 10001, emp_no, null) | KEEP x
+  )) IS NOT NULL
+| STATS c = COUNT(*)
+;
+
+c:long
+1
 ;

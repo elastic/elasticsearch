@@ -14,7 +14,6 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.NodeNamePatternConverter;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Before;
 
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
@@ -34,11 +33,11 @@ public abstract class SimdVecLibraryTests extends ESTestCase {
     public static final Class<IllegalArgumentException> IAE = IllegalArgumentException.class;
     public static final Class<IndexOutOfBoundsException> IOOBE = IndexOutOfBoundsException.class;
 
+    protected static SimdVecLibrary vectorSimilarityFunctions;
     protected static Arena arena;
 
     protected final SimdVecLibrary.SimilarityFunction function;
     protected final int size;
-    protected final SimdVecLibrary vectorSimilarityFunctions;
 
     @ParametersFactory
     public static Iterable<Object[]> parametersFactory() {
@@ -53,21 +52,18 @@ public abstract class SimdVecLibraryTests extends ESTestCase {
     protected SimdVecLibraryTests(SimdVecLibrary.SimilarityFunction function, int size) {
         this.function = function;
         this.size = size;
-        vectorSimilarityFunctions = NativeAccess.instance().getVectorSimilarityFunctions().orElse(null);
 
         logger.info(platformMsg());
     }
 
-    @Before
-    public void ensureSimilarityFunctionResolved() {
-        if (supported()) {
-            assertNotNull(vectorSimilarityFunctions);
-        } else {
-            assertNull(vectorSimilarityFunctions);
-        }
-    }
-
     public static void setup() {
+        var supported = supported();
+        if (supported) {
+            vectorSimilarityFunctions = NativeAccess.instance().getVectorSimilarityFunctions().orElse(null);
+            assertNotNull("native vector library must be available on [" + platformMsg() + "]", vectorSimilarityFunctions);
+        }
+        assumeTrue(notSupportedMsg(), supported);
+
         // Occasionally back every segment of this suite with a guard page, so that a native over-read faults
         // instead of silently returning a wrong score.
         var useGuardPageAllocator = randomBoolean();
@@ -75,7 +71,10 @@ public abstract class SimdVecLibraryTests extends ESTestCase {
     }
 
     public static void cleanup() {
-        arena.close();
+        if (arena != null) {
+            arena.close();
+            arena = null;
+        }
     }
 
     protected SimdVecLibrary getVectorDistance() {

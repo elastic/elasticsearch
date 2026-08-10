@@ -31,12 +31,10 @@ import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermRangeQuery;
-import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.AttributeSource;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.IOBooleanSupplier;
-import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
@@ -125,7 +123,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -1943,9 +1940,9 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         // Doc each cursor is currently positioned on, or NO_MORE_DOCS once drained.
         final int[] cursorDocs = new int[columnCount];
         for (int k = 0; k < columnCount; k++) {
-            // retainValues=true: a document's slots are buffered and only encoded once the cursor has moved on,
-            // so the value BytesRef must stay valid past the nextDoc() call that advances off this document.
-            final ObjectTupleCursor<BytesRef> cursor = EscfColumnTransforms.utf8Cursor(columns[k], true);
+            // retainValues=false: each value is appended to the document blob before the cursor advances, so no
+            // value has to outlive the nextDoc() that moves past it.
+            final ObjectTupleCursor<BytesRef> cursor = EscfColumnTransforms.utf8Cursor(columns[k], false);
             cursors.add(cursor);
             cursorDocs[k] = cursor.nextDoc();
         }
@@ -1954,16 +1951,20 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         final EscfColumnBuilder counts = mergeLongColumn();
         final BytesRef nullValueBytes = builder.nullValue.get() != null ? new BytesRef(builder.nullValue.get()) : null;
 
-        // Per-document tuple buffer, reused across documents. Interleaved: tuples[2*i] = keyPrefix, tuples[2*i+1] = value
-        // (null value signals a null slot). No separate null marker is needed: the value's presence or absence carries the
-        // distinction, and the retained cursor BytesRef is valid until the column builder consumes it at end-of-document.
-        BytesRef[] tuples = new BytesRef[8];
-        // Batch-scoped encode buffer. encodeTuples writes each document's blob here and returns a view over it;
-        // keyed.setString copies the bytes out immediately, so the buffer is free to be overwritten next document.
-        final BytesRefBuilder encodeScratch = new BytesRefBuilder();
+        final BytesRefBuilder docBlob = new BytesRefBuilder();
+        int seedEstimate = 0;
+        for (int k = 0; k < columnCount; k++) {
+            if (cursorDocs[k] != DocIdSetIterator.NO_MORE_DOCS) {
+                final BytesRef first = cursors.get(k).value();
+                seedEstimate += MultiValuedBinaryDocValuesField.VINT_MAX_BYTES + keyPrefixes[k].length + (first == null ? 0 : first.length);
+            }
+        }
+        // ~1.25x headroom for documents a little wider than the first.
+        docBlob.grow(seedEstimate + (seedEstimate >> 2));
 
         for (int doc = 0; doc < docCount; doc++) {
             int slotCount = 0;
+            int pos = 0;
             // Column-minor within a document: all of key[0]'s values, then key[1]'s, ... See the slot-order note above.
             for (int k = 0; k < columnCount; k++) {
                 final BytesRef keyPrefix = keyPrefixes[k];
@@ -1991,23 +1992,17 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                         }
                     }
 
-                    if (2 * slotCount + 2 > tuples.length) {
-                        tuples = Arrays.copyOf(tuples, 2 * ArrayUtil.oversize(slotCount + 1, RamUsageEstimator.NUM_BYTES_OBJECT_REF * 2));
-                    }
-                    tuples[2 * slotCount] = keyPrefix;
-                    tuples[2 * slotCount + 1] = value;
+                    pos = MultiValuedBinaryDocValuesField.KeyedArrayOrderInlineNull.appendSlot(docBlob, pos, keyPrefix, value);
                     slotCount++;
 
+                    // The value's bytes are already in docBlob, so advancing past it is safe.
                     cursorDocs[k] = cursor.nextDoc();
                 }
             }
 
             if (slotCount > 0) {
                 // Unlike the non-keyed ArrayOrderInlineNull, an all-null document still writes a blob: its null slots carry keys.
-                keyed.setString(
-                    doc,
-                    MultiValuedBinaryDocValuesField.KeyedArrayOrderInlineNull.encodeTuples(tuples, slotCount, encodeScratch)
-                );
+                keyed.setString(doc, docBlob.bytes(), 0, pos);
                 counts.setLong(doc, slotCount);
             }
         }

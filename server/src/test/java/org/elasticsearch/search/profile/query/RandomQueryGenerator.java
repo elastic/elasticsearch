@@ -9,6 +9,7 @@
 
 package org.elasticsearch.search.profile.query;
 
+import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.tests.util.English;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -157,12 +158,14 @@ public class RandomQueryGenerator {
             }
         }
 
+        // The request breaker charge for a fuzzy clause scales with maxExpansions, so an unbounded
+        // value makes a large generated query trip the breaker rather than exercise the profiler.
         if (randomBoolean()) {
-            ((FuzzyQueryBuilder) q).maxExpansions(Math.abs(randomInt()));
+            ((FuzzyQueryBuilder) q).maxExpansions(randomIntBetween(1, FuzzyQuery.defaultMaxExpansions));
         }
 
         if (randomBoolean()) {
-            ((FuzzyQueryBuilder) q).prefixLength(Math.abs(randomInt()));
+            ((FuzzyQueryBuilder) q).prefixLength(randomIntBetween(0, 3));
         }
 
         if (randomBoolean()) {

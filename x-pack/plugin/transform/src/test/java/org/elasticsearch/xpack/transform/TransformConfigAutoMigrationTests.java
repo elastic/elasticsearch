@@ -166,6 +166,30 @@ public class TransformConfigAutoMigrationTests extends ESTestCase {
         });
     }
 
+    public void testMigrateAndSavePreservesHeadersAndCredentialId() throws InterruptedException {
+        Map<String, String> headers = Map.of("_xpack_security_authentication", "creator-auth", "x-trace-id", "trace-2");
+        var originalConfig = new TransformConfig.Builder(randomTransformConfigWithDeprecatedSettings()).setHeaders(headers)
+            .setCredentialId("persisted-token-id")
+            .build();
+        doAnswer(ans -> {
+            ActionListener<Boolean> listener = ans.getArgument(2);
+            listener.onResponse(true);
+            return null;
+        }).when(transformConfigManager).updateTransformConfiguration(any(), any(), any());
+        doAnswer(ans -> {
+            ActionListener<Tuple<TransformConfig, SeqNoPrimaryTermAndIndex>> listener = ans.getArgument(1);
+            listener.onResponse(Tuple.tuple(originalConfig, mock()));
+            return null;
+        }).when(transformConfigManager).getTransformConfigurationForUpdate(any(), any());
+
+        testMigration(originalConfig, updatedConfig -> {
+            assertThatMaxPageSearchSizeMigrated(updatedConfig, originalConfig);
+            assertThat(updatedConfig.getHeaders(), equalTo(headers));
+            assertThat(updatedConfig.getCredentialId(), equalTo("persisted-token-id"));
+            verify(auditor, only()).info(eq(updatedConfig.getId()), eq(TransformMessages.MAX_PAGE_SEARCH_SIZE_MIGRATION));
+        });
+    }
+
     public void testMigrateAndSaveWithGetSequenceError() throws InterruptedException {
         var originalConfig = randomTransformConfigWithDeprecatedSettings();
         doAnswer(ans -> {

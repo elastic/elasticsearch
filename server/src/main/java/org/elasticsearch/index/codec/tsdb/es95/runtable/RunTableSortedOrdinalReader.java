@@ -120,6 +120,7 @@ public final class RunTableSortedOrdinalReader {
                 return doc;
             }
             cursor.positionOn(run);
+            assert ordsPerRun.get(run) != sentinel : "maximal-run invariant broken: two consecutive sentinel runs at run " + run;
             doc = cursor.startDoc(run);
             return doc;
         }

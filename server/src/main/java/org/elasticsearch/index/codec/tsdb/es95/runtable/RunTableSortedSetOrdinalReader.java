@@ -155,6 +155,7 @@ public final class RunTableSortedSetOrdinalReader {
             }
             cursor.positionOn(run);
             positionOnRun(run);
+            assert runOrdEnd > runOrdStart : "maximal-run invariant broken: two consecutive empty runs at run " + run;
             doc = cursor.startDoc(run);
             return doc;
         }

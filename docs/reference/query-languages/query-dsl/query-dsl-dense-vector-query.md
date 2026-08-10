@@ -12,7 +12,7 @@ applies_to:
 Performs exact, brute-force scoring of a query vector against every document that has a value for a
 [`dense_vector`](/reference/elasticsearch/mapping-reference/dense-vector.md) field. Unlike the approximate
 [`knn` query](/reference/query-languages/query-dsl/query-dsl-knn-query.md), it does not use an index
-structure or a `k`/`num_candidates` cutoff: every matching document is scored. This is useful when you need
+structure or an exploration cutoff based on `k` or `num_candidates`: every matching document is scored. This is useful when you need
 exact scores, want to combine exact vector scoring with other queries, or want to score a `dense_vector`
 field that is not indexed for approximate search (`index: false`).
 
@@ -83,7 +83,7 @@ both. See [`query_vector_builder`](/reference/query-languages/query-dsl/query-ds
 
 `similarity_function`
 :   (Optional, string) The similarity metric used for scoring, overriding the field's mapped similarity for
-this query. One of `l2_norm`, `dot_product`, `cosine`, or `max_inner_product`. Defaults to the field's
+this query. One of `l2_norm`, `dot_product`, `cosine`, or `max_inner_product` (see [valid similarity values](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-similarity) for definitions). Defaults to the field's
 configured similarity, or to `cosine` for a non-indexed (`index: false`) field, which has no configured
 similarity. For `bit` fields, only `l2_norm` is supported. Cannot be combined with `quantized: true`.
 

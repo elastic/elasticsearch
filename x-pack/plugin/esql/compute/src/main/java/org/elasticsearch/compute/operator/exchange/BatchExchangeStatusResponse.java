@@ -38,7 +38,7 @@ public final class BatchExchangeStatusResponse extends TransportResponse {
     public BatchExchangeStatusResponse(long bytesRead, List<String> warnings) {
         this.failure = null;
         this.bytesRead = bytesRead;
-        this.warnings = warnings == null ? List.of() : warnings;
+        this.warnings = warnings;
     }
 
     /**
@@ -92,8 +92,8 @@ public final class BatchExchangeStatusResponse extends TransportResponse {
     }
 
     /**
-     * Warnings accumulated by the server-side lookup driver, replayed into the client driver's per-driver sink so
-     * they reach the response chokepoint. Never {@code null}.
+     * Warnings accumulated by the lookup-side lookup driver, replayed into the client
+     * driver's per-driver sink so they reach the response chokepoint. Never {@code null}.
      */
     public List<String> warnings() {
         return warnings;

@@ -66,7 +66,9 @@ public class DriverContext {
     private final Set<String> warnings = Collections.synchronizedSet(new LinkedHashSet<>());
 
     /**
-     * Snapshotted at {@link #finish()} into {@link #warningsSnapshot}.
+     * Immutable copy of warnings, copied at {@link #finish()}. This mostly exists out
+     * of paranoia to make sure we don't mutate the list of warnings after we've finished
+     * the driver.
      */
     private volatile List<String> warningsSnapshot;
 
@@ -238,6 +240,7 @@ public class DriverContext {
      * operators from other threads.
      */
     public void addWarning(String warning) {
+        assert warningsSnapshot == null;
         warnings.add(warning);
     }
 

@@ -188,11 +188,8 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
         // we should only have warnings if we have matched a multi-value
         if (mvCountInRange > 0) {
             warningsContext.finish();
-            // The per-driver sink keeps every registered warning (capped per Warnings instance); the response
-            // chokepoint hands them to HeaderWarning, which deduplicates. Assert on the distinct set to mirror
-            // that client-visible dedup.
             assertThat(
-                new HashSet<>(warningsContext.warnings()),
+                warningsContext.warnings(),
                 containsInAnyOrder(
                     "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
                     "Line -1:-1: java.lang.IllegalArgumentException: single-value function encountered multi-value"

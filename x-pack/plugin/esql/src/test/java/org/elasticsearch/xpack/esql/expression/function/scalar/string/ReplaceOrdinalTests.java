@@ -64,10 +64,7 @@ public class ReplaceOrdinalTests extends ESTestCase {
     private final List<DriverContext> driverContexts = Collections.synchronizedList(new ArrayList<>());
 
     /**
-     * Asserts the warnings accumulated across every {@link DriverContext} this test built, read from the per-driver
-     * sink (the raw, fully-formatted strings) rather than the ambient {@link org.elasticsearch.common.logging.HeaderWarning}
-     * ThreadContext. Identical strings are collapsed into a set to match the de-duplication that
-     * {@code HeaderWarning#addWarning} performs at the production response chokepoint.
+     * Asserts the warnings accumulated across every {@link DriverContext} this test built.
      */
     private void assertDriverWarnings(String... expected) {
         Set<String> collected = new LinkedHashSet<>();

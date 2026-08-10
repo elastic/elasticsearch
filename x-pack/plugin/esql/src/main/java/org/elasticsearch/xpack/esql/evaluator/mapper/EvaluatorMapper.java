@@ -174,12 +174,11 @@ public interface EvaluatorMapper {
             throw new IllegalStateException("generated odd block from fold [" + block + "]");
         }
         /*
-         * Constant folding runs synchronously on the coordinator's planning thread, outside any Driver that
-         * would ship a DriverCompletionInfo back to the response chokepoint. Warnings raised while folding are
-         * accumulated in this throwaway context's per-driver sink, so drain them to HeaderWarning here — the
-         * planning thread is the response-header thread, so this is safe and preserves the pre-sink behavior
-         * where fold warnings surfaced to the client. This is not subject to the Driver#schedule thread-hop
-         * race the sink was introduced to fix.
+         * Constant folding runs synchronously on the coordinator's planning thread,
+         * outside any Driver that would ship a DriverCompletionInfo back to the
+         * response. We don't have a fancy place to stick the warnings, so we use
+         * the thread context for now. But one day we'll plumb a warnings accumulator
+         * in here too and can get rid of the spooky thread local.
          */
         driverCtx.finish();
         for (String warning : driverCtx.warnings()) {

@@ -16,6 +16,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.transport.TransportResponse;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
 
 /**
@@ -35,10 +36,10 @@ public final class BatchExchangeStatusResponse extends TransportResponse {
     /**
      * Create a success response.
      */
-    public BatchExchangeStatusResponse(long bytesRead, List<String> warnings) {
+    public BatchExchangeStatusResponse(long bytesRead, Collection<String> warnings) {
         this.failure = null;
         this.bytesRead = bytesRead;
-        this.warnings = warnings;
+        this.warnings = List.copyOf(warnings);
     }
 
     /**
@@ -92,8 +93,7 @@ public final class BatchExchangeStatusResponse extends TransportResponse {
     }
 
     /**
-     * Warnings accumulated by the lookup-side lookup driver, replayed into the client
-     * driver's per-driver sink so they reach the response chokepoint. Never {@code null}.
+     * Warnings accumulated by the lookup-side lookup driver. Never {@code null}.
      */
     public List<String> warnings() {
         return warnings;

@@ -257,9 +257,7 @@ public abstract class AnyOperatorTestCase extends ComputeTestCase {
 
     /**
      * Finishes {@code driverContext} if needed, marks it consumed so {@link #ensureNoUnassertedWarnings()} exempts
-     * it, and returns its snapshotted per-driver warnings sink. Tests that expect warnings assert on this rather
-     * than the ambient {@link org.elasticsearch.common.logging.HeaderWarning} ThreadContext, mirroring how warnings
-     * are actually propagated (into the {@link DriverContext} sink, consumed once at the response chokepoint).
+     * it, and returns its snapshotted per-driver warnings sink.
      */
     protected final List<String> collectWarnings(DriverContext driverContext) {
         if (driverContext.isFinished() == false) {
@@ -279,9 +277,8 @@ public abstract class AnyOperatorTestCase extends ComputeTestCase {
     }
 
     /**
-     * Leak-check counterpart of {@link org.elasticsearch.test.ESTestCase#ensureNoWarnings()} for the per-driver
-     * warnings sink: every {@link DriverContext} this harness handed out must end with an empty sink unless the
-     * test explicitly asserted (consumed) its warnings via {@link #collectWarnings(DriverContext)}.
+     * Automatically asserts that all {@link DriverContext}s that have not had
+     * their warnings {@link #collectWarnings collected} are empty.
      */
     @After
     public final void ensureNoUnassertedWarnings() {

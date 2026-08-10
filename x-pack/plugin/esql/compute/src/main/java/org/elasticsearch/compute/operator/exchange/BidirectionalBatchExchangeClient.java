@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.BatchMetadata;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.FailureCollector;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.core.Nullable;
@@ -94,9 +95,9 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
     // Accumulated directory bytes read across all worker BatchExchangeStatusResponses (set on transport threads).
     private final AtomicLong totalBytesRead = new AtomicLong();
     /**
-     * Warnings accumulated from server-side lookup drivers across all worker
-     * BatchExchangeStatusResponses (added on transport threads). Replayed into
-     * the client driver's per-driver sink so they reach the response chokepoint.
+     * Warnings accumulated from lookup-side {@link DriverContext} across all worker
+     * {@link BatchExchangeStatusResponse}s. Replayed into the {@link DriverContext}
+     * so they get shipped backed to the outbound API.
      */
     private final Set<String> warnings = Collections.synchronizedSet(new LinkedHashSet<>());
     private volatile boolean closed = false; // Track if close() has been called (for idempotency)

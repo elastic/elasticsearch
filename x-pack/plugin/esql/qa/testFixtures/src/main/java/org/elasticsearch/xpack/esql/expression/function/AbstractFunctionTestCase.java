@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -1126,12 +1127,10 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     /**
-     * Asserts that the union of the per-driver warnings sinks (raw evaluation warnings) and the ambient
-     * response-header ThreadContext (fold/build warnings surfaced during planning) equals {@code expectedWarnings}.
-     * Direct expression evaluation accumulates warnings into each {@link DriverContext}'s sink (production consumes
-     * it once at the response chokepoint), whereas folding intermediate results still routes through the
-     * ThreadContext. This consumes both channels so the per-driver leak-check and
-     * {@link org.elasticsearch.test.ESTestCase#ensureNoWarnings()} both see them as asserted.
+     * Asserts that the provided array of warnings matches the combination
+     * of the {@link DriverContext#warnings()} and {@link HeaderWarning}s.
+     * We'll later on unpick these two into plan time warnings and compute time
+     * warnings. But for now, they remain combined.
      */
     private void assertExpectedWarnings(String... expectedWarnings) {
         Set<String> expected = new LinkedHashSet<>(Arrays.asList(expectedWarnings));

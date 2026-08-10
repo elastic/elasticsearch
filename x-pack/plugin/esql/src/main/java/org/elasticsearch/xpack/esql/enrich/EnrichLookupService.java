@@ -60,6 +60,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -132,11 +133,16 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
     }
 
     @Override
-    protected LookupResponse createLookupResponse(List<Page> pages, BlockFactory blockFactory, long bytesRead, List<String> warnings) {
+    protected LookupResponse createLookupResponse(
+        List<Page> pages,
+        BlockFactory blockFactory,
+        long bytesRead,
+        Collection<String> warnings
+    ) {
         if (pages.size() != 1) {
             throw new UnsupportedOperationException("ENRICH always makes a single page of output");
         }
-        return new LookupResponse(pages.getFirst(), blockFactory, bytesRead, warnings);
+        return new LookupResponse(pages.getFirst(), blockFactory, bytesRead, List.copyOf(warnings));
     }
 
     @Override

@@ -16,8 +16,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -55,11 +57,7 @@ import java.util.concurrent.atomic.AtomicLong;
  *                OR-aggregated across drivers/nodes and consumed by the coordinator to flip the response's
  *                {@code is_partial} flag — the structured counterpart of the client-visible truncation warning.
  * @param warnings Fully-formatted warning strings accumulated per driver into each {@link DriverContext}'s sink
- *                 during execution. Concatenated across drivers/nodes and consumed exactly once at the response
- *                 chokepoint, where each is handed to {@link org.elasticsearch.common.logging.HeaderWarning#addWarning}.
- *                 This replaces the old ambient-ThreadContext propagation, which lost warnings written on
- *                 intermediate {@link Driver#schedule} worker threads. Per-instance dedup/cap already happened in
- *                 {@link Warnings}; any remaining cross-driver duplication is collapsed by {@code HeaderWarning}.
+ *                 during execution. Deduplicated across drivers: each unique warning string appears at most once.
  */
 public record DriverCompletionInfo(
     long documentsFound,
@@ -72,7 +70,7 @@ public record DriverCompletionInfo(
     List<PlanProfile> planProfiles,
     Map<String, List<Map<String, Object>>> capturedSourceMetadata,
     boolean partial,
-    List<String> warnings
+    Set<String> warnings
 ) implements Writeable {
 
     /**
@@ -91,12 +89,12 @@ public record DriverCompletionInfo(
         List.of(),
         Map.of(),
         false,
-        List.of()
+        Set.of()
     );
 
     public DriverCompletionInfo {
         capturedSourceMetadata = capturedSourceMetadata == null ? Map.of() : capturedSourceMetadata;
-        warnings = warnings == null ? List.of() : warnings;
+        warnings = warnings == null ? Set.of() : warnings;
     }
 
     /**
@@ -238,23 +236,22 @@ public record DriverCompletionInfo(
     }
 
     /**
-     * Concatenates the snapshotted per-driver warning sinks (see {@link DriverContext#warnings()}) across all
-     * drivers. Per-instance dedup/cap already happened in {@link Warnings}; residual cross-driver duplicates are
-     * collapsed later by {@code HeaderWarning} at the response chokepoint.
+     * Merge per-driver warnings (see {@link DriverContext#warnings()}) across many drivers,
+     * deduplicating in insertion order.
      */
-    private static List<String> collectWarnings(List<Driver> drivers) {
-        List<String> warnings = null;
+    private static Set<String> collectWarnings(List<Driver> drivers) {
+        LinkedHashSet<String> warnings = null;
         for (Driver d : drivers) {
             List<String> driverWarnings = d.driverContext().warnings();
             if (driverWarnings == null || driverWarnings.isEmpty()) {
                 continue;
             }
             if (warnings == null) {
-                warnings = new ArrayList<>();
+                warnings = new LinkedHashSet<>();
             }
             warnings.addAll(driverWarnings);
         }
-        return warnings == null ? List.of() : warnings;
+        return warnings == null ? Set.of() : Collections.unmodifiableSet(warnings);
     }
 
     private static final TransportVersion ESQL_PROFILE_INCLUDE_PLAN = TransportVersion.fromName("esql_profile_include_plan");
@@ -303,9 +300,13 @@ public record DriverCompletionInfo(
             captured = Map.of();
         }
         boolean partial = in.getTransportVersion().supports(ESQL_EXTERNAL_PARTIAL_RESULTS) && in.readBoolean();
-        List<String> warnings = in.getTransportVersion().supports(ESQL_DRIVER_WARNINGS)
-            ? in.readCollectionAsImmutableList(StreamInput::readString)
-            : List.of();
+        Set<String> warnings;
+        if (in.getTransportVersion().supports(ESQL_DRIVER_WARNINGS)) {
+            List<String> raw = in.readCollectionAsImmutableList(StreamInput::readString);
+            warnings = raw.isEmpty() ? Set.of() : Collections.unmodifiableSet(new LinkedHashSet<>(raw));
+        } else {
+            warnings = Set.of();
+        }
         return new DriverCompletionInfo(
             documentsFound,
             valuesLoaded,
@@ -365,7 +366,7 @@ public record DriverCompletionInfo(
         private final List<PlanProfile> planProfiles = new ArrayList<>();
         private final Map<String, List<Map<String, Object>>> capturedSourceMetadata = new HashMap<>();
         private boolean partial;
-        private final List<String> warnings = new ArrayList<>();
+        private final Set<String> warnings = new LinkedHashSet<>();
 
         public void accumulate(DriverCompletionInfo info) {
             this.documentsFound += info.documentsFound;
@@ -393,7 +394,7 @@ public record DriverCompletionInfo(
                 planProfiles,
                 capturedSourceMetadata.isEmpty() ? Map.of() : new HashMap<>(capturedSourceMetadata),
                 partial,
-                warnings.isEmpty() ? List.of() : new ArrayList<>(warnings)
+                warnings.isEmpty() ? Set.of() : Collections.unmodifiableSet(new LinkedHashSet<>(warnings))
             );
         }
     }
@@ -409,7 +410,7 @@ public record DriverCompletionInfo(
         private final List<PlanProfile> planProfiles = Collections.synchronizedList(new ArrayList<>());
         private final Map<String, List<Map<String, Object>>> capturedSourceMetadata = new HashMap<>();
         private final AtomicBoolean partial = new AtomicBoolean();
-        private final List<String> warnings = Collections.synchronizedList(new ArrayList<>());
+        private final Set<String> warnings = Collections.synchronizedSet(new LinkedHashSet<>());
 
         public void accumulate(DriverCompletionInfo info) {
             this.documentsFound.addAndGet(info.documentsFound);
@@ -434,9 +435,9 @@ public record DriverCompletionInfo(
             synchronized (capturedSourceMetadata) {
                 snapshot = capturedSourceMetadata.isEmpty() ? Map.of() : new HashMap<>(capturedSourceMetadata);
             }
-            List<String> warningsSnapshot;
+            Set<String> warningsSnapshot;
             synchronized (warnings) {
-                warningsSnapshot = warnings.isEmpty() ? List.of() : new ArrayList<>(warnings);
+                warningsSnapshot = warnings.isEmpty() ? Set.of() : Collections.unmodifiableSet(new LinkedHashSet<>(warnings));
             }
             return new DriverCompletionInfo(
                 documentsFound.get(),

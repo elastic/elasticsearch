@@ -230,8 +230,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
         );
         lookupService.lookupAsync(request, parentTask, listener.map(response -> {
             totalBytesRead.addAndGet(response.bytesRead());
-            // Replay warnings accumulated by the (possibly remote) lookup driver into this driver's per-driver sink
-            // so they reach the response chokepoint.
+            // Replay warnings accumulated by the (possibly remote) lookup driver.
             for (String warning : response.warnings()) {
                 driverContext().addWarning(warning);
             }

@@ -575,10 +575,10 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                 result.executionInfo().markPartial();
             }
         }
-        // Warnings are accumulated per driver into each DriverContext's sink, shipped back with the completion info,
-        // and emitted here — the single Result->response chokepoint — so every execution path (coordinator-only,
-        // distributed, subplan/fork) surfaces them uniformly and independently of which worker thread produced them.
-        // HeaderWarning deduplicates identical strings, collapsing any residual cross-driver duplicates.
+        /*
+         * Shift all of ESQL's carefully maintained Warnings onto the spooky ThreadLocal
+         * for render.
+         */
         for (String warning : result.completionInfo().warnings()) {
             HeaderWarning.addWarning(warning);
         }

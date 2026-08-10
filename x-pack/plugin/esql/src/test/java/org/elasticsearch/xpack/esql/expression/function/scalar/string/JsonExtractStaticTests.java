@@ -59,10 +59,7 @@ public class JsonExtractStaticTests extends ESTestCase {
     private final List<DriverContext> driverContexts = Collections.synchronizedList(new ArrayList<>());
 
     /**
-     * Asserts the warnings accumulated across every {@link DriverContext} this test built, read from the per-driver
-     * sink rather than the ambient {@link org.elasticsearch.common.logging.HeaderWarning} ThreadContext, since
-     * production consumes the sink at the response chokepoint. Identical strings are collapsed into a set to
-     * match the de-duplication that {@code HeaderWarning#addWarning} performs there.
+     * Asserts the warnings accumulated across every {@link DriverContext} this test built.
      */
     private void assertDriverWarnings(String... expected) {
         Set<String> collected = new LinkedHashSet<>();

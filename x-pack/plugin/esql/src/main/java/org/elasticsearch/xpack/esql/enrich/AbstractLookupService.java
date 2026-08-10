@@ -92,6 +92,7 @@ import org.elasticsearch.xpack.esql.plugin.EsqlSearchExecutionContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -231,15 +232,13 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
     /**
      * Build the response.
      *
-     * @param warnings warnings accumulated into the lookup {@link DriverContext}'s per-driver sink; they must be
-     *                 carried back to the requesting node so they can reach the response chokepoint, rather than
-     *                 being dropped with the (possibly remote) lookup driver.
+     * @param warnings warnings accumulated into the lookup {@link DriverContext}
      */
     protected abstract LookupResponse createLookupResponse(
         List<Page> resultPages,
         BlockFactory blockFactory,
         long bytesRead,
-        List<String> warnings
+        Collection<String> warnings
     );
 
     /**
@@ -250,7 +249,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         ActionListener<LookupResponse> listener,
         List<Page> pages,
         long bytesRead,
-        List<String> warnings
+        Collection<String> warnings
     ) {
         ActionListener.respondAndRelease(listener, createLookupResponse(pages, blockFactory, bytesRead, warnings));
     }
@@ -801,8 +800,8 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         public abstract long bytesRead();
 
         /**
-         * Warnings accumulated by the lookup driver, to be replayed into the requesting driver's per-driver sink so
-         * they reach the response chokepoint. Never {@code null}.
+         * Warnings accumulated by the lookup {@link DriverContext} to be replayed
+         * into the requesting {@link DriverContext}. Never {@code null}.
          */
         public abstract List<String> warnings();
 

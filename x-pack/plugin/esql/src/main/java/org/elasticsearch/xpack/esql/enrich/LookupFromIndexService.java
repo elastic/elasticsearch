@@ -86,6 +86,7 @@ import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
@@ -266,8 +267,13 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
     }
 
     @Override
-    protected LookupResponse createLookupResponse(List<Page> pages, BlockFactory blockFactory, long bytesRead, List<String> warnings) {
-        return new LookupResponse(pages, blockFactory, null, bytesRead, warnings);
+    protected LookupResponse createLookupResponse(
+        List<Page> pages,
+        BlockFactory blockFactory,
+        long bytesRead,
+        Collection<String> warnings
+    ) {
+        return new LookupResponse(pages, blockFactory, null, bytesRead, List.copyOf(warnings));
     }
 
     @Override

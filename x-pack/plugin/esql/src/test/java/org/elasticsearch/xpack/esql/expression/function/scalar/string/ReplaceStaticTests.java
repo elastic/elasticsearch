@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -304,9 +305,9 @@ public class ReplaceStaticTests extends ESTestCase {
     private final List<DriverContext> driverContexts = Collections.synchronizedList(new ArrayList<>());
 
     /**
-     * Asserts the warnings accumulated across every {@link DriverContext} this test built, read from the per-driver
-     * sink (the raw, fully-formatted strings) rather than the ambient {@link org.elasticsearch.common.logging.HeaderWarning}
-     * ThreadContext, since production consumes the sink at the response chokepoint.
+     * Asserts the warnings accumulated across every {@link DriverContext} this test built.
+     * If you need the old style thread-local warnings from {@link HeaderWarning}, use
+     * {@link #takeResponseWarnings}.
      */
     private void assertDriverWarnings(String... expected) {
         Set<String> collected = new LinkedHashSet<>();

@@ -91,6 +91,6 @@ final class RunTableGate {
         if ((long) numRuns * 2 > maxDoc) {
             return false;
         }
-        return (processedDocs << 3) < maxDoc || (long) numRuns * 2 <= processedDocs;
+        return (long) processedDocs * 8 < maxDoc || (long) numRuns * 2 <= processedDocs;
     }
 }

@@ -23,6 +23,8 @@ import java.util.List;
 @ServerlessScope(Scope.PUBLIC)
 public class RestPutRegionPolicyAction extends BaseRestHandler {
 
+    private static final String FORCE_NAME = "force";
+
     @Override
     public String getName() {
         return "inference_put_region_policy_action";
@@ -39,9 +41,12 @@ public class RestPutRegionPolicyAction extends BaseRestHandler {
             throw new ElasticsearchParseException("body is required");
         }
 
+        boolean force = request.paramAsBoolean(FORCE_NAME, false);
+
         try (XContentParser parser = request.contentOrSourceParamParser()) {
             var parsedRequest = PutRegionPolicyAction.Request.parseRequest(parser);
-            return channel -> client.execute(PutRegionPolicyAction.INSTANCE, parsedRequest, new RestToXContentListener<>(channel));
+            var requestWithForce = new PutRegionPolicyAction.Request(parsedRequest.regionPolicy(), force);
+            return channel -> client.execute(PutRegionPolicyAction.INSTANCE, requestWithForce, new RestToXContentListener<>(channel));
         }
     }
 }

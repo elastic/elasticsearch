@@ -9,7 +9,6 @@
 package org.elasticsearch.simdvec.internal.vectorization;
 
 import org.apache.lucene.store.IndexInput;
-import org.elasticsearch.simdvec.internal.Similarities;
 
 import java.lang.foreign.MemorySegment;
 
@@ -25,12 +24,12 @@ final class NativeD4Q4PackedScorer extends NativeMemorySegmentScorer {
 
     @Override
     long dotProduct(MemorySegment dataset, MemorySegment query, int length) {
-        return Similarities.dotProductI4(query, dataset, length);
+        return DISTANCE_FUNCS.dotProductI4(query, dataset, length);
     }
 
     @Override
     void dotProductBulk(MemorySegment dataset, MemorySegment query, int length, int count, MemorySegment scores) {
-        Similarities.dotProductI4Bulk(dataset, query, length, count, scores);
+        DISTANCE_FUNCS.dotProductI4Bulk(dataset, query, length, count, scores);
     }
 
     @Override
@@ -43,7 +42,7 @@ final class NativeD4Q4PackedScorer extends NativeMemorySegmentScorer {
         int offsetsCount,
         MemorySegment scores
     ) {
-        Similarities.dotProductI4BulkWithOffsets(dataset, query, dataLength, dataStride, offsets, offsetsCount, scores);
+        DISTANCE_FUNCS.dotProductI4BulkWithOffsets(dataset, query, dataLength, dataStride, offsets, offsetsCount, scores);
     }
 
     @Override

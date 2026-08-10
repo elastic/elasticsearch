@@ -121,10 +121,6 @@ public record SemanticTextField(
         }
 
         private Chunk(@Nullable String text, int startOffset, int endOffset, @Nullable Integer inputIndex, BytesReference rawEmbeddings) {
-            // Temporary logic to ensure no callers set inputIndex in release builds
-            if (inputIndex != null && SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled() == false) {
-                throw new UnsupportedOperationException("Input index is not supported yet");
-            }
             this.text = text;
             this.startOffset = startOffset;
             this.endOffset = endOffset;

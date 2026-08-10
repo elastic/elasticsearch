@@ -43,7 +43,7 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
     private static Set<String> lookupTimeSeriesMetadataFieldNames(MappedFieldType.BlockLoaderContext context, boolean loadMetrics) {
         assert context.blockLoaderFunctionConfig() instanceof BlockLoaderFunctionConfig.TimeSeriesMetadata;
 
-        if (context.indexSettings().getMode() != IndexMode.TIME_SERIES) {
+        if (context.indexSettings().getMode().isTsdb() == false) {
             throw new IllegalStateException("TimeSeriesMetadataFieldBlockLoader requires index mode: [ " + IndexMode.TIME_SERIES + " ]");
         }
 

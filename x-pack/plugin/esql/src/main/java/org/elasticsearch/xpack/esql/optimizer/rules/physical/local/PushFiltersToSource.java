@@ -21,12 +21,9 @@ import org.elasticsearch.xpack.esql.core.util.Queries;
 import org.elasticsearch.xpack.esql.datasources.FilterEvaluationOrderEstimator;
 import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
-import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
-import org.elasticsearch.xpack.esql.datasources.SplitStats;
-import org.elasticsearch.xpack.esql.datasources.spi.FileList;
+import org.elasticsearch.xpack.esql.datasources.PhysicalNames;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
-import org.elasticsearch.xpack.esql.expression.function.scalar.string.FieldExtract;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.Range;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
@@ -45,11 +42,8 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 
 import java.util.ArrayList;
-import java.util.BitSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 
 import static java.util.Arrays.asList;
@@ -267,11 +261,15 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
 
         // Conjuncts that reference partition columns are evaluated against the constant blocks
         // injected by VirtualColumnIterator (and used as L1 pruning hints in FileSplitProvider).
-        // Pushing them into the format reader would translate them against file column data,
-        // but partition columns are not present in the file payload -- the reader would then
-        // either drop all rows (parquet) or behave format-specifically. Keep these conjuncts in
-        // the FilterExec so the post-injection evaluator handles them.
-        Set<String> partitionColumnNames = partitionColumnNames(externalExec);
+        // They must NOT be minted into the format-reader predicate: partition columns are path-derived
+        // and absent from the file payload. A RECHECK conjunct (==, IN, range) would be re-corrected by
+        // the retained FilterExec, but a YES-pushed conjunct (the LIKE family — see
+        // ParquetFilterPushdownSupport) is dropped from the FilterExec entirely and never re-checked, so
+        // every row survives and the query silently returns rows from every partition. Hold these
+        // conjuncts in the FilterExec on every node. The names come from the serialized stamp via the
+        // node-safe accessor — never the coordinator-only fileList, which is UNRESOLVED on a data node
+        // (reading it there returned an empty set and pushed the partition conjunct: the bug this fixes).
+        Set<String> partitionColumnNames = externalExec.partitionColumnNames();
         List<Expression> partitionConjuncts = new ArrayList<>();
         List<Expression> pushableCandidates = new ArrayList<>();
         if (partitionColumnNames.isEmpty()) {
@@ -286,25 +284,40 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
             }
         }
 
-        var effectiveStats = SplitStats.resolveEffectiveStats(externalExec.splits(), externalExec.sourceMetadata());
+        var effectiveStats = externalExec.effectiveSplitStats();
         pushableCandidates = FilterEvaluationOrderEstimator.orderByEstimatedCost(pushableCandidates, effectiveStats);
+
+        // A declared `path` rename lives in logical space in the plan, but the opaque per-format predicate the SPI
+        // mints must reference the file's PHYSICAL columns. Physicalize only the conjuncts handed to the mint; map the
+        // returned pushed/remainder expressions back to logical (via inverse, NameId-preserving) so the plan's FilterExec
+        // and reconciliation stay logical. No-op when the dataset declares no rename.
+        Map<String, String> renames = externalExec.declaredReadSpec().renames();
+        Map<String, String> toLogical = PhysicalNames.inverse(renames);
+        List<Expression> mintInput = PhysicalNames.translateExpressionNames(pushableCandidates, renames);
+        // Invariant: no logical rename-source name may survive into the opaque predicate the reader receives. This is the
+        // correctness-critical surface (a mistranslated pushed predicate silently drops/keeps the wrong rows), so make it
+        // an explicit tripwire rather than trusting the translation blindly.
+        assert PhysicalNames.noLogicalNamesRemain(
+            mintInput.stream().flatMap(e -> e.references().stream()).map(Attribute::name).toList(),
+            renames
+        ) : "logical rename-source name leaked into the pushed filter: " + mintInput;
 
         // Use the SPI to push filters
         FilterPushdownSupport.PushdownResult result = pushableCandidates.isEmpty()
             ? FilterPushdownSupport.PushdownResult.none(List.of())
-            : pushdownSupport.pushFilters(pushableCandidates);
+            : pushdownSupport.pushFilters(mintInput);
 
         if (result.hasPushedFilter()) {
-            // Create new ExternalSourceExec with pushed filter and the original ESQL expressions
+            // Create new ExternalSourceExec with the (physical) pushed filter and the pushed ESQL expressions in logical space
             ExternalSourceExec newExternalExec = externalExec.withPushedFilterAndExpressions(
                 result.pushedFilter(),
-                result.pushedExpressions()
+                PhysicalNames.translateExpressionNames(result.pushedExpressions(), toLogical)
             );
 
-            // Combine partition conjuncts (always kept) with the SPI's remainder, if any.
+            // Combine partition conjuncts (always kept) with the SPI's remainder (mapped back to logical), if any.
             List<Expression> remainder = new ArrayList<>(partitionConjuncts);
             if (result.hasRemainder()) {
-                remainder.addAll(result.remainder());
+                remainder.addAll(PhysicalNames.translateExpressionNames(result.remainder(), toLogical));
             }
             if (remainder.isEmpty()) {
                 return newExternalExec;
@@ -314,18 +327,6 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
 
         // No pushable filters - return original plan
         return filterExec;
-    }
-
-    private static Set<String> partitionColumnNames(ExternalSourceExec externalExec) {
-        FileList fileList = externalExec.fileList();
-        if (fileList == null) {
-            return Set.of();
-        }
-        PartitionMetadata partitionMetadata = fileList.partitionMetadata();
-        if (partitionMetadata == null || partitionMetadata.isEmpty()) {
-            return Set.of();
-        }
-        return partitionMetadata.partitionColumns().keySet();
     }
 
     static boolean referencesAnyColumn(Expression expr, Set<String> columnNames) {
@@ -411,7 +412,7 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         LucenePushdownPredicates pushdownPredicates,
         AttributeMap<Attribute> aliasReplacedBy
     ) {
-        List<Expression> conjuncts = combineFieldExtractRangePairs(splitAnd(condition), pushdownPredicates, aliasReplacedBy);
+        List<Expression> conjuncts = splitAnd(condition);
 
         List<Expression> pushable = new ArrayList<>();
         List<Expression> nonPushable = new ArrayList<>();
@@ -429,99 +430,5 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
             }
         }
         return new PushdownClassification(pushable, nonPushable);
-    }
-
-    /**
-     * Pre-combines pairs of {@code field_extract(root, "key") >|>= lo} and
-     * {@code field_extract(root, "key") <|<= hi} conjuncts into a single {@link Range} node so
-     * the closed range can push to a {@code RangeQuery} on the keyed sub-field {@code root.key}.
-     * Single-sided ranges over {@code field_extract} are left untouched: the underlying
-     * {@code KeyedFlattenedFieldType.rangeQuery} requires both bounds, so an open range cannot
-     * be safely pushed.
-     * <p>
-     * Two {@code field_extract} expressions are considered the same LHS when
-     * {@link FieldExtract#tryAsKeyedSubfieldName} returns the same synthetic field name for
-     * both. {@code aliasReplacedBy} is applied to each conjunct before the inspection so the
-     * {@code | EVAL e = field_extract(F, "k") | WHERE e >= "a" AND e <= "z"} shape is folded
-     * identically to writing the {@code field_extract} call inline.
-     * <p>
-     * Runs <em>before</em> classification because the individual halves are not pushable in
-     * isolation; the mirror combiner {@link #combineEligiblePushableToRange} runs <em>after</em>
-     * classification because for indexed {@link Attribute} LHS the individual comparisons are
-     * already pushable.
-     * <p>
-     * Package-private so the unit tests in {@code PushFiltersToSourceTests} can drive it
-     * directly (same pattern as {@link #referencesAnyColumn}).
-     */
-    static List<Expression> combineFieldExtractRangePairs(
-        List<Expression> conjuncts,
-        LucenePushdownPredicates pushdownPredicates,
-        AttributeMap<Attribute> aliasReplacedBy
-    ) {
-        // Holds the BC in its alias-resolved form (so the produced Range references the
-        // underlying field_extract directly, never a ReferenceAttribute alias).
-        record Half(int conjunctIndex, EsqlBinaryComparison resolvedBc) {}
-
-        Map<String, Half> lowerByKeyedName = new LinkedHashMap<>();
-        Map<String, Half> upperByKeyedName = new LinkedHashMap<>();
-
-        for (int i = 0; i < conjuncts.size(); i++) {
-            Expression resolved = aliasReplacedBy.isEmpty()
-                ? conjuncts.get(i)
-                : conjuncts.get(i).transformUp(ReferenceAttribute.class, r -> aliasReplacedBy.resolve(r, r));
-
-            if (resolved instanceof EsqlBinaryComparison bc && bc.right().foldable() && bc.left() instanceof FieldExtract fe) {
-                Optional<String> keyedName = fe.tryAsKeyedSubfieldName(pushdownPredicates);
-                if (keyedName.isEmpty()) {
-                    continue;
-                }
-                String name = keyedName.get();
-                if (bc instanceof GreaterThan || bc instanceof GreaterThanOrEqual) {
-                    lowerByKeyedName.putIfAbsent(name, new Half(i, bc));
-                } else if (bc instanceof LessThan || bc instanceof LessThanOrEqual) {
-                    upperByKeyedName.putIfAbsent(name, new Half(i, bc));
-                }
-            }
-        }
-
-        if (lowerByKeyedName.isEmpty() || upperByKeyedName.isEmpty()) {
-            return conjuncts;
-        }
-
-        BitSet consumed = new BitSet(conjuncts.size());
-        List<Expression> additions = new ArrayList<>();
-        for (Map.Entry<String, Half> entry : lowerByKeyedName.entrySet()) {
-            Half lower = entry.getValue();
-            Half upper = upperByKeyedName.get(entry.getKey());
-            if (upper == null) {
-                continue;
-            }
-            consumed.set(lower.conjunctIndex);
-            consumed.set(upper.conjunctIndex);
-            additions.add(
-                new Range(
-                    lower.resolvedBc.source(),
-                    lower.resolvedBc.left(),
-                    lower.resolvedBc.right(),
-                    lower.resolvedBc instanceof GreaterThanOrEqual,
-                    upper.resolvedBc.right(),
-                    upper.resolvedBc instanceof LessThanOrEqual,
-                    lower.resolvedBc.zoneId()
-                )
-            );
-        }
-
-        if (additions.isEmpty()) {
-            return conjuncts;
-        }
-
-        List<Expression> result = new ArrayList<>(conjuncts.size() - additions.size());
-        for (int i = 0; i < conjuncts.size(); i++) {
-            if (consumed.get(i) == false) {
-                result.add(conjuncts.get(i));
-            }
-        }
-        result.addAll(additions);
-        return result;
     }
 }

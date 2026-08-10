@@ -53,14 +53,21 @@ public class PutRegionPolicyAction extends ActionType<RegionPolicyResponse> {
         }
 
         private final RegionPolicy regionPolicy;
+        private final boolean force;
 
         public Request(RegionPolicy regionPolicy) {
+            this(regionPolicy, false);
+        }
+
+        public Request(RegionPolicy regionPolicy, boolean force) {
             this.regionPolicy = Objects.requireNonNull(regionPolicy);
+            this.force = force;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             regionPolicy = new RegionPolicy(in);
+            force = in.readBoolean();
         }
 
         @Override
@@ -93,6 +100,7 @@ public class PutRegionPolicyAction extends ActionType<RegionPolicyResponse> {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             regionPolicy.writeTo(out);
+            out.writeBoolean(force);
         }
 
         @Override
@@ -107,16 +115,20 @@ public class PutRegionPolicyAction extends ActionType<RegionPolicyResponse> {
         public boolean equals(Object o) {
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(regionPolicy, request.regionPolicy);
+            return force == request.force && Objects.equals(regionPolicy, request.regionPolicy);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hashCode(regionPolicy);
+            return Objects.hash(regionPolicy, force);
         }
 
         public RegionPolicy regionPolicy() {
             return regionPolicy;
+        }
+
+        public boolean force() {
+            return force;
         }
     }
 }

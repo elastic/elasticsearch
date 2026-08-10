@@ -34,7 +34,7 @@ dependencies {
 
   // Must match the Jackson bundled by the extended x-pack-esql plugin (see libs:arrow) so this
   // copy is de-duplicated out of the plugin bundle instead of tripping the jar-hell check at boot.
-  implementation "com.fasterxml.jackson.core:jackson-core:2.21.2"
+  implementation "com.fasterxml.jackson.core:jackson-core:2.21.4"
 
   testImplementation project(':test:framework')
   testImplementation project(path: xpackModule('esql'))

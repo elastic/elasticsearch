@@ -182,7 +182,7 @@ public final class IndexSortConfig {
                 indexMode = indexMode.toLowerCase(Locale.ROOT);
             }
 
-            if (IndexMode.TIME_SERIES.getName().equals(indexMode)) {
+            if (IndexMode.isTsdbName(indexMode)) {
                 return TIME_SERIES_SORT;
             } else if (IndexMode.LOGSDB.getName().equals(indexMode) || IndexMode.LOGSDB_COLUMNAR.getName().equals(indexMode)) {
                 var version = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings);
@@ -307,14 +307,14 @@ public final class IndexSortConfig {
         if (IndexSettings.SLICE_ENABLED.get(settings) && INDEX_SORT_FIELD_SETTING.exists(settings)) {
             List<String> fields = settings.getAsList(INDEX_SORT_FIELD_SETTING.getKey());
             for (String field : fields) {
-                if (field.equals(RoutingFieldMapper.NAME) || field.equals(SliceIndexing.PARAM_NAME)) {
+                if (field.equals(RoutingFieldMapper.NAME) || field.equals(SliceIndexing.FIELD_NAME)) {
                     throw new IllegalArgumentException(
                         "setting ["
                             + INDEX_SORT_FIELD_SETTING.getKey()
                             + "] must not contain ["
                             + RoutingFieldMapper.NAME
                             + "] or ["
-                            + SliceIndexing.PARAM_NAME
+                            + SliceIndexing.FIELD_NAME
                             + "] when ["
                             + IndexSettings.SLICE_ENABLED.getKey()
                             + "] is true"
@@ -426,8 +426,8 @@ public final class IndexSortConfig {
                 );
             if (ft == null) {
                 String err = "unknown index sort field:[" + sortSpec.field + "]";
-                if (this.indexMode == IndexMode.TIME_SERIES) {
-                    err += " required by [" + IndexSettings.MODE.getKey() + "=time_series]";
+                if (this.indexMode.isTsdb()) {
+                    err += " required by [" + IndexSettings.MODE.getKey() + "=" + this.indexMode.getName() + "]";
                 }
                 throw new IllegalArgumentException(err);
             }

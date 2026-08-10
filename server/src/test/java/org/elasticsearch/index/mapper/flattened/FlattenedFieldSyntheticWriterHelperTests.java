@@ -21,8 +21,10 @@ import org.mockito.ArgumentMatchers;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.stream.Stream;
 
 import static org.mockito.Mockito.mock;
@@ -314,6 +316,58 @@ public class FlattenedFieldSyntheticWriterHelperTests extends ESTestCase {
 
         assertEquals("{\"a\":\"sub_a\",\"b\":\"sub_b\"}", writeFlattened(writer));
         assertEquals("{\"a\":\"sub_a\",\"b\":\"sub_b\"}", writeNested(writer));
+    }
+
+    // --- ArrayOrderKeyedValueProducer tests ---
+
+    public void testArrayOrderDuplicatesPreserved() throws IOException {
+        // Document-order duplicates must be preserved; the producer must not deduplicate.
+        TreeMap<String, List<String>> slots = new TreeMap<>();
+        slots.put("x", List.of("b", "a", "b"));
+        final FlattenedFieldSyntheticWriterHelper writer = new FlattenedFieldSyntheticWriterHelper(
+            new FlattenedFieldSyntheticWriterHelper.ArrayOrderKeyedValueProducer(slots, new TreeMap<>()),
+            List.of()
+        );
+        assertEquals("{\"x\":[\"b\",\"a\",\"b\"]}", writeNested(writer));
+    }
+
+    public void testArrayOrderNullSlotsInline() throws IOException {
+        // null elements in the slot list must produce JSON nulls inline.
+        TreeMap<String, List<String>> slots = new TreeMap<>();
+        slots.put("a", Arrays.asList("v1", null, "v2"));
+        final FlattenedFieldSyntheticWriterHelper writer = new FlattenedFieldSyntheticWriterHelper(
+            new FlattenedFieldSyntheticWriterHelper.ArrayOrderKeyedValueProducer(slots, new TreeMap<>()),
+            List.of()
+        );
+        assertEquals("{\"a\":[\"v1\",null,\"v2\"]}", writeNested(writer));
+    }
+
+    public void testArrayOrderIgnoredValuesTailAppended() throws IOException {
+        // Slot values appear first in document order; ignored (ignore_above) values are appended after.
+        TreeMap<String, List<String>> slots = new TreeMap<>();
+        slots.put("k", List.of("slot1", "slot2"));
+        TreeMap<String, List<String>> ignored = new TreeMap<>();
+        ignored.put("k", List.of("ignored1"));
+        final FlattenedFieldSyntheticWriterHelper writer = new FlattenedFieldSyntheticWriterHelper(
+            new FlattenedFieldSyntheticWriterHelper.ArrayOrderKeyedValueProducer(slots, ignored),
+            List.of()
+        );
+        assertEquals("{\"k\":[\"slot1\",\"slot2\",\"ignored1\"]}", writeNested(writer));
+    }
+
+    public void testArrayOrderKeyMerge() throws IOException {
+        // Keys present only in slots, only in ignored, or in both must all appear in ascending key order.
+        TreeMap<String, List<String>> slots = new TreeMap<>();
+        slots.put("a", List.of("slot_a"));
+        slots.put("b", List.of("slot_b"));
+        TreeMap<String, List<String>> ignored = new TreeMap<>();
+        ignored.put("b", List.of("ignored_b"));
+        ignored.put("c", List.of("ignored_c"));
+        final FlattenedFieldSyntheticWriterHelper writer = new FlattenedFieldSyntheticWriterHelper(
+            new FlattenedFieldSyntheticWriterHelper.ArrayOrderKeyedValueProducer(slots, ignored),
+            List.of()
+        );
+        assertEquals("{\"a\":\"slot_a\",\"b\":[\"slot_b\",\"ignored_b\"],\"c\":\"ignored_c\"}", writeNested(writer));
     }
 
     /**

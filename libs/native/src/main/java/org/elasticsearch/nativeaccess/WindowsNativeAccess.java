@@ -9,7 +9,7 @@
 
 package org.elasticsearch.nativeaccess;
 
-import org.elasticsearch.nativeaccess.jdk.JdkCloseableMappedByteBuffer;
+import org.elasticsearch.nativeaccess.jdk.JdkMappedSegment;
 import org.elasticsearch.nativeaccess.lib.Kernel32Library;
 import org.elasticsearch.nativeaccess.lib.Kernel32Library.Handle;
 import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
@@ -221,7 +221,7 @@ public class WindowsNativeAccess extends AbstractNativeAccess {
     }
 
     @Override
-    public Optional<VectorSimilarityFunctions> getVectorSimilarityFunctions() {
+    public Optional<SimdVecLibrary> getVectorSimilarityFunctions() {
         return Optional.empty(); // not supported yet
     }
 
@@ -231,7 +231,7 @@ public class WindowsNativeAccess extends AbstractNativeAccess {
     }
 
     @Override
-    public CloseableMappedByteBuffer map(FileChannel fileChannel, FileChannel.MapMode mode, long position, long size) throws IOException {
-        return JdkCloseableMappedByteBuffer.ofShared(fileChannel, mode, position, size);
+    public MappedSegment map(FileChannel fileChannel, FileChannel.MapMode mode, long position, long size) throws IOException {
+        return JdkMappedSegment.ofShared(fileChannel, mode, position, size);
     }
 }

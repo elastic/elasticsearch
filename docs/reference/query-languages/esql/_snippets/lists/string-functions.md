@@ -16,13 +16,16 @@
 * [`ENDS_WITH`](../../functions-operators/string-functions/ends_with.md)
   :::{include} ../generated/x-pack-esql/functions/briefSummary/ends_with.md
   :::
+* [`FIELD_EXTRACT`](../../functions-operators/string-functions/field_extract.md) {applies_to}`stack: preview 9.5` {applies_to}`serverless: preview`
+  :::{include} ../generated/x-pack-esql/functions/briefSummary/field_extract.md
+  :::
 * [`FROM_BASE64`](../../functions-operators/string-functions/from_base64.md)
   :::{include} ../generated/x-pack-esql/functions/briefSummary/from_base64.md
   :::
 * [`HASH`](../../functions-operators/string-functions/hash.md)
   :::{include} ../generated/x-pack-esql/functions/briefSummary/hash.md
   :::
-* [`JSON_EXTRACT`](../../functions-operators/string-functions/json_extract.md) {applies_to}`stack: preview 9.4` {applies_to}`serverless: preview`
+* [`JSON_EXTRACT`](../../functions-operators/string-functions/json_extract.md) {applies_to}`stack: preview =9.4, ga 9.5+`
   :::{include} ../generated/x-pack-esql/functions/briefSummary/json_extract.md
   :::
 * [`LEFT`](../../functions-operators/string-functions/left.md)

@@ -61,6 +61,16 @@ public interface SourceStatistics {
         OptionalLong nullCount();
 
         /**
+         * Returns the number of non-null values in this column, if known. Multivalue-aware:
+         * a multivalued cell contributes one per value, so this is what {@code COUNT(col)}
+         * returns and is served directly instead of being derived from {@code rowCount - nullCount}
+         * (which under-counts multivalued columns).
+         */
+        default OptionalLong valueCount() {
+            return OptionalLong.empty();
+        }
+
+        /**
          * Returns the number of distinct values in this column, if known.
          */
         OptionalLong distinctCount();

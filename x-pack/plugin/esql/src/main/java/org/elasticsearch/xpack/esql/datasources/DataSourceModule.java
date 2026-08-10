@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.TableCatalogFactory;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -298,7 +299,13 @@ public final class DataSourceModule implements Closeable {
             sourceFactoryMap.putIfAbsent(formatName, fileFallback);
         }
 
-        this.sourceFactories = Map.copyOf(sourceFactoryMap);
+        // Insertion order is load-bearing, so this cannot be Map.copyOf: that returns a map whose iteration order the
+        // JDK documents as unspecified, silently discarding the "file factory last" ordering established above.
+        // ExternalSourceResolver picks the FIRST factory whose canHandle claims a path, and the claims genuinely
+        // overlap: the Iceberg catalog wrapper claims an extensionless s3 object (a table directory), and the file
+        // factory's config-aware canHandle claims that same object whenever an explicit `format` is configured. With
+        // an undefined order, which one resolves such a path would vary between nodes and restarts.
+        this.sourceFactories = Collections.unmodifiableMap(new LinkedHashMap<>(sourceFactoryMap));
         this.pluginFactories = Map.copyOf(operatorFactoryProviders);
         this.managedCloseables = closeables;
     }
@@ -332,6 +339,15 @@ public final class DataSourceModule implements Closeable {
         return externalSourceMetrics;
     }
 
+    /**
+     * Convenience overload that backs BOTH registry roles with a single executor. This collapses the
+     * page-consumer/coordination role and the read/parse role onto one pool, which is the exact wiring that
+     * deadlocks multi-file text reads in production (a full pool of blocked parser workers with no free thread
+     * left to run the drain that consumes them). It is safe only for synchronous / single-threaded callers
+     * (e.g. {@code Runnable::run} in tests). Production wiring must use
+     * {@link #createOperatorFactoryRegistry(Executor, Executor)} with two distinct pools —
+     * see {@code TransportEsqlQueryAction}.
+     */
     public OperatorFactoryRegistry createOperatorFactoryRegistry(Executor executor) {
         return createOperatorFactoryRegistry(executor, executor);
     }

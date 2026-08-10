@@ -48,9 +48,9 @@ import static java.util.Collections.emptyMap;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
-import static org.junit.Assert.assertArrayEquals;
 
 /**
  * Tests some of the validation of {@linkplain ReindexRequest}. See reindex's rest tests for much more.
@@ -860,7 +860,9 @@ public class ReindexRequestTests extends AbstractBulkByPaginatedSearchRequestTes
                 IllegalArgumentException.class,
                 () -> ReindexRequest.fromXContent(p, Predicates.never())
             );
-            assertThat(e.getMessage(), containsString("request does not support [" + SliceIndexing.PARAM_NAME + "]"));
+            assertThat(e.getMessage(), containsString("failed to parse field"));
+            assertThat(e.getCause().getMessage(), containsString("failed to parse field"));
+            assertThat(e.getCause().getCause().getMessage(), equalTo("request does not support [" + SliceIndexing.PARAM_NAME + "]"));
         }
     }
 

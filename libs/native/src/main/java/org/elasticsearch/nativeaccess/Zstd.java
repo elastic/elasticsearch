@@ -82,19 +82,14 @@ public final class Zstd {
     }
 
     /**
-     * Variant of {@link #decompress(CloseableByteBuffer, CloseableByteBuffer)} that accepts a direct {@link ByteBuffer} as the source.
-     * Use this when the caller already holds a direct buffer (e.g. from {@code DirectAccessInput.withByteBufferSlice}) to avoid allocating
-     * an intermediate {@link CloseableByteBuffer}.
+     * Decompress the content of {@code src} into {@code dst}, and return the number of decompressed bytes.
+     * Both segments may be native or heap-backed. On JDK 22+ heap segments are passed through the
+     * critical downcall without copying; on JDK 21 the fallback adapter stages them via a confined arena.
      */
-    public int decompress(CloseableByteBuffer dst, ByteBuffer src) {
-        Objects.requireNonNull(dst, "Null destination buffer");
-        Objects.requireNonNull(src, "Null source buffer");
-        if (src.isDirect() == false) {
-            throw new IllegalArgumentException("Source buffer must be direct");
-        }
-        long dstSize = dst.buffer().remaining();
-        long srcSize = src.remaining();
-        long ret = zstdLib.decompress(MemorySegment.ofBuffer(dst.buffer()), dstSize, MemorySegment.ofBuffer(src), srcSize);
+    public int decompress(MemorySegment dst, MemorySegment src) {
+        Objects.requireNonNull(dst, "Null dst segment");
+        Objects.requireNonNull(src, "Null src segment");
+        long ret = zstdLib.decompressHeap(dst, dst.byteSize(), src, src.byteSize());
         if (zstdLib.isError(ret)) {
             throw new IllegalArgumentException(zstdLib.getErrorName(ret));
         } else if (ret < 0 || ret > Integer.MAX_VALUE) {

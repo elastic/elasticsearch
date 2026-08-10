@@ -15,7 +15,7 @@ setup:
             index:
               mode: columnar
               number_of_shards: 2
-              number_of_replicas: 0
+              number_of_replicas: 1
           mappings:
             properties:
               "@timestamp":
@@ -87,7 +87,7 @@ setup:
             settings:
               index:
                 mode: columnar
-                number_of_replicas: 0
+                number_of_replicas: 1
             mappings:
               properties:
                 "@timestamp":
@@ -148,7 +148,7 @@ setup:
             settings:
               index:
                 mode: columnar
-                number_of_replicas: 0
+                number_of_replicas: 1
             mappings:
               properties:
                 "@timestamp":
@@ -206,7 +206,7 @@ setup:
             index:
               mode: logsdb_columnar
               number_of_shards: 2
-              number_of_replicas: 0
+              number_of_replicas: 1
           mappings:
             properties:
               "@timestamp":
@@ -289,7 +289,7 @@ setup:
             settings:
               index:
                 mode: logsdb_columnar
-                number_of_replicas: 0
+                number_of_replicas: 1
             mappings:
               properties:
                 "@timestamp":
@@ -354,7 +354,7 @@ setup:
             settings:
               index:
                 mode: logsdb_columnar
-                number_of_replicas: 0
+                number_of_replicas: 1
             mappings:
               properties:
                 "@timestamp":
@@ -419,7 +419,7 @@ setup:
           settings:
             index:
               mode: columnar
-              number_of_replicas: 0
+              number_of_replicas: 1
           mappings:
             properties:
               agent_id:
@@ -442,7 +442,7 @@ setup:
           settings:
             index:
               mode: logsdb_columnar
-              number_of_replicas: 0
+              number_of_replicas: 1
           mappings:
             properties:
               agent_id:

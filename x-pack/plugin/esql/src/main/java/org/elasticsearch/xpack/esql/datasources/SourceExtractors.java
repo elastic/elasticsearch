@@ -12,6 +12,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 
 import java.io.Closeable;
@@ -203,10 +204,13 @@ public final class SourceExtractors implements Releasable {
      * @param encodedRefs encoded row references (as emitted via {@code _rowPosition})
      * @param count       number of valid entries in {@code encodedRefs}
      * @param columns     column names to materialize
+     * @param targetTypes planner/declared type per column, aligned with {@code columns}; threads
+     *                    the declared-type coercion contract into {@link ColumnExtractor#extract}
+     *                    ({@code null} — the list or an entry — disables coercion for that column)
      * @param factory     block factory for memory accounting
      * @return one Block per column, each with exactly {@code count} rows; in caller-supplied order
      */
-    public Block[] materialize(long[] encodedRefs, int count, List<String> columns, BlockFactory factory) {
+    public Block[] materialize(long[] encodedRefs, int count, List<String> columns, List<DataType> targetTypes, BlockFactory factory) {
         if (encodedRefs == null) {
             throw new IllegalArgumentException("encodedRefs must not be null");
         }
@@ -221,6 +225,11 @@ public final class SourceExtractors implements Releasable {
         }
         if (count > encodedRefs.length) {
             throw new IllegalArgumentException("count [" + count + "] exceeds encodedRefs length [" + encodedRefs.length + "]");
+        }
+        if (targetTypes != null && targetTypes.size() != columns.size()) {
+            throw new IllegalArgumentException(
+                "targetTypes size [" + targetTypes.size() + "] must match columns size [" + columns.size() + "]"
+            );
         }
 
         // Snapshot the current size and grab a stable reference. Source registrations are
@@ -291,13 +300,14 @@ public final class SourceExtractors implements Releasable {
         boolean assembled = false;
         try {
             String[] columnNames = columns.toArray(String[]::new);
+            DataType[] targetTypesArray = targetTypes == null ? null : targetTypes.toArray(DataType[]::new);
             for (int id = 0; id < snapSize; id++) {
                 if (perIdCounts[id] == 0) {
                     continue;
                 }
                 Block[] perIdBlocks;
                 try {
-                    perIdBlocks = snapshot.get(id).extract(columnNames, localPositionsById[id], factory);
+                    perIdBlocks = snapshot.get(id).extract(columnNames, targetTypesArray, localPositionsById[id], factory);
                 } catch (IOException e) {
                     throw new UncheckedIOException("failed to materialize columns " + columns + " from extractor id [" + id + "]", e);
                 }

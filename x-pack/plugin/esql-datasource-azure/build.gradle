@@ -69,8 +69,8 @@ dependencies {
   // Jackson must match the version bundled by the extended x-pack-esql plugin (see libs:arrow):
   // the dataformat/datatype jars are kept here, but their transitive jackson-core/databind/annotations
   // are de-duplicated against the parent's copy instead of tripping the jar-hell check at boot.
-  implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-xml:2.21.2"
-  implementation "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.21.2"
+  implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-xml:2.21.4"
+  implementation "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.21.4"
   // azure-core's listBlobs XML response is parsed by jackson-dataformat-xml, which requires
   // woodstox-core + stax2-api at runtime. Without them, deserialization fails inside azure-core
   // and is reported as a misleading "Package versions ..." LinkageError; the real cause is

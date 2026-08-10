@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.qa.multi_node;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
+import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.FixtureUtils;
 
 import java.util.function.Supplier;
@@ -28,18 +29,20 @@ public class ExternalDistributedClusters {
 
     static ElasticsearchCluster testCluster(Supplier<String> s3EndpointSupplier) {
         return Clusters.testCluster(spec -> {
-            spec.feature(FeatureFlag.ESQL_EXTERNAL_DATASOURCES);
-            // This suite force-enables the umbrella feature so its external tests run even in release builds. Each
-            // storage backend / format is individually gated (snapshot-on, release-off) under the umbrella, so force
-            // them all on: file:// and http(s):// scheme registration depends on their sub-flags (otherwise those
-            // reads hit "No storage provider registered for scheme: …"), and GCS/Azure/ORC/parquet-rs must be on to
-            // exercise every backend in release builds too.
+            // This suite force-enables every storage backend / format flag so its external tests run even in
+            // release builds: file:// and http(s):// scheme registration depends on their sub-flags (otherwise
+            // those reads hit "No storage provider registered for scheme: …"), and GCS/Azure/ORC/parquet-rs must
+            // be on to exercise every backend in release builds too.
             spec.feature(FeatureFlag.ESQL_EXTERNAL_DATASOURCES_LOCAL);
             spec.feature(FeatureFlag.ESQL_EXTERNAL_DATASOURCES_HTTP);
             spec.feature(FeatureFlag.ESQL_EXTERNAL_GCS);
             spec.feature(FeatureFlag.ESQL_EXTERNAL_AZURE);
             spec.feature(FeatureFlag.ESQL_EXTERNAL_ORC);
             spec.feature(FeatureFlag.ESQL_EXTERNAL_PARQUET_RS);
+            // Federation is only on by default in snapshot builds; this suite reads external sources. It is set here
+            // rather than relying on Clusters, which serverless substitutes with a builder that only defines node
+            // shape.
+            spec.setting(Federation.FEDERATION_ENABLED.getKey(), "true");
             spec.plugin("inference-service-test");
             spec.module("repository-s3");
             spec.module("repository-gcs");

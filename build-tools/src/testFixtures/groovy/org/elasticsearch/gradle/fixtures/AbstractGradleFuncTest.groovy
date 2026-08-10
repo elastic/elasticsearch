@@ -40,9 +40,6 @@ abstract class AbstractGradleFuncTest extends Specification {
     @Rule
     TemporaryFolder testProjectDir = new TemporaryFolder()
 
-    @TempDir
-    File gradleUserHome
-
     File settingsFile
     File buildFile
     File propertiesFile
@@ -51,6 +48,14 @@ abstract class AbstractGradleFuncTest extends Specification {
 
     protected boolean configurationCacheCompatible = true
     protected boolean buildApiRestrictionsDisabled = false
+
+    /**
+     * Opt out of configuration-cache compatibility checking for this test class.
+     * The {@code reason} must explain the root cause so it can be tracked and fixed.
+     */
+    void disableConfigurationCache(String reason) {
+        configurationCacheCompatible = false
+    }
 
     def setup() {
         projectDir = testProjectDir.root
@@ -71,7 +76,7 @@ abstract class AbstractGradleFuncTest extends Specification {
             minimumCompilerJava = 21
         """
         propertiesFile <<
-            "org.gradle.java.installations.fromEnv=JAVA_HOME,RUNTIME_JAVA_HOME,JAVA15_HOME,JAVA14_HOME,JAVA13_HOME,JAVA12_HOME,JAVA11_HOME,JAVA8_HOME\n"
+            "org.gradle.java.installations.fromEnv=JAVA_HOME,RUNTIME_JAVA_HOME\n"
         // Pin the JAXP TransformerFactory to the JDK built-in implementation.
         // The plugin-under-test classpath injected via GradleRunner#withPluginClasspath transitively
         // contains Saxon-HE (pulled in by the nmcp publishing plugin), which registers itself as a
@@ -134,20 +139,34 @@ abstract class AbstractGradleFuncTest extends Specification {
     }
 
     GradleRunner gradleRunner(File projectDir, Object... arguments) {
+        def runner = GradleRunner.create()
+                .withDebug(ManagementFactory.getRuntimeMXBean().getInputArguments()
+                        .toString().indexOf("-agentlib:jdwp") > 0
+                )
+                .withProjectDir(projectDir)
+                .withPluginClasspath()
+                .forwardOutput()
+        File userHome = customGradleUserHome()
+        if (userHome != null) {
+            runner = runner.withTestKitDir(userHome)
+        }
         return new NormalizeOutputGradleRunner(
             new BuildConfigurationAwareGradleRunner(
-                    new InternalAwareGradleRunner(
-                        GradleRunner.create()
-                                .withDebug(ManagementFactory.getRuntimeMXBean().getInputArguments()
-                                        .toString().indexOf("-agentlib:jdwp") > 0
-                                )
-                                .withProjectDir(projectDir)
-                                .withPluginClasspath()
-                                .withTestKitDir(gradleUserHome)
-                                .forwardOutput()
-            ), configurationCacheCompatible,
-                buildApiRestrictionsDisabled)
+                    new InternalAwareGradleRunner(runner),
+                    configurationCacheCompatible,
+                    buildApiRestrictionsDisabled)
         ).withArguments(arguments.collect { it.toString() } + "--full-stacktrace")
+    }
+
+    /**
+     * Override to supply a custom Gradle user home directory for the TestKit runner.
+     * TestKit will set {@code GRADLE_USER_HOME} to this directory for every forked
+     * Gradle process, including any {@code ./gradlew} subprocesses spawned by build
+     * logic.  Returns {@code null} by default, letting TestKit manage its own
+     * temporary directory.
+     */
+    protected File customGradleUserHome() {
+        return null
     }
 
     def assertOutputContains(String givenOutput, String expected) {

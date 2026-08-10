@@ -51,11 +51,9 @@ import static org.hamcrest.Matchers.not;
  * {@link org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceBuffer}: a single
  * shard or row group reading too many (or too few) pages, or a stalled driver, would
  * surface here as a mismatched total. The grouped {@code COUNT(*)} shape is what keeps the
- * test on the slow-scan path: both
+ * test on the slow-scan path:
  * {@link org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushStatsToExternalSource}
- * and
- * {@link org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushAggregatesToExternalSource}
- * bail out when {@code groupings()} is non-empty, so the rule for {@code COUNT(*)} pushdown
+ * bails out when {@code groupings()} is non-empty, so the rule for {@code COUNT(*)} pushdown
  * exercised by {@link ExternalParquetCountPushdownIT} does not fire here.
  *
  * <p>The Parquet writer is configured {@code UNCOMPRESSED}. Compressed codecs require

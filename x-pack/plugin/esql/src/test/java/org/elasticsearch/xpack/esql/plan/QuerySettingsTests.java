@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -154,23 +155,36 @@ public class QuerySettingsTests extends ESTestCase {
 
     public void testValidate_UnmappedFields() {
         var setting = QuerySettings.UNMAPPED_FIELDS;
-        String[] values = new String[] { "DEFAULT", "NULLIFY", "LOAD" };
+        String[] allValues = new String[] { "DEFAULT", "NULLIFY", "LOAD", "LOAD_ALL" };
+        String[] nonSnapshotValues = new String[] { "DEFAULT", "NULLIFY", "LOAD" };
 
         assertDefault(setting, equalTo(UnmappedResolution.DEFAULT));
 
-        for (String value : values) {
+        for (String value : nonSnapshotValues) {
             assertValid(setting, of(randomizeCase(value)), equalTo(UnmappedResolution.valueOf(value)));
         }
 
+        // LOAD_ALL is only valid on snapshot builds
+        assertValid(setting, of(randomizeCase("LOAD_ALL")), equalTo(UnmappedResolution.LOAD_ALL), SNAPSHOT_CTX_WITH_CPS_ENABLED);
+        assertValid(setting, of(randomizeCase("LOAD_ALL")), equalTo(UnmappedResolution.LOAD_ALL), SNAPSHOT_CTX_WITH_CPS_DISABLED);
+        assertInvalid(
+            setting.name(),
+            NON_SNAPSHOT_CTX_WITH_CPS_ENABLED,
+            of("LOAD_ALL"),
+            "Error validating setting [unmapped_fields]: unmapped_fields value [LOAD_ALL] requires a snapshot build"
+        );
+
         assertInvalid(setting.name(), of(12), "Setting [" + setting.name() + "] must be of type KEYWORD");
 
+        // Parsing precedes the snapshot-only validator, so the values it lists come from the running build, not from the context.
+        String[] parseErrorValues = Build.current().isSnapshot() ? allValues : nonSnapshotValues;
         for (SettingsValidationContext ctx : allSettingsValidationContexts) {
             assertInvalid(
                 setting.name(),
                 ctx,
                 of("UNKNOWN"),
                 "Error validating setting [unmapped_fields]: Invalid unmapped_fields resolution [UNKNOWN], must be one of "
-                    + Arrays.toString(values)
+                    + Arrays.toString(parseErrorValues)
             );
         }
 
@@ -180,7 +194,44 @@ public class QuerySettingsTests extends ESTestCase {
             settingSource,
             of("UNKNOWN"),
             "line 3:11: Error validating setting [unmapped_fields]: Invalid unmapped_fields resolution [UNKNOWN], must be one of "
-                + Arrays.toString(values)
+                + Arrays.toString(parseErrorValues)
+        );
+    }
+
+    /**
+     * Parsing happens before the snapshot-only validator runs, so the parse error is what a production build shows for a typo: it must
+     * list only the values that build accepts. Tests always run on a snapshot build, hence the direct call with both flags.
+     */
+    public void testUnmappedFieldsParseErrorHidesSnapshotOnlyValue() {
+        assertThat(
+            QuerySettings.invalidUnmappedResolutionMessage("UNKNOWN", false),
+            equalTo("Invalid unmapped_fields resolution [UNKNOWN], must be one of [DEFAULT, NULLIFY, LOAD]")
+        );
+        assertThat(
+            QuerySettings.invalidUnmappedResolutionMessage("UNKNOWN", true),
+            equalTo("Invalid unmapped_fields resolution [UNKNOWN], must be one of [DEFAULT, NULLIFY, LOAD, LOAD_ALL]")
+        );
+    }
+
+    public void testValidate_ColumnMetadata() {
+        var setting = QuerySettings.COLUMN_METADATA;
+
+        assertDefault(setting, equalTo(Boolean.FALSE));
+
+        assertValid(setting, Literal.fromBoolean(Source.EMPTY, true), equalTo(Boolean.TRUE));
+        assertValid(setting, Literal.fromBoolean(Source.EMPTY, false), equalTo(Boolean.FALSE));
+
+        assertInvalid(setting.name(), of("true"), "Setting [" + setting.name() + "] must be of type BOOLEAN");
+        assertInvalid(setting.name(), Literal.integer(Source.EMPTY, 1), "Setting [" + setting.name() + "] must be of type BOOLEAN");
+        assertInvalid(
+            setting.name(),
+            new MapExpression(Source.EMPTY, List.of()),
+            "Setting [" + setting.name() + "] must be of type BOOLEAN"
+        );
+        assertInvalid(
+            setting.name(),
+            new Literal(Source.EMPTY, List.of(true, false), DataType.BOOLEAN),
+            "Setting [" + setting.name() + "] must be a boolean"
         );
     }
 
@@ -494,6 +545,57 @@ public class QuerySettingsTests extends ESTestCase {
         // UNMAPPED_FIELDS opted out of body exposure. The registry exposure flag is false.
         assertThat(QuerySettings.UNMAPPED_FIELDS.requestBody(), is(false));
         assertThat(QuerySettings.UNMAPPED_FIELDS.aliases().isEmpty(), is(true));
+    }
+
+    public void testResolveColumnMetadataIsRequestBodyExposedWithoutAlias() {
+        // COLUMN_METADATA is body-exposed under settings.{} but, unlike the three legacy settings, carries no
+        // top-level alias — there was never a pre-existing top-level body field for it to stay compatible with.
+        assertThat(QuerySettings.COLUMN_METADATA.requestBody(), is(true));
+        assertThat(QuerySettings.COLUMN_METADATA.aliases().isEmpty(), is(true));
+    }
+
+    public void testResolveColumnMetadataDefault() {
+        // Nothing supplied it anywhere (no body, no SET) — the registered default applies.
+        ResolvedSettings resolved = QuerySettings.resolve(Map.of(), null, SNAPSHOT_CTX_WITH_CPS_ENABLED);
+        assertThat(resolved.get(QuerySettings.COLUMN_METADATA), equalTo(Boolean.FALSE));
+    }
+
+    public void testResolveRequestParameterAppliesColumnMetadata() {
+        Map<QuerySettingDef<?>, Object> requestParams = new HashMap<>();
+        requestParams.put(QuerySettings.COLUMN_METADATA, Boolean.TRUE);
+        ResolvedSettings resolved = QuerySettings.resolve(requestParams, null, SNAPSHOT_CTX_WITH_CPS_ENABLED);
+        assertThat(resolved.get(QuerySettings.COLUMN_METADATA), equalTo(Boolean.TRUE));
+    }
+
+    public void testResolveRequestParameterAppliesColumnMetadataExplicitFalse() {
+        // Explicit false is a real, user-supplied value — distinct from "not supplied" even though both
+        // resolve to the same FALSE default. Guards against a reconciler/resolver that mistakes a falsy
+        // value for an absent one (e.g. an accidental truthiness check instead of a null check).
+        Map<QuerySettingDef<?>, Object> requestParams = new HashMap<>();
+        requestParams.put(QuerySettings.COLUMN_METADATA, Boolean.FALSE);
+        ResolvedSettings resolved = QuerySettings.resolve(requestParams, null, SNAPSHOT_CTX_WITH_CPS_ENABLED);
+        assertThat(resolved.get(QuerySettings.COLUMN_METADATA), equalTo(Boolean.FALSE));
+    }
+
+    public void testResolveColumnMetadataRejectsMalformedSetValue() {
+        // resolve() calls readFromExpression() directly and does not repeat validate()'s upfront type check.
+        // This confirms the bool() factory's own defensive check rejects a non-boolean SET value on its own,
+        // so a malformed value can't silently slip through resolve() even if validate() were ever bypassed.
+        QuerySetting setting = new QuerySetting(Source.EMPTY, new Alias(Source.EMPTY, "column_metadata", Literal.integer(Source.EMPTY, 1)));
+        EsqlStatement statement = new EsqlStatement(null, List.of(setting));
+        var ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> QuerySettings.resolve(Map.of(), statement, SNAPSHOT_CTX_WITH_CPS_ENABLED)
+        );
+        assertThat(ex.getMessage(), containsString("Setting [column_metadata] must be a boolean, got [1]"));
+    }
+
+    public void testResolveBodyColumnMetadataOnNonSnapshot() {
+        // column_metadata is de-snapshotted (#148508): body-supplied values resolve on release builds too.
+        Map<QuerySettingDef<?>, Object> requestParams = new HashMap<>();
+        requestParams.put(QuerySettings.COLUMN_METADATA, Boolean.TRUE);
+        ResolvedSettings resolved = QuerySettings.resolve(requestParams, null, NON_SNAPSHOT_CTX_WITH_CPS_ENABLED);
+        assertThat(resolved.get(QuerySettings.COLUMN_METADATA), equalTo(Boolean.TRUE));
     }
 
     public void testResolveBodyExposedSettingsDeclareAliases() {

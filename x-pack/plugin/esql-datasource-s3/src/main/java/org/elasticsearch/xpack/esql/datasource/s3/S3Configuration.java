@@ -6,13 +6,13 @@
  */
 package org.elasticsearch.xpack.esql.datasource.s3;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefinition;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceConfiguration;
 
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefinition.plaintext;
 import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefinition.secret;
@@ -64,6 +64,10 @@ public class S3Configuration extends FileDataSourceConfiguration {
         super(raw, FIELDS);
     }
 
+    private S3Configuration(Map<String, Object> raw, Set<String> preexistingSecretKeys) {
+        super(raw, FIELDS, preexistingSecretKeys);
+    }
+
     @Override
     protected void validateCredentials(ValidationException errors) {
         // role_session_name, sts_endpoint, and jwt_audience are optional; role_arn is the minimum
@@ -77,6 +81,10 @@ public class S3Configuration extends FileDataSourceConfiguration {
 
     public static S3Configuration fromMap(Map<String, Object> raw) {
         return raw == null || raw.isEmpty() ? null : new S3Configuration(raw);
+    }
+
+    public static S3Configuration fromMap(Map<String, Object> raw, Set<String> preexistingSecretKeys) {
+        return raw == null || raw.isEmpty() ? null : new S3Configuration(raw, preexistingSecretKeys);
     }
 
     /**
@@ -205,7 +213,7 @@ public class S3Configuration extends FileDataSourceConfiguration {
 
     @Override
     public boolean hasCredentials() {
-        return Strings.hasText(accessKey()) && Strings.hasText(secretKey());
+        return hasStoredSecret(ACCESS_KEY.name()) && hasStoredSecret(SECRET_KEY.name());
     }
 
     @Override

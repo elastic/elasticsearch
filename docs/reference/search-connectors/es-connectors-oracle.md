@@ -266,7 +266,7 @@ We also have a quickstart self-managed option using Docker Compose, so you can s
 * The `sys` user is not supported, as it contains 1000+ system tables. If you need to work with the `sys` user, use either `sysdba` or `sysoper` and configure this as the username.
 
 ::::{note}
-* Files bigger than 10 MB won’t be extracted.
+* Files bigger than 8 MiB won’t be extracted.
 * Permissions are not synced. **All documents** indexed to an Elastic deployment will be visible to **all users with access** to that Elastic Deployment.
 
 ::::

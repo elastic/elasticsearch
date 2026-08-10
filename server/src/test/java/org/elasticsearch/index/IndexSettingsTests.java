@@ -1205,9 +1205,7 @@ public class IndexSettingsTests extends ESTestCase {
         IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(IndexVersions.DISABLE_SEQUENCE_NUMBERS, IndexVersion.current());
 
         List<IndexMode> modes = new ArrayList<>(List.of(IndexMode.TIME_SERIES, IndexMode.LOGSDB));
-        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
-            modes.addAll(List.of(IndexMode.LOGSDB_COLUMNAR, IndexMode.COLUMNAR));
-        }
+        modes.addAll(List.of(IndexMode.LOGSDB_COLUMNAR, IndexMode.COLUMNAR));
         IndexMode mode = randomFrom(modes);
         Settings.Builder builder = Settings.builder()
             .put(IndexSettings.MODE.getKey(), mode.getName())
@@ -1254,39 +1252,41 @@ public class IndexSettingsTests extends ESTestCase {
     }
 
     public void testDisableSequenceNumbersDefaultForColumnarModes() {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(IndexVersions.DISABLE_SEQUENCE_NUMBERS, IndexVersion.current());
-
-        // Test COLUMNAR mode
-        Settings columnarSettings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
-        IndexMetadata columnarMetadata = newIndexMeta("columnar-index", columnarSettings, indexVersion);
-        IndexSettings columnarIndexSettings = new IndexSettings(columnarMetadata, Settings.EMPTY);
-        assertThat("DISABLE_SEQUENCE_NUMBERS should be true for COLUMNAR mode", columnarIndexSettings.sequenceNumbersDisabled(), is(true));
-
-        // Test LOGSDB_COLUMNAR mode
-        Settings columnarLogsdbSettings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR.getName()).build();
-        IndexMetadata columnarLogsdbMetadata = newIndexMeta("columnar-logsdb-index", columnarLogsdbSettings, indexVersion);
-        IndexSettings columnarLogsdbIndexSettings = new IndexSettings(columnarLogsdbMetadata, Settings.EMPTY);
-        assertThat(
-            "DISABLE_SEQUENCE_NUMBERS should be true for LOGSDB_COLUMNAR mode",
-            columnarLogsdbIndexSettings.sequenceNumbersDisabled(),
-            is(true)
+        // BWC: below the gate, columnar modes disable sequence numbers by default.
+        IndexVersion beforeGate = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.DISABLE_SEQUENCE_NUMBERS,
+            IndexVersionUtils.getPreviousVersion(IndexVersions.COLUMNAR_DISABLE_SEQUENCE_NUMBERS_DATA_STREAMS_ONLY)
         );
+        for (IndexMode columnarMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), columnarMode.getName()).build();
+            IndexSettings indexSettings = new IndexSettings(
+                newIndexMeta(columnarMode.getName() + "-index", settings, beforeGate),
+                Settings.EMPTY
+            );
+            assertThat(columnarMode + " disables sequence numbers below the gate", indexSettings.sequenceNumbersDisabled(), is(true));
+        }
 
-        // Test that STANDARD mode does not have sequence numbers disabled by default
+        // From the gate, columnar modes keep sequence numbers by default; only data-stream backing indices disable them (set at creation).
+        IndexVersion fromGate = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.COLUMNAR_DISABLE_SEQUENCE_NUMBERS_DATA_STREAMS_ONLY,
+            IndexVersion.current()
+        );
+        for (IndexMode columnarMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), columnarMode.getName()).build();
+            IndexSettings indexSettings = new IndexSettings(
+                newIndexMeta(columnarMode.getName() + "-index", settings, fromGate),
+                Settings.EMPTY
+            );
+            assertThat(columnarMode + " keeps sequence numbers from the gate", indexSettings.sequenceNumbersDisabled(), is(false));
+        }
+
+        // STANDARD mode never disables sequence numbers by default.
         Settings standardSettings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.STANDARD.getName()).build();
-        IndexMetadata standardMetadata = newIndexMeta("standard-index", standardSettings, indexVersion);
-        IndexSettings standardIndexSettings = new IndexSettings(standardMetadata, Settings.EMPTY);
-        assertThat(
-            "DISABLE_SEQUENCE_NUMBERS should be false for STANDARD mode",
-            standardIndexSettings.sequenceNumbersDisabled(),
-            is(false)
-        );
+        IndexSettings standardIndexSettings = new IndexSettings(newIndexMeta("standard-index", standardSettings, fromGate), Settings.EMPTY);
+        assertThat(standardIndexSettings.sequenceNumbersDisabled(), is(false));
     }
 
     public void testDynamicStringsAutoTextDefaultByIndexMode() {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-
         // COLUMNAR and LOGSDB_COLUMNAR default to false (keyword, high-cardinality)
         for (IndexMode columnarMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), columnarMode.getName()).build();

@@ -106,16 +106,22 @@ describe("toBuildkitePipeline end-to-end", () => {
     const [batch, analyze] = pipeline.steps[0].steps;
 
     // Single-batch step captures the start epoch and writes a per-job status
-    // file tagged with the kind + step key, carrying the runtime rc + duration.
+    // file tagged with the kind + step key, carrying the runtime rc + duration
+    // + OOM subtype (from the heap-dump probe below).
     expect(batch.command).toContain("_fd_start=$(date +%s)");
     expect(batch.command).toContain(
-      'printf \'{"jobId":"%s","stepKey":"%s","kind":"%s","rc":%s,"durationSec":%s}\' "$$BUILDKITE_JOB_ID" "flakiness-detection:unit" "test" "$$rc" "$(( _fd_end - _fd_start ))" > "flakiness-status/status-$$BUILDKITE_JOB_ID.json" || true'
+      'printf \'{"jobId":"%s","stepKey":"%s","kind":"%s","rc":%s,"durationSec":%s,"infraSubtype":"%s"}\' "$$BUILDKITE_JOB_ID" "flakiness-detection:unit" "test" "$$rc" "$(( _fd_end - _fd_start ))" "$$_fd_oom" > "flakiness-status/status-$$BUILDKITE_JOB_ID.json" || true'
     );
+    // OOM is detected from a heap-dump file (TTY-safe), not the log; the probe
+    // stops at the first match.
+    expect(batch.command).toContain("find . -type f -path '*/build/heapdump/*.hprof' -print -quit");
 
-    // The analyze step is not a test batch and must not write a status file.
+    // The analyze step is not a test batch and must not write a status file or
+    // probe for OOM.
     expect(analyze.key).toBe("flakiness-detection:analyze");
     expect(analyze.command).not.toContain("flakiness-status/status-");
     expect(analyze.command).not.toContain("_fd_start=");
+    expect(analyze.command).not.toContain("heapdump");
   });
 
   test("each parallel batch writes a status file with the correct kind", () => {
@@ -253,6 +259,7 @@ describe("toBuildkitePipeline", () => {
     expect(analyze.artifact_paths).toBe("flakiness-outcomes.json");
     expect(analyze.agents).toBeUndefined();
     expect(analyze.command).toContain('buildkite-agent artifact download "flakiness-status/*.json" . || true');
+    expect(analyze.command).toContain('buildkite-agent artifact download "flakiness-skipped.json" . || true');
     expect(analyze.command).toContain("node .buildkite/scripts/flakiness-detection/entrypoints/analyze.ts");
     // Order: download statuses → analyzer.
     const downloadIdx = analyze.command.indexOf("artifact download");
@@ -260,5 +267,100 @@ describe("toBuildkitePipeline", () => {
     expect(downloadIdx).toBeLessThan(analyzerIdx);
     // Analyze step uses timeout_in_minutes: 10, so inner timeout is 8m.
     expect(analyze.command).toContain("timeout --foreground --signal=TERM --kill-after=30s 8m bash");
+  });
+
+  test("emits an analyze-only step when all tests are not_applicable (no batches)", () => {
+    // All detected tests were BWC → zero batch commands, but the analyze step
+    // must still run so the not_applicable records reach the outcomes artifact.
+    const pipeline = toBuildkitePipeline([], DEFAULT_AGENT_CONFIG, { hasNotApplicable: true });
+    const steps = pipeline.steps[0].steps;
+    expect(steps).toHaveLength(1);
+    expect(steps[0].key).toBe("flakiness-detection:analyze");
+    expect(steps[0].depends_on).toEqual([]);
+    expect(steps[0].command).toContain('buildkite-agent artifact download "flakiness-skipped.json" . || true');
+  });
+
+  test("no analyze step when there are neither batches nor not_applicable tests", () => {
+    const pipeline = toBuildkitePipeline([], DEFAULT_AGENT_CONFIG);
+    expect(pipeline.steps[0].steps).toEqual([]);
+  });
+});
+
+describe("toBuildkitePipeline compile gate", () => {
+  const cmds: RunnableCommand[] = [
+    { kind: "test", label: "unit tests", key: "flakiness-detection:unit", command: "cmd" },
+  ];
+
+  test("prepends a precompile step the batches hard-depend on", () => {
+    const pipeline = toBuildkitePipeline(cmds, DEFAULT_AGENT_CONFIG, {
+      compileTasks: [":server:compileTestJava", ":x-pack:plugin:ml:compileJavaRestTestJava"],
+    });
+    const steps = pipeline.steps[0].steps;
+
+    // precompile first, then the batch, then analyze.
+    expect(steps.map((s) => s.key)).toEqual([
+      "flakiness-detection:precompile",
+      "flakiness-detection:unit",
+      "flakiness-detection:analyze",
+    ]);
+
+    const [precompile, batch, analyze] = steps;
+    // Compiles the requested tasks via the gradle wrapper and uploads the marker.
+    expect(precompile.command).toContain(
+      ".ci/scripts/run-gradle.sh :server:compileTestJava :x-pack:plugin:ml:compileJavaRestTestJava"
+    );
+    // The compile runs under an inner timeout (a few minutes below the step
+    // timeout) so a hang is captured as a non-zero rc and still writes the marker,
+    // rather than an outer Buildkite SIGKILL that would leave a false-green summary.
+    expect(precompile.command).toMatch(
+      /timeout --foreground --signal=TERM --kill-after=30s \d+m \.ci\/scripts\/run-gradle\.sh/
+    );
+    expect(precompile.timeout_in_minutes).toBe(30);
+    expect(precompile.command).toContain('> "flakiness-precompile.json"');
+    expect(precompile.command).toContain("exit $$rc");
+    // The gate no longer posts its own annotation; the analyze step folds the
+    // failure into the single flakiness summary annotation instead.
+    expect(precompile.command).not.toContain("buildkite-agent annotate");
+
+    // Constraint: Gradle's exit code is captured immediately, before the
+    // marker/annotate side-effects, and is what the step finally exits with - so
+    // a real compile failure can never be masked by a side-effect succeeding.
+    const cmd = precompile.command;
+    const gradleAt = cmd.indexOf(".ci/scripts/run-gradle.sh");
+    const captureAt = cmd.indexOf("rc=$?");
+    const markerAt = cmd.indexOf('> "flakiness-precompile.json"');
+    const exitAt = cmd.indexOf("exit $$rc");
+    expect(captureAt).toBeGreaterThan(gradleAt);
+    expect(markerAt).toBeGreaterThan(captureAt);
+    expect(exitAt).toBeGreaterThan(markerAt);
+
+    expect(precompile.artifact_paths).toBe("flakiness-precompile.json");
+    expect(precompile.agents?.provider).toBe("gcp");
+
+    // Batch hard-depends on the gate (allow_failure false → skipped on failure).
+    expect(batch.depends_on).toEqual([{ step: "flakiness-detection:precompile", allow_failure: false }]);
+
+    // Analyze depends on the gate with allow_failure so it still records
+    // build_failed when the gate fails and the batches are skipped.
+    expect(analyze.depends_on).toContainEqual({ step: "flakiness-detection:precompile", allow_failure: true });
+    expect(analyze.command).toContain('buildkite-agent artifact download "flakiness-precompile.json" . || true');
+  });
+
+  test("no precompile step when compileTasks is empty", () => {
+    const pipeline = toBuildkitePipeline(cmds, DEFAULT_AGENT_CONFIG, { compileTasks: [] });
+    const keys = pipeline.steps[0].steps.map((s) => s.key);
+    expect(keys).not.toContain("flakiness-detection:precompile");
+    expect(pipeline.steps[0].steps[0].depends_on).toBeUndefined();
+  });
+
+  test("no precompile step when there are no batches (all not_applicable)", () => {
+    // Nothing to compile even though compileTasks were computed from a now-empty
+    // runnable set.
+    const pipeline = toBuildkitePipeline([], DEFAULT_AGENT_CONFIG, {
+      hasNotApplicable: true,
+      compileTasks: [":server:compileTestJava"],
+    });
+    const keys = pipeline.steps[0].steps.map((s) => s.key);
+    expect(keys).toEqual(["flakiness-detection:analyze"]);
   });
 });

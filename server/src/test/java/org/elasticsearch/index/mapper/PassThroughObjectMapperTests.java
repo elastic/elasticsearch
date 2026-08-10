@@ -293,7 +293,6 @@ public class PassThroughObjectMapperTests extends MapperServiceTestCase {
      * aliases so that queries can omit the passthrough prefix.
      */
     public void testPassThroughAliasesInColumnarMode() throws IOException {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
             MapperService mapperService = createMapperService(settings, mapping(b -> {
@@ -323,7 +322,6 @@ public class PassThroughObjectMapperTests extends MapperServiceTestCase {
      * wins the root-level alias.
      */
     public void testPassThroughPriorityWinsInColumnarMode() throws IOException {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
             MapperService mapperService = createMapperService(settings, mapping(b -> {
@@ -357,7 +355,6 @@ public class PassThroughObjectMapperTests extends MapperServiceTestCase {
      * alias for each child field: {@code "resource.attributes.env"} → alias {@code "env"}.
      */
     public void testPassThroughWithDottedPrefixInColumnarMode() throws IOException {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
             MapperService mapperService = createMapperService(settings, mapping(b -> {

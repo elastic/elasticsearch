@@ -355,6 +355,8 @@ public final class ParquetFixtureGenerator {
             case "ip" -> Types.optional(PrimitiveType.PrimitiveTypeName.BINARY);
             case "date" -> Types.optional(PrimitiveType.PrimitiveTypeName.INT64)
                 .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MILLIS));
+            case "date_nanos" -> Types.optional(PrimitiveType.PrimitiveTypeName.INT64)
+                .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.NANOS));
             case "text", "txt" -> Types.optional(PrimitiveType.PrimitiveTypeName.BINARY).as(LogicalTypeAnnotation.stringType());
             default -> Types.optional(PrimitiveType.PrimitiveTypeName.BINARY);
         };
@@ -417,7 +419,7 @@ public final class ParquetFixtureGenerator {
                 case "double", "scaled_float" -> g.add(leafName, ((Number) value).doubleValue());
                 case "float", "half_float" -> g.add(leafName, ((Number) value).floatValue());
                 case "boolean" -> g.add(leafName, Boolean.TRUE.equals(value));
-                case "date" -> g.add(leafName, ((Number) value).longValue());
+                case "date", "date_nanos" -> g.add(leafName, ((Number) value).longValue());
                 case "ip" -> g.add(leafName, value.toString());
                 default -> g.add(leafName, value.toString());
             }

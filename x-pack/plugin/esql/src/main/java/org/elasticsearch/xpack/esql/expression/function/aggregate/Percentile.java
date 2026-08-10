@@ -7,12 +7,15 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.PercentileDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.PercentileIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.PercentileLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.QuantileStates;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -20,6 +23,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
@@ -28,10 +33,10 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.HistogramPercentile;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentile;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
@@ -42,6 +47,8 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 import static org.elasticsearch.xpack.esql.expression.Foldables.doubleValueOf;
 
 public class Percentile extends NumericAggregate implements SurrogateExpression {
+    private static final TransportVersion PERCENTILE_COMPRESSION = TransportVersion.fromName("esql_percentile_compression");
+
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "Percentile",
@@ -66,8 +73,10 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
         .name("quantile");
 
     private final Expression percentile;
+    private final double tDigestStateCompression;
 
     @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = "double",
         briefSummary = "Returns the value at which a certain percentage of observed values occur.",
         description = "Returns the value at which a certain percentage of observed values occur. "
@@ -119,18 +128,28 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
     }
 
     public Percentile(Source source, Expression field, Expression filter, Expression window, Expression percentile) {
+        this(source, field, filter, window, percentile, QuantileStates.DEFAULT_COMPRESSION);
+    }
+
+    public Percentile(
+        Source source,
+        Expression field,
+        Expression filter,
+        Expression window,
+        Expression percentile,
+        double tDigestStateCompression
+    ) {
         super(source, field, filter, window, singletonList(percentile));
         this.percentile = percentile;
+        this.tDigestStateCompression = tDigestStateCompression;
     }
 
     private Percentile(StreamInput in) throws IOException {
-        this(
-            Source.readFrom((PlanStreamInput) in),
-            in.readNamedWriteable(Expression.class),
-            in.readNamedWriteable(Expression.class),
-            readWindow(in),
-            in.readNamedWriteableCollectionAsList(Expression.class).getFirst()
-        );
+        super(in);
+        this.percentile = parameters().getFirst();
+        this.tDigestStateCompression = in.getTransportVersion().supports(PERCENTILE_COMPRESSION)
+            ? in.readDouble()
+            : QuantileStates.DEFAULT_COMPRESSION;
     }
 
     @Override
@@ -139,22 +158,58 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
     }
 
     @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        if (out.getTransportVersion().supports(PERCENTILE_COMPRESSION)) {
+            out.writeDouble(tDigestStateCompression);
+        }
+    }
+
+    @Override
     protected NodeInfo<Percentile> info() {
-        return NodeInfo.create(this, Percentile::new, field(), filter(), window(), percentile);
+        return NodeInfo.create(this, Percentile::new, field(), filter(), window(), percentile, tDigestStateCompression);
     }
 
     @Override
     public Percentile replaceChildren(List<Expression> newChildren) {
-        return new Percentile(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3));
+        return new Percentile(
+            source(),
+            newChildren.get(0),
+            newChildren.get(1),
+            newChildren.get(2),
+            newChildren.get(3),
+            tDigestStateCompression
+        );
     }
 
     @Override
     public Percentile withFilter(Expression filter) {
-        return new Percentile(source(), field(), filter, window(), percentile);
+        return new Percentile(source(), field(), filter, window(), percentile, tDigestStateCompression);
     }
 
     public Expression percentile() {
         return percentile;
+    }
+
+    public double tDigestStateCompression() {
+        return tDigestStateCompression;
+    }
+
+    public Percentile withTDigestStateCompression(double newCompression) {
+        return new Percentile(source(), field(), filter(), window(), percentile, newCompression);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), tDigestStateCompression);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (super.equals(obj) == false) {
+            return false;
+        }
+        return Double.compare(((Percentile) obj).tDigestStateCompression, tDigestStateCompression) == 0;
     }
 
     @Override
@@ -185,17 +240,17 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
 
     @Override
     protected AggregatorFunctionSupplier longSupplier() {
-        return new PercentileLongAggregatorFunctionSupplier(percentileValue());
+        return new PercentileLongAggregatorFunctionSupplier(percentileValue(), tDigestStateCompression);
     }
 
     @Override
     protected AggregatorFunctionSupplier intSupplier() {
-        return new PercentileIntAggregatorFunctionSupplier(percentileValue());
+        return new PercentileIntAggregatorFunctionSupplier(percentileValue(), tDigestStateCompression);
     }
 
     @Override
     protected AggregatorFunctionSupplier doubleSupplier() {
-        return new PercentileDoubleAggregatorFunctionSupplier(percentileValue());
+        return new PercentileDoubleAggregatorFunctionSupplier(percentileValue(), tDigestStateCompression);
     }
 
     private double percentileValue() {

@@ -31,6 +31,7 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.junit.After;
 
 import java.util.Collections;
 import java.util.Set;
@@ -55,9 +56,8 @@ public class RemoteClusterClientTests extends ESTestCase {
         new ScalingExecutorBuilder(TEST_THREAD_POOL_NAME, 1, 1, TimeValue.timeValueSeconds(60), true)
     );
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @After
+    public void terminateThreadPool() throws Exception {
         ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
     }
 
@@ -161,6 +161,7 @@ public class RemoteClusterClientTests extends ESTestCase {
             Settings localSettings = Settings.builder()
                 .put(onlyRole(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE))
                 .put("cluster.remote.test.seeds", remoteNode.getAddress().getAddress() + ":" + remoteNode.getAddress().getPort())
+                .put("cluster.remote.initial_connect_timeout", "0s")
                 .build();
             try (
                 MockTransportService service = MockTransportService.createNewService(
@@ -171,29 +172,28 @@ public class RemoteClusterClientTests extends ESTestCase {
                     null
                 )
             ) {
+                // Fail every connection attempt, but only once released via the latch below. Installing this
+                // before #start() (as in #testQuicklySkipUnavailableClusters above) means the node never
+                // actually connects. Blocking on the latch, rather than just forking to another thread, is
+                // what makes this deterministic: RemoteConnectionStrategy#connect always dispatches the actual
+                // connect attempt onto the MANAGEMENT pool asynchronously regardless, but nothing stops that
+                // asynchronous completion from racing ahead of the calling thread and finishing before it
+                // reaches SubscribableListener#addListener(listener, executor, threadContext) below - which
+                // would then run inline, on the calling thread, since that method only forks when the upstream
+                // isn't complete yet. Blocking here until we've explicitly subscribed (by releasing the latch
+                // ourselves, after issuing the call) rules that race out entirely.
+                CountDownLatch latch = new CountDownLatch(1);
+                service.addConnectBehavior(
+                    remoteTransport,
+                    (transport, discoveryNode, profile, listener) -> threadPool.generic().execute(() -> {
+                        safeAwait(latch);
+                        listener.onFailure(new ConnectTransportException(discoveryNode, "simulated"));
+                    })
+                );
                 service.start();
                 service.acceptIncomingRequests();
                 RemoteClusterService remoteClusterService = service.getRemoteClusterService();
-                assertTrue(isRemoteNodeConnected(remoteClusterService, "test", remoteNode));
-
-                // force the connection manager to lose its connection so the next getConnection() call
-                // must go through ensureConnected()'s reconnect path
-                safeAwait(l -> {
-                    ConnectionManager connectionManager = remoteClusterService.getRemoteClusterConnection("test").getConnectionManager();
-                    Transport.Connection connection = connectionManager.getConnection(remoteNode);
-                    connection.addCloseListener(l.map(v -> v));
-                    connectionManager.disconnectFromNode(remoteNode);
-                });
-
-                // make the reconnect attempt fail on a background thread. It must be a genuinely async
-                // completion (not inline) or SubscribableListener#addListener(listener, executor, threadContext)
-                // wouldn't fork at all, since it only forks when the upstream doesn't complete synchronously -
-                // and then the test would pass trivially regardless of whether the fix exists.
-                service.addConnectBehavior(
-                    remoteTransport,
-                    (transport, discoveryNode, profile, listener) -> threadPool.generic()
-                        .execute(() -> listener.onFailure(new ConnectTransportException(discoveryNode, "simulated")))
-                );
+                assertFalse(isRemoteNodeConnected(remoteClusterService, "test", remoteNode));
 
                 var client = remoteClusterService.getRemoteClusterClient(
                     "test",
@@ -202,18 +202,19 @@ public class RemoteClusterClientTests extends ESTestCase {
                 );
 
                 // call getConnection() directly: it's the choke point both #execute(action, request, listener)
-                // and callers that manage the connection themselves go through.
-                safeAwaitFailure(
-                    ConnectTransportException.class,
-                    Transport.Connection.class,
-                    listener -> client.getConnection(
-                        null,
-                        ActionListener.runBefore(
-                            listener,
-                            () -> assertThat(Thread.currentThread().getName(), containsString('[' + TEST_THREAD_POOL_NAME + ']'))
-                        )
+                // and callers that manage the connection themselves go through. It returns immediately (the
+                // connect attempt is pending, blocked on the latch), so our listener is subscribed before we
+                // release the latch and let the connect attempt actually fail.
+                SubscribableListener<Transport.Connection> future = new SubscribableListener<>();
+                client.getConnection(
+                    null,
+                    ActionListener.runBefore(
+                        future,
+                        () -> assertThat(Thread.currentThread().getName(), containsString('[' + TEST_THREAD_POOL_NAME + ']'))
                     )
                 );
+                latch.countDown();
+                assertThat(safeAwaitFailure(future), instanceOf(ConnectTransportException.class));
             }
         }
     }

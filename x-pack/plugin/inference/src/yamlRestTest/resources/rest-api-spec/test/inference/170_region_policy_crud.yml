@@ -195,3 +195,41 @@ teardown:
 
   - do:
       inference.get: {}
+
+---
+"Put region policy with force=true succeeds":
+  # force=true bypasses the check for in-use inference endpoints that would be denied by the new policy. This test
+  # only exercises that the parameter is accepted and does not change the persisted region policy; the actual
+  # conflict-detection behavior requires a live Elastic Inference Service authorization backend and is covered by
+  # RegionPolicyAuthorizationRefreshIT.
+  - do:
+      inference.put_region_policy:
+        force: true
+        body:
+          region_policy:
+            allowed_geos:
+              - us
+
+  - match: { region_policy.allowed_geos.0: us }
+  - is_true: created_at
+  - is_false: created_by
+  - is_false: updated_at
+  - is_false: updated_by
+
+  - do:
+      inference.delete_region_policy: {}
+
+---
+"Put region policy with force=false behaves like the default":
+  - do:
+      inference.put_region_policy:
+        force: false
+        body:
+          region_policy:
+            allowed_geos:
+              - eu
+
+  - match: { region_policy.allowed_geos.0: eu }
+
+  - do:
+      inference.delete_region_policy: {}

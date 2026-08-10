@@ -25,10 +25,15 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinct;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.FromPartial;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Median;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.StdDev;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.ToPartial;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
@@ -498,8 +503,11 @@ public class HeterogeneousFromOptimizerTests extends AbstractLogicalPlanOptimize
     }
 
     /**
-     * {@link PushAggregateThroughUnionAll} must not push a non-decomposable aggregate such as
-     * {@link Median} — there is no per-branch partial that can be merged.
+     * {@link PushAggregateThroughUnionAll} must not push an aggregate outside the decomposable set,
+     * such as {@link Values}: it is neither algebraically decomposable nor wired through the
+     * intermediate-state path. This tests the rule in isolation; {@code MEDIAN}/{@code AVG} are not used
+     * here because in the full pipeline they are surrogate-substituted into decomposable forms before this
+     * rule runs (see the full-pipeline tests below).
      */
     public void testNonDecomposableAggNotPushed() {
         ReferenceAttribute unionField = new ReferenceAttribute(EMPTY, "salary", INTEGER);
@@ -507,16 +515,16 @@ public class HeterogeneousFromOptimizerTests extends AbstractLogicalPlanOptimize
         ExternalRelation extRelation = externalRelation(List.of(extAttr("salary", INTEGER)));
         UnionAll unionAll = new UnionAll(EMPTY, List.of(esRelation, extRelation), List.of(unionField));
 
-        Alias medianAlias = new Alias(EMPTY, "m", new Median(EMPTY, unionField));
-        Aggregate aggregate = new Aggregate(EMPTY, unionAll, List.of(), List.of(medianAlias));
+        Alias valuesAlias = new Alias(EMPTY, "v", new Values(EMPTY, unionField));
+        Aggregate aggregate = new Aggregate(EMPTY, unionAll, List.of(), List.of(valuesAlias));
 
         assertSame(aggregate, new PushAggregateThroughUnionAll().apply(aggregate));
     }
 
     /**
      * {@link PushAggregateThroughUnionAll} must not push a {@code STATS} that mixes a decomposable
-     * aggregate ({@code COUNT}) with a non-decomposable one ({@code MEDIAN}) — any non-decomposable
-     * function in the list blocks the rewrite.
+     * aggregate ({@code COUNT}) with a non-decomposable one ({@code VALUES}): any non-decomposable
+     * function in the list blocks the rewrite for the whole {@code STATS}.
      */
     public void testMixedDecomposableAndNonDecomposableNotPushed() {
         ReferenceAttribute unionField = new ReferenceAttribute(EMPTY, "salary", INTEGER);
@@ -525,8 +533,8 @@ public class HeterogeneousFromOptimizerTests extends AbstractLogicalPlanOptimize
         UnionAll unionAll = new UnionAll(EMPTY, List.of(esRelation, extRelation), List.of(unionField));
 
         Alias countAlias = new Alias(EMPTY, "c", new Count(EMPTY, Literal.TRUE));
-        Alias medianAlias = new Alias(EMPTY, "m", new Median(EMPTY, unionField));
-        Aggregate aggregate = new Aggregate(EMPTY, unionAll, List.of(), List.of(countAlias, medianAlias));
+        Alias valuesAlias = new Alias(EMPTY, "v", new Values(EMPTY, unionField));
+        Aggregate aggregate = new Aggregate(EMPTY, unionAll, List.of(), List.of(countAlias, valuesAlias));
 
         assertSame(aggregate, new PushAggregateThroughUnionAll().apply(aggregate));
     }
@@ -815,6 +823,370 @@ public class HeterogeneousFromOptimizerTests extends AbstractLogicalPlanOptimize
         Aggregate branch1 = as(newUnionAll.children().get(0), Aggregate.class);
         assertThat(branch1.groupings(), hasSize(2));
         assertThat(branch1.aggregates(), hasSize(3)); // $$partial$$c, dept, salary
+    }
+
+    /**
+     * {@link PushAggregateThroughUnionAll} must push {@code COUNT_DISTINCT(emp_no)} into both branches
+     * using the intermediate-state path: each branch emits a {@link ToPartial} producing a
+     * {@code PARTIAL_AGG} column, and the combiner merges them with {@link FromPartial}.
+     */
+    public void testCountDistinctPushedThroughLeafUnionAll() {
+        ReferenceAttribute unionEmpNo = new ReferenceAttribute(EMPTY, "emp_no", INTEGER);
+
+        FieldAttribute esEmpNo = getFieldAttribute("emp_no", INTEGER);
+        EsRelation esRelation = relation().withAttributes(List.of(esEmpNo));
+        Attribute extEmpNo = extAttr("emp_no", INTEGER);
+        ExternalRelation extRelation = externalRelation(List.of(extEmpNo));
+
+        UnionAll unionAll = new UnionAll(EMPTY, List.of(esRelation, extRelation), List.of(unionEmpNo));
+
+        // Use an explicit precision literal to verify it rides through resolution into both branch and combiner.
+        Literal precision = new Literal(EMPTY, 1000, INTEGER);
+        Alias cdAlias = new Alias(EMPTY, "d", new CountDistinct(EMPTY, unionEmpNo, precision));
+        Aggregate aggregate = new Aggregate(EMPTY, unionAll, List.of(), List.of(cdAlias));
+
+        LogicalPlan result = new PushAggregateThroughUnionAll().apply(aggregate);
+        assertNotSame(aggregate, result);
+        assertValidPlan(result);
+
+        // Combiner: d = FromPartial($$partial$$d, COUNT_DISTINCT) over the original union attribute, precision kept
+        Aggregate outerAgg = as(result, Aggregate.class);
+        Alias outerAlias = as(outerAgg.aggregates().get(0), Alias.class);
+        assertThat(outerAlias.name(), equalTo("d"));
+        assertThat(outerAlias.id(), equalTo(cdAlias.id()));
+        FromPartial fromPartial = as(outerAlias.child(), FromPartial.class);
+        ReferenceAttribute partialRef = as(fromPartial.field(), ReferenceAttribute.class);
+        assertThat(partialRef.name(), equalTo("$$partial$$d"));
+        assertThat(partialRef.dataType(), equalTo(DataType.PARTIAL_AGG));
+        assertThat(fromPartial.function(), equalTo(new CountDistinct(EMPTY, unionEmpNo, precision)));
+
+        // UnionAll output column is PARTIAL_AGG with the shared partial id
+        UnionAll newUnionAll = as(outerAgg.child(), UnionAll.class);
+        assertThat(newUnionAll.output(), hasSize(1));
+        assertThat(newUnionAll.output().get(0).dataType(), equalTo(DataType.PARTIAL_AGG));
+        assertThat(newUnionAll.output().get(0).id(), equalTo(partialRef.id()));
+
+        // Branch 1: $$partial$$d = ToPartial(COUNT_DISTINCT(emp_no{f}, 1000)) resolved to the EsRelation attribute
+        Aggregate branch1 = as(newUnionAll.children().get(0), Aggregate.class);
+        Alias b1Alias = as(branch1.aggregates().get(0), Alias.class);
+        assertThat(b1Alias.id(), equalTo(partialRef.id()));
+        ToPartial b1ToPartial = as(b1Alias.child(), ToPartial.class);
+        assertThat(b1ToPartial.dataType(), equalTo(DataType.PARTIAL_AGG));
+        assertThat(b1ToPartial.function(), equalTo(new CountDistinct(EMPTY, esEmpNo, precision)));
+
+        // Branch 2 resolves to the external relation's attribute, precision preserved
+        Aggregate branch2 = as(newUnionAll.children().get(1), Aggregate.class);
+        ToPartial b2ToPartial = as(as(branch2.aggregates().get(0), Alias.class).child(), ToPartial.class);
+        assertThat(b2ToPartial.function(), equalTo(new CountDistinct(EMPTY, extEmpNo, precision)));
+    }
+
+    /**
+     * {@link PushAggregateThroughUnionAll} must push a grouped heavy aggregate
+     * ({@code COUNT_DISTINCT(emp_no) BY dept}) into both branches via the intermediate-state path: each branch
+     * groups by the shared grouping id and emits a {@link ToPartial}; the combiner groups by the same id and
+     * merges with {@link FromPartial}. This is the grouped happy path (the per-aggregate filter variant rides the
+     * same path with the filter on the {@link ToPartial}, see {@link #testFilteredHeavyAggPushedThroughLeafUnionAll}).
+     */
+    public void testGroupedHeavyAggPushedThroughLeafUnionAll() {
+        ReferenceAttribute unionDept = new ReferenceAttribute(EMPTY, "dept", INTEGER);
+        ReferenceAttribute unionEmpNo = new ReferenceAttribute(EMPTY, "emp_no", INTEGER);
+
+        FieldAttribute esDept = getFieldAttribute("dept", INTEGER);
+        FieldAttribute esEmpNo = getFieldAttribute("emp_no", INTEGER);
+        EsRelation esRelation = relation().withAttributes(List.of(esDept, esEmpNo));
+        Attribute extDept = extAttr("dept", INTEGER);
+        Attribute extEmpNo = extAttr("emp_no", INTEGER);
+        ExternalRelation extRelation = externalRelation(List.of(extDept, extEmpNo));
+
+        UnionAll unionAll = new UnionAll(EMPTY, List.of(esRelation, extRelation), List.of(unionDept, unionEmpNo));
+
+        Alias cdAlias = new Alias(EMPTY, "d", new CountDistinct(EMPTY, unionEmpNo, null));
+        Aggregate aggregate = new Aggregate(EMPTY, unionAll, List.of(unionDept), List.of(cdAlias, unionDept));
+
+        LogicalPlan result = new PushAggregateThroughUnionAll().apply(aggregate);
+        assertNotSame(aggregate, result);
+        assertValidPlan(result);
+
+        Aggregate outerAgg = as(result, Aggregate.class);
+        assertThat(outerAgg.groupings(), hasSize(1));
+        assertThat(outerAgg.aggregates(), hasSize(2)); // d, dept
+        FromPartial fromPartial = as(as(outerAgg.aggregates().get(0), Alias.class).child(), FromPartial.class);
+        assertThat(as(fromPartial.field(), ReferenceAttribute.class).dataType(), equalTo(DataType.PARTIAL_AGG));
+
+        UnionAll newUnionAll = as(outerAgg.child(), UnionAll.class);
+        assertThat(newUnionAll.output(), hasSize(2)); // $$partial$$d (PARTIAL_AGG), dept{shared}
+        assertThat(newUnionAll.output().get(0).dataType(), equalTo(DataType.PARTIAL_AGG));
+
+        for (LogicalPlan branch : newUnionAll.children()) {
+            Aggregate branchAgg = as(branch, Aggregate.class);
+            assertThat(branchAgg.groupings(), hasSize(1));
+            assertThat(branchAgg.aggregates(), hasSize(2)); // $$partial$$d, dept
+            assertThat(as(branchAgg.aggregates().get(0), Alias.class).child(), instanceOf(ToPartial.class));
+        }
+    }
+
+    /**
+     * {@link PushAggregateThroughUnionAll} must push {@code PERCENTILE(salary, 50)} into both branches
+     * via the intermediate-state path, carrying the percentile literal on both the branch and combiner
+     * functions.
+     */
+    public void testPercentilePushedThroughLeafUnionAll() {
+        ReferenceAttribute unionSalary = new ReferenceAttribute(EMPTY, "salary", INTEGER);
+
+        FieldAttribute esSalary = getFieldAttribute("salary", INTEGER);
+        EsRelation esRelation = relation().withAttributes(List.of(esSalary));
+        Attribute extSalary = extAttr("salary", INTEGER);
+        ExternalRelation extRelation = externalRelation(List.of(extSalary));
+
+        UnionAll unionAll = new UnionAll(EMPTY, List.of(esRelation, extRelation), List.of(unionSalary));
+
+        Literal p50 = new Literal(EMPTY, 50, INTEGER);
+        Alias pAlias = new Alias(EMPTY, "p", new Percentile(EMPTY, unionSalary, p50));
+        Aggregate aggregate = new Aggregate(EMPTY, unionAll, List.of(), List.of(pAlias));
+
+        LogicalPlan result = new PushAggregateThroughUnionAll().apply(aggregate);
+        assertNotSame(aggregate, result);
+        assertValidPlan(result);
+
+        Aggregate outerAgg = as(result, Aggregate.class);
+        FromPartial fromPartial = as(as(outerAgg.aggregates().get(0), Alias.class).child(), FromPartial.class);
+        // combiner reads a PARTIAL_AGG ref and keeps the percentile literal
+        assertThat(as(fromPartial.field(), ReferenceAttribute.class).dataType(), equalTo(DataType.PARTIAL_AGG));
+        assertThat(as(fromPartial.function(), Percentile.class).percentile(), equalTo(p50));
+
+        UnionAll newUnionAll = as(outerAgg.child(), UnionAll.class);
+        assertThat(newUnionAll.output().get(0).dataType(), equalTo(DataType.PARTIAL_AGG));
+
+        Aggregate branch1 = as(newUnionAll.children().get(0), Aggregate.class);
+        ToPartial b1ToPartial = as(as(branch1.aggregates().get(0), Alias.class).child(), ToPartial.class);
+        assertThat(b1ToPartial.dataType(), equalTo(DataType.PARTIAL_AGG));
+        Percentile b1Pct = as(b1ToPartial.function(), Percentile.class);
+        assertThat(b1Pct.field(), equalTo(esSalary));
+        // branch function keeps the percentile literal too
+        assertThat(b1Pct.percentile(), equalTo(p50));
+
+        Aggregate branch2 = as(newUnionAll.children().get(1), Aggregate.class);
+        Percentile b2Pct = as(as(as(branch2.aggregates().get(0), Alias.class).child(), ToPartial.class).function(), Percentile.class);
+        assertThat(b2Pct.field(), equalTo(extSalary));
+    }
+
+    /**
+     * {@link PushAggregateThroughUnionAll} must push {@code STD_DEV(salary)} into both branches via the
+     * intermediate-state path, with a {@link FromPartial} combiner.
+     */
+    public void testStdDevPushedThroughLeafUnionAll() {
+        ReferenceAttribute unionSalary = new ReferenceAttribute(EMPTY, "salary", INTEGER);
+
+        FieldAttribute esSalary = getFieldAttribute("salary", INTEGER);
+        EsRelation esRelation = relation().withAttributes(List.of(esSalary));
+        Attribute extSalary = extAttr("salary", INTEGER);
+        ExternalRelation extRelation = externalRelation(List.of(extSalary));
+
+        UnionAll unionAll = new UnionAll(EMPTY, List.of(esRelation, extRelation), List.of(unionSalary));
+
+        Alias sdAlias = new Alias(EMPTY, "s", new StdDev(EMPTY, unionSalary));
+        Aggregate aggregate = new Aggregate(EMPTY, unionAll, List.of(), List.of(sdAlias));
+
+        LogicalPlan result = new PushAggregateThroughUnionAll().apply(aggregate);
+        assertNotSame(aggregate, result);
+        assertValidPlan(result);
+
+        Aggregate outerAgg = as(result, Aggregate.class);
+        FromPartial fromPartial = as(as(outerAgg.aggregates().get(0), Alias.class).child(), FromPartial.class);
+        assertThat(as(fromPartial.field(), ReferenceAttribute.class).dataType(), equalTo(DataType.PARTIAL_AGG));
+        assertThat(fromPartial.function(), instanceOf(StdDev.class));
+
+        UnionAll newUnionAll = as(outerAgg.child(), UnionAll.class);
+        assertThat(newUnionAll.output().get(0).dataType(), equalTo(DataType.PARTIAL_AGG));
+        Aggregate branch1 = as(newUnionAll.children().get(0), Aggregate.class);
+        ToPartial b1ToPartial = as(as(branch1.aggregates().get(0), Alias.class).child(), ToPartial.class);
+        assertThat(b1ToPartial.dataType(), equalTo(DataType.PARTIAL_AGG));
+        assertThat(as(b1ToPartial.function(), StdDev.class).field(), equalTo(esSalary));
+
+        Aggregate branch2 = as(newUnionAll.children().get(1), Aggregate.class);
+        StdDev b2Sd = as(as(as(branch2.aggregates().get(0), Alias.class).child(), ToPartial.class).function(), StdDev.class);
+        assertThat(b2Sd.field(), equalTo(extSalary));
+    }
+
+    /**
+     * A <em>filtered</em> heavy aggregate ({@code COUNT_DISTINCT(emp_no) WHERE salary > 0}) pushes through the
+     * intermediate-state path: the filter is carried on the per-branch {@link ToPartial} node (resolved to that
+     * branch's attribute), while the wrapped {@link CountDistinct} is left unfiltered. The combiner stays a
+     * filterless {@link FromPartial} since the branches already filtered.
+     */
+    public void testFilteredHeavyAggPushedThroughLeafUnionAll() {
+        ReferenceAttribute unionEmpNo = new ReferenceAttribute(EMPTY, "emp_no", INTEGER);
+        ReferenceAttribute unionSalary = new ReferenceAttribute(EMPTY, "salary", INTEGER);
+
+        FieldAttribute esEmpNo = getFieldAttribute("emp_no", INTEGER);
+        FieldAttribute esSalary = getFieldAttribute("salary", INTEGER);
+        EsRelation esRelation = relation().withAttributes(List.of(esEmpNo, esSalary));
+        Attribute extEmpNo = extAttr("emp_no", INTEGER);
+        Attribute extSalary = extAttr("salary", INTEGER);
+        ExternalRelation extRelation = externalRelation(List.of(extEmpNo, extSalary));
+
+        UnionAll unionAll = new UnionAll(EMPTY, List.of(esRelation, extRelation), List.of(unionEmpNo, unionSalary));
+
+        GreaterThan salaryFilter = new GreaterThan(EMPTY, unionSalary, new Literal(EMPTY, 0, INTEGER), null);
+        CountDistinct cdFiltered = new CountDistinct(EMPTY, unionEmpNo, null).withFilter(salaryFilter);
+        Alias cdAlias = new Alias(EMPTY, "d", cdFiltered);
+        Aggregate aggregate = new Aggregate(EMPTY, unionAll, List.of(), List.of(cdAlias));
+
+        LogicalPlan result = new PushAggregateThroughUnionAll().apply(aggregate);
+        assertNotSame(aggregate, result);
+        assertValidPlan(result);
+
+        Aggregate outerAgg = as(result, Aggregate.class);
+        // combiner FromPartial is filterless (data already filtered in the branches); the wrapped aggregate it
+        // carries only to select the supplier is filterless too (the filter is dropped in buildCombinerFn)
+        FromPartial combiner = as(as(outerAgg.aggregates().get(0), Alias.class).child(), FromPartial.class);
+        assertThat(combiner.hasFilter(), equalTo(false));
+        assertThat(as(combiner.function(), CountDistinct.class).hasFilter(), equalTo(false));
+
+        UnionAll newUnionAll = as(outerAgg.child(), UnionAll.class);
+        ToPartial b1ToPartial = as(
+            as(as(newUnionAll.children().get(0), Aggregate.class).aggregates().get(0), Alias.class).child(),
+            ToPartial.class
+        );
+        assertThat(b1ToPartial.dataType(), equalTo(DataType.PARTIAL_AGG));
+        assertThat(b1ToPartial.hasFilter(), equalTo(true));
+        assertThat(as(b1ToPartial.filter(), GreaterThan.class).left(), equalTo(esSalary));
+        // the wrapped aggregate is the branch-resolved COUNT_DISTINCT, with the filter stripped off
+        CountDistinct b1Cd = as(b1ToPartial.function(), CountDistinct.class);
+        assertThat(b1Cd.field(), equalTo(esEmpNo));
+        assertThat(b1Cd.hasFilter(), equalTo(false));
+
+        ToPartial b2ToPartial = as(
+            as(as(newUnionAll.children().get(1), Aggregate.class).aggregates().get(0), Alias.class).child(),
+            ToPartial.class
+        );
+        assertThat(as(b2ToPartial.filter(), GreaterThan.class).left(), equalTo(extSalary));
+        assertThat(as(b2ToPartial.function(), CountDistinct.class).field(), equalTo(extEmpNo));
+    }
+
+    /**
+     * A {@code STATS} mixing a pushable {@code COUNT(*)} and a filtered {@code COUNT_DISTINCT} fully decomposes:
+     * the algebraic column splits as usual and the filtered heavy column rides the intermediate-state path with the
+     * filter carried on its per-branch {@link ToPartial}.
+     */
+    public void testMixedFilteredHeavyAndAlgebraicPushed() {
+        ReferenceAttribute unionEmpNo = new ReferenceAttribute(EMPTY, "emp_no", INTEGER);
+        ReferenceAttribute unionSalary = new ReferenceAttribute(EMPTY, "salary", INTEGER);
+
+        FieldAttribute esEmpNo = getFieldAttribute("emp_no", INTEGER);
+        FieldAttribute esSalary = getFieldAttribute("salary", INTEGER);
+        EsRelation esRelation = relation().withAttributes(List.of(esEmpNo, esSalary));
+        Attribute extEmpNo = extAttr("emp_no", INTEGER);
+        Attribute extSalary = extAttr("salary", INTEGER);
+        ExternalRelation extRelation = externalRelation(List.of(extEmpNo, extSalary));
+
+        UnionAll unionAll = new UnionAll(EMPTY, List.of(esRelation, extRelation), List.of(unionEmpNo, unionSalary));
+
+        GreaterThan salaryFilter = new GreaterThan(EMPTY, unionSalary, new Literal(EMPTY, 0, INTEGER), null);
+        Alias countAlias = new Alias(EMPTY, "c", new Count(EMPTY, Literal.TRUE));
+        Alias cdAlias = new Alias(EMPTY, "d", new CountDistinct(EMPTY, unionEmpNo, null).withFilter(salaryFilter));
+        Aggregate aggregate = new Aggregate(EMPTY, unionAll, List.of(), List.of(countAlias, cdAlias));
+
+        LogicalPlan result = new PushAggregateThroughUnionAll().apply(aggregate);
+        assertNotSame(aggregate, result);
+        assertValidPlan(result);
+
+        Aggregate outerAgg = as(result, Aggregate.class);
+        assertThat(as(outerAgg.aggregates().get(0), Alias.class).child(), instanceOf(Sum.class));
+        assertThat(as(outerAgg.aggregates().get(1), Alias.class).child(), instanceOf(FromPartial.class));
+
+        UnionAll newUnionAll = as(outerAgg.child(), UnionAll.class);
+        for (LogicalPlan branch : newUnionAll.children()) {
+            Aggregate branchAgg = as(branch, Aggregate.class);
+            assertThat(as(branchAgg.aggregates().get(0), Alias.class).child(), instanceOf(Count.class));
+            ToPartial toPartial = as(as(branchAgg.aggregates().get(1), Alias.class).child(), ToPartial.class);
+            assertThat(toPartial.hasFilter(), equalTo(true));
+            assertThat(as(toPartial.function(), CountDistinct.class).hasFilter(), equalTo(false));
+        }
+    }
+
+    /**
+     * A <em>filtered</em> algebraic aggregate ({@code SUM(salary) WHERE salary > 0}) must still be pushed: the
+     * branch carries the filter on the resolved aggregate, which the physical layer applies normally.
+     */
+    public void testFilteredAlgebraicAggPushedThroughLeafUnionAll() {
+        ReferenceAttribute unionSalary = new ReferenceAttribute(EMPTY, "salary", INTEGER);
+
+        FieldAttribute esSalary = getFieldAttribute("salary", INTEGER);
+        EsRelation esRelation = relation().withAttributes(List.of(esSalary));
+        Attribute extSalary = extAttr("salary", INTEGER);
+        ExternalRelation extRelation = externalRelation(List.of(extSalary));
+
+        UnionAll unionAll = new UnionAll(EMPTY, List.of(esRelation, extRelation), List.of(unionSalary));
+
+        GreaterThan salaryFilter = new GreaterThan(EMPTY, unionSalary, new Literal(EMPTY, 0, INTEGER), null);
+        Sum sumFiltered = new Sum(EMPTY, unionSalary).withFilter(salaryFilter);
+        Alias sumAlias = new Alias(EMPTY, "s", sumFiltered);
+        Aggregate aggregate = new Aggregate(EMPTY, unionAll, List.of(), List.of(sumAlias));
+
+        LogicalPlan result = new PushAggregateThroughUnionAll().apply(aggregate);
+        assertNotSame(aggregate, result);
+        assertValidPlan(result);
+
+        Aggregate outerAgg = as(result, Aggregate.class);
+        // combiner SUM is filterless (data already filtered in the branches)
+        Sum combiner = as(as(outerAgg.aggregates().get(0), Alias.class).child(), Sum.class);
+        assertThat(combiner.hasFilter(), equalTo(false));
+
+        // each branch carries the filter on its resolved SUM, resolved to that branch's attribute
+        UnionAll newUnionAll = as(outerAgg.child(), UnionAll.class);
+        Sum b1Sum = as(as(as(newUnionAll.children().get(0), Aggregate.class).aggregates().get(0), Alias.class).child(), Sum.class);
+        assertThat(b1Sum.hasFilter(), equalTo(true));
+        assertThat(as(b1Sum.filter(), GreaterThan.class).left(), equalTo(esSalary));
+        Sum b2Sum = as(as(as(newUnionAll.children().get(1), Aggregate.class).aggregates().get(0), Alias.class).child(), Sum.class);
+        assertThat(as(b2Sum.filter(), GreaterThan.class).left(), equalTo(extSalary));
+    }
+
+    /**
+     * {@link PushAggregateThroughUnionAll} must handle a {@code STATS} mixing an algebraic aggregate
+     * ({@code COUNT(*)}) and a heavy one ({@code PERCENTILE}): the algebraic column uses a {@code SUM}
+     * combiner over a non-{@code PARTIAL_AGG} column, the heavy column uses {@link FromPartial} over a
+     * {@code PARTIAL_AGG} column.
+     */
+    public void testMixedAlgebraicAndHeavyPushedThroughLeafUnionAll() {
+        ReferenceAttribute unionSalary = new ReferenceAttribute(EMPTY, "salary", INTEGER);
+
+        FieldAttribute esSalary = getFieldAttribute("salary", INTEGER);
+        EsRelation esRelation = relation().withAttributes(List.of(esSalary));
+        Attribute extSalary = extAttr("salary", INTEGER);
+        ExternalRelation extRelation = externalRelation(List.of(extSalary));
+
+        UnionAll unionAll = new UnionAll(EMPTY, List.of(esRelation, extRelation), List.of(unionSalary));
+
+        Alias countAlias = new Alias(EMPTY, "c", new Count(EMPTY, Literal.TRUE));
+        Alias pAlias = new Alias(EMPTY, "p", new Percentile(EMPTY, unionSalary, new Literal(EMPTY, 50, INTEGER)));
+        Aggregate aggregate = new Aggregate(EMPTY, unionAll, List.of(), List.of(countAlias, pAlias));
+
+        LogicalPlan result = new PushAggregateThroughUnionAll().apply(aggregate);
+        assertNotSame(aggregate, result);
+        assertValidPlan(result);
+
+        Aggregate outerAgg = as(result, Aggregate.class);
+        // c -> SUM combiner (algebraic); p -> FromPartial combiner wrapping Percentile (intermediate-state)
+        assertThat(as(outerAgg.aggregates().get(0), Alias.class).child(), instanceOf(Sum.class));
+        FromPartial pCombiner = as(as(outerAgg.aggregates().get(1), Alias.class).child(), FromPartial.class);
+        assertThat(as(pCombiner.field(), ReferenceAttribute.class).dataType(), equalTo(DataType.PARTIAL_AGG));
+        assertThat(pCombiner.function(), instanceOf(Percentile.class));
+
+        // UnionAll output: $$partial$$c keeps its (long) type, $$partial$$p is PARTIAL_AGG
+        UnionAll newUnionAll = as(outerAgg.child(), UnionAll.class);
+        assertThat(newUnionAll.output().get(0).dataType(), not(equalTo(DataType.PARTIAL_AGG)));
+        assertThat(newUnionAll.output().get(1).dataType(), equalTo(DataType.PARTIAL_AGG));
+
+        // Both branches: algebraic Count partial + ToPartial percentile partial
+        for (LogicalPlan branch : newUnionAll.children()) {
+            Aggregate branchAgg = as(branch, Aggregate.class);
+            assertThat(as(branchAgg.aggregates().get(0), Alias.class).child(), instanceOf(Count.class));
+            assertThat(
+                as(as(branchAgg.aggregates().get(1), Alias.class).child(), ToPartial.class).function(),
+                instanceOf(Percentile.class)
+            );
+        }
     }
 
     // -------------------------------------------------------------------------

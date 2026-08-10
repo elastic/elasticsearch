@@ -107,6 +107,16 @@ public abstract class FileDataSourceConfiguration extends DataSourceConfiguratio
         super(raw, fieldDefs);
     }
 
+    /** Like {@link #FileDataSourceConfiguration(Map, Map)}, but for a PUT-as-update; see
+     *  {@link DataSourceConfiguration#DataSourceConfiguration(Map, Map, Set)}. */
+    protected FileDataSourceConfiguration(
+        Map<String, Object> raw,
+        Map<String, DataSourceConfigDefinition> fieldDefs,
+        Set<String> preexistingSecretKeys
+    ) {
+        super(raw, fieldDefs, preexistingSecretKeys);
+    }
+
     @Override
     protected void normalize(Map<String, Object> parsed) {
         Object value = parsed.get(AUTH.name());
@@ -132,7 +142,7 @@ public abstract class FileDataSourceConfiguration extends DataSourceConfiguratio
         if (isAnonymous()) {
             if (secrets) {
                 errors.addValidationError(
-                    "auth=anonymous cannot be combined with explicit credentials; anonymous access uses no credentials"
+                    "auth=anonymous cannot be combined with " + credentialSource() + "; anonymous access uses no credentials"
                 );
             }
             if (federatedAuth) {
@@ -143,7 +153,7 @@ public abstract class FileDataSourceConfiguration extends DataSourceConfiguratio
         }
         if (isManagedIdentity()) {
             if (secrets) {
-                errors.addValidationError("auth=managed_identity cannot be combined with explicit credentials");
+                errors.addValidationError("auth=managed_identity cannot be combined with " + credentialSource());
             }
             if (federatedAuth) {
                 errors.addValidationError("auth=managed_identity cannot be combined with federated authentication settings");
@@ -165,7 +175,7 @@ public abstract class FileDataSourceConfiguration extends DataSourceConfiguratio
                 errors.addValidationError("auth=federated_identity requires federated authentication settings");
             }
             if (secrets) {
-                errors.addValidationError("auth=federated_identity cannot be combined with explicit credentials");
+                errors.addValidationError("auth=federated_identity cannot be combined with " + credentialSource());
             }
         }
         // auto (or omitted) resolves the mode from the fields present; reject a config that resolves to nothing here
@@ -178,10 +188,23 @@ public abstract class FileDataSourceConfiguration extends DataSourceConfiguratio
             // The per-mode branches above already forbid secret+federated for every explicit mode; auto is the only
             // path where the two can arrive together, so the conflict check is scoped here.
             if (secrets && federatedAuth) {
-                errors.addValidationError("explicit credentials cannot be combined with federated authentication settings");
+                errors.addValidationError(credentialSource() + " cannot be combined with federated authentication settings");
             }
         }
         validateCredentials(errors);
+    }
+
+    /**
+     * Names the source of the credentials that {@link #hasAnySecretValue()} found, for a conflict message: this
+     * request ("explicit credentials") or, on a PUT-as-update where the request itself supplies none, the
+     * existing stored data source. A message built from the latter also points at how to actually clear them,
+     * since simply omitting the secret field again would just carry it forward again.
+     */
+    private String credentialSource() {
+        if (hasAnyExplicitSecretValue()) {
+            return "explicit credentials";
+        }
+        return "credentials carried over from the stored data source (send the secret field(s) as null to clear them)";
     }
 
     /** Subclass hook for datasource-specific credential validation. */

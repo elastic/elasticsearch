@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.metadata.Dataset;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
-import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -66,7 +65,7 @@ import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfigur
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
-import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlanOptimizerTests {
@@ -2083,16 +2082,50 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
         as(datasetFilter.child(), ExternalRelation.class);
     }
 
-    public void testFullTextFunctionOnExternalDatasetFieldIsRejected() {
+    /*
+     * Filter using match is pushed down into each subquery.
+     * For the first subquery, the match operates over a mapped index field and will eventually be pushed down
+     * to the shard as a Lucene query.
+     * For the second subquery, the match operates over a non-mapped index field.
+     *
+     * Limit[1000[INTEGER],false,false]
+     * \_UnionAll
+     *   |_Project
+     *   | \_Filter[:(first_name{f}#9,first[KEYWORD])]
+     *   |   \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
+     *   \_Project
+     *     \_Eval
+     *       \_Subquery[]
+     *         \_Filter[salary{r}#6 > 50000[INTEGER] AND :(first_name{r}#5,first[KEYWORD])]
+     *           \_ExternalRelation[s3://bucket/external_employees.parquet][parquet][emp_no{r}#4, first_name{r}#5, salary{r}#6]
+     */
+    public void testFullTextFunctionOnExternalDatasetField() {
         checkExternalDatasetSupport();
-        VerificationException e = expectThrows(VerificationException.class, () -> planExternalDatasetSubquery("""
+        // : supports runtime search and can operate on external (non-index) fields
+        var plan = planExternalDatasetSubquery("""
             FROM test, (FROM external_employees | WHERE salary > 50000)
             | WHERE first_name:"first"
-            """));
-        assertThat(
-            e.getMessage(),
-            containsString("[:] operator cannot operate on [first_name], which is not a field from an index mapping")
-        );
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        UnionAll unionAll = as(limit.child(), UnionAll.class);
+
+        Project firstProject = as(unionAll.children().get(0), Project.class);
+        Filter firstFilter = as(firstProject.child(), Filter.class);
+        Match match = as(firstFilter.condition(), Match.class);
+        FieldAttribute fieldAttribute = as(match.field(), FieldAttribute.class);
+        assertEquals("first_name", fieldAttribute.name());
+        assertThat(firstFilter.child(), instanceOf(EsRelation.class));
+
+        Project secondProject = as(unionAll.children().get(1), Project.class);
+        Eval secondEval = as(secondProject.child(), Eval.class);
+        Subquery subquery = as(secondEval.child(), Subquery.class);
+        Filter secondFilter = as(subquery.child(), Filter.class);
+        And and = as(secondFilter.condition(), And.class);
+        Match secondMatch = as(and.right(), Match.class);
+        ReferenceAttribute secondFieldAttribute = as(secondMatch.field(), ReferenceAttribute.class);
+        assertEquals("first_name", secondFieldAttribute.name());
+        assertThat(secondFilter.child(), instanceOf(ExternalRelation.class));
     }
 
     private static final String EXTERNAL_DATASET = "external_employees";

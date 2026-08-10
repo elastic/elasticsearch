@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Inserts a deferred field-extraction step above a per-driver {@link TopNExec} that sits on top of
@@ -164,18 +165,28 @@ public class InsertExternalFieldExtraction extends PhysicalOptimizerRules.Parame
                 break;
             }
         }
+        // The second non-file-resident family: hive-style partition columns. Unlike {@code _file.*}
+        // they carry no {@link VirtualAttribute} marker — they are surfaced as plain
+        // {@link org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute}s on purpose, so
+        // they stay user-addressable (WHERE / STATS BY / EVAL) and prunable by partition-filter
+        // pushdown. Their names travel out-of-band in {@code sourceMetadata} under
+        // {@code PARTITION_COLUMNS_KEY}; read them through the node-safe accessor (never the
+        // coordinator-only fileList) so we can pin them eager below.
+        Set<String> partitionColumns = externalSource.partitionColumnNames();
         List<Attribute> eagerColumns = new ArrayList<>(sourceOutput.size());
         List<Attribute> deferredColumns = new ArrayList<>(sourceOutput.size());
         for (Attribute a : sourceOutput) {
-            // Virtual columns (today: {@code _file.*}) are materialised on the producer thread by
+            // Non-file-resident columns are materialised on the producer thread by
             // {@link org.elasticsearch.xpack.esql.datasources.VirtualColumnIterator} from per-file
             // metadata, not by the format reader. They must stay in the source's narrowed output
             // (so the iterator still injects them and downstream operators see them) and they
             // must not be deferred (the {@link ColumnExtractor} positional read path cannot
-            // produce values that don't exist in the file). Pin every {@link VirtualAttribute}
-            // as eager unconditionally; relying on the marker rather than a specific subclass
-            // keeps future virtual attributes correct by construction.
-            if (a instanceof VirtualAttribute || eagerRefs.contains(a)) {
+            // produce values that don't exist in the file). Two families qualify: every
+            // {@link VirtualAttribute} (today: {@code _file.*}, relying on the marker rather than a
+            // specific subclass keeps future virtual attributes correct by construction) and every
+            // hive partition column (a plain ReferenceAttribute, matched by name against the
+            // {@code PARTITION_COLUMNS_KEY} stamp).
+            if (a instanceof VirtualAttribute || eagerRefs.contains(a) || partitionColumns.contains(a.name())) {
                 eagerColumns.add(a);
             } else if (sourceProjected && a instanceof ExternalMetadataAttribute == false) {
                 // File-resident data column under `_source` projection — must be eager.

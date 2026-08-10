@@ -22,7 +22,7 @@ public class InferencePreferencesTests extends ESTestCase {
     }
 
     public void testRegionPolicy_IsRetained() {
-        var regionPolicy = new RegionPolicy(List.of("eu"), null, null);
+        var regionPolicy = new RegionPolicy(List.of("eu"), null);
         var preferences = new InferencePreferences(regionPolicy);
         assertThat(preferences.regionPolicy(), is(regionPolicy));
     }

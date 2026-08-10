@@ -30,6 +30,7 @@ import org.elasticsearch.index.analysis.AnalysisRegistry;
 
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Specialized hash table implementations that map rows to a <strong>set</strong>
@@ -117,17 +118,40 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
     public abstract BitArray seenGroupIds(BigArrays bigArrays);
 
     /**
+     * A single sort key entry in a composite {@link TopNDef}.
+     *
+     * @param groupingIndex index of the corresponding entry in the {@code GroupSpec} list (0 = first grouping key)
+     * @param asc true if this key sorts ascending, false for descending
+     * @param nullsFirst true if nulls sort before non-null values
+     */
+    public record SortKey(int groupingIndex, boolean asc, boolean nullsFirst) {}
+
+    /**
      * Configuration for a BlockHash group spec that is later sorted and limited (Top-N).
      * <p>
      *     Part of a performance improvement to avoid aggregating groups that will not be used.
      * </p>
      *
-     * @param order The order of this group in the sort, starting at 0
-     * @param asc True if this group will be sorted ascending. False if descending.
-     * @param nullsFirst True if the nulls should be the first elements in the TopN. False if they should be kept last.
-     * @param limit The number of elements to keep, including nulls.
+     * @param sortKeys ordered list of sort specifications; index 0 is the primary (most significant) key
+     * @param limit the maximum number of groups to keep, including any null group
      */
-    public record TopNDef(int order, boolean asc, boolean nullsFirst, int limit) {}
+    public record TopNDef(List<SortKey> sortKeys, int limit) {
+        public TopNDef {
+            if (sortKeys.isEmpty()) {
+                throw new IllegalArgumentException("TopNDef requires at least one sort key");
+            }
+        }
+
+        /** Returns the primary (most significant) sort key. */
+        public SortKey primaryKey() {
+            return sortKeys.get(0);
+        }
+
+        /** True when only a single sort key is present. */
+        public boolean isSingleKey() {
+            return sortKeys.size() == 1;
+        }
+    }
 
     /**
      * Configuration for a BlockHash group spec that is doing text categorization.
@@ -167,14 +191,26 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
             GroupSpec group = groups.get(0);
             if (group.topNDef() != null) {
                 TopNDef topNDef = group.topNDef();
+                SortKey primaryKey = topNDef.primaryKey();
                 if (group.elementType() == ElementType.LONG) {
-                    return new LongTopNBlockHash(group.channel(), topNDef.asc(), topNDef.nullsFirst(), topNDef.limit(), blockFactory);
+                    return new LongTopNBlockHash(group.channel(), primaryKey.asc(), primaryKey.nullsFirst(), topNDef.limit(), blockFactory);
                 }
                 if (group.elementType() == ElementType.BYTES_REF) {
-                    return new BytesRefTopNBlockHash(group.channel(), topNDef.asc(), topNDef.nullsFirst(), topNDef.limit(), blockFactory);
+                    return new BytesRefTopNBlockHash(
+                        group.channel(),
+                        primaryKey.asc(),
+                        primaryKey.nullsFirst(),
+                        topNDef.limit(),
+                        blockFactory
+                    );
                 }
             }
             return newForElementType(group.channel(), group.elementType(), blockFactory);
+        }
+        // Multi-key with a pushed TopN hint: route to the composite TopN hash for primary-key pruning.
+        TopNDef multiTopN = groups.stream().map(GroupSpec::topNDef).filter(Objects::nonNull).findFirst().orElse(null);
+        if (multiTopN != null) {
+            return new CompositeTopNBlockHash(groups, multiTopN, blockFactory, emitBatchSize);
         }
         if (groups.stream().allMatch(g -> g.elementType == ElementType.BYTES_REF)) {
             switch (groups.size()) {

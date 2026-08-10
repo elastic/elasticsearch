@@ -162,11 +162,18 @@ Because we now publish just one docs set off of the `main` branch, we use the [`
 
 `applies_to` allows us to clearly communicate when features are introduced, when they transition from preview to GA, and which versions support specific functionality.
 
-This metadata accepts a lifecycle and an optional version.
+This metadata accepts a lifecycle and an optional version. The version supports three operators:
+
+- `=X.x` applies to that version only, for example `=9.4`
+- `X.x-Y.y` applies to a version range, for example `9.4-9.6`
+- `X.x+` applies to that version and later, for example `9.5+`
 
 ### Annotate functions and operators
 
 Use the `@FunctionAppliesTo` annotation within the `@FunctionInfo` annotation on function and operator classes to specify the lifecycle and version for functions and operators.
+
+> [!NOTE]
+> For functions, this annotation generates the page-level `{applies_to}` badge in the layout snippet. Operator reference pages are hand-written (see [Promote a feature to GA](#promote-a-feature-to-ga)), so an operator's page badge is not generated from this annotation and must be set by hand.
 
 For example, to indicate that a function is in technical preview and applies to version 9.0.0, you would use:
 
@@ -181,19 +188,21 @@ For example, to indicate that a function is in technical preview and applies to 
 )
 ```
 
-When a feature evolves from preview in `9.0` to GA in `9.2`, add a new entry alongside the existing preview entry and remove the `preview = true` boolean:
+When a feature evolves from preview in `9.0` to GA in `9.2`, add a new entry alongside the existing preview entry, remove the `preview = true` boolean, and switch the version strings to range operators:
 
 ```java
 @FunctionInfo(
     returnType = "boolean",
     preview = false, //  the preview boolean can be removed (or flipped to false) when the function becomes GA
     appliesTo = {
-        @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.0.0"),
-        @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.2.0")
+        @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "=9.0"),
+        @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.2+")
     },
     ...
 )
 ```
+
+The `=9.0` marks that the feature was in preview only in `9.0`. You can only state this at GA time, once you know it went GA in the next release. The generator passes these version strings straight through, so the layout snippet renders `stack: preview =9.0, ga 9.2+` to match the list entry.
 
 You can also use `applies_to` for `Param`, `MapParam`, and `MapParamEntry`. In this case `applies_to` is a plain text field that accepts the same format used in [inline](https://elastic.github.io/docs-builder/syntax/applies/#inline-examples-by-product) `applies_to` metadata.
 For example, to mark a specific parameter as preview:
@@ -303,27 +312,45 @@ A few formatting rules:
 
 #### Promote a feature to GA
 
-**Functions and operators:**
+**Functions:**
 
-1. In the Java class, add a `GA` entry to `appliesTo` and remove (or set to `false`) `preview = true`:
+1. In the Java class, add a `GA` entry to `appliesTo`, remove (or set to `false`) `preview = true`, and switch the version strings to range operators:
    ```diff
    @FunctionInfo(
    -   preview = true,
        appliesTo = {
-           @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.0.0"),
-   +       @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.2.0")
+   -       @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.0.0"),
+   +       @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "=9.0"),
+   +       @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.2+")
        },
    )
    ```
+   Use `=9.0` on the preview entry to mark that the feature was in preview only in `9.0`, and `9.2+` on the GA entry. You can only state this at GA time, once you know the next release makes it GA.
 2. Run the function's tests to regenerate its docs snippets, using the Gradle path for the module that owns the function:
    ```
    ./gradlew :<module-path>:test -Dtests.class='MyFuncTests'
    ```
-3. Update the list entry: add the `stack: ga X.Y` tag and drop `serverless: preview`:
+3. Update the list entry to use the same operators in a single `{applies_to}` tag, and drop `serverless: preview`:
    ```diff
    - * [`MY_FUNC`](path/to/my-func.md) {applies_to}`stack: preview 9.0` {applies_to}`serverless: preview`
-   + * [`MY_FUNC`](path/to/my-func.md) {applies_to}`stack: preview 9.0` {applies_to}`stack: ga 9.2`
+   + * [`MY_FUNC`](path/to/my-func.md) {applies_to}`stack: preview =9.0, ga 9.2+`
    ```
+
+**Operators:**
+
+Operator reference pages in [`_snippets/operators/layout/`](https://github.com/elastic/elasticsearch/tree/main/docs/reference/query-languages/esql/_snippets/operators/layout) are hand-written and pull in generated snippets (types, examples) with `:::{include}`. The `@FunctionAppliesTo` annotation does not generate the operator page badge, so set the lifecycle by hand.
+
+1. Add or update the `{applies_to}` block directly after the heading in `_snippets/operators/layout/<operator>.md`. Unlike list entries, the page-level badge states `serverless: ga` explicitly:
+
+   ````markdown
+   ### My operator `<op>` [esql-my_operator]
+   ```{applies_to}
+   stack: preview 9.0, ga 9.2
+   serverless: ga
+   ```
+   ````
+
+2. Update the operator's list entry in the relevant [`_snippets/lists/`](https://github.com/elastic/elasticsearch/tree/main/docs/reference/query-languages/esql/_snippets/lists) file (for example `operators.md`), the same way as for functions.
 
 **Commands:**
 
@@ -396,7 +423,7 @@ To regenerate everything for all functions and operators in a module:
 
 ### Settings
 
-Query settings (see [SET](directives/set.md)) are documented in [`_snippets/generated/x-pack-esql/commands/settings/`](https://github.com/elastic/elasticsearch/tree/main/docs/reference/query-languages/esql/_snippets/generated/x-pack-esql/commands/settings). To regenerate, run `QuerySettingsTests` in the `x-pack/plugin/esql` module. Only settings with `snapshot=false` are included.
+Query settings (see [SET](directives/set.md)) are documented in [`_snippets/generated/x-pack-esql/commands/settings/`](https://github.com/elastic/elasticsearch/tree/main/docs/reference/query-languages/esql/_snippets/generated/x-pack-esql/commands/settings). To regenerate, run `QuerySettingsTests` in the `x-pack/plugin/esql` module. Markdown docs and the table of contents only include non-snapshot settings; Kibana definitions are generated for all settings, with snapshot-only ones carrying `"snapshotOnly": true`.
 
 ## Understand how generated content works
 

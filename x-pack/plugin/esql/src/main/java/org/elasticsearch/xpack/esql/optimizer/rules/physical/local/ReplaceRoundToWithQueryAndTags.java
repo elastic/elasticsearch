@@ -310,6 +310,9 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
             // It is not clear how to push down multiple RoundTos, dealing with multiple RoundTos is out of the scope of this PR.
             if (roundTos.size() == 1) {
                 RoundTo roundTo = roundTos.get(0);
+                if (roundTo.field() instanceof FieldAttribute == false) {
+                    return evalExec;
+                }
                 // The range queries and tags generated below assume DOWN (floor) semantics: each interval [p_i, p_{i+1})
                 // is tagged with p_i. UP (ceiling) convention would require tagging with p_{i+1} instead, which is not
                 // implemented here. Skip the pushdown for UP convention.
@@ -344,8 +347,8 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
                 // prefixes. When prefix partitioning is not available (old codec), we fall back to replacing round_to
                 // with QueryAndTags.
                 if (((FieldAttribute) roundTo.field()).name().equals(MetadataAttribute.TIMESTAMP_FIELD)
-                    && ctx.searchStats().targetShards().values().stream().allMatch(imd -> imd.getIndexMode() == IndexMode.TIME_SERIES)) {
-                    if (queryExec.indexMode() != IndexMode.TIME_SERIES) {
+                    && ctx.searchStats().targetShards().values().stream().allMatch(imd -> IndexMode.isTsdb(imd.getIndexMode()))) {
+                    if (queryExec.indexMode().isTsdb() == false) {
                         return evalExec;
                     }
                     // prefer partitioning by tsid prefixes
@@ -569,7 +572,7 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
      */
     static int adjustedRoundingPointsThreshold(SearchStats stats, int threshold, QueryBuilder query, IndexMode indexMode) {
         int clauses = estimateQueryClauses(stats, query) + 1;
-        if (indexMode == IndexMode.TIME_SERIES) {
+        if (indexMode.isTsdb()) {
             // No doc partitioning for time_series sources; increase the threshold to trade overhead for parallelism.
             threshold *= 2;
         }

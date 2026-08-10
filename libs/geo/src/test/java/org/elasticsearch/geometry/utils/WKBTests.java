@@ -219,6 +219,10 @@ public class WKBTests extends ESTestCase {
         assertFromWKTRejectsLikeGeometryPath("GEOMETRYCOLLECTION (POINT (0 0), POINT (1 1 1))");
     }
 
+    public void testFromWKTRectangleInvertedY() {
+        assertFromWKTRejectsLikeGeometryPath("BBOX (0.0, 12.0, 30.0, 60.0)");
+    }
+
     /**
      * Verifies that WellKnownBinary.fromWKT rejects a malformed WKT string with the same behavior
      * (an exception) as the Geometry-based WellKnownText.fromWKT path.

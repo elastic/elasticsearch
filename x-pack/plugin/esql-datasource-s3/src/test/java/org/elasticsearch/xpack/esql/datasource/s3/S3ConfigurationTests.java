@@ -17,6 +17,7 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 
 public class S3ConfigurationTests extends ESTestCase {
 
@@ -131,6 +132,16 @@ public class S3ConfigurationTests extends ESTestCase {
             () -> S3Configuration.fromFields("ak", "sk", null, null, "anonymous")
         );
         assertThat(e.getMessage(), containsString("auth=anonymous cannot be combined with explicit credentials"));
+    }
+
+    public void testAuthAnonymousConflictsWithCarriedForwardSecretHasDistinctMessage() {
+        // No secret in this request at all — only carried forward from an existing stored data source. The
+        // message must say so, not claim the request itself supplied credentials.
+        Map<String, Object> raw = new HashMap<>();
+        raw.put("auth", "anonymous");
+        ValidationException e = expectThrows(ValidationException.class, () -> S3Configuration.fromMap(raw, Set.of("access_key")));
+        assertThat(e.getMessage(), containsString("credentials carried over from the stored data source"));
+        assertThat(e.getMessage(), not(containsString("explicit credentials")));
     }
 
     public void testAuthAnonymousAllowsEndpointAndRegion() {

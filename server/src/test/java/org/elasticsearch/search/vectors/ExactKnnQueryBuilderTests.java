@@ -23,6 +23,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 
+import static org.elasticsearch.common.lucene.search.Queries.NO_DOCS_INSTANCE;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class ExactKnnQueryBuilderTests extends AbstractQueryTestCase<ExactKnnQueryBuilder> {
@@ -87,6 +88,11 @@ public class ExactKnnQueryBuilderTests extends AbstractQueryTestCase<ExactKnnQue
               }
             }""";
         assertEquals(expected, query.toString());
+    }
+
+    public void testMissingFieldReturnsNoDocs() throws IOException {
+        ExactKnnQueryBuilder query = new ExactKnnQueryBuilder(VectorData.fromFloats(new float[] { 1.0f, 2.0f, 3.0f }), "missing", null);
+        assertEquals(NO_DOCS_INSTANCE, query.toQuery(createSearchExecutionContext()));
     }
 
     @Override

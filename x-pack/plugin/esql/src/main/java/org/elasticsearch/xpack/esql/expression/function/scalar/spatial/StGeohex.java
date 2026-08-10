@@ -16,6 +16,7 @@ import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.expression.ConstantEvaluators;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.geometry.LinearRing;
@@ -26,6 +27,7 @@ import org.elasticsearch.h3.H3;
 import org.elasticsearch.h3.LatLng;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -49,7 +51,7 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 /**
  * Calculates the geohex of geo_point geometries.
  */
-public class StGeohex extends SpatialGridFunction implements EvaluatorMapper {
+public class StGeohex extends SpatialGridFunction implements EvaluatorMapper, AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "StGeohex", StGeohex::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(StGeohex.class).ternary(StGeohex::new).name("st_geohex");
 
@@ -202,7 +204,11 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper {
             if (bounds.foldable() == false) {
                 throw new IllegalArgumentException("bounds must be foldable");
             }
-            GeoBoundingBox bbox = asGeoBoundingBox(bounds.fold(toEvaluator.foldCtx()));
+            Object boundsValue = bounds.fold(toEvaluator.foldCtx());
+            if (boundsValue == null) {
+                return ConstantEvaluators.CONSTANT_NULL_FACTORY;
+            }
+            GeoBoundingBox bbox = asGeoBoundingBox(boundsValue);
             int precision = (int) parameter.fold(toEvaluator.foldCtx());
             GeoHexBoundedGrid.Factory bounds = new GeoHexBoundedGrid.Factory(precision, bbox);
             return spatialDocValues
@@ -223,11 +229,18 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper {
     @Override
     public Object fold(FoldContext ctx) {
         var point = (BytesRef) spatialField().fold(ctx);
+        if (point == null) {
+            return null;
+        }
         int precision = checkPrecisionRange((int) parameter().fold(ctx));
         if (bounds() == null) {
             return unboundedGrid.calculateGridId(GEO.wkbAsPoint(point), precision);
         } else {
-            GeoBoundingBox bbox = asGeoBoundingBox(bounds().fold(ctx));
+            Object boundsValue = bounds().fold(ctx);
+            if (boundsValue == null) {
+                return null;
+            }
+            GeoBoundingBox bbox = asGeoBoundingBox(boundsValue);
             GeoHexBoundedGrid bounds = new GeoHexBoundedGrid(precision, bbox);
             long gridId = bounds.calculateGridId(GEO.wkbAsPoint(point));
             return gridId < 0 ? null : gridId;

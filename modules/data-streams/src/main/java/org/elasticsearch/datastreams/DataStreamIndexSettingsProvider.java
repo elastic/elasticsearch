@@ -94,7 +94,7 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
             // First backing index is created and then data stream is rolled over (in a single cluster state update).
             // So at this point we can't check index_mode==time_series,
             // so checking that index_mode==null|standard and templateIndexMode == TIME_SERIES
-            boolean isMigratingToTimeSeries = templateIndexMode == IndexMode.TIME_SERIES;
+            boolean isMigratingToTimeSeries = IndexMode.isTsdb(templateIndexMode);
             boolean migrating = dataStream != null
                 && (dataStream.getIndexMode() == null || dataStream.getIndexMode() == IndexMode.STANDARD)
                 && isMigratingToTimeSeries;
@@ -109,7 +109,7 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                 indexMode = null;
             }
             if (indexMode != null) {
-                if (indexMode == IndexMode.TIME_SERIES) {
+                if (indexMode.isTsdb()) {
                     TimeValue lookAheadTime = DataStreamsPlugin.getLookAheadTime(indexTemplateAndCreateRequestSettings);
                     TimeValue lookBackTime = DataStreamsPlugin.LOOK_BACK_TIME.get(indexTemplateAndCreateRequestSettings);
                     final Instant start;
@@ -197,7 +197,7 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
         if (indexDimensions.isEmpty()) {
             return;
         }
-        assert indexMetadata.getIndexMode() == IndexMode.TIME_SERIES;
+        assert IndexMode.isTsdb(indexMetadata.getIndexMode());
         List<String> newIndexDimensions = new ArrayList<>(indexDimensions.size());
         boolean matchesAllDimensions = findDimensionFields(newIndexDimensions, documentMapper);
         boolean hasChanges = indexDimensions.size() != newIndexDimensions.size()

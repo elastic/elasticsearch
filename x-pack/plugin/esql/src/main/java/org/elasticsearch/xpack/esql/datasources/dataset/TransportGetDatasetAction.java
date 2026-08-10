@@ -13,8 +13,6 @@ import org.elasticsearch.action.support.local.TransportLocalProjectMetadataActio
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.Dataset;
-import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -24,13 +22,12 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.ArrayList;
 import java.util.List;
 
 /** Local transport handler for {@link GetDatasetAction}. */
 public class TransportGetDatasetAction extends TransportLocalProjectMetadataAction<GetDatasetAction.Request, GetDatasetAction.Response> {
 
-    private final IndexNameExpressionResolver indexNameExpressionResolver;
+    private final DatasetResolutionService datasetResolutionService;
 
     @Inject
     public TransportGetDatasetAction(
@@ -48,7 +45,7 @@ public class TransportGetDatasetAction extends TransportLocalProjectMetadataActi
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             projectResolver
         );
-        this.indexNameExpressionResolver = indexNameExpressionResolver;
+        this.datasetResolutionService = new DatasetResolutionService(indexNameExpressionResolver);
     }
 
     @Override
@@ -58,29 +55,23 @@ public class TransportGetDatasetAction extends TransportLocalProjectMetadataActi
         ProjectState project,
         ActionListener<GetDatasetAction.Response> listener
     ) {
-        final DatasetMetadata metadata = DatasetMetadata.get(project.metadata());
-        // Resolve + type-filter against the local project's cluster state. We don't consume
-        // request.getResolvedIndexExpressions(): datasets have no cross-project resolution today, so
-        // re-resolving from indices() is equivalent — revisit (like view GET) when datasets become remotable.
-        // `resolveDatasets` is additive: an explicit name that resolves to a non-dataset abstraction (e.g. a data
-        // stream) throws IndexNotFoundException before the Type.DATASET filter runs. Translate it to a dataset-shaped
-        // not-found instead of leaking a raw index_not_found_exception, mirroring TransportDeleteDatasetAction.
-        final List<String> resolved;
+        // An explicit name that doesn't exist, isn't visible, or exists only as a co-resident foreign resource
+        // (e.g. a data stream) throws IndexNotFoundException. Translate it to a dataset-shaped not-found instead
+        // of leaking a raw index_not_found_exception, mirroring TransportDeleteDatasetAction.
+        final DatasetResolutionService.DatasetResolutionResult result;
         try {
-            resolved = indexNameExpressionResolver.datasets(project.metadata(), request.indicesOptions(), request);
+            result = datasetResolutionService.resolveDatasets(
+                project,
+                request.indices(),
+                request.indicesOptions(),
+                request.getResolvedIndexExpressions()
+            );
         } catch (IndexNotFoundException e) {
             final String missing = e.getIndex() != null ? e.getIndex().getName() : String.join(",", request.indices());
             listener.onFailure(new ResourceNotFoundException("dataset [{}] not found", missing));
             return;
         }
-        final List<Dataset> hits = new ArrayList<>();
-        for (String name : resolved) {
-            Dataset ds = metadata.get(name);
-            if (ds != null) {
-                hits.add(ds);
-            }
-        }
-        listener.onResponse(new GetDatasetAction.Response(hits));
+        listener.onResponse(new GetDatasetAction.Response(List.of(result.datasets())));
     }
 
     @Override

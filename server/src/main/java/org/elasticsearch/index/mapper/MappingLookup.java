@@ -283,8 +283,7 @@ public final class MappingLookup {
         this.isSourceSynthetic = sfm != null && sfm.isSynthetic();
         this.isSourceColumnarStored = sfm != null && sfm.isColumnarStored();
 
-        var idFieldMapper = mapping.getMetadataMapperByClass(ProvidedIdFieldMapper.class);
-        this.isColumnarId = idFieldMapper != null && idFieldMapper.isColumnarMode();
+        this.isColumnarId = IdFieldMapper.isColumnar(mapping);
     }
 
     private static boolean assertMapperNamesInterned(Map<String, Mapper> mappers, Map<String, ObjectMapper> objectMappers) {
@@ -722,7 +721,7 @@ public final class MappingLookup {
         if (shadowed == null) {
             return;
         }
-        if (indexMode == IndexMode.TIME_SERIES) {
+        if (indexMode.isTsdb()) {
             if (shadowed.isDimension()) {
                 throw new MapperParsingException("Field [" + name + "] attempted to shadow a time_series_dimension");
             }

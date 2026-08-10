@@ -25,5 +25,22 @@ public interface AggregatePushdownSupport {
 
     Pushability canPushAggregates(List<Expression> aggregates, List<Expression> groupings);
 
+    /**
+     * Whether a column that is absent from a split's per-column statistics can be treated as
+     * all-null — the "implicit nulls" contract that makes {@code COUNT(col) = rowCount - columnNullCount}
+     * correct without a "column present?" probe.
+     * <p>
+     * Footer formats (Parquet, ORC) emit one column-family stat for every column they physically
+     * contain, so an absent column genuinely means all-null and this returns {@code true} (the
+     * default). Line-oriented text formats (CSV / TSV / NDJSON) harvest per-column stats partially —
+     * a {@code count}-scope scan harvests no columns, a {@code projected}-scope scan only the query's
+     * projected ones — so an absent column key means "not harvested," NOT "all-null." Those formats
+     * override this to {@code false} so the optimizer safe-misses {@code COUNT(col)} for an unharvested
+     * column (re-scan) instead of serving a wrong {@code 0}.
+     */
+    default boolean appliesImplicitNullsForAbsentColumn() {
+        return true;
+    }
+
     AggregatePushdownSupport UNSUPPORTED = (aggregates, groupings) -> Pushability.NO;
 }

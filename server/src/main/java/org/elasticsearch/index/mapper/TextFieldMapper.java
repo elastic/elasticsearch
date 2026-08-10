@@ -90,7 +90,9 @@ import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesRegexpQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermInSetQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesWildcardQuery;
+import org.elasticsearch.lucene.queries.SortedSetDocValuesRangeQuery;
 import org.elasticsearch.lucene.search.FuzzyQueries;
+import org.elasticsearch.lucene.search.XDocValuesRewriteMethod;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.SortedSetDocValuesStringFieldScript;
 import org.elasticsearch.script.field.DelegateDocValuesField;
@@ -263,16 +265,6 @@ public final class TextFieldMapper extends FieldMapper {
         return new FielddataFrequencyFilter(minFrequency, maxFrequency, minSegmentSize);
     }
 
-    private static DocValuesParameter.Values defaultDocValuesParameters(IndexSettings indexSettings) {
-        boolean multiValue = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() == false
-            || FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.get(indexSettings.getSettings());
-        boolean nullability = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() == false
-            || FieldMapper.DOC_VALUES_NULLABILITY_SETTING.get(indexSettings.getSettings());
-        // Strictly columnar indices read field values from doc values, so enable doc values by default for text fields in that mode.
-        boolean enabled = indexSettings.getMode().isStrictColumnar();
-        return new DocValuesParameter.Values(enabled, DocValuesParameter.Values.Cardinality.HIGH, multiValue, nullability);
-    }
-
     public static class Builder extends TextFamilyBuilder {
 
         private final Parameter<Boolean> store;
@@ -328,9 +320,13 @@ public final class TextFieldMapper extends FieldMapper {
             super(name, indexSettings.getIndexVersionCreated(), isWithinMultiField);
             this.indexSettings = indexSettings;
             this.docValuesParameters = DocValuesParameter.of(
-                () -> defaultDocValuesParameters(indexSettings),
-                defaultDocValuesParameters(indexSettings),
-                m -> ((TextFieldMapper) m).docValuesParameters
+                DocValuesParameter.defaultValues(
+                    indexSettings,
+                    DocValuesParameter.Values.DISABLED_HIGH_CARDINALITY,
+                    DocValuesParameter.Values.Cardinality.HIGH
+                ),
+                m -> ((TextFieldMapper) m).docValuesParameters,
+                indexSettings.getMode().isStrictColumnar()
             );
             this.index = Parameter.indexParam(m -> ((TextFieldMapper) m).index, true);
             this.analyzers = new TextParams.Analyzers(
@@ -416,46 +412,24 @@ public final class TextFieldMapper extends FieldMapper {
 
         @Override
         protected Parameter<?>[] getParameters() {
-            // when COLUMNAR_FEATURE_FLAG is disabled, exclude docValuesParameters from parsing
-            // so doc_values configuration in the mapping is ignored and the default (disabled) is used
-            if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
-                return new Parameter<?>[] {
-                    index,
-                    store,
-                    docValuesParameters,
-                    indexOptions,
-                    norms,
-                    termVectors,
-                    analyzers.indexAnalyzer,
-                    analyzers.searchAnalyzer,
-                    analyzers.searchQuoteAnalyzer,
-                    similarity,
-                    analyzers.positionIncrementGap,
-                    fieldData,
-                    freqFilter,
-                    eagerGlobalOrdinals,
-                    indexPhrases,
-                    indexPrefixes,
-                    meta };
-            } else {
-                return new Parameter<?>[] {
-                    index,
-                    store,
-                    indexOptions,
-                    norms,
-                    termVectors,
-                    analyzers.indexAnalyzer,
-                    analyzers.searchAnalyzer,
-                    analyzers.searchQuoteAnalyzer,
-                    similarity,
-                    analyzers.positionIncrementGap,
-                    fieldData,
-                    freqFilter,
-                    eagerGlobalOrdinals,
-                    indexPhrases,
-                    indexPrefixes,
-                    meta };
-            }
+            return new Parameter<?>[] {
+                index,
+                store,
+                docValuesParameters,
+                indexOptions,
+                norms,
+                termVectors,
+                analyzers.indexAnalyzer,
+                analyzers.searchAnalyzer,
+                analyzers.searchQuoteAnalyzer,
+                similarity,
+                analyzers.positionIncrementGap,
+                fieldData,
+                freqFilter,
+                eagerGlobalOrdinals,
+                indexPhrases,
+                indexPrefixes,
+                meta };
         }
 
         private TextFieldType buildFieldType(
@@ -720,7 +694,7 @@ public final class TextFieldMapper extends FieldMapper {
             }
             List<Automaton> automata = new ArrayList<>();
             if (caseInsensitive) {
-                automata.add(AutomatonQueries.toCaseInsensitiveString(value));
+                automata.add(Automata.makeCaseInsensitiveString(value));
             } else {
                 automata.add(Automata.makeString(value));
             }
@@ -1000,7 +974,7 @@ public final class TextFieldMapper extends FieldMapper {
             if (usesBinaryDocValues) {
                 return new ScanningBinaryDocValuesTermQuery(name(), indexedValueForSearch(value), useArrayOrderBinaryDocValues);
             } else {
-                return SortedSetDocValuesField.newSlowExactQuery(name(), indexedValueForSearch(value));
+                return SortedSetDocValuesRangeQuery.newSlowExactQuery(name(), indexedValueForSearch(value));
             }
         }
 
@@ -1045,7 +1019,7 @@ public final class TextFieldMapper extends FieldMapper {
                 return new ScanningBinaryDocValuesPrefixQuery(name(), value, caseInsensitive, useArrayOrderBinaryDocValues);
             }
             if (caseInsensitive == false) {
-                return new PrefixQuery(new Term(name(), value), MultiTermQuery.DOC_VALUES_REWRITE);
+                return new PrefixQuery(new Term(name(), value), XDocValuesRewriteMethod.DOC_VALUES_REWRITE);
             }
             return new StringScriptFieldPrefixQuery(
                 new Script(""),
@@ -1074,9 +1048,9 @@ public final class TextFieldMapper extends FieldMapper {
                 Term term = new Term(name(), value);
                 if (context.getCircuitBreaker() != null) {
                     Automaton dfa = AutomatonQueries.toWildcardAutomaton(term, context.getCircuitBreaker());
-                    return new AutomatonQuery(term, dfa, false, MultiTermQuery.DOC_VALUES_REWRITE);
+                    return new AutomatonQuery(term, dfa, false, XDocValuesRewriteMethod.DOC_VALUES_REWRITE);
                 }
-                return new WildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, MultiTermQuery.DOC_VALUES_REWRITE);
+                return new WildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, XDocValuesRewriteMethod.DOC_VALUES_REWRITE);
             }
             return new StringScriptFieldWildcardQuery(
                 new Script(""),
@@ -1108,7 +1082,8 @@ public final class TextFieldMapper extends FieldMapper {
                     syntaxFlags,
                     matchFlags,
                     maxDeterminizedStates,
-                    useArrayOrderBinaryDocValues
+                    useArrayOrderBinaryDocValues,
+                    context.getCircuitBreaker()
                 );
             }
             if (context.getCircuitBreaker() != null) {
@@ -1120,7 +1095,7 @@ public final class TextFieldMapper extends FieldMapper {
                     maxDeterminizedStates,
                     context.getCircuitBreaker()
                 );
-                return new AutomatonQuery(term, dfa, false, MultiTermQuery.DOC_VALUES_REWRITE);
+                return new AutomatonQuery(term, dfa, false, XDocValuesRewriteMethod.DOC_VALUES_REWRITE);
             }
             return new RegexpQuery(
                 new Term(name(), value),
@@ -1128,7 +1103,7 @@ public final class TextFieldMapper extends FieldMapper {
                 matchFlags,
                 RegexpQuery.DEFAULT_PROVIDER,
                 maxDeterminizedStates,
-                MultiTermQuery.DOC_VALUES_REWRITE
+                XDocValuesRewriteMethod.DOC_VALUES_REWRITE
             );
         }
 
@@ -1867,6 +1842,11 @@ public final class TextFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected DocValuesParameter.Values.OnFailure onFailureBehavior() {
+        return docValuesParameters.onFailure();
+    }
+
+    @Override
     public boolean isNullable() {
         // Text fields have no null_value parameter, so nullability is governed solely by the doc_values nullability setting.
         return docValuesParameters.nullability();
@@ -2129,9 +2109,7 @@ public final class TextFieldMapper extends FieldMapper {
         final Builder b = (Builder) getMergeBuilder();
         b.index.toXContent(builder, includeDefaults);
         b.store.toXContent(builder, includeDefaults);
-        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
-            b.docValuesParameters.toXContent(builder, includeDefaults);
-        }
+        b.docValuesParameters.toXContent(builder, includeDefaults);
         multiFields().toXContent(builder, params);
         copyTo().toXContent(builder);
         if (sourceKeepMode().isPresent()) {

@@ -82,6 +82,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
+import java.util.function.LongConsumer;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.arrayWithSize;
@@ -241,7 +242,9 @@ public class FetchSearchPhaseTests extends ESTestCase {
                     ShardFetchSearchRequest request,
                     AbstractSearchAsyncAction<?> context,
                     SearchShardTarget shardTarget,
-                    ActionListener<FetchSearchResult> listener
+                    ActionListener<FetchSearchResult> listener,
+                    LongConsumer bytesConsumer,
+                    LongConsumer requestBytesConsumer
                 ) {
                     FetchSearchResult fetchResult = new FetchSearchResult();
                     SearchHits hits;
@@ -345,7 +348,9 @@ public class FetchSearchPhaseTests extends ESTestCase {
                     ShardFetchSearchRequest request,
                     AbstractSearchAsyncAction<?> context,
                     SearchShardTarget shardTarget,
-                    ActionListener<FetchSearchResult> listener
+                    ActionListener<FetchSearchResult> listener,
+                    LongConsumer bytesConsumer,
+                    LongConsumer requestBytesConsumer
                 ) {
                     if (request.contextId().getId() == 321) {
                         FetchSearchResult fetchResult = new FetchSearchResult();
@@ -449,7 +454,9 @@ public class FetchSearchPhaseTests extends ESTestCase {
                     ShardFetchSearchRequest request,
                     AbstractSearchAsyncAction<?> context,
                     SearchShardTarget shardTarget,
-                    ActionListener<FetchSearchResult> listener
+                    ActionListener<FetchSearchResult> listener,
+                    LongConsumer bytesConsumer,
+                    LongConsumer requestBytesConsumer
                 ) {
                     new Thread(() -> {
                         FetchSearchResult fetchResult = new FetchSearchResult();
@@ -588,7 +595,9 @@ public class FetchSearchPhaseTests extends ESTestCase {
                     ShardFetchSearchRequest request,
                     AbstractSearchAsyncAction<?> context,
                     SearchShardTarget shardTarget,
-                    ActionListener<FetchSearchResult> listener
+                    ActionListener<FetchSearchResult> listener,
+                    LongConsumer bytesConsumer,
+                    LongConsumer requestBytesConsumer
                 ) {
                     if (numFetches.incrementAndGet() == 1) {
                         listener.onFailure(new RuntimeException("BOOM"));
@@ -700,7 +709,9 @@ public class FetchSearchPhaseTests extends ESTestCase {
                     ShardFetchSearchRequest request,
                     AbstractSearchAsyncAction<?> context,
                     SearchShardTarget shardTarget,
-                    ActionListener<FetchSearchResult> listener
+                    ActionListener<FetchSearchResult> listener,
+                    LongConsumer bytesConsumer,
+                    LongConsumer requestBytesConsumer
                 ) {
                     FetchSearchResult fetchResult = new FetchSearchResult();
                     if (request.contextId().getId() == 321) {

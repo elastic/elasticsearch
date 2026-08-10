@@ -22,6 +22,9 @@
 * [`TO_DATE_NANOS`](../../functions-operators/type-conversion-functions/to_date_nanos.md)
   :::{include} ../generated/x-pack-esql/functions/briefSummary/to_date_nanos.md
   :::
+* [`TO_DATE_RANGE`](../../functions-operators/type-conversion-functions/to_date_range.md) {applies_to}`stack: preview 9.5.0` {applies_to}`serverless: preview`
+  :::{include} ../generated/x-pack-esql/functions/briefSummary/to_date_range.md
+  :::
 * [`TO_DEGREES`](../../functions-operators/type-conversion-functions/to_degrees.md)
   :::{include} ../generated/x-pack-esql/functions/briefSummary/to_degrees.md
   :::
@@ -63,6 +66,9 @@
   :::
 * [`TO_RADIANS`](../../functions-operators/type-conversion-functions/to_radians.md)
   :::{include} ../generated/x-pack-esql/functions/briefSummary/to_radians.md
+  :::
+* [`TO_RANGE`](../../functions-operators/type-conversion-functions/to_range.md) {applies_to}`stack: preview 9.5.0` {applies_to}`serverless: preview`
+  :::{include} ../generated/x-pack-esql/functions/briefSummary/to_range.md
   :::
 * [`TO_STRING`](../../functions-operators/type-conversion-functions/to_string.md)
   :::{include} ../generated/x-pack-esql/functions/briefSummary/to_string.md

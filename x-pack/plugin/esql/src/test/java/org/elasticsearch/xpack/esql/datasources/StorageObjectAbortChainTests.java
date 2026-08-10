@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Map;
 import java.util.zip.GZIPOutputStream;
 
 /**
@@ -107,7 +108,9 @@ public class StorageObjectAbortChainTests extends ESTestCase {
         StorageObject chain = new RetryableStorageObject(raw, new RetryPolicy(3, 1, 10));
 
         var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
-        CsvFormatReader csvReader = new CsvFormatReader(blockFactory);
+        // Plain mode: the abort-chain contract is format-agnostic; macro-split discovery now refuses non-strided
+        // (default/quoted) CSV. Plain CSV keeps strided probing.
+        SegmentableFormatReader csvReader = (SegmentableFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("mode", "plain"));
 
         long stride = fileLength / 4;
         List<Long> starts = FileSplitProvider.computeRecordAlignedMacroSplitStarts(
@@ -115,7 +118,8 @@ public class StorageObjectAbortChainTests extends ESTestCase {
             chain,
             fileLength,
             stride,
-            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            () -> false
         );
 
         assertThat("expected multiple macro-split boundaries", starts.size(), Matchers.greaterThan(1));
@@ -152,7 +156,9 @@ public class StorageObjectAbortChainTests extends ESTestCase {
         StorageObject chain = new RetryableStorageObject(raw, new RetryPolicy(3, 1, 10));
 
         var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
-        CsvFormatReader csvReader = new CsvFormatReader(blockFactory);
+        // Plain mode: the abort-chain contract is format-agnostic; computeSegments now refuses non-strided
+        // (default/quoted) CSV. Plain CSV keeps strided probing.
+        SegmentableFormatReader csvReader = (SegmentableFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("mode", "plain"));
 
         List<long[]> segments = ParallelParsingCoordinator.computeSegments(csvReader, chain, fileLength, 4, csvReader.minimumSegmentSize());
 

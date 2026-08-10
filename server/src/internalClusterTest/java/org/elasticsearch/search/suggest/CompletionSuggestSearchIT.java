@@ -88,6 +88,15 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         return List.of(InternalSettingsPlugin.class);
     }
 
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put("indices.breaker.request.type", "memory")
+            .put("indices.breaker.request.limit", "100mb")
+            .build();
+    }
+
     public void testTieBreak() throws Exception {
         final CompletionMappingBuilder mapping = new CompletionMappingBuilder();
         mapping.indexAnalyzer("keyword");

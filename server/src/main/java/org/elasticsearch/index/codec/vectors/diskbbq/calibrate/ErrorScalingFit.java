@@ -11,13 +11,13 @@ package org.elasticsearch.index.codec.vectors.diskbbq.calibrate;
 
 /**
  * Result of the error-model scaling step: the fitted slope at fixed query-bits/doc-bits encoding,
- * plus clustering warm-start state reused by {@link ErrorModel#estimateMagnitudeModel}.
+ * plus clustering warm-start state reused by {@code ErrorModel#estimateMagnitudeModel}.
  */
 public final class ErrorScalingFit {
 
     private final QuantizationErrorStdModel scalingModel;
-    final float[][] lastDocCentroids;
-    final float[][] lastQueryCentroids;
+    private final float[][] lastDocCentroids;
+    private final float[][] lastQueryCentroids;
 
     ErrorScalingFit(QuantizationErrorStdModel scalingModel, float[][] lastDocCentroids, float[][] lastQueryCentroids) {
         this.scalingModel = scalingModel;
@@ -30,6 +30,20 @@ public final class ErrorScalingFit {
      */
     public QuantizationErrorStdModel scalingModel() {
         return scalingModel;
+    }
+
+    /**
+     * K-means doc centroids from the final scaling sweep iteration, used as a warm start for magnitude fitting.
+     */
+    public float[][] lastDocCentroids() {
+        return lastDocCentroids;
+    }
+
+    /**
+     * K-means query centroids from the final scaling sweep iteration, used as a warm start for magnitude fitting.
+     */
+    public float[][] lastQueryCentroids() {
+        return lastQueryCentroids;
     }
 
     /**

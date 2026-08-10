@@ -997,7 +997,6 @@ public class DateFieldMapperTests extends MapperTestCase {
     }
 
     public void testColumnarDateArrayOrderRoundTrip() throws IOException {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.name()).build();
         // Use epoch_millis format so input numbers and synthetic-source output both serialize as raw millis strings without ambiguity.
         DocumentMapper mapper = createMapperService(

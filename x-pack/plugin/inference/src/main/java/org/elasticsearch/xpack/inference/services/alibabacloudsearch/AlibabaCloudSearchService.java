@@ -245,6 +245,11 @@ public class AlibabaCloudSearchService extends SenderService<AlibabaCloudSearchM
     }
 
     @Override
+    public boolean usesParserForServiceSettings() {
+        return true;
+    }
+
+    @Override
     public int rerankerWindowSize(String modelId) {
         // Alibaba's mGTE models support long context windows of up to 8192 tokens.
         // Using 1 token = 0.75 words, this translates to approximately 6144 words.

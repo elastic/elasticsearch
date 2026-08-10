@@ -86,6 +86,7 @@ import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.index.ES95CodecClusterSettingProvider;
 import org.elasticsearch.index.IndexSettingProvider;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.RunTableOrdinalClusterSettingProvider;
 import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.ActionPlugin;

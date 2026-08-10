@@ -402,21 +402,21 @@ public class CCSSingleCoordinatorSearchProgressListenerTests extends ESTestCase 
         var shard0 = new SearchShard(clusterAlias, new ShardId(indexExpression, indexUUID, 0));
         var shard1 = new SearchShard(clusterAlias, new ShardId(indexExpression, indexUUID, 1));
         var shard2 = new SearchShard(clusterAlias, new ShardId(indexExpression, indexUUID, 2));
-        var shards = List.of(shard0, shard1, shard2);
+        var shard3 = new SearchShard(clusterAlias, new ShardId(indexExpression, indexUUID, 2));
+        var shards = List.of(shard0, shard1, shard2, shard3);
 
-        var tookMillis = TimeValue.timeValueMillis(1);
-        var timeProvider = new TransportSearchAction.SearchTimeProvider(0L, 0L, tookMillis::nanos);
+        var timeProvider = new TransportSearchAction.SearchTimeProvider(0L, 0L, () -> TimeValue.timeValueMillis(1).nanos());
         var listener = new CCSSingleCoordinatorSearchProgressListener();
         listener.onListShards(shards, Map.of(), clusters, randomBoolean(), timeProvider);
 
         // Confirm the initial state
-        assertClusterMetadataRunning(clusters.getCluster(clusterAlias), 3, 0, 0, false);
+        assertClusterMetadataRunning(clusters.getCluster(clusterAlias), 4, 0, 0, false);
 
         // Register a failure due to an internal TaskCancelledException and confirm the state
         onQueryFailureForShardIndex(listener, shards, 0, new TaskCancelledException(INTERNAL_PARTIAL_RESULTS_CANCEL_REASON));
 
         // Confirm the failure is included in failed shards count but not appended to the list of shard failures
-        assertClusterMetadata(clusters.getCluster(clusterAlias), SearchResponse.Cluster.Status.RUNNING, 3, 0, 1, 0, null, false);
+        assertClusterMetadata(clusters.getCluster(clusterAlias), SearchResponse.Cluster.Status.RUNNING, 4, 0, 1, 0, null, false);
 
         // Register a failure due to a nested internal TaskCancelledException and confirm the state
         onQueryFailureForShardIndex(
@@ -427,18 +427,30 @@ public class CCSSingleCoordinatorSearchProgressListenerTests extends ESTestCase 
         );
 
         // Confirm the failure is included in failed shards count but not appended to the list of shard failures
-        assertClusterMetadata(clusters.getCluster(clusterAlias), SearchResponse.Cluster.Status.RUNNING, 3, 0, 2, 0, null, false);
+        assertClusterMetadata(clusters.getCluster(clusterAlias), SearchResponse.Cluster.Status.RUNNING, 4, 0, 2, 0, null, false);
 
         // Register a failure due to a non-internal TaskCancelledException and confirm the state
         var exception = new TaskCancelledException("not internal cancel");
         var shardTarget = onQueryFailureForShardIndex(listener, shards, 2, exception);
 
         SearchResponse.Cluster cluster = clusters.getCluster(clusterAlias);
-        assertClusterMetadata(cluster, SearchResponse.Cluster.Status.FAILED, 3, 0, 3, 1, null, false);
+        assertClusterMetadata(cluster, SearchResponse.Cluster.Status.RUNNING, 4, 0, 3, 1, null, false);
         // Confirm the failure is appended to the list of failures
         var failure = clusters.getCluster(clusterAlias).getFailures().getLast();
         assertThat(failure.shard(), is(shardTarget));
         assertThat(failure.getCause(), is(exception));
+
+        // Register a failure due to a TaskCancelledException with a null message and confirm the state
+        String nullString = null;
+        var nullMessageException = new TaskCancelledException(nullString);
+        shardTarget = onQueryFailureForShardIndex(listener, shards, 3, nullMessageException);
+
+        cluster = clusters.getCluster(clusterAlias);
+        assertClusterMetadata(cluster, SearchResponse.Cluster.Status.FAILED, 4, 0, 4, 2, null, false);
+        // Confirm the failure is appended to the list of failures
+        failure = clusters.getCluster(clusterAlias).getFailures().getLast();
+        assertThat(failure.shard(), is(shardTarget));
+        assertThat(failure.getCause(), is(nullMessageException));
     }
 
     public void testOnPartialReduce_DoesNothingWhenStatusIsNotRunning() throws Exception {

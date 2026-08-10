@@ -18,6 +18,7 @@ import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.simdvec.internal.vectorization.ESVectorUtilSupport;
 
 import java.io.IOException;
+import java.lang.foreign.MemorySegment;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
@@ -1086,5 +1087,36 @@ public class ESVectorUtil {
      */
     public static void inRangeBitmask(long[] values, long lowerValue, long upperValue, long[] matches) {
         IMPL.inRangeBitmask(values, lowerValue, upperValue, matches);
+    }
+
+    /**
+     * Counts the number of set bits in the first {@code length} bytes of the memory segment.
+     *
+     * @param segment the memory segment (native or heap-backed)
+     * @param length  the number of bytes to examine
+     * @return the total number of set bits
+     */
+    public static long popcount(MemorySegment segment, int length) {
+        if (length < 0 || segment.byteSize() < length) {
+            throw new IndexOutOfBoundsException("length=" + length + ", segment size=" + segment.byteSize());
+        }
+        return IMPL.popcount(segment, length);
+    }
+
+    /**
+     * Bitwise OR from a MemorySegment source into a byte array destination:
+     * {@code dest[destOffset+i] |= segment.get(JAVA_BYTE, i)} for {@code i} in {@code [0, length)}.
+     *
+     * @param src        the source memory segment (native or heap-backed)
+     * @param dest       the destination byte array (modified in place)
+     * @param destOffset the starting index in the destination array
+     * @param length     the number of bytes to OR
+     */
+    public static void orByteArrays(MemorySegment src, byte[] dest, int destOffset, int length) {
+        if (length < 0 || src.byteSize() < length) {
+            throw new IndexOutOfBoundsException("length=" + length + ", segment size=" + src.byteSize());
+        }
+        Objects.checkFromIndexSize(destOffset, length, dest.length);
+        IMPL.orByteArrays(src, dest, destOffset, length);
     }
 }

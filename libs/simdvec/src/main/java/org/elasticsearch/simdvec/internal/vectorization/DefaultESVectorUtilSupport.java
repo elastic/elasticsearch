@@ -19,6 +19,8 @@ import org.elasticsearch.simdvec.MultiBFloat16VectorsSource;
 import org.elasticsearch.simdvec.MultiByteVectorsSource;
 import org.elasticsearch.simdvec.MultiFloatVectorsSource;
 
+import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 import java.nio.ByteOrder;
 
 public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
@@ -933,6 +935,36 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
 
         for (int j = 0; j < v1.length; j++) {
             result[j] = MathUtils.pow2NQT((a + v1[j] - v2[j]) / eps);
+        }
+    }
+
+    private static final ValueLayout.OfLong LONG_UNALIGNED = ValueLayout.JAVA_LONG_UNALIGNED.withOrder(BitUtil.NATIVE_BYTE_ORDER);
+
+    @Override
+    public long popcount(MemorySegment segment, int length) {
+        long cnt = 0;
+        long i = 0;
+        final long upperBound = length & -Long.BYTES;
+        for (; i < upperBound; i += Long.BYTES) {
+            cnt += Long.bitCount(segment.get(LONG_UNALIGNED, i));
+        }
+        for (; i < length; i++) {
+            cnt += Integer.bitCount(segment.get(ValueLayout.JAVA_BYTE, i) & 0xFF);
+        }
+        return cnt;
+    }
+
+    @Override
+    public void orByteArrays(MemorySegment src, byte[] dest, int destOffset, int length) {
+        long i = 0;
+        final long upperBound = length & -Long.BYTES;
+        for (; i < upperBound; i += Long.BYTES) {
+            long s = src.get(LONG_UNALIGNED, i);
+            long d = (long) BitUtil.VH_NATIVE_LONG.get(dest, destOffset + (int) i);
+            BitUtil.VH_NATIVE_LONG.set(dest, destOffset + (int) i, s | d);
+        }
+        for (; i < length; i++) {
+            dest[destOffset + (int) i] |= src.get(ValueLayout.JAVA_BYTE, i);
         }
     }
 

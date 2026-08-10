@@ -49,6 +49,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.IntUnaryOperator;
 
 import static org.elasticsearch.index.codec.bloomfilter.ES94BloomFilterDocValuesFormat.DEFAULT_LOW_BITS_PER_DOC;
 import static org.elasticsearch.index.codec.bloomfilter.ES94BloomFilterDocValuesFormat.MAX_BLOOM_FILTER_SIZE;
@@ -417,6 +418,63 @@ public class ES94BloomFilterDocValuesFormatTests extends ESTestCase {
         }
     }
 
+    public void testOrRegionDirectWriteWithMultipleSegments() throws IOException {
+        // Exercises mergeOptimized/orRegion with multiple bloom filters of identical size, ensuring that:
+        // - firstPass correctly writes through bitSetBuffer.set (handles ZERO_PAGE)
+        // - subsequent passes correctly OR directly into the backing page
+        // Uses a size > PAGE_SIZE_IN_BYTES to trigger BigByteArray with shared ZERO_PAGE.
+        assertOrRegionMergeCorrectness(4, ignored -> 32768);
+    }
+
+    public void testOrRegionDirectWriteWithDifferentSizes() throws IOException {
+        // Exercises mergeOptimized/orRegion fold/expand paths with different bloom filter sizes,
+        // ensuring the direct-write optimization in the else branch handles both
+        // folding (large -> small) and expanding (small -> large) correctly.
+        // Uses sizes > PAGE_SIZE_IN_BYTES to trigger BigByteArray with shared ZERO_PAGE.
+        final int[] sizes = { 32768, 131072, 65536, 262144 };
+        final AtomicInteger flushCount = new AtomicInteger();
+        assertOrRegionMergeCorrectness(sizes.length, ignored -> sizes[flushCount.getAndIncrement()]);
+    }
+
+    private void assertOrRegionMergeCorrectness(int numSegments, IntUnaryOperator sizeForSegment) throws IOException {
+        try (var directory = newDirectory()) {
+            Analyzer analyzer = new MockAnalyzer(random());
+            IndexWriterConfig conf = newIndexWriterConfig(analyzer);
+            conf.setCodec(new TestCodec(new ES94BloomFilterDocValuesFormat(BigArrays.NON_RECYCLING_INSTANCE, IdFieldMapper.NAME, true) {
+                @Override
+                public int bloomFilterSizeInBytesForNewSegment(int numDocs) {
+                    return sizeForSegment.applyAsInt(numDocs);
+                }
+            }));
+            LogMergePolicy mergePolicy = newLogMergePolicy();
+            mergePolicy.setMergeFactor(1000);
+            conf.setMergePolicy(mergePolicy);
+            conf.setMaxBufferedDocs(IndexWriterConfig.DISABLE_AUTO_FLUSH);
+            conf.setUseCompoundFile(false);
+            conf.setMergeScheduler(new SerialMergeScheduler());
+            try (IndexWriter writer = new IndexWriter(directory, conf)) {
+                List<BytesRef> indexedIds = new ArrayList<>();
+                for (int seg = 0; seg < numSegments; seg++) {
+                    indexedIds.addAll(indexDocs(writer, 5));
+                    writer.flush();
+                }
+                assertSupportsOptimizedMerge(writer);
+                writer.forceMerge(1);
+
+                try (var directoryReader = StandardDirectoryReader.open(writer)) {
+                    var bloomFilter = getBloomFilter(getOnlyLeafReader(directoryReader).getContext());
+                    for (BytesRef id : indexedIds) {
+                        assertThat(
+                            "bloom filter must contain id after merge: " + id.utf8ToString(),
+                            bloomFilter.mayContainValue(IdFieldMapper.NAME, id),
+                            is(true)
+                        );
+                    }
+                }
+            }
+        }
+    }
+
     public void testIsAllZeros() throws IOException {
         // Empty input.
         assertThat(isAllZeros(new byte[0]), is(true));
@@ -451,6 +509,16 @@ public class ES94BloomFilterDocValuesFormatTests extends ESTestCase {
             }
             try (IndexInput in = directory.openInput("bitset", IOContext.DEFAULT)) {
                 return ES94BloomFilterDocValuesFormat.isAllZeros(in.randomAccessSlice(0, bytes.length));
+            }
+        }
+    }
+
+    /** Asserts multiple segments exist and each has a bloom filter, ensuring mergeOptimized will be used. */
+    static void assertSupportsOptimizedMerge(IndexWriter writer) throws IOException {
+        try (var directoryReader = StandardDirectoryReader.open(writer)) {
+            assertThat(directoryReader.leaves().size(), is(greaterThan(1)));
+            for (LeafReaderContext leaf : directoryReader.leaves()) {
+                getBloomFilter(leaf);
             }
         }
     }
@@ -499,7 +567,7 @@ public class ES94BloomFilterDocValuesFormatTests extends ESTestCase {
         }
     }
 
-    private BloomFilter getBloomFilter(LeafReaderContext leafReaderContext) throws IOException {
+    private static BloomFilter getBloomFilter(LeafReaderContext leafReaderContext) throws IOException {
         LeafReader reader = leafReaderContext.reader();
         var binaryDocValues = reader.getBinaryDocValues(IdFieldMapper.NAME);
 

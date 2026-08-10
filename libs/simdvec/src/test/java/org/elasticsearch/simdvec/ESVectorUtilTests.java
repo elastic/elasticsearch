@@ -17,6 +17,9 @@ import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.VectorTestUtils;
 import org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat;
 
+import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.ShortBuffer;
@@ -1497,5 +1500,225 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         panamaProvider.getVectorUtilSupport().pow2DiffAndScaleNQT(x, y, a, eps, result2);
 
         assertArrayEqualsPercent(result1, result2, 0.15f);
+    }
+
+    public void testPopcountDefaultEqualsPanama() {
+        for (int size : new int[] { 0, 1, 7, 8, 15, 16, 31, 32, 63, 64, 128, 256, 4096, 16384 }) {
+            byte[] data = new byte[size];
+            random().nextBytes(data);
+            MemorySegment seg = MemorySegment.ofArray(data);
+            long expected = defaultedProvider.getVectorUtilSupport().popcount(seg, data.length);
+            long actual = panamaProvider.getVectorUtilSupport().popcount(seg, data.length);
+            assertEquals("popcount mismatch for size=" + size, expected, actual);
+        }
+    }
+
+    public void testPopcountRandomSizes() {
+        int size = randomIntBetween(0, 8192);
+        byte[] data = new byte[size];
+        random().nextBytes(data);
+        long expected = referencePopcount(data, 0, size);
+        assertEquals(expected, ESVectorUtil.popcount(MemorySegment.ofArray(data), size));
+    }
+
+    public void testPopcountWithOffset() {
+        byte[] data = new byte[256];
+        random().nextBytes(data);
+        int offset = randomIntBetween(0, 128);
+        int length = randomIntBetween(0, data.length - offset);
+        long expected = referencePopcount(data, offset, length);
+        MemorySegment seg = MemorySegment.ofArray(data).asSlice(offset, length);
+        long defResult = defaultedProvider.getVectorUtilSupport().popcount(seg, length);
+        long panamaResult = panamaProvider.getVectorUtilSupport().popcount(seg, length);
+        assertEquals(expected, defResult);
+        assertEquals(expected, panamaResult);
+    }
+
+    public void testPopcountAllZeros() {
+        byte[] data = new byte[128];
+        assertEquals(0L, ESVectorUtil.popcount(MemorySegment.ofArray(data), data.length));
+    }
+
+    public void testPopcountAllOnes() {
+        byte[] data = new byte[128];
+        Arrays.fill(data, (byte) 0xFF);
+        assertEquals(128L * 8, ESVectorUtil.popcount(MemorySegment.ofArray(data), data.length));
+    }
+
+    public void testOrByteArraysDefaultEqualsPanama() {
+        for (int size : new int[] { 0, 1, 7, 8, 15, 16, 31, 32, 63, 64, 128, 256, 4096, 16384 }) {
+            byte[] source = new byte[size];
+            random().nextBytes(source);
+            MemorySegment srcSeg = MemorySegment.ofArray(source);
+
+            byte[] dest1 = new byte[size];
+            byte[] dest2 = new byte[size];
+            random().nextBytes(dest1);
+            System.arraycopy(dest1, 0, dest2, 0, size);
+
+            defaultedProvider.getVectorUtilSupport().orByteArrays(srcSeg, dest1, 0, size);
+            panamaProvider.getVectorUtilSupport().orByteArrays(srcSeg, dest2, 0, size);
+            assertArrayEquals("orByteArrays mismatch for size=" + size, dest1, dest2);
+        }
+    }
+
+    public void testOrByteArraysRandomSizes() {
+        int size = randomIntBetween(0, 8192);
+        byte[] source = new byte[size];
+        byte[] dest = new byte[size];
+        byte[] expected = new byte[size];
+        random().nextBytes(source);
+        random().nextBytes(dest);
+        System.arraycopy(dest, 0, expected, 0, size);
+        for (int i = 0; i < size; i++) {
+            expected[i] |= source[i];
+        }
+        ESVectorUtil.orByteArrays(MemorySegment.ofArray(source), dest, 0, size);
+        assertArrayEquals(expected, dest);
+    }
+
+    public void testOrByteArraysWithOffset() {
+        byte[] source = new byte[256];
+        byte[] dest = new byte[256];
+        byte[] expected = new byte[256];
+        random().nextBytes(source);
+        random().nextBytes(dest);
+        System.arraycopy(dest, 0, expected, 0, 256);
+        int offset = randomIntBetween(0, 128);
+        int length = randomIntBetween(0, 256 - offset);
+        for (int i = 0; i < length; i++) {
+            expected[offset + i] |= source[offset + i];
+        }
+        MemorySegment srcSlice = MemorySegment.ofArray(source).asSlice(offset, length);
+        ESVectorUtil.orByteArrays(srcSlice, dest, offset, length);
+        assertArrayEquals(expected, dest);
+    }
+
+    public void testPopcountNegativeLength() {
+        MemorySegment seg = Arena.ofAuto().allocate(64);
+        expectThrows(IOOBE, () -> ESVectorUtil.popcount(seg, -1));
+    }
+
+    public void testPopcountLengthExceedsSegment() {
+        MemorySegment seg = Arena.ofAuto().allocate(64);
+        expectThrows(IOOBE, () -> ESVectorUtil.popcount(seg, 65));
+    }
+
+    // -- MemorySegment overloads
+
+    public void testPopcountMemorySegmentNativeDefaultEqualsPanama() {
+        for (int size : new int[] { 0, 1, 7, 8, 15, 16, 31, 32, 63, 64, 128, 256, 4096, 16384 }) {
+            byte[] data = new byte[size];
+            random().nextBytes(data);
+            MemorySegment seg = Arena.ofAuto().allocate(size);
+            MemorySegment.copy(data, 0, seg, ValueLayout.JAVA_BYTE, 0, size);
+            long expected = defaultedProvider.getVectorUtilSupport().popcount(seg, size);
+            long actual = panamaProvider.getVectorUtilSupport().popcount(seg, size);
+            assertEquals("popcount(MemorySegment) mismatch for size=" + size, expected, actual);
+            assertEquals(referencePopcount(data, 0, size), actual);
+        }
+    }
+
+    public void testPopcountMemorySegmentHeapDefaultEqualsPanama() {
+        for (int size : new int[] { 0, 1, 7, 16, 64, 128, 4096 }) {
+            byte[] data = new byte[size];
+            random().nextBytes(data);
+            MemorySegment seg = MemorySegment.ofArray(data);
+            long expected = defaultedProvider.getVectorUtilSupport().popcount(seg, size);
+            long actual = panamaProvider.getVectorUtilSupport().popcount(seg, size);
+            assertEquals("popcount(MemorySegment) heap mismatch for size=" + size, expected, actual);
+            assertEquals(referencePopcount(data, 0, size), actual);
+        }
+    }
+
+    public void testPopcountMemorySegmentSlice() {
+        int size = 256;
+        byte[] data = new byte[size];
+        random().nextBytes(data);
+        int offset = randomIntBetween(0, size / 2);
+        int length = randomIntBetween(0, size - offset);
+        MemorySegment seg = Arena.ofAuto().allocate(size);
+        MemorySegment.copy(data, 0, seg, ValueLayout.JAVA_BYTE, 0, size);
+        MemorySegment slice = seg.asSlice(offset, length);
+        long expected = referencePopcount(data, offset, length);
+        assertEquals(expected, ESVectorUtil.popcount(slice, length));
+    }
+
+    public void testPopcountMemorySegmentBoundsCheck() {
+        MemorySegment seg = Arena.ofAuto().allocate(64);
+        expectThrows(IndexOutOfBoundsException.class, () -> ESVectorUtil.popcount(seg, -1));
+        expectThrows(IndexOutOfBoundsException.class, () -> ESVectorUtil.popcount(seg, 65));
+    }
+
+    public void testOrByteArraysMemorySegmentDefaultEqualsPanama() {
+        for (int size : new int[] { 0, 1, 7, 8, 15, 16, 31, 32, 63, 64, 128, 256, 4096, 16384 }) {
+            byte[] srcData = new byte[size];
+            random().nextBytes(srcData);
+            MemorySegment srcSeg = Arena.ofAuto().allocate(size);
+            MemorySegment.copy(srcData, 0, srcSeg, ValueLayout.JAVA_BYTE, 0, size);
+
+            byte[] dest1 = new byte[size];
+            byte[] dest2 = new byte[size];
+            random().nextBytes(dest1);
+            System.arraycopy(dest1, 0, dest2, 0, size);
+
+            defaultedProvider.getVectorUtilSupport().orByteArrays(srcSeg, dest1, 0, size);
+            panamaProvider.getVectorUtilSupport().orByteArrays(srcSeg, dest2, 0, size);
+            assertArrayEquals("orByteArrays(MemorySegment) mismatch for size=" + size, dest1, dest2);
+        }
+    }
+
+    public void testOrByteArraysMemorySegmentCorrectness() {
+        int size = randomIntBetween(0, 8192);
+        byte[] srcData = new byte[size];
+        byte[] dest = new byte[size];
+        byte[] expected = new byte[size];
+        random().nextBytes(srcData);
+        random().nextBytes(dest);
+        System.arraycopy(dest, 0, expected, 0, size);
+        for (int i = 0; i < size; i++) {
+            expected[i] |= srcData[i];
+        }
+        MemorySegment srcSeg = Arena.ofAuto().allocate(size);
+        MemorySegment.copy(srcData, 0, srcSeg, ValueLayout.JAVA_BYTE, 0, size);
+        ESVectorUtil.orByteArrays(srcSeg, dest, 0, size);
+        assertArrayEquals(expected, dest);
+    }
+
+    public void testOrByteArraysMemorySegmentSlice() {
+        int size = 256;
+        byte[] srcData = new byte[size];
+        random().nextBytes(srcData);
+        int offset = randomIntBetween(0, size / 2);
+        int length = randomIntBetween(0, size - offset);
+        MemorySegment srcSeg = Arena.ofAuto().allocate(size);
+        MemorySegment.copy(srcData, 0, srcSeg, ValueLayout.JAVA_BYTE, 0, size);
+        MemorySegment slice = srcSeg.asSlice(offset, length);
+
+        byte[] dest = new byte[length];
+        random().nextBytes(dest);
+        byte[] expected = new byte[length];
+        System.arraycopy(dest, 0, expected, 0, length);
+        for (int i = 0; i < length; i++) {
+            expected[i] |= srcData[offset + i];
+        }
+        ESVectorUtil.orByteArrays(slice, dest, 0, length);
+        assertArrayEquals(expected, dest);
+    }
+
+    public void testOrByteArraysMemorySegmentBoundsCheck() {
+        MemorySegment srcSeg = Arena.ofAuto().allocate(64);
+        byte[] dest = new byte[64];
+        expectThrows(IndexOutOfBoundsException.class, () -> ESVectorUtil.orByteArrays(srcSeg, dest, 0, -1));
+        expectThrows(IndexOutOfBoundsException.class, () -> ESVectorUtil.orByteArrays(srcSeg, dest, 0, 65));
+        expectThrows(IndexOutOfBoundsException.class, () -> ESVectorUtil.orByteArrays(srcSeg, dest, 60, 10));
+    }
+
+    private static long referencePopcount(byte[] data, int offset, int length) {
+        long cnt = 0;
+        for (int i = offset; i < offset + length; i++) {
+            cnt += Integer.bitCount(data[i] & 0xFF);
+        }
+        return cnt;
     }
 }

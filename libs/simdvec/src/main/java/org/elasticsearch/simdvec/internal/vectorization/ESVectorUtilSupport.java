@@ -14,6 +14,7 @@ import org.elasticsearch.simdvec.MultiBFloat16VectorsSource;
 import org.elasticsearch.simdvec.MultiByteVectorsSource;
 import org.elasticsearch.simdvec.MultiFloatVectorsSource;
 
+import java.lang.foreign.MemorySegment;
 import java.nio.ByteOrder;
 
 public interface ESVectorUtilSupport {
@@ -197,4 +198,10 @@ public interface ESVectorUtilSupport {
     float logSumExpNQTDiff(float[] v1, float[] v2, float eps);
 
     void pow2DiffAndScaleNQT(float[] v1, float[] v2, float a, float eps, float[] result);
+
+    /** Counts the number of set bits in the first {@code length} bytes of the segment. */
+    long popcount(MemorySegment segment, int length);
+
+    /** Bitwise OR: {@code dest[destOffset+i] |= segment.get(JAVA_BYTE, i)} for {@code i} in {@code [0, length)}. */
+    void orByteArrays(MemorySegment src, byte[] dest, int destOffset, int length);
 }

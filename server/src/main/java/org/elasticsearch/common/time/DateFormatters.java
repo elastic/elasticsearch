@@ -140,7 +140,7 @@ public class DateFormatters {
     private static final DateFormatter STRICT_DATE_OPTIONAL_TIME = new JavaDateFormatter(
         "strict_date_optional_time",
         new JavaTimeDateTimePrinter(STRICT_DATE_OPTIONAL_TIME_PRINTER),
-        new Iso8601DateTimeParser(Set.of(), false, null, DecimalSeparator.BOTH, TimezonePresence.OPTIONAL).withLocale(Locale.ROOT)
+        new FastDateTimeParser(Set.of(), false, null, DecimalSeparator.BOTH, TimezonePresence.OPTIONAL).withLocale(Locale.ROOT)
     );
 
     private static final DateTimeFormatter STRICT_DATE_OPTIONAL_TIME_PRINTER_NANOS = new DateTimeFormatterBuilder().append(
@@ -173,7 +173,7 @@ public class DateFormatters {
     private static final DateFormatter STRICT_DATE_OPTIONAL_TIME_NANOS = new JavaDateFormatter(
         "strict_date_optional_time_nanos",
         new JavaTimeDateTimePrinter(STRICT_DATE_OPTIONAL_TIME_PRINTER_NANOS),
-        new Iso8601DateTimeParser(
+        new FastDateTimeParser(
             Set.of(HOUR_OF_DAY, MINUTE_OF_HOUR, SECOND_OF_MINUTE),
             true,
             null,
@@ -190,11 +190,11 @@ public class DateFormatters {
     private static final DateFormatter ISO_8601 = new JavaDateFormatter(
         "iso8601",
         new JavaTimeDateTimePrinter(STRICT_DATE_OPTIONAL_TIME_PRINTER),
-        new Iso8601DateTimeParser(Set.of(), false, null, DecimalSeparator.BOTH, TimezonePresence.OPTIONAL).withLocale(Locale.ROOT)
+        new FastDateTimeParser(Set.of(), false, null, DecimalSeparator.BOTH, TimezonePresence.OPTIONAL).withLocale(Locale.ROOT)
     );
 
     /*
-     * The literal date patterns for which we provide a fast {@link Iso8601Parser}-based parser instead of the slower,
+     * The literal date patterns for which we provide a {@link FastDateParser}-based parser instead of the slower,
      * allocation-heavy generic java.time parsing. These are not registered format names, so without these they would
      * otherwise fall through to the generic path in {@link #forPattern(String)}.
      */
@@ -213,7 +213,7 @@ public class DateFormatters {
                 .toFormatter(Locale.ROOT)
                 .withResolverStyle(ResolverStyle.STRICT)
         ),
-        new Iso8601DateTimeParser(
+        new FastDateTimeParser(
             Set.of(MONTH_OF_YEAR, DAY_OF_MONTH, HOUR_OF_DAY, MINUTE_OF_HOUR, SECOND_OF_MINUTE),
             false,
             SECOND_OF_MINUTE,
@@ -231,7 +231,7 @@ public class DateFormatters {
         new JavaTimeDateTimePrinter(
             new DateTimeFormatterBuilder().appendPattern(FAST_DATE_PATTERN).toFormatter(Locale.ROOT).withResolverStyle(ResolverStyle.STRICT)
         ),
-        new Iso8601DateTimeParser(
+        new FastDateTimeParser(
             Set.of(MONTH_OF_YEAR, DAY_OF_MONTH),
             false,
             DAY_OF_MONTH,
@@ -668,7 +668,7 @@ public class DateFormatters {
                 .toFormatter(Locale.ROOT)
                 .withResolverStyle(ResolverStyle.STRICT)
         ),
-        new Iso8601DateTimeParser(Set.of(MONTH_OF_YEAR), false, MONTH_OF_YEAR, DecimalSeparator.BOTH, TimezonePresence.FORBIDDEN)
+        new FastDateTimeParser(Set.of(MONTH_OF_YEAR), false, MONTH_OF_YEAR, DecimalSeparator.BOTH, TimezonePresence.FORBIDDEN)
             .withLocale(Locale.ROOT)
     );
 
@@ -682,7 +682,7 @@ public class DateFormatters {
                 .toFormatter(Locale.ROOT)
                 .withResolverStyle(ResolverStyle.STRICT)
         ),
-        new Iso8601DateTimeParser(Set.of(), false, ChronoField.YEAR, DecimalSeparator.BOTH, TimezonePresence.FORBIDDEN).withLocale(
+        new FastDateTimeParser(Set.of(), false, ChronoField.YEAR, DecimalSeparator.BOTH, TimezonePresence.FORBIDDEN).withLocale(
             Locale.ROOT
         )
     );
@@ -710,7 +710,7 @@ public class DateFormatters {
     private static final DateFormatter STRICT_DATE_TIME = new JavaDateFormatter(
         "strict_date_time",
         new JavaTimeDateTimePrinter(STRICT_DATE_PRINTER),
-        new Iso8601DateTimeParser(
+        new FastDateTimeParser(
             Set.of(MONTH_OF_YEAR, DAY_OF_MONTH, HOUR_OF_DAY, MINUTE_OF_HOUR, SECOND_OF_MINUTE),
             false,
             null,
@@ -768,7 +768,7 @@ public class DateFormatters {
                 .toFormatter(Locale.ROOT)
                 .withResolverStyle(ResolverStyle.STRICT)
         ),
-        new Iso8601DateTimeParser(
+        new FastDateTimeParser(
             Set.of(MONTH_OF_YEAR, DAY_OF_MONTH, HOUR_OF_DAY, MINUTE_OF_HOUR, SECOND_OF_MINUTE),
             false,
             SECOND_OF_MINUTE,
@@ -820,7 +820,7 @@ public class DateFormatters {
                 .toFormatter(Locale.ROOT)
                 .withResolverStyle(ResolverStyle.STRICT)
         ),
-        new Iso8601DateTimeParser(
+        new FastDateTimeParser(
             Set.of(MONTH_OF_YEAR, DAY_OF_MONTH, HOUR_OF_DAY, MINUTE_OF_HOUR, SECOND_OF_MINUTE, NANO_OF_SECOND),
             false,
             null,
@@ -838,7 +838,7 @@ public class DateFormatters {
                 .toFormatter(Locale.ROOT)
                 .withResolverStyle(ResolverStyle.STRICT)
         ),
-        new Iso8601DateTimeParser(
+        new FastDateTimeParser(
             Set.of(MONTH_OF_YEAR, DAY_OF_MONTH, HOUR_OF_DAY, MINUTE_OF_HOUR, SECOND_OF_MINUTE, NANO_OF_SECOND),
             false,
             null,
@@ -1162,7 +1162,7 @@ public class DateFormatters {
     private static final DateFormatter STRICT_DATE_HOUR_MINUTE_SECOND = new JavaDateFormatter(
         "strict_date_hour_minute_second",
         new JavaTimeDateTimePrinter(DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss", Locale.ROOT)),
-        new Iso8601DateTimeParser(
+        new FastDateTimeParser(
             Set.of(MONTH_OF_YEAR, DAY_OF_MONTH, HOUR_OF_DAY, MINUTE_OF_HOUR, SECOND_OF_MINUTE),
             false,
             SECOND_OF_MINUTE,

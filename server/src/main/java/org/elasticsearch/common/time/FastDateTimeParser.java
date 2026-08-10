@@ -17,15 +17,15 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-class Iso8601DateTimeParser implements DateTimeParser {
+class FastDateTimeParser implements DateTimeParser {
 
-    private final Iso8601Parser parser;
+    private final FastDateParser parser;
     private final ZoneId timezone;
     // the locale doesn't actually matter, as we're parsing in a standardized format,
     // and we already account for . or , in decimals
     private final Locale locale;
 
-    Iso8601DateTimeParser(
+    FastDateTimeParser(
         Set<ChronoField> mandatoryFields,
         boolean optionalTime,
         ChronoField maxAllowedField,
@@ -37,11 +37,11 @@ class Iso8601DateTimeParser implements DateTimeParser {
     }
 
     /**
-     * As {@link #Iso8601DateTimeParser(Set, boolean, ChronoField, DecimalSeparator, TimezonePresence)}, but with a configurable
+     * As {@link #FastDateTimeParser(Set, boolean, ChronoField, DecimalSeparator, TimezonePresence)}, but with a configurable
      * character separating the date and time components. This allows parsing formats such as {@code yyyy-MM-dd HH:mm:ss},
      * which use a space instead of the standard ISO-8601 {@code 'T'}.
      */
-    Iso8601DateTimeParser(
+    FastDateTimeParser(
         Set<ChronoField> mandatoryFields,
         boolean optionalTime,
         ChronoField maxAllowedField,
@@ -49,7 +49,7 @@ class Iso8601DateTimeParser implements DateTimeParser {
         TimezonePresence timezonePresence,
         char dateTimeSeparator
     ) {
-        parser = new Iso8601Parser(
+        parser = new FastDateParser(
             mandatoryFields,
             optionalTime,
             maxAllowedField,
@@ -62,7 +62,7 @@ class Iso8601DateTimeParser implements DateTimeParser {
         locale = null;
     }
 
-    private Iso8601DateTimeParser(Iso8601Parser parser, ZoneId timezone, Locale locale) {
+    private FastDateTimeParser(FastDateParser parser, ZoneId timezone, Locale locale) {
         this.parser = parser;
         this.timezone = timezone;
         this.locale = locale;
@@ -80,17 +80,17 @@ class Iso8601DateTimeParser implements DateTimeParser {
 
     @Override
     public DateTimeParser withZone(ZoneId zone) {
-        return new Iso8601DateTimeParser(parser, zone, locale);
+        return new FastDateTimeParser(parser, zone, locale);
     }
 
     @Override
     public DateTimeParser withLocale(Locale locale) {
-        return new Iso8601DateTimeParser(parser, timezone, locale);
+        return new FastDateTimeParser(parser, timezone, locale);
     }
 
-    Iso8601DateTimeParser withDefaults(Map<ChronoField, Integer> defaults) {
-        return new Iso8601DateTimeParser(
-            new Iso8601Parser(
+    FastDateTimeParser withDefaults(Map<ChronoField, Integer> defaults) {
+        return new FastDateTimeParser(
+            new FastDateParser(
                 parser.mandatoryFields(),
                 parser.optionalTime(),
                 parser.maxAllowedField(),

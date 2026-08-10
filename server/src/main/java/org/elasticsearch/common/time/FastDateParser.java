@@ -23,10 +23,10 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * Parses datetimes in ISO8601 format (and subsequences thereof).
+ * Parses datetimes in ISO8601 format (and subsequences thereof), as well as some substantially similar (but not technically 8601) formats.
  * <p>
- * This is faster than the generic parsing in {@link DateTimeFormatter}, as this is hard-coded and specific to ISO-8601.
- * Various public libraries provide their own variant of this mechanism. We use our own for a few reasons:
+ * This is faster than the generic parsing in {@link DateTimeFormatter}, as this is hard-coded and specific to ISO-8601 (and similar)
+ * date layouts. Various public libraries provide their own variant of this mechanism. We use our own for a few reasons:
  * <ul>
  *     <li>
  *         We are historically a bit more lenient with strings that are invalid according to the strict specification
@@ -38,7 +38,7 @@ import java.util.Set;
  * We also do not use exceptions here, instead returning {@code null} for any invalid values, that are then
  * checked and propagated as appropriate.
  */
-class Iso8601Parser {
+class FastDateParser {
 
     private static final Set<ChronoField> VALID_SPECIFIED_FIELDS = EnumSet.of(
         ChronoField.YEAR,
@@ -69,8 +69,8 @@ class Iso8601Parser {
     private final char dateTimeSeparator;
 
     /**
-     * Constructs a new {@code Iso8601Parser} object using the standard ISO-8601 {@code 'T'} date/time separator.
-     * See {@link #Iso8601Parser(Set, boolean, ChronoField, DecimalSeparator, TimezonePresence, Map, char)}.
+     * Constructs a new {@code FastDateParser} object using the standard ISO-8601 {@code 'T'} date/time separator.
+     * See {@link #FastDateParser(Set, boolean, ChronoField, DecimalSeparator, TimezonePresence, Map, char)}.
      *
      * @param mandatoryFields  The set of fields that must be present for a valid parse. These should be specified in field order
      *                         (e.g. if {@link ChronoField#DAY_OF_MONTH} is specified,
@@ -88,7 +88,7 @@ class Iso8601Parser {
      * @param timezonePresence Specifies if the timezone is optional, mandatory, or forbidden.
      * @param defaults         Map of default field values, if they are not present in the parsed string.
      */
-    Iso8601Parser(
+    FastDateParser(
         Set<ChronoField> mandatoryFields,
         boolean optionalTime,
         @Nullable ChronoField maxAllowedField,
@@ -100,7 +100,7 @@ class Iso8601Parser {
     }
 
     /**
-     * Constructs a new {@code Iso8601Parser} object.
+     * Constructs a new {@code FastDateParser} object.
      *
      * @param mandatoryFields   The set of fields that must be present for a valid parse. These should be specified in field order
      *                          (e.g. if {@link ChronoField#DAY_OF_MONTH} is specified,
@@ -120,7 +120,7 @@ class Iso8601Parser {
      * @param dateTimeSeparator The character separating the date and time components (e.g. {@code 'T'} for standard ISO-8601,
      *                          or {@code ' '} for {@code yyyy-MM-dd HH:mm:ss}).
      */
-    Iso8601Parser(
+    FastDateParser(
         Set<ChronoField> mandatoryFields,
         boolean optionalTime,
         @Nullable ChronoField maxAllowedField,

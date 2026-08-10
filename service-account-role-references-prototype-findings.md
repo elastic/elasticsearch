@@ -118,7 +118,7 @@ Verified in `ManagedServiceAccountPrivilegeTests` (action-name coverage) and the
 ## API compatibility
 
 - GET `/_security/service` returns built-in `role_descriptor` unchanged; managed entries add `"managed": true`, `"roles"`, `"enabled"`. Requests scoped to the reserved `elastic` namespace skip managed-store lookup so built-in definitions remain available during security-index outages.
-- GET `/_security/service` (no namespace) excludes managed accounts unless `include_managed=true`; namespace-scoped GET for a non-`elastic` namespace always includes them regardless of the parameter. **Open question**: honor the parameter uniformly, or document that an explicit namespace implies managed.
+- **Settled**: `include_managed` applies only to the un-scoped GET `/_security/service` listing (excluded unless `include_managed=true`, preserving the pre-existing response shape). Namespace-scoped GET for a non-`elastic` namespace always includes matching managed accounts; the parameter is accepted and ignored there. Documented in the REST spec and pinned in `20_managed.yml`.
 - PUT/DELETE `/_security/service/{namespace}/{service}` are new routes for managed accounts.
 - Token creation and deletion routes unchanged; both dispatch to managed vs built-in transport actions by namespace, and the built-in actions reject non-`elastic` namespaces.
 - `ServiceAccountInfo` wire format gated by `managed_service_accounts` transport version.
@@ -194,4 +194,3 @@ Evidence supports the core hypothesis: managed accounts can authorize through `N
 1. Add rolling-upgrade and BWC RCS 1.0 (old fulfilling cluster) integration tests; consider a sending-side version guard in `Authentication#maybeRewriteForOlderVersion`.
 2. Expose REST API specs publicly and decide the delegated-admin privilege model.
 3. Document recreate semantics for operators (surviving index tokens authenticate again), or delete token documents on account delete.
-4. Resolve the `include_managed` parameter semantics for namespace-scoped GET.

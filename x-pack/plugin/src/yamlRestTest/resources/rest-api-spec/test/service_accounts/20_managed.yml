@@ -90,6 +90,14 @@ teardown:
         roles: ["managed_yaml_monitor"]
         enabled: true
 
+  # namespace-scoped requests include managed accounts without include_managed;
+  # the parameter only affects the un-scoped listing
+  - do:
+      security.get_service_accounts:
+        namespace: yaml_poc
+  - length: { '': 1 }
+  - is_true: "yaml_poc/worker_1"
+
   - do:
       security.create_service_token:
         namespace: yaml_poc

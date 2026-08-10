@@ -149,11 +149,10 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
 
     @Override
     public boolean supportsColumnarParse(IndexSettings indexSettings) {
-        // Ignored-field recording is only triggered by field (non-metadata) mappers, and none
-        // support columnar parsing yet in this first pass. postColumnarParse is therefore a no-op
-        // for all current columnar batches (empty-doc-only scope). When field mappers gain columnar
-        // support they will need to invoke an equivalent of DocumentParserContext#addIgnoredField,
-        // and postColumnarParse will need to write the resulting _ignored doc-values column.
+        // Field mappers that support columnar parsing call BatchMappingContext#addIgnoredFieldColumnar
+        // (the columnar equivalent of DocumentParserContext#addIgnoredField) when a value is dropped
+        // (e.g. ignore_above on keyword). postColumnarParse drains that accumulator and writes the
+        // resulting _ignored doc-values column.
         return true;
     }
 

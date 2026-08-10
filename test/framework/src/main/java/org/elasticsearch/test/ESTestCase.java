@@ -587,6 +587,18 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
     }
 
+    @Override
+    public final void setUp() throws Exception {
+        // do not override setUp, use an @Before method
+        super.setUp();
+    }
+
+    @Override
+    public final void tearDown() throws Exception {
+        // do not override tearDown, use an @After method
+        super.tearDown();
+    }
+
     @Before
     public void setHeaderWarningAppender() {
         this.headerWarningAppender = HeaderWarningAppender.createAppender("header_warning", null);

@@ -900,6 +900,36 @@ public class CrossClusterSearchIT extends AbstractCrossClusterSearchTestCase {
         });
     }
 
+    public void testDoubleClusterPrefix() throws Exception {
+        Map<String, Object> testClusterInfo = setupTwoClusters();
+        String localIndex = (String) testClusterInfo.get("local.index");
+
+        {
+            SearchRequest searchRequest = new SearchRequest(localIndex, REMOTE_CLUSTER + ":test:index");
+            searchRequest.allowPartialSearchResults(false);
+            searchRequest.setCcsMinimizeRoundtrips(randomBoolean());
+            if (randomBoolean()) {
+                searchRequest.searchType(SearchType.DFS_QUERY_THEN_FETCH);
+            }
+            searchRequest.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(10));
+
+            Exception ex = assertThrows(ExecutionException.class, () -> client(LOCAL_CLUSTER).search(searchRequest).get());
+            Throwable cause = ExceptionsHelper.unwrap(ex, IllegalArgumentException.class);
+            assertNotNull(cause);
+            assertThat(cause.getMessage(), containsString("Index name cannot have multiple cluster prefixes"));
+        }
+        {
+            // Also try cluster name that doesn't exist
+            SearchRequest searchRequest = new SearchRequest("nosuchcluster:test:index");
+            searchRequest.allowPartialSearchResults(false);
+            searchRequest.setCcsMinimizeRoundtrips(randomBoolean());
+            Exception ex = assertThrows(ExecutionException.class, () -> client(LOCAL_CLUSTER).search(searchRequest).get());
+            Throwable cause = ExceptionsHelper.unwrap(ex, IllegalArgumentException.class);
+            assertNotNull(cause);
+            assertThat(cause.getMessage(), containsString("Index name cannot have multiple cluster prefixes"));
+        }
+    }
+
     private static void assertOneFailedShard(Cluster cluster, int totalShards) {
         assertNotNull(cluster);
         assertThat(cluster.getStatus(), equalTo(Cluster.Status.PARTIAL));

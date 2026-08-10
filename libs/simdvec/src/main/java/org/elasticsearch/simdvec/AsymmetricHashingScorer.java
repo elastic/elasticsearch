@@ -12,100 +12,21 @@ package org.elasticsearch.simdvec;
 /**
  * Scalar implementation of asymmetric hashing scoring.
  * <p>
- * For each query, computes approximate dot products against all encoded database vectors
- * using the asymmetric scheme: the query is projected (not quantized) while database
- * vectors are stored in quantized form.
+ * Computes approximate dot products against encoded database vectors using the asymmetric
+ * scheme: the query is projected (not quantized) while database vectors are stored in
+ * quantized form.
  * <p>
- * Per-cluster scoring formula:
+ * Per-vector scoring formula (Eq. 18 from the ASH paper):
  * <pre>
- *   queryTransformed = (query - centroid_k) @ W
- *   dotProduct[i] = queryTransformed . encodedVector[i] * scale[i] + query . centroid_k + offset[i]
+ *   queryTransformed = query @ W    (raw projection, NOT centered)
+ *   dotProduct = queryTransformed . code * scale + query . centroid + offset
  * </pre>
+ * The centroid contribution is accounted for in the stored offset via the cross-term
+ * (see Eq. 19), so the scorer only needs the raw projected query.
  */
 public final class AsymmetricHashingScorer {
 
     private AsymmetricHashingScorer() {}
-
-    /**
-     * Computes approximate dot products between a single query and all encoded database vectors.
-     *
-     * @param query the query vector, length originalDim
-     * @param w projection matrix, shape (originalDim, nDims)
-     * @param centroids cluster centroids, shape (nClusters, originalDim)
-     * @param clusterAssignments cluster assignment per database vector
-     * @param encodedVectors quantized codes, shape (nVectors, nDims)
-     * @param scales per-vector scale factors
-     * @param offsets per-vector offset corrections
-     * @return approximate dot products, length nVectors
-     */
-    public static float[] score(
-        float[] query,
-        float[][] w,
-        float[][] centroids,
-        int[] clusterAssignments,
-        float[][] encodedVectors,
-        float[] scales,
-        float[] offsets
-    ) {
-        int nVectors = encodedVectors.length;
-        int originalDim = query.length;
-        int nDims = w[0].length;
-        int nClusters = centroids.length;
-
-        // Precompute query dot centroid and transformed query per cluster
-        float[] queryDotCentroid = new float[nClusters];
-        float[][] queryTransformed = new float[nClusters][nDims];
-
-        for (int k = 0; k < nClusters; k++) {
-            float[] centroid = centroids[k];
-            queryDotCentroid[k] = ESVectorUtil.dotProduct(query, centroid, originalDim);
-
-            // queryTransformed[k] = (query - centroid_k) @ W
-            for (int j = 0; j < nDims; j++) {
-                float sum = 0;
-                for (int d = 0; d < originalDim; d++) {
-                    sum = Math.fma(query[d] - centroid[d], w[d][j], sum);
-                }
-                queryTransformed[k][j] = sum;
-            }
-        }
-
-        // Score each database vector
-        float[] results = new float[nVectors];
-        for (int i = 0; i < nVectors; i++) {
-            int k = clusterAssignments[i];
-            float[] qt = queryTransformed[k];
-            float[] enc = encodedVectors[i];
-
-            // dot product in latent space
-            float dot = ESVectorUtil.dotProduct(qt, enc, nDims);
-            results[i] = dot * scales[i] + queryDotCentroid[k] + offsets[i];
-        }
-
-        return results;
-    }
-
-    /**
-     * Scores a single database vector against a precomputed transformed query for a specific cluster.
-     * This is the inner-loop method for integration with the posting list reader.
-     *
-     * @param queryTransformedForCluster precomputed (query - centroid) @ W for this cluster
-     * @param queryDotCentroid precomputed query . centroid for this cluster
-     * @param encodedVector the quantized code for the database vector
-     * @param scale the scale factor for this vector
-     * @param offset the offset correction for this vector
-     * @return approximate dot product
-     */
-    public static float scoreOneVector(
-        float[] queryTransformedForCluster,
-        float queryDotCentroid,
-        float[] encodedVector,
-        float scale,
-        float offset
-    ) {
-        float dot = ESVectorUtil.dotProduct(queryTransformedForCluster, encodedVector);
-        return dot * scale + queryDotCentroid + offset;
-    }
 
     /**
      * Returns the number of bytes needed to store nDims dimensions at the given bits per dimension.
@@ -115,7 +36,7 @@ public final class AsymmetricHashingScorer {
      * @param bitsPerDim bits per dimension
      * @return number of bytes needed
      */
-    public static int packedByteLength(int nDims, int bitsPerDim) {
+    public static int packedLength(int nDims, int bitsPerDim) {
         return bitsPerDim * ((nDims + 7) >>> 3);
     }
 
@@ -133,7 +54,7 @@ public final class AsymmetricHashingScorer {
      * @param bitsPerDim number of bits per dimension
      * @return packed bytes, length bitsPerDim * ceil(nDims/8)
      */
-    public static byte[] packMultiBitCodes(float[] codes, int bitsPerDim) {
+    public static byte[] pack(float[] codes, int bitsPerDim) {
         int nDims = codes.length;
         int planeBytes = (nDims + 7) >>> 3;
         byte[] packed = new byte[bitsPerDim * planeBytes];
@@ -155,25 +76,26 @@ public final class AsymmetricHashingScorer {
     }
 
     /**
-     * Scores a single multi-bit encoded database vector from packed bit-plane representation.
-     * The packed format is bitsPerDim bit-planes, each ceil(nDims/8) bytes, MSB-first.
+     * Scores a single database vector from its packed bit-plane representation against a
+     * precomputed transformed query. This is the inner-loop method for posting list scoring.
      * <p>
+     * The packed format is bitsPerDim bit-planes, each ceil(nDims/8) bytes, MSB-first.
      * Codes represent centered levels. The unsigned code value is reconstructed from bit planes,
      * then shifted back to centered by subtracting (numLevels-1)/2.
      * dot = sum_j queryTransformed[j] * centeredCode[j]
      *     = sum over planes of (2^p * sum_of_qt_where_bit_p_set) - centerOffset * sumAll
      *
-     * @param queryTransformedForCluster precomputed (query - centroid) @ W for this cluster
+     * @param queryTransformed precomputed query @ W (raw projection, not centered)
      * @param queryDotCentroid precomputed query . centroid for this cluster
      * @param packedCodes bit-plane packed codes
      * @param nDims number of projected dimensions
      * @param bitsPerDim bits per dimension
      * @param scale the scale factor for this vector
-     * @param offset the offset correction for this vector
+     * @param offset the offset correction for this vector (includes cross-term per Eq. 19)
      * @return approximate dot product
      */
-    public static float scoreOneVectorMultiBit(
-        float[] queryTransformedForCluster,
+    public static float score(
+        float[] queryTransformed,
         float queryDotCentroid,
         byte[] packedCodes,
         int nDims,
@@ -189,7 +111,7 @@ public final class AsymmetricHashingScorer {
         double[] planeSums = new double[bitsPerDim];
 
         for (int j = 0; j < nDims; j++) {
-            float qt = queryTransformedForCluster[j];
+            float qt = queryTransformed[j];
             sumAll += qt;
             int byteIdx = j >>> 3;
             int bitIdx = 7 - (j & 7);

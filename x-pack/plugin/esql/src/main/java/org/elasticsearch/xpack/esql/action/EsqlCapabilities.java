@@ -1648,6 +1648,15 @@ public class EsqlCapabilities {
          */
         INCREASE,
         DELTA_TS_AGG,
+
+        /**
+         * Fix {@code delta} and {@code idelta} with a window shorter than the time bucket. Previously, the optimizer
+         * could replace the {@code Bucket} child of {@code WindowFilter} with an {@code Attribute}, causing a
+         * {@code ClassCastException} in {@code toEvaluator()}. The fix removes {@code bucket} from the children list
+         * so it is invisible to optimizer rewrites.
+         */
+        FIX_WINDOW_FILTER_BUCKET_CHILD,
+
         CLAMP_FUNCTIONS,
 
         /**
@@ -2142,7 +2151,7 @@ public class EsqlCapabilities {
         /**
          * Support for the DOUBLE_RANGE field type.
          */
-        DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V8(Build.current().isSnapshot()),
+        DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V9(Build.current().isSnapshot()),
 
         /**
          * Network direction function.
@@ -2335,6 +2344,11 @@ public class EsqlCapabilities {
          * TS window functions use backward window semantics only.
          */
         FIX_TIME_SERIES_WINDOW_BACKWARD,
+
+        /**
+         * Disable ReplaceFieldWithConstantOrNull rule for time-series aggregation
+         */
+        DISABLE_REPLACE_NULL_RULE_FOR_TIME_SERIES,
 
         /**
          * Window filters use the rounded bucket label's floor and ceiling when filtering windows
@@ -3404,7 +3418,7 @@ public class EsqlCapabilities {
         /**
          * Support for equality ({@code ==}, {@code !=}) and {@code IN} with the {@code double_range} type.
          */
-        EQUALITY_DOUBLE_RANGE(DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V8.isEnabled()),
+        EQUALITY_DOUBLE_RANGE(DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V9.isEnabled()),
 
         /**
          * Fix TopN encoding/decoding of {@code long_range} values.

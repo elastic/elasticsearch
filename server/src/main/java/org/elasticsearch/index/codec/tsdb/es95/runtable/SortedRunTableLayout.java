@@ -111,6 +111,6 @@ public final class SortedRunTableLayout extends AbstractRunTableLayout {
         final long ordsStart = meta.dataStart() + meta.startDocsLength();
         final long ordsLength = DirectWriter.bytesRequired(numRuns, bitsPerOrd);
         final LongValues ordsPerRun = DirectReader.getInstance(data.randomAccessSlice(ordsStart, ordsLength), bitsPerOrd);
-        return RunTableSortedOrdinalReader.open(new RunCursor(startDocs, numRuns, maxDoc), ordsPerRun, maxDoc, meta.valueCount());
+        return RunTableSortedOrdinalReader.open(new RunTableCursor(startDocs, numRuns, maxDoc), ordsPerRun, maxDoc, meta.valueCount());
     }
 }

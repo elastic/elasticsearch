@@ -12,7 +12,7 @@ package org.elasticsearch.index.codec.tsdb.es95.runtable;
 import org.apache.lucene.util.LongValues;
 
 /**
- * Value-agnostic doc-to-run positioner shared by the run-table doc values readers. Given the run
+ * Value-agnostic doc-to-run positioner for fields encoded in run-table format. Given the run
  * boundary column {@code startDoc[]} (strictly increasing, {@code numRuns} entries) it maps a target
  * doc to the run that owns it, holding the current run index as cursor state.
  *
@@ -21,8 +21,11 @@ import org.apache.lucene.util.LongValues;
  * O(1)), a large forward jump is O(log numRuns) via binary search, and a backward target resets the
  * cursor to run 0 before searching forward again. This class carries no value semantics; the reader
  * built on top reads a single ordinal or a per-run ordinal set from {@link #run()}.
+ *
+ * <p>For fields where run-table encoding was not viable, use {@link OrdinalCursor} instead. Both
+ * implement {@link Cursor} so readers can accept either transparently.
  */
-final class RunCursor {
+final class RunTableCursor implements Cursor {
 
     private final LongValues startDocs;
     private final int numRuns;
@@ -30,47 +33,39 @@ final class RunCursor {
 
     private int currentRun = 0;
 
-    RunCursor(final LongValues startDocs, int numRuns, int maxDoc) {
+    RunTableCursor(final LongValues startDocs, int numRuns, int maxDoc) {
         this.startDocs = startDocs;
         this.numRuns = numRuns;
         this.maxDoc = maxDoc;
     }
 
-    /**
-     * The index of the run currently under the cursor, valid after a {@link #seekDoc} call.
-     */
-    int run() {
+    @Override
+    public int run() {
         return currentRun;
     }
 
-    /** The number of runs in the table. */
-    int numRuns() {
+    @Override
+    public int numRuns() {
         return numRuns;
     }
 
-    /** The first doc covered by {@code run}. */
-    int startDoc(int run) {
+    @Override
+    public int startDoc(int run) {
         return (int) startDocs.get(run);
     }
 
-    /**
-     * Positions the cursor directly on {@code run}. Used by the sparse reader to skip a sentinel run to the
-     * start of the next value-bearing run without re-searching {@code startDoc[]}.
-     */
-    void positionOn(int run) {
+    @Override
+    public void positionOn(int run) {
         currentRun = run;
     }
 
-    /** Rewinds the cursor to the first run. */
-    void reset() {
+    @Override
+    public void reset() {
         currentRun = 0;
     }
 
-    /**
-     * Positions the cursor on the run containing {@code target}. Runs tile {@code [0, maxDoc)} with no gaps,
-     * so every valid target is covered by exactly one run.
-     */
-    void seekDoc(int target) {
+    @Override
+    public void seekDoc(int target) {
         assert target >= 0 && target < maxDoc : "target " + target + " out of range [0, " + maxDoc + ")";
         if (target < startDocs.get(currentRun)) {
             currentRun = 0;

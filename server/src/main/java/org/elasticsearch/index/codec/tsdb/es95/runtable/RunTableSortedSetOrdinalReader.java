@@ -19,7 +19,7 @@ import org.apache.lucene.util.packed.DirectMonotonicReader;
  * set size and whose {@link SortedNumericDocValues#nextValue()} walks the doc's ordinals ascending.
  *
  * <p>The ES95 producer wraps this into a {@code SortedSetDocValues}, pairing it with the terms
- * dictionary it reads separately, so this reader deals only with ordinals. A {@link RunCursor} is
+ * dictionary it reads separately, so this reader deals only with ordinals. A {@link Cursor} is
  * positioned on the run containing the target doc, {@code setOffset[]} yields the run's slice
  * {@code [setOffset.get(run), setOffset.get(run + 1))} into the flattened {@code ordStream[]}, and
  * {@code nextValue()} walks that slice one ord at a time. Each slice is ascending, so the ordinals
@@ -66,7 +66,7 @@ public final class RunTableSortedSetOrdinalReader {
     ) {}
 
     static SortedNumericDocValues open(
-        final RunCursor cursor,
+        final Cursor cursor,
         final DirectMonotonicReader setOffsets,
         final LongValues ordStream,
         int maxDoc
@@ -76,7 +76,7 @@ public final class RunTableSortedSetOrdinalReader {
 
     private static final class RunTableSortedNumericDocValues extends SortedNumericDocValues {
 
-        private final RunCursor cursor;
+        private final Cursor cursor;
         private final DirectMonotonicReader setOffsets;
         private final LongValues ordStream;
         private final int maxDoc;
@@ -87,7 +87,7 @@ public final class RunTableSortedSetOrdinalReader {
         private int nextOrdIndex = 0;
 
         RunTableSortedNumericDocValues(
-            final RunCursor cursor,
+            final Cursor cursor,
             final DirectMonotonicReader setOffsets,
             final LongValues ordStream,
             int maxDoc

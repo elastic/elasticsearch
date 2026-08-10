@@ -20,7 +20,7 @@ import org.apache.lucene.util.packed.DirectReader;
  *
  * <p>The ES95 producer wraps this into a {@code SortedDocValues}, pairing it with the terms
  * dictionary it reads separately, so this reader deals only with ordinals. Per-doc ordinals are
- * reconstructed from the run columns: a {@link RunCursor} is positioned on the run containing the
+ * reconstructed from the run columns: a {@link Cursor} is positioned on the run containing the
  * target doc and {@code longValue()} reads {@code ordPerRun[cursor.run()]} off-heap on demand through
  * a {@link DirectReader} over a random-access slice of the mapped data input.
  *
@@ -58,20 +58,20 @@ public final class RunTableSortedOrdinalReader {
         long startDocsLength
     ) {}
 
-    static NumericDocValues open(final RunCursor cursor, final LongValues ordsPerRun, int maxDoc, int sentinel) {
+    static NumericDocValues open(final Cursor cursor, final LongValues ordsPerRun, int maxDoc, int sentinel) {
         return new RunTableNumericDocValues(cursor, ordsPerRun, maxDoc, sentinel);
     }
 
     private static final class RunTableNumericDocValues extends NumericDocValues {
 
-        private final RunCursor cursor;
+        private final Cursor cursor;
         private final LongValues ordsPerRun;
         private final int maxDoc;
         private final int sentinel;
 
         private int doc = -1;
 
-        RunTableNumericDocValues(final RunCursor cursor, final LongValues ordsPerRun, int maxDoc, int sentinel) {
+        RunTableNumericDocValues(final Cursor cursor, final LongValues ordsPerRun, int maxDoc, int sentinel) {
             this.cursor = cursor;
             this.ordsPerRun = ordsPerRun;
             this.maxDoc = maxDoc;

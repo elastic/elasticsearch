@@ -117,7 +117,7 @@ public class AiIndexTemplateRegistryTests extends ESTestCase {
         ComponentTemplate dsSettings = registry.getComponentTemplateConfigs().get(AI_INDEX_DS_SETTINGS_COMPONENT_NAME);
         assertThat(dsSettings, notNullValue());
         Settings settings = dsSettings.template().settings();
-        assertThat(settings.get("index.mode"), equalTo("columnar"));
+        assertThat(settings.get("index.mode"), nullValue());
         assertThat(settings.get("index.sort.field"), equalTo("@timestamp"));
     }
 

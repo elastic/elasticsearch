@@ -767,7 +767,8 @@ public class SnapshotsServiceTests extends ESTestCase {
                                     true,
                                     RecoverySource.EmptyStoreRecoverySource.INSTANCE,
                                     new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "test"),
-                                    ShardRouting.Role.DEFAULT
+                                    ShardRouting.Role.DEFAULT,
+                                    ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
                                 )
                             )
                     )

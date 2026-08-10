@@ -167,6 +167,18 @@ public class RunTableSortedOrdinalTests extends ESTestCase {
         }
     }
 
+    public void testFullyAbsentAllSentinel() throws IOException {
+        final int valueCount = 3;
+        final int numDocs = randomIntBetween(1, 500);
+        final int[] perDocOrds = new int[numDocs];
+        Arrays.fill(perDocOrds, valueCount); // all docs absent (sentinel == valueCount)
+        try (Directory dir = new ByteBuffersDirectory()) {
+            final Stats stats = write(dir, perDocOrds, valueCount, 0, 0);
+            assertEquals(1, stats.numRuns());
+            verifySparse(dir, perDocOrds, valueCount, 0);
+        }
+    }
+
     public void testFullyDenseStillAlwaysPresent() throws IOException {
         // No sentinel in the stream: advanceExact is always true and nextDoc visits every doc.
         final int[] perDocOrds = { 0, 0, 1, 1, 2, 2, 2, 0 };

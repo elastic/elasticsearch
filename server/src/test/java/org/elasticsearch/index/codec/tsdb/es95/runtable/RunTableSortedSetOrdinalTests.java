@@ -245,6 +245,22 @@ public class RunTableSortedSetOrdinalTests extends ESTestCase {
         }
     }
 
+    public void testSortedSetFullyAbsent() throws IOException {
+        final int valueCount = 3;
+        final int numDocs = randomIntBetween(1, 500);
+        final int[][] perDocSets = new int[numDocs][0]; // all docs have empty set
+        try (Directory dir = new ByteBuffersDirectory()) {
+            final Stats stats = write(dir, perDocSets, valueCount, 0, 0);
+            assertEquals(1, stats.numRuns());
+            final SortedNumericDocValues dv = open(dir, numDocs, 0);
+            for (int doc = 0; doc < numDocs; doc++) {
+                assertFalse("doc " + doc + " must be absent", dv.advanceExact(doc));
+            }
+            final SortedNumericDocValues iter = open(dir, numDocs, 0);
+            assertEquals(NO_MORE_DOCS, iter.nextDoc());
+        }
+    }
+
     public void testSortedSetConsecutiveEmptyRunsNotPossible() {
         final RunTableSortedSetOrdinalWriter writer = new RunTableSortedSetOrdinalWriter(4);
         writer.add(new int[0]);

@@ -71,12 +71,7 @@ public class IvfQueryConfigResolver {
             QuantEncoding.fromBits((byte) quantBits),
             mappingUsePrecondition,
             Float.NaN,
-            false,
-            IvfSegmentConfig.DEFAULT_ASH_PROJECTED_DIMS_FRACTION,
-            IvfSegmentConfig.DEFAULT_ASH_BITS_PER_DIM,
-            IvfSegmentConfig.DEFAULT_ASH_TRAINING_ITERATIONS,
-            IvfSegmentConfig.DEFAULT_ASH_TRAINING_FACTOR,
-            IvfSegmentConfig.DEFAULT_ASH_SEED
+            null
         );
     }
 
@@ -96,18 +91,7 @@ public class IvfQueryConfigResolver {
             }
             float oversampleFactor = calibrationAwareReader.getOversampleFactor(fieldInfo);
             boolean precondition = calibrationAwareReader.shouldPrecondition(fieldInfo);
-            return new IvfSegmentConfig(
-                CentroidIndexFormat.FLAT,
-                quantEncoding,
-                precondition,
-                oversampleFactor,
-                false,
-                IvfSegmentConfig.DEFAULT_ASH_PROJECTED_DIMS_FRACTION,
-                IvfSegmentConfig.DEFAULT_ASH_BITS_PER_DIM,
-                IvfSegmentConfig.DEFAULT_ASH_TRAINING_ITERATIONS,
-                IvfSegmentConfig.DEFAULT_ASH_TRAINING_FACTOR,
-                IvfSegmentConfig.DEFAULT_ASH_SEED
-            );
+            return new IvfSegmentConfig(CentroidIndexFormat.FLAT, quantEncoding, precondition, oversampleFactor, null);
         }
         return mappingDefaults();
     }

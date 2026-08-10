@@ -308,18 +308,7 @@ public class IvfAutoCalibration {
             doPreconditionResult,
             calibratedSegments
         );
-        return new IvfSegmentConfig(
-            CentroidIndexFormat.FLAT,
-            bestEncoding,
-            doPreconditionResult,
-            avgOversample,
-            false,
-            IvfSegmentConfig.DEFAULT_ASH_PROJECTED_DIMS_FRACTION,
-            IvfSegmentConfig.DEFAULT_ASH_BITS_PER_DIM,
-            IvfSegmentConfig.DEFAULT_ASH_TRAINING_ITERATIONS,
-            IvfSegmentConfig.DEFAULT_ASH_TRAINING_FACTOR,
-            IvfSegmentConfig.DEFAULT_ASH_SEED
-        );
+        return new IvfSegmentConfig(CentroidIndexFormat.FLAT, bestEncoding, doPreconditionResult, avgOversample, null);
     }
 
     /** Per-encoding accumulator for {@link #selectFromMergeState}: live-vector-weighted oversample and precondition votes. */
@@ -614,12 +603,7 @@ public class IvfAutoCalibration {
                         candidate.encoding(),
                         precondition,
                         oversample,
-                        false,
-                        IvfSegmentConfig.DEFAULT_ASH_PROJECTED_DIMS_FRACTION,
-                        IvfSegmentConfig.DEFAULT_ASH_BITS_PER_DIM,
-                        IvfSegmentConfig.DEFAULT_ASH_TRAINING_ITERATIONS,
-                        IvfSegmentConfig.DEFAULT_ASH_TRAINING_FACTOR,
-                        IvfSegmentConfig.DEFAULT_ASH_SEED
+                        null
                     );
                     return new SweepOutcome.Success(config, expected, candidate.qbits(), candidate.dbits(), rerankVal);
                 }
@@ -633,18 +617,7 @@ public class IvfAutoCalibration {
         }
 
         return new SweepOutcome.BestEffort(
-            new IvfSegmentConfig(
-                CentroidIndexFormat.FLAT,
-                bestEncoding,
-                bestPrecondition,
-                bestOversample,
-                false,
-                IvfSegmentConfig.DEFAULT_ASH_PROJECTED_DIMS_FRACTION,
-                IvfSegmentConfig.DEFAULT_ASH_BITS_PER_DIM,
-                IvfSegmentConfig.DEFAULT_ASH_TRAINING_ITERATIONS,
-                IvfSegmentConfig.DEFAULT_ASH_TRAINING_FACTOR,
-                IvfSegmentConfig.DEFAULT_ASH_SEED
-            ),
+            new IvfSegmentConfig(CentroidIndexFormat.FLAT, bestEncoding, bestPrecondition, bestOversample, null),
             bestRecall
         );
     }

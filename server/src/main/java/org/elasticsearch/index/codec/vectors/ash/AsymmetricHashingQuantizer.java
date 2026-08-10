@@ -43,12 +43,14 @@ public final class AsymmetricHashingQuantizer {
         RANDOM
     }
 
+    private static final long SEED = 42L;
+
     private final float projectedDimsFraction;
     private final Method method;
     private final int nTrainingIterations;
     private final int trainingFactor;
-    private final long seed;
     private final AshSphericalScalarQuantizer quantizer;
+    private final Random rng;
 
     /**
      * Creates an ASH quantizer with the given configuration.
@@ -58,15 +60,13 @@ public final class AsymmetricHashingQuantizer {
      * @param method training method for W
      * @param nTrainingIterations number of Procrustes iterations (for LEARNED)
      * @param trainingFactor multiplier on dimension for training sample size
-     * @param seed random seed
      */
     public AsymmetricHashingQuantizer(
         float projectedDimsFraction,
         int bitsPerDim,
         Method method,
         int nTrainingIterations,
-        int trainingFactor,
-        long seed
+        int trainingFactor
     ) {
         if (projectedDimsFraction <= 0 || projectedDimsFraction > 1.0f) {
             throw new IllegalArgumentException("projectedDimsFraction must be in (0, 1]");
@@ -78,8 +78,8 @@ public final class AsymmetricHashingQuantizer {
         this.method = method;
         this.nTrainingIterations = nTrainingIterations;
         this.trainingFactor = trainingFactor;
-        this.seed = seed;
         this.quantizer = new AshSphericalScalarQuantizer(bitsPerDim);
+        this.rng = new Random(SEED);
     }
 
     /**
@@ -227,29 +227,10 @@ public final class AsymmetricHashingQuantizer {
         return new EncodedVector(xEnc, scale, offset);
     }
 
-    /**
-     * Transposes W from (originalDim x nDims) to (nDims x originalDim).
-     * The transposed layout enables SIMD-friendly row-wise dot products during encoding.
-     *
-     * @param w the projection matrix, shape (originalDim, nDims)
-     * @return the transposed matrix, shape (nDims, originalDim)
-     */
-    static float[][] transposeW(float[][] w) {
-        int originalDim = w.length;
-        int nDims = w[0].length;
-        float[][] wT = new float[nDims][originalDim];
-        for (int i = 0; i < originalDim; i++) {
-            for (int j = 0; j < nDims; j++) {
-                wT[j][i] = w[i][j];
-            }
-        }
-        return wT;
-    }
-
     private float[][] learnedTraining(float[][] xTraining, int originalDim, int nDims) {
         // PCA initialization: extract top nDims right singular vectors via power iteration
         // This is much faster than full SVD when nDims << originalDim
-        float[][] topVectors = SvdUtil.topKRightSingularVectors(xTraining, xTraining.length, originalDim, nDims, seed);
+        float[][] topVectors = SvdUtil.topKRightSingularVectors(xTraining, xTraining.length, originalDim, nDims, SEED);
         // P = top nDims right singular vectors transposed: rows of topVectors are the vectors
         // P shape: (originalDim x nDims) where each column is a right singular vector
         float[][] p = new float[originalDim][nDims];
@@ -264,7 +245,7 @@ public final class AsymmetricHashingQuantizer {
         float[][] xLd = matMul(xTraining, p, nTraining, originalDim, nDims);
 
         // Initialize random M (nDims x nDims)
-        Random rng = new Random(seed);
+
         float[][] m = new float[nDims][nDims];
         for (int i = 0; i < nDims; i++) {
             for (int j = 0; j < nDims; j++) {
@@ -304,7 +285,7 @@ public final class AsymmetricHashingQuantizer {
     }
 
     private float[][] randomOrthogonal(int originalDim, int nDims) {
-        Random rng = new Random(seed);
+
         // Generate random matrix and orthogonalize columns via modified Gram-Schmidt
         float[][] q = new float[originalDim][nDims];
         for (int i = 0; i < originalDim; i++) {
@@ -348,7 +329,7 @@ public final class AsymmetricHashingQuantizer {
             Arrays.setAll(all, IntUnaryOperator.identity());
             return all;
         }
-        Random rng = new Random(seed);
+
         int[] indices = new int[n];
         Arrays.setAll(indices, IntUnaryOperator.identity());
         for (int i = 0; i < sampleSize; i++) {

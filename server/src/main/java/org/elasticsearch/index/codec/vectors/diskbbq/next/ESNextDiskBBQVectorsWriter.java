@@ -203,7 +203,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
     @Override
     protected Preconditioner inheritPreconditioner(FieldInfo fieldInfo, MergeState mergeState, IvfSegmentConfig fieldWritingContext)
         throws IOException {
-        if (requireSegmentConfig(fieldWritingContext).useAsh()) {
+        if (requireSegmentConfig(fieldWritingContext).ash() != null) {
             // ASH trains a new W matrix on each merge; no inheritance needed
             return null;
         }
@@ -224,7 +224,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
 
     @Override
     protected Preconditioner createPreconditioner(int dimension, IvfSegmentConfig ivfSegmentConfig) {
-        if (requireSegmentConfig(ivfSegmentConfig).useAsh()) {
+        if (requireSegmentConfig(ivfSegmentConfig).ash() != null) {
             // ASH writes its own projection matrix; no standard preconditioner needed
             return null;
         }
@@ -245,6 +245,34 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
         }
     }
 
+    private CentroidOffsetAndLength buildAndWriteAshPostingsLists(
+        FieldInfo fieldInfo,
+        CentroidSupplier centroidSupplier,
+        ClusteringVectorValues<?> vectorValues,
+        IndexOutput postingsOutput,
+        long fileOffset,
+        int[] assignments,
+        OverspillAssignments overspillAssignments,
+        IvfSegmentConfig segmentConfig
+    ) throws IOException {
+        if (vectorValues instanceof FloatVectorValues == false) {
+            throw new IllegalStateException("ASH requires float vectors, got: " + vectorValues.getClass().getSimpleName());
+        }
+        var ashWriter = new AshPostingsListWriter();
+        var result = ashWriter.buildAndWrite(
+            fieldInfo,
+            centroidSupplier,
+            (FloatVectorValues) vectorValues,
+            postingsOutput,
+            fileOffset,
+            assignments,
+            overspillAssignments,
+            segmentConfig.ash()
+        );
+        pendingAshMatrix = ashWriter.getAshProjectionMatrix();
+        return new CentroidOffsetAndLength(result.offsets(), result.lengths());
+    }
+
     @Override
     public CentroidOffsetAndLength buildAndWritePostingsLists(
         FieldInfo fieldInfo,
@@ -259,30 +287,17 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
         final IvfSegmentConfig segmentConfig = requireSegmentConfig(fieldWritingContext);
 
         // ASH path: delegate to AshPostingsListWriter for flush
-        if (segmentConfig.useAsh()) {
-            if (vectorValues instanceof FloatVectorValues == false) {
-                throw new IllegalStateException("ASH requires float vectors, got: " + vectorValues.getClass().getSimpleName());
-            }
-            var ashWriter = new AshPostingsListWriter();
-            var ashConfig = new AshPostingsListWriter.AshConfig(
-                segmentConfig.ashProjectedDimsFraction(),
-                segmentConfig.ashBitsPerDim(),
-                segmentConfig.ashTrainingIterations(),
-                segmentConfig.ashTrainingFactor(),
-                segmentConfig.ashSeed()
-            );
-            var result = ashWriter.buildAndWrite(
+        if (segmentConfig.ash() != null) {
+            return buildAndWriteAshPostingsLists(
                 fieldInfo,
                 centroidSupplier,
-                (FloatVectorValues) vectorValues,
+                vectorValues,
                 postingsOutput,
                 fileOffset,
                 assignments,
                 overspillAssignments,
-                ashConfig
+                segmentConfig
             );
-            pendingAshMatrix = ashWriter.getAshProjectionMatrix();
-            return new CentroidOffsetAndLength(result.offsets(), result.lengths());
         }
 
         final QuantEncoding effectiveQuantEncoding = segmentConfig.quantEncoding();
@@ -420,30 +435,17 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
         final IvfSegmentConfig segmentConfig = requireSegmentConfig(fieldWritingContext);
 
         // ASH path: delegate to AshPostingsListWriter for merge
-        if (segmentConfig.useAsh()) {
-            if (vectorValues instanceof FloatVectorValues == false) {
-                throw new IllegalStateException("ASH requires float vectors, got: " + vectorValues.getClass().getSimpleName());
-            }
-            var ashWriter = new AshPostingsListWriter();
-            var ashConfig = new AshPostingsListWriter.AshConfig(
-                segmentConfig.ashProjectedDimsFraction(),
-                segmentConfig.ashBitsPerDim(),
-                segmentConfig.ashTrainingIterations(),
-                segmentConfig.ashTrainingFactor(),
-                segmentConfig.ashSeed()
-            );
-            var result = ashWriter.buildAndWrite(
+        if (segmentConfig.ash() != null) {
+            return buildAndWriteAshPostingsLists(
                 fieldInfo,
                 centroidSupplier,
-                (FloatVectorValues) vectorValues,
+                vectorValues,
                 postingsOutput,
                 fileOffset,
                 assignments,
                 overspillAssignments,
-                ashConfig
+                segmentConfig
             );
-            pendingAshMatrix = ashWriter.getAshProjectionMatrix();
-            return new CentroidOffsetAndLength(result.offsets(), result.lengths());
         }
 
         final QuantEncoding effectiveQuantEncoding = segmentConfig.quantEncoding();
@@ -827,9 +829,9 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
         // are stored as 1 byte/dim (byte fields) or 4 bytes/dim (float fields).
         metaOutput.writeByte(byteCentroids ? (byte) 1 : (byte) 0);
         // ASH flag
-        metaOutput.writeByte(segmentConfig.useAsh() ? (byte) 1 : (byte) 0);
-        if (segmentConfig.useAsh()) {
-            metaOutput.writeVInt(segmentConfig.ashBitsPerDim());
+        metaOutput.writeByte(segmentConfig.ash() != null ? (byte) 1 : (byte) 0);
+        if (segmentConfig.ash() != null) {
+            metaOutput.writeVInt(segmentConfig.ash().bitsPerDim());
         }
     }
 

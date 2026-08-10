@@ -20,7 +20,6 @@ import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.diskbbq.CentroidIndexFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfFlushConfigSource;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfMergeConfigResolver;
-import org.elasticsearch.index.codec.vectors.diskbbq.IvfSegmentConfig;
 import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
 import org.elasticsearch.index.codec.vectors.es93.DirectIOCapableLucene99FlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93BFloat16FlatVectorsFormat;
@@ -101,13 +100,6 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
     public static final int MAX_PRECONDITIONING_BLOCK_DIMS = 384;
     public static final int MAX_DIMENSIONS = 4096;
 
-    // ASH (Asymmetric Scalar Hashing) defaults — canonical values defined in IvfSegmentConfig
-    public static final float DEFAULT_ASH_PROJECTED_DIMS_FRACTION = IvfSegmentConfig.DEFAULT_ASH_PROJECTED_DIMS_FRACTION;
-    public static final int DEFAULT_ASH_BITS_PER_DIM = IvfSegmentConfig.DEFAULT_ASH_BITS_PER_DIM;
-    public static final int DEFAULT_ASH_TRAINING_ITERATIONS = IvfSegmentConfig.DEFAULT_ASH_TRAINING_ITERATIONS;
-    public static final int DEFAULT_ASH_TRAINING_FACTOR = IvfSegmentConfig.DEFAULT_ASH_TRAINING_FACTOR;
-    public static final long DEFAULT_ASH_SEED = IvfSegmentConfig.DEFAULT_ASH_SEED;
-
     private final CentroidIndexFormat centroidIndexFormat = CentroidIndexFormat.FLAT;
     private final QuantEncoding quantEncoding;
     private final int vectorPerCluster;
@@ -123,11 +115,6 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
     private final IvfFlushConfigSource ivfFlushConfigSource;
     private final IvfMergeConfigResolver ivfMergeConfigResolver;
     private final boolean useAsh;
-    private final float ashProjectedDimsFraction;
-    private final int ashBitsPerDim;
-    private final int ashTrainingIterations;
-    private final int ashTrainingFactor;
-    private final long ashSeed;
 
     public ESNextDiskBBQVectorsFormat(int vectorPerCluster, int centroidsPerParentCluster, String sliceField) {
         this(QuantEncoding.ONE_BIT_4BIT_QUERY, vectorPerCluster, centroidsPerParentCluster, sliceField);
@@ -290,11 +277,6 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
         this.ivfFlushConfigSource = ivfFlushConfigSource;
         this.ivfMergeConfigResolver = ivfMergeConfigResolver;
         this.useAsh = useAsh;
-        this.ashProjectedDimsFraction = DEFAULT_ASH_PROJECTED_DIMS_FRACTION;
-        this.ashBitsPerDim = DEFAULT_ASH_BITS_PER_DIM;
-        this.ashTrainingIterations = DEFAULT_ASH_TRAINING_ITERATIONS;
-        this.ashTrainingFactor = DEFAULT_ASH_TRAINING_FACTOR;
-        this.ashSeed = DEFAULT_ASH_SEED;
     }
 
     /** Constructs a format using the given graph construction parameters and scalar quantization. */

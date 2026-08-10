@@ -69,6 +69,9 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
 
     private final ConcurrentHashMap<String, AshProjectionMatrix> ashMatrixCache;
 
+    /** Default query quantization bits for ASH integer scoring (D2Q4). Set to 0 to use the float path. */
+    private static final int DEFAULT_ASH_QUERY_BITS_PER_DIM = 4;
+
     public ESNextDiskBBQVectorsReader(SegmentReadState state, GenericFlatVectorReaders.LoadFlatVectorsReader getFormatReader)
         throws IOException {
         super(
@@ -518,7 +521,15 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         // ASH path: use AshPostingsVisitor with precomputed W matrix
         if (entry.useAsh()) {
             var ashMatrix = getAshProjectionMatrix(fieldInfo);
-            return new AshPostingsVisitor(ashMatrix.wT(), target, fieldInfo, indexInput, needsScoring, entry.ashBitsPerDim());
+            return new AshPostingsVisitor(
+                ashMatrix.wT(),
+                target,
+                fieldInfo.getVectorSimilarityFunction(),
+                indexInput,
+                needsScoring,
+                entry.ashBitsPerDim(),
+                DEFAULT_ASH_QUERY_BITS_PER_DIM
+            );
         }
 
         if (entry.numSlices > 0) {

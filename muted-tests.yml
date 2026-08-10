@@ -556,9 +556,6 @@ tests:
 - class: org.elasticsearch.reindex.ReindexFailureTests
   method: testResponseOnSearchFailure
   issue: https://github.com/elastic/elasticsearch/issues/151064
-- class: org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizerInSubqueryGoldenTests
-  method: testTsRateWithNotInSubquery
-  issue: https://github.com/elastic/elasticsearch/issues/155867
 - class: org.elasticsearch.lucene.FullClusterRestartSystemIndexCompatibilityIT
   method: testAsyncSearchIndexMigration {p0=9.6.0}
   issue: https://github.com/elastic/elasticsearch/issues/155871
@@ -586,9 +583,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecUnmappedNullifyIT
   method: test {csv-spec:unmapped-nullify.statsNullifiedLast}
   issue: https://github.com/elastic/elasticsearch/issues/156027
-- class: org.elasticsearch.exponentialhistogram.RankAccuracyTests
-  method: testRandomDistribution
-  issue: https://github.com/elastic/elasticsearch/issues/156057
 - class: org.elasticsearch.xpack.esql.action.ExternalCsvHivePartitionedIT
   method: testHivePartitionShadowWarningReachesClient
   issue: https://github.com/elastic/elasticsearch/issues/153780
@@ -633,3 +627,24 @@ tests:
 - class: org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceTests
   method: testWarmingReadsAreBoundedByFillMemoryBudget
   issue: https://github.com/elastic/elasticsearch/issues/156232
+- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetCompressedFormatSpecIT
+  method: test {csv-spec:external-basic.aggregateByGender [lz4raw/HTTP]}
+  issue: https://github.com/elastic/elasticsearch/issues/156241
+- class: org.elasticsearch.xpack.esql.CsvFlattenedKeywordIT
+  method: test {csv-spec:k8s-misc.by_four_dims}
+  issue: https://github.com/elastic/elasticsearch/issues/156245
+- class: org.elasticsearch.xpack.esql.CsvFlattenedKeywordIT
+  method: test {csv-spec:k8s-misc.four_rates_by_four_dims}
+  issue: https://github.com/elastic/elasticsearch/issues/156246
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecK8sMiscIT
+  method: test {csv-spec:k8s-misc.four_rates_by_four_dims}
+  issue: https://github.com/elastic/elasticsearch/issues/156255
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecApproximationIT
+  method: test {csv-spec:approximation.Inline stats by}
+  issue: https://github.com/elastic/elasticsearch/issues/156264
+- class: org.elasticsearch.xpack.ml.aggs.changepoint.ChangePointAggregatorTests
+  method: testDistributionChange
+  issue: https://github.com/elastic/elasticsearch/issues/156294
+- class: org.elasticsearch.xpack.esql.qa.single_node.RestEsqlIT
+  method: testAutoPartitioning {SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/156243

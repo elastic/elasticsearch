@@ -18,6 +18,7 @@ import org.elasticsearch.index.codec.vectors.diskbbq.CentroidSupplier;
 import org.elasticsearch.index.codec.vectors.diskbbq.DocIdsWriter;
 import org.elasticsearch.index.codec.vectors.diskbbq.FlatCentroidClusters;
 import org.elasticsearch.index.codec.vectors.diskbbq.IntSorter;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfSegmentConfig;
 import org.elasticsearch.index.codec.vectors.diskbbq.OverspillAssignments;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -52,11 +53,6 @@ public class AshPostingsListWriter {
     private AshProjectionMatrix ashProjectionMatrix;
 
     /**
-     * ASH-specific configuration parameters for the write path.
-     */
-    public record AshConfig(float projectedDimsFraction, int bitsPerDim, int trainingIterations, int trainingFactor, long seed) {}
-
-    /**
      * Returns the projection matrix trained during the most recent
      * {@link #buildAndWrite} call, or null if not yet called.
      */
@@ -80,7 +76,7 @@ public class AshPostingsListWriter {
         long fileOffset,
         int[] assignments,
         OverspillAssignments overspillAssignments,
-        AshConfig ashConfig
+        IvfSegmentConfig.AshConfig ashConfig
     ) throws IOException {
         int nVectors = assignments.length;
         int originalDim = fieldInfo.getVectorDimension();
@@ -95,15 +91,14 @@ public class AshPostingsListWriter {
             System.arraycopy(v, 0, vectors[i], 0, originalDim);
         }
 
-        // Create and train the ASH quantizer (always uses LEARNED projection in production;
-        // RANDOM is only used in unit tests via AsymmetricHashingQuantizer directly)
+        // Create and train the ASH quantizer
+        // TODO: consider whether using AsymmetricHashingQuantizer.Method.RANDOM is sufficient
         AsymmetricHashingQuantizer ashQuantizer = new AsymmetricHashingQuantizer(
             ashConfig.projectedDimsFraction(),
             ashConfig.bitsPerDim(),
             AsymmetricHashingQuantizer.Method.LEARNED,
             ashConfig.trainingIterations(),
-            ashConfig.trainingFactor(),
-            ashConfig.seed()
+            ashConfig.trainingFactor()
         );
 
         IntFunction<float[]> centroidGetter = (i) -> {
@@ -121,7 +116,7 @@ public class AshPostingsListWriter {
         logger.debug("ASH train: {}ms, nDims={}", t1 - t0, w[0].length);
 
         // Transpose W once for SIMD-friendly dot products during encoding
-        float[][] wT = AsymmetricHashingQuantizer.transposeW(w);
+        float[][] wT = ESVectorUtil.transposeMatrix(w);
 
         // Store the projection matrix for later serialization
         this.ashProjectionMatrix = new AshProjectionMatrix(w);
@@ -159,6 +154,7 @@ public class AshPostingsListWriter {
         final int bitsPerDim = ashConfig.bitsPerDim();
         final int nDims = w[0].length;
         final int packedCodeBytes = AsymmetricHashingScorer.packedLength(nDims, bitsPerDim);
+        final float centerOffset = ((1 << bitsPerDim) - 1) / 2.0f;
         final int[] docIds = new int[maxPostingListSize];
         final int[] docDeltas = new int[maxPostingListSize];
         final int[] clusterOrds = new int[maxPostingListSize];
@@ -208,16 +204,15 @@ public class AshPostingsListWriter {
                 for (int j = 0; j < blockSize; j++) {
                     int vectorOrd = cluster[clusterOrds[written + j]];
                     AsymmetricHashingQuantizer.EncodedVector enc = ashQuantizer.encode(vectors[vectorOrd], centroid, wT, precomputed);
-                    AsymmetricHashingScorer.pack(enc.xEnc(), bitsPerDim, blockCodesBuf, j * packedCodeBytes);
+                    byte[] vectorPacked = AsymmetricHashingScorer.pack(enc.xEnc(), bitsPerDim);
+                    System.arraycopy(vectorPacked, 0, blockCodesBuf, j * packedCodeBytes, packedCodeBytes);
                     blockScales[j] = Float.floatToFloat16(enc.scale());
                     blockOffsets[j] = Float.floatToFloat16(enc.offset());
-                    // Compute docSum: sum of unsigned code values from the packed bit-planes
+                    // Compute docSum: sum of unsigned code values directly from the centered float codes
                     int docSum = 0;
-                    int pb = packedCodeBytes / bitsPerDim; // planeBytes
-                    for (int b = 0; b < pb; b++) {
-                        for (int p = 0; p < bitsPerDim; p++) {
-                            docSum += (1 << p) * Integer.bitCount(blockCodesBuf[j * packedCodeBytes + p * pb + b] & 0xFF);
-                        }
+                    float[] xEnc = enc.xEnc();
+                    for (int d = 0; d < nDims; d++) {
+                        docSum += Math.round(xEnc[d] + centerOffset);
                     }
                     blockDocSums[j] = (short) docSum;
                 }

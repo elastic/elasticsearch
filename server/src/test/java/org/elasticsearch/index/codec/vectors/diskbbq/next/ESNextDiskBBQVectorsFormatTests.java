@@ -772,23 +772,7 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
     public void testAshIndexAndSearch() throws IOException {
         int dimensions = 64;
         int numDocs = 200;
-        ESNextDiskBBQVectorsFormat ashFormat = new ESNextDiskBBQVectorsFormat(
-            QuantEncoding.TWO_BIT_4BIT_QUERY,
-            MIN_VECTORS_PER_CLUSTER,
-            MIN_CENTROIDS_PER_PARENT_CLUSTER,
-            DenseVectorFieldMapper.ElementType.FLOAT,
-            false,
-            null,
-            1,
-            false,
-            DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
-            0,
-            null,
-            IvfFlushConfigSource.empty(),
-            IvfMergeConfigResolver.useCodecDefault(),
-            true
-        );
-        Codec ashCodec = TestUtil.alwaysKnnVectorsFormat(ashFormat);
+        Codec ashCodec = TestUtil.alwaysKnnVectorsFormat(ashTestFormat());
         try (Directory dir = newDirectory()) {
             IndexWriterConfig iwc = newIndexWriterConfig();
             iwc.setCodec(ashCodec);
@@ -824,23 +808,7 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
     public void testAshAllSimilarityFunctions() throws IOException {
         int dimensions = 64;
         int numDocs = 200;
-        ESNextDiskBBQVectorsFormat ashFormat = new ESNextDiskBBQVectorsFormat(
-            QuantEncoding.TWO_BIT_4BIT_QUERY,
-            MIN_VECTORS_PER_CLUSTER,
-            MIN_CENTROIDS_PER_PARENT_CLUSTER,
-            DenseVectorFieldMapper.ElementType.FLOAT,
-            false,
-            null,
-            1,
-            false,
-            DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
-            0,
-            null,
-            IvfFlushConfigSource.empty(),
-            IvfMergeConfigResolver.useCodecDefault(),
-            true
-        );
-        Codec ashCodec = TestUtil.alwaysKnnVectorsFormat(ashFormat);
+        Codec ashCodec = TestUtil.alwaysKnnVectorsFormat(ashTestFormat());
         for (VectorSimilarityFunction sim : new VectorSimilarityFunction[] {
             VectorSimilarityFunction.DOT_PRODUCT,
             VectorSimilarityFunction.EUCLIDEAN,
@@ -878,6 +846,25 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
                 }
             }
         }
+    }
+
+    private static ESNextDiskBBQVectorsFormat ashTestFormat() {
+        return new ESNextDiskBBQVectorsFormat(
+            QuantEncoding.TWO_BIT_4BIT_QUERY,
+            MIN_VECTORS_PER_CLUSTER,
+            MIN_CENTROIDS_PER_PARENT_CLUSTER,
+            DenseVectorFieldMapper.ElementType.FLOAT,
+            false,
+            null,
+            1,
+            false,
+            DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
+            0,
+            null,
+            IvfFlushConfigSource.empty(),
+            IvfMergeConfigResolver.useCodecDefault(),
+            true
+        );
     }
 
 }

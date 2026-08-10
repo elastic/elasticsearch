@@ -14,8 +14,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.SuggestingErrorOnUnknown;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
@@ -61,18 +59,12 @@ import static java.util.stream.Collectors.toMap;
 public class AggregatorFactories {
     public static final Pattern VALID_AGG_NAME = Pattern.compile("[^\\[\\]>]+");
 
-    public static final int MAX_NESTED_DEPTH_HARD_LIMIT = 1000;
-
-    public static final Setting<Integer> MAX_NESTED_DEPTH_SETTING = Setting.intSetting(
-        "search.aggs.max_nested_depth",
-        100,
-        1,
-        MAX_NESTED_DEPTH_HARD_LIMIT,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
-    private static volatile int maxNestedDepth = MAX_NESTED_DEPTH_SETTING.getDefault(Settings.EMPTY);
+    /**
+     * Maximum number of levels of aggregations that may be nested within one another in a single request.
+     * Requests with more deeply nested aggregations are rejected instead of risking a fatal
+     * {@link StackOverflowError} while the aggregators are being built.
+     */
+    public static final int MAX_NESTED_DEPTH = 100;
 
     /**
      * Parses the aggregation request recursively generating aggregator
@@ -82,29 +74,8 @@ public class AggregatorFactories {
         return parseAggregators(parser, 0);
     }
 
-    /**
-     * Set the maximum number of levels of aggregations that may be nested within one another. Called once per node at
-     * startup from {@link org.elasticsearch.search.SearchModule}, and again on every update of
-     * {@link #MAX_NESTED_DEPTH_SETTING} since it is {@link Setting.Property#Dynamic}; {@link #parseAggregators(XContentParser)}
-     * is static, so the limit has to live in a static too.
-     */
-    public static void setMaxNestedDepth(int maxNestedDepth) {
-        if (maxNestedDepth < 1) {
-            throw new IllegalArgumentException("maxNestedDepth must be >= 1");
-        }
-        AggregatorFactories.maxNestedDepth = maxNestedDepth;
-    }
-
-    public static int getMaxNestedDepth() {
-        return maxNestedDepth;
-    }
-
     private static String maxNestedDepthExceededMessage() {
-        return "The nested depth of the aggregations exceeds the maximum nested depth for aggregations of ["
-            + maxNestedDepth
-            + "] set in ["
-            + MAX_NESTED_DEPTH_SETTING.getKey()
-            + "]";
+        return "The nested depth of the aggregations exceeds the maximum nested depth for aggregations of [" + MAX_NESTED_DEPTH + "]";
     }
 
     private static AggregatorFactories.Builder parseAggregators(XContentParser parser, int level) throws IOException {
@@ -129,7 +100,7 @@ public class AggregatorFactories {
                 );
             }
 
-            if (level >= maxNestedDepth) {
+            if (level >= MAX_NESTED_DEPTH) {
                 throw new ParsingException(parser.getTokenLocation(), maxNestedDepthExceededMessage());
             }
 
@@ -497,7 +468,7 @@ public class AggregatorFactories {
             while (builders.isEmpty() == false) {
                 final Builder current = builders.pop();
                 final int level = levels.pop();
-                if (level >= maxNestedDepth
+                if (level >= MAX_NESTED_DEPTH
                     && (current.aggregationBuilders.isEmpty() == false || current.pipelineAggregatorBuilders.isEmpty() == false)) {
                     throw new IllegalArgumentException(maxNestedDepthExceededMessage());
                 }

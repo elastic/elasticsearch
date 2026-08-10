@@ -62,9 +62,10 @@ HIGHLIGHT [prefix = "<prefix>"] query ON field [, field, ...] [WITH { "option": 
 `analyzer`
 :   (Optional) Analyzer for both the query and field text. By default,
     `HIGHLIGHT` uses the `standard` analyzer, even when the field mapping uses a
-    different analyzer. Only built-in and node-level plugin analyzers are
-    supported. For cross-cluster queries, install a plugin analyzer on every
-    remote cluster that plans the query.
+    different analyzer. If a full-text function specifies its own `analyzer`,
+    it must name the same analyzer selected here. Only built-in and node-level
+    plugin analyzers are supported. For cross-cluster queries, install a plugin
+    analyzer on every remote cluster that plans the query.
 
 `number_of_fragments`
 :   (Optional) Maximum number of fragments (snippets) to return per field. `0`

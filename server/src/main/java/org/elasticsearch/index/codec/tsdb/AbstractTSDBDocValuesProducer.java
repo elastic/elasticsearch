@@ -914,7 +914,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
 
         void decodeBulk(int numBlocks, int firstDocId, int lastDocId, int count, BlockLoader.SingletonBytesRefBuilder builder)
             throws IOException {
-            final long firstBlockId = findBlock(firstDocId, numBlocks, lastBulkBlockId < 0 ? 0 : lastBulkBlockId);
+            final long firstBlockId = findBlock(firstDocId, numBlocks, lastBulkBlockId == -1 ? 0 : lastBulkBlockId);
             final long endBlockId = findBlock(lastDocId, numBlocks, firstBlockId);
             final int bufferSize = computeMultipleBlockBufferSize(firstBlockId, endBlockId);
 
@@ -923,7 +923,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
             int valuesBufferIndex = 0;
             final byte[] valuesBuffer = new byte[bufferSize];
 
-            int sentinel = 0;
+            int lastOffsetIndex = 0;
             for (long blockId = firstBlockId; blockId <= endBlockId; blockId++) {
                 int blockStartDocId = (int) docOffsets.get(blockId);
                 int blockEndDocId = (int) docOffsets.get(blockId + 1);
@@ -942,16 +942,16 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 int startDocId = blockId == firstBlockId ? firstDocId : blockStartDocId;
                 int endDocId = blockId == endBlockId ? lastDocId + 1 : blockEndDocId;
 
-                int blockBase = valuesBufferIndex;
+                final int blockBase = valuesBufferIndex;
                 for (int docId = startDocId; docId < endDocId; docId++) {
                     offsetBuffer[offsetBufferIndex++] = blockBase + uncompressedDocStarts[docId - blockStartDocId];
                 }
                 // The final iteration's value becomes the sentinel offsetBuffer[count].
-                sentinel = blockBase + uncompressedDocStarts[endDocId - blockStartDocId];
+                lastOffsetIndex = blockBase + uncompressedDocStarts[endDocId - blockStartDocId];
 
                 valuesBufferIndex += fullBlockLength;
             }
-            offsetBuffer[offsetBufferIndex] = sentinel;
+            offsetBuffer[offsetBufferIndex] = lastOffsetIndex;
             // uncompressedBlock was bypassed: invalidate it so a subsequent decode() re-decompresses.
             lastBlockId = -1;
             lastBulkBlockId = endBlockId;

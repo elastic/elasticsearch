@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.stateless.commits;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -433,17 +434,23 @@ public class HollowShardsService extends AbstractLifecycleComponent implements M
                             logger.debug(() -> "Flushing shard [" + shardId + "] to produce a blob with a local translog node id");
                             indexShard.withEngine(engine -> {
                                 assert engine instanceof IndexEngine : shardId + ": expected IndexEngine but was " + engine.getClass();
-                                engine.flush(true, true, ActionListener.wrap(flushResult -> {
-                                    assert flushResult.skippedDueToCollision() == false : "Flush was skipped";
-                                    // Check hollow state before removeHollowShard: once the shard leaves the hollow map a
-                                    // concurrent relocation can call prepareForEngineReset → flushHollow on this engine,
-                                    // which would overwrite lastCommittedSegmentInfos and cause a spurious assertion failure.
-                                    assert assertIndexEngineLastCommitHollow(shardId, engine, false);
-                                    removeHollowShard(indexShard, "unhollowing gen " + flushResult.generation());
-                                    logger.info("{} unhollowed shard with gen {}", shardId, flushResult.generation());
-                                    metrics.unhollowSuccessCounter().increment();
-                                    metrics.unhollowTimeMs().record(relativeTimeSupplierInMillis.getAsLong() - startTime);
-                                }, e -> failedUnhollowing(shardId, e)));
+                                // Fork the flush callback to the generic pool so it always runs outside the
+                                // withEngine read engineResetLock.
+                                engine.flush(
+                                    true,
+                                    true,
+                                    new ThreadedActionListener<>(threadPool.generic(), ActionListener.wrap(flushResult -> {
+                                        assert flushResult.skippedDueToCollision() == false : "Flush was skipped";
+                                        // Check hollow state before removeHollowShard: once the shard leaves the hollow map a
+                                        // concurrent relocation can call prepareForEngineReset → flushHollow on this engine,
+                                        // which would overwrite lastCommittedSegmentInfos and cause a spurious assertion failure.
+                                        assert assertIndexEngineLastCommitHollow(shardId, engine, false);
+                                        removeHollowShard(indexShard, "unhollowing gen " + flushResult.generation());
+                                        logger.info("{} unhollowed shard with gen {}", shardId, flushResult.generation());
+                                        metrics.unhollowSuccessCounter().increment();
+                                        metrics.unhollowTimeMs().record(relativeTimeSupplierInMillis.getAsLong() - startTime);
+                                    }, e -> failedUnhollowing(shardId, e)))
+                                );
                                 return null;
                             });
                         }, e -> failedUnhollowing(indexShard.shardId(), e));

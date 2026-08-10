@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.telemetry.TransformMeterRegistry;
 import org.junit.Before;
 
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -88,6 +89,17 @@ public class TransformConfigAutoMigrationTests extends ESTestCase {
         verify(auditor, only()).info(eq(updatedConfig.getId()), eq(TransformMessages.MAX_PAGE_SEARCH_SIZE_MIGRATION));
     }
 
+    public void testMigratePreservesHeaders() {
+        Map<String, String> headers = Map.of("_xpack_security_authentication", "minted-auth", "x-trace-id", "trace-1");
+        var config = new TransformConfig.Builder(randomTransformConfigWithDeprecatedSettings()).setHeaders(headers).build();
+
+        var updatedConfig = autoMigration.migrate(config);
+
+        assertThatMaxPageSearchSizeMigrated(updatedConfig, config);
+        assertThat(updatedConfig.getHeaders(), equalTo(headers));
+        verify(auditor, only()).info(eq(updatedConfig.getId()), eq(TransformMessages.MAX_PAGE_SEARCH_SIZE_MIGRATION));
+    }
+
     private static TransformConfig randomTransformConfigWithDeprecatedSettings() {
         return randomTransformConfigWithSettings(SettingsConfig.EMPTY, randomPivotConfigWithDeprecatedFields(), null);
     }
@@ -147,6 +159,27 @@ public class TransformConfigAutoMigrationTests extends ESTestCase {
 
         testMigration(originalConfig, updatedConfig -> {
             assertThatMaxPageSearchSizeMigrated(updatedConfig, originalConfig);
+            verify(auditor, only()).info(eq(updatedConfig.getId()), eq(TransformMessages.MAX_PAGE_SEARCH_SIZE_MIGRATION));
+        });
+    }
+
+    public void testMigrateAndSavePreservesHeaders() throws InterruptedException {
+        Map<String, String> headers = Map.of("_xpack_security_authentication", "creator-auth", "x-trace-id", "trace-2");
+        var originalConfig = new TransformConfig.Builder(randomTransformConfigWithDeprecatedSettings()).setHeaders(headers).build();
+        doAnswer(ans -> {
+            ActionListener<Boolean> listener = ans.getArgument(2);
+            listener.onResponse(true);
+            return null;
+        }).when(transformConfigManager).updateTransformConfiguration(any(), any(), any());
+        doAnswer(ans -> {
+            ActionListener<Tuple<TransformConfig, SeqNoPrimaryTermAndIndex>> listener = ans.getArgument(1);
+            listener.onResponse(Tuple.tuple(originalConfig, mock()));
+            return null;
+        }).when(transformConfigManager).getTransformConfigurationForUpdate(any(), any());
+
+        testMigration(originalConfig, updatedConfig -> {
+            assertThatMaxPageSearchSizeMigrated(updatedConfig, originalConfig);
+            assertThat(updatedConfig.getHeaders(), equalTo(headers));
             verify(auditor, only()).info(eq(updatedConfig.getId()), eq(TransformMessages.MAX_PAGE_SEARCH_SIZE_MIGRATION));
         });
     }

@@ -178,23 +178,6 @@ public final class ElasticsearchNodesSniffer implements NodesSniffer {
                                 host = publishAddressAsURI.getHost();
                             }
                             publishedHost = new HttpHost(host, publishAddressAsURI.getPort(), publishAddressAsURI.getScheme());
-                            /*
-                             * In Docker (and similar environments) the node may bind to 0.0.0.0
-                             * while publishing a specific hostname via the cname/ip:port format.
-                             * The cname-based publishedHost will not appear in bound_address, so
-                             * we add it to boundHosts explicitly. Also add the IP-based host so
-                             * clients can look up the node by either cname or IP.
-                             */
-                            if (address.contains("/")) {
-                                boundHosts.add(publishedHost);
-                                boundHosts.add(
-                                    new HttpHost(
-                                        publishAddressAsURI.getHost(),
-                                        publishAddressAsURI.getPort(),
-                                        publishAddressAsURI.getScheme()
-                                    )
-                                );
-                            }
                         } else if (parser.currentToken() == JsonToken.START_ARRAY && "bound_address".equals(parser.getCurrentName())) {
                             while (parser.nextToken() != JsonToken.END_ARRAY) {
                                 URI boundAddressAsURI = URI.create(scheme + "://" + parser.getValueAsString());

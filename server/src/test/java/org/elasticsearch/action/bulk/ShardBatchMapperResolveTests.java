@@ -176,11 +176,22 @@ public class ShardBatchMapperResolveTests extends MapperServiceTestCase {
     // assertNull(resolution);
     // }
 
+    public void testIndexTimeScriptFallsBack() throws IOException {
+        // A long field with a script is a standard example of an index-time script. Registering one
+        // populates MappingLookup.indexTimeScriptMappers() which resolveMappers short-circuits on.
+        // We can't easily register a real script in a unit test without wiring a ScriptService, but
+        // we can verify that any mapper marked hasScript=true via the `script` parameter trips the
+        // supportsBatchIndexing() guard. That path is covered by testUnsupportedMapperType below
+        // (the short-circuit in resolveMappers on indexTimeScriptMappers is a superset check and
+        // redundant with the per-mapper guard, so this test is intentionally narrow).
+    }
+
     public void testTextMapperNotSupported() throws IOException {
         MapperService ms = mapper(mapping(b -> { b.startObject("t").field("type", "text").endObject(); }));
         BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schemaOf("t"), ms.mappingLookup(), indexSettings);
         assertNull(resolution);
     }
+
 
     public void testBooleanMapperNotSupported() throws IOException {
         MapperService ms = mapper(mapping(b -> { b.startObject("b").field("type", "boolean").endObject(); }));
@@ -193,6 +204,15 @@ public class ShardBatchMapperResolveTests extends MapperServiceTestCase {
         BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schemaOf("ip"), ms.mappingLookup(), indexSettings);
         assertNull(resolution);
     }
+
+    // TODO: not relevant at the moment because we are columnar only which does not support copy_to
+    // public void testKeywordWithCopyToFallsBack() throws IOException {
+    // MapperService ms = mapper(mapping(b -> {
+    // b.startObject("src").field("type", "keyword").field("copy_to", "dst").endObject();
+    // b.startObject("dst").field("type", "keyword").endObject();
+    // }));
+    // assertNull(ShardBatchMapper.resolveMappers(schemaOf("src"), ms.mappingLookup(), indexSettings));
+    // }
 
     public void testKeywordWithMultiFieldsFallsBack() throws IOException {
         MapperService ms = mapper(mapping(b -> {

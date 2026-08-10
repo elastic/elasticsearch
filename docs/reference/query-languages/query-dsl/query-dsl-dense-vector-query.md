@@ -3,7 +3,7 @@ navigation_title: "Dense vector"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-dense-vector-query.html
 applies_to:
-  stack: ga 9.5
+  stack: ga 9.6
   serverless: all
 ---
 
@@ -17,7 +17,7 @@ exact scores, want to combine exact vector scoring with other queries, or want t
 field that is not indexed for approximate search (`index: false`).
 
 By default, scoring uses the original, full-precision vectors, so a [quantized](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-quantization)
-index still produces full-precision scores. See [`quantized`](#dense-vector-query-params) to score against
+index still produces full-precision scores. See [`quantized`](#dense-vector-query-quantized) to score against
 the quantized representation instead.
 
 ## Example request [dense-vector-query-ex-request]
@@ -87,7 +87,9 @@ this query. One of `l2_norm`, `dot_product`, `cosine`, or `max_inner_product`. D
 configured similarity, or to `cosine` for a non-indexed (`index: false`) field, which has no configured
 similarity. For `bit` fields, only `l2_norm` is supported. Cannot be combined with `quantized: true`.
 
-`quantized` [dense-vector-query-quantized]
+$$$dense-vector-query-quantized$$$
+
+`quantized`
 :   (Optional, Boolean) Defaults to `false`.
 
     When `false` (the default), scoring iterates the preserved full-precision vectors, producing raw scores
@@ -98,9 +100,11 @@ similarity. For `bit` fields, only `l2_norm` is supported. Cannot be combined wi
     with `similarity_function`.
 
     ::::{note}
-    `quantized: true` only makes sense for [quantized](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-quantization)
-    fields. For non-quantized `dense_vector` fields, the setting is ignored and the original vectors are used
-    for scoring.
+    `quantized: true` is a best-effort option: it uses quantized vectors when the field is
+    [quantized](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-quantization), and
+    falls back to full-precision scoring for non-quantized `dense_vector` fields. During an index type
+    transition (for example, `hnsw` to `int8_hnsw`), older segments retain their original codec until merged
+    away, so scores within a single query may mix quantized and full-precision semantics.
     ::::
 
 `boost`

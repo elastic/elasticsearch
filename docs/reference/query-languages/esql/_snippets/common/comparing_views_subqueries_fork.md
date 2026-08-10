@@ -15,8 +15,8 @@
 
 ### How FORK differs
 
-* `FORK` does not include a `FROM` command. Every branch receives the same incoming rows and columns.
-* `FROM` subqueries and views each have their own `FROM` command, so branches can read from different sources with different columns.
+* `FORK` does not include a source command. Every branch receives the same incoming rows and columns.
+* `FROM` subqueries and views each have their own source command (`FROM`, `TS`, or `ROW`), so branches can read from different sources with different columns.
 * Only one `FORK` command is allowed per query, so nested branches are not possible. `FROM` subqueries and views have similar restrictions, but views can partially work around them through query compaction.
 
 ### How views differ from FROM subqueries
@@ -26,4 +26,4 @@
 * Views can be nested (up to a depth of 10), with two restrictions:
   * Cyclic references are not allowed. For example, if `viewA` references `viewB` and `viewB` references `viewC`, then `viewC` cannot reference `viewA`. Cycles are detected at query time.
   * No more than one branching point can exist across the nesting chain.
-* `FROM` subqueries do not support further subqueries or `FORK` inside them. Views allow this under limited conditions.
+* `FROM` subqueries do not support further `FROM` subqueries or `FORK` inside them, but can contain `IN` subqueries. Views allow nested branching under [limited conditions](/reference/query-languages/esql/esql-views.md#nesting-and-branching).

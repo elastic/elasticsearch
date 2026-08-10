@@ -245,6 +245,6 @@ outer query.
 ## Related pages
 
 * [ES|QL subqueries](/reference/query-languages/esql/esql-subquery.md): canonical definition and supported commands.
-* [Use subqueries in a FROM command](/reference/query-languages/esql/esql-from-subquery.md): combine result sets from independently processed sources.
+* [Use subqueries in a `FROM` command](/reference/query-languages/esql/esql-from-subquery.md): combine result sets from independently processed sources.
 * [`WHERE` command](/reference/query-languages/esql/commands/where.md): full reference for the `WHERE` command.
 * [`IN` operator](/reference/query-languages/esql/functions-operators/operators.md): the operator used to match against a list of literal values or a subquery.

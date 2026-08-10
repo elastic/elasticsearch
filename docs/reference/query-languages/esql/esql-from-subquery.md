@@ -232,7 +232,7 @@ If you only have the directive within the subquery, null values will be returned
 ## Related pages
 
 * [ES|QL subqueries](/reference/query-languages/esql/esql-subquery.md): canonical definition, supported commands, and links to both subquery usage contexts.
-* [Use subqueries in a WHERE command](/reference/query-languages/esql/esql-in-subquery.md): filter rows using subqueries with `IN` and `NOT IN`.
+* [Use subqueries in a `WHERE` command](/reference/query-languages/esql/esql-in-subquery.md): filter rows using subqueries with `IN` and `NOT IN`.
 * [Define virtual indices using ES|QL views](/reference/query-languages/esql/esql-views.md): the closest alternative to subqueries in `FROM`, with a persisted, named definition.
 * [`FROM` command](/reference/query-languages/esql/commands/from.md): full reference for index expressions.
 * [`FORK` command](/reference/query-languages/esql/commands/fork.md): the other branching construct in ES|QL, which shares the same branching limits.

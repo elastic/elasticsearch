@@ -1,8 +1,8 @@
 ---
 navigation_title: "Combine and reuse queries"
 applies_to:
-  stack: preview 9.4.0
-  serverless: preview
+  stack:
+  serverless:
 products:
   - id: elasticsearch
 ---

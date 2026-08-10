@@ -10,6 +10,9 @@ package org.elasticsearch.index.query;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -21,6 +24,8 @@ import java.util.concurrent.Executor;
  * A basic interface for rewriteable classes.
  */
 public interface Rewriteable<T> {
+
+    Logger logger = LogManager.getLogger(Rewriteable.class);
 
     int MAX_REWRITE_ROUNDS = 16;
 
@@ -143,6 +148,7 @@ public interface Rewriteable<T> {
             rewriteResponse.onFailure(ex);
             return;
         } catch (StackOverflowError ex) {
+            logger.warn(() -> Strings.format("stack overflow while rewriting [%s]", original.getClass().getName()), ex);
             rewriteResponse.onFailure(new IllegalArgumentException("The request is too deeply nested to rewrite"));
             return;
         }

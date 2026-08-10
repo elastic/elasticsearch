@@ -8,11 +8,14 @@
  */
 package org.elasticsearch.index.query;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.core.LogEvent;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -81,6 +84,29 @@ public class RewriteableTests extends ESTestCase {
         assertThat(failure, instanceOf(IllegalArgumentException.class));
         assertEquals("The request is too deeply nested to rewrite", failure.getMessage());
         assertTrue("no Error may be reachable from the failure", ExceptionsHelper.maybeError(failure).isEmpty());
+    }
+
+    public void testRewriteAndFetchLogsTheStackOverflowBeforeDiscardingIt() {
+        QueryRewriteContext context = new QueryRewriteContext(null, null, null);
+        PlainActionFuture<TestRewriteable> future = new PlainActionFuture<>();
+
+        MockLog.assertThatLogger(
+            () -> Rewriteable.rewriteAndFetch(new StackOverflowingTestRewriteable(), context, future),
+            Rewriteable.class,
+            new MockLog.SeenEventExpectation(
+                "stack overflow warning",
+                Rewriteable.class.getCanonicalName(),
+                Level.WARN,
+                "stack overflow while rewriting [" + StackOverflowingTestRewriteable.class.getName() + "]"
+            ) {
+                @Override
+                public boolean innerMatch(LogEvent event) {
+                    return event.getThrown() instanceof StackOverflowError;
+                }
+            }
+        );
+
+        expectThrows(ExecutionException.class, future::get);
     }
 
     public void testRewriteAndFetchDoesNotConvertFailuresRaisedByTheListener() {

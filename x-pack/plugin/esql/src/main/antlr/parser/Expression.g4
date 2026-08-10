@@ -65,8 +65,8 @@ functionParam
     ;
 
 lambda
-    : LP (identifier (COMMA identifier)*)? RP ARROW booleanExpression
-    | identifier ARROW booleanExpression
+    : {this.isDevVersion()}? LP (identifier (COMMA identifier)*)? RP ARROW booleanExpression
+    | {this.isDevVersion()}? identifier ARROW booleanExpression
     ;
 
 mapExpression

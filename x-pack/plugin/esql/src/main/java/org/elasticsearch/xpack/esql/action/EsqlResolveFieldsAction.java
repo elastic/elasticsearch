@@ -26,6 +26,7 @@ import org.elasticsearch.action.fieldcaps.RemoteViewNotSupportedException;
 import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -38,6 +39,7 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.Task;
@@ -211,17 +213,23 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<EsqlResolveF
         for (var expression : expressions.expressions()) {
             if (expression.localExpressions().localIndexResolutionResult() == ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS) {
                 for (var index : expression.localExpressions().indices()) {
-                    var indexAbstraction = indicesLookup.get(index);
+                    var nameAndSelector = IndexNameExpressionResolver.splitSelectorExpression(index);
+                    var indexAbstraction = indicesLookup.get(nameAndSelector.v1());
                     if (indexAbstraction != null) {
+                        // TODO should we allow selectors on non-data streams?
                         switch (indexAbstraction.getType()) {
                             case CONCRETE_INDEX -> result.indices.add(indexAbstraction);
-                            case ALIAS, DATA_STREAM -> result.indices.addAll(
-                                indexAbstraction.getIndices()
-                                    .stream()
+                            case ALIAS, DATA_STREAM -> {
+                                List<Index> source = switch (IndexComponentSelector.getByKey(nameAndSelector.v2())) {
+                                    case null -> indexAbstraction.getIndices();
+                                    case DATA -> indexAbstraction.getIndices();
+                                    case FAILURES -> indexAbstraction.getFailureIndices(projectState.metadata());
+                                };
+                                source.stream()
                                     .map(target -> indicesLookup.get(target.getName()))
                                     .filter(Objects::nonNull)
-                                    .toList()
-                            );
+                                    .collect(Collectors.toCollection(() -> result.indices));
+                            }
                             // TODO collect views and datasets
                         }
                     }

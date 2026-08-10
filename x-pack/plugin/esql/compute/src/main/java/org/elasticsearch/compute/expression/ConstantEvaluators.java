@@ -20,6 +20,7 @@ public class ConstantEvaluators {
     public static final ExpressionEvaluator.Factory CONSTANT_TRUE_FACTORY = new ConstantTrueEvaluator.Factory();
     public static final ExpressionEvaluator.Factory CONSTANT_FALSE_FACTORY = new ConstantFalseEvaluator.Factory();
 
+    /** Returns a factory that emits {@code value} for every position in the page, including null input positions. */
     public static ExpressionEvaluator.Factory constantDouble(double value) {
         return new ConstantDoubleEvaluator.Factory(value);
     }

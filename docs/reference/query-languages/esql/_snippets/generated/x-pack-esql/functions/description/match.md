@@ -34,7 +34,8 @@ analyzer is used. On other expression types options are not supported.
 
 {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
 When using `METADATA _score`, `MATCH` on an expression contributes to the relevance score:
-a row scores the `boost` option (1.0 by default) for each distinct query term it matches.
+a row scores the `boost` option (1.0 by default) for each query term occurrence it matches
+(duplicate query terms each contribute separately).
 Unlike indexed fields, expressions are not scored with BM25, as there are no index statistics
 for an expression. In earlier versions, `MATCH` on an expression does not contribute to the
 score.

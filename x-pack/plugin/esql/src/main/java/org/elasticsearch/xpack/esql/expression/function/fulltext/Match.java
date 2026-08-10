@@ -193,7 +193,8 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
 
             {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
             When using `METADATA _score`, `MATCH` on an expression contributes to the relevance score:
-            a row scores the `boost` option (1.0 by default) for each distinct query term it matches.
+            a row scores the `boost` option (1.0 by default) for each query term occurrence it matches
+            (duplicate query terms each contribute separately).
             Unlike indexed fields, expressions are not scored with BM25, as there are no index statistics
             for an expression. In earlier versions, `MATCH` on an expression does not contribute to the
             score.
@@ -622,8 +623,8 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
 
     /**
      * Scores runtime matches with {@link RuntimeSearch}'s boolean-similarity semantics — there are no corpus
-     * statistics to feed BM25 (for now ...) — so a row scores the boost (1.0 without options) for each distinct query
-     * term it matches. Non-text exact matches score 1.0.
+     * statistics to feed BM25 (for now ...) — so a row scores boost × (number of matched query term occurrences),
+     * where a query term repeated N times weighs N. Non-text exact matches score 1.0.
      */
     @Override
     public ExpressionEvaluator.Factory toScorer(ToScorer toScorer) {
@@ -790,8 +791,10 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
                 while (stream.incrementToken()) {
                     BytesRef token = term.getBytesRef();
                     Integer weight = queryTerms.get(token);
-                    // The token attribute's BytesRef is reused between tokens, so the found set needs its own copy.
-                    if (weight != null && foundTerms.add(BytesRef.deepCopyOf(token))) {
+                    // The token attribute's BytesRef is reused between tokens, so the found set needs its own copy;
+                    // check contains first to avoid allocating a copy for tokens already counted.
+                    if (weight != null && foundTerms.contains(token) == false) {
+                        foundTerms.add(BytesRef.deepCopyOf(token));
                         score += weight;
                         if (score >= totalWeight) {
                             break;

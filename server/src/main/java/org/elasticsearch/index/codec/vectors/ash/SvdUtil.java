@@ -13,6 +13,8 @@ import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.util.Arrays;
 
+import static org.elasticsearch.simdvec.ESVectorUtil.transposeMatrix;
+
 /**
  * Utility class providing thin SVD decomposition via one-sided Jacobi rotations.
  * <p>
@@ -47,10 +49,14 @@ final class SvdUtil {
     public static SvdResult thinSvd(float[][] a, int m, int n) {
         if (m < n) {
             // For wide matrices, compute SVD of transpose and swap U/V
-            float[][] at = transpose(a, m, n);
+            float[][] at = transposeMatrix(a, m, n);
             SvdResult result = thinSvd(at, n, m);
             // A = U * S * Vt => At = V * S * Ut
-            return new SvdResult(result.vt() != null ? transposeSquare(result.vt(), m) : null, result.s(), transposeToVt(result.u(), n, m));
+            return new SvdResult(
+                result.vt() != null ? transposeMatrix(result.vt(), m, m) : null,
+                result.s(),
+                transposeMatrix(result.u(), m, n)
+            );
         }
 
         // Copy A into working matrix (m x n)
@@ -138,12 +144,7 @@ final class SvdUtil {
         sortDescending(u, s, v, m, n);
 
         // Vt = transpose of V
-        float[][] vt = new float[n][n];
-        for (int i = 0; i < n; i++) {
-            for (int j = 0; j < n; j++) {
-                vt[i][j] = v[j][i];
-            }
-        }
+        float[][] vt = transposeMatrix(v, n, n);
 
         return new SvdResult(u, s, vt);
     }
@@ -289,6 +290,7 @@ final class SvdUtil {
 
     private static void sortDescending(float[][] u, float[] s, float[][] v, int m, int n) {
         // Simple insertion sort (n is small)
+        // TODO: swap out with IntroSorter, which uses insertion sort for small arrays?
         for (int i = 0; i < n - 1; i++) {
             int maxIdx = i;
             for (int j = i + 1; j < n; j++) {
@@ -315,37 +317,6 @@ final class SvdUtil {
                 }
             }
         }
-    }
-
-    private static float[][] transpose(float[][] a, int m, int n) {
-        float[][] at = new float[n][m];
-        for (int i = 0; i < m; i++) {
-            for (int j = 0; j < n; j++) {
-                at[j][i] = a[i][j];
-            }
-        }
-        return at;
-    }
-
-    private static float[][] transposeSquare(float[][] a, int n) {
-        float[][] at = new float[n][n];
-        for (int i = 0; i < n; i++) {
-            for (int j = 0; j < n; j++) {
-                at[i][j] = a[j][i];
-            }
-        }
-        return at;
-    }
-
-    private static float[][] transposeToVt(float[][] u, int k, int m) {
-        // u is (m x k), we want (k x m)
-        float[][] vt = new float[k][m];
-        for (int i = 0; i < m; i++) {
-            for (int j = 0; j < k; j++) {
-                vt[j][i] = u[i][j];
-            }
-        }
-        return vt;
     }
 
     /**
@@ -392,12 +363,7 @@ final class SvdUtil {
 
         for (int iter = 0; iter < iters; iter++) {
             // Build transposed view vT (k x n) for cache-friendly row access in matmul
-            float[][] vT = new float[k][n];
-            for (int d = 0; d < n; d++) {
-                for (int j = 0; j < k; j++) {
-                    vT[j][d] = v[d][j];
-                }
-            }
+            float[][] vT = transposeMatrix(v, n, k);
 
             // W = A @ V (m x k): w[i][j] = dot(a[i], vT[j])
             float[][] w = new float[m][k];
@@ -405,8 +371,7 @@ final class SvdUtil {
                 float[] aRow = a[i];
                 float[] wRow = w[i];
                 for (int j = 0; j < k; j++) {
-                    float[] vtRow = vT[j];
-                    wRow[j] = ESVectorUtil.dotProduct(aRow, vtRow, n);
+                    wRow[j] = ESVectorUtil.dotProduct(aRow, vT[j], n);
                 }
             }
 
@@ -428,13 +393,7 @@ final class SvdUtil {
         }
 
         // Convert columns of V to rows for return format (k x n)
-        float[][] result = new float[k][n];
-        for (int j = 0; j < k; j++) {
-            for (int d = 0; d < n; d++) {
-                result[j][d] = v[d][j];
-            }
-        }
-        return result;
+        return transposeMatrix(v, n, k);
     }
 
     /**

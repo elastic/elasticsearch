@@ -82,6 +82,7 @@ final class SearchScrollQueryThenFetchAsyncAction extends SearchScrollAsyncActio
                     queryResults.length()
                 );
                 final CountDown counter = new CountDown(docIdsToLoad.length);
+                final Runnable onFetchPhaseFinished = () -> sendResponseAndReleaseFetchResults(reducedQueryPhase);
                 for (int i = 0; i < docIdsToLoad.length; i++) {
                     final int index = i;
                     final List<Integer> docIds = docIdsToLoad[index];
@@ -108,9 +109,7 @@ final class SearchScrollQueryThenFetchAsyncAction extends SearchScrollAsyncActio
                                     accumulateDirectoryMetrics(response.getDirectoryMetrics());
                                     fetchResults.setOnce(response.getShardIndex(), response);
                                     response.incRef();
-                                    if (counter.countDown()) {
-                                        sendResponseAndReleaseFetchResults(reducedQueryPhase);
-                                    }
+                                    countDownAndFinish(counter, onFetchPhaseFinished);
                                 }
 
                                 @Override
@@ -124,7 +123,7 @@ final class SearchScrollQueryThenFetchAsyncAction extends SearchScrollAsyncActio
                                         () -> new SearchPhase("fetch") {
                                             @Override
                                             protected void run() {
-                                                sendResponseAndReleaseFetchResults(reducedQueryPhase);
+                                                onFetchPhaseFinished.run();
                                             }
                                         }
                                     );
@@ -134,13 +133,17 @@ final class SearchScrollQueryThenFetchAsyncAction extends SearchScrollAsyncActio
                     } else {
                         // the counter is set to the total size of docIdsToLoad
                         // which can have null values so we have to count them down too
-                        if (counter.countDown()) {
-                            sendResponseAndReleaseFetchResults(reducedQueryPhase);
-                        }
+                        countDownAndFinish(counter, onFetchPhaseFinished);
                     }
                 }
             }
         };
+    }
+
+    private static void countDownAndFinish(CountDown counter, Runnable onFinish) {
+        if (counter.countDown()) {
+            onFinish.run();
+        }
     }
 
     private void sendResponseAndReleaseFetchResults(SearchPhaseController.ReducedQueryPhase reducedQueryPhase) {

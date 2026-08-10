@@ -494,19 +494,19 @@ public class SharedBlobCacheWarmingService {
         this.enqueuedBccBlobsMetric = telemetryProvider.getMeterRegistry()
             .registerLongUpDownCounter(
                 BLOB_CACHE_WARMING_BCC_BLOBS_ENQUEUED_METRIC,
-                "Number of BCC blob byte-range warming tasks currently enqueued, waiting to be picked up by the warming executor",
+                "Number of BCC blobs currently enqueued for warming, waiting to be picked up by the warming executor",
                 "count"
             );
         this.runningBccBlobsMetric = telemetryProvider.getMeterRegistry()
             .registerLongUpDownCounter(
                 BLOB_CACHE_WARMING_BCC_BLOBS_RUNNING_METRIC,
-                "Number of BCC blob byte-range warming tasks currently running (picked up by the executor but not yet completed)",
+                "Number of BCC blobs currently warming (picked up by the executor but not yet warmed to the desired ratio)",
                 "count"
             );
         this.doneBccBlobsMetric = telemetryProvider.getMeterRegistry()
             .registerLongCounter(
                 BLOB_CACHE_WARMING_BCC_BLOBS_DONE_TOTAL_METRIC,
-                "Total number of BCC blob byte-range warming tasks completed (includes cancelled tasks)",
+                "Total number of BCC blobs warmed (includes cancelled tasks)",
                 "count"
             );
         this.prewarmingRangeMinimizationStep = clusterSettings.get(PREWARMING_RANGE_MINIMIZATION_STEP).getBytes();

@@ -446,6 +446,26 @@ b                       | 5033756                         | Disconnection error
 a                       | 1756468                         | Disconnected from 10.1.0.1
 ;
 
+netZeroProjectionDropAllUnmappedThenEval
+required_capability: optional_fields_load_all
+required_capability: optional_fields_load_all_net_zero_projection
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| DROP @timestamp, client_ip, event_duration, message, language_code, unmapped*
+| EVAL n = 1
+;
+
+n:integer
+1
+1
+1
+1
+1
+1
+1
+;
+
 ####################################################################
 # Gap coverage: known-failing tests documenting intended behaviour #
 ####################################################################

@@ -100,7 +100,7 @@ public class TSDBDocValuesFormatSelectorTests extends ESTestCase {
     public void testUseES95RunTableRequiresTimeSeriesMode() {
         assumeTrue("run-table ordinal feature flag must be enabled", IndexSettings.ES95_RUNTABLE_ENCODING_FEATURE_FLAG.isEnabled());
         final IndexVersion version = IndexVersionUtils.randomVersionBetween(
-            IndexVersions.ES95_TSDB_CODEC_FEATURE_FLAG,
+            IndexVersions.TIME_SERIES_RUN_TABLE_ORDINAL_DEFAULT,
             IndexVersion.current()
         );
         assertTrue(TSDBDocValuesFormatSelector.useES95RunTable(indexSettings(IndexMode.TIME_SERIES, version, true)));
@@ -117,7 +117,7 @@ public class TSDBDocValuesFormatSelectorTests extends ESTestCase {
     public void testUseES95RunTableReturnsFalseWhenFeatureFlagDisabled() {
         assumeFalse("run-table ordinal feature flag must be disabled", IndexSettings.ES95_RUNTABLE_ENCODING_FEATURE_FLAG.isEnabled());
         final IndexVersion version = IndexVersionUtils.randomVersionBetween(
-            IndexVersions.ES95_TSDB_CODEC_FEATURE_FLAG,
+            IndexVersions.TIME_SERIES_RUN_TABLE_ORDINAL_DEFAULT,
             IndexVersion.current()
         );
         assertFalse(TSDBDocValuesFormatSelector.useES95RunTable(indexSettings(IndexMode.TIME_SERIES, version, true)));

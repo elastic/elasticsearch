@@ -68,6 +68,8 @@ public final class TSDBDocValuesFormatSelector {
     }
 
     static boolean useES95RunTable(final IndexSettings indexSettings) {
-        return indexSettings.getMode().isTsdb() && indexSettings.isTimeSeriesRunTableOrdinalEnabled();
+        return indexSettings.getMode().isTsdb()
+            && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.TIME_SERIES_RUN_TABLE_ORDINAL_DEFAULT)
+            && indexSettings.isTimeSeriesRunTableOrdinalEnabled();
     }
 }

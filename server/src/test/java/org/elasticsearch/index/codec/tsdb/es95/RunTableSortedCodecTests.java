@@ -178,6 +178,11 @@ public class RunTableSortedCodecTests extends ESTestCase {
                 }
             }
         }
+
+        // Fallback adds the discriminator byte but never produces a smaller file than the default layout.
+        final long runTableBytes = docValuesBytes(termByDoc, runTableFormat(NUMERIC_BLOCK_SHIFT));
+        final long defaultBytes = docValuesBytes(termByDoc, new ES819TSDBDocValuesFormat());
+        assertTrue("churn fallback " + runTableBytes + " must be >= default " + defaultBytes, runTableBytes >= defaultBytes);
     }
 
     public void testRunTableSmallerThanDefaultLayout() throws IOException {

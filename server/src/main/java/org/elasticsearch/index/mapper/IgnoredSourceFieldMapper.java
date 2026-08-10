@@ -409,7 +409,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
         }
 
         if (XContentDataHelper.isEncodedObject(nameValue.value()) == false) {
-            // A leaf value has no subfields to strip, so the whole entry either survives or it does not, and the field name alone decides
+            // A scalar value has no subfields to strip, so the whole entry either survives or it does not, and the field name alone decides
             // which. This avoids decoding the value into a map only to serialize it straight back.
             return nameFilter.test(nameValue.name()) ? value : null;
         }

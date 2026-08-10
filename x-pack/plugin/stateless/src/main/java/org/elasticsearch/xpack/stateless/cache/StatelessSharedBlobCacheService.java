@@ -22,6 +22,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.TimeProvider;
 import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Predicates;
@@ -104,6 +105,19 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         );
 
     /**
+     * Whether time-based search shards should stamp metadata-read cache regions with
+     * {@link SharedBlobCacheService#BACKFILL_IN_PROGRESS_TIMESTAMP} and run completion backfill.
+     */
+    public static final Setting<Boolean> STATELESS_CACHE_BOOST_PREFERENCE_TIMESTAMP_BACKFILL_ENABLED_SETTING = Setting.boolSetting(
+        "stateless.cache_boost_preference.timestamp_backfill.enabled",
+        settings -> Boolean.toString(
+            STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING.get(settings) == StatelessCacheEvictionPolicyType.PINNED_WINDOW
+        ),
+        Setting.Property.OperatorDynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
      * Fraction of total regions that must be consecutively rejected by the eviction policy within a single eviction
      * scan before the cache enters a node-wide eviction degradation period. When {@code rejectedCount / numRegions} exceeds
      * this ratio the policy is bypassed for the duration of {@link #STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_DURATION_SETTING}.
@@ -136,9 +150,10 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
     /// (and, if necessary, disabled) at runtime on its own. Obsolete-region eviction keys off active/inactive regions per
     /// batched-compound-commit generation and needs neither content timestamps nor the pinned-window eviction policy, so
     /// unlike the boost-preference flag it needs no validator and a dynamic flip can never leave the cache in an invalid state.
+    /// Defaults to [#STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING], but an explicit value wins.
     public static final Setting<Boolean> STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING = Setting.boolSetting(
         "stateless.cache.evict_obsolete_regions.enabled",
-        false,
+        STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING,
         Setting.Property.OperatorDynamic,
         Setting.Property.NodeScope
     );
@@ -148,9 +163,21 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
     /// being evicted, so they are the first eviction candidates while remaining usable if the shard relocates and relocates back.
     /// Index deletion and node shutdown are handled separately.
     /// A flip takes effect on the next store close; a demotion already submitted still runs.
+    /// Defaults to [#STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING], but an explicit value wins.
     public static final Setting<Boolean> STATELESS_CACHE_DEMOTE_CLOSED_SHARD_REGIONS_ENABLED_SETTING = Setting.boolSetting(
         "stateless.cache.demote_closed_shard_regions.enabled",
-        false,
+        STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING,
+        Setting.Property.OperatorDynamic,
+        Setting.Property.NodeScope
+    );
+
+    /// Setting gating force-eviction of a deleted index's cache regions (see [SharedBlobCacheService#forceEvictAsync]). The regions of a
+    /// deleted index can never be read again, so they are dropped as soon as the index is removed rather than left for the LFU to
+    /// reclaim. A flip takes effect on the next index removal; an eviction already submitted still runs.
+    /// Defaults to [#STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING], but an explicit value wins.
+    public static final Setting<Boolean> STATELESS_CACHE_EVICT_DELETED_INDEX_REGIONS_ENABLED_SETTING = Setting.boolSetting(
+        "stateless.cache.evict_deleted_index_regions.enabled",
+        STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING,
         Setting.Property.OperatorDynamic,
         Setting.Property.NodeScope
     );
@@ -163,8 +190,10 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
     private final PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder;
     private final boolean hasSearchRole;
     private final boolean cacheBoostPreferenceEnabled;
+    private volatile boolean metadataTimestampBackfillEnabled;
     private volatile boolean evictObsoleteRegionsEnabled;
     private volatile boolean demoteClosedShardRegionsEnabled;
+    private volatile boolean evictDeletedIndexRegionsEnabled;
 
     private final int evictionDegradationThreshold;
     private final long evictionDegradationDurationMillis;
@@ -216,6 +245,10 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
             : evictionDegradationThreshold + " not in [0," + numRegions + "]";
         assert evictionDegradationDurationMillis >= 0 : evictionDegradationDurationMillis + " < 0";
         clusterSettings.initializeAndWatch(
+            STATELESS_CACHE_BOOST_PREFERENCE_TIMESTAMP_BACKFILL_ENABLED_SETTING,
+            enabled -> this.metadataTimestampBackfillEnabled = enabled
+        );
+        clusterSettings.initializeAndWatch(
             STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING,
             enabled -> this.evictObsoleteRegionsEnabled = enabled
         );
@@ -223,6 +256,11 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
             STATELESS_CACHE_DEMOTE_CLOSED_SHARD_REGIONS_ENABLED_SETTING,
             enabled -> this.demoteClosedShardRegionsEnabled = enabled
         );
+        clusterSettings.initializeAndWatch(
+            STATELESS_CACHE_EVICT_DELETED_INDEX_REGIONS_ENABLED_SETTING,
+            enabled -> this.evictDeletedIndexRegionsEnabled = enabled
+        );
+        assert this.rangeSize >= this.regionSize : this.rangeSize + " < " + this.regionSize;
     }
 
     // package private for testing
@@ -230,12 +268,12 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         Settings settings,
         ClusterService clusterService,
         IndicesService indicesService,
-        ThreadPool threadPool
+        TimeProvider timeProvider
     ) {
         if (DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE)) {
-            return new SwitchingEvictionPolicy(settings, clusterService, indicesService, threadPool);
+            return new SwitchingEvictionPolicy(settings, clusterService, indicesService, timeProvider);
         } else {
-            return StatelessCacheEvictionPolicyType.createEvictionPolicy(settings, clusterService, indicesService, threadPool);
+            return StatelessCacheEvictionPolicyType.createEvictionPolicy(settings, clusterService, indicesService, timeProvider);
         }
     }
 
@@ -324,10 +362,6 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         return hasSearchRole;
     }
 
-    public void assertInvariants() {
-        assert getRangeSize() >= getRegionSize() : getRangeSize() + " < " + getRegionSize();
-    }
-
     public Executor getShardReadThreadPoolExecutor() {
         return shardReadThreadPoolExecutor;
     }
@@ -413,6 +447,13 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         return cacheBoostPreferenceEnabled;
     }
 
+    /**
+     * Whether time-based shards should use metadata-read timestamp backfill (sentinel stamping followed by completion backfill).
+     */
+    public boolean isMetadataTimestampBackfillEnabled() {
+        return metadataTimestampBackfillEnabled;
+    }
+
     /// Whether to asynchronously force-evict cache regions corresponding to obsolete segments that are not referenced anymore.
     public boolean isEvictObsoleteRegionsEnabled() {
         return evictObsoleteRegionsEnabled;
@@ -421,5 +462,10 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
     /// Whether to asynchronously demote the cache regions of a shard whose store was closed, making them the first eviction candidates.
     public boolean isDemoteClosedShardRegionsEnabled() {
         return demoteClosedShardRegionsEnabled;
+    }
+
+    /// Whether to asynchronously force-evict the cache regions of a deleted index's shards.
+    public boolean isEvictDeletedIndexRegionsEnabled() {
+        return evictDeletedIndexRegionsEnabled;
     }
 }

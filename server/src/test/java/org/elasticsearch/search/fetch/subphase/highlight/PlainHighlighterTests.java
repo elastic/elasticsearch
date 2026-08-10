@@ -105,6 +105,30 @@ public class PlainHighlighterTests extends HighlighterTestCase {
         }
     }
 
+    public void testCappedNumberOfFragments() {
+        assertEquals(19, PlainHighlighter.cappedNumberOfFragments(10_000, 19));
+        assertEquals(19, PlainHighlighter.cappedNumberOfFragments(1_000_000, 19));
+        assertEquals(3, PlainHighlighter.cappedNumberOfFragments(3, 100));
+        assertEquals(1, PlainHighlighter.cappedNumberOfFragments(5, 0));
+    }
+
+    public void testMaxNumberOfFragmentsHighlightsCorrectly() throws Exception {
+        MapperService mapperService = createMapperService("""
+            { "_doc" : { "properties" : {
+                "text" : { "type" : "text" }
+            }}}
+            """);
+
+        ParsedDocument doc = mapperService.documentMapper().parse(source("""
+            { "text" : "some important text" }
+            """));
+
+        SearchSourceBuilder search = new SearchSourceBuilder().query(QueryBuilders.matchQuery("text", "important"))
+            .highlighter(new HighlightBuilder().field("text").highlighterType("plain").numOfFragments(10_000));
+
+        assertHighlights(highlight(mapperService, doc, search), "text", "some <em>important</em> text");
+    }
+
     public void testScriptScoreQuery() throws IOException {
         MapperService mapperService = createMapperService("""
             { "_doc" : { "properties" : {

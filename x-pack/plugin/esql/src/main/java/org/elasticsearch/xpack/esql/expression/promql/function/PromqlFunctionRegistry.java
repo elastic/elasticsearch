@@ -115,6 +115,8 @@ public class PromqlFunctionRegistry {
         PromqlHistogramQuantile.PROMQL_DEFINITION,
         //
         PromqlBuiltinFunctionDefinitions.TOPK,
+        PromqlBuiltinFunctionDefinitions.BOTTOMK,
+        PromqlBuiltinFunctionDefinitions.LIMITK,
         //
         ExtractHistogramComponent.PROMQL_HISTOGRAM_AVG,
         ExtractHistogramComponent.PROMQL_HISTOGRAM_COUNT,
@@ -183,12 +185,16 @@ public class PromqlFunctionRegistry {
     // https://github.com/elastic/metrics-program/issues/39
     private static final Set<String> NOT_IMPLEMENTED = Set.of(
         // Across-series aggregations (not yet available in ESQL)
-        "bottomk",
         "group",
         "count_values",
+        // Ratio-based series sampling: requires knowing per-group cardinality at plan time to compute
+        // ceil(r * count), which is not available without a two-phase execution plan or new primitives.
+        "limit_ratio",
 
         // Range vector functions (not yet implemented)
         "changes",
+        // Prometheus 3.x replacement for holt_winters; requires smoothing factors applied over a range vector.
+        "double_exponential_smoothing",
         "holt_winters",
         "mad_over_time",
         "predict_linear",
@@ -196,8 +202,13 @@ public class PromqlFunctionRegistry {
 
         // Instant vector functions
         "absent",
+        // Prometheus 3.x: joins metric-info labels onto a vector; requires cross-metric label lookup.
+        "info",
         "sort",
         "sort_desc",
+        // Prometheus 3.x: sort series by one or more label values; requires label-aware ordering.
+        "sort_by_label",
+        "sort_by_label_desc",
 
         // Label manipulation functions
         "label_join",

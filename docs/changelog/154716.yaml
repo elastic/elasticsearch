@@ -1,5 +1,5 @@
 area: ES|QL
 issues: []
 pr: 154716
-summary: Remove `O(n^2)` from `DROP foo*`
+summary: Remove quadratic complexity from `DROP` with field name patterns
 type: bug

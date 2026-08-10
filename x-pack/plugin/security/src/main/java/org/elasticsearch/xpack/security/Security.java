@@ -1907,6 +1907,7 @@ public class Security extends Plugin
             return emptyList();
         }
         Settings settings = restHandlersServices.settings();
+        final boolean managedServiceAccountsAvailable = restHandlersServices.projectResolver().supportsMultipleProjects() == false;
         return Stream.<RestHandler>of(
             new RestAuthenticateAction(settings, securityContext.get(), getLicenseState()),
             new RestClearRealmCacheAction(settings, getLicenseState()),
@@ -1965,8 +1966,8 @@ public class Security extends Plugin
             new RestDelegatePkiAuthenticationAction(settings, getLicenseState()),
             new RestCreateServiceAccountTokenAction(settings, getLicenseState()),
             new RestDeleteServiceAccountTokenAction(settings, getLicenseState()),
-            new RestPutManagedServiceAccountAction(settings, getLicenseState()),
-            new RestDeleteManagedServiceAccountAction(settings, getLicenseState()),
+            new RestPutManagedServiceAccountAction(settings, getLicenseState(), managedServiceAccountsAvailable),
+            new RestDeleteManagedServiceAccountAction(settings, getLicenseState(), managedServiceAccountsAvailable),
             new RestGetServiceAccountCredentialsAction(settings, getLicenseState()),
             new RestGetServiceAccountAction(settings, getLicenseState()),
             new RestKibanaEnrollAction(settings, getLicenseState()),

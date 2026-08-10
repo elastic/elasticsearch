@@ -21,14 +21,22 @@ import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
 @ServerlessScope(Scope.INTERNAL)
 public class RestDeleteManagedServiceAccountAction extends SecurityBaseRestHandler {
 
-    public RestDeleteManagedServiceAccountAction(Settings settings, XPackLicenseState licenseState) {
+    private final boolean managedServiceAccountsAvailable;
+
+    public RestDeleteManagedServiceAccountAction(
+        Settings settings,
+        XPackLicenseState licenseState,
+        boolean managedServiceAccountsAvailable
+    ) {
         super(settings, licenseState);
+        this.managedServiceAccountsAvailable = managedServiceAccountsAvailable;
     }
 
     @Override
@@ -53,5 +61,13 @@ public class RestDeleteManagedServiceAccountAction extends SecurityBaseRestHandl
         }
         deleteRequest.setForce(request.paramAsBoolean("force", false));
         return channel -> client.execute(DeleteManagedServiceAccountAction.INSTANCE, deleteRequest, new RestToXContentListener<>(channel));
+    }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        if (managedServiceAccountsAvailable) {
+            return Set.of(RestPutManagedServiceAccountAction.MANAGED_SERVICE_ACCOUNTS_CAPABILITY);
+        }
+        return Set.of();
     }
 }

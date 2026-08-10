@@ -21,14 +21,24 @@ import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 @ServerlessScope(Scope.INTERNAL)
 public class RestPutManagedServiceAccountAction extends SecurityBaseRestHandler {
 
-    public RestPutManagedServiceAccountAction(Settings settings, XPackLicenseState licenseState) {
+    public static final String MANAGED_SERVICE_ACCOUNTS_CAPABILITY = "managed_service_accounts";
+
+    private final boolean managedServiceAccountsAvailable;
+
+    public RestPutManagedServiceAccountAction(
+        Settings settings,
+        XPackLicenseState licenseState,
+        boolean managedServiceAccountsAvailable
+    ) {
         super(settings, licenseState);
+        this.managedServiceAccountsAvailable = managedServiceAccountsAvailable;
     }
 
     @Override
@@ -53,5 +63,13 @@ public class RestPutManagedServiceAccountAction extends SecurityBaseRestHandler 
             putRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.parse(refreshPolicy));
         }
         return channel -> client.execute(PutManagedServiceAccountAction.INSTANCE, putRequest, new RestToXContentListener<>(channel));
+    }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        if (managedServiceAccountsAvailable) {
+            return Set.of(MANAGED_SERVICE_ACCOUNTS_CAPABILITY);
+        }
+        return Set.of();
     }
 }

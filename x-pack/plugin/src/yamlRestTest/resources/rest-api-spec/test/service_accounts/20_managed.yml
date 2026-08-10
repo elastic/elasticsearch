@@ -3,6 +3,14 @@ setup:
   - skip:
       features: headers
 
+  - requires:
+      capabilities:
+        - method: PUT
+          path: /_security/service/{namespace}/{service}
+          capabilities: [managed_service_accounts]
+      test_runner_features: capabilities
+      reason: "Managed service accounts are unavailable in multi-project clusters"
+
   - do:
       cluster.health:
         wait_for_status: yellow

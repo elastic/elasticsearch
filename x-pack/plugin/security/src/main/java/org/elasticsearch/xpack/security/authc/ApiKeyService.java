@@ -401,6 +401,10 @@ public class ApiKeyService implements Closeable {
             listener.onFailure(new IllegalArgumentException("authentication must be provided"));
         } else if (authentication.isCloudApiKey()) {
             listener.onFailure(new IllegalArgumentException("creating elasticsearch api keys using cloud api keys is not supported"));
+        } else if (authentication.isCloudServiceAccount()) {
+            listener.onFailure(
+                new IllegalArgumentException("creating elasticsearch api keys using cloud service accounts is not supported")
+            );
         } else {
             final TransportVersion transportVersion = getMinTransportVersion();
             if (validateRoleDescriptorsForMixedCluster(listener, request.getRoleDescriptors(), transportVersion) == false) {

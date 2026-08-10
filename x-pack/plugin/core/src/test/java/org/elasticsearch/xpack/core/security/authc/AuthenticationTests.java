@@ -164,6 +164,34 @@ public class AuthenticationTests extends ESTestCase {
         );
     }
 
+    public void testCloudServiceAccountCanAccessResourcesOf() {
+        final String serviceAccountId1 = randomAlphanumericOfLength(20);
+        final String serviceAccountId2 = randomValueOtherThan(serviceAccountId1, () -> randomAlphanumericOfLength(20));
+
+        // the same cloud service account is the same owner
+        assertCanAccessResources(
+            AuthenticationTestHelper.randomCloudServiceAccountAuthentication(serviceAccountId1),
+            AuthenticationTestHelper.randomCloudServiceAccountAuthentication(serviceAccountId1)
+        );
+
+        // different cloud service accounts are not the same owner
+        assertCannotAccessResources(
+            AuthenticationTestHelper.randomCloudServiceAccountAuthentication(serviceAccountId1),
+            AuthenticationTestHelper.randomCloudServiceAccountAuthentication(serviceAccountId2)
+        );
+
+        // a cloud service account cannot access resources of other subject types even with the same principal
+        final User user1 = new User(serviceAccountId1, "role_a");
+        assertCannotAccessResources(
+            AuthenticationTestHelper.randomCloudServiceAccountAuthentication(serviceAccountId1),
+            randomAuthentication(user1, randomRealmRef(false))
+        );
+        assertCannotAccessResources(
+            AuthenticationTestHelper.randomCloudServiceAccountAuthentication(serviceAccountId1),
+            randomCloudApiKeyAuthentication(serviceAccountId1)
+        );
+    }
+
     public void testCrossClusterAccessCanAccessResourceOf() throws IOException {
         final String apiKeyId1 = randomAlphaOfLengthBetween(10, 20);
         final CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo1 = AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo(
@@ -779,6 +807,9 @@ public class AuthenticationTests extends ESTestCase {
 
         // Cloud API key cannot run-as
         assertThat(AuthenticationTestHelper.randomCloudApiKeyAuthentication().supportsRunAs(anonymousUser), is(false));
+
+        // Cloud service account cannot run-as
+        assertThat(AuthenticationTestHelper.randomCloudServiceAccountAuthentication().supportsRunAs(anonymousUser), is(false));
     }
 
     private void assertCanAccessResources(Authentication authentication0, Authentication authentication1) {

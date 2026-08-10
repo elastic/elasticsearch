@@ -62,6 +62,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newAnonymousRealmRef;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newApiKeyRealmRef;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newCloudApiKeyRealmRef;
+import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newCloudServiceAccountRealmRef;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newCrossClusterAccessRealmRef;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newInternalAttachRealmRef;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newInternalFallbackRealmRef;
@@ -76,6 +77,8 @@ import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.AT
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ATTACH_REALM_TYPE;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CLOUD_API_KEY_REALM_NAME;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CLOUD_API_KEY_REALM_TYPE;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CLOUD_SERVICE_ACCOUNT_REALM_NAME;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CLOUD_SERVICE_ACCOUNT_REALM_TYPE;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CROSS_CLUSTER_ACCESS_REALM_NAME;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CROSS_CLUSTER_ACCESS_REALM_TYPE;
@@ -123,6 +126,10 @@ public final class Authentication implements ToXContentObject {
 
     private static final TransportVersion SECURITY_CLOUD_API_KEY_REALM_AND_TYPE = TransportVersion.fromName(
         "security_cloud_api_key_realm_and_type"
+    );
+
+    private static final TransportVersion SECURITY_CLOUD_SERVICE_ACCOUNT_REALM_AND_TYPE = TransportVersion.fromName(
+        "security_cloud_service_account_realm_and_type"
     );
 
     private final AuthenticationType type;
@@ -281,6 +288,15 @@ public final class Authentication implements ToXContentObject {
                 "versions of Elasticsearch before ["
                     + SECURITY_CLOUD_API_KEY_REALM_AND_TYPE.toReleaseVersion()
                     + "] can't handle cloud API key authentication and attempted to rewrite for ["
+                    + olderVersion.toReleaseVersion()
+                    + "]"
+            );
+        }
+        if (isCloudServiceAccount() && olderVersion.supports(SECURITY_CLOUD_SERVICE_ACCOUNT_REALM_AND_TYPE) == false) {
+            throw new IllegalArgumentException(
+                "versions of Elasticsearch before ["
+                    + SECURITY_CLOUD_SERVICE_ACCOUNT_REALM_AND_TYPE.toReleaseVersion()
+                    + "] can't handle cloud service account authentication and attempted to rewrite for ["
                     + olderVersion.toReleaseVersion()
                     + "]"
             );
@@ -554,6 +570,10 @@ public final class Authentication implements ToXContentObject {
         return effectiveSubject.getType() == Subject.Type.CLOUD_API_KEY;
     }
 
+    public boolean isCloudServiceAccount() {
+        return effectiveSubject.getType() == Subject.Type.CLOUD_SERVICE_ACCOUNT;
+    }
+
     public boolean isCrossClusterAccess() {
         return effectiveSubject.getType() == Subject.Type.CROSS_CLUSTER_ACCESS;
     }
@@ -580,6 +600,11 @@ public final class Authentication implements ToXContentObject {
 
         // We may allow cloud API keys to run-as in the future, but for now there is no requirement
         if (isCloudApiKey()) {
+            return false;
+        }
+
+        // Cloud service accounts are machine principals with pre-assigned access; there is no requirement for run-as
+        if (isCloudServiceAccount()) {
             return false;
         }
 
@@ -672,6 +697,16 @@ public final class Authentication implements ToXContentObject {
                 "versions of Elasticsearch before ["
                     + SECURITY_CLOUD_API_KEY_REALM_AND_TYPE.toReleaseVersion()
                     + "] can't handle cloud API key authentication and attempted to send to ["
+                    + out.getTransportVersion().toReleaseVersion()
+                    + "]"
+            );
+        }
+        if (effectiveSubject.getType() == Subject.Type.CLOUD_SERVICE_ACCOUNT
+            && out.getTransportVersion().supports(SECURITY_CLOUD_SERVICE_ACCOUNT_REALM_AND_TYPE) == false) {
+            throw new IllegalArgumentException(
+                "versions of Elasticsearch before ["
+                    + SECURITY_CLOUD_SERVICE_ACCOUNT_REALM_AND_TYPE.toReleaseVersion()
+                    + "] can't handle cloud service account authentication and attempted to send to ["
                     + out.getTransportVersion().toReleaseVersion()
                     + "]"
             );
@@ -1039,6 +1074,10 @@ public final class Authentication implements ToXContentObject {
             checkNoDomain(authenticatingRealm, "Service account");
             checkNoRole(authenticatingSubject, "Service account");
             checkNoRunAs(this, "Service account");
+        } else if (Subject.Type.CLOUD_SERVICE_ACCOUNT == authenticatingSubject.getType()) {
+            // unlike ES service accounts, cloud service accounts carry role names on the user, so roles are not checked here
+            checkNoDomain(authenticatingRealm, "Cloud service account");
+            checkNoRunAs(this, "Cloud service account");
         } else {
             if (Subject.Type.API_KEY == authenticatingSubject.getType()) {
                 checkConsistencyForApiKeyAuthenticatingSubject("API key token");
@@ -1128,7 +1167,8 @@ public final class Authentication implements ToXContentObject {
             FALLBACK_REALM_NAME,
             ATTACH_REALM_NAME,
             CROSS_CLUSTER_ACCESS_REALM_NAME,
-            CLOUD_API_KEY_REALM_NAME
+            CLOUD_API_KEY_REALM_NAME,
+            CLOUD_SERVICE_ACCOUNT_REALM_NAME
         ).contains(realmRef.getName())) {
             return true;
         }
@@ -1139,7 +1179,8 @@ public final class Authentication implements ToXContentObject {
             FALLBACK_REALM_TYPE,
             ATTACH_REALM_TYPE,
             CROSS_CLUSTER_ACCESS_REALM_TYPE,
-            CLOUD_API_KEY_REALM_TYPE
+            CLOUD_API_KEY_REALM_TYPE,
+            CLOUD_SERVICE_ACCOUNT_REALM_TYPE
         ).contains(realmRef.getType())) {
             return true;
         }
@@ -1329,6 +1370,11 @@ public final class Authentication implements ToXContentObject {
             return new RealmRef(CLOUD_API_KEY_REALM_NAME, CLOUD_API_KEY_REALM_TYPE, nodeName, null);
         }
 
+        static RealmRef newCloudServiceAccountRealmRef(String nodeName) {
+            // no domain for cloud service account tokens
+            return new RealmRef(CLOUD_SERVICE_ACCOUNT_REALM_NAME, CLOUD_SERVICE_ACCOUNT_REALM_TYPE, nodeName, null);
+        }
+
         static RealmRef newApiKeyRealmRef(String nodeName) {
             // no domain for API Key tokens
             return new RealmRef(API_KEY_REALM_NAME, API_KEY_REALM_TYPE, nodeName, null);
@@ -1412,6 +1458,7 @@ public final class Authentication implements ToXContentObject {
 
     private static final Map<Subject.Type, Set<AuthenticationType>> VALID_CLOUD_AUTH_TYPES = Map.ofEntries(
         Map.entry(Subject.Type.CLOUD_API_KEY, Set.of(AuthenticationType.API_KEY, AuthenticationType.TOKEN)),
+        Map.entry(Subject.Type.CLOUD_SERVICE_ACCOUNT, Set.of(AuthenticationType.TOKEN)),
         Map.entry(Subject.Type.USER, Set.of(AuthenticationType.TOKEN))
     );
 
@@ -1435,6 +1482,9 @@ public final class Authentication implements ToXContentObject {
         if (subjectType == Subject.Type.CLOUD_API_KEY) {
             assert realmId == null : "Cannot have realm id [" + realmId + "] for cloud API Key subject [" + user + "]";
             realmRef = newCloudApiKeyRealmRef(nodeName);
+        } else if (subjectType == Subject.Type.CLOUD_SERVICE_ACCOUNT) {
+            assert realmId == null : "Cannot have realm id [" + realmId + "] for cloud service account subject [" + user + "]";
+            realmRef = newCloudServiceAccountRealmRef(nodeName);
         } else if (subjectType == Subject.Type.USER) {
             assert realmId != null : "Must have realm id for cloud user subject [" + user + "]";
             realmRef = new RealmRef(realmId.getName(), realmId.getType(), nodeName);

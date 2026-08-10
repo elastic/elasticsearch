@@ -297,6 +297,30 @@ public class AuthenticationTestHelper {
 
     }
 
+    public static Authentication randomCloudServiceAccountAuthentication() {
+        return randomCloudServiceAccountAuthentication(ESTestCase.randomAlphanumericOfLength(20));
+    }
+
+    public static Authentication randomCloudServiceAccountAuthentication(String serviceAccountId) {
+        final User user = new User(
+            serviceAccountId,
+            ESTestCase.randomArray(1, 3, String[]::new, () -> "role_" + ESTestCase.randomAlphaOfLengthBetween(3, 8))
+        );
+        final Map<String, Object> metadata = ESTestCase.randomBoolean()
+            ? Map.of()
+            : Map.of(
+                AuthenticationField.CLOUD_SERVICE_ACCOUNT_LIMITED_BY_ROLES_KEY,
+                ESTestCase.randomList(1, 3, () -> "limited_by_role_" + ESTestCase.randomAlphaOfLengthBetween(3, 8))
+            );
+        return Authentication.newCloudAuthentication(
+            Authentication.AuthenticationType.TOKEN,
+            Subject.Type.CLOUD_SERVICE_ACCOUNT,
+            AuthenticationResult.success(user, metadata),
+            "node_" + ESTestCase.randomAlphaOfLengthBetween(3, 8),
+            null
+        );
+    }
+
     public static CrossClusterAccessSubjectInfo randomCrossClusterAccessSubjectInfo(
         RoleDescriptorsIntersection roleDescriptorsIntersection
     ) {

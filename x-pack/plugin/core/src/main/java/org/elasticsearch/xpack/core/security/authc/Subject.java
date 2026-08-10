@@ -34,6 +34,7 @@ import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.AP
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY;
 import static org.elasticsearch.xpack.core.security.authc.Subject.Type.API_KEY;
 import static org.elasticsearch.xpack.core.security.authc.Subject.Type.CLOUD_API_KEY;
+import static org.elasticsearch.xpack.core.security.authc.Subject.Type.CLOUD_SERVICE_ACCOUNT;
 import static org.elasticsearch.xpack.core.security.authc.Subject.Type.CROSS_CLUSTER_ACCESS;
 
 /**
@@ -48,6 +49,7 @@ public class Subject {
         USER,
         API_KEY,
         CLOUD_API_KEY,
+        CLOUD_SERVICE_ACCOUNT,
         SERVICE_ACCOUNT,
         CROSS_CLUSTER_ACCESS,
     }
@@ -76,6 +78,10 @@ public class Subject {
         } else if (AuthenticationField.CLOUD_API_KEY_REALM_TYPE.equals(realm.getType())) {
             assert AuthenticationField.CLOUD_API_KEY_REALM_NAME.equals(realm.getName()) : "cloud api key realm name mismatch";
             this.type = Type.CLOUD_API_KEY;
+        } else if (AuthenticationField.CLOUD_SERVICE_ACCOUNT_REALM_TYPE.equals(realm.getType())) {
+            assert AuthenticationField.CLOUD_SERVICE_ACCOUNT_REALM_NAME.equals(realm.getName())
+                : "cloud service account realm name mismatch";
+            this.type = Type.CLOUD_SERVICE_ACCOUNT;
         } else if (ServiceAccountSettings.REALM_TYPE.equals(realm.getType())) {
             assert ServiceAccountSettings.REALM_NAME.equals(realm.getName()) : "service account realm name mismatch";
             this.type = Type.SERVICE_ACCOUNT;
@@ -112,6 +118,7 @@ public class Subject {
         return switch (type) {
             case CLOUD_API_KEY, USER -> buildRoleReferencesForUser(anonymousUser);
             case API_KEY -> buildRoleReferencesForApiKey();
+            case CLOUD_SERVICE_ACCOUNT -> buildRoleReferencesForCloudServiceAccount();
             case SERVICE_ACCOUNT -> new RoleReferenceIntersection(new RoleReference.ServiceAccountRoleReference(user.principal()));
             case CROSS_CLUSTER_ACCESS -> buildRoleReferencesForCrossClusterAccess();
         };
@@ -142,6 +149,13 @@ public class Subject {
                 return getUser().principal().equals(resourceCreatorSubject.getUser().principal());
             } else {
                 // a cloud API Key cannot access resources created by non-Cloud API Keys or vice versa
+                return false;
+            }
+        } else if (eitherIsACloudServiceAccount(resourceCreatorSubject)) {
+            if (bothAreCloudServiceAccounts(resourceCreatorSubject)) {
+                return getUser().principal().equals(resourceCreatorSubject.getUser().principal());
+            } else {
+                // a cloud service account cannot access resources created by other subject types or vice versa
                 return false;
             }
         } else {
@@ -206,6 +220,14 @@ public class Subject {
         return CLOUD_API_KEY.equals(getType()) && CLOUD_API_KEY.equals(resourceCreatorSubject.getType());
     }
 
+    private boolean eitherIsACloudServiceAccount(Subject resourceCreatorSubject) {
+        return CLOUD_SERVICE_ACCOUNT.equals(getType()) || CLOUD_SERVICE_ACCOUNT.equals(resourceCreatorSubject.getType());
+    }
+
+    private boolean bothAreCloudServiceAccounts(Subject resourceCreatorSubject) {
+        return CLOUD_SERVICE_ACCOUNT.equals(getType()) && CLOUD_SERVICE_ACCOUNT.equals(resourceCreatorSubject.getType());
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -254,6 +276,37 @@ public class Subject {
             allRoleNames = ArrayUtils.concat(user.roles(), anonymousUser.roles());
         }
         return new RoleReferenceIntersection(new RoleReference.NamedRoleReference(allRoleNames));
+    }
+
+    /**
+     * Roles for a cloud service account are built like the roles of an ES API key: the role names assigned to the service account
+     * are intersected with the limited-by role names captured at authentication time, if any. The intersection is applied when the
+     * roles are materialized (each set of role names builds its own {@code Role} and the results are combined with
+     * {@code Role#limitedBy}), rather than by intersecting the role names themselves.
+     */
+    private RoleReferenceIntersection buildRoleReferencesForCloudServiceAccount() {
+        final RoleReference.NamedRoleReference assignedRoleReference = new RoleReference.NamedRoleReference(user.roles());
+        final List<String> limitedByRoleNames = getCloudServiceAccountLimitedByRoleNames();
+        if (limitedByRoleNames == null) {
+            return new RoleReferenceIntersection(assignedRoleReference);
+        }
+        return new RoleReferenceIntersection(
+            assignedRoleReference,
+            new RoleReference.NamedRoleReference(limitedByRoleNames.toArray(String[]::new))
+        );
+    }
+
+    @Nullable
+    private List<String> getCloudServiceAccountLimitedByRoleNames() {
+        final Object value = metadata.get(AuthenticationField.CLOUD_SERVICE_ACCOUNT_LIMITED_BY_ROLES_KEY);
+        if (value == null) {
+            return null;
+        }
+        assert value instanceof List<?> && ((List<?>) value).stream().allMatch(String.class::isInstance)
+            : "cloud service account limited-by roles metadata must be a list of role names";
+        @SuppressWarnings("unchecked")
+        final List<String> limitedByRoleNames = (List<String>) value;
+        return limitedByRoleNames;
     }
 
     private RoleReferenceIntersection buildRoleReferencesForApiKey() {

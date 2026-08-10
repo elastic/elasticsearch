@@ -195,6 +195,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchUtils;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.support.AggregationUsageService;
 import org.elasticsearch.shutdown.PluginShutdownService;
 import org.elasticsearch.snapshots.InternalSnapshotsInfoService;
@@ -282,6 +283,8 @@ class NodeConstruction {
             }
 
             SearchModule searchModule = constructor.createSearchModule(settingsModule.getSettings(), threadPool, telemetryProvider);
+            settingsModule.getClusterSettings()
+                .addSettingsUpdateConsumer(AggregatorFactories.MAX_NESTED_DEPTH_SETTING, AggregatorFactories::setMaxNestedDepth);
             constructor.createClientAndRegistries(settingsModule.getSettings(), threadPool, searchModule);
             DocumentParsingProvider documentParsingProvider = constructor.getDocumentParsingProvider();
 

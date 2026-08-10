@@ -43,10 +43,9 @@ public class UploadQueueControllerServiceIT extends AbstractStatelessPluginInteg
                 .put(ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.getKey(), TimeValue.ZERO)
                 .build()
         );
-        startSearchNode();
 
         final String indexName = randomIndexName();
-        createIndex(indexName, 1, 1);
+        createIndex(indexName, 1, 0);
         ensureGreen(indexName);
 
         // Block uploads to create a backlog.
@@ -74,7 +73,7 @@ public class UploadQueueControllerServiceIT extends AbstractStatelessPluginInteg
 
         // Now we need to build sufficient backlog.
         var statelessCommitService = internalCluster().getInstance(StatelessCommitService.class, indexNode);
-        while (statelessCommitService.getShardCommitStats().iterator().next().pendingUploadBytes() < 1) {
+        while (statelessCommitService.getShardCommitStats().iterator().next().pendingUploadBytes() < ByteSizeValue.ofMb(1).getBytes()) {
             indexDocs(indexName, 1000);
             refresh(indexName);
         }

@@ -334,13 +334,17 @@ public class UploadQueueControllerService extends AbstractLifecycleComponent {
     }
 
     static class MonitoringThrottler implements Throttler {
+        private static final Logger logger = LogManager.getLogger(MonitoringThrottler.class);
+
         private final Throttler delegate;
+        private final String throttlerType;
 
         private final LongCounter activatedCount;
         private final LongCounter deactivatedCount;
 
         MonitoringThrottler(Throttler delegate, TelemetryProvider telemetryProvider, String throttlerType) {
             this.delegate = delegate;
+            this.throttlerType = throttlerType;
 
             String METRIC_NAME_FORMAT = "es.stateless.upload_queue.%s_throttling.%s.total";
             this.activatedCount = telemetryProvider.getMeterRegistry()
@@ -359,12 +363,14 @@ public class UploadQueueControllerService extends AbstractLifecycleComponent {
 
         @Override
         public void activate(ShardId shardId) {
+            logger.info("[Simulated] Activating {} throttling for shard {}", throttlerType, shardId);
             delegate.activate(shardId);
             activatedCount.increment();
         }
 
         @Override
         public void deactivate(ShardId shardId) {
+            logger.info("[Simulated] Deactivating {} throttling for shard {}", throttlerType, shardId);
             delegate.deactivate(shardId);
             deactivatedCount.increment();
         }

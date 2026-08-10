@@ -818,8 +818,9 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             clusterService.getClusterName().value(),
             releasables,
             ActionListener.wrap(
-                // Streaming lookup (not in production yet) replies with an empty terminal page; per-driver warnings
-                // for the streaming path would be carried separately once it is productionized.
+                /*
+                 * Send an empty page without warnings to signal the end of the stream.
+                 */
                 ignored -> responseListener.onResponse(new LookupResponse(List.of(), blockFactory, planString, 0L, List.of())),
                 responseListener::onFailure
             )

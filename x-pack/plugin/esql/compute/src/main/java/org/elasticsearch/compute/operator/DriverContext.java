@@ -19,9 +19,9 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.IdentityHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -63,7 +63,7 @@ public class DriverContext {
      * {@link Warnings} accumulated during the driver run and snapshotted at {@link #finish()}
      * into {@link #warningsSnapshot}.
      */
-    private final List<String> warnings = Collections.synchronizedList(new ArrayList<>());
+    private final Set<String> warnings = Collections.synchronizedSet(new LinkedHashSet<>());
 
     /**
      * Snapshotted at {@link #finish()} into {@link #warningsSnapshot}.

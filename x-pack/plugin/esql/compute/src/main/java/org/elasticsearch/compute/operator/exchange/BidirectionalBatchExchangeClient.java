@@ -27,8 +27,10 @@ import org.elasticsearch.transport.TransportService;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -96,7 +98,7 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
      * BatchExchangeStatusResponses (added on transport threads). Replayed into
      * the client driver's per-driver sink so they reach the response chokepoint.
      */
-    private final List<String> warnings = Collections.synchronizedList(new ArrayList<>());
+    private final Set<String> warnings = Collections.synchronizedSet(new LinkedHashSet<>());
     private volatile boolean closed = false; // Track if close() has been called (for idempotency)
     // Track batch counts to ensure all batches complete before closing
     private int startedBatchCount = 0;

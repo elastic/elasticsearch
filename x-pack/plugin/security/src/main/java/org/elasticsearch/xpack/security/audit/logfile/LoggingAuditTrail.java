@@ -1581,6 +1581,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 .startObject("managed_service_account")
                 .field("namespace", deleteManagedServiceAccountRequest.getNamespace())
                 .field("service", deleteManagedServiceAccountRequest.getServiceName())
+                .field("force", deleteManagedServiceAccountRequest.isForce())
                 .endObject() // managed_service_account
                 .endObject();
             logEntry.with(DELETE_CONFIG_FIELD_NAME, Strings.toString(builder));

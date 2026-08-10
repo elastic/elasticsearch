@@ -235,8 +235,38 @@ public class ServiceAccountService {
             return;
         }
         final ServiceAccountId accountId = request.getAccountId();
+        if (request.isForce() || indexServiceAccountTokenStore == null) {
+            doDeleteManagedAccount(request, listener);
+            return;
+        }
+        // Refuse to delete an account that still has service tokens, so that a routine delete cannot
+        // strand live credentials that would be re-enabled by recreating the same account name. The
+        // token check and the delete are not atomic; a token created concurrently may survive, which
+        // fails in the same direction as force=true.
+        indexServiceAccountTokenStore.findTokensFor(accountId, ActionListener.wrap(tokenInfos -> {
+            if (tokenInfos.isEmpty()) {
+                doDeleteManagedAccount(request, listener);
+            } else {
+                final List<String> tokenNames = tokenInfos.stream().map(TokenInfo::getName).sorted().toList();
+                listener.onFailure(
+                    new IllegalArgumentException(
+                        "cannot delete service account ["
+                            + accountId
+                            + "] because it has service tokens "
+                            + tokenNames
+                            + "; delete the tokens first, or set force=true to delete the account and leave its tokens in place"
+                    )
+                );
+            }
+        }, listener::onFailure));
+    }
+
+    private void doDeleteManagedAccount(
+        DeleteManagedServiceAccountRequest request,
+        ActionListener<DeleteManagedServiceAccountResponse> listener
+    ) {
         managedServiceAccountStore.deleteAccount(
-            accountId,
+            request.getAccountId(),
             request.getRefreshPolicy(),
             ActionListener.wrap(deleted -> listener.onResponse(new DeleteManagedServiceAccountResponse(deleted)), listener::onFailure)
         );

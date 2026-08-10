@@ -43,6 +43,7 @@ teardown:
       security.delete_managed_service_account:
         namespace: yaml_poc
         service: worker_1
+        force: true
         ignore: 404
 
   - do:
@@ -159,10 +160,18 @@ teardown:
   - match: { "cluster.manage_own_api_key": true }
   - match: { has_all_requested: false }
 
+  # deleting while a token exists is rejected unless force=true
+  - do:
+      catch: bad_request
+      security.delete_managed_service_account:
+        namespace: yaml_poc
+        service: worker_1
+
   - do:
       security.delete_managed_service_account:
         namespace: yaml_poc
         service: worker_1
+        force: true
   - match: { found: true }
 
   - do:

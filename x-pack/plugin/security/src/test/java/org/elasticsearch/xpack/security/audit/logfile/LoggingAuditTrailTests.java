@@ -1698,6 +1698,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
             namespace,
             serviceName
         );
+        final boolean force = randomBoolean();
+        deleteManagedServiceAccountRequest.setForce(force);
 
         auditTrail.accessGranted(
             requestId,
@@ -1711,7 +1713,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         String generatedDeleteManagedServiceAccountAuditEventString = output.get(1);
 
         final String expectedDeleteManagedServiceAccountAuditEventString = Strings.format("""
-            "delete":{"managed_service_account":{"namespace":"%s","service":"%s"}}""", namespace, serviceName);
+            "delete":{"managed_service_account":{"namespace":"%s","service":"%s","force":%s}}""", namespace, serviceName, force);
         assertThat(
             generatedDeleteManagedServiceAccountAuditEventString,
             containsString(expectedDeleteManagedServiceAccountAuditEventString)

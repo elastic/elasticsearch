@@ -46,6 +46,7 @@ import static org.elasticsearch.test.SecuritySettingsSource.addSSLSettingsForNod
 import static org.elasticsearch.test.SecuritySettingsSourceField.TEST_PASSWORD;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -164,9 +165,20 @@ public class ManagedServiceAccountSingleNodeTests extends SecuritySingleNodeTest
         final SecureString oldBearer = createManagedToken("token-delete-recreate");
         authenticate(oldBearer.toString());
 
+        // without force, deletion is rejected while the token exists
+        final DeleteManagedServiceAccountRequest guardedDeleteRequest = new DeleteManagedServiceAccountRequest(NAMESPACE, serviceName);
+        final IllegalArgumentException guardException = expectThrows(
+            IllegalArgumentException.class,
+            () -> securityAdminClient().execute(DeleteManagedServiceAccountAction.INSTANCE, guardedDeleteRequest).actionGet()
+        );
+        assertThat(guardException.getMessage(), containsString("because it has service tokens [token-delete-recreate]"));
+
+        // force=true deletes the account and leaves the token documents in place
+        final DeleteManagedServiceAccountRequest forcedDeleteRequest = new DeleteManagedServiceAccountRequest(NAMESPACE, serviceName);
+        forcedDeleteRequest.setForce(true);
         final DeleteManagedServiceAccountResponse deleteResponse = securityAdminClient().execute(
             DeleteManagedServiceAccountAction.INSTANCE,
-            new DeleteManagedServiceAccountRequest(NAMESPACE, serviceName)
+            forcedDeleteRequest
         ).actionGet();
         assertThat(deleteResponse.isFound(), is(true));
         assertAuthenticationFails(oldBearer.toString());

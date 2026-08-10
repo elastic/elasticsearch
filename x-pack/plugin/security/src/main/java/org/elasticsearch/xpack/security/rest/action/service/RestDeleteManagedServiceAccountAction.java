@@ -51,6 +51,7 @@ public class RestDeleteManagedServiceAccountAction extends SecurityBaseRestHandl
         if (refreshPolicy != null) {
             deleteRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.parse(refreshPolicy));
         }
+        deleteRequest.setForce(request.paramAsBoolean("force", false));
         return channel -> client.execute(DeleteManagedServiceAccountAction.INSTANCE, deleteRequest, new RestToXContentListener<>(channel));
     }
 }

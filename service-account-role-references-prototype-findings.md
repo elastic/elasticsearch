@@ -81,7 +81,9 @@ Observed behavior in unit tests:
 
 A managed service account is identified solely by `{namespace}/{service}`. Delete and recreate restore the same logical account.
 
-Deleting an account removes the account document (with refresh), clears the managed account cache entry, and clears index token credential cache entries by principal prefix. Token index documents are not bulk-deleted. While the account is deleted, authentication fails because the account lookup returns missing/disabled. After recreate, surviving index token documents authenticate again for the same service account (differs from original spec assumption that old tokens stay revoked).
+**Settled (delete guard)**: deleting an account that still has service tokens is rejected with a 400 listing the token names, unless `force=true`. The default path therefore guarantees no credentials survive a decommission: tokens must be removed first through the existing token DELETE API, so nothing is left to resurrect. `force=true` deletes the account and leaves token documents in place: authentication fails while the account is absent, and recreating the same name re-enables surviving tokens (explicit suspension/restore semantics, analogous to role delete/recreate). The token check and the delete are not atomic; a token created concurrently may survive, which fails in the same direction as `force`. The `force` flag is recorded in the audit event. This follows the ES-wide reference-guarded deletion convention (component templates in use by index templates, ILM policies in use by indices, enrich policies referenced by pipelines) with the ML/transform-style `force` override.
+
+Deleting an account removes the account document (with refresh), clears the managed account cache entry, and clears index token credential cache entries by principal prefix.
 
 ## Privilege boundary
 
@@ -147,7 +149,7 @@ Verified in `ManagedServiceAccountPrivilegeTests` (action-name coverage) and the
 2. **Role/account updates on next request?** Yes — account cache invalidated on PUT; per-request auth uses fresh account data.
 3. **Reuse role cache without principal graph?** Yes — `NamedRoleReference` only.
 4. **Persistence changes?** New `service_account` doc type using existing mapped fields (`username`, `roles`, `enabled`).
-5. **Credential binding?** Stable principal identity; DELETE revokes via missing account + cache invalidation; RECREATE restores access for surviving index tokens.
+5. **Credential binding?** Stable principal identity. Default DELETE is guarded (tokens must be removed first, so nothing survives); `force=true` DELETE revokes via missing account + cache invalidation, and RECREATE restores access for surviving index tokens.
 6. **Audit logging?** Managed account PUT/DELETE and token create/delete emit `security_config_change` events; documented in `elasticsearch-audit-events.md`.
 7. **Remaining production gaps?** See below.
 
@@ -173,7 +175,7 @@ Verified in `ManagedServiceAccountPrivilegeTests` (action-name coverage) and the
 
 ### Operability
 - Managed account definition cache (`managed_service_account`) with cluster-wide invalidation on PUT/DELETE
-- Delete clears account and token credential caches; index token documents may remain
+- Default delete requires removing tokens first (guard); `force=true` leaves token documents in place with documented suspension/restore semantics
 - No bulk account listing pagination beyond scroll size 1000
 
 ### Performance
@@ -193,4 +195,3 @@ Evidence supports the core hypothesis: managed accounts can authorize through `N
 
 1. Add rolling-upgrade and BWC RCS 1.0 (old fulfilling cluster) integration tests; consider a sending-side version guard in `Authentication#maybeRewriteForOlderVersion`.
 2. Expose REST API specs publicly and decide the delegated-admin privilege model.
-3. Document recreate semantics for operators (surviving index tokens authenticate again), or delete token documents on account delete.

@@ -85,33 +85,52 @@ teardown:
         ignore: 404
 
   - do:
+      security.delete_service_token:
+        namespace: yaml_poc
+        service: guard_worker
+        name: guard-token
+        ignore: 404
+
+  - do:
+      security.delete_managed_service_account:
+        namespace: yaml_poc
+        service: guard_worker
+        force: true
+        ignore: 404
+
+  - do:
       security.delete_managed_service_account:
         namespace: yaml_poc
         service: gap_worker
+        force: true
         ignore: 404
 
   - do:
       security.delete_managed_service_account:
         namespace: yaml_poc
         service: disabled_worker
+        force: true
         ignore: 404
 
   - do:
       security.delete_managed_service_account:
         namespace: yaml_poc
         service: role_def_worker
+        force: true
         ignore: 404
 
   - do:
       security.delete_managed_service_account:
         namespace: yaml_poc
         service: union_worker
+        force: true
         ignore: 404
 
   - do:
       security.delete_managed_service_account:
         namespace: yaml_poc
         service: missing_role_worker
+        force: true
         ignore: 404
 
   - do:
@@ -199,6 +218,43 @@ teardown:
         name: gap-elastic-token
   - is_true: created
   - match: { "token.name": "gap-elastic-token" }
+
+---
+"Test delete guard for accounts with tokens":
+  - do:
+      security.put_managed_service_account:
+        namespace: yaml_poc
+        service: guard_worker
+        body: >
+          {
+            "roles": ["managed_yaml_monitor"],
+            "enabled": true
+          }
+
+  - do:
+      security.create_service_token:
+        namespace: yaml_poc
+        service: guard_worker
+        name: guard-token
+
+  - do:
+      catch: /cannot delete service account \[yaml_poc\/guard_worker\] because it has service tokens \[guard-token\]/
+      security.delete_managed_service_account:
+        namespace: yaml_poc
+        service: guard_worker
+
+  - do:
+      security.delete_service_token:
+        namespace: yaml_poc
+        service: guard_worker
+        name: guard-token
+  - is_true: found
+
+  - do:
+      security.delete_managed_service_account:
+        namespace: yaml_poc
+        service: guard_worker
+  - match: { found: true }
 
 ---
 "Test reserved elastic namespace for managed account PUT":

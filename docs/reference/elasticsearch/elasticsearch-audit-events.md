@@ -383,7 +383,7 @@ $$$event-delete-managed-service-account$$$
     {"type":"audit", "timestamp":"2021-04-30T23:17:42,952+0200", "node.id":
     "0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.
     action":"delete_managed_service_account", "request.id":"az9a1Db5QrebDMacQ8yGKc",
-    "delete":{"managed_service_account":{"namespace":"my-app","service":"worker"}}}
+    "delete":{"managed_service_account":{"namespace":"my-app","service":"worker","force":false}}}
     ```
     % NOTCONSOLE
 

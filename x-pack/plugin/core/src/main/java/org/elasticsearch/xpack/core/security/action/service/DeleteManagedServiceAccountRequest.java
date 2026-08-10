@@ -25,6 +25,7 @@ public class DeleteManagedServiceAccountRequest extends UntypedActionRequest {
     private final String namespace;
     private final String serviceName;
     private WriteRequest.RefreshPolicy refreshPolicy = WriteRequest.RefreshPolicy.WAIT_UNTIL;
+    private boolean force = false;
 
     public DeleteManagedServiceAccountRequest(String namespace, String serviceName) {
         this.namespace = Objects.requireNonNull(namespace, "namespace cannot be null");
@@ -36,6 +37,7 @@ public class DeleteManagedServiceAccountRequest extends UntypedActionRequest {
         namespace = in.readString();
         serviceName = in.readString();
         refreshPolicy = WriteRequest.RefreshPolicy.readFrom(in);
+        force = in.readBoolean();
     }
 
     public String getNamespace() {
@@ -52,6 +54,19 @@ public class DeleteManagedServiceAccountRequest extends UntypedActionRequest {
 
     public void setRefreshPolicy(WriteRequest.RefreshPolicy refreshPolicy) {
         this.refreshPolicy = refreshPolicy;
+    }
+
+    public boolean isForce() {
+        return force;
+    }
+
+    /**
+     * When false (the default), deleting an account that still has service tokens is rejected.
+     * When true, the account is deleted and its token documents are left in place; recreating an
+     * account with the same name re-enables any surviving tokens.
+     */
+    public void setForce(boolean force) {
+        this.force = force;
     }
 
     public ServiceAccount.ServiceAccountId getAccountId() {
@@ -74,5 +89,6 @@ public class DeleteManagedServiceAccountRequest extends UntypedActionRequest {
         out.writeString(namespace);
         out.writeString(serviceName);
         refreshPolicy.writeTo(out);
+        out.writeBoolean(force);
     }
 }

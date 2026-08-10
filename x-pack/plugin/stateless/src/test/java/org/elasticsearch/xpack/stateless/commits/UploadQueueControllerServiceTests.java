@@ -64,7 +64,7 @@ public class UploadQueueControllerServiceTests extends ESTestCase {
             if (i % 2 == 0) {
                 pendingUploadMiB = randomLongBetween(settings.activationThresholdSeconds() + 1, 100);
             } else {
-                pendingUploadMiB = randomLongBetween(0, settings.deactivationThresholdSeconds());
+                pendingUploadMiB = randomLongBetween(0, settings.deactivationThresholdSeconds() - 1);
             }
             stats.pendingUploadMiB = pendingUploadMiB;
 
@@ -100,7 +100,7 @@ public class UploadQueueControllerServiceTests extends ESTestCase {
             }
         };
         var settings = new ThrottleSettings(20, 10, 10);
-        // The backlog is 50 seconds with provided stats and throughput which is more than 20.
+        // The backlog is 50 seconds with provided stats and throughput, which is more than 20.
         Map<ShardId, ThrottleState> throttleState = calculator.newState(Map.of(), List.of(stats), settings, 1);
         var throttleShardState = throttleState.get(shardId);
         assertEquals(Type.THROTTLED, throttleShardState.latestDecision());
@@ -128,7 +128,7 @@ public class UploadQueueControllerServiceTests extends ESTestCase {
         Map<ShardId, ThrottleState> secondPeriodState = calculator.newState(throttleKeepState, List.of(stats), settings, 1);
         var secondPeriodShardState = secondPeriodState.get(shardId);
         assertEquals(Type.THROTTLED, secondPeriodShardState.latestDecision());
-        assertEquals(11, secondPeriodShardState.relativeApplicationTimeMs());
+        assertEquals(time.get(), secondPeriodShardState.relativeApplicationTimeMs());
         assertEquals(2, secondPeriodShardState.consecutiveApplications());
         // We don't reapply throttling if it's already there.
         assertEquals(1, throttler.history.size());
@@ -138,7 +138,7 @@ public class UploadQueueControllerServiceTests extends ESTestCase {
         Map<ShardId, ThrottleState> thirdPeriodState = calculator.newState(secondPeriodState, List.of(stats), settings, 1);
         var thirdPeriodShardState = thirdPeriodState.get(shardId);
         assertEquals(Type.THROTTLED, thirdPeriodShardState.latestDecision());
-        assertEquals(22, thirdPeriodShardState.relativeApplicationTimeMs());
+        assertEquals(time.get(), thirdPeriodShardState.relativeApplicationTimeMs());
         assertEquals(3, thirdPeriodShardState.consecutiveApplications());
         // We don't reapply throttling if it's already there.
         assertEquals(1, throttler.history.size());
@@ -148,7 +148,7 @@ public class UploadQueueControllerServiceTests extends ESTestCase {
         Map<ShardId, ThrottleState> unthrottledDueToMaxPeriodsState = calculator.newState(thirdPeriodState, List.of(stats), settings, 1);
         var unthrottledDueToMaxPeriodsShardState = unthrottledDueToMaxPeriodsState.get(shardId);
         assertEquals(Type.THROTTLE_REMOVED, unthrottledDueToMaxPeriodsShardState.latestDecision());
-        assertEquals(33, unthrottledDueToMaxPeriodsShardState.relativeApplicationTimeMs());
+        assertEquals(time.get(), unthrottledDueToMaxPeriodsShardState.relativeApplicationTimeMs());
         assertEquals(1, unthrottledDueToMaxPeriodsShardState.consecutiveApplications());
         assertEquals(2, throttler.history.size());
         assertEquals(shardId, throttler.history.get(1).shardId);

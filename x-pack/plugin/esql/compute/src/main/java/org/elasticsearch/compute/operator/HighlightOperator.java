@@ -27,6 +27,7 @@ import org.apache.lucene.search.uhighlight.PassageFormatter;
 import org.apache.lucene.search.uhighlight.SplittingBreakIterator;
 import org.apache.lucene.search.uhighlight.UnifiedHighlighter;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.UnicodeUtil;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.Block;
@@ -47,6 +48,7 @@ import org.elasticsearch.search.fetch.subphase.highlight.LimitTokenOffsetAnalyze
 
 import java.io.IOException;
 import java.text.BreakIterator;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
@@ -98,7 +100,7 @@ public class HighlightOperator extends AbstractPageMappingOperator {
     private final ExpressionEvaluator[] fieldEvaluators;
     private final MemoryIndex memoryIndex;
     private final CustomUnifiedHighlighter[] highlighters;
-    private final CharArraySet termsToKeep;
+    private final TokenKeepSet keepSet;
 
     public HighlightOperator(BlockFactory blockFactory, HighlightConfig config, ExpressionEvaluator[] fieldEvaluators) {
         this.blockFactory = blockFactory;
@@ -150,29 +152,29 @@ public class HighlightOperator extends AbstractPageMappingOperator {
                 true
             );
         }
-        this.termsToKeep = termsToKeep(query);
+        this.keepSet = buildKeepSet(query);
     }
 
     /**
-     * Collects the terms the query needs, either to highlight or to decide whether a row matches. Returns {@code null}
-     * when a clause's terms cannot be enumerated (wildcards, regexps, or any leaf that reports no terms), which turns
-     * filtering off. Keeping too many tokens only costs time. Keeping too few would drop real highlights.
+     * Collects terms and multi-term automata for filtering tokens before indexing.
      * <p>
-     * One set covers every ON field, so a field can keep tokens that only another field's query mentions. Those never
-     * become a highlight, because the highlighter looks up postings per {@code field:term}.
+     * One keep set covers every ON field, so a field can keep tokens that only another field's query mentions. Those
+     * never become a highlight, because the highlighter looks up postings per {@code field:term}.
      * <p>
-     * {@code MUST_NOT} terms are kept as well. The query still runs against the memory index to decide whether the row
-     * matches, so dropping them would turn an excluded row into a match.
+     * {@code MUST_NOT} terms and automata must be kept because the query runs against the memory index.
      */
-    private static CharArraySet termsToKeep(Query query) {
+    private static TokenKeepSet buildKeepSet(Query query) {
         TermCollector collector = new TermCollector();
         query.visit(collector);
-        return collector.unfilterable || collector.terms.isEmpty() ? null : collector.terms;
+        if (collector.unfilterable || (collector.terms.isEmpty() && collector.automata.isEmpty())) {
+            return null;
+        }
+        return new TokenKeepSet(collector.terms, collector.automata.toArray(ByteRunAutomaton[]::new));
     }
 
     private static final class TermCollector extends QueryVisitor {
-        // Create terms set with an initial capacity.
         private final CharArraySet terms = new CharArraySet(8, false);
+        private final List<ByteRunAutomaton> automata = new ArrayList<>();
         private boolean unfilterable;
 
         @Override
@@ -184,18 +186,66 @@ public class HighlightOperator extends AbstractPageMappingOperator {
 
         @Override
         public void consumeTermsMatching(Query query, String field, Supplier<ByteRunAutomaton> automaton) {
-            unfilterable = true; // wildcard/prefix/regexp, whose terms cannot be enumerated
+            automata.add(automaton.get());
         }
 
         @Override
         public void visitLeaf(Query query) {
-            unfilterable = true; // leaf that reported no terms, we don't know what it matches
+            unfilterable = true;
         }
 
         @Override
         public QueryVisitor getSubVisitor(BooleanClause.Occur occur, Query parent) {
             // QueryVisitor's default returns EMPTY_VISITOR for MUST_NOT, which would skip its terms.
             return this;
+        }
+    }
+
+    /** Terms and multi-term automata that a query can match. */
+    private record TokenKeepSet(CharArraySet terms, ByteRunAutomaton[] automata) {
+        boolean accept(char[] buffer, int length) {
+            if (terms.contains(buffer, 0, length)) {
+                return true;
+            }
+            for (ByteRunAutomaton automaton : automata) {
+                if (matches(automaton, buffer, length)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private static boolean matches(ByteRunAutomaton automaton, char[] chars, int length) {
+            int state = 0;
+            for (int i = 0; i < length; i++) {
+                final int code = chars[i];
+                if (code < 0x80) {
+                    state = automaton.step(state, code);
+                    if (state == -1) {
+                        return false;
+                    }
+                } else if (code < 0x800) {
+                    state = automaton.step(state, 0xC0 | (code >> 6));
+                    if (state == -1) {
+                        return false;
+                    }
+                    state = automaton.step(state, 0x80 | (code & 0x3F));
+                    if (state == -1) {
+                        return false;
+                    }
+                } else {
+                    byte[] utf8 = new byte[4 * (length - i)];
+                    int utf8Len = UnicodeUtil.UTF16toUTF8(chars, i, length - i, utf8);
+                    for (int b = 0; b < utf8Len; b++) {
+                        state = automaton.step(state, utf8[b] & 0xFF);
+                        if (state == -1) {
+                            return false;
+                        }
+                    }
+                    break;
+                }
+            }
+            return automaton.isAccept(state);
         }
     }
 
@@ -312,17 +362,17 @@ public class HighlightOperator extends AbstractPageMappingOperator {
             if (field.rowText == null) {
                 continue;
             }
-            if (termsToKeep == null) {
+            if (keepSet == null) {
                 memoryIndex.addField(field.name, field.rowText, memoryIndexAnalyzer);
             } else {
                 TokenStream tokenStream = memoryIndexAnalyzer.tokenStream(field.name, field.rowText);
-                KeepQueryTermsFilter filtered = new KeepQueryTermsFilter(tokenStream, termsToKeep);
+                KeepQueryTermsFilter filtered = new KeepQueryTermsFilter(tokenStream, keepSet);
                 memoryIndex.addField(field.name, filtered); // addField resets and closes the stream
                 keptToken |= filtered.keptToken;
             }
         }
         // With filtering off keptToken stays false, so it says nothing about the row.
-        if (termsToKeep != null && keptToken == false && config.noMatchSize() == 0) {
+        if (keepSet != null && keptToken == false && config.noMatchSize() == 0) {
             return null;
         }
         // MemoryIndex snapshots FieldInfos at reader construction, so create it after addField.
@@ -338,18 +388,18 @@ public class HighlightOperator extends AbstractPageMappingOperator {
      * strategy indexes one field at a time, and cross-field queries here need every ON field in one index.
      */
     private static final class KeepQueryTermsFilter extends FilteringTokenFilter {
-        private final CharArraySet terms;
+        private final TokenKeepSet keepSet;
         private final CharTermAttribute termAtt = addAttribute(CharTermAttribute.class);
         private boolean keptToken;
 
-        KeepQueryTermsFilter(TokenStream in, CharArraySet terms) {
+        KeepQueryTermsFilter(TokenStream in, TokenKeepSet keepSet) {
             super(in);
-            this.terms = terms;
+            this.keepSet = keepSet;
         }
 
         @Override
         protected boolean accept() {
-            boolean keep = terms.contains(termAtt.buffer(), 0, termAtt.length());
+            boolean keep = keepSet.accept(termAtt.buffer(), termAtt.length());
             keptToken |= keep;
             return keep;
         }

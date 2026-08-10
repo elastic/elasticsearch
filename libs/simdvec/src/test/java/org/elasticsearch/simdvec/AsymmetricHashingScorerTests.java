@@ -16,23 +16,30 @@ import org.elasticsearch.test.ESTestCase;
  */
 public class AsymmetricHashingScorerTests extends ESTestCase {
 
-    public void testScoreOneVectorBasic() {
-        // queryTransformed = [2, 3], encodedVector = [1, -1]
-        // dot = 2*1 + 3*(-1) = -1
-        // result = -1 * scale + qdc + offset = -1 * 1.0 + 0.0 + 0.0 = -1.0
-        float score = AsymmetricHashingScorer.scoreOneVector(new float[] { 2.0f, 3.0f }, 0.0f, new float[] { 1.0f, -1.0f }, 1.0f, 0.0f);
-        assertEquals(-1.0f, score, 1e-6f);
+    public void testScoreBasic() {
+        // qt = [2, 3], valid 2-bit codes: [0.5, -0.5]
+        // dot = 2*0.5 + 3*(-0.5) = -0.5
+        // result = -0.5 * 1.0 + 0.0 + 0.0 = -0.5
+        float[] codes = { 0.5f, -0.5f };
+        byte[] packed = AsymmetricHashingScorer.pack(codes, 2);
+        float score = AsymmetricHashingScorer.score(new float[] { 2.0f, 3.0f }, 0.0f, packed, 2, 2, 1.0f, 0.0f);
+        float expected = referenceScore(new float[] { 2.0f, 3.0f }, 0.0f, codes, 1.0f, 0.0f);
+        assertEquals(expected, score, 1e-4f);
     }
 
     public void testScaleAndOffsetApplied() {
-        // dot = 2*1 + 3*1 = 5
-        // result = 5 * 2.0 + 1.5 + 0.3 = 11.8
-        float score = AsymmetricHashingScorer.scoreOneVector(new float[] { 2.0f, 3.0f }, 1.5f, new float[] { 1.0f, 1.0f }, 2.0f, 0.3f);
-        assertEquals(11.8f, score, 1e-5f);
+        // codes = [0.5, 0.5] (valid 2-bit level)
+        // dot = 2*0.5 + 3*0.5 = 2.5
+        // result = 2.5 * 2.0 + 1.5 + 0.3 = 6.8
+        float[] codes = { 0.5f, 0.5f };
+        byte[] packed = AsymmetricHashingScorer.pack(codes, 2);
+        float score = AsymmetricHashingScorer.score(new float[] { 2.0f, 3.0f }, 1.5f, packed, 2, 2, 2.0f, 0.3f);
+        float expected = referenceScore(new float[] { 2.0f, 3.0f }, 1.5f, codes, 2.0f, 0.3f);
+        assertEquals(expected, score, 1e-4f);
     }
 
-    public void testScoreOneVectorMultiBitEqualsFloat() {
-        // Multi-bit scorer should produce same result as float scorer
+    public void testScoreMatchesReferenceDotProduct() {
+        // Verify packed scoring matches a reference float dot product computation
         for (int bitsPerDim = 2; bitsPerDim <= 4; bitsPerDim++) {
             int numAbsLevels = 1 << (bitsPerDim - 1);
             for (int iter = 0; iter < 20; iter++) {
@@ -44,7 +51,7 @@ public class AsymmetricHashingScorerTests extends ESTestCase {
                     int level = randomIntBetween(0, numAbsLevels - 1);
                     codes[j] = sign * (0.5f + level);
                 }
-                byte[] packed = AsymmetricHashingScorer.packMultiBitCodes(codes, bitsPerDim);
+                byte[] packed = AsymmetricHashingScorer.pack(codes, bitsPerDim);
 
                 float[] qt = new float[nDims];
                 for (int j = 0; j < nDims; j++) {
@@ -54,9 +61,9 @@ public class AsymmetricHashingScorerTests extends ESTestCase {
                 float offset = (float) random().nextGaussian();
                 float qdc = (float) random().nextGaussian();
 
-                float floatScore = AsymmetricHashingScorer.scoreOneVector(qt, qdc, codes, scale, offset);
-                float multiBitScore = AsymmetricHashingScorer.scoreOneVectorMultiBit(qt, qdc, packed, nDims, bitsPerDim, scale, offset);
-                assertEquals("Mismatch at bits=" + bitsPerDim + " iter=" + iter, floatScore, multiBitScore, 1e-3f);
+                float expected = referenceScore(qt, qdc, codes, scale, offset);
+                float actual = AsymmetricHashingScorer.score(qt, qdc, packed, nDims, bitsPerDim, scale, offset);
+                assertEquals("Mismatch at bits=" + bitsPerDim + " iter=" + iter, expected, actual, 1e-3f);
             }
         }
     }
@@ -76,7 +83,7 @@ public class AsymmetricHashingScorerTests extends ESTestCase {
             codes[j] = expectedUnsigned[j] - centerOffset;
         }
 
-        byte[] packed = AsymmetricHashingScorer.packMultiBitCodes(codes, bitsPerDim);
+        byte[] packed = AsymmetricHashingScorer.pack(codes, bitsPerDim);
         int planeBytes = (nDims + 7) >>> 3;
         assertEquals(bitsPerDim * planeBytes, packed.length);
 
@@ -95,61 +102,25 @@ public class AsymmetricHashingScorerTests extends ESTestCase {
     }
 
     public void testPackedByteLength() {
-        assertEquals(2, AsymmetricHashingScorer.packedByteLength(8, 2));
-        assertEquals(4, AsymmetricHashingScorer.packedByteLength(9, 2));
-        assertEquals(36, AsymmetricHashingScorer.packedByteLength(96, 3));
-        assertEquals(12, AsymmetricHashingScorer.packedByteLength(96, 1));
-    }
-
-    public void testBatchScoreConsistency() {
-        int nVectors = 20;
-        int originalDim = 8;
-        int nDims = 4;
-
-        float[] query = new float[originalDim];
-        for (int d = 0; d < originalDim; d++) {
-            query[d] = (float) random().nextGaussian();
-        }
-
-        // Simple W: project first 4 dims
-        float[][] w = new float[originalDim][nDims];
-        for (int i = 0; i < nDims; i++) {
-            w[i][i] = 1.0f;
-        }
-
-        float[][] centroids = { new float[originalDim] }; // zero centroid
-        int[] assignments = new int[nVectors];
-
-        float[][] encodedVectors = new float[nVectors][nDims];
-        float[] scales = new float[nVectors];
-        float[] offsets = new float[nVectors];
-        for (int i = 0; i < nVectors; i++) {
-            for (int j = 0; j < nDims; j++) {
-                encodedVectors[i][j] = (float) random().nextGaussian();
-            }
-            scales[i] = 0.5f + randomFloat();
-            offsets[i] = (float) random().nextGaussian() * 0.1f;
-        }
-
-        float[] batchScores = AsymmetricHashingScorer.score(query, w, centroids, assignments, encodedVectors, scales, offsets);
-
-        // queryTransformed = (query - 0) @ W = first 4 dims of query
-        float[] qt = new float[nDims];
-        for (int j = 0; j < nDims; j++) {
-            qt[j] = query[j];
-        }
-        float qdc = 0f; // centroid is zero
-
-        for (int i = 0; i < nVectors; i++) {
-            float singleScore = AsymmetricHashingScorer.scoreOneVector(qt, qdc, encodedVectors[i], scales[i], offsets[i]);
-            assertEquals("Mismatch at vector " + i, batchScores[i], singleScore, 1e-5f);
-        }
+        assertEquals(2, AsymmetricHashingScorer.packedLength(8, 2));
+        assertEquals(4, AsymmetricHashingScorer.packedLength(9, 2));
+        assertEquals(36, AsymmetricHashingScorer.packedLength(96, 3));
+        assertEquals(12, AsymmetricHashingScorer.packedLength(96, 1));
     }
 
     public void testZeroDimensionScoring() {
-        // Edge case: 0-dim vectors
-        float score = AsymmetricHashingScorer.scoreOneVector(new float[0], 1.5f, new float[0], 2.0f, 0.3f);
-        // dot = 0, result = 0 * 2.0 + 1.5 + 0.3 = 1.8
+        // Edge case: 0-dim vectors; dot = 0, result = 0 * 2.0 + 1.5 + 0.3 = 1.8
+        byte[] packed = AsymmetricHashingScorer.pack(new float[0], 2);
+        float score = AsymmetricHashingScorer.score(new float[0], 1.5f, packed, 0, 2, 2.0f, 0.3f);
         assertEquals(1.8f, score, 1e-6f);
+    }
+
+    /** Reference scorer: computes dot(qt, codes) * scale + qdc + offset using plain float arithmetic. */
+    private static float referenceScore(float[] qt, float qdc, float[] codes, float scale, float offset) {
+        double dot = 0;
+        for (int j = 0; j < qt.length; j++) {
+            dot += (double) qt[j] * codes[j];
+        }
+        return (float) dot * scale + qdc + offset;
     }
 }

@@ -2279,9 +2279,6 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             fakeNode.warmingService.warmBlobOffsets(indexShard, fakeNode.searchDirectory, warmTargets, warmListener);
             safeGet(warmListener);
 
-            // After warming completes, the enqueued and running counters must balance to zero
-            // (each +1 on enqueue is matched by a -1 when the task starts or is rejected, and
-            // each +1 on running start is matched by a -1 via the listener's runBefore callback).
             long enqueuedSum = recordingMeterRegistry.getRecorder()
                 .getMeasurements(
                     InstrumentType.LONG_UP_DOWN_COUNTER,

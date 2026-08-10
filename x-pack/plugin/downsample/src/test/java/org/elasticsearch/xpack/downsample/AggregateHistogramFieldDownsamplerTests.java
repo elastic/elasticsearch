@@ -311,10 +311,11 @@ public class AggregateHistogramFieldDownsamplerTests extends ESTestCase {
      * Regression test for a bug where two consecutive resets within the same bucket could cause the same
      * (field, timestamp) pair to be pushed onto the reset stack twice:
      * <ol>
-     *   <li>A count-based reset pushes the previous data point at {@code t=30} onto the stack.</li>
+     *   <li>A count-based reset (detected while processing {@code t=30}) pushes the previous data point
+     *       at {@code t=40} via the guard, then pushes the reset boundary at {@code t=30} unconditionally.</li>
      *   <li>A structural reset (setToDifference returns false while count still fits) incorrectly
-     *       re-pushes the same {@code t=30} entry, producing a duplicate field in the reset document
-     *       and an {@code XContentParseException: Duplicate field '...'} at index time.</li>
+     *       re-pushes the same {@code t=30} entry (= {@code lastTimestamp}), producing a duplicate field
+     *       in the reset document and an {@code XContentParseException: Duplicate field '...'} at index time.</li>
      * </ol>
      * <p>
      * The bug is triggered when h20.max &gt; h30.max (making setToDifference(h30, h20) return false)

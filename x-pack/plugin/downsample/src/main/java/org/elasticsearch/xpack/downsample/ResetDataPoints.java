@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.downsample;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -29,6 +31,8 @@ import java.util.Map;
  */
 class ResetDataPoints {
 
+    private static final Logger logger = LogManager.getLogger(ResetDataPoints.class);
+
     private final Map<Long, List<Tuple<String, ResetValue>>> dataPoints = new HashMap<>();
 
     void addDataPoint(String fieldName, ResetPoint resetPoint) {
@@ -36,6 +40,7 @@ class ResetDataPoints {
         for (var existing : values) {
             if (existing.v1().equals(fieldName)) {
                 assert false : "duplicate reset data point for field [" + fieldName + "] at timestamp [" + resetPoint.timestamp() + "]";
+                logger.warn("Skipping duplicate reset data point for field [{}] at timestamp [{}]", fieldName, resetPoint.timestamp());
                 return;
             }
         }

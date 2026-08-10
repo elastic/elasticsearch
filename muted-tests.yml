@@ -654,3 +654,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingK8sMiscIT
   method: test {csv-spec:k8s-misc.by_four_dims}
   issue: https://github.com/elastic/elasticsearch/issues/156312
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:k8s-misc.by_four_dims}
+  issue: https://github.com/elastic/elasticsearch/issues/156313

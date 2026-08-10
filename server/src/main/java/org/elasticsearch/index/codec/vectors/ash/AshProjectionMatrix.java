@@ -65,7 +65,7 @@ public final class AshProjectionMatrix {
      */
     public float[][] wT() {
         if (wT == null) {
-            wT = ESVectorUtil.transposeMatrix(w, originalDim, nDims);
+            wT = ESVectorUtil.transposeMatrix(w);
         }
         return wT;
     }

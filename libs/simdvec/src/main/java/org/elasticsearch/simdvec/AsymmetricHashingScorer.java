@@ -69,19 +69,20 @@ public final class AsymmetricHashingScorer {
         switch (bitsPerDim) {
             case 1 -> ESVectorUtil.pack1BitValues(rounded, packed);
             case 2 -> ESVectorUtil.stride2BitValues(rounded, packed);
-            case 3 -> {
-                // TODO: optimized implementation for 3 bits
+            case 4 -> ESVectorUtil.stride4BitValues(rounded, packed);
+            case 3, 8 -> {
+                // TODO: optimized implementations
                 for (int j = 0; j < nDims; j++) {
                     int byteIdx = j >>> 3;
                     int bitIdx = 7 - (j & 7); // MSB-first
-                    for (int p = 0; p < 3; p++) {
+                    for (int p = 0; p < bitsPerDim; p++) {
                         if ((rounded[j] & (1 << p)) != 0) {
                             packed[p * planeBytes + byteIdx] |= (byte) (1 << bitIdx);
                         }
                     }
                 }
             }
-            case 4 -> ESVectorUtil.stride4BitValues(rounded, packed);
+            default -> throw new IllegalArgumentException("Unsupported bitsPerDim: " + bitsPerDim);
         }
 
         return packed;

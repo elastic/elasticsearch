@@ -579,6 +579,9 @@ public class TimeSeriesRunTableOrdinalFullClusterRestartIT extends Parameterized
     }
 
     private static void requireRunTableOrdinal() {
-        assumeTrue("run-table ordinal codec is not available on this cluster", clusterHasFeature("index.time_series_run_table_ordinal"));
+        assumeTrue(
+            "run-table ordinal codec is not available on the old cluster",
+            oldClusterHasFeature("index.time_series_run_table_ordinal")
+        );
     }
 }

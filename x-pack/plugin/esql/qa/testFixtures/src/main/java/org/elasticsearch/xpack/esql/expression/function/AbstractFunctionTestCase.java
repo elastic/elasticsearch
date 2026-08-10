@@ -854,14 +854,10 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         return result;
     }
 
-    /**
-     * Return types are compared after {@link DataType#noText()} so {@code text} results
-     * (as in CASE test suppliers) match declared signatures that return {@code keyword}.
-     */
     private static FunctionSignatures.ConcreteSignature toConcreteSignature(DocsV3Support.TypeSignature signature) {
         return new FunctionSignatures.ConcreteSignature(
             signature.argTypes().stream().map(DocsV3Support.Param::dataType).toList(),
-            signature.returnType().noText()
+            signature.returnType()
         );
     }
 
@@ -959,7 +955,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         for (FunctionSignatures.ConcreteSignature concrete : declared) {
             DocsV3Support.TypeSignature fromTests = testedByConcrete.get(concrete);
             if (fromTests != null) {
-                // Keep arg appliesTo/preview from tests; prefer declared return ($N / noText()).
+                // Keep arg appliesTo/preview from tests; prefer declared return type.
                 result.add(new DocsV3Support.TypeSignature(fromTests.argTypes(), concrete.returnType()));
             } else {
                 result.add(
@@ -991,7 +987,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             }
             mergedArgs.add(new DocsV3Support.Param(left.dataType(), appliesTo, left.preview() || right.preview()));
         }
-        return new DocsV3Support.TypeSignature(mergedArgs, a.returnType().noText());
+        return new DocsV3Support.TypeSignature(mergedArgs, a.returnType());
     }
 
     private static String functionName(Class<?> testClass) {

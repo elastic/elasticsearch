@@ -56,14 +56,36 @@ public class FunctionSignaturesTests extends ESTestCase {
         );
     }
 
-    public void testReturnRefFollowsParamWithNoText() {
+    public void testReturnRefPreservesExactType() {
         Set<FunctionSignatures.ConcreteSignature> expanded = FunctionSignatures.expand(signature(new String[] { "STRING" }, "$0"));
         assertThat(
             expanded,
             containsInAnyOrder(
                 new FunctionSignatures.ConcreteSignature(List.of(DataType.KEYWORD), DataType.KEYWORD),
+                new FunctionSignatures.ConcreteSignature(List.of(DataType.TEXT), DataType.TEXT)
+            )
+        );
+    }
+
+    public void testReturnRefNoText() {
+        Set<FunctionSignatures.ConcreteSignature> expanded = FunctionSignatures.expand(
+            signature(new String[] { "long|STRING" }, "$0.noText")
+        );
+        assertThat(
+            expanded,
+            containsInAnyOrder(
+                new FunctionSignatures.ConcreteSignature(List.of(DataType.LONG), DataType.LONG),
+                new FunctionSignatures.ConcreteSignature(List.of(DataType.KEYWORD), DataType.KEYWORD),
                 new FunctionSignatures.ConcreteSignature(List.of(DataType.TEXT), DataType.KEYWORD)
             )
+        );
+    }
+
+    public void testReturnRefUnknownModifierRejected() {
+        expectThrows(
+            IllegalArgumentException.class,
+            containsString("unknown return type reference modifier"),
+            () -> FunctionSignatures.expand(signature(new String[] { "integer" }, "$0.noCounter"))
         );
     }
 

@@ -23,13 +23,13 @@ import java.util.regex.Pattern;
  *     Parameter entries may use {@code |} for unions and {@link TypeGroup} names
  *     (e.g. {@code NUMERIC}, {@code STRING}, {@code GEO}, {@code SORTABLE}, {@code ALL}).
  *     {@link Signature#returnType()} must be either a single concrete type name or a
- *     positional reference {@code $N} (return type follows parameter {@code N} after
- *     expansion, normalized with {@link DataType#noText()}). Type groups and {@code |}
+ *     positional reference {@code $N} / {@code $N.noText}. Type groups and {@code |}
  *     unions are not allowed in the return type.
  * </p>
  */
 public final class FunctionSignatures {
-    private static final Pattern RETURN_PARAM_REF = Pattern.compile("\\$(\\d+)");
+    private static final Pattern RETURN_PARAM_REF = Pattern.compile("\\$(\\d+)(?:\\.(.+))?");
+    private static final String NO_TEXT_MODIFIER = "noText";
 
     private FunctionSignatures() {}
 
@@ -83,31 +83,46 @@ public final class FunctionSignatures {
                     "return type reference [" + returnDecl + "] is out of range for " + signature.params().length + " parameter(s)"
                 );
             }
-            return expandWithReturnRef(perPosition, index);
+            boolean applyNoText = parseReturnRefModifier(returnDecl, ref.group(2));
+            return expandWithReturnRef(perPosition, index, applyNoText);
         }
 
         if (returnDecl.contains("|")) {
-            throw new IllegalArgumentException("return type [" + returnDecl + "] must be a concrete type or $N reference, not a union");
+            throw new IllegalArgumentException(
+                "return type [" + returnDecl + "] must be a concrete type or $N / $N.noText reference, not a union"
+            );
         }
         if (TypeGroup.parse(returnDecl) != null) {
             throw new IllegalArgumentException(
-                "return type [" + returnDecl + "] must be a concrete type or $N reference, not a type group"
+                "return type [" + returnDecl + "] must be a concrete type or $N / $N.noText reference, not a type group"
             );
         }
 
         DataType returnType = requireKnownType(returnDecl, "return type");
         List<ConcreteSignature> expanded = new ArrayList<>();
-        expandRecursive(perPosition, 0, new ArrayList<>(perPosition.size()), returnType, null, expanded);
+        expandRecursive(perPosition, 0, new ArrayList<>(perPosition.size()), returnType, null, false, expanded);
         return expanded;
     }
 
+    private static boolean parseReturnRefModifier(String returnDecl, String modifier) {
+        if (modifier == null) {
+            return false;
+        }
+        if (NO_TEXT_MODIFIER.equals(modifier)) {
+            return true;
+        }
+        throw new IllegalArgumentException(
+            "unknown return type reference modifier [." + modifier + "] in [" + returnDecl + "]; only [.noText] is supported"
+        );
+    }
+
     /**
-     * Expand params freely; for each concrete arg list, return type is
-     * {@code args.get(index).noText()}.
+     * Expand params freely; for each concrete arg list, return type follows
+     * {@code args.get(index)}, optionally via {@link DataType#noText()}.
      */
-    private static List<ConcreteSignature> expandWithReturnRef(List<List<DataType>> perPosition, int index) {
+    private static List<ConcreteSignature> expandWithReturnRef(List<List<DataType>> perPosition, int index, boolean applyNoText) {
         List<ConcreteSignature> expanded = new ArrayList<>();
-        expandRecursive(perPosition, 0, new ArrayList<>(perPosition.size()), null, index, expanded);
+        expandRecursive(perPosition, 0, new ArrayList<>(perPosition.size()), null, index, applyNoText, expanded);
         return expanded;
     }
 
@@ -142,6 +157,7 @@ public final class FunctionSignatures {
     /**
      * @param fixedReturn non-null when return type is concrete; then {@code returnRefIndex} is ignored
      * @param returnRefIndex non-null when return type is {@code $N}; then {@code fixedReturn} is ignored
+     * @param applyNoText when using a return ref, apply {@link DataType#noText()} to the referenced type
      */
     private static void expandRecursive(
         List<List<DataType>> perPosition,
@@ -149,16 +165,25 @@ public final class FunctionSignatures {
         List<DataType> current,
         DataType fixedReturn,
         Integer returnRefIndex,
+        boolean applyNoText,
         List<ConcreteSignature> out
     ) {
         if (index == perPosition.size()) {
-            DataType returnType = fixedReturn != null ? fixedReturn : current.get(returnRefIndex).noText();
+            DataType returnType;
+            if (fixedReturn != null) {
+                returnType = fixedReturn;
+            } else {
+                returnType = current.get(returnRefIndex);
+                if (applyNoText) {
+                    returnType = returnType.noText();
+                }
+            }
             out.add(new ConcreteSignature(List.copyOf(current), returnType));
             return;
         }
         for (DataType type : perPosition.get(index)) {
             current.add(type);
-            expandRecursive(perPosition, index + 1, current, fixedReturn, returnRefIndex, out);
+            expandRecursive(perPosition, index + 1, current, fixedReturn, returnRefIndex, applyNoText, out);
             current.remove(current.size() - 1);
         }
     }

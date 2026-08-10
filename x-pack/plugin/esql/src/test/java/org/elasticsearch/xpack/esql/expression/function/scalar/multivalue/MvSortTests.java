@@ -219,7 +219,7 @@ public class MvSortTests extends AbstractScalarFunctionTestCase {
                         new TestCaseSupplier.TypedData(new BytesRef(order ? "ASC" : "DESC"), DataType.KEYWORD, "order").forceLiteral()
                     ),
                     "MvSortBytesRef[field=Attribute[channel=0], order=" + order + "]",
-                    type,
+                    type.noText(),
                     equalTo(sortedData.size() == 1 ? sortedData.get(0) : sortedData)
                 );
             }));
@@ -229,7 +229,7 @@ public class MvSortTests extends AbstractScalarFunctionTestCase {
                 return new TestCaseSupplier.TestCase(
                     List.of(new TestCaseSupplier.TypedData(field, type, "field")),
                     "MvSortBytesRef[field=Attribute[channel=0], order=true]",
-                    type,
+                    type.noText(),
                     equalTo(sortedData.size() == 1 ? sortedData.get(0) : sortedData)
                 );
             }));

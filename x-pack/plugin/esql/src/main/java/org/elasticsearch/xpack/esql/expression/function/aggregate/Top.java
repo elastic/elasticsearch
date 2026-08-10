@@ -102,13 +102,13 @@ public class Top extends AggregateFunction
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = { "boolean", "double", "integer", "long", "date", "ip", "keyword" },
         signatures = {
-            @Signature(params = { "boolean|ip|date|double|integer|long|STRING", "integer" }, returnType = "$0"),
-            @Signature(params = { "boolean|ip|date|double|integer|long|STRING", "integer", "keyword" }, returnType = "$0"),
+            @Signature(params = { "boolean|ip|date|double|integer|long|STRING", "integer" }, returnType = "$0.noText"),
+            @Signature(params = { "boolean|ip|date|double|integer|long|STRING", "integer", "keyword" }, returnType = "$0.noText"),
             // outputField present: return follows the 4th argument.
             // Narrower than 2/3-arg forms on purpose — matches current TopTests (no boolean/ip 4-arg coverage yet).
             @Signature(
                 params = { "date|double|integer|long|STRING", "integer", "keyword", "date|double|integer|long|STRING" },
-                returnType = "$3"
+                returnType = "$3.noText"
             ) },
         briefSummary = "Collects the top values for a field, including repeated values.",
         description = "Collects the top values for a field. Includes repeated values.",

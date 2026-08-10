@@ -21,10 +21,10 @@ import java.lang.annotation.Target;
  *     tests and generating docs.
  * </p>
  * <p>
- *     {@link #returnType()} is either a single concrete type name, or a positional
- *     reference {@code $N} meaning the return type equals parameter {@code N} after
- *     expansion (normalized with {@code noText()}). Type groups and {@code |} unions
- *     are not allowed in the return type.
+ *     {@link #returnType()} is either a single concrete type name, a positional
+ *     reference {@code $N} (exact type of parameter {@code N}), or {@code $N.noText}
+ *     (same, after {@code DataType.noText()}). Type groups and {@code |} unions are
+ *     not allowed in the return type.
  * </p>
  */
 @Retention(RetentionPolicy.RUNTIME)
@@ -38,8 +38,9 @@ public @interface Signature {
     String[] params();
 
     /**
-     * The return type of this overload: a concrete type name, or {@code $N} to
-     * follow parameter {@code N} ({@code noText()}-normalized).
+     * The return type of this overload: a concrete type name, {@code $N} to follow
+     * parameter {@code N} exactly, or {@code $N.noText} to follow it after
+     * {@code DataType.noText()}.
      */
     String returnType();
 }

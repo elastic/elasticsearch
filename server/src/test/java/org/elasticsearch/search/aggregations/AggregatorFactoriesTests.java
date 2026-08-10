@@ -341,6 +341,15 @@ public class AggregatorFactoriesTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("exceeds the maximum nested depth for aggregations of ["));
     }
 
+    public void testMaxNestedDepthEnforcedAtValidationTimeRegardlessOfAllowPartialSearchResults() {
+        int maxDepth = defaultMaxNestedDepth();
+        SearchRequest request = new SearchRequest().source(new SearchSourceBuilder().aggregationsBuilder(nestedTermsBuilder(maxDepth + 1)))
+            .allowPartialSearchResults(true);
+        ActionRequestValidationException e = request.validate();
+        assertNotNull(e);
+        assertThat(e.getMessage(), containsString("exceeds the maximum nested depth for aggregations of [" + maxDepth + "]"));
+    }
+
     public void testMaxNestedDepthBoundaryAcceptedAtValidationTime() {
         assertNull(nestedTermsBuilder(defaultMaxNestedDepth()).validate(null));
     }

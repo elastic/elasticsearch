@@ -40,6 +40,13 @@ public class SharedCacheCapacityAllocationDeciderIT extends AbstractStatelessPlu
 
     private static final long CACHE_SIZE_IN_BYTES = 1000L;
 
+    private static final String MONITOR_TRIGGERING_REROUTE_LOG_MESSAGE =
+        "cache commitments exceeded the high watermark for nodes * triggering reroute";
+    private static final String MONITOR_NOT_REROUTING_ALL_NODES_OVER_LOW_WATERMARK_LOG_MESSAGE =
+        "not rerouting for nodes * over the high watermark because all search nodes exceed the low watermark";
+    private static final String MONITOR_SKIPPED_WHILE_DISABLED_LOG_MESSAGE =
+        "skipping monitor as the shared cache capacity decider or its canRemain check is disabled";
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Stream.concat(super.nodePlugins().stream(), Stream.of(MockInternalClusterInfoService.TestPlugin.class))
@@ -347,7 +354,7 @@ public class SharedCacheCapacityAllocationDeciderIT extends AbstractStatelessPlu
                     "monitor skipped because canRemain is disabled",
                     SharedCacheCapacityMonitor.class.getCanonicalName(),
                     Level.DEBUG,
-                    "skipping monitor as the shared cache capacity decider or its canRemain check is disabled"
+                    MONITOR_SKIPPED_WHILE_DISABLED_LOG_MESSAGE
                 )
             );
             mockLog.addExpectation(
@@ -355,7 +362,7 @@ public class SharedCacheCapacityAllocationDeciderIT extends AbstractStatelessPlu
                     "no reroute while canRemain is disabled",
                     SharedCacheCapacityMonitor.class.getCanonicalName(),
                     Level.DEBUG,
-                    "cache commitments exceeded the high watermark for nodes * triggering reroute"
+                    MONITOR_TRIGGERING_REROUTE_LOG_MESSAGE
                 )
             );
             fakeNodeCacheSizeAndCommitments(
@@ -427,7 +434,7 @@ public class SharedCacheCapacityAllocationDeciderIT extends AbstractStatelessPlu
                     "reroute due to cache commitments exceeding the high watermark",
                     SharedCacheCapacityMonitor.class.getCanonicalName(),
                     Level.DEBUG,
-                    "cache commitments exceeded the high watermark for nodes * triggering reroute"
+                    MONITOR_TRIGGERING_REROUTE_LOG_MESSAGE
                 )
             );
             fakeNodeCacheSizeAndCommitments(
@@ -498,7 +505,7 @@ public class SharedCacheCapacityAllocationDeciderIT extends AbstractStatelessPlu
                     "no reroute when there is no alternative node below the low watermark",
                     SharedCacheCapacityMonitor.class.getCanonicalName(),
                     Level.DEBUG,
-                    "not rerouting for nodes * over the high watermark because all search nodes exceed the low watermark"
+                    MONITOR_NOT_REROUTING_ALL_NODES_OVER_LOW_WATERMARK_LOG_MESSAGE
                 )
             );
             mockLog.addExpectation(
@@ -506,7 +513,7 @@ public class SharedCacheCapacityAllocationDeciderIT extends AbstractStatelessPlu
                     "no reroute log line when there is no alternative node below the low watermark",
                     SharedCacheCapacityMonitor.class.getCanonicalName(),
                     Level.DEBUG,
-                    "cache commitments exceeded the high watermark for nodes * triggering reroute"
+                    MONITOR_TRIGGERING_REROUTE_LOG_MESSAGE
                 )
             );
             refreshClusterInfo();

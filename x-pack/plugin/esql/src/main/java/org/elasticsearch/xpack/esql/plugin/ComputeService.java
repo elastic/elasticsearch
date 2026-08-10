@@ -755,16 +755,10 @@ public class ComputeService {
 
         Runnable cancelQueryOnFailure = cancelQueryOnFailure(rootTask);
 
-        try (
-            ComputeListener localListener = new ComputeListener(
-                transportService.getThreadPool(),
-                cancelQueryOnFailure,
-                finalListener.map(profiles -> {
-                    execInfo.markEndQuery();
-                    return new Result(mainPlan.output(), collectedPages, null, configuration, profiles, execInfo);
-                })
-            )
-        ) {
+        try (ComputeListener localListener = new ComputeListener(cancelQueryOnFailure, finalListener.map(profiles -> {
+            execInfo.markEndQuery();
+            return new Result(mainPlan.output(), collectedPages, null, configuration, profiles, execInfo);
+        }))) {
             runCompute(
                 rootTask,
                 computeContext,
@@ -998,16 +992,10 @@ public class ComputeService {
                 false
             );
             updateShardCountForCoordinatorOnlyQuery(execInfo);
-            try (
-                var computeListener = new ComputeListener(
-                    transportService.getThreadPool(),
-                    cancelQueryOnFailure,
-                    listener.map(completionInfo -> {
-                        updateExecutionInfoAfterCoordinatorOnlyQuery(execInfo);
-                        return new Result(resolvedPlan.output(), collectedPages, null, configuration, completionInfo, execInfo);
-                    })
-                )
-            ) {
+            try (var computeListener = new ComputeListener(cancelQueryOnFailure, listener.map(completionInfo -> {
+                updateExecutionInfoAfterCoordinatorOnlyQuery(execInfo);
+                return new Result(resolvedPlan.output(), collectedPages, null, configuration, completionInfo, execInfo);
+            }))) {
                 runCompute(
                     rootTask,
                     computeContext,
@@ -1061,23 +1049,16 @@ public class ComputeService {
         var exchangeSource = new ExchangeSourceHandler(configuration.pragmas().exchangeBufferSize(), searchExecutor);
         listener = ActionListener.runBefore(listener, () -> exchangeService.removeExchangeSourceHandler(sessionId));
         exchangeService.addExchangeSourceHandler(sessionId, exchangeSource);
-        try (
-            var computeListener = new ComputeListener(
-                transportService.getThreadPool(),
-                cancelQueryOnFailure,
-                listener.delegateFailureAndWrap((l, completionInfo) -> {
-                    failIfAllShardsFailed(execInfo, collectedPages);
-                    execInfo.markEndQuery();
-                    l.onResponse(new Result(outputAttributes, collectedPages, null, configuration, completionInfo, execInfo));
-                })
-            )
-        ) {
+        try (var computeListener = new ComputeListener(cancelQueryOnFailure, listener.delegateFailureAndWrap((l, completionInfo) -> {
+            failIfAllShardsFailed(execInfo, collectedPages);
+            execInfo.markEndQuery();
+            l.onResponse(new Result(outputAttributes, collectedPages, null, configuration, completionInfo, execInfo));
+        }))) {
             try (Releasable ignored = exchangeSource.addEmptySink()) {
                 // run compute on the coordinator
                 final AtomicBoolean localClusterWasInterrupted = new AtomicBoolean();
                 try (
                     var localListener = new ComputeListener(
-                        transportService.getThreadPool(),
                         cancelQueryOnFailure,
                         computeListener.acquireCompute().delegateFailure((l, completionInfo) -> {
                             if (execInfo.clusterInfo.containsKey(LOCAL_CLUSTER)) {
@@ -1236,16 +1217,10 @@ public class ComputeService {
         var exchangeSource = new ExchangeSourceHandler(configuration.pragmas().exchangeBufferSize(), searchExecutor);
         listener = ActionListener.runBefore(listener, () -> exchangeService.removeExchangeSourceHandler(sessionId));
         exchangeService.addExchangeSourceHandler(sessionId, exchangeSource);
-        try (
-            var computeListener = new ComputeListener(
-                transportService.getThreadPool(),
-                cancelQueryOnFailure,
-                listener.delegateFailureAndWrap((l, completionInfo) -> {
-                    execInfo.markEndQuery();
-                    l.onResponse(new Result(outputAttributes, collectedPages, null, configuration, completionInfo, execInfo));
-                })
-            )
-        ) {
+        try (var computeListener = new ComputeListener(cancelQueryOnFailure, listener.delegateFailureAndWrap((l, completionInfo) -> {
+            execInfo.markEndQuery();
+            l.onResponse(new Result(outputAttributes, collectedPages, null, configuration, completionInfo, execInfo));
+        }))) {
             // Run the coordinator plan
             runCompute(
                 rootTask,

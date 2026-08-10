@@ -129,7 +129,6 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
     @Nullable
     private final BiConsumer<String, String> lookupPlanConsumer;
 
-
     /**
      * Create a new BidirectionalBatchExchangeClient.
      *

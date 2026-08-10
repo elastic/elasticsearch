@@ -167,6 +167,58 @@ public class EscfEncoderTests extends ESTestCase {
         assertRoundTrip(docs.toArray(new String[0]));
     }
 
+    public void testEmptyArrayMixedWithNonEmpty() throws IOException {
+        try (EscfBatch batch = encode(List.of(new BytesArray("""
+            {"f":["a","b"]}"""), new BytesArray("""
+            {"f":[]}"""), new BytesArray("""
+            {"f":["c"]}""")))) {
+            assertRoundTripBatch(batch, """
+                {"f":["a","b"]}""", """
+                {"f":[]}""", """
+                {"f":["c"]}""");
+            assertEquals(EscfColumnKind.ARRAY, columnKind(batch, "f"));
+        }
+    }
+
+    public void testEmptyAndAbsentBeforeNonEmpty() throws IOException {
+        try (EscfBatch batch = encode(List.of(new BytesArray("""
+            {"f":[]}"""), new BytesArray("""
+            {"other":1}"""), new BytesArray("""
+            {"f":[]}"""), new BytesArray("""
+            {"f":[1,2,3]}""")))) {
+            assertRoundTripBatch(batch, """
+                {"f":[]}""", """
+                {"other":1}""", """
+                {"f":[]}""", """
+                {"f":[1,2,3]}""");
+            assertEquals(EscfColumnKind.ARRAY, columnKind(batch, "f"));
+        }
+    }
+
+    public void testAllEmptyArraysProducesUnion() throws IOException {
+        try (EscfBatch batch = encode(List.of(new BytesArray("""
+            {"f":[]}"""), new BytesArray("""
+            {"f":[]}""")))) {
+            assertRoundTripBatch(batch, """
+                {"f":[]}""", """
+                {"f":[]}""");
+            assertEquals(EscfColumnKind.UNION, columnKind(batch, "f"));
+        }
+    }
+
+    public void testEmptyArrayMixedWithNonEmptyNumeric() throws IOException {
+        try (EscfBatch batch = encode(List.of(new BytesArray("""
+            {"n":[]}"""), new BytesArray("""
+            {"n":[10,20]}"""), new BytesArray("""
+            {"n":[]}""")))) {
+            assertRoundTripBatch(batch, """
+                {"n":[]}""", """
+                {"n":[10,20]}""", """
+                {"n":[]}""");
+            assertEquals(EscfColumnKind.ARRAY, columnKind(batch, "n"));
+        }
+    }
+
     public void testAbsentBitsetNarrowerThanDocCount() throws IOException {
         // Regression: a column absent only in an early doc but present in every trailing doc has an absent
         // bitset sized to that early doc (one word), which is narrower than docCount. Reading a high-index
@@ -185,13 +237,27 @@ public class EscfEncoderTests extends ESTestCase {
             sources.add(new BytesArray(doc));
         }
         try (EscfBatch batch = encode(sources)) {
-            assertEquals(jsonDocs.length, batch.docCount());
-            for (int i = 0; i < jsonDocs.length; i++) {
-                Map<String, Object> expected = asMap(jsonDocs[i]);
-                Map<String, Object> actual = reconstruct(batch, i);
-                assertEquals("row " + i, expected, actual);
+            assertRoundTripBatch(batch, jsonDocs);
+        }
+    }
+
+    private static void assertRoundTripBatch(EscfBatch batch, String... jsonDocs) throws IOException {
+        assertEquals(jsonDocs.length, batch.docCount());
+        for (int i = 0; i < jsonDocs.length; i++) {
+            Map<String, Object> expected = asMap(jsonDocs[i]);
+            Map<String, Object> actual = reconstruct(batch, i);
+            assertEquals("row " + i, expected, actual);
+        }
+    }
+
+    /** Returns the column kind for the leaf at {@code path} (e.g. {@code "f"} or {@code "a.b"}). */
+    private static byte columnKind(EscfBatch batch, String path) {
+        for (int i = 0; i < batch.schema().leafCount(); i++) {
+            if (path.equals(batch.schema().getFullPath(i))) {
+                return batch.column(i).kind();
             }
         }
+        throw new AssertionError("Column '" + path + "' not found in batch schema");
     }
 
     /**

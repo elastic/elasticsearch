@@ -10,9 +10,9 @@ package org.elasticsearch.simdvec.internal.vectorization;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
+import org.elasticsearch.lucene.store.IndexInputUtils;
 import org.elasticsearch.nativeaccess.NativeAccess;
-import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
-import org.elasticsearch.simdvec.IndexInputUtils;
+import org.elasticsearch.nativeaccess.SimdVecLibrary;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
@@ -28,7 +28,7 @@ import java.lang.foreign.MemorySegment;
 abstract sealed class NativeMemorySegmentScorer extends MemorySegmentES940OSQVectorsScorer.MemorySegmentScorer permits NativeD1Q1Scorer,
     NativeD1Q4Scorer, NativeD2Q4Scorer, NativeD2Q4PackedScorer, NativeD4Q4Scorer, NativeD4Q4PackedScorer, NativeD7Q7Scorer {
 
-    protected static final VectorSimilarityFunctions DISTANCE_FUNCS = NativeAccess.instance()
+    protected static final SimdVecLibrary DISTANCE_FUNCS = NativeAccess.instance()
         .getVectorSimilarityFunctions()
         .orElseThrow(AssertionError::new);
 
@@ -121,7 +121,7 @@ abstract sealed class NativeMemorySegmentScorer extends MemorySegmentES940OSQVec
         long vectorBytes = (long) length * bulkSize;
         long correctionBytes = 16L * bulkSize;
         return IndexInputUtils.withSlice(in, vectorBytes + correctionBytes, scratch::get, seg -> {
-            dotProductBulk(seg.asSlice(0, vectorBytes), qSeg, length, bulkSize, sSeg);
+            dotProductBulk(seg, qSeg, length, bulkSize, sSeg);
             return ScoreCorrections.nativeApplyCorrectionsBulk(
                 similarityFunction,
                 seg.asSlice(vectorBytes, correctionBytes),
@@ -159,7 +159,7 @@ abstract sealed class NativeMemorySegmentScorer extends MemorySegmentES940OSQVec
         long vectorBytes = (long) length * count;
         long correctionBytes = 16L * count;
         IndexInputUtils.withSlice(in, vectorBytes + correctionBytes, scratch::get, seg -> {
-            dotProductBulkWithOffsets(seg.asSlice(0, vectorBytes), qSeg, length, length, offsetsSeg, offsetsCount, sSeg);
+            dotProductBulkWithOffsets(seg, qSeg, length, length, offsetsSeg, offsetsCount, sSeg);
             repositionScoresMatchingOffsets(offsets, offsetsCount, scores);
             ScoreCorrections.nativeApplyCorrectionsBulk(
                 similarityFunction,

@@ -66,6 +66,11 @@ steps:
       - label: "bc-upgrade-tests-part{{matrix.PART}}"
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-file-fingerprints -Dtests.bwc.main.version=${BC_VERSION} -Dtests.bwc.refspec.main=${BC_COMMIT_HASH} bcUpgradeTestPart{{matrix.PART}}
         timeout_in_minutes: 300
+        retry:
+          automatic:
+            - exit_status: 47
+              limit: 3
+              signal_reason: none
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404

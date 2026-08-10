@@ -503,7 +503,7 @@ public class LuceneSliceQueueTests extends ESTestCase {
                     new IndexedByShardIdFromList<>(shardContexts),
                     context -> shardQueries.get(context.index()),
                     DataPartitioning.SEGMENT,
-                    query -> LuceneSliceQueue.PartitioningStrategy.SEGMENT,
+                    (ctx, query) -> LuceneSliceQueue.PartitioningStrategy.SEGMENT,
                     LuceneOperator.SMALL_INDEX_BOUNDARY,
                     10,
                     context -> ScoreMode.COMPLETE

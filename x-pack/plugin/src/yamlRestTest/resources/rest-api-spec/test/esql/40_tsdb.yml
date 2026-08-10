@@ -685,14 +685,6 @@ _source:
       reason: "_source is available in 8.13+"
 
   - do:
-      bulk:
-        index: test
-        refresh: true
-        body:
-          - { "index" : { "_index" : "test", "_id" : "id-1" } }
-          - { "wow": 1, "such": "_source", "you'd": "never", "expect": ["amazing", "source"] }
-
-  - do:
       esql.query:
         body:
           query: 'FROM test METADATA _source | WHERE @timestamp == "2021-04-28T18:50:23.142Z" | KEEP _source | LIMIT 1'
@@ -720,7 +712,7 @@ to_aggregate_metric_double with multi_values:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ aggregate_metric_double_v0 ]
+          capabilities: [ aggregate_metric_double_v0, fix_unsigned_long_to_aggregate_metric_double ]
       reason: "Support for to_aggregate_metric_double function"
 
   - do:
@@ -740,14 +732,14 @@ to_aggregate_metric_double with multi_values:
   - do:
       bulk:
         refresh: true
-        index: new_test
+        index: convert_test
         body:
           - {"index": {}}
           - {"some_long_field": [20385, 182941, -10958], "some_double_field": [195.1, 102.444], "some_int_field": [64, 121, 498, 1456], "some_unsigned_long_field": [13985, 19418924, 123]}
   - do:
       esql.query:
         body:
-          query: 'FROM new_test | EVAL from_long=TO_AGGREGATE_METRIC_DOUBLE(some_long_field), from_double=TO_AGGREGATE_METRIC_DOUBLE(some_double_field), from_int=TO_AGGREGATE_METRIC_DOUBLE(some_int_field), from_ulong=TO_AGGREGATE_METRIC_DOUBLE(some_unsigned_long_field) | KEEP from_long, from_double, from_int, from_ulong | LIMIT 1'
+          query: 'FROM convert_test | EVAL from_long=TO_AGGREGATE_METRIC_DOUBLE(some_long_field), from_double=TO_AGGREGATE_METRIC_DOUBLE(some_double_field), from_int=TO_AGGREGATE_METRIC_DOUBLE(some_int_field), from_ulong=TO_AGGREGATE_METRIC_DOUBLE(some_unsigned_long_field) | KEEP from_long, from_double, from_int, from_ulong | LIMIT 1'
 
   - match: {columns.0.name: "from_long"}
   - match: {columns.0.type: "aggregate_metric_double"}
@@ -758,7 +750,7 @@ to_aggregate_metric_double with multi_values:
   - match: {columns.3.name: "from_ulong"}
   - match: {columns.3.type: "aggregate_metric_double"}
   - match: {values.0.0: '{"min":-10958.0,"max":182941.0,"sum":192368.0,"value_count":3}'}
-  - match: {values.0.1: '{"min":102.44400024414062,"max":195.10000610351562,"sum":297.54400634765625,"value_count":2}'}
+  - match: {values.0.1: '{"min":102.444,"max":195.1,"sum":297.544,"value_count":2}'}
   - match: {values.0.2: '{"min":64.0,"max":1456.0,"sum":2139.0,"value_count":4}'}
   - match: {values.0.3: '{"min":123.0,"max":1.9418924E7,"sum":1.9433032E7,"value_count":3}'}
 
@@ -1011,6 +1003,34 @@ PromQL rate on counter field:
       esql.query:
         body:
           query: 'PROMQL index=test step=1m tx_rate=(sum by (k8s.pod.name) (rate(k8s.pod.network.tx[1m]))) | SORT step, k8s.pod.name | LIMIT 5'
+
+  - match: {columns.0.name: "tx_rate"}
+  - match: {columns.0.type: "double"}
+  - match: {columns.1.name: "step"}
+  - match: {columns.1.type: "date"}
+  - match: {columns.2.name: "k8s.pod.name"}
+  - match: {columns.2.type: "keyword"}
+  - length: {values: 4}
+  - match: {values.0.1: "2021-04-28T18:51:00.000Z"}
+  - match: {values.1.1: "2021-04-28T18:51:00.000Z"}
+  - match: {values.2.1: "2021-04-28T18:52:00.000Z"}
+  - match: {values.3.1: "2021-04-28T18:52:00.000Z"}
+
+---
+PromQL aggregation with identifier param in label list:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [promql_label_list_identifier_params]
+      reason: "PromQL label list identifier params support"
+  - do:
+      esql.query:
+        body:
+          query: 'PROMQL index=test step=1m tx_rate=(sum by (??group) (rate(k8s.pod.network.tx[1m]))) | SORT step, k8s.pod.name | LIMIT 5'
+          params: [{"group": "k8s.pod.name"}]
 
   - match: {columns.0.name: "tx_rate"}
   - match: {columns.0.type: "double"}

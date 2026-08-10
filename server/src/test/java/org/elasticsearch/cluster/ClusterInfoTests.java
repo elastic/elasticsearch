@@ -95,6 +95,17 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
         assertThat(preCacheUsageCopy.getNodeCacheSizeAndCommitments(), equalTo(Map.of()));
     }
 
+    public void testHostedShardsFieldsAreTransportVersionGated() throws Exception {
+        final var clusterInfo = ClusterInfo.builder().hostedShardsPartitionSizeByNodeId(randomHostedShardsPartitionSizes()).build();
+
+        final var currentVersionCopy = copyInstance(clusterInfo, TransportVersion.current());
+        assertThat(currentVersionCopy.getHostedShardsPartitionSizeByNodeId(), equalTo(clusterInfo.getHostedShardsPartitionSizeByNodeId()));
+
+        final var preCacheUsageVersion = TransportVersionUtils.getPreviousVersion(ClusterInfo.PARTITION_SIZES_IN_CLUSTER_INFO);
+        final var preCacheUsageCopy = copyInstance(clusterInfo, preCacheUsageVersion);
+        assertThat(preCacheUsageCopy.getHostedShardsPartitionSizeByNodeId(), equalTo(Map.of()));
+    }
+
     private static double randomWriteLoadProportion() {
         return randomDoubleBetween(0.0, 1.0, true);
     }
@@ -130,7 +141,8 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
             randomMaxHeapSizes(),
             randomNodeIdsWriteLoadHotspottingSet(),
             randomNodeCacheSizeAndCommitmentsMap(),
-            randomShardCacheRequirements()
+            randomShardCacheRequirements(),
+            randomHostedShardsPartitionSizes()
         );
     }
 
@@ -182,18 +194,19 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
         return shardHeapUsageBuilder;
     }
 
-    private static Map<String, EstimatedHeapUsage> randomNodeHeapUsage() {
+    private static Map<String, NodeHeapMetrics> randomNodeHeapUsage() {
         int numEntries = randomIntBetween(0, 128);
-        Map<String, EstimatedHeapUsage> nodeHeapUsage = new HashMap<>(numEntries);
+        Map<String, NodeHeapMetrics> nodeHeapUsage = new HashMap<>(numEntries);
         for (int i = 0; i < numEntries; i++) {
             String key = randomAlphaOfLength(32);
-            final int totalBytes = randomIntBetween(0, Integer.MAX_VALUE);
-            final EstimatedHeapUsage estimatedHeapUsage = new EstimatedHeapUsage(
+            final int maxHeapSize = randomIntBetween(0, Integer.MAX_VALUE);
+            final long totalHeapUsage = randomLongBetween(0, maxHeapSize);
+            final NodeHeapMetrics nodeHeapMetrics = new NodeHeapMetrics(
                 randomAlphaOfLength(4),
-                totalBytes,
-                randomIntBetween(0, totalBytes)
+                maxHeapSize,
+                new NodeHeapEstimates(totalHeapUsage, randomLongBetween(0, totalHeapUsage))
             );
-            nodeHeapUsage.put(key, estimatedHeapUsage);
+            nodeHeapUsage.put(key, nodeHeapMetrics);
         }
         return nodeHeapUsage;
     }
@@ -287,6 +300,15 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
             builder.put(new ClusterInfo.NodeAndPath(randomAlphaOfLength(10), randomAlphaOfLength(10)), valueBuilder.build());
         }
         return builder;
+    }
+
+    private static Map<String, Long> randomHostedShardsPartitionSizes() {
+        int numEntries = randomIntBetween(0, 16);
+        Map<String, Long> result = new HashMap<>(numEntries);
+        for (int i = 0; i < numEntries; i++) {
+            result.put(randomAlphaOfLength(10), randomNonNegativeLong());
+        }
+        return result;
     }
 
     public void testChunking() {

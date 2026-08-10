@@ -20,6 +20,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
 import java.util.function.Consumer;
@@ -45,9 +46,8 @@ public abstract class AbstractOTLPTransportActionTests extends ESTestCase {
     protected Client client;
     private AbstractOTLPTransportAction action;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initAction() {
         client = mock(Client.class);
         when(client.prepareBulk()).thenAnswer(invocation -> new BulkRequestBuilder(client));
         action = createAction();

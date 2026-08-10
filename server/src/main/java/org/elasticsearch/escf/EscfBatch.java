@@ -110,8 +110,8 @@ public final class EscfBatch implements SourceBatch {
         return new EscfRow(this, docIndex);
     }
 
-    /** The typed view for {@code columnIndex}. Package-private: used by {@link EscfRow}. */
-    EscfColumn column(int columnIndex) {
+    /** The typed view for {@code columnIndex}. */
+    public EscfColumn column(int columnIndex) {
         return columns[columnIndex];
     }
 
@@ -154,7 +154,7 @@ public final class EscfBatch implements SourceBatch {
 
     /** Sums a column's own live storage plus, for ARRAY, its nested {@code child} column's storage. */
     private static long columnRamBytes(EscfColumnData col) {
-        long total = bitsetRam(col.absent()) + bitsetRam(col.values()) + (col.typeVector() != null ? col.typeVector().length : 0L) + (col
+        long total = bitsetRam(col.validity()) + bitsetRam(col.values()) + (col.typeVector() != null ? col.typeVector().length : 0L) + (col
             .offsets() != null ? col.offsets().length * 4L : 0L) + refLen(col.data());
         if (col.child() != null) {
             total += columnRamBytes(col.child());

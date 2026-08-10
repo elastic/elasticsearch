@@ -299,6 +299,32 @@ public class DriverContext {
     }
 
     /**
+     * Create a new {@link Warnings} collector using this context's {@link #warningsMode()}.
+     * @see Warnings#createWarnings(WarningsMode, WarningSourceLocation)
+     */
+    public Warnings createWarnings(WarningSourceLocation source) {
+        return Warnings.createWarnings(warningsMode, source);
+    }
+
+    /**
+     * Create a new {@link Warnings} collector, using this context's {@link #warningsMode()}, that warns
+     * that it treats the result as {@code false}.
+     * @see Warnings#createWarningsTreatedAsFalse(WarningsMode, WarningSourceLocation)
+     */
+    public Warnings createWarningsTreatedAsFalse(WarningSourceLocation source) {
+        return Warnings.createWarningsTreatedAsFalse(warningsMode, source);
+    }
+
+    /**
+     * Create a new {@link Warnings} collector, using this context's {@link #warningsMode()}, that warns
+     * that evaluation resulted in warnings.
+     * @see Warnings#createOnlyWarnings(WarningsMode, WarningSourceLocation)
+     */
+    public Warnings createOnlyWarnings(WarningSourceLocation source) {
+        return Warnings.createOnlyWarnings(warningsMode, source);
+    }
+
+    /**
      * Indicates the behavior Evaluators of this context should use for reporting warnings
      */
     public enum WarningsMode {

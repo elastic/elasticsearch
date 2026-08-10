@@ -7,9 +7,12 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
-import org.elasticsearch.TransportVersion;
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.cluster.metadata.DataSourceReference;
 import org.elasticsearch.cluster.metadata.Dataset;
+import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -32,9 +35,20 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
  * New pushdown tests should be added here rather than in {@link LocalPhysicalPlanOptimizerTests}.
  */
 public class PushdownGoldenTests extends UnmappedGoldenTestCase {
+    @ParametersFactory(argumentFormatting = "%1$s")
+    public static Iterable<Object[]> parameters() {
+        return goldenModes();
+    }
+
+    public PushdownGoldenTests(@Name("mode") String mode) {
+        super(mode);
+    }
+
     private static final EnumSet<Stage> STAGES = EnumSet.of(Stage.LOCAL_PHYSICAL_OPTIMIZATION);
 
     private static final String SALARIES_RESOURCE = "s3://bucket/golden_salaries.parquet";
+
+    private static final String PACK_DIMS_AGG = "pack_dims_agg";
 
     public void testFilterPushdownNoUnmapped() {
         String query = """
@@ -63,6 +77,15 @@ public class PushdownGoldenTests extends UnmappedGoldenTestCase {
         runUnmappedTests(query);
     }
 
+    public void testFilterPushdownWhenPotentiallyUnmappedFieldIsMapped() {
+        String query = """
+            FROM sample_data
+            | KEEP message, mapped_on_data_node
+            | WHERE mapped_on_data_node == "Disconnection error"
+            """;
+        runTestsLoadOnly(query, STAGES);
+    }
+
     public void testSortPushdownNoUnmapped() {
         String query = """
             FROM sample_data
@@ -81,6 +104,16 @@ public class PushdownGoldenTests extends UnmappedGoldenTestCase {
             | LIMIT 5
             """;
         runUnmappedTests(query);
+    }
+
+    public void testSortPushdownWhenPotentiallyUnmappedFieldIsMapped() {
+        String query = """
+            FROM sample_data
+            | KEEP message, mapped_on_data_node
+            | SORT mapped_on_data_node
+            | LIMIT 5
+            """;
+        runTestsLoadOnly(query, STAGES);
     }
 
     public void testFilterConjunctionPushableAndNonPushable() {
@@ -212,7 +245,7 @@ public class PushdownGoldenTests extends UnmappedGoldenTestCase {
             | SORT name
             """;
         builder(query).stages(STAGES)
-            .transportVersion(TransportVersion.current())
+            .since(DatasetMetadata.ESQL_DATASOURCES)
             .datasetMetadata(salariesDatasetMetadata())
             .externalSourceResolution(salariesExternalSourceResolution())
             .run();
@@ -234,10 +267,51 @@ public class PushdownGoldenTests extends UnmappedGoldenTestCase {
             | SORT name
             """;
         builder(query).stages(STAGES)
-            .transportVersion(TransportVersion.current())
+            .since(DatasetMetadata.ESQL_DATASOURCES)
+            .expectationChangesAt(PACK_DIMS_AGG)
             .datasetMetadata(salariesDatasetMetadata())
             .externalSourceResolution(salariesExternalSourceResolution())
             .run();
+    }
+
+    public void testMvContainsOnKeyword() {
+        String query = """
+                FROM employees
+                | WHERE mv_contains(first_name, ["Alice", "Anna", "Peter"])
+            """;
+        runGoldenTest(query, STAGES);
+    }
+
+    public void testMvContainsOnDouble() {
+        String query = """
+                FROM all_types
+                | WHERE mv_contains(double, [1.0, 2.0, 3.0])
+            """;
+        runGoldenTest(query, STAGES);
+    }
+
+    public void testMvIntersectsOnKeyword() {
+        String query = """
+                FROM employees
+                | WHERE mv_intersects(first_name, ["Alice", "Anna", "Peter"])
+            """;
+        runGoldenTest(query, STAGES);
+    }
+
+    public void testMvIntersectsOnDouble() {
+        String query = """
+                FROM all_types
+                | WHERE mv_intersects(double, [1.0, 2.0, 3.0])
+            """;
+        runGoldenTest(query, STAGES);
+    }
+
+    public void testMvIntersectsWithFoldableLeftArgument() {
+        String query = """
+                FROM employees
+                | WHERE mv_intersects(["Alice", "Anna", "Peter"], first_name)
+            """;
+        runGoldenTest(query, STAGES);
     }
 
     /** Registers {@code golden_salaries} as an external dataset so {@code FROM golden_salaries} becomes an external relation. */

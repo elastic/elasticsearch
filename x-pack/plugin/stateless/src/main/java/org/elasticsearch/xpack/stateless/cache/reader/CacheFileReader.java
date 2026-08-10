@@ -398,19 +398,20 @@ public class CacheFileReader {
         return cacheFile.withMemorySegmentSlice(offset, length, action, advice);
     }
 
-    public final boolean withMemorySegmentSlices(
+    public final boolean withSliceAddresses(
         long[] offsets,
         int length,
         int count,
-        CheckedConsumer<MemorySegment[], IOException> action
+        MemorySegment addrsOut,
+        CheckedConsumer<MemorySegment, IOException> action
     ) throws IOException {
         if (desiredMAdvice == SharedBytes.MADV_NORMAL) {
-            return cacheFile.withMemorySegmentSlices(offsets, length, count, action);
+            return cacheFile.withSliceAddresses(offsets, length, count, addrsOut, action);
         }
         // For top-level files the entire range is exclusive, so a single advice applies.
         // For compound sub-files, individual regions could differ, but the bulk path is
         // only used for vector data which is always in a top-level .vec file.
-        return cacheFile.withMemorySegmentSlices(offsets, length, count, action, desiredMAdvice);
+        return cacheFile.withSliceAddresses(offsets, length, count, addrsOut, action, desiredMAdvice);
     }
 
     /**
@@ -509,7 +510,9 @@ public class CacheFileReader {
                     // TODO ideally we would make it async, but it should be safe
                     // since the future is created on the shard read thread pool or GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL.
                     // ObjectStoreCacheBlobReader is completed on the same thread and before actually waiting on the future, and
-                    // IndexingShardCacheBlobReader should be completed on the FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
+                    // IndexingShardCacheBlobReader completes on FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL, so the
+                    // reader must bypass FillCacheMemoryPressure — waiting here would block this pool behind speculative fills,
+                    // possibly the same pool a deferred read would resume on.
                     var readFuture = new PlainActionFuture<Integer>();
                     cacheBlobReader.getRangeInputStream(position, len, readFuture.map(in -> {
                         try (in) {

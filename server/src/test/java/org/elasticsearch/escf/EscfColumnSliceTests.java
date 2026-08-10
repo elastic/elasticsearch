@@ -23,7 +23,7 @@ public class EscfColumnSliceTests extends ESTestCase {
 
     public void testLongSliceReadsAndRoundTrip() {
         // 5 docs: [10, absent, 30, 40, 50]; slice [1, 4) → [absent, 30, 40]
-        EscfColumnBuilder b = new EscfColumnBuilder();
+        var b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.SPLIT);
         b.addLong(10);
         b.addAbsent();
         b.addLong(30);
@@ -53,7 +53,7 @@ public class EscfColumnSliceTests extends ESTestCase {
 
     public void testLongDenseSlice() {
         // 4 docs: [100, 200, 300, 400]; slice [2, 4) → [300, 400]
-        EscfColumnBuilder b = new EscfColumnBuilder();
+        var b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.SPLIT);
         b.addLong(100);
         b.addLong(200);
         b.addLong(300);
@@ -62,14 +62,14 @@ public class EscfColumnSliceTests extends ESTestCase {
         EscfColumn col = EscfColumn.from(data);
         EscfColumn slice = col.sliceInternal(2, 2);
 
-        assertNull("dense column slice has no absent bitset", sliceData(slice).absent());
+        assertNull("dense column slice has no validity bitset", sliceData(slice).validity());
         assertEquals(300L, slice.getLongValue(0));
         assertEquals(400L, slice.getLongValue(1));
     }
 
     public void testDoubleSliceReadsAndRoundTrip() {
         // 4 docs: [1.1, 2.2, 3.3, 4.4]; slice [1, 3) → [2.2, 3.3]
-        EscfColumnBuilder b = new EscfColumnBuilder();
+        var b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.SPLIT);
         b.addDouble(1.1);
         b.addDouble(2.2);
         b.addDouble(3.3);
@@ -92,7 +92,7 @@ public class EscfColumnSliceTests extends ESTestCase {
 
     public void testStringSliceReadsAndRoundTrip() {
         // 4 docs: ["hello", "world", absent, "bar"]; slice [1, 4) → ["world", absent, "bar"]
-        EscfColumnBuilder b = new EscfColumnBuilder();
+        var b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.SPLIT);
         b.addString(utf8("hello"));
         b.addString(utf8("world"));
         b.addAbsent();
@@ -143,7 +143,7 @@ public class EscfColumnSliceTests extends ESTestCase {
 
     public void testBoolSliceReadsAndRoundTrip() {
         // 5 docs: [T, absent, F, T, T]; slice [1, 4) → [absent, F, T]
-        EscfColumnBuilder b = new EscfColumnBuilder();
+        var b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.SPLIT);
         b.addBoolean(true);
         b.addAbsent();
         b.addBoolean(false);
@@ -171,7 +171,7 @@ public class EscfColumnSliceTests extends ESTestCase {
 
     public void testBoolAllFalseSlice() {
         // When all values are false the values bitset is null; slicing must keep it null.
-        EscfColumnBuilder b = new EscfColumnBuilder();
+        var b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.SPLIT);
         b.addBoolean(false);
         b.addBoolean(false);
         b.addBoolean(false);
@@ -237,7 +237,7 @@ public class EscfColumnSliceTests extends ESTestCase {
 
     public void testUnionSliceReadsAndRoundTrip() {
         // 4 docs: [long(7), string("abc"), double(3.14), null]; slice [1, 4) → [string("abc"), double(3.14), null]
-        EscfColumnBuilder b = new EscfColumnBuilder();
+        var b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.SPLIT);
         b.addLong(7);
         b.addString(utf8("abc"));
         b.addDouble(3.14);
@@ -266,13 +266,9 @@ public class EscfColumnSliceTests extends ESTestCase {
         assertTrue(reparsed.isNull(2));
     }
 
-    /**
-     * Verifies that slicing a column whose absent bitset is sized to the last absent document
-     * (not the full column width) still correctly reports absence for the last document.
-     */
     public void testAbsentBitsetNormalizationOnFrom() {
-        // Build: 4 docs, absent at position 3 (last). The builder sizes the bitset to 4 (last_absent+1).
-        EscfColumnBuilder b = new EscfColumnBuilder();
+        // Build: 4 docs, absent at position 3 (last).
+        var b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.SPLIT);
         b.addLong(1);
         b.addLong(2);
         b.addLong(3);

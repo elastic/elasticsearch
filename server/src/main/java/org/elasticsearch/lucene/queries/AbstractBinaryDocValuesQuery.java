@@ -11,9 +11,11 @@ package org.elasticsearch.lucene.queries;
 
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.search.ConstantScoreScorer;
+import org.apache.lucene.search.ConstantScoreScorerSupplier;
 import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
@@ -24,8 +26,10 @@ import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.mapper.blockloader.docvalues.MultiValueArrayOrderInlineNullBinaryDocValuesReader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.MultiValueSeparateCountBinaryDocValuesReader;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -50,15 +54,35 @@ abstract class AbstractBinaryDocValuesQuery extends Query {
     @Override
     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
         float matchCost = matchCost();
+        // Captured for the binary doc values decode checkpoint below. These are full-column scans, so every surviving decoder actually
+        // decodes and allocates its buffer - the circuit breaker is the primary guard here.
+        final CircuitBreaker breaker = ContextIndexSearcher.circuitBreakerOrNull(searcher);
         return new ConstantScoreWeight(this, boost) {
 
             @Override
             public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
-                final DocIdSetIterator iterator = getDocIdSetIterator(context, matchCost);
-                if (iterator == null) {
+                final FieldInfo fi = context.reader().getFieldInfos().fieldInfo(fieldName);
+                if (fi == null || fi.getDocValuesType() != DocValuesType.BINARY) {
                     return null;
                 }
-                return new DefaultScorerSupplier(new ConstantScoreScorer(score(), scoreMode, iterator));
+                return new ConstantScoreScorerSupplier(score(), scoreMode, context.reader().maxDoc()) {
+                    @Override
+                    public long cost() {
+                        return context.reader().maxDoc();
+                    }
+
+                    @Override
+                    public DocIdSetIterator iterator(long leadCost) throws IOException {
+                        // Checkpoint before opening: the probe is 0-byte heap sampling, so
+                        // checking before the allocation skips it entirely when under pressure.
+                        ContextIndexSearcher.checkBinaryDvDecodeBreaker(breaker);
+                        final DocIdSetIterator disi = getDocIdSetIterator(context, matchCost);
+                        if (disi == null) {
+                            return DocIdSetIterator.empty();
+                        }
+                        return disi;
+                    }
+                };
             }
 
             @Override

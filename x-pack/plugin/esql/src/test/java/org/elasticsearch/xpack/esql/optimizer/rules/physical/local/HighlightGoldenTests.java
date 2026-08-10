@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.optimizer.GoldenTestCase;
+import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 
 import java.util.EnumSet;
 
@@ -20,6 +21,8 @@ import java.util.EnumSet;
  * including the generated {@code highlight_<field>} output column.
  */
 public class HighlightGoldenTests extends GoldenTestCase {
+
+    private static final EnumSet<Stage> STAGES = EnumSet.of(Stage.LOGICAL_OPTIMIZATION, Stage.LOCAL_PHYSICAL_OPTIMIZATION);
 
     @ParametersFactory(argumentFormatting = "%1$s")
     public static Iterable<Object[]> parameters() {
@@ -40,7 +43,7 @@ public class HighlightGoldenTests extends GoldenTestCase {
             FROM employees
             | HIGHLIGHT "elasticsearch" ON first_name
             """;
-        runGoldenTest(query, EnumSet.of(Stage.LOGICAL_OPTIMIZATION, Stage.LOCAL_PHYSICAL_OPTIMIZATION));
+        builder(query).stages(STAGES).since(Highlight.ESQL_HIGHLIGHT).run();
     }
 
     public void testMatchOperatorWhereIsPushedBelowHighlight() {
@@ -50,7 +53,7 @@ public class HighlightGoldenTests extends GoldenTestCase {
             | HIGHLIGHT "elasticsearch" ON first_name
             | WHERE first_name : "elasticsearch"
             """;
-        runGoldenTest(query, EnumSet.of(Stage.LOGICAL_OPTIMIZATION, Stage.LOCAL_PHYSICAL_OPTIMIZATION));
+        builder(query).stages(STAGES).since(Highlight.ESQL_HIGHLIGHT).run();
     }
 
     /**
@@ -66,7 +69,7 @@ public class HighlightGoldenTests extends GoldenTestCase {
             | SORT emp_no DESC
             | LIMIT 10
             """;
-        runGoldenTest(query, EnumSet.of(Stage.LOGICAL_OPTIMIZATION, Stage.LOCAL_PHYSICAL_OPTIMIZATION));
+        builder(query).stages(STAGES).since(Highlight.ESQL_HIGHLIGHT).run();
     }
 
     /**
@@ -81,6 +84,6 @@ public class HighlightGoldenTests extends GoldenTestCase {
             | SORT highlight_first_name ASC
             | LIMIT 10
             """;
-        runGoldenTest(query, EnumSet.of(Stage.LOGICAL_OPTIMIZATION, Stage.LOCAL_PHYSICAL_OPTIMIZATION));
+        builder(query).stages(STAGES).since(Highlight.ESQL_HIGHLIGHT).run();
     }
 }

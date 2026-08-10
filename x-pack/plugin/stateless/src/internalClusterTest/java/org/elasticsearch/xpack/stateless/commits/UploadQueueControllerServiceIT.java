@@ -15,6 +15,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.StatelessMockRepositoryPlugin;
 import org.elasticsearch.xpack.stateless.StatelessMockRepositoryStrategy;
@@ -38,6 +39,8 @@ public class UploadQueueControllerServiceIT extends AbstractStatelessPluginInteg
                 .put(StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE.getKey(), ByteSizeValue.ofBytes(1))
                 // Force the throughput to be very low to get artificially large queue and observe throttling.
                 .put(StatelessCommitService.STATELESS_UPLOAD_AVERAGE_THROUGHPUT_INITIAL_VALUE.getKey(), ByteSizeValue.ofBytes(1))
+                // Disable caching of time values to make sure we make progress every time UploadQueueControllerService#runNow() is called.
+                .put(ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.getKey(), TimeValue.ZERO)
                 .build()
         );
         startSearchNode();
@@ -94,7 +97,7 @@ public class UploadQueueControllerServiceIT extends AbstractStatelessPluginInteg
         assertEquals(1, activateThrottleCounterMeasurements.get(0).getLong());
 
         // Wait for all pending commits to finish uploading.
-        indicesAdmin().prepareFlush(indexName).setWaitIfOngoing(true).setForce(true).get();
+        flush(indexName);
 
         // Now that there is no queue throttling will be removed (since we set cooldown period to 0);
         uploadQueueControllerService.runNow();

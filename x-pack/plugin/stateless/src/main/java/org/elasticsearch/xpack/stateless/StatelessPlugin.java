@@ -500,7 +500,6 @@ public class StatelessPlugin extends Plugin
     private final SetOnce<ThreadPool> threadPool = new SetOnce<>();
     private final SetOnce<Executor> commitSuccessExecutor = new SetOnce<>();
     private final SetOnce<StatelessCommitService> commitService = new SetOnce<>();
-    private final SetOnce<UploadQueueControllerService> uploadQueueControllerService = new SetOnce<>();
     private final SetOnce<ClosedShardService> closedShardService = new SetOnce<>();
     private final SetOnce<ObjectStoreService> objectStoreService = new SetOnce<>();
     private final SetOnce<StatelessSharedBlobCacheService> sharedBlobCacheService = new SetOnce<>();
@@ -860,15 +859,16 @@ public class StatelessPlugin extends Plugin
         clusterService.addListener(commitService);
         setAndGet(this.commitService, commitService);
 
-        var uploadQueueControllerService = new UploadQueueControllerService(
-            threadPool,
-            settings,
-            clusterService,
-            commitService,
-            services.telemetryProvider()
-        );
-        components.add(uploadQueueControllerService);
-        setAndGet(this.uploadQueueControllerService, uploadQueueControllerService);
+        if (hasIndexRole) {
+            var uploadQueueControllerService = new UploadQueueControllerService(
+                threadPool,
+                settings,
+                clusterService,
+                commitService,
+                services.telemetryProvider()
+            );
+            components.add(uploadQueueControllerService);
+        }
 
         final var snapshotsCommitService = setAndGet(
             this.snapshotsCommitServiceRef,

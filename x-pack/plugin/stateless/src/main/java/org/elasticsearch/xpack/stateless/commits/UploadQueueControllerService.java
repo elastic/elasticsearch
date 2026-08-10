@@ -32,6 +32,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 public class UploadQueueControllerService extends AbstractLifecycleComponent {
     private static final Logger logger = LogManager.getLogger(UploadQueueControllerService.class);
@@ -160,13 +161,13 @@ public class UploadQueueControllerService extends AbstractLifecycleComponent {
             this.indexingThrottleSettings = new ThrottleSettings(
                 clusterSettings.get(STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEX_THROTTLE_THRESHOLD).seconds(),
                 clusterSettings.get(STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEX_THROTTLE_REMOVAL_THRESHOLD).seconds(),
-                clusterSettings.get(STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEX_THROTTLE_COOLDOWN).seconds()
+                clusterSettings.get(STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEX_THROTTLE_COOLDOWN).millis()
             );
             clusterSettings.addSettingsUpdateConsumer(
                 settings -> this.indexingThrottleSettings = new ThrottleSettings(
                     STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEX_THROTTLE_THRESHOLD.get(settings).seconds(),
                     STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEX_THROTTLE_REMOVAL_THRESHOLD.get(settings).seconds(),
-                    STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEX_THROTTLE_COOLDOWN.get(settings).seconds()
+                    STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEX_THROTTLE_COOLDOWN.get(settings).millis()
                 ),
                 List.of(
                     STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEX_THROTTLE_THRESHOLD,
@@ -193,7 +194,7 @@ public class UploadQueueControllerService extends AbstractLifecycleComponent {
         }
     }
 
-    record ThrottleSettings(long activationThresholdSeconds, long deactivationThresholdSeconds, long cooldownPeriodSeconds) {}
+    record ThrottleSettings(long activationThresholdSeconds, long deactivationThresholdSeconds, long cooldownPeriodMs) {}
 
     static class ThrottleCalculator {
         public final int MAXIMUM_CONSECUTIVE_THROTTLING_PERIODS = 3;
@@ -208,7 +209,7 @@ public class UploadQueueControllerService extends AbstractLifecycleComponent {
 
         Map<ShardId, ThrottleState> newState(
             Map<ShardId, ThrottleState> currentState,
-            Iterable<? extends ShardCommitUploadStats> commitStats,
+            Stream<? extends ShardCommitUploadStats> commitStats,
             ThrottleSettings settings,
             double uploadThroughputMiBSec
         ) {
@@ -220,7 +221,7 @@ public class UploadQueueControllerService extends AbstractLifecycleComponent {
                 ShardId shardId = stats.shardId();
 
                 ThrottleState shardState = currentState.get(shardId);
-                if (shardState != null && shardState.expired(relativeTimeMillis.get(), settings.cooldownPeriodSeconds) == false) {
+                if (shardState != null && shardState.expired(relativeTimeMillis.get(), settings.cooldownPeriodMs) == false) {
                     // We are still executing previous decision, keep doing it and not intervene.
                     newState.put(shardId, shardState);
                     return;
@@ -240,7 +241,7 @@ public class UploadQueueControllerService extends AbstractLifecycleComponent {
                         if (shardState.consecutiveApplications < MAXIMUM_CONSECUTIVE_THROTTLING_PERIODS) {
                             newState.put(
                                 shardId,
-                                new ThrottleState(Type.THROTTLED, relativeTimeMillis.get(), shardState.consecutiveApplications + 1)
+                                ThrottleState.throttled(relativeTimeMillis.get(), shardState.consecutiveApplications + 1)
                             );
                         } else {
                             // If maximum periods are reached, deactivate to allow clients to make at least some progress.
@@ -249,7 +250,7 @@ public class UploadQueueControllerService extends AbstractLifecycleComponent {
                             // the shard moved off the node and back in.
                             // This will be resolved in the throttler implementation.
                             throttler.deactivate(shardId);
-                            newState.put(shardId, new ThrottleState(Type.THROTTLE_REMOVED, relativeTimeMillis.get(), 1));
+                            newState.put(shardId, ThrottleState.throttleRemoved(relativeTimeMillis.get()));
                         }
                         return;
                     }
@@ -259,13 +260,13 @@ public class UploadQueueControllerService extends AbstractLifecycleComponent {
                     // Note that the shard may be closed at this point.
                     // This is okay since we will drop it from the state on the next run anyway.
                     throttler.activate(shardId);
-                    newState.put(shardId, new ThrottleState(Type.THROTTLED, relativeTimeMillis.get(), 1));
+                    newState.put(shardId, ThrottleState.throttled(relativeTimeMillis.get(), 1));
                 } else if (queueInSeconds < settings.deactivationThresholdSeconds) {
                     // This is a "stop throttle" condition.
                     if (shardState != null && shardState.latestDecision == Type.THROTTLED) {
                         // We are currently throttling, and we know that the throttling period has passed, stop it.
                         throttler.deactivate(shardId);
-                        newState.put(shardId, new ThrottleState(Type.THROTTLE_REMOVED, relativeTimeMillis.get(), 1));
+                        newState.put(shardId, ThrottleState.throttleRemoved(relativeTimeMillis.get()));
                     }
                 }
             });
@@ -375,9 +376,41 @@ public class UploadQueueControllerService extends AbstractLifecycleComponent {
 
     // Track when a particular decision was applied to be able to hold the decision for
     // configuration amount of time and avoid constant flapping.
-    record ThrottleState(Type latestDecision, long relativeApplicationTimeMs, int consecutiveApplications) {
-        boolean expired(long currentRelativeTimeMs, long expirationPeriod) {
-            return currentRelativeTimeMs - relativeApplicationTimeMs > expirationPeriod;
+    static class ThrottleState {
+        private final Type latestDecision;
+        private final long relativeApplicationTimeMs;
+        private final int consecutiveApplications;
+
+        private ThrottleState(Type latestDecision, long relativeApplicationTimeMs, int consecutiveApplications) {
+            this.latestDecision = latestDecision;
+            this.relativeApplicationTimeMs = relativeApplicationTimeMs;
+            this.consecutiveApplications = consecutiveApplications;
+        }
+
+        static ThrottleState throttled(long relativeApplicationTimeMs, int consecutiveApplications) {
+            return new ThrottleState(Type.THROTTLED, relativeApplicationTimeMs, consecutiveApplications);
+        }
+
+        static ThrottleState throttleRemoved(long relativeApplicationTimeMs) {
+            // consecutiveApplications is currently unused in THROTTLE_REMOVED case
+            return new ThrottleState(Type.THROTTLE_REMOVED, relativeApplicationTimeMs, -1);
+        }
+
+        boolean expired(long currentRelativeTimeMs, long expirationPeriodMs) {
+            return currentRelativeTimeMs - relativeApplicationTimeMs > expirationPeriodMs;
+        }
+
+        public Type latestDecision() {
+            return latestDecision;
+        }
+
+        public long relativeApplicationTimeMs() {
+            return relativeApplicationTimeMs;
+        }
+
+        public int consecutiveApplications() {
+            assert latestDecision == Type.THROTTLED;
+            return consecutiveApplications;
         }
     }
 }

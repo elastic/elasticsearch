@@ -527,8 +527,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         return commitUploadThroughputMiBSec.getAverage();
     }
 
-    public Iterable<? extends ShardCommitUploadStats> getShardCommitStats() {
-        return shardsCommitsStates.values();
+    public Stream<? extends ShardCommitUploadStats> getShardCommitStats() {
+        return shardsCommitsStates.values().stream().filter(scs -> scs.isClosed() == false);
     }
 
     @Override

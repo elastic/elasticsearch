@@ -59,6 +59,15 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader<IVFVectorsReader
         );
     }
 
+    private ES920DiskBBQVectorsReader(ES920DiskBBQVectorsReader other, GenericFlatVectorReaders genericReaders) {
+        super(other, genericReaders);
+    }
+
+    @Override
+    protected ES920DiskBBQVectorsReader mergeInstance(GenericFlatVectorReaders genericReaders) {
+        return new ES920DiskBBQVectorsReader(this, genericReaders);
+    }
+
     public CentroidIterator getPostingListPrefetchIterator(CentroidIterator centroidIterator, IndexInput postingListSlice)
         throws IOException {
         return new PrefetchingCentroidIterator(centroidIterator, postingListSlice);

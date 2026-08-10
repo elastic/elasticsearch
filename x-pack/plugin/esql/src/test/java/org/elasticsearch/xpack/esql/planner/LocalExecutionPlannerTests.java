@@ -23,6 +23,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromList;
@@ -30,12 +32,19 @@ import org.elasticsearch.compute.lucene.query.DataPartitioning;
 import org.elasticsearch.compute.lucene.query.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.query.LuceneTopNSourceOperator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
+import org.elasticsearch.compute.operator.ColumnLoadOperator;
+import org.elasticsearch.compute.operator.DistinctByOperator;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.FilterOperator;
 import org.elasticsearch.compute.operator.LocalSourceOperator;
+import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.ProjectOperator;
+import org.elasticsearch.compute.operator.RowInTableLookupOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.test.NoOpReleasable;
 import org.elasticsearch.compute.test.TestBlockFactory;
+import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -79,16 +88,25 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorFactoryProvide
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
+import org.elasticsearch.xpack.esql.plan.physical.DistinctByExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
+import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
+import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
+import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
+import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
+import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
@@ -106,6 +124,8 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -784,7 +804,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         );
         var p = plan.driverFactories.get(0).driverSupplier().physicalOperation();
         var fieldInfo = ((ValuesSourceReaderOperator.Factory) p.intermediateOperatorFactories.get(0)).fields().get(0);
-        return fieldInfo.buildLoader().build(DriverContext.WarningsMode.COLLECT, 0);
+        DriverContext driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TestBlockFactory.getNonBreakingInstance(), null);
+        return fieldInfo.buildLoader().build(driverContext, 0);
     }
 
     private int randomEstimatedRowSize(boolean huge) {
@@ -835,6 +856,294 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
                 }
             };
         };
+    }
+
+    public void testPlanInnerJoinManyToOne() throws IOException {
+        // LEFT hash-join emits the lookup ordinal and loads values; FilterExec drops misses (null ordinal);
+        // the final Project drops the ordinal.
+        assertThat(
+            planInnerJoinFactories(false),
+            contains(
+                RowInTableLookupOperator.Factory.class,
+                ColumnLoadOperator.Factory.class,
+                FilterOperator.FilterOperatorFactory.class,
+                ProjectOperator.ProjectOperatorFactory.class
+            )
+        );
+    }
+
+    public void testPlanInnerJoinOneToOneHasDistinctByGuard() throws IOException {
+        // unique=true adds an OrdinalIntKeyFactory guard after the filter, keyed on the lookup ordinal
+        // (unique per build row), independent of the join key types and count.
+        assertThat(
+            planInnerJoinFactories(true),
+            contains(
+                RowInTableLookupOperator.Factory.class,
+                ColumnLoadOperator.Factory.class,
+                FilterOperator.FilterOperatorFactory.class,
+                DistinctByOperator.OrdinalIntKeyFactory.class,
+                ProjectOperator.ProjectOperatorFactory.class
+            )
+        );
+    }
+
+    public void testInnerJoinUniqueDuplicateBuildKeyThrows() {
+        var e = expectThrows(
+            IllegalArgumentException.class,
+            () -> runInnerJoin(innerJoinExec(true, new long[] { 10 }, new long[] { 10, 10, 20 }, new long[] { 100, 100, 200 }))
+        );
+        assertThat(e.getMessage(), containsString("found a duplicate row"));
+    }
+
+    public void testInnerJoinManyToOneGathersAndDropsMisses() throws IOException {
+        // group_left: many probe rows per build row; the miss (99) is dropped by the inner-join filter.
+        // Final page order matches InnerJoin.output(): added build columns, then left join keys.
+        List<Page> results = runInnerJoin(
+            innerJoinExec(false, new long[] { 10, 20, 10, 99, 30 }, new long[] { 10, 20, 30 }, new long[] { 100, 200, 300 })
+        );
+        assertInnerJoinOutput(results, List.of(100L, 200L, 100L, 300L), List.of(10L, 20L, 10L, 30L));
+    }
+
+    public void testInnerJoinOneToOneUniqueProbe() throws IOException {
+        List<Page> results = runInnerJoin(
+            innerJoinExec(true, new long[] { 10, 20, 30 }, new long[] { 10, 20, 30 }, new long[] { 100, 200, 300 })
+        );
+        assertInnerJoinOutput(results, List.of(100L, 200L, 300L), List.of(10L, 20L, 30L));
+    }
+
+    public void testInnerJoinOneToOneProbeDuplicatesThrows() {
+        // unique=true requires probe-side uniqueness; duplicate probe keys matching the same build row throw.
+        var e = expectThrows(
+            IllegalArgumentException.class,
+            () -> runInnerJoin(innerJoinExec(true, new long[] { 10, 20, 10 }, new long[] { 10, 20, 30 }, new long[] { 100, 200, 300 }))
+        );
+        assertThat(e.getMessage(), equalTo("input must not have duplicates when [failOnDuplicate] set to [true]"));
+    }
+
+    public void testInnerJoinDuplicateBuildKeyThrows() {
+        // A duplicate key on the build ("one") side is rejected when the lookup table is built.
+        var e = expectThrows(
+            IllegalArgumentException.class,
+            () -> runInnerJoin(innerJoinExec(false, new long[] { 10 }, new long[] { 10, 10, 20 }, new long[] { 100, 100, 200 }))
+        );
+        assertThat(e.getMessage(), containsString("found a duplicate row"));
+    }
+
+    public void testInnerJoinManyToOneFanOutAllowsProbeDuplicates() throws IOException {
+        // group_left: several probe rows share one build key. Unlike 1:1 there is no guard, so probe
+        // duplicates are allowed and each row fans out carrying the same build value.
+        List<Page> results = runInnerJoin(
+            innerJoinExec(false, new long[] { 10, 10, 10, 20 }, new long[] { 10, 20 }, new long[] { 100, 200 })
+        );
+        assertInnerJoinOutput(results, List.of(100L, 100L, 100L, 200L), List.of(10L, 10L, 10L, 20L));
+    }
+
+    public void testInnerJoinMultiColumnKey() throws IOException {
+        // The real join key spans (labels..., step): a match requires equality on BOTH key columns.
+        // Probe (10, 2) matches only the first column of build (10, 1) -> miss, dropped.
+        // Output after Project: [v0, k0, k1] per InnerJoin.output().
+        PhysicalPlan innerJoin = innerJoinExec(
+            false,
+            List.of(new long[] { 10, 20, 10 }, new long[] { 1, 1, 2 }), // probe (k0, k1)
+            List.of(new long[] { 10, 20, 30 }, new long[] { 1, 1, 1 }), // build (k0, k1)
+            List.of(new long[] { 100, 200, 300 })                       // build v0
+        );
+        assertInnerJoinRows(runInnerJoin(innerJoin), List.of(List.of(100L, 10L, 1L), List.of(200L, 20L, 1L)));
+    }
+
+    public void testInnerJoinCopiesMultipleBuildColumns() throws IOException {
+        // group_left(l1, l2): more than one build column is gathered onto each surviving probe row.
+        // Output after Project: [v0, v1, k0] per InnerJoin.output().
+        PhysicalPlan innerJoin = innerJoinExec(
+            false,
+            List.of(new long[] { 10, 20, 10 }),                        // probe (k0)
+            List.of(new long[] { 10, 20 }),                            // build (k0)
+            List.of(new long[] { 100, 200 }, new long[] { 111, 222 })  // build (v0, v1)
+        );
+        assertInnerJoinRows(runInnerJoin(innerJoin), List.of(List.of(100L, 111L, 10L), List.of(200L, 222L, 20L), List.of(100L, 111L, 10L)));
+    }
+
+    public void testInnerJoinEmptyBuildProducesNoRows() throws IOException {
+        // Empty "one" side -> every probe row misses -> the inner join drops everything.
+        List<Page> results = runInnerJoin(innerJoinExec(false, new long[] { 10, 20 }, new long[] {}, new long[] {}));
+        assertInnerJoinOutput(results, List.of(), List.of());
+    }
+
+    public void testInnerJoinEmptyProbeProducesNoRows() throws IOException {
+        List<Page> results = runInnerJoin(innerJoinExec(false, new long[] {}, new long[] { 10, 20 }, new long[] { 100, 200 }));
+        assertInnerJoinOutput(results, List.of(), List.of());
+    }
+
+    public void testInnerJoinAllProbeRowsMissProduceNoRows() throws IOException {
+        // Non-empty build, but no probe key exists on the build side -> empty inner-join result.
+        List<Page> results = runInnerJoin(innerJoinExec(false, new long[] { 1, 2, 3 }, new long[] { 10, 20 }, new long[] { 100, 200 }));
+        assertInnerJoinOutput(results, List.of(), List.of());
+    }
+
+    public void testInnerJoinMultivaluedBuildKeyThrows() {
+        // The lookup table only supports single-valued keys; a multivalued build key is rejected.
+        var blockFactory = TestBlockFactory.getNonBreakingInstance();
+        ReferenceAttribute buildKey = new ReferenceAttribute(Source.EMPTY, "k0", DataType.LONG);
+        ReferenceAttribute buildValue = new ReferenceAttribute(Source.EMPTY, "v0", DataType.LONG);
+        LongBlock.Builder keyBuilder = blockFactory.newLongBlockBuilder(2);
+        keyBuilder.beginPositionEntry().appendLong(10).appendLong(20).endPositionEntry(); // multivalued key
+        keyBuilder.appendLong(30);
+        LocalSourceExec build = new LocalSourceExec(
+            Source.EMPTY,
+            List.of(buildKey, buildValue),
+            LocalSupplier.of(new Page(keyBuilder.build(), blockFactory.newLongArrayVector(new long[] { 100, 200 }, 2).asBlock()))
+        );
+        ReferenceAttribute probeKey = new ReferenceAttribute(Source.EMPTY, "k0", DataType.LONG);
+        LocalSourceExec probe = new LocalSourceExec(
+            Source.EMPTY,
+            List.of(probeKey),
+            LocalSupplier.of(new Page(blockFactory.newLongArrayVector(new long[] { 10 }, 1).asBlock()))
+        );
+        PhysicalPlan innerJoin = innerJoinPhysical(false, probe, build, List.of(probeKey), List.of(buildKey), List.of(buildValue));
+        var e = expectThrows(IllegalArgumentException.class, () -> runInnerJoin(innerJoin));
+        assertThat(e.getMessage(), containsString("only single valued keys are supported"));
+    }
+
+    /**
+     * Builds the physical plan shape Mapper produces for InnerJoin:
+     * LEFT HashJoin(lookup ordinal as added field) -> Filter(ordinal IS NOT NULL) -> [DistinctBy(ordinal) when unique] -> Project.
+     */
+    private PhysicalPlan innerJoinExec(boolean unique, long[] probeKeys, long[] buildKeys, long[] buildValues) {
+        return innerJoinExec(unique, List.of(probeKeys), List.of(buildKeys), List.of(buildValues));
+    }
+
+    private PhysicalPlan innerJoinExec(boolean unique, List<long[]> probeKeyCols, List<long[]> buildKeyCols, List<long[]> buildValueCols) {
+        var blockFactory = TestBlockFactory.getNonBreakingInstance();
+
+        List<Attribute> buildKeyAttrs = new ArrayList<>();
+        for (int c = 0; c < buildKeyCols.size(); c++) {
+            buildKeyAttrs.add(new ReferenceAttribute(Source.EMPTY, "k" + c, DataType.LONG));
+        }
+        List<Attribute> buildValueAttrs = new ArrayList<>();
+        for (int c = 0; c < buildValueCols.size(); c++) {
+            buildValueAttrs.add(new ReferenceAttribute(Source.EMPTY, "v" + c, DataType.LONG));
+        }
+        List<Block> buildBlocks = new ArrayList<>();
+        for (long[] col : buildKeyCols) {
+            buildBlocks.add(blockFactory.newLongArrayVector(col, col.length).asBlock());
+        }
+        for (long[] col : buildValueCols) {
+            buildBlocks.add(blockFactory.newLongArrayVector(col, col.length).asBlock());
+        }
+        List<Attribute> buildOutput = new ArrayList<>(buildKeyAttrs);
+        buildOutput.addAll(buildValueAttrs);
+        LocalSourceExec build = new LocalSourceExec(
+            Source.EMPTY,
+            buildOutput,
+            LocalSupplier.of(new Page(buildBlocks.toArray(new Block[0])))
+        );
+
+        List<Attribute> probeKeyAttrs = new ArrayList<>();
+        for (int c = 0; c < probeKeyCols.size(); c++) {
+            probeKeyAttrs.add(new ReferenceAttribute(Source.EMPTY, "k" + c, DataType.LONG));
+        }
+        List<Block> probeBlocks = new ArrayList<>();
+        for (long[] col : probeKeyCols) {
+            probeBlocks.add(blockFactory.newLongArrayVector(col, col.length).asBlock());
+        }
+        LocalSourceExec probe = new LocalSourceExec(
+            Source.EMPTY,
+            probeKeyAttrs,
+            LocalSupplier.of(new Page(probeBlocks.toArray(new Block[0])))
+        );
+
+        return innerJoinPhysical(unique, probe, build, probeKeyAttrs, buildKeyAttrs, buildValueAttrs);
+    }
+
+    private static PhysicalPlan innerJoinPhysical(
+        boolean unique,
+        LocalSourceExec probe,
+        LocalSourceExec build,
+        List<Attribute> probeKeyAttrs,
+        List<Attribute> buildKeyAttrs,
+        List<Attribute> buildValueAttrs
+    ) {
+        ReferenceAttribute ordinal = Mapper.newJoinMarker(Source.EMPTY);
+        List<Attribute> addedFields = new ArrayList<>(buildValueAttrs);
+        addedFields.add(ordinal);
+        PhysicalPlan join = new HashJoinExec(Source.EMPTY, probe, build, probeKeyAttrs, buildKeyAttrs, addedFields);
+        join = new FilterExec(Source.EMPTY, join, new IsNotNull(Source.EMPTY, ordinal));
+        if (unique) {
+            join = new DistinctByExec(Source.EMPTY, join, ordinal, true);
+        }
+        List<Attribute> leftOutputWithoutKeys = probe.output().stream().filter(attr -> probeKeyAttrs.contains(attr) == false).toList();
+        List<Attribute> rightWithAppendedKeys = new ArrayList<>(build.output());
+        rightWithAppendedKeys.removeAll(buildKeyAttrs);
+        rightWithAppendedKeys.addAll(probeKeyAttrs);
+        List<Attribute> output = new ArrayList<>(
+            org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes(rightWithAppendedKeys, leftOutputWithoutKeys)
+        );
+        return new ProjectExec(Source.EMPTY, join, output);
+    }
+
+    private LocalExecutionPlanner.LocalExecutionPlan planInnerJoin(PhysicalPlan innerJoin) throws IOException {
+        return planner().plan("test", FoldContext.small(), PlannerSettings.DEFAULTS, innerJoin, EmptyIndexedByShardId.instance());
+    }
+
+    /**
+     * Classes of the intermediate operator factories for the Mapper-shaped InnerJoin physical plan.
+     */
+    private List<Class<?>> planInnerJoinFactories(boolean unique) throws IOException {
+        PhysicalPlan innerJoin = innerJoinExec(unique, new long[] { 10, 20, 10 }, new long[] { 10, 20, 30 }, new long[] { 100, 200, 300 });
+        List<Class<?>> factories = new ArrayList<>();
+        for (var factory : planInnerJoin(innerJoin).driverFactories.get(0)
+            .driverSupplier()
+            .physicalOperation().intermediateOperatorFactories) {
+            factories.add(factory.getClass());
+        }
+        return factories;
+    }
+
+    /**
+     * Plans then runs a Mapper-shaped InnerJoin physical plan end to end.
+     */
+    private List<Page> runInnerJoin(PhysicalPlan innerJoin) throws IOException {
+        var op = planInnerJoin(innerJoin).driverFactories.get(0).driverSupplier().physicalOperation();
+        var blockFactory = TestBlockFactory.getNonBreakingInstance();
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        var runner = new TestDriverRunner().builder(driverContext);
+        runner.input(op.sourceOperatorFactory.get(driverContext));
+        return runner.run(op.intermediateOperatorFactories.toArray(new Operator.OperatorFactory[0]));
+    }
+
+    /** Asserts single-key InnerJoin pages in InnerJoin.output() order: build value, then left key. */
+    private void assertInnerJoinOutput(List<Page> results, List<Long> expectedValues, List<Long> expectedKeys) {
+        List<Long> values = new ArrayList<>();
+        List<Long> keys = new ArrayList<>();
+        for (Page page : results) {
+            LongBlock valueBlock = page.getBlock(0);
+            LongBlock keyBlock = page.getBlock(1);
+            for (int p = 0; p < page.getPositionCount(); p++) {
+                values.add(valueBlock.getLong(valueBlock.getFirstValueIndex(p)));
+                keys.add(keyBlock.getLong(keyBlock.getFirstValueIndex(p)));
+            }
+        }
+        assertThat(values, equalTo(expectedValues));
+        assertThat(keys, equalTo(expectedKeys));
+    }
+
+    /**
+     * Asserts the full output rows of a Mapper-shaped InnerJoin plan whose output is entirely {@code LONG}
+     * columns, in InnerJoin.output() order (added build columns, then left join keys).
+     */
+    private void assertInnerJoinRows(List<Page> results, List<List<Long>> expectedRows) {
+        List<List<Long>> rows = new ArrayList<>();
+        for (Page page : results) {
+            for (int p = 0; p < page.getPositionCount(); p++) {
+                List<Long> row = new ArrayList<>();
+                for (int b = 0; b < page.getBlockCount(); b++) {
+                    LongBlock block = page.getBlock(b);
+                    row.add(block.getLong(block.getFirstValueIndex(p)));
+                }
+                rows.add(row);
+            }
+        }
+        assertThat(rows, equalTo(expectedRows));
     }
 
     private LocalExecutionPlanner planner() throws IOException {

@@ -631,3 +631,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:k8s-misc.four_rates_by_four_dims}
   issue: https://github.com/elastic/elasticsearch/issues/156314
+- class: org.elasticsearch.xpack.logsdb.RandomizedRollingUpgradeIT
+  method: testIndexingLogsdb
+  issue: https://github.com/elastic/elasticsearch/issues/156345

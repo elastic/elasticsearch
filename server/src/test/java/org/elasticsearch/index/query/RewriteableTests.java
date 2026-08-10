@@ -24,6 +24,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
@@ -80,6 +81,26 @@ public class RewriteableTests extends ESTestCase {
         assertThat(failure, instanceOf(IllegalArgumentException.class));
         assertEquals("The request is too deeply nested to rewrite", failure.getMessage());
         assertTrue("no Error may be reachable from the failure", ExceptionsHelper.maybeError(failure).isEmpty());
+    }
+
+    public void testRewriteAndFetchDoesNotConvertFailuresRaisedByTheListener() {
+        QueryRewriteContext context = new QueryRewriteContext(null, null, null);
+        AtomicBoolean failureNotified = new AtomicBoolean();
+        ActionListener<TestRewriteable> listener = new ActionListener<>() {
+            @Override
+            public void onResponse(TestRewriteable rewritten) {
+                throw new StackOverflowError();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                failureNotified.set(true);
+            }
+        };
+
+        TestRewriteable rewriteable = new TestRewriteable(randomIntBetween(0, Rewriteable.MAX_REWRITE_ROUNDS));
+        expectThrows(StackOverflowError.class, () -> Rewriteable.rewriteAndFetch(rewriteable, context, listener));
+        assertFalse("the listener must not be completed a second time", failureNotified.get());
     }
 
     public void testRewriteList() throws IOException {

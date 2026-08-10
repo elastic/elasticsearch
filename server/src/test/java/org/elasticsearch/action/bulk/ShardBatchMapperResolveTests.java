@@ -192,7 +192,6 @@ public class ShardBatchMapperResolveTests extends MapperServiceTestCase {
         assertNull(resolution);
     }
 
-
     public void testBooleanMapperNotSupported() throws IOException {
         MapperService ms = mapper(mapping(b -> { b.startObject("b").field("type", "boolean").endObject(); }));
         BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schemaOf("b"), ms.mappingLookup(), indexSettings);

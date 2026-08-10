@@ -69,6 +69,14 @@ public class RunTableSortedCodecTests extends ESTestCase {
                 assertTermsDictSorted(leaf);
             }
         }
+
+        // The merge must re-select the run-table layout: the merged segment must be smaller than the default.
+        final long runTableBytes = docValuesBytes(termByDoc, runTableFormat(NUMERIC_BLOCK_SHIFT));
+        final long defaultBytes = docValuesBytes(termByDoc, new ES819TSDBDocValuesFormat());
+        assertTrue(
+            "merged run-table bytes " + runTableBytes + " must be smaller than default " + defaultBytes,
+            runTableBytes < defaultBytes
+        );
     }
 
     public void testSparseContiguousRunTableRoundTrip() throws IOException {

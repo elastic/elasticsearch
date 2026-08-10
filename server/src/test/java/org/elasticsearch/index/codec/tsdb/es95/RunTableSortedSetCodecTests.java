@@ -70,7 +70,7 @@ public class RunTableSortedSetCodecTests extends ESTestCase {
             }
         }
 
-        // The run-table layout must actually be selected: it is strictly smaller than the default layout.
+        // The merge must re-select the run-table layout: the merged segment must be smaller than the default.
         final long runTableBytes = docValuesBytes(termsByDoc, runTableFormat());
         final long defaultBytes = docValuesBytes(termsByDoc, new ES819TSDBDocValuesFormat());
         assertTrue(

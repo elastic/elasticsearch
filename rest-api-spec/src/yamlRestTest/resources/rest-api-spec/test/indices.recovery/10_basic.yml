@@ -161,3 +161,31 @@
         detailed: true
 
   - match: { test_3.shards.0.index.files.details: [] }
+
+---
+"Indices recovery test for recovery priority":
+  - requires:
+      cluster_features: ["indices.recovery.recovery_priority"]
+      reason: asserts that response includes recovery priority
+
+  - do:
+      indices.create:
+        index:  test_4
+        body:
+          settings:
+            index:
+              number_of_replicas: 0
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+
+  - do:
+      indices.recovery:
+        index: [test_4]
+        human: true
+        detailed: true
+
+  - match: { test_4.shards.0.id:       0                        }
+  - match: { test_4.shards.0.primary:  true                     }
+  - match: { test_4.shards.0.priority: "UNASSIGNED_NEW_PRIMARY" }

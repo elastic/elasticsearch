@@ -525,7 +525,8 @@ public class StreamingLookupFromIndexOperatorTests extends OperatorTestCase {
             true, // primary
             org.elasticsearch.cluster.routing.RecoverySource.EmptyStoreRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null),
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
         ).initialize(serverNodes.get(0).getId(), null, 0).moveToStarted(0);
         shardRoutingBuilder.addShard(primaryRouting);
 
@@ -536,7 +537,8 @@ public class StreamingLookupFromIndexOperatorTests extends OperatorTestCase {
                 false, // replica
                 org.elasticsearch.cluster.routing.RecoverySource.PeerRecoverySource.INSTANCE,
                 new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null),
-                ShardRouting.Role.DEFAULT
+                ShardRouting.Role.DEFAULT,
+                ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
             ).initialize(serverNodes.get(i).getId(), null, 0).moveToStarted(0);
             shardRoutingBuilder.addShard(replicaRouting);
         }
@@ -591,7 +593,8 @@ public class StreamingLookupFromIndexOperatorTests extends OperatorTestCase {
             true, // primary
             org.elasticsearch.cluster.routing.RecoverySource.EmptyStoreRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null),
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
         ).initialize(localNode.getId(), null, 0).moveToStarted(0);
         shardRoutingBuilder.addShard(primaryRouting);
 

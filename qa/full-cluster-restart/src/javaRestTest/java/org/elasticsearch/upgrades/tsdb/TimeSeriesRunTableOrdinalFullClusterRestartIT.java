@@ -74,6 +74,7 @@ public class TimeSeriesRunTableOrdinalFullClusterRestartIT extends Parameterized
     private static final String REGION_B = "eu-west-1";
 
     public void testPreUpgradeIndexReadableAfterRestart() throws IOException {
+        requireRunTableOrdinal();
         final String index = "rto-readable";
         if (isRunningAgainstOldCluster()) {
             createTSDBIndex(index, null);
@@ -92,6 +93,7 @@ public class TimeSeriesRunTableOrdinalFullClusterRestartIT extends Parameterized
     }
 
     public void testPreUpgradeIndexKeepsOriginalCodec() throws IOException {
+        requireRunTableOrdinal();
         final String index = "rto-codec-check";
         if (isRunningAgainstOldCluster()) {
             createTSDBIndex(index, null);

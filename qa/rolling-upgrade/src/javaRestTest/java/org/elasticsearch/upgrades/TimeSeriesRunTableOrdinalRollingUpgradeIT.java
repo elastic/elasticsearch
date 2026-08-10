@@ -51,6 +51,7 @@ public class TimeSeriesRunTableOrdinalRollingUpgradeIT extends AbstractRollingUp
     }
 
     public void testPreUpgradeIndexSurvivesAllPhases() throws IOException {
+        requireRunTableOrdinal();
         final String index = "rto-rolling-survives";
         if (isOldCluster()) {
             createTSDBIndex(index, null);
@@ -129,6 +130,7 @@ public class TimeSeriesRunTableOrdinalRollingUpgradeIT extends AbstractRollingUp
     }
 
     public void testPreUpgradeIndexForceMergeAfterRollingUpgrade() throws IOException {
+        requireRunTableOrdinal();
         final String index = "rto-rolling-codec-check";
         if (isOldCluster()) {
             createTSDBIndex(index, null);

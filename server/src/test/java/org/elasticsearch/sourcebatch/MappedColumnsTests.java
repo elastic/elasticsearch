@@ -43,13 +43,16 @@ public class MappedColumnsTests extends ESTestCase {
 
     public void testSliceOfSliceLongColumn() {
         // 6 docs with values 10..60; double-slice down to original rows 3 and 4 (values 40, 50).
-        byte[] data = longBytes(10L, 20L, 30L, 40L, 50L, 60L);
+        BytesRef data = new BytesRef(longBytes(10L, 20L, 30L, 40L, 50L, 60L));
+        BytesRef seqNos = new BytesRef(new byte[6 * 8]);
+        BytesRef primaryTerms = new BytesRef(new byte[6 * 8]);
+        BytesRef versions = new BytesRef(new byte[6 * 8]);
         MappedColumns mc = new MappedColumns(
             0,
             6,
-            null,
-            null,
-            null,
+            seqNos,
+            primaryTerms,
+            versions,
             List.of(MappedColumns.longColumn(data, "val", LONG_FIELD_TYPE, LongColumn.NumericKind.LONG))
         );
 
@@ -73,12 +76,15 @@ public class MappedColumnsTests extends ESTestCase {
             new BytesRef("d"),
             new BytesRef("e"),
             new BytesRef("f") };
+        BytesRef seqNos = new BytesRef(new byte[6 * 8]);
+        BytesRef primaryTerms = new BytesRef(new byte[6 * 8]);
+        BytesRef versions = new BytesRef(new byte[6 * 8]);
         MappedColumns mc = new MappedColumns(
             0,
             6,
-            null,
-            null,
-            null,
+            seqNos,
+            primaryTerms,
+            versions,
             List.of(MappedColumns.binaryColumn(values, "field", BINARY_FIELD_TYPE))
         );
 
@@ -94,18 +100,20 @@ public class MappedColumnsTests extends ESTestCase {
     }
 
     public void testSliceOfSliceSeqNoOffset() {
-        byte[] seqNos = new byte[6 * 8]; // zero-initialised
-        MappedColumns mc = new MappedColumns(0, 6, seqNos, null, null, List.of());
+        BytesRef seqNos = new BytesRef(new byte[6 * 8]); // zero-initialised
+        BytesRef primaryTerms = new BytesRef(new byte[6 * 8]);
+        BytesRef versions = new BytesRef(new byte[6 * 8]);
+        MappedColumns mc = new MappedColumns(0, 6, seqNos, primaryTerms, versions, List.of());
 
         // [2, 6) then [1, 3) → offset = 3 in the backing array
         MappedColumns sliced = mc.slice(2, 6).slice(1, 3);
         sliced.setSeqNo(0, 100L);
         sliced.setSeqNo(1, 200L);
 
-        assertEquals(100L, ByteUtils.readLongLE(seqNos, 3 * 8));
-        assertEquals(200L, ByteUtils.readLongLE(seqNos, 4 * 8));
+        assertEquals(100L, ByteUtils.readLongLE(seqNos.bytes, 3 * 8));
+        assertEquals(200L, ByteUtils.readLongLE(seqNos.bytes, 4 * 8));
         // neighbours must be untouched
-        assertEquals(0L, ByteUtils.readLongLE(seqNos, 2 * 8));
-        assertEquals(0L, ByteUtils.readLongLE(seqNos, 5 * 8));
+        assertEquals(0L, ByteUtils.readLongLE(seqNos.bytes, 2 * 8));
+        assertEquals(0L, ByteUtils.readLongLE(seqNos.bytes, 5 * 8));
     }
 }

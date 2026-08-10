@@ -100,7 +100,7 @@ public class MapperFeatures implements FeatureSpecification {
         "mapper.doc_values.extended_form_only_in_columnar"
     );
     public static final NodeFeature DOC_VALUES_NULLABILITY = new NodeFeature("mapper.doc_values.nullability");
-    public static final NodeFeature DOC_VALUES_ON_FAILURE_READ_SIDE = new NodeFeature("mapper.doc_values.on_failure_read_side");
+    public static final NodeFeature DOC_VALUES_ON_FAILURE = new NodeFeature("mapper.doc_values.on_failure");
     static final NodeFeature DENSE_VECTOR_DYNAMIC_TEMPLATE_NESTED_OBJECT_FIX = new NodeFeature(
         "mapper.dense_vector.dynamic_template_nested_object_fix"
     );
@@ -235,7 +235,7 @@ public class MapperFeatures implements FeatureSpecification {
             DOC_VALUES_MULTI_VALUE_FALSE_ALIAS,
             DOC_VALUES_EXTENDED_FORM_ONLY_IN_COLUMNAR,
             DOC_VALUES_NULLABILITY,
-            DOC_VALUES_ON_FAILURE_READ_SIDE
+            DOC_VALUES_ON_FAILURE
         );
     }
 }

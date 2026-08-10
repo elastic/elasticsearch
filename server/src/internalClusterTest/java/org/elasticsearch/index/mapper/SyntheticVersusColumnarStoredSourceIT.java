@@ -216,7 +216,9 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
     }
 
     /**
-     * Asserts reconstructed sources are the same and that the field is stored in _ignored across both source types when normalizer is used.
+     * A {@code lowercase} normalizer keeps the field in NATIVE mode, so the primary column stores the normalized first value and
+     * {@code ._on_failure} stores raw subsequent values. Both source modes must reconstruct the mixed-case array and populate
+     * {@code _ignored} with the field name.
      */
     public void testFallbackMultiValueViolationRestoredIdenticallyAcrossSourceModes() throws Exception {
         assumeTrue("doc_values on_failure feature flag must be enabled", FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled());
@@ -234,9 +236,7 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
             .endObject()
             .endObject();
         // The built-in "lowercase" normalizer sets normalizerSkipStoreOriginalValue=true, keeping the field in NATIVE synthetic-source
-        // mode.
-        // The primary doc-values column stores the normalized form ("hello"), while extra values redirected to ._on_failure retain the raw
-        // input ("WORLD"). So the reconstructed source is ["hello", "WORLD"]: normalized first value, raw subsequent values.
+        // mode. The primary column stores the normalized form ("hello"); ._on_failure stores the raw input ("WORLD").
         var document = Map.of("kw", List.of("HELLO", "WORLD"));
         var expectedSource = Map.of("kw", List.of("hello", "WORLD"));
         assertEqualSource(mappingXContent, document, randomBoolean(), expectedSource);

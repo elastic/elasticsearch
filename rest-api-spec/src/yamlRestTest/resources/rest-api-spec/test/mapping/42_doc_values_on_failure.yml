@@ -6,7 +6,7 @@
         - method: PUT
           path: /{index}
           capabilities: [ columnar_index_modes ]
-      cluster_features: ["mapper.doc_values.on_failure_read_side"]
+      cluster_features: ["mapper.doc_values.on_failure"]
       reason: "._on_failure sidecar wired into synthetic source reconstruction"
 
   - do:
@@ -87,7 +87,7 @@
         - method: PUT
           path: /{index}
           capabilities: [ columnar_index_modes ]
-      cluster_features: ["mapper.doc_values.on_failure_read_side"]
+      cluster_features: ["mapper.doc_values.on_failure"]
       reason: "._on_failure sidecar wired into columnar_stored source reconstruction"
 
   - do:
@@ -147,7 +147,7 @@
         - method: PUT
           path: /{index}
           capabilities: [ columnar_index_modes ]
-      cluster_features: ["mapper.doc_values.on_failure_read_side"]
+      cluster_features: ["mapper.doc_values.on_failure"]
       reason: "._on_failure sidecar wired into synthetic source reconstruction"
 
   - do:
@@ -193,7 +193,7 @@
         - method: PUT
           path: /{index}
           capabilities: [ columnar_index_modes ]
-      cluster_features: ["mapper.doc_values.on_failure_read_side"]
+      cluster_features: ["mapper.doc_values.on_failure"]
       reason: "._on_failure sidecar wired into synthetic source reconstruction"
 
   - do:

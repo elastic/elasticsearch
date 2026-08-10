@@ -201,10 +201,8 @@ public final class FallbackPostMapper {
         switch (result) {
             case FieldMapper.ParseResult.MultiValueViolation mvv -> {
                 if (fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK) {
-                    // FALLBACK mappers have no ._on_failure layer in their composite loader, so redirecting to that column would
-                    // silently lose the value. Currently unreachable: MappingLookup validates that no FALLBACK mapper exists in
-                    // strict-columnar index modes (the only modes where ._on_failure is written). If that validation ever loosens,
-                    // commit the pre-capture so _ignored_source reconstructs the value instead of losing it.
+                    // FALLBACK fields have no ._on_failure composite layer, so commit the pre-capture to _ignored_source instead.
+                    // Currently unreachable: strict-columnar modes reject FALLBACK mappers, but kept as a safety guard.
                     if (precaptured) context.commitPendingPreCapture(fieldPath);
                 } else {
                     if (precaptured) context.discardPendingPreCapture(fieldPath);

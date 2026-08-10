@@ -17,18 +17,10 @@ import java.io.IOException;
 /**
  * Stores the value that violated a strict {@code doc_values} constraint (currently just {@code multi_value=false}) when the field is
  * configured with {@code doc_values.on_failure=ignore}, so indexing can continue instead of rejecting the whole document.
- * <p>
- * Each field gets its own failure column, named by suffixing the field's full path with {@link #ON_FAILURE_FIELD_NAME_SUFFIX}, mirroring
- * how {@link IgnoreMalformedStoredValues} stores overflow from {@code ignore_above}/{@code ignore_malformed} - but kept as a separate
- * column and suffix, since a value redirected here is well-formed and simply violates a cardinality constraint, which is a different
- * failure reason than a malformed value.
- * <p>
- * On the read side the column is surfaced as a {@link CompositeSyntheticFieldLoader.Layer} via
- * {@link CompositeSyntheticFieldLoader#onFailureValuesLayer}, which appends the stored values after the primary column so that
- * {@code _source} reconstruction produces the original multi-valued array.
- * <p>
- * The column is deliberately <em>not</em> surfaced to block loaders, ESQL, or aggregations: {@code multi_value=false} advertises a
- * strictly single-valued column to those paths, and exposing the sidecar would break that contract.
+ * Each field gets its own sidecar column, named by appending {@link #ON_FAILURE_FIELD_NAME_SUFFIX} to the field's full path.
+ * On the read side, {@link CompositeSyntheticFieldLoader#onFailureValuesLayer} reconstructs the original multi-valued array from
+ * this column; the column is not surfaced to block loaders, ESQL, or aggregations because {@code multi_value=false} advertises a
+ * single-valued column to those paths.
  */
 public final class OnFailureStoredValues {
 

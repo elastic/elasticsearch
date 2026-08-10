@@ -457,21 +457,12 @@ public abstract class FieldMapper extends Mapper {
     }
 
     /**
-     * Whether this mapper writes extra values to the {@code ._on_failure} sidecar column, i.e. it is configured with
-     * {@code doc_values: {multi_value: false, on_failure: ignore}} and reconstructs its own source natively.
-     * <p>
-     * When {@code true}, call {@link CompositeSyntheticFieldLoader#onFailureValuesLayer} and add the result as the
-     * <em>last</em> layer of the composite loader, so on-failure values trail the primary column and the original
-     * encounter order of a multi-valued input is preserved.
-     * <p>
-     * Two non-obvious guards:
-     * <ul>
-     *   <li>{@link #onFailureBehavior()} rather than {@link #isSingleValueEnforced()}: {@code NumberFieldMapper} forces
-     *       {@code FAIL} when {@code allowMultipleValues=false}, so the two predicates diverge.</li>
-     *   <li>{@code syntheticSourceMode() != FALLBACK}: a FALLBACK field reconstructs from {@code _ignored_source}, which
-     *       {@code ObjectMapper.prepare()} gives precedence over native loaders for the same field name — adding this
-     *       layer for a FALLBACK field would conflict or double-emit.</li>
-     * </ul>
+     * Whether this mapper writes extra values to the {@code ._on_failure} sidecar column.
+     * When {@code true}, add {@link CompositeSyntheticFieldLoader#onFailureValuesLayer} as the <em>last</em> layer of the composite so
+     * on-failure values trail the primary column and encounter order is preserved.
+     * Uses {@link #onFailureBehavior()} rather than {@link #isSingleValueEnforced()} because {@code NumberFieldMapper} forces {@code FAIL}
+     * when {@code allowMultipleValues=false}, making the predicates diverge; FALLBACK mode is excluded because those fields reconstruct
+     * from {@code _ignored_source} and have no composite loader to attach to.
      */
     protected final boolean writesOnFailureColumn() {
         return onFailureBehavior() == DocValuesParameter.Values.OnFailure.IGNORE && syntheticSourceMode() != SyntheticSourceMode.FALLBACK;

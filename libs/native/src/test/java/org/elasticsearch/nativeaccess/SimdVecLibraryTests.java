@@ -57,12 +57,12 @@ public abstract class SimdVecLibraryTests extends ESTestCase {
     }
 
     public static void setup() {
-        var supported = supported();
-        if (supported) {
+        var simdVecSupported = supported();
+        if (simdVecSupported) {
             vectorSimilarityFunctions = NativeAccess.instance().getVectorSimilarityFunctions().orElse(null);
             assertNotNull("native vector library must be available on [" + platformMsg() + "]", vectorSimilarityFunctions);
         }
-        assumeTrue(notSupportedMsg(), supported);
+        assumeTrue(notSupportedMsg(), simdVecSupported);
 
         // Occasionally back every segment of this suite with a guard page, so that a native over-read faults
         // instead of silently returning a wrong score.

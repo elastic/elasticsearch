@@ -39,6 +39,7 @@ It includes detailed steps, tooling, and resources to help you transition to sup
 * Fix Confluence connector Document Level Security to index effective page view restrictions by intersecting the child's and all ancestors' read restrictions, instead of over-granting through space-level permissions. [#4302](https://github.com/elastic/connectors/pull/4302), [#4095](https://github.com/elastic/connectors/issues/4095)
 * Fix the Outlook connector aborting a sync when Exchange returned an unrecognised EWS element; such elements are now skipped with a warning and the rest of the mailbox continues to sync. [#4292](https://github.com/elastic/connectors/pull/4292)
 * Fix the SharePoint Online connector to surface a clear, actionable error when role assignments are unauthorized while Document Level Security is enabled. [#4268](https://github.com/elastic/connectors/pull/4268), [#3293](https://github.com/elastic/connectors/issues/3293)
+* Fix the Outlook connector to skip unexpected Exchange item types, unresolvable or inaccessible folders, and related edge cases with a warning instead of aborting the sync. [#4177](https://github.com/elastic/connectors/pull/4177), [#4158](https://github.com/elastic/connectors/pull/4158)
 
 ## 9.4.4 [connectors-9.4.4-release-notes]
 

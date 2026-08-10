@@ -29,11 +29,13 @@ final class RunTableGate {
     private final FieldContextResolver resolver;
     private final int primarySortFieldNumber;
     private final int maxDoc;
+    private final int blockSize;
 
-    RunTableGate(@Nullable FieldContextResolver resolver, int primarySortFieldNumber, int maxDoc) {
+    RunTableGate(@Nullable FieldContextResolver resolver, int primarySortFieldNumber, int maxDoc, int blockSize) {
         this.resolver = resolver;
         this.primarySortFieldNumber = primarySortFieldNumber;
         this.maxDoc = maxDoc;
+        this.blockSize = blockSize;
     }
 
     /**
@@ -66,7 +68,7 @@ final class RunTableGate {
         // run-shaped in a TSDB segment. To generalize, replace this check with a broader pre-walk
         // signal (cardinality-to-doc ratio, index sort configuration, or field-level statistics)
         // that bounds the fallback rate without relying on the TSDB dimension predicate.
-        if (resolver == null || resolver.resolve(field.name, 0).isDimension() == false) {
+        if (resolver == null || resolver.resolve(field.name, blockSize).isDimension() == false) {
             return false;
         }
         return maxOrd > 0 && maxOrd * 2 <= maxDoc;

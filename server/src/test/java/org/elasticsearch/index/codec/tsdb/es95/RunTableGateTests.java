@@ -53,7 +53,7 @@ public class RunTableGateTests extends ESTestCase {
         final int primarySort = randomBoolean() ? 0 : 1;
         final int maxDoc = randomIntBetween(2, 4096);
         assertFalse(
-            new RunTableGate(randomBoolean() ? DIMENSION : NON_DIMENSION, primarySort, maxDoc).allow(
+            new RunTableGate(randomBoolean() ? DIMENSION : NON_DIMENSION, primarySort, maxDoc, 1).allow(
                 fieldInfo("host", primarySort),
                 randomIntBetween(1, maxDoc)
             )
@@ -64,7 +64,7 @@ public class RunTableGateTests extends ESTestCase {
         final int primarySort = randomBoolean() ? 0 : 1;
         final int fieldNumber = 1 - primarySort;
         final int maxDoc = randomIntBetween(2, 4096);
-        assertFalse(new RunTableGate(null, primarySort, maxDoc).allow(fieldInfo("host", fieldNumber), randomIntBetween(1, maxDoc / 2)));
+        assertFalse(new RunTableGate(null, primarySort, maxDoc, 1).allow(fieldInfo("host", fieldNumber), randomIntBetween(1, maxDoc / 2)));
     }
 
     public void testAllowNonDimensionReturnsFalse() {
@@ -72,62 +72,62 @@ public class RunTableGateTests extends ESTestCase {
         final int fieldNumber = 1 - primarySort;
         final int maxDoc = randomIntBetween(2, 4096);
         assertFalse(
-            new RunTableGate(NON_DIMENSION, primarySort, maxDoc).allow(fieldInfo("cpu", fieldNumber), randomIntBetween(1, maxDoc / 2))
+            new RunTableGate(NON_DIMENSION, primarySort, maxDoc, 1).allow(fieldInfo("cpu", fieldNumber), randomIntBetween(1, maxDoc / 2))
         );
     }
 
     public void testAllowMaxOrdExceedsThresholdReturnsFalse() {
         final int maxDoc = randomIntBetween(2, 4096);
         final int maxOrd = randomIntBetween(maxDoc / 2 + 1, maxDoc);
-        assertFalse(new RunTableGate(randomBoolean() ? DIMENSION : NON_DIMENSION, -1, maxDoc).allow(fieldInfo("host", 0), maxOrd));
+        assertFalse(new RunTableGate(randomBoolean() ? DIMENSION : NON_DIMENSION, -1, maxDoc, 1).allow(fieldInfo("host", 0), maxOrd));
     }
 
     public void testAllowAtThresholdBoundaryReturnsTrue() {
         final int maxDoc = randomIntBetween(2, 4096);
-        assertTrue(new RunTableGate(DIMENSION, -1, maxDoc).allow(fieldInfo("host", 0), maxDoc / 2));
+        assertTrue(new RunTableGate(DIMENSION, -1, maxDoc, 1).allow(fieldInfo("host", 0), maxDoc / 2));
     }
 
     public void testAllowDimensionBelowThresholdReturnsTrue() {
         final int maxDoc = randomIntBetween(4, 4096);
         final int maxOrd = randomIntBetween(1, maxDoc / 2);
-        assertTrue(new RunTableGate(DIMENSION, -1, maxDoc).allow(fieldInfo("host", 0), maxOrd));
+        assertTrue(new RunTableGate(DIMENSION, -1, maxDoc, 1).allow(fieldInfo("host", 0), maxOrd));
     }
 
     public void testAllowAbsoluteThresholdExceededReturnsFalse() {
         final int maxDoc = randomIntBetween(2, 4096);
         final int numRuns = randomIntBetween(maxDoc / 2 + 1, maxDoc);
-        assertFalse(new RunTableGate(null, -1, maxDoc).allow(numRuns, randomIntBetween(1, maxDoc)));
+        assertFalse(new RunTableGate(null, -1, maxDoc, 1).allow(numRuns, randomIntBetween(1, maxDoc)));
     }
 
     public void testAllowAtAbsoluteBoundaryReturnsTrue() {
         final int maxDoc = randomIntBetween(16, 4096);
         final int processedDocs = randomIntBetween(1, (maxDoc - 1) / 8);
-        assertTrue(new RunTableGate(null, -1, maxDoc).allow(maxDoc / 2, processedDocs));
+        assertTrue(new RunTableGate(null, -1, maxDoc, 1).allow(maxDoc / 2, processedDocs));
     }
 
     public void testAllowBeforeWarmupReturnsTrue() {
         final int maxDoc = randomIntBetween(2, 4096);
         final int processedDocs = randomIntBetween(0, (maxDoc - 1) / 8);
         final int numRuns = randomIntBetween(0, maxDoc / 2);
-        assertTrue(new RunTableGate(null, -1, maxDoc).allow(numRuns, processedDocs));
+        assertTrue(new RunTableGate(null, -1, maxDoc, 1).allow(numRuns, processedDocs));
     }
 
     public void testAllowAfterWarmupWithHighRunRateReturnsFalse() {
         final int maxDoc = randomIntBetween(16, 4096);
         final int processedDocs = randomIntBetween((maxDoc + 7) / 8, maxDoc - 1);
         final int numRuns = randomIntBetween(processedDocs / 2 + 1, maxDoc / 2);
-        assertFalse(new RunTableGate(null, -1, maxDoc).allow(numRuns, processedDocs));
+        assertFalse(new RunTableGate(null, -1, maxDoc, 1).allow(numRuns, processedDocs));
     }
 
     public void testAllowAfterWarmupWithLowRunRateReturnsTrue() {
         final int maxDoc = randomIntBetween(16, 4096);
         final int processedDocs = randomIntBetween((maxDoc + 7) / 8, maxDoc);
         final int numRuns = randomIntBetween(0, processedDocs / 2);
-        assertTrue(new RunTableGate(null, -1, maxDoc).allow(numRuns, processedDocs));
+        assertTrue(new RunTableGate(null, -1, maxDoc, 1).allow(numRuns, processedDocs));
     }
 
     public void testAllowNormalTsdbPatternAlwaysReturnsTrue() {
-        final RunTableGate gate = new RunTableGate(null, -1, 1000);
+        final RunTableGate gate = new RunTableGate(null, -1, 1000, 1);
         for (int doc = 0; doc < 1000; doc++) {
             final int numRuns = doc / 100 + 1;
             assertTrue("gate should not close at doc " + doc, gate.allow(numRuns, doc + 1));

@@ -110,7 +110,7 @@ final class RunTableSortedSetCodec implements SortedSetOrdinalCodec {
             ctx,
             fallback,
             accumulatorFactory,
-            new RunTableGate(fieldContextResolver, ctx.primarySortFieldNumber(), ctx.maxDoc())
+            new RunTableGate(fieldContextResolver, ctx.primarySortFieldNumber(), ctx.maxDoc(), ctx.blockSize())
         );
     }
 

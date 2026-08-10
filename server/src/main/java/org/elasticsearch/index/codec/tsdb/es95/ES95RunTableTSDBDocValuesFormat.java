@@ -11,6 +11,8 @@ package org.elasticsearch.index.codec.tsdb.es95;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
+import org.elasticsearch.index.codec.tsdb.es95.runtable.RunTableSortedOrdinalWriter;
+import org.elasticsearch.index.codec.tsdb.es95.runtable.RunTableSortedSetOrdinalWriter;
 import org.elasticsearch.index.codec.tsdb.pipeline.FieldContextResolver;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericCodecFactory;
 
@@ -78,8 +80,8 @@ public final class ES95RunTableTSDBDocValuesFormat extends ES95TSDBDocValuesForm
             numericCodecFactory,
             fallbackDecoderFactory,
             fieldContextResolver,
-            new RunTableSortedCodec(new ES95SortedCodec(), fieldContextResolver),
-            new RunTableSortedSetCodec(new ES95SortedSetCodec(), fieldContextResolver)
+            new RunTableSortedCodec(new ES95SortedCodec(), RunTableSortedOrdinalWriter::new, fieldContextResolver),
+            new RunTableSortedSetCodec(new ES95SortedSetCodec(), RunTableSortedSetOrdinalWriter::new, fieldContextResolver)
         );
     }
 }

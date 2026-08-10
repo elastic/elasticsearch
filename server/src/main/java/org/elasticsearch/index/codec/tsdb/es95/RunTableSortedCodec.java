@@ -80,18 +80,6 @@ final class RunTableSortedCodec implements SortedOrdinalCodec {
         this.fieldContextResolver = fieldContextResolver;
     }
 
-    RunTableSortedCodec(final SortedOrdinalCodec fallback, final IntFunction<RunTableSortedOrdinalWriter> accumulatorFactory) {
-        this(fallback, accumulatorFactory, null);
-    }
-
-    RunTableSortedCodec(final SortedOrdinalCodec fallback) {
-        this(fallback, RunTableSortedOrdinalWriter::new, null);
-    }
-
-    RunTableSortedCodec(final SortedOrdinalCodec fallback, @Nullable final FieldContextResolver fieldContextResolver) {
-        this(fallback, RunTableSortedOrdinalWriter::new, fieldContextResolver);
-    }
-
     @Override
     public SortedOrdinalWriter createWriter(final NumericWriteContext ctx) {
         return new RunTableSortedWriter(

@@ -171,6 +171,96 @@ public abstract class BlockTestCase<B extends Block, BB extends Block.Builder, V
         }
     }
 
+    /**
+     * Smoke-test {@code toString} for a tiny block. When the block exposes a {@link Vector},
+     * also checks filter/slice shapes that collapse to constants — coverage formerly in
+     * {@link BasicBlockTests#testToStringSmall}.
+     */
+    public final void testToStringSmall() {
+        V first = randomValue();
+        V second = randomValue();
+        for (int i = 0; i < 10 && Objects.equals(first, second); i++) {
+            second = randomValue();
+        }
+        List<List<V>> expected = List.of(List.of(first), List.of(second));
+        try (B block = buildBlock(blockFactory(), expected)) {
+            assertThat(block.toString(), notNullValue());
+            assertThat(block.toString().isEmpty(), equalTo(false));
+
+            Vector vector = block.asVector();
+            if (vector == null) {
+                // Composite / range blocks have no vector view and often a different toString shape.
+                return;
+            }
+            assertToStringMentionsPositions(block, 2);
+            assertToStringMentionsPositions(vector, 2);
+
+            try (Block filtered = block.filter(false, 0)) {
+                assertToStringMentionsPositions(filtered, 1);
+                assertTrue(filtered.asVector().isConstant());
+            }
+            try (Block filtered = block.filter(false, 1)) {
+                assertToStringMentionsPositions(filtered, 1);
+                assertTrue(filtered.asVector().isConstant());
+            }
+            try (Block filtered = block.filter(false, 0, 1)) {
+                assertToStringMentionsPositions(filtered, 2);
+            }
+            try (Block filtered = block.filter(false)) {
+                assertToStringMentionsPositions(filtered, 0);
+            }
+
+            try (Vector filtered = vector.filter(false, 0)) {
+                assertToStringMentionsPositions(filtered, 1);
+                assertTrue(filtered.isConstant());
+            }
+            try (Vector filtered = vector.filter(false, 1)) {
+                assertToStringMentionsPositions(filtered, 1);
+                assertTrue(filtered.isConstant());
+            }
+            try (Vector filtered = vector.filter(false, 0, 1)) {
+                assertToStringMentionsPositions(filtered, 2);
+            }
+            try (Vector filtered = vector.filter(false)) {
+                assertToStringMentionsPositions(filtered, 0);
+            }
+
+            try (Block sliced = block.slice(0, 1)) {
+                assertToStringMentionsPositions(sliced, 1);
+                assertTrue(sliced.asVector().isConstant());
+            }
+            try (Block sliced = block.slice(1, 2)) {
+                assertToStringMentionsPositions(sliced, 1);
+                assertTrue(sliced.asVector().isConstant());
+            }
+            try (Block sliced = block.slice(0, 2)) {
+                assertToStringMentionsPositions(sliced, 2);
+            }
+            try (Block sliced = block.slice(0, 0)) {
+                assertToStringMentionsPositions(sliced, 0);
+            }
+
+            try (Vector sliced = vector.slice(0, 1)) {
+                assertToStringMentionsPositions(sliced, 1);
+                assertTrue(sliced.isConstant());
+            }
+            try (Vector sliced = vector.slice(1, 2)) {
+                assertToStringMentionsPositions(sliced, 1);
+                assertTrue(sliced.isConstant());
+            }
+            try (Vector sliced = vector.slice(0, 2)) {
+                assertToStringMentionsPositions(sliced, 2);
+            }
+            try (Vector sliced = vector.slice(0, 0)) {
+                assertToStringMentionsPositions(sliced, 0);
+            }
+        }
+    }
+
+    private static void assertToStringMentionsPositions(Object obj, int positions) {
+        assertThat(obj.toString(), containsString("positions=" + positions));
+    }
+
     public final void testBuilderGrowth() {
         for (int estimatedSize : List.of(0, 1, 2, 3, 4, 5)) {
             List<List<V>> expected = denseExpectedValues(10);
@@ -705,7 +795,19 @@ public abstract class BlockTestCase<B extends Block, BB extends Block.Builder, V
             for (V value : values) {
                 assertTrue(positionHasValue(block, p, value));
             }
-            assertFalse(positionHasValue(block, p, randomValueOtherThanMany(v -> values.contains(v), this::randomValue)));
+            // Skip the absent-value check when the position already contains every value the
+            // generator can produce (e.g. a boolean position with both true and false).
+            V absent = null;
+            for (int attempt = 0; attempt < 100; attempt++) {
+                V candidate = randomValue();
+                if (values.contains(candidate) == false) {
+                    absent = candidate;
+                    break;
+                }
+            }
+            if (absent != null) {
+                assertFalse(positionHasValue(block, p, absent));
+            }
         }
     }
 

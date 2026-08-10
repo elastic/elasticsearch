@@ -16,11 +16,9 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.LogByteSizeMergePolicy;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
@@ -328,9 +326,6 @@ public class RunTableSortedCodecTests extends ESTestCase {
     }
 
     private static IndexWriterConfig writerConfig(final DocValuesFormat format) {
-        final IndexWriterConfig config = new IndexWriterConfig();
-        config.setCodec(TestUtil.alwaysDocValuesFormat(format));
-        config.setMergePolicy(new LogByteSizeMergePolicy());
-        return config;
+        return RunTableCodecTestUtils.writerConfig(format);
     }
 }

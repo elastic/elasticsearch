@@ -1270,6 +1270,8 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 DATE_PERIOD, TIME_DURATION, GEOTILE, GEOHASH, GEOHEX,
                 // TODO fix geo
                 CARTESIAN_POINT, CARTESIAN_SHAPE -> false;
+            // TODO: DOUBLE_RANGE: Implement loading
+            case DOUBLE_RANGE -> false;
             // EXPONENTIAL_HISTOGRAM was added to ES and ES|QL at the same time, which is why we can use supportedVersion()
             // to decide whether indices can have fields of this type.
             case EXPONENTIAL_HISTOGRAM -> DataType.EXPONENTIAL_HISTOGRAM.supportedVersion()

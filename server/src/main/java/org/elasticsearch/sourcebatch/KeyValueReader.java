@@ -71,6 +71,7 @@ public final class KeyValueReader {
         }
         int keyLen = ByteUtils.readIntLE(data, pos);
         pos += 4;
+        // TODO: if performance is a concern we can lazy decode this key.
         currentKey = new String(data, pos, keyLen, StandardCharsets.UTF_8);
         pos += keyLen;
         currentType = data[pos];

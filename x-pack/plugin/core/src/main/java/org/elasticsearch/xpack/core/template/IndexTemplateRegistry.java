@@ -43,6 +43,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.MapperFeatures;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -121,7 +123,12 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
      * This map matches node features with predicates to detect when a template requires that feature.
      * This allows the registry to install the template only after the cluster fully supports a feature.
      */
-    protected static final Map<NodeFeature, Predicate<Template>> NODE_FEATURE_FILTERS = Map.of();
+    protected static final Map<NodeFeature, Predicate<Template>> NODE_FEATURE_FILTERS = Map.of(
+        MapperFeatures.TSDB_METRIC_TEMPORALITY_SUPPORT,
+        template -> template != null
+            && template.settings() != null
+            && template.settings().hasValue(IndexSettings.TIME_SERIES_TEMPORALITY_FIELD.getKey())
+    );
     private final Map<NodeFeature, Predicate<Template>> nodeFeatureFilters;
     // This flag short-circuits the node feature check, if all node features are supported.
     private volatile boolean allFeaturesSupported = false;

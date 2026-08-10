@@ -339,7 +339,6 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.AnyMatchSerializationTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.AnyMatchTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersectionErrorTests is missing")
-                .item("org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSortErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.nulls.CoalesceErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.string.ContainsErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.util.DelayErrorTests is missing")

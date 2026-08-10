@@ -1283,6 +1283,43 @@ public class AnalyzerSubqueryTests extends ESTestCase {
         assertEquals("sample_data", castSampleRelation.indexPattern());
     }
 
+    public void testTimeSeriesAggregateFunctionAfterUnionAllSubquery() {
+        // The outer STATS must reject time-series aggregate functions with a descriptive error
+        // explaining that TS aggregations cannot span a union.
+        analyzer().addK8s()
+            .error(
+                """
+                    FROM (FROM k8s), (FROM k8s)
+                    | STATS x = last_over_time(event) BY time_bucket = bucket(@timestamp, 1 day)
+                    """,
+                containsString(
+                    "cannot be applied over a union of data sources; apply the time-series aggregation inside each subquery instead"
+                )
+            );
+
+        analyzer().addK8s()
+            .error(
+                """
+                    FROM (TS k8s), (FROM k8s)
+                    | STATS x = last_over_time(event) BY time_bucket = bucket(@timestamp, 1 day)
+                    """,
+                containsString(
+                    "cannot be applied over a union of data sources; apply the time-series aggregation inside each subquery instead"
+                )
+            );
+
+        analyzer().addK8s()
+            .error(
+                """
+                    FROM (TS k8s), (TS k8s)
+                    | STATS x = last_over_time(event) BY time_bucket = bucket(@timestamp, 1 day)
+                    """,
+                containsString(
+                    "cannot be applied over a union of data sources; apply the time-series aggregation inside each subquery instead"
+                )
+            );
+    }
+
     /*
      * Project[[x{r}#?]]
      * \_Limit[1000[INTEGER],false,false]

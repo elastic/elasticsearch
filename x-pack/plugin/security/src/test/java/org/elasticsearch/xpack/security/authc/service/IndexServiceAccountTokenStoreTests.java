@@ -307,6 +307,38 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
         assertThat(e1, is(e));
     }
 
+    public void testHasTokensFor() {
+        final ServiceAccountId accountId = new ServiceAccountId(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8));
+        final boolean hasTokens = randomBoolean();
+
+        responseProviderHolder.set((r, l) -> {
+            if (r instanceof SearchRequest searchRequest) {
+                // an existence check must not fetch hits or count beyond the first match
+                assertThat(searchRequest.source().size(), equalTo(0));
+                assertThat(searchRequest.source().terminateAfter(), equalTo(1));
+                final SearchHits searchHits = new SearchHits(
+                    SearchHits.EMPTY,
+                    hasTokens
+                        ? new TotalHits(1, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO)
+                        : new TotalHits(0, TotalHits.Relation.EQUAL_TO),
+                    Float.NaN,
+                    null,
+                    null,
+                    null
+                );
+                var searchResponse = SearchResponseUtils.successfulResponse(searchHits);
+                searchHits.decRef(); // transfer ownership to searchResponse
+                ActionListener.respondAndRelease(l, searchResponse);
+            } else {
+                fail("unexpected request " + r);
+            }
+        });
+
+        final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+        store.hasTokensFor(accountId, future);
+        assertThat(future.actionGet(), is(hasTokens));
+    }
+
     public void testDeleteToken() {
         final AtomicBoolean cacheCleared = new AtomicBoolean(false);
         responseProviderHolder.set((r, l) -> {

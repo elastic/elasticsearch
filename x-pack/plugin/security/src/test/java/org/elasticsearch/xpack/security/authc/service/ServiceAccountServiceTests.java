@@ -638,10 +638,10 @@ public class ServiceAccountServiceTests extends ESTestCase {
         final ServiceAccountService service = newServiceWithManagedStore(managedServiceAccountStore);
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
-            final ActionListener<Collection<TokenInfo>> listener = (ActionListener<Collection<TokenInfo>>) invocation.getArguments()[1];
-            listener.onResponse(List.of(TokenInfo.indexToken("token-b"), TokenInfo.indexToken("token-a")));
+            final ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[1];
+            listener.onResponse(true);
             return null;
-        }).when(indexServiceAccountTokenStore).findTokensFor(any(), any());
+        }).when(indexServiceAccountTokenStore).hasTokensFor(any(), any());
 
         final PlainActionFuture<DeleteManagedServiceAccountResponse> future = new PlainActionFuture<>();
         service.deleteManagedAccount(new DeleteManagedServiceAccountRequest("my-ns", "my-svc"), future);
@@ -649,7 +649,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
         assertThat(
             e.getMessage(),
             equalTo(
-                "cannot delete service account [my-ns/my-svc] because it has service tokens [token-a, token-b];"
+                "cannot delete service account [my-ns/my-svc] because it has service tokens;"
                     + " delete the tokens first, or set force=true to delete the account and leave its tokens in place"
             )
         );
@@ -661,10 +661,10 @@ public class ServiceAccountServiceTests extends ESTestCase {
         final ServiceAccountService service = newServiceWithManagedStore(managedServiceAccountStore);
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
-            final ActionListener<Collection<TokenInfo>> listener = (ActionListener<Collection<TokenInfo>>) invocation.getArguments()[1];
-            listener.onResponse(List.of());
+            final ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[1];
+            listener.onResponse(false);
             return null;
-        }).when(indexServiceAccountTokenStore).findTokensFor(any(), any());
+        }).when(indexServiceAccountTokenStore).hasTokensFor(any(), any());
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
             final ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[2];
@@ -692,7 +692,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
         final PlainActionFuture<DeleteManagedServiceAccountResponse> future = new PlainActionFuture<>();
         service.deleteManagedAccount(request, future);
         assertThat(future.actionGet().isFound(), is(true));
-        verify(indexServiceAccountTokenStore, never()).findTokensFor(any(), any());
+        verify(indexServiceAccountTokenStore, never()).hasTokensFor(any(), any());
     }
 
     private ServiceAccountService newServiceWithManagedStore(ManagedServiceAccountStore managedServiceAccountStore) {

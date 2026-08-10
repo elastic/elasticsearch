@@ -171,7 +171,7 @@ public class ManagedServiceAccountSingleNodeTests extends SecuritySingleNodeTest
             IllegalArgumentException.class,
             () -> securityAdminClient().execute(DeleteManagedServiceAccountAction.INSTANCE, guardedDeleteRequest).actionGet()
         );
-        assertThat(guardException.getMessage(), containsString("because it has service tokens [token-delete-recreate]"));
+        assertThat(guardException.getMessage(), containsString("because it has service tokens; delete the tokens first"));
 
         // force=true deletes the account and leaves the token documents in place
         final DeleteManagedServiceAccountRequest forcedDeleteRequest = new DeleteManagedServiceAccountRequest(NAMESPACE, serviceName);

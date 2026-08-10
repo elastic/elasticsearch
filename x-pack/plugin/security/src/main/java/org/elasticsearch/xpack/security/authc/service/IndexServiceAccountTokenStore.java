@@ -24,6 +24,7 @@ import org.elasticsearch.action.get.TransportGetAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -227,6 +228,40 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
                         hit -> extractTokenInfo(hit.getId(), accountId)
                     );
                 }
+            });
+        }
+    }
+
+    /**
+     * Reports whether the account has at least one index-backed token. Unlike
+     * {@link #findTokensFor}, this is a bounded existence check ({@code size=0},
+     * {@code terminate_after=1}) and does not enumerate or return token names.
+     */
+    void hasTokensFor(ServiceAccountId accountId, ActionListener<Boolean> listener) {
+        final IndexState projectSecurityIndex = this.securityIndex.forCurrentProject();
+        if (false == projectSecurityIndex.indexExists()) {
+            listener.onResponse(false);
+        } else if (false == projectSecurityIndex.isAvailable(SEARCH_SHARDS)) {
+            listener.onFailure(projectSecurityIndex.getUnavailableReason(SEARCH_SHARDS));
+        } else {
+            projectSecurityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
+                final BoolQueryBuilder query = QueryBuilders.boolQuery()
+                    .filter(QueryBuilders.termQuery("doc_type", SERVICE_ACCOUNT_TOKEN_DOC_TYPE))
+                    .must(QueryBuilders.termQuery("username", accountId.asPrincipal()));
+                final SearchRequest request = client.prepareSearch(SECURITY_MAIN_ALIAS)
+                    .setQuery(query)
+                    .setSize(0)
+                    .setTerminateAfter(1)
+                    .setTrackTotalHitsUpTo(1)
+                    .setFetchSource(false)
+                    .request();
+                executeAsyncWithOrigin(
+                    client,
+                    SECURITY_ORIGIN,
+                    TransportSearchAction.TYPE,
+                    request,
+                    ActionListener.wrap(response -> listener.onResponse(response.getHits().getTotalHits().value() > 0), listener::onFailure)
+                );
             });
         }
     }

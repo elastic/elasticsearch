@@ -246,7 +246,7 @@ teardown:
         name: guard-token
 
   - do:
-      catch: /cannot delete service account \[yaml_poc\/guard_worker\] because it has service tokens \[guard-token\]/
+      catch: /cannot delete service account \[yaml_poc\/guard_worker\] because it has service tokens/
       security.delete_managed_service_account:
         namespace: yaml_poc
         service: guard_worker

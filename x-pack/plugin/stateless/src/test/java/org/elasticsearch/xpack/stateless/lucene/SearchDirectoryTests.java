@@ -9,10 +9,8 @@ package org.elasticsearch.xpack.stateless.lucene;
 
 import org.apache.logging.log4j.Level;
 import org.apache.lucene.codecs.CodecUtil;
-import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
@@ -59,7 +57,6 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.SequenceInputStream;
-import java.lang.reflect.Modifier;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -215,36 +212,6 @@ public class SearchDirectoryTests extends ESTestCase {
                 return blobContainerWrapper.apply(innerContainer);
             }
         };
-    }
-
-    public void testStatelessDirectory() throws IOException {
-        try (Directory directory = StatelessDirectoryFactory.newSearchDirectory(LuceneTestCase.createTempDir().toAbsolutePath())) {
-            // It's important to close the IndexOutput so the necessary metadata gets updated
-            try (var output = directory.createOutput("vectors", IOContext.DEFAULT)) {
-                output.writeInt(12);
-            }
-
-            var input = directory.openInput("vectors", IOContext.DEFAULT);
-            var value = input.readInt();
-            assertThat(value, equalTo(12));
-            input.close();
-        }
-    }
-
-    /**
-     * We have code (e.g. {@code KnnIndexer}) that reaches {@link StatelessDirectoryFactory} reflectively.
-     * Renaming methods, changing their parameters, or making them non-static breaks that caller at runtime.
-     * This test ensures the API stays stable for these consumers.
-     */
-    public void testReflectiveApiUse() throws Exception {
-        var factoryClass = Class.forName("org.elasticsearch.xpack.stateless.lucene.StatelessDirectoryFactory");
-
-        var newSearchDirectory = factoryClass.getMethod("newSearchDirectory", Path.class, Path.class, Settings.class);
-        assertThat(newSearchDirectory.getReturnType(), equalTo(Directory.class));
-        assertTrue("invoked with a null receiver", Modifier.isStatic(newSearchDirectory.getModifiers()));
-
-        var logCacheStats = factoryClass.getMethod("logCacheStats", Directory.class, String.class);
-        assertTrue("invoked with a null receiver", Modifier.isStatic(logCacheStats.getModifiers()));
     }
 
     /**

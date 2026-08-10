@@ -7,7 +7,11 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.core.Nullable;
+
 import java.util.Map;
+import java.util.concurrent.Executor;
 
 /**
  * Common interface for complete external data source factories.
@@ -23,7 +27,50 @@ public interface ExternalSourceFactory {
 
     boolean canHandle(String location);
 
+    /**
+     * Config-aware variant of {@link #canHandle(String)} used by the resolver when selecting a factory.
+     * The default delegates to the path-only form; a factory overrides this when query configuration can
+     * supply information the path alone lacks. The file factory uses it to claim an extensionless resource
+     * when an explicit {@code format} is configured (the read-path counterpart to the CRUD validator
+     * accepting an explicit format on an extensionless resource).
+     */
+    default boolean canHandle(String location, Map<String, Object> config) {
+        return canHandle(location);
+    }
+
     SourceMetadata resolveMetadata(String location, Map<String, Object> config);
+
+    /**
+     * Asynchronously resolves metadata for the given location.
+     * <p>
+     * The default wraps the synchronous {@link #resolveMetadata(String, Map)} in the provided
+     * executor. File-based factories that can issue the footer/metadata read without pinning an
+     * executor thread across the network round-trip should override this to route through the
+     * format reader's {@link FormatReader#metadataAsync} path, so a multi-file discovery fan-out
+     * is bounded by an in-flight permit rather than by the executor's thread count.
+     * <p>
+     * When {@code hint} is non-null the caller already knows the object's length/mtime from a
+     * directory listing; overrides must build the storage object from it and skip any existence/HEAD
+     * probe, since that probe is a synchronous round-trip (e.g. an S3 HEAD) that would pin the
+     * executor thread before the async read and defeat the in-flight bound. A {@code null} hint means
+     * nothing is known (a single, explicitly-referenced path) and the override must verify existence
+     * itself.
+     */
+    default void resolveMetadataAsync(
+        String location,
+        @Nullable ListingHint hint,
+        Map<String, Object> config,
+        Executor executor,
+        ActionListener<SourceMetadata> listener
+    ) {
+        executor.execute(() -> {
+            try {
+                listener.onResponse(resolveMetadata(location, config));
+            } catch (Exception e) {
+                listener.onFailure(e);
+            }
+        });
+    }
 
     /**
      * Reject configuration keys this factory doesn't recognize at the given location. Implementations

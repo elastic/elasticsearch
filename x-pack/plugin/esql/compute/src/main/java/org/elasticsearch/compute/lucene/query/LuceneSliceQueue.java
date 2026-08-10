@@ -22,7 +22,9 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.PartialLeafReaderContext;
 import org.elasticsearch.compute.lucene.ShardContext;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.codec.tsdb.PartitionedDocValues;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
@@ -42,6 +44,7 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicReferenceArray;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 
@@ -244,7 +247,7 @@ public final class LuceneSliceQueue {
         IndexedByShardId<? extends ShardContext> contexts,
         Function<ShardContext, List<QueryAndTags>> queryFunction,
         DataPartitioning dataPartitioning,
-        Function<Query, PartitioningStrategy> autoStrategy,
+        BiFunction<ShardContext, Query, PartitioningStrategy> autoStrategy,
         int docThresholdForAutoStrategy,
         int taskConcurrency,
         Function<ShardContext, ScoreMode> scoreModeFunction
@@ -265,7 +268,7 @@ public final class LuceneSliceQueue {
         IndexedByShardId<? extends ShardContext> contexts,
         Function<ShardContext, List<QueryAndTags>> queryFunction,
         DataPartitioning dataPartitioning,
-        Function<Query, PartitioningStrategy> autoStrategy,
+        BiFunction<ShardContext, Query, PartitioningStrategy> autoStrategy,
         int docThresholdForAutoStrategy,
         int taskConcurrency,
         Function<ShardContext, ScoreMode> scoreModeFunction,
@@ -288,12 +291,38 @@ public final class LuceneSliceQueue {
         IndexedByShardId<? extends ShardContext> contexts,
         Function<ShardContext, List<QueryAndTags>> queryFunction,
         DataPartitioning dataPartitioning,
-        Function<Query, PartitioningStrategy> autoStrategy,
+        BiFunction<ShardContext, Query, PartitioningStrategy> autoStrategy,
         int docThresholdForAutoStrategy,
         int taskConcurrency,
         Function<ShardContext, ScoreMode> scoreModeFunction,
         LeafSplitGuard leafSplitGuard,
         int minDocsPerSlice
+    ) {
+        return create(
+            contexts,
+            queryFunction,
+            dataPartitioning,
+            autoStrategy,
+            docThresholdForAutoStrategy,
+            taskConcurrency,
+            scoreModeFunction,
+            leafSplitGuard,
+            minDocsPerSlice,
+            QueryWarnings.NOOP
+        );
+    }
+
+    public static LuceneSliceQueue create(
+        IndexedByShardId<? extends ShardContext> contexts,
+        Function<ShardContext, List<QueryAndTags>> queryFunction,
+        DataPartitioning dataPartitioning,
+        BiFunction<ShardContext, Query, PartitioningStrategy> autoStrategy,
+        int docThresholdForAutoStrategy,
+        int taskConcurrency,
+        Function<ShardContext, ScoreMode> scoreModeFunction,
+        LeafSplitGuard leafSplitGuard,
+        int minDocsPerSlice,
+        QueryWarnings singleValueQueryWarnings
     ) {
         List<LuceneSlice> slices = new ArrayList<>();
         Map<String, PartitioningStrategy> partitioningStrategies = new HashMap<>();
@@ -315,8 +344,20 @@ public final class LuceneSliceQueue {
                      * to do this before picking the partitioning strategy so we
                      * can pick more aggressive strategies when the query rewrites
                      * into MatchAll.
+                     *
+                    /*
+                     * Rewrite the query on the local index so things like fully
+                     * overlapping range queries become match all. It's important
+                     * to do this before picking the partitioning strategy so we
+                     * can pick more aggressive strategies when the query rewrites
+                     * into MatchAll.
+                     *
+                     * Sometimes (IVF/BBQ) rewrites run the whole query, and we
+                     * don't have a place to put warnings. So, for now, we use a
+                     * NOOP to discard any warnings we encounter. We'll change soon
+                     * to collect them.
                      */
-                    try {
+                    try (Releasable ignored = singleValueQueryWarnings.bindDiscarding()) {
                         query = ctx.searcher().rewrite(query);
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
@@ -600,7 +641,7 @@ public final class LuceneSliceQueue {
 
         private static PartitioningStrategy pick(
             DataPartitioning dataPartitioning,
-            Function<Query, PartitioningStrategy> autoStrategy,
+            BiFunction<ShardContext, Query, PartitioningStrategy> autoStrategy,
             int docThresholdForAutoStrategy,
             ShardContext ctx,
             Query query
@@ -614,7 +655,7 @@ public final class LuceneSliceQueue {
         }
 
         private static PartitioningStrategy forAuto(
-            Function<Query, PartitioningStrategy> autoStrategy,
+            BiFunction<ShardContext, Query, PartitioningStrategy> autoStrategy,
             ShardContext ctx,
             Query query,
             int docThresholdForAutoStrategy
@@ -622,7 +663,7 @@ public final class LuceneSliceQueue {
             if (ctx.searcher().getIndexReader().maxDoc() < docThresholdForAutoStrategy) {
                 return PartitioningStrategy.SHARD;
             }
-            return autoStrategy.apply(query);
+            return autoStrategy.apply(ctx, query);
         }
     }
 

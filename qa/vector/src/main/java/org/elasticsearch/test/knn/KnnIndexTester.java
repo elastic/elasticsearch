@@ -16,13 +16,17 @@ import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.codecs.lucene104.Lucene104Codec;
+import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.LogByteSizeMergePolicy;
 import org.apache.lucene.index.LogDocMergePolicy;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentReadState;
+import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.TieredMergePolicy;
 import org.apache.lucene.search.Sort;
@@ -31,13 +35,19 @@ import org.apache.lucene.util.NamedThreadFactory;
 import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.gpu.codec.ES92GpuHnswSQVectorsFormat;
 import org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat;
+import org.elasticsearch.index.codec.vectors.diskbbq.CalibrationAwareReader;
 import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibration;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfFlushConfigSource;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfMergeConfigResolver;
+import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93BinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93FlatVectorFormat;
@@ -69,6 +79,8 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.DoubleSummaryStatistics;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -140,15 +152,32 @@ public class KnnIndexTester {
         Directory create(Path indexPath) throws IOException;
     }
 
-    record DirectoryTypeConfig(DirectoryFactory factory, boolean shared, boolean preWarm, BiConsumer<Directory, String> diagnosticLogger) {
+    /**
+     * @param shared             when true a single directory instance serves indexing, merging and searching, instead of one
+     *                           per phase
+     * @param preWarm            when true the directory's cache is filled by reading every file before searching
+     * @param requiresFreshIndex when true the directory cannot reuse an index it did not write itself, so the index is built
+     *                           from scratch on every run and gets an index path of its own
+     */
+    record DirectoryTypeConfig(
+        DirectoryFactory factory,
+        boolean shared,
+        boolean preWarm,
+        BiConsumer<Directory, String> diagnosticLogger,
+        boolean requiresFreshIndex
+    ) {
         private static final BiConsumer<Directory, String> NOOP = (a, b) -> {};
 
         DirectoryTypeConfig(DirectoryFactory factory, boolean shared, boolean preWarm) {
-            this(factory, shared, preWarm, NOOP);
+            this(factory, shared, preWarm, NOOP, false);
+        }
+
+        DirectoryTypeConfig(DirectoryFactory factory, boolean shared, boolean preWarm, BiConsumer<Directory, String> diagnosticLogger) {
+            this(factory, shared, preWarm, diagnosticLogger, false);
         }
     }
 
-    private static final Map<String, DirectoryTypeConfig> directoryTypeRegistry = new ConcurrentHashMap<>(3);
+    private static final Map<String, DirectoryTypeConfig> directoryTypeRegistry = new ConcurrentHashMap<>(4);
 
     static {
         directoryTypeRegistry.put("default", new DirectoryTypeConfig(KnnIndexer::getDirectory, false, false));
@@ -156,6 +185,13 @@ public class KnnIndexTester {
         directoryTypeRegistry.put(
             "stateless",
             new DirectoryTypeConfig(KnnIndexer::openStatelessDirectory, true, true, KnnIndexer::logStatelessCacheStats)
+        );
+        // "stateless-index" uses `shared = true` because the directory only serves reads for files it created itself, and
+        // it wipes the index path when opened: a second instance for the force merge would destroy the index and then find
+        // nothing to merge.
+        directoryTypeRegistry.put(
+            "stateless-index",
+            new DirectoryTypeConfig(KnnIndexer::openStatelessIndexDirectory, true, false, DirectoryTypeConfig.NOOP, true)
         );
     }
 
@@ -167,7 +203,7 @@ public class KnnIndexTester {
         return config;
     }
 
-    private static String formatIndexPath(TestConfiguration args) {
+    private static String formatIndexPath(TestConfiguration args, DirectoryTypeConfig dirConfig) {
         List<String> suffix = new ArrayList<>();
         switch (args.indexType()) {
             case FLAT -> suffix.add("flat");
@@ -195,6 +231,11 @@ public class KnnIndexTester {
                 }
             }
         }
+        if (dirConfig.requiresFreshIndex()) {
+            // These types rebuild the index on every run and wipe the index path doing so, so they must not share it with the
+            // types that can reuse an index built by "default".
+            suffix.add(args.directoryType());
+        }
 
         return INDEX_DIR + "/" + args.docVectors().getFirst().getFileName() + "-" + String.join("-", suffix) + ".index";
     }
@@ -210,6 +251,9 @@ public class KnnIndexTester {
                 var encoding = resolveQuantEncoding(quantizeBits, args.queryQuantizeBits());
                 // Use flatVectorThreshold from config, or default to -1 (dynamic) if not specified
                 int flatVectorThreshold = args.flatVectorThreshold() >= 0 ? args.flatVectorThreshold() : -1;
+                IvfMergeConfigResolver mergeConfigResolver = args.autoCalibrate()
+                    ? IvfAutoCalibration.mergeConfigResolver(args.ivfClusterSize())
+                    : IvfMergeConfigResolver.useCodecDefault();
                 yield new ESNextDiskBBQVectorsFormat(
                     encoding,
                     args.ivfClusterSize(),
@@ -223,7 +267,9 @@ public class KnnIndexTester {
                     args.doPrecondition(),
                     args.preconditioningBlockDims(),
                     flatVectorThreshold,
-                    args.datasetConfig().isSliced() ? KnnIndexer.PARTITION_ID_FIELD : null
+                    args.datasetConfig().isSliced() ? KnnIndexer.PARTITION_ID_FIELD : null,
+                    IvfFlushConfigSource.empty(),
+                    mergeConfigResolver
                 );
             }
             case GPU_HNSW -> {
@@ -402,7 +448,9 @@ public class KnnIndexTester {
         for (TestConfiguration testConfiguration : testConfigurationList) {
             // check this here so IVF/GPUHNSW can guarantee quantizeBits is set properly
             checkQuantizeBits(testConfiguration);
-            String indexPathName = formatIndexPath(testConfiguration);
+            DirectoryTypeConfig dirConfig = getDirectoryTypeConfig(testConfiguration.directoryType());
+            checkCanReuseIndex(testConfiguration, dirConfig);
+            String indexPathName = formatIndexPath(testConfiguration, dirConfig);
             String indexType = testConfiguration.indexType().name().toLowerCase(Locale.ROOT);
             Results indexResults = new Results(indexPathName, indexType, testConfiguration.numDocs());
             Results[] results = new Results[testConfiguration.numberOfSearchRuns()];
@@ -419,7 +467,6 @@ public class KnnIndexTester {
                 Codec codec = createCodec(testConfiguration, exec);
                 Path indexPath = PathUtils.get(indexPathName);
                 MergePolicy mergePolicy = getMergePolicy(testConfiguration);
-                DirectoryTypeConfig dirConfig = getDirectoryTypeConfig(testConfiguration.directoryType());
 
                 runTestConfiguration(
                     testConfiguration,
@@ -523,8 +570,14 @@ public class KnnIndexTester {
                 if (testConfiguration.forceMerge()) {
                     forceMerge(knnIndexer, indexResults, sharedDir, testConfiguration, dataGenerator.getIndexSort());
                 }
+                if (testConfiguration.numDeletedDocs() > 0) {
+                    deleteDocuments(knnIndexer, indexResults, sharedDir, testConfiguration);
+                }
             }
             numSegments(indexPath, indexResults, sharedDir);
+            if (testConfiguration.autoCalibrate() && testConfiguration.indexType() == IndexType.IVF) {
+                logAutoCalibrationSegmentReport(indexPath, sharedDir);
+            }
 
             boolean hasQueries = testConfiguration.numQueries() > 0 && dataGenerator.numQueries() > 0;
             if (hasQueries) {
@@ -561,6 +614,26 @@ public class KnnIndexTester {
             knnIndexer.forceMerge(indexResults, testConfiguration.forceMergeMaxNumSegments(), sharedDir, indexSort);
         } else {
             knnIndexer.forceMerge(indexResults, testConfiguration.forceMergeMaxNumSegments(), indexSort);
+        }
+    }
+
+    static void deleteDocuments(KnnIndexer knnIndexer, Results indexResults, Directory sharedDir, TestConfiguration testConfiguration)
+        throws Exception {
+        if (sharedDir != null) {
+            knnIndexer.deleteDocuments(
+                sharedDir,
+                indexResults,
+                testConfiguration.numDocs(),
+                testConfiguration.numDeletedDocs(),
+                testConfiguration.deleteSeed()
+            );
+        } else {
+            knnIndexer.deleteDocuments(
+                indexResults,
+                testConfiguration.numDocs(),
+                testConfiguration.numDeletedDocs(),
+                testConfiguration.deleteSeed()
+            );
         }
     }
 
@@ -634,11 +707,28 @@ public class KnnIndexTester {
         };
     }
 
-    private static ESNextDiskBBQVectorsFormat.QuantEncoding resolveQuantEncoding(int docQuantizeBits, @Nullable Integer queryQuantizeBits) {
+    private static QuantEncoding resolveQuantEncoding(int docQuantizeBits, @Nullable Integer queryQuantizeBits) {
         if (queryQuantizeBits == null) {
-            return ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits((byte) docQuantizeBits);
+            return QuantEncoding.fromBits((byte) docQuantizeBits);
         }
-        return ESNextDiskBBQVectorsFormat.QuantEncoding.fromDocAndQueryBits((byte) docQuantizeBits, queryQuantizeBits.byteValue());
+        return QuantEncoding.fromDocAndQueryBits((byte) docQuantizeBits, queryQuantizeBits.byteValue());
+    }
+
+    /**
+     * Fails fast rather than silently reporting nothing. A directory type that only tracks the files it wrote itself cannot see
+     * an index left on disk by a previous run: it would open the empty bootstrap commit, the force merge would find no segments
+     * and report close to zero milliseconds, and the searches would run against no documents.
+     */
+    private static void checkCanReuseIndex(TestConfiguration args, DirectoryTypeConfig dirConfig) {
+        if (dirConfig.requiresFreshIndex() && args.reindex() == false) {
+            throw new IllegalArgumentException(
+                "directory_type '"
+                    + args.directoryType()
+                    + "' cannot reuse an existing index: it only reads files it wrote itself, so an index on disk is invisible to "
+                    + "it and the force merge would silently be a no-op. Set \"reindex\": true. Note this rebuilds, and therefore "
+                    + "wipes, the index path on every run."
+            );
+        }
     }
 
     private static void checkQuantizeBits(TestConfiguration args) {
@@ -712,6 +802,104 @@ public class KnnIndexTester {
         }
     }
 
+    /**
+     * Logs a concise per-segment summary of the auto-calibrated IVF configuration: quantization
+     * encoding, rescore oversample factor, and whether preconditioning is active. Only meaningful
+     * when {@code auto_calibrate} is {@code true} and the index type is IVF.
+     */
+    static void logAutoCalibrationSegmentReport(Path indexPath, Directory sharedDir) throws IOException {
+        Directory dir = sharedDir != null ? sharedDir : KnnIndexer.getDirectory(indexPath);
+        boolean ownsDir = sharedDir == null;
+        try (IndexReader reader = DirectoryReader.open(dir)) {
+            List<LeafReaderContext> leaves = reader.leaves();
+            StringBuilder sb = new StringBuilder();
+            sb.append("Auto-calibration segment distribution [field=")
+                .append(KnnIndexer.VECTOR_FIELD)
+                .append(", ")
+                .append(leaves.size())
+                .append(" segment(s)]\n");
+            sb.append(
+                String.format(Locale.ROOT, "  %4s  %7s  %-22s  %10s  %12s%n", "seg", "docs", "quantization", "oversample", "precondition")
+            );
+            sb.append(
+                String.format(
+                    Locale.ROOT,
+                    "  %4s  %7s  %-22s  %10s  %12s%n",
+                    "---",
+                    "-------",
+                    "----------------------",
+                    "----------",
+                    "------------"
+                )
+            );
+
+            Map<String, Integer> encodingCounts = new LinkedHashMap<>();
+            List<Double> oversamples = new ArrayList<>();
+            int preconditionTrue = 0;
+            int calibrated = 0;
+
+            for (LeafReaderContext ctx : leaves) {
+                var lr = ctx.reader();
+                FieldInfo fi = lr.getFieldInfos().fieldInfo(KnnIndexer.VECTOR_FIELD);
+                if (fi == null) {
+                    sb.append(String.format(Locale.ROOT, "  %4d  %7d  (no vector field)%n", ctx.ord, lr.numDocs()));
+                    continue;
+                }
+                SegmentReader sr = Lucene.tryUnwrapSegmentReader(lr);
+                KnnVectorsReader vr = sr != null ? sr.getVectorReader() : null;
+                if (vr instanceof PerFieldKnnVectorsFormat.FieldsReader pfr) {
+                    vr = pfr.getFieldReader(KnnIndexer.VECTOR_FIELD);
+                }
+                if (vr instanceof CalibrationAwareReader car) {
+                    QuantEncoding enc = car.getQuantEncoding(fi);
+                    float oversample = car.getOversampleFactor(fi);
+                    boolean precondition = car.shouldPrecondition(fi);
+                    String encName = enc != null ? enc.name() : "n/a";
+                    String oversampleStr = Float.isFinite(oversample) ? String.format(Locale.ROOT, "%.2f", oversample) : "n/a";
+                    sb.append(
+                        String.format(
+                            Locale.ROOT,
+                            "  %4d  %7d  %-22s  %10s  %12b%n",
+                            ctx.ord,
+                            lr.numDocs(),
+                            encName,
+                            oversampleStr,
+                            precondition
+                        )
+                    );
+                    encodingCounts.merge(encName, 1, Integer::sum);
+                    if (Float.isFinite(oversample)) {
+                        oversamples.add((double) oversample);
+                    }
+                    if (precondition) {
+                        preconditionTrue++;
+                    }
+                    calibrated++;
+                } else {
+                    sb.append(String.format(Locale.ROOT, "  %4d  %7d  (no calibration data)%n", ctx.ord, lr.numDocs()));
+                }
+            }
+
+            if (calibrated > 0) {
+                DoubleSummaryStatistics stats = oversamples.stream().mapToDouble(Double::doubleValue).summaryStatistics();
+                sb.append("  Summary: encodings=");
+                encodingCounts.forEach((enc, count) -> sb.append(enc).append("×").append(count).append(" "));
+                if (oversamples.isEmpty() == false) {
+                    sb.append(
+                        String.format(Locale.ROOT, " oversample=[%.2f, %.2f] avg=%.2f", stats.getMin(), stats.getMax(), stats.getAverage())
+                    );
+                }
+                sb.append(String.format(Locale.ROOT, "  precondition=%d/%d segments", preconditionTrue, calibrated));
+            }
+
+            logger.info("{}", sb);
+        } finally {
+            if (ownsDir) {
+                dir.close();
+            }
+        }
+    }
+
     static class FormattedResults {
         List<Results> indexResults = new ArrayList<>();
         List<Results> queryResults = new ArrayList<>();
@@ -726,6 +914,7 @@ public class KnnIndexTester {
                 "index_name",
                 "index_type",
                 "num_docs",
+                "num_deleted_docs",
                 "doc_add_time(ms)",
                 "total_index_time(ms)",
                 "force_merge_time(ms)",
@@ -752,7 +941,10 @@ public class KnnIndexTester {
                 "filter_cached",
                 "oversampling_factor",
                 "num_candidates",
-                "early_termination"
+                "early_termination",
+                "post_filter",
+                "exact",
+                "exact_quantized"
             );
             if (hasPartitionRecall) {
                 searchHeaderList.add("partition_recall_min");
@@ -770,6 +962,7 @@ public class KnnIndexTester {
                     indexResult.indexName,
                     indexResult.indexType,
                     Integer.toString(indexResult.numDocs),
+                    Integer.toString(indexResult.numDeletedDocs),
                     Long.toString(indexResult.docAddTimeMS),
                     Long.toString(indexResult.indexTimeMS),
                     Long.toString(indexResult.forceMergeTimeMS),
@@ -796,7 +989,10 @@ public class KnnIndexTester {
                     Boolean.toString(queryResult.filterCached),
                     String.format(Locale.ROOT, "%.2f", queryResult.overSamplingFactor),
                     String.format(Locale.ROOT, "%d", queryResult.numCandidates),
-                    Boolean.toString(queryResult.earlyTermination)
+                    Boolean.toString(queryResult.earlyTermination),
+                    Boolean.toString(queryResult.postFilter),
+                    Boolean.toString(queryResult.exact),
+                    Boolean.toString(queryResult.exactQuantized)
                 );
                 if (hasPartitionRecall) {
                     String partitionMin = "";
@@ -878,6 +1074,7 @@ public class KnnIndexTester {
         final String indexType, indexName;
         public long docAddTimeMS;
         int numDocs;
+        int numDeletedDocs;
         float filterSelectivity;
         long indexTimeMS;
         long forceMergeTimeMS;
@@ -894,6 +1091,9 @@ public class KnnIndexTester {
         boolean filterCached;
         double overSamplingFactor;
         boolean earlyTermination;
+        boolean postFilter;
+        boolean exact;
+        boolean exactQuantized;
         int numCandidates;
         int topK;
         Map<String, Float> perPartitionRecall;
@@ -1016,6 +1216,7 @@ public class KnnIndexTester {
         "index_name",
         "index_type",
         "num_docs",
+        "num_deleted_docs",
         "num_segments",
         "quantize_bits",
         "query_quantize_bits",
@@ -1034,6 +1235,9 @@ public class KnnIndexTester {
         "visit_percentage",
         "over_sampling_factor",
         "early_termination",
+        "post_filter",
+        "exact",
+        "exact_quantized",
         "filter_selectivity",
         "filter_cached",
         "search_threads",
@@ -1127,6 +1331,7 @@ public class KnnIndexTester {
                             qr.indexName,
                             qr.indexType,
                             Integer.toString(qr.numDocs),
+                            Integer.toString(indexResult.numDeletedDocs),
                             Integer.toString(qr.numSegments),
                             config.quantizeBits() != null ? Integer.toString(config.quantizeBits()) : "",
                             config.queryQuantizeBits() != null ? Integer.toString(config.queryQuantizeBits()) : "",
@@ -1145,6 +1350,9 @@ public class KnnIndexTester {
                             String.format(Locale.ROOT, "%.4f", sp.visitPercentage()),
                             String.format(Locale.ROOT, "%.4f", sp.overSamplingFactor()),
                             Boolean.toString(sp.earlyTermination()),
+                            Boolean.toString(sp.postFilter()),
+                            Boolean.toString(sp.exact()),
+                            Boolean.toString(sp.exactQuantized()),
                             String.format(Locale.ROOT, "%.4f", sp.filterSelectivity()),
                             Boolean.toString(sp.filterCached()),
                             Integer.toString(sp.searchThreads()),

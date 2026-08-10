@@ -50,7 +50,6 @@ public class DataStreamsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase 
             .keystore("bootstrap.password", "x-pack-test-password")
             .user("x_pack_rest_user", "x-pack-test-password")
             .feature(FeatureFlag.LOGS_STREAM)
-            .feature(FeatureFlag.COLUMNAR_INDEX_MODE_FEATURE_FLAG)
             .systemProperty("es.queryable_built_in_roles_enabled", "false");
         if (initTestSeed().nextBoolean()) {
             clusterBuilder.setting("xpack.license.self_generated.type", "trial");

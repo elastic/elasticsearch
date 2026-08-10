@@ -35,7 +35,6 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -100,6 +99,7 @@ import java.util.function.Consumer;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
+import static org.elasticsearch.xpack.core.security.cloud.CloudCredentialTestUtils.randomPersistedCloudCredential;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
@@ -336,7 +336,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
         try (var threadPool = createThreadPool()) {
             var client = new PitMockClient(threadPool, false);
             var configManager = mock(IndexBasedTransformConfigManager.class);
-            var freshlyLoaded = new PersistedCloudCredential("k2", new SecureString("v".toCharArray()));
+            var freshlyLoaded = randomPersistedCloudCredential("k2");
             doAnswer(invocation -> {
                 ActionListener<PersistedCloudCredential> l = invocation.getArgument(2);
                 l.onResponse(freshlyLoaded);
@@ -357,7 +357,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
             );
 
             var context = mock(TransformContext.class);
-            var displaced = new PersistedCloudCredential("k1", new SecureString("v".toCharArray()));
+            var displaced = randomPersistedCloudCredential("k1");
             when(context.replacePersistedCredential(eq(freshlyLoaded))).thenReturn(displaced);
 
             var indexer = new MockClientTransformIndexer(
@@ -717,6 +717,29 @@ public class ClientTransformIndexerTests extends ESTestCase {
         assertFalse(indexer.maybeTriggerAsyncJob(Instant.now().toEpochMilli()));
         // ClientTransformIndexer's maybeTriggerAsyncJob should reset isWaitingForIndexToUnblock to false
         assertFalse(context.isWaitingForIndexToUnblock());
+    }
+
+    public void testUpgradeModeBlocksNonDefaultProjectIndexer() {
+        // Verifies that the upgrade-mode guard in maybeTriggerAsyncJob correctly reads the project metadata
+        // for a non-default project ID (not just ProjectId.DEFAULT). The fix in PR 5 replaced the deprecated
+        // single-project isUpgradeMode(ClusterState) with isUpgradeMode(state.metadata().getProject(context.projectId())).
+        var projectId = ProjectId.fromId("test-project-upgrade-mode");
+        var projectMetadata = ProjectMetadata.builder(projectId)
+            .putCustom(TransformMetadata.TYPE, new TransformMetadata.Builder().upgradeMode(true).build())
+            .build();
+        var metadata = Metadata.builder().put(projectMetadata).build();
+        var clusterState = mock(ClusterState.class);
+        when(clusterState.metadata()).thenReturn(metadata);
+        var clusterService = mock(ClusterService.class);
+        when(clusterService.state()).thenReturn(clusterState);
+
+        var context = new TransformContext(TransformTaskState.STARTED, "", 0, null, mock(TransformContext.Listener.class), projectId);
+        var indexer = createTestIndexer(null, clusterService, resolver(), context);
+
+        assertFalse(
+            "indexer whose project is in upgrade mode must not trigger",
+            indexer.maybeTriggerAsyncJob(Instant.now().toEpochMilli())
+        );
     }
 
     public void testProjectIdPropagatedToClientExecute() throws InterruptedException {

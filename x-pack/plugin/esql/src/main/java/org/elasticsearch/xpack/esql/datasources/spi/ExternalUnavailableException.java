@@ -10,10 +10,11 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 import org.elasticsearch.rest.RestStatus;
 
 /**
- * A retryable transport failure talking to the remote store backing an external data source — the
- * store returned a 5xx, throttled us, or the connection timed out / was reset. Maps to
- * {@code 503 Service Unavailable}: the read might succeed on retry, so it is neither a permanent
- * client error nor a cluster bug.
+ * The retryable, 503-class carrier for a back-pressure / temporarily-unavailable condition on an
+ * external read. Most commonly a transport failure talking to the remote store (the store returned a
+ * 5xx, throttled us, or the connection timed out / was reset), but also a node-local admission
+ * condition such as storage concurrency permit exhaustion. Maps to {@code 503 Service Unavailable}:
+ * the read might succeed on retry, so it is neither a permanent client error nor a cluster bug.
  * <p>
  * Permanent transport outcomes (object not found, a malformed response) are not raised here; those
  * are client-class and surface as {@link ExternalClientException}.

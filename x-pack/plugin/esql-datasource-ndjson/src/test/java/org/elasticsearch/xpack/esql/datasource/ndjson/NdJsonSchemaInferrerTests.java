@@ -127,6 +127,34 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
             """, field("mixed", DataType.KEYWORD));
     }
 
+    /**
+     * Reproduces the exact repro from elastic/esql-planning#1028: a field that is a scalar in some sampled
+     * records and a JSON object in others must resolve to exactly one shape (mirroring core ES dynamic
+     * mapping's first-writer-wins), never both a scalar attribute and its object's nested children. Here the
+     * scalar shape is observed first, so the later object record's shape is ignored for schema purposes (the
+     * decoder applies {@code ErrorPolicy} to the actual conflicting value at read time).
+     */
+    public void testScalarThenObjectConflictResolvesToScalarShape() throws IOException {
+        check("""
+            {"event":1,"user":"alice"}
+            {"event":2,"user":{"id":"bob","tier":"gold"}}
+            {"event":3,"user":"carol"}
+            """, field("event", DataType.INTEGER), field("user", DataType.KEYWORD, true));
+    }
+
+    /**
+     * Mirror of {@link #testScalarThenObjectConflictResolvesToScalarShape}: when the object shape is observed
+     * first, a later scalar value for the same field name must not resurrect a duplicate scalar attribute
+     * alongside the already-committed nested children.
+     */
+    public void testObjectThenScalarConflictResolvesToObjectShape() throws IOException {
+        check("""
+            {"event":1,"user":{"id":"bob","tier":"gold"}}
+            {"event":2,"user":"alice"}
+            {"event":3,"user":{"id":"carol","tier":"silver"}}
+            """, field("event", DataType.INTEGER), field("user.id", DataType.KEYWORD, true), field("user.tier", DataType.KEYWORD, true));
+    }
+
     public void testDateTime() throws Exception {
         check("""
             {"timestamp": "2025-03-26T18:12:34Z"}

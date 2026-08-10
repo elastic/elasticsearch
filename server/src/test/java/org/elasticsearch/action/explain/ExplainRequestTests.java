@@ -20,6 +20,7 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -33,8 +34,8 @@ import static org.hamcrest.CoreMatchers.nullValue;
 public class ExplainRequestTests extends ESTestCase {
     private NamedWriteableRegistry namedWriteableRegistry;
 
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initNamedWriteableRegistry() throws Exception {
         SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.addAll(IndicesModule.getNamedWriteables());

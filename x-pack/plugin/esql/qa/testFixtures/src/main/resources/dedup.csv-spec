@@ -3,6 +3,7 @@
 //
 
 dedupSingleColumn
+skip_flattened_rewrite: junk_injection_breaks_result_shape
 required_capability: dedup_command
 
 FROM employees
@@ -71,6 +72,7 @@ true
 
 
 dedupChainedWithLimit
+skip_flattened_rewrite: junk_injection_breaks_result_shape
 required_capability: dedup_command
 
 FROM employees
@@ -177,6 +179,7 @@ marker:integer
 
 
 dedupTsSingleDimension
+skip_flattened_rewrite: junk_injection_breaks_result_shape
 required_capability: dedup_command
 
 TS k8s

@@ -24,6 +24,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.termsenum.action.TermsEnumAction;
 import org.elasticsearch.xpack.core.termsenum.action.TermsEnumRequest;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -35,8 +36,8 @@ public class TermsEnumRequestTests extends AbstractXContentSerializingTestCase<T
     private NamedXContentRegistry xContentRegistry;
     private NamedWriteableRegistry namedWriteableRegistry;
 
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initRegistries() throws Exception {
         SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.addAll(IndicesModule.getNamedWriteables());
@@ -62,6 +63,7 @@ public class TermsEnumRequestTests extends AbstractXContentSerializingTestCase<T
         if (randomBoolean()) {
             request.indicesOptions(randomBoolean() ? IndicesOptions.strictExpand() : IndicesOptions.lenientExpandOpen());
         }
+        request.includeResolvedTo(randomBoolean());
         return request;
     }
 
@@ -115,6 +117,32 @@ public class TermsEnumRequestTests extends AbstractXContentSerializingTestCase<T
         Consumer<TermsEnumRequest> mutator = randomFrom(mutators);
         mutator.accept(mutatedInstance);
         return mutatedInstance;
+    }
+
+    public void testAllowsCrossProject() {
+        TermsEnumRequest request = new TermsEnumRequest();
+        assertTrue(request.allowsCrossProject());
+    }
+
+    public void testProjectRoutingValidation() {
+        TermsEnumRequest request = new TermsEnumRequest();
+        request.field("field");
+        request.projectRouting("some-project");
+        ActionRequestValidationException validationException = request.validate();
+        assertNotNull(validationException);
+        assertEquals(1, validationException.validationErrors().size());
+        assertThat(validationException.validationErrors().get(0), org.hamcrest.Matchers.containsString("project_routing"));
+
+        // project_routing is valid when CPS IndicesOptions are set
+        TermsEnumRequest cpsRequest = new TermsEnumRequest();
+        cpsRequest.field("field");
+        cpsRequest.indicesOptions(
+            IndicesOptions.builder(TermsEnumRequest.DEFAULT_INDICES_OPTIONS)
+                .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+                .build()
+        );
+        cpsRequest.projectRouting("some-project");
+        assertNull(cpsRequest.validate());
     }
 
     public void testValidation() {

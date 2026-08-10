@@ -101,6 +101,14 @@ setup:
         index: testidx2
         name: test_alias
 
+  # Creating testidx2 can trigger shard rebalancing in mixed-cluster BWC tests.
+  # Wait for relocations to finish so the mtermvectors request hits a fully
+  # recovered shard copy of testidx.
+  - do:
+      cluster.health:
+        index: testidx
+        wait_for_no_relocating_shards: true
+
   - do:
         mtermvectors:
           "term_statistics" : true

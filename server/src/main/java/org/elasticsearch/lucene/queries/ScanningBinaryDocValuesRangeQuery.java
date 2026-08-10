@@ -33,8 +33,8 @@ public final class ScanningBinaryDocValuesRangeQuery extends AbstractBinaryDocVa
     private final BytesRef lower;
     private final BytesRef upper;
 
-    public ScanningBinaryDocValuesRangeQuery(String fieldName, BytesRef lower, BytesRef upper) {
-        super(fieldName, rangeMatcher(Objects.requireNonNull(lower), Objects.requireNonNull(upper)));
+    public ScanningBinaryDocValuesRangeQuery(String fieldName, BytesRef lower, BytesRef upper, boolean arrayOrderInlineNull) {
+        super(fieldName, rangeMatcher(Objects.requireNonNull(lower), Objects.requireNonNull(upper)), arrayOrderInlineNull);
         assert lower.compareTo(upper) <= 0;
         this.lower = lower;
         this.upper = upper;
@@ -47,7 +47,7 @@ public final class ScanningBinaryDocValuesRangeQuery extends AbstractBinaryDocVa
     @Override
     public Query rewrite(IndexSearcher indexSearcher) throws IOException {
         if (lower.bytesEquals(upper)) {
-            return new ScanningBinaryDocValuesTermQuery(fieldName, lower);
+            return new ScanningBinaryDocValuesTermQuery(fieldName, lower, arrayOrderInlineNull);
         }
         return super.rewrite(indexSearcher);
     }

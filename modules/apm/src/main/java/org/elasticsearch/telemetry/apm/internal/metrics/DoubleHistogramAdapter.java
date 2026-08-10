@@ -14,6 +14,7 @@ import io.opentelemetry.api.metrics.Meter;
 
 import org.elasticsearch.telemetry.apm.AbstractInstrument;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -25,7 +26,11 @@ public class DoubleHistogramAdapter extends AbstractInstrument<DoubleHistogram>
         org.elasticsearch.telemetry.metric.DoubleHistogram {
 
     public DoubleHistogramAdapter(Meter meter, String name, String description, String unit) {
-        super(meter, new Builder(name, description, unit));
+        super(meter, new Builder(name, description, unit, HistogramBuckets.APM_DEFAULT));
+    }
+
+    public DoubleHistogramAdapter(Meter meter, String name, String description, String unit, List<Double> bucketBoundaries) {
+        super(meter, new Builder(name, description, unit, bucketBoundaries));
     }
 
     @Override
@@ -39,13 +44,21 @@ public class DoubleHistogramAdapter extends AbstractInstrument<DoubleHistogram>
     }
 
     private static class Builder extends AbstractInstrument.Builder<DoubleHistogram> {
-        private Builder(String name, String description, String unit) {
+        private final List<Double> bucketBoundaries;
+
+        private Builder(String name, String description, String unit, List<Double> bucketBoundaries) {
             super(name, description, unit);
+            this.bucketBoundaries = bucketBoundaries;
         }
 
         @Override
         public DoubleHistogram build(Meter meter) {
-            return Objects.requireNonNull(meter).histogramBuilder(name).setDescription(description).setUnit(unit).build();
+            return Objects.requireNonNull(meter)
+                .histogramBuilder(name)
+                .setDescription(description)
+                .setUnit(unit)
+                .setExplicitBucketBoundariesAdvice(bucketBoundaries)
+                .build();
         }
     }
 }

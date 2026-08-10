@@ -11,13 +11,13 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.blobcache.shared.SharedBytes;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
@@ -25,12 +25,10 @@ import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryMetrics;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
-import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -40,7 +38,6 @@ import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_C
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.xpack.stateless.cache.StatelessOnlinePrewarmingService.STATELESS_ONLINE_PREWARMING_ENABLED;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
@@ -48,14 +45,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class CacheMissWaitTimeHeaderIT extends AbstractBlobCacheMetricsIntegTestCase {
 
-    private static final String SEARCH_METRICS_HEADER = "X-Elasticsearch-Search-Metrics";
-
     private static final ByteSizeValue CACHE_REGION_SIZE = ByteSizeValue.ofBytes(8L * SharedBytes.PAGE_SIZE);
-
-    @Before
-    public void ensureDirectoryMetricsEnabled() {
-        assumeTrue("directory metrics must be enabled", Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled());
-    }
 
     @Override
     protected boolean addMockFsRepository() {
@@ -84,9 +74,18 @@ public class CacheMissWaitTimeHeaderIT extends AbstractBlobCacheMetricsIntegTest
     }
 
     public void testCacheMissWaitTimeHeader() throws InterruptedException {
+        assumeTrue("directory metrics must be enabled", Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled());
+        assertCacheMissWaitTimeHeader("cache-miss-header", true);
+    }
+
+    /**
+     * Cold search asserts {@code cache_miss_wait_nanos > 0}; warm asserts it's absent.
+     * {@code expectStoreBytesRead} gates store metric assertions.
+     */
+    protected void assertCacheMissWaitTimeHeader(String indexNamePrefix, boolean expectStoreBytesRead) throws InterruptedException {
         startMasterAndIndexNode();
 
-        final String indexName = createIndexWithNoReplicas("cache-miss-header");
+        final String indexName = createIndexWithNoReplicas(indexNamePrefix);
         populateIndex(indexName);
         flush(indexName);
 
@@ -97,57 +96,47 @@ public class CacheMissWaitTimeHeaderIT extends AbstractBlobCacheMetricsIntegTest
 
         clearShardCache(findSearchShard(indexName));
 
-        Map<String, Long> coldCacheHeaders = searchAndParseMetricsHeaders(indexName);
-        assertThat(coldCacheHeaders, hasKey(BlobStoreCacheDirectoryMetrics.CACHE_MISS_WAIT_NANOS_HEADER));
-        assertThat(coldCacheHeaders.get(BlobStoreCacheDirectoryMetrics.CACHE_MISS_WAIT_NANOS_HEADER), greaterThan(0L));
+        Map<String, Long> coldCacheMetrics = searchAndCollectDirectoryMetrics(indexName);
+        assertThat(coldCacheMetrics, hasKey(BlobStoreCacheDirectoryMetrics.CACHE_MISS_WAIT_NANOS_HEADER));
+        assertThat(coldCacheMetrics.get(BlobStoreCacheDirectoryMetrics.CACHE_MISS_WAIT_NANOS_HEADER), greaterThan(0L));
+        if (expectStoreBytesRead) {
+            assertThat(coldCacheMetrics, hasKey(StoreMetrics.BYTES_READ_METRIC_KEY));
+        } else {
+            assertThat(coldCacheMetrics, not(hasKey(StoreMetrics.BYTES_READ_METRIC_KEY)));
+        }
 
-        Map<String, Long> warmCacheHeaders = searchAndParseMetricsHeaders(indexName);
-        assertThat(warmCacheHeaders, not(hasKey(BlobStoreCacheDirectoryMetrics.CACHE_MISS_WAIT_NANOS_HEADER)));
+        Map<String, Long> warmCacheMetrics = searchAndCollectDirectoryMetrics(indexName);
+        assertThat(warmCacheMetrics, not(hasKey(BlobStoreCacheDirectoryMetrics.CACHE_MISS_WAIT_NANOS_HEADER)));
+        if (expectStoreBytesRead == false) {
+            assertThat(warmCacheMetrics, not(hasKey(StoreMetrics.BYTES_READ_METRIC_KEY)));
+        }
     }
 
-    private Map<String, Long> searchAndParseMetricsHeaders(String indexName) throws InterruptedException {
+    protected Map<String, Long> searchAndCollectDirectoryMetrics(String indexName) throws InterruptedException {
         SearchRequest searchRequest = new SearchRequest(indexName).searchType(SearchType.QUERY_THEN_FETCH)
             .source(new SearchSourceBuilder().query(matchAllQuery()).size(10_000));
 
-        SetOnce<Map<String, Long>> headers = new SetOnce<>();
+        SetOnce<Map<String, Long>> metrics = new SetOnce<>();
         SetOnce<Exception> failure = new SetOnce<>();
         CountDownLatch latch = new CountDownLatch(1);
 
-        final Client client = client();
-        client.search(searchRequest, new LatchedActionListener<>(ActionListener.assertOnce(ActionListener.wrap(ignored -> {
-            headers.set(parseMetricsHeaders(client));
+        client().search(searchRequest, new LatchedActionListener<>(ActionListener.assertOnce(ActionListener.wrap(searchResponse -> {
+            metrics.set(parseDirectoryMetrics(searchResponse));
         }, failure::set)), latch));
         assertTrue("search did not complete in time", latch.await(30, TimeUnit.SECONDS));
         if (failure.get() != null) {
             throw new AssertionError("unexpected search failure", failure.get());
         }
-        assertThat(headers.get(), notNullValue());
-        return headers.get();
+        assertThat(metrics.get(), notNullValue());
+        return metrics.get();
     }
 
-    private static Map<String, Long> parseMetricsHeaders(Client client) {
-        Map<String, List<String>> responseHeaders = client.threadPool().getThreadContext().getResponseHeaders();
-        assertThat(responseHeaders, hasKey(SEARCH_METRICS_HEADER));
-        List<String> values = responseHeaders.get(SEARCH_METRICS_HEADER);
-        assertThat(values, notNullValue());
-        assertThat("expected at least one metrics header value", values.isEmpty(), equalTo(false));
-
+    private static Map<String, Long> parseDirectoryMetrics(SearchResponse searchResponse) {
         Map<String, Long> parsed = new HashMap<>();
-        for (String value : values) {
-            Tuple<String, Long> entry = parseHeader(value);
-            parsed.put(entry.v1(), entry.v2());
+        for (Map.Entry<String, String> entry : searchResponse.getDirectoryMetrics().entries().entrySet()) {
+            parsed.put(entry.getKey(), Long.parseLong(entry.getValue()));
         }
         return Map.copyOf(parsed);
-    }
-
-    private static Tuple<String, Long> parseHeader(String headerValue) {
-        int splitterPos = headerValue.indexOf('=');
-        if (splitterPos < 0) {
-            throw new IllegalArgumentException("invalid header entry [" + headerValue + "]");
-        }
-        String key = headerValue.substring(0, splitterPos).trim();
-        long value = Long.parseLong(headerValue.substring(splitterPos + 1).trim());
-        return Tuple.tuple(key, value);
     }
 
 }

@@ -35,8 +35,11 @@ public interface ESVectorUtilSupport {
     /** Calculates the dot product over {@code [offset, offset + length)}. */
     float dotProduct(float[] a, float[] b, int offset, int length);
 
-    /** L2-normalizes {@code v[offset:offset + length)} in place. A zero prefix is a no-op. */
-    void l2Normalize(float[] v, int offset, int length);
+    /**
+     * L2-normalizes {@code v[offset:offset + length)} in place. A zero prefix is a no-op.
+     * @return the squared normalization factor
+     */
+    float l2Normalize(float[] v, int offset, int length);
 
     /** Returns the sum of squared differences of the two vectors. */
     float squareDistance(float[] a, float[] b);
@@ -62,6 +65,9 @@ public interface ESVectorUtilSupport {
     /** Returns the sum of squared differences of the two byte vectors over a sub-range. */
     float squareDistance(byte[] a, byte[] b, int offset, int length);
 
+    /** Returns the sum of squared differences between a byte vector and a float vector. */
+    float squareDistance(byte[] a, float[] b);
+
     float maxSimDotProduct(MultiFloatVectorsSource source, float[][] query, float[] scoresScratch);
 
     float maxSimDotProduct(MultiBFloat16VectorsSource source, float[][] query, float[] scoresScratch);
@@ -70,7 +76,7 @@ public interface ESVectorUtilSupport {
 
     /**
      * Compute dot product between {@code q} and {@code d}
-     * @param q query vector, {@link #B_QUERY}-bit quantized and striped (see {@code ESVectorUtil.transposeHalfByte})
+     * @param q query vector, {@link #B_QUERY}-bit quantized and striped (see {@code ESVectorUtil.stride4BitValues})
      * @param d data vector, 1-bit quantized
      */
     long ipByteBinByte(byte[] q, byte[] d);
@@ -162,13 +168,13 @@ public interface ESVectorUtilSupport {
         float[] distances
     );
 
-    void packAsBinary(int[] vector, byte[] packed);
+    void pack1BitValues(int[] vector, byte[] packed);
 
-    void packDibit(int[] vector, byte[] packed);
+    void stride2BitValues(int[] vector, byte[] packed);
 
-    void packDibitQuad(int[] vector, byte[] packed);
+    void pack2BitValues(int[] vector, byte[] packed);
 
-    void transposeHalfByte(int[] q, byte[] quantQueryByte);
+    void stride4BitValues(int[] vector, byte[] packed);
 
     int indexOf(byte[] bytes, int offset, int length, byte marker);
 

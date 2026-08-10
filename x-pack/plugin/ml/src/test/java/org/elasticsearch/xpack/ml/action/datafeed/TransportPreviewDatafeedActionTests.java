@@ -13,9 +13,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesBuilder;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -29,8 +27,7 @@ import org.elasticsearch.xpack.core.ml.action.PreviewDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchIntervalTests;
-import org.elasticsearch.xpack.core.security.cloud.CloudCredential;
-import org.elasticsearch.xpack.core.security.cloud.CloudCredentialManager;
+import org.elasticsearch.xpack.core.security.cloud.CloudCredentialsExtension;
 import org.elasticsearch.xpack.core.security.cloud.PersistedCloudCredential;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.junit.After;
@@ -47,11 +44,11 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.xpack.core.security.cloud.CloudCredentialTestUtils.randomCloudCredentialEncryptedData;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
@@ -94,34 +91,13 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
     public void testBuildPreviewDatafeed_GivenPersistedCredential_ShouldClearForPreview() {
         DatafeedConfig.Builder datafeed = new DatafeedConfig.Builder("cred_feed", "job_foo");
         datafeed.setIndices(Collections.singletonList("my_index"));
-        datafeed.setCloudInternalCredential(new PersistedCloudCredential("id", new SecureString("secret".toCharArray())));
+        datafeed.setCloudInternalCredential(new PersistedCloudCredential("id", randomCloudCredentialEncryptedData()));
 
         DatafeedConfig previewDatafeed = TransportPreviewDatafeedAction.buildPreviewDatafeed(datafeed.build())
             .setCloudInternalCredential(null)
             .build();
 
         assertThat(previewDatafeed.getCloudInternalCredential(), nullValue());
-    }
-
-    public void testExtractCallerCloudCredential_GivenCloudManagedCredential_ShouldReturnExtractedCredential() {
-        CloudCredentialManager cloudCredentialManager = mock(CloudCredentialManager.class);
-        ThreadContext threadContext = threadPool.getThreadContext();
-        CloudCredential expected = new CloudCredential(new SecureString("caller-cred".toCharArray()));
-        when(cloudCredentialManager.hasCloudManagedCredential(threadContext)).thenReturn(true);
-        when(cloudCredentialManager.extractCloudManagedCredential(threadContext)).thenReturn(expected);
-
-        assertThat(
-            TransportPreviewDatafeedAction.extractCallerCloudCredential(cloudCredentialManager, threadContext),
-            sameInstance(expected)
-        );
-    }
-
-    public void testExtractCallerCloudCredential_GivenNoCloudManagedCredential_ShouldReturnNull() {
-        CloudCredentialManager cloudCredentialManager = mock(CloudCredentialManager.class);
-        ThreadContext threadContext = threadPool.getThreadContext();
-        when(cloudCredentialManager.hasCloudManagedCredential(threadContext)).thenReturn(false);
-
-        assertThat(TransportPreviewDatafeedAction.extractCallerCloudCredential(cloudCredentialManager, threadContext), nullValue());
     }
 
     public void testProjectRoutingRequiresCpsException_ShouldMatchPutDatafeedMessage() {
@@ -131,7 +107,7 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
     }
 
     public void testWithCrossProjectModeIfEnabled_GivenCpsEnabled_ShouldEnableCrossProjectIndicesOptions() {
-        assumeTrue("CPS feature flag must be enabled", DatafeedConfig.DATAFEED_CROSS_PROJECT.isEnabled());
+        assumeTrue("CPS feature flag must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("preview_cps_feed", "job_foo");
         builder.setIndices(Collections.singletonList("logs-*"));
         builder.setIndicesOptions(org.elasticsearch.action.support.IndicesOptions.STRICT_EXPAND_OPEN);
@@ -145,7 +121,7 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
     }
 
     public void testBuildDateNanosFieldCapsRequest_GivenCpsIndicesOptions_ShouldRequestResolvedTo() {
-        assumeTrue("CPS feature flag must be enabled", DatafeedConfig.DATAFEED_CROSS_PROJECT.isEnabled());
+        assumeTrue("CPS feature flag must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("preview_cps_feed", "job_foo");
         builder.setIndices(List.of("local-*", "linked_project:remote-*"));
         builder.setIndicesOptions(org.elasticsearch.action.support.IndicesOptions.STRICT_EXPAND_OPEN);

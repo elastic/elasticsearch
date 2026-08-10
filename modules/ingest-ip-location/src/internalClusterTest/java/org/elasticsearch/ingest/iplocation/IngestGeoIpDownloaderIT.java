@@ -277,6 +277,64 @@ public class IngestGeoIpDownloaderIT extends AbstractGeoIpIT {
         assertAcked(indicesAdmin().prepareDelete(indexIdentifier).get());
     }
 
+    /**
+     * Verifies that deleting the last index that references a geoip pipeline does not reclaim the pipeline's databases.
+     * {@code download_database_on_pipeline_creation} only governs when a database is first downloaded; it must not
+     * influence reclamation. As long as a pipeline with a geoip processor exists, its databases must remain staged so
+     * that the next document ingested through the pipeline is enriched immediately, rather than being silently dropped
+     * (with {@code ignore_missing: true}, neither resolved nor tagged) until a re-download completes.
+     *
+     * <p>The pipeline here uses {@code download_database_on_pipeline_creation: false} so that retrieval is driven by an
+     * index reference, and {@code ignore_missing: true} so that premature reclamation would manifest as the reported
+     * silent failure.
+     */
+    public void testDatabasesNotReclaimedWhenReferencingIndexDeleted() throws Exception {
+        assumeTrue("only test with fixture to have stable results", getEndpoint() != null);
+
+        IpLocationTestHelper.deleteDatabasesInConfigDirectory(internalCluster());
+        putGeoIpPipeline("_id", false, true);
+
+        updateClusterSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true));
+        assertBusy(() -> assertNotNull(getTask()));
+
+        // Referencing the pipeline from an index registers the ingest consumer, which triggers the download and local
+        // retrieval of the databases.
+        String indexIdentifier = randomIdentifier();
+        assertAcked(indicesAdmin().prepareCreate(indexIdentifier).get());
+        Setting<String> pipelineSetting = randomFrom(IndexSettings.FINAL_PIPELINE, IndexSettings.DEFAULT_PIPELINE);
+        assertAcked(
+            indicesAdmin().prepareUpdateSettings(indexIdentifier).setSettings(Settings.builder().put(pipelineSetting.getKey(), "_id")).get()
+        );
+        assertBusy(() -> {
+            GeoIpTaskState state = getGeoIpTaskState();
+            assertThat(
+                state.getDatabases().keySet(),
+                containsInAnyOrder("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb", "MyCustomGeoLite2-City.mmdb")
+            );
+        }, 2, TimeUnit.MINUTES);
+        awaitAllNodesDownloadedDatabases();
+
+        // Sanity check: while the index references the pipeline, enrichment works and no tags are added.
+        verifyEnrichment();
+
+        // Delete the only index referencing the pipeline. The pipeline still exists, so its databases must not be reclaimed.
+        assertAcked(indicesAdmin().prepareDelete(indexIdentifier).get());
+
+        // Assert the databases are never reclaimed: confirm "all nodes report no databases" does not become true within a
+        // bounded window. expectThrows passes when assertBusy gives up (databases stay present); it fails if the databases
+        // are dropped, which is the regression this test guards against.
+        expectThrows(AssertionError.class, () -> assertBusy(() -> {
+            GeoIpStatsAction.Response response = client().execute(GeoIpStatsAction.INSTANCE, new GeoIpStatsAction.Request()).actionGet();
+            assertThat(response.getNodes(), not(empty()));
+            for (GeoIpStatsAction.NodeResponse nodeResponse : response.getNodes()) {
+                assertThat(nodeResponse.getDatabases(), empty());
+            }
+        }, 10, TimeUnit.SECONDS));
+
+        // And the next document is still enriched immediately, with no unavailability tags.
+        verifyEnrichment();
+    }
+
     private void verifyEnrichment() throws Exception {
         assertBusy(() -> {
             SimulateDocumentBaseResult result = simulatePipeline();
@@ -328,6 +386,10 @@ public class IngestGeoIpDownloaderIT extends AbstractGeoIpIT {
     }
 
     private void putGeoIpPipeline(String pipelineId, boolean downloadDatabaseOnPipelineCreation) throws IOException {
+        putGeoIpPipeline(pipelineId, downloadDatabaseOnPipelineCreation, false);
+    }
+
+    private void putGeoIpPipeline(String pipelineId, boolean downloadDatabaseOnPipelineCreation, boolean ignoreMissing) throws IOException {
         putJsonPipeline(pipelineId, ((builder, params) -> {
             builder.startArray("processors");
             {
@@ -351,6 +413,9 @@ public class IngestGeoIpDownloaderIT extends AbstractGeoIpIT {
                         if (downloadDatabaseOnPipelineCreation == false || randomBoolean()) {
                             builder.field("download_database_on_pipeline_creation", downloadDatabaseOnPipelineCreation);
                         }
+                        if (ignoreMissing) {
+                            builder.field("ignore_missing", true);
+                        }
                     }
                     builder.endObject();
                 }
@@ -364,6 +429,9 @@ public class IngestGeoIpDownloaderIT extends AbstractGeoIpIT {
                         builder.field("database_file", "GeoLite2-Country.mmdb");
                         if (downloadDatabaseOnPipelineCreation == false || randomBoolean()) {
                             builder.field("download_database_on_pipeline_creation", downloadDatabaseOnPipelineCreation);
+                        }
+                        if (ignoreMissing) {
+                            builder.field("ignore_missing", true);
                         }
                     }
                     builder.endObject();
@@ -379,6 +447,9 @@ public class IngestGeoIpDownloaderIT extends AbstractGeoIpIT {
                         if (downloadDatabaseOnPipelineCreation == false || randomBoolean()) {
                             builder.field("download_database_on_pipeline_creation", downloadDatabaseOnPipelineCreation);
                         }
+                        if (ignoreMissing) {
+                            builder.field("ignore_missing", true);
+                        }
                     }
                     builder.endObject();
                 }
@@ -392,6 +463,9 @@ public class IngestGeoIpDownloaderIT extends AbstractGeoIpIT {
                         builder.field("database_file", "MyCustomGeoLite2-City.mmdb");
                         if (downloadDatabaseOnPipelineCreation == false || randomBoolean()) {
                             builder.field("download_database_on_pipeline_creation", downloadDatabaseOnPipelineCreation);
+                        }
+                        if (ignoreMissing) {
+                            builder.field("ignore_missing", true);
                         }
                     }
                     builder.endObject();

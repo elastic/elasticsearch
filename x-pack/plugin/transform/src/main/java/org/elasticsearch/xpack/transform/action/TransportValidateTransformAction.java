@@ -189,7 +189,11 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
             config.getSource().getIndex(),
             config.getDestination().getIndex(),
             config.getDestination().getPipeline(),
-            SourceDestValidations.getValidations(request.isDeferValidation(), config.getAdditionalSourceDestValidations()),
+            SourceDestValidations.getValidations(
+                request.isDeferValidation(),
+                crossProjectModeDecider,
+                config.getAdditionalSourceDestValidations()
+            ),
             validateSourceDestListener
         );
     }

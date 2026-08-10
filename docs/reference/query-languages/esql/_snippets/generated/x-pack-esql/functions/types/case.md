@@ -16,12 +16,16 @@
 | boolean | date | | date |
 | boolean | date_nanos | date_nanos | date_nanos |
 | boolean | date_nanos | | date_nanos |
+| boolean | date_range {applies_to}`stack: preview 9.5.0` | date_range {applies_to}`stack: preview 9.5.0` | date_range |
+| boolean | date_range {applies_to}`stack: preview 9.5.0` | | date_range |
 | boolean | dense_vector | dense_vector | dense_vector |
 | boolean | dense_vector | | dense_vector |
 | boolean | double | double | double |
 | boolean | double | | double |
 | boolean | exponential_histogram {applies_to}`stack: preview 9.3.0, ga 9.4.0` | exponential_histogram {applies_to}`stack: preview 9.3.0, ga 9.4.0` | exponential_histogram |
 | boolean | exponential_histogram {applies_to}`stack: preview 9.3.0, ga 9.4.0` | | exponential_histogram |
+| boolean | flattened {applies_to}`stack: preview 9.5.0` | flattened {applies_to}`stack: preview 9.5.0` | flattened |
+| boolean | flattened {applies_to}`stack: preview 9.5.0` | | flattened |
 | boolean | geo_point | geo_point | geo_point |
 | boolean | geo_point | | geo_point |
 | boolean | geo_shape | geo_shape | geo_shape |

@@ -132,10 +132,17 @@ public class CompositeAggregationBuilderTests extends BaseAggregationTestCase<Co
             }
         });
         assertFalse(builder.supportsParallelCollection(null));
-        // A keyword/IP terms source orders on per-segment ordinals and collects single-threaded regardless of cardinality.
         assertFalse(
             new CompositeAggregationBuilder(randomAlphaOfLength(10), Collections.singletonList(new TermsValuesSourceBuilder("name")))
-                .supportsParallelCollection(field -> randomIntBetween(-1, 100))
+                .supportsParallelCollection(field -> -1)
+        );
+        assertTrue(
+            new CompositeAggregationBuilder(randomAlphaOfLength(10), Collections.singletonList(new TermsValuesSourceBuilder("name")))
+                .supportsParallelCollection(field -> randomIntBetween(0, 50))
+        );
+        assertFalse(
+            new CompositeAggregationBuilder(randomAlphaOfLength(10), Collections.singletonList(new TermsValuesSourceBuilder("name")))
+                .supportsParallelCollection(field -> randomIntBetween(51, 100))
         );
         assertFalse(
             new CompositeAggregationBuilder(

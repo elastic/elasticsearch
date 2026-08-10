@@ -109,6 +109,19 @@ vector:dense_vector
  [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0]
 ;
 
+convertHexStringFieldToDenseVector
+required_capability: dense_vector_field_type_released
+required_capability: to_dense_vector_function
+
+FROM conv_from_keyword
+| EVAL vector = to_dense_vector(dense_vector_hex)
+| KEEP vector
+;
+
+vector:dense_vector
+ [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0]
+;
+
 denseVectorWithEnrich
 required_capability: enrich_load
 required_capability: enrich_dense_vector_bugfix

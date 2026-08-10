@@ -7,9 +7,13 @@
 
 package org.elasticsearch.xpack.dlm.frozen;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.put.TransportPutRepositoryAction;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.TransportDeleteSnapshotAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteComposableIndexTemplateAction;
@@ -43,6 +47,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService;
@@ -54,13 +59,18 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiConsumer;
 
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DEFAULT_TIMESTAMP_FIELD;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
@@ -97,6 +107,7 @@ public class DLMFrozenTransitionIT extends ESIntegTestCase {
         plugins.add(DataStreamsPlugin.class);
         plugins.add(BlobCachePlugin.class);
         plugins.add(LocalStateSearchableSnapshots.class);
+        plugins.add(DLMFrozenTransitionDisruptionIT.ActionInterceptorPlugin.class);
         return Collections.unmodifiableList(plugins);
     }
 
@@ -419,5 +430,182 @@ public class DLMFrozenTransitionIT extends ESIntegTestCase {
         );
 
         logger.info("--> confirmed frozen index [{}] was not re-marked for transition", expectedFrozenIndexName);
+    }
+
+    /**
+     * Regression test for {@link DLMFrozenCleanupService}: once an index has been successfully
+     * transitioned to a mounted frozen searchable snapshot, the backing snapshot must survive an
+     * orphan-cleanup pass — even though the index that was originally snapshotted (the clone /
+     * original backing index) no longer exists, having been deleted as part of the very same
+     * transition that mounted the snapshot.
+     */
+    public void testTransitionedIndexSnapshotNotDeletedByCleanup() throws Exception {
+        assumeTrue("requires DLM searchable snapshots feature flag", DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled());
+
+        DLMFrozenTransitionDisruptionIT.ActionInterceptorPlugin.clearInterceptors();
+        try {
+            // --- Setup: start nodes, register repo, configure default repo ---
+            internalCluster().startMasterOnlyNode();
+            internalCluster().startDataOnlyNodes(2);
+            startFrozenOnlyNode();
+
+            assertAcked(
+                client().execute(
+                    TransportPutRepositoryAction.TYPE,
+                    new PutRepositoryRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, REPO_NAME).type("fs")
+                        .settings(Settings.builder().put("location", randomRepoPath()))
+                ).actionGet()
+            );
+            updateClusterSettings(Settings.builder().put(RepositoriesService.DEFAULT_REPOSITORY_SETTING.getKey(), REPO_NAME));
+
+            // --- Create data stream with frozen_after lifecycle ---
+            DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.dataLifecycleBuilder()
+                .frozenAfter(TimeValue.timeValueSeconds(1))
+                .buildTemplate();
+
+            TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request(
+                TEMPLATE_NAME
+            );
+            Settings templateSettings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build();
+            request.indexTemplate(
+                ComposableIndexTemplate.builder()
+                    .indexPatterns(List.of(DATA_STREAM_NAME + "*"))
+                    .template(Template.builder().settings(templateSettings).lifecycle(lifecycle))
+                    .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                    .build()
+            );
+            assertAcked(client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet());
+
+            assertAcked(
+                client().execute(
+                    CreateDataStreamAction.INSTANCE,
+                    new CreateDataStreamAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, DATA_STREAM_NAME)
+                ).actionGet()
+            );
+
+            // --- Index a doc so the backing index has data before we roll over ---
+            BulkRequest bulkRequest = new BulkRequest();
+            String value = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(System.currentTimeMillis());
+            bulkRequest.add(
+                new IndexRequest(DATA_STREAM_NAME).opType(DocWriteRequest.OpType.CREATE)
+                    .source(String.format(Locale.ROOT, "{\"%s\":\"%s\"}", DEFAULT_TIMESTAMP_FIELD, value), XContentType.JSON)
+            );
+            BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
+            assertThat(bulkResponse.getItems().length, equalTo(1));
+            assertThat(bulkResponse.getItems()[0].getFailureMessage(), nullValue());
+            assertThat(bulkResponse.getItems()[0].status(), equalTo(RestStatus.CREATED));
+            client().admin().indices().refresh(new RefreshRequest(DATA_STREAM_NAME)).actionGet();
+
+            // Manually roll over the data stream so gen-1 becomes a non-write index
+            assertAcked(client().admin().indices().prepareRolloverIndex(DATA_STREAM_NAME).get());
+
+            String candidateIndex = getDataStreamBackingIndexNames(DATA_STREAM_NAME).getFirst();
+            String expectedFrozenIndexName = DLMConvertToFrozen.SNAPSHOT_NAME_PREFIX + candidateIndex;
+            String cloneIndexName = DLMConvertToFrozen.CLONE_INDEX_PREFIX + candidateIndex;
+            logger.info("--> candidate index for frozen conversion: {}", candidateIndex);
+
+            // --- Wait for the frozen transition to complete ---
+            awaitClusterState(state -> {
+                var project = state.metadata().getProject(Metadata.DEFAULT_PROJECT_ID);
+                DataStream dataStream = project.dataStreams().get(DATA_STREAM_NAME);
+                return dataStream != null
+                    && dataStream.getIndices().stream().anyMatch(idx -> idx.getName().equals(expectedFrozenIndexName))
+                    && project.index(candidateIndex) == null
+                    && project.index(cloneIndexName) == null;
+            });
+
+            logger.info("--> frozen transition of [{}] to [{}] complete", candidateIndex, expectedFrozenIndexName);
+
+            // --- Capture the exact snapshot backing the mounted frozen index ---
+            ClusterStateResponse afterTransition = admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get();
+            var projectMetadata = afterTransition.getState().metadata().getProject(Metadata.DEFAULT_PROJECT_ID);
+            IndexMetadata frozenMeta = projectMetadata.index(expectedFrozenIndexName);
+            assertThat("Frozen index [" + expectedFrozenIndexName + "] should exist", frozenMeta, notNullValue());
+            String backingSnapshotUuid = frozenMeta.getSettings()
+                .get(SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_SNAPSHOT_UUID_SETTING_KEY);
+            String backingSnapshotName = frozenMeta.getSettings()
+                .get(SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_SNAPSHOT_NAME_SETTING_KEY);
+            assertThat("Mounted frozen index must record its backing snapshot UUID", backingSnapshotUuid, notNullValue());
+            assertThat("Mounted frozen index must record its backing snapshot name", backingSnapshotName, notNullValue());
+
+            assertThat(
+                "Backing snapshot should exist in the repository before cleanup runs",
+                snapshotUuidsInRepo(),
+                hasItem(backingSnapshotUuid)
+            );
+
+            // --- Record every DeleteSnapshotRequest issued while cleanup runs ---
+            List<String> deletedSnapshotNames = new CopyOnWriteArrayList<>();
+            DLMFrozenTransitionDisruptionIT.ActionInterceptorPlugin.addInterceptor(new DLMFrozenTransitionDisruptionIT.ActionInterceptor() {
+                @Override
+                public String actionName() {
+                    return TransportDeleteSnapshotAction.TYPE.name();
+                }
+
+                @Override
+                @SuppressWarnings("rawtypes")
+                public void intercept(
+                    String action,
+                    ActionRequest request,
+                    ActionListener listener,
+                    BiConsumer<ActionRequest, ActionListener> proceed
+                ) {
+                    if (request instanceof DeleteSnapshotRequest deleteSnapshotRequest) {
+                        Collections.addAll(deletedSnapshotNames, deleteSnapshotRequest.snapshots());
+                    }
+                    proceed.accept(request, listener);
+                }
+            });
+
+            // --- Trigger the orphan-cleanup pass directly; its snapshot/index deletes complete synchronously ---
+            DLMFrozenCleanupService cleanupService = internalCluster().getCurrentMasterNodeInstance(DLMFrozenCleanupService.class);
+            cleanupService.checkForOrphanedResources();
+
+            // --- Primary assertion: cleanup must never even attempt to delete the backing snapshot ---
+            assertThat(
+                "Cleanup must not attempt to delete the snapshot backing a live mounted index",
+                deletedSnapshotNames,
+                not(hasItem(backingSnapshotName))
+            );
+
+            // --- End-to-end payload checks: the mount and its data are intact ---
+            assertThat(
+                "Backing snapshot should still exist in the repository after cleanup",
+                snapshotUuidsInRepo(),
+                hasItem(backingSnapshotUuid)
+            );
+
+            ClusterStateResponse afterCleanup = admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get();
+            var projectMetadataAfterCleanup = afterCleanup.getState().metadata().getProject(Metadata.DEFAULT_PROJECT_ID);
+            assertThat(
+                "Mounted frozen index should still exist",
+                projectMetadataAfterCleanup.index(expectedFrozenIndexName),
+                notNullValue()
+            );
+            assertThat(
+                "Frozen index should still be a backing index of the data stream",
+                getDataStreamBackingIndexNames(DATA_STREAM_NAME),
+                hasItem(expectedFrozenIndexName)
+            );
+
+            assertHitCount(prepareSearch(DATA_STREAM_NAME), 1);
+
+            logger.info("--> confirmed cleanup did not delete the snapshot backing the transitioned index [{}]", expectedFrozenIndexName);
+        } finally {
+            DLMFrozenTransitionDisruptionIT.ActionInterceptorPlugin.clearInterceptors();
+        }
+    }
+
+    /**
+     * Returns the UUIDs of all {@code dlm-frozen-*} snapshots currently present in {@link #REPO_NAME}.
+     */
+    private List<String> snapshotUuidsInRepo() {
+        return clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, REPO_NAME)
+            .setSnapshots(DLMConvertToFrozen.SNAPSHOT_NAME_PREFIX + "*")
+            .get()
+            .getSnapshots()
+            .stream()
+            .map(snapshotInfo -> snapshotInfo.snapshotId().getUUID())
+            .toList();
     }
 }

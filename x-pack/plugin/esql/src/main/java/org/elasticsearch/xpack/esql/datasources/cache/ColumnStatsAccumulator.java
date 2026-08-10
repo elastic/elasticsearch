@@ -16,8 +16,11 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.ColumnStatTypeSupport;
+import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -60,6 +63,23 @@ public final class ColumnStatsAccumulator {
         return new ColumnStatsAccumulator(s, names);
     }
 
+    /**
+     * Builds an accumulator keyed to a file's FULL positional schema, for the {@link
+     * org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope#ALL ALL} harvest scope. Identical
+     * machinery to {@link #forProjectedAttributes} — every tracked file column gets a {@link ColumnState}
+     * indexed by its position in {@code fileSchema} — but the row-format readers feed it raw parsed/typed
+     * values via {@link #acceptValueAt(int, Object)} (one per file column, regardless of projection) rather
+     * than output {@link Block}s, because the output page only carries the query's projected columns. Feeding
+     * a Block via {@link #acceptBlockAt(int, Block)} and feeding a single value via {@link #acceptValueAt}
+     * update the same per-column state, so a mixed call sequence is well-defined.
+     */
+    public static ColumnStatsAccumulator forSchema(List<Attribute> fileSchema) {
+        if (fileSchema == null || fileSchema.isEmpty()) {
+            return new ColumnStatsAccumulator(new ColumnState[0], new String[0]);
+        }
+        return forProjectedAttributes(fileSchema.toArray(new Attribute[0]));
+    }
+
     private ColumnStatsAccumulator(ColumnState[] states, String[] columnNames) {
         this.states = states;
         this.columnNames = columnNames;
@@ -82,6 +102,69 @@ public final class ColumnStatsAccumulator {
         states[blockIndex].accept(block, scratch);
     }
 
+    // Primitive single-value feed: lets a typed producer (e.g. the direct-to-block CSV parser) accumulate
+    // stats straight from the values it already has, avoiding a second, megamorphic pass over the built
+    // blocks. Each call contributes exactly one (single-valued) cell at page position {@code blockIndex};
+    // the result is identical to feeding the equivalent single-valued block through {@link #acceptBlockAt}.
+    // Values for columns whose type is untracked contribute nothing beyond the null count.
+
+    public void acceptNullAt(int blockIndex) {
+        if (blockIndex >= 0 && blockIndex < states.length) {
+            states[blockIndex].nullCount++;
+        }
+    }
+
+    public void acceptBooleanAt(int blockIndex, boolean value) {
+        if (blockIndex >= 0 && blockIndex < states.length) {
+            states[blockIndex].acceptBoolean(value);
+        }
+    }
+
+    public void acceptIntAt(int blockIndex, int value) {
+        if (blockIndex >= 0 && blockIndex < states.length) {
+            states[blockIndex].acceptInt(value);
+        }
+    }
+
+    public void acceptLongAt(int blockIndex, long value) {
+        if (blockIndex >= 0 && blockIndex < states.length) {
+            states[blockIndex].acceptLong(value);
+        }
+    }
+
+    public void acceptDoubleAt(int blockIndex, double value) {
+        if (blockIndex >= 0 && blockIndex < states.length) {
+            states[blockIndex].acceptDouble(value);
+        }
+    }
+
+    public void acceptBytesRefAt(int blockIndex, BytesRef value) {
+        if (blockIndex >= 0 && blockIndex < states.length) {
+            states[blockIndex].acceptBytesRef(value);
+        }
+    }
+
+    /**
+     * Feeds a single already-typed value into the accumulator at column position {@code columnIndex}.
+     * This is the {@link StripeColumnScope#ALL ALL}-scope entry point: the row-format readers hand a
+     * boxed value parsed straight from the raw record (no output {@link Block} exists for an unprojected
+     * file column). Accepted value shapes match what the readers' type-conversion produces:
+     * <ul>
+     *   <li>{@code null} — counts toward {@code nullCount}.</li>
+     *   <li>{@link Boolean} / {@link Integer} / {@link Long} / {@link Double} / {@link BytesRef} —
+     *   a single value, folded into min/max for tracked types.</li>
+     *   <li>{@link List} — a multi-valued cell; every element folds individually (matching the Block
+     *   path's per-value contract). An empty list counts as null.</li>
+     * </ul>
+     * Out-of-range indices are silently ignored, matching {@link #acceptBlockAt}.
+     */
+    public void acceptValueAt(int columnIndex, Object value) {
+        if (columnIndex < 0 || columnIndex >= states.length) {
+            return;
+        }
+        states[columnIndex].acceptValue(value);
+    }
+
     /**
      * Snapshots the current state into an immutable {@link ExternalStats.ColumnStats} map.
      * Safe to call only once per accumulator instance — call it from the iterator's close-time hook.
@@ -93,7 +176,7 @@ public final class ColumnStatsAccumulator {
         Map<String, ExternalStats.ColumnStats> out = new LinkedHashMap<>(states.length);
         for (int i = 0; i < states.length; i++) {
             ColumnState s = states[i];
-            out.put(columnNames[i], new ExternalStats.ColumnStats(s.nullCount, s.min, s.max));
+            out.put(columnNames[i], new ExternalStats.ColumnStats(s.nullCount, s.valueCount, s.min, s.max));
         }
         return out;
     }
@@ -105,6 +188,7 @@ public final class ColumnStatsAccumulator {
          */
         private final byte typeOrdinal;
         private long nullCount;
+        private long valueCount; // non-null VALUES (multivalue-aware); COUNT(col) is served from this
         private Object min;
         private Object max;
 
@@ -121,19 +205,25 @@ public final class ColumnStatsAccumulator {
 
         private static byte classify(DataType type) {
             // Min/max bucketing is keyed strictly on whether the SIGNED comparator on the stored
-            // representation matches the type's semantic order. Types where that contract fails
-            // are pinned to T_UNTRACKED so the cache never captures wrong-ordering min/max:
+            // representation matches the type's semantic order. Types where that contract fails are
+            // T_UNTRACKED so the cache never captures wrong-ordering min/max:
             // - UNSIGNED_LONG: stored as signed long; signed compare flips for values >= 2^63.
             // - VERSION: byte-lex (e.g. "1.10" < "1.2") disagrees with semver ordering.
+            // - counters: no MIN/MAX harvest.
             // IP stays in T_BYTESREF because the 16-byte InetAddressPoint encoding's byte-lex
             // order matches IPv4/IPv6 address order by construction.
-            return switch (type) {
+            // The harvestable + blockKind facts come from the shared ColumnStatTypeSupport table so this
+            // classification cannot drift from the warm-path serving / text-pushdown gates.
+            ColumnStatTypeSupport support = ColumnStatTypeSupport.of(type);
+            if (support == null || support.harvestable() == false) {
+                return T_UNTRACKED;
+            }
+            return switch (support.blockKind()) {
                 case BOOLEAN -> T_BOOLEAN;
-                case INTEGER -> T_INT;
-                case LONG, DATETIME, DATE_NANOS -> T_LONG;
+                case INT -> T_INT;
+                case LONG -> T_LONG;
                 case DOUBLE -> T_DOUBLE;
-                case KEYWORD, TEXT, IP -> T_BYTESREF;
-                default -> T_UNTRACKED;
+                case BYTES_REF -> T_BYTESREF;
             };
         }
 
@@ -148,12 +238,16 @@ public final class ColumnStatsAccumulator {
                     nullCount++;
                     continue;
                 }
+                int vc = block.getValueCount(p);
+                // COUNT(col) counts non-null VALUES, not rows: a multivalued position contributes vc>1.
+                // Tracked over every column (incl. T_UNTRACKED) so COUNT(col) pushdown is correct regardless
+                // of whether min/max are also tracked.
+                valueCount += vc;
                 if (t == T_UNTRACKED) {
                     continue;
                 }
-                int valueCount = block.getValueCount(p);
                 int firstValue = block.getFirstValueIndex(p);
-                for (int v = 0; v < valueCount; v++) {
+                for (int v = 0; v < vc; v++) {
                     int idx = firstValue + v;
                     switch (t) {
                         case T_BOOLEAN -> updateBoolean(((BooleanBlock) block).getBoolean(idx));
@@ -164,6 +258,92 @@ public final class ColumnStatsAccumulator {
                         default -> throw new AssertionError("unexpected type ordinal: " + t);
                     }
                 }
+            }
+        }
+
+        /**
+         * Value-oriented twin of {@link #accept(Block, BytesRef)} for the ALL-scope side-pass: folds one
+         * boxed value (or every element of a multi-valued {@link List}) into this column's running stats.
+         * Null and empty-list both count toward {@code nullCount}; untracked types contribute null counts
+         * only, exactly like the Block path.
+         */
+        void acceptValue(Object value) {
+            if (value == null) {
+                nullCount++;
+                return;
+            }
+            if (value instanceof List<?> list) {
+                if (list.isEmpty()) {
+                    nullCount++;
+                    return;
+                }
+                for (Object element : list) {
+                    acceptScalar(element);
+                }
+                return;
+            }
+            acceptScalar(value);
+        }
+
+        private void acceptScalar(Object value) {
+            if (value == null) {
+                nullCount++;
+                return;
+            }
+            valueCount++; // one non-null value (called once per scalar and per non-null multivalue element)
+            switch (typeOrdinal) {
+                case T_UNTRACKED -> {
+                    // Null count only — mirrors the Block path's universal null tracking for untracked types.
+                }
+                case T_BOOLEAN -> updateBoolean((Boolean) value);
+                case T_INT -> updateInt((Integer) value);
+                case T_LONG -> updateLong((Long) value);
+                case T_DOUBLE -> updateDouble((Double) value);
+                case T_BYTESREF -> updateBytesRef((BytesRef) value);
+                default -> throw new AssertionError("unexpected type ordinal: " + typeOrdinal);
+            }
+        }
+
+        // Single-value feed counterparts of the block walk in accept(...), for main's direct-to-block CSV/TSV
+        // path (elastic/elasticsearch#152300). Each is called once per non-null staged cell, so it increments
+        // valueCount UNCONDITIONALLY (COUNT(col) is served from it — see accept(Block), which counts every
+        // non-null value before the T_UNTRACKED branch), then guards on the column's cached typeOrdinal so a
+        // value whose kind does not match the tracked type (e.g. an untracked column) contributes nothing to
+        // min/max, exactly as the block path's T_UNTRACKED branch does.
+
+        void acceptBoolean(boolean val) {
+            valueCount++;
+            if (typeOrdinal == T_BOOLEAN) {
+                updateBoolean(val);
+            }
+        }
+
+        void acceptInt(int val) {
+            valueCount++;
+            if (typeOrdinal == T_INT) {
+                updateInt(val);
+            }
+        }
+
+        void acceptLong(long val) {
+            valueCount++;
+            if (typeOrdinal == T_LONG) {
+                updateLong(val);
+            }
+        }
+
+        void acceptDouble(double val) {
+            valueCount++;
+            if (typeOrdinal == T_DOUBLE) {
+                updateDouble(val);
+            }
+        }
+
+        void acceptBytesRef(BytesRef val) {
+            assert val != null : "acceptBytesRef requires a non-null value; nulls route through acceptNullAt";
+            valueCount++;
+            if (typeOrdinal == T_BYTESREF) {
+                updateBytesRef(val);
             }
         }
 
@@ -201,21 +381,23 @@ public final class ColumnStatsAccumulator {
         }
 
         private void updateDouble(double val) {
-            // NaN comparisons always return false, so a leading NaN would wedge the tracker on NaN
-            // forever (no value compares < NaN or > NaN). Skip NaN entirely — it neither shrinks min
-            // nor extends max under standard SQL ordering. The non-null count still includes the cell
-            // because the outer block.isNull(p) check has already ruled out the SQL-null case.
+            // The runtime Min/MaxDoubleAggregator use Math.min/Math.max, which PROPAGATE NaN: once any value
+            // is NaN the aggregate is NaN. Record NaN as both extremes so a served stat matches a full scan;
+            // it stays NaN because no later value compares < or > NaN. The cross-stripe/cross-file fold
+            // (SplitStats.mergedMin/mergedMax) treats a NaN operand as unmergeable, so a multi-unit column
+            // safe-misses there instead of serving a non-NaN extreme — MIN/MAX matches a scan in every shape.
             if (Double.isNaN(val)) {
+                min = Double.NaN;
+                max = Double.NaN;
                 return;
             }
+            // Use the SAME Math.min/Math.max the runtime Min/MaxDoubleAggregator use so a served extreme is
+            // bit-identical to a full scan's — a primitive `<`/`>` compares -0.0 == 0.0 and could not cross
+            // them, but Math.min/max order -0.0 below +0.0 (and MIN(-0.0, +0.0) must be -0.0).
             Double cur = (Double) min;
-            if (cur == null || val < cur) {
-                min = val;
-            }
+            min = cur == null ? val : Math.min(cur, val);
             Double curMax = (Double) max;
-            if (curMax == null || val > curMax) {
-                max = val;
-            }
+            max = curMax == null ? val : Math.max(curMax, val);
         }
 
         private void updateBytesRef(BytesRef val) {

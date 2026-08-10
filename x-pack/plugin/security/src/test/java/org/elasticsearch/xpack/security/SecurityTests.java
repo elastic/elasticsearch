@@ -52,6 +52,7 @@ import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.search.stats.SearchStatsSettings;
 import org.elasticsearch.index.shard.IndexingStatsSettings;
 import org.elasticsearch.index.store.StoreMetrics;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.license.ClusterStateLicenseService;
 import org.elasticsearch.license.License;
@@ -275,7 +276,8 @@ public class SecurityTests extends ESTestCase {
             StubLinkedProjectConfigService.INSTANCE,
             TestProjectResolvers.alwaysThrow(),
             CrossProjectModeDecider.NOOP,
-            ProjectRoutingResolver.NOOP
+            ProjectRoutingResolver.NOOP,
+            new SystemIndices(List.of())
         );
     }
 

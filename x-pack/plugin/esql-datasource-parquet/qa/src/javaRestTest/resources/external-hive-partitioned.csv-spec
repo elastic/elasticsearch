@@ -4,13 +4,13 @@
 // shadow of the payload column `languages`; rows in lang=__HIVE_DEFAULT_PARTITION__ are exactly the
 // rows where the payload's languages column is also null. Bucket sizes: 15/19/17/18/21/10.
 //
-// Authored as FROM <dataset>: each test declares its source via a `dataset:` directive. On dataset-capable
-// backends (S3) ParquetFormatSpecIT registers the dataset and runs the FROM query verbatim; the other backends
-// — and ParquetRsFormatSpecIT — rebuild the equivalent EXTERNAL query. The hive template has no index twin, so
-// the dataset keeps the bare name employees_hive.
+// Authored as FROM <dataset>: each test declares its source via a `dataset:` directive. The format ITs register
+// the dataset on every storage backend and run the FROM query verbatim (HTTP, which cannot list a directory,
+// skips these glob reads). The hive template has no index twin, so the dataset keeps the bare name
+// employees_hive.
 
 hivePartitionStatsByLang
-required_capability: external_command
+required_capability: dataset_in_from_command
 dataset: employees_hive: "{{employees_hive}}"
 
 FROM employees_hive
@@ -27,7 +27,7 @@ count:long | lang:integer
 ;
 
 hivePartitionWhereIsNull
-required_capability: external_command
+required_capability: dataset_in_from_command
 dataset: employees_hive: "{{employees_hive}}"
 
 FROM employees_hive
@@ -39,7 +39,7 @@ count:long
 ;
 
 hivePartitionWhereEquals
-required_capability: external_command
+required_capability: dataset_in_from_command
 dataset: employees_hive: "{{employees_hive}}"
 
 FROM employees_hive
@@ -51,7 +51,7 @@ count:long
 ;
 
 hivePartitionConsistentWithPayload
-required_capability: external_command
+required_capability: dataset_in_from_command
 dataset: employees_hive: "{{employees_hive}}"
 
 FROM employees_hive
@@ -63,7 +63,7 @@ count:long
 ;
 
 hivePartitionWhereIsNotNull
-required_capability: external_command
+required_capability: dataset_in_from_command
 dataset: employees_hive: "{{employees_hive}}"
 
 FROM employees_hive
@@ -78,7 +78,7 @@ count:long
 // other partitions. Kleene OR pulls in lang=null/gender=M rows (NULL OR TRUE = TRUE).
 // M rows per partition: 9+11+11+8+7=46 (lang=1,2,4,5,null), plus 17 lang=3.
 hivePartitionOrNonPartitionFilter
-required_capability: external_command
+required_capability: dataset_in_from_command
 dataset: employees_hive: "{{employees_hive}}"
 
 FROM employees_hive
@@ -89,11 +89,15 @@ count:long
 63
 ;
 
-// NOT (lang == 3 OR gender == "M") survives only when both sides are explicitly
-// FALSE: lang in {1,2,4,5} AND gender = "F". F rows: 4+5+6+9 = 24. lang=null and
-// gender=null rows are filtered out by Kleene (NULL → NULL → NOT NULL = NULL).
+// NOT (lang == 3 OR gender == "M") survives when both sides are FALSE: lang in
+// {1,2,4,5} AND gender != "M". The employees fixture stores the empty gender cell as
+// the empty string "" (not null), so those rows have a definite, non-"M" gender and
+// survive alongside the "F" rows. F rows in lang {1,2,4,5}: 4+5+6+9 = 24; ""-gender
+// rows in lang {1,2,4,5}: 2+3+1+4 = 10; total 34. lang=null rows are still filtered
+// out by Kleene (NULL == 3 → NULL → NOT NULL = NULL).
 hivePartitionNotOrFilter
-required_capability: external_command
+required_capability: dataset_in_from_command
+required_capability: external_csv_empty_string_not_null
 dataset: employees_hive: "{{employees_hive}}"
 
 FROM employees_hive
@@ -101,14 +105,14 @@ FROM employees_hive
 | STATS count = COUNT(*);
 
 count:long
-24
+34
 ;
 
 // NOT (lang == 3 AND gender == "M") drops only lang=3 AND gender=M rows (11).
 // lang!=3 rows survive (73). lang=3 gender=F survives (6). lang=null gender=F
 // survives (NULL AND FALSE = FALSE → NOT FALSE = TRUE; 3 rows).
 hivePartitionNotAndFilter
-required_capability: external_command
+required_capability: dataset_in_from_command
 dataset: employees_hive: "{{employees_hive}}"
 
 FROM employees_hive
@@ -119,8 +123,12 @@ count:long
 82
 ;
 
+// The employees fixture stores the empty gender cell as the empty string "" (not null),
+// so each lang partition has a "" gender group that sorts ahead of "F"/"M". Only the
+// lang=null partition has no empty-gender rows.
 hivePartitionStatsByLangAndGender
-required_capability: external_command
+required_capability: dataset_in_from_command
+required_capability: external_csv_empty_string_not_null
 dataset: employees_hive: "{{employees_hive}}"
 
 FROM employees_hive
@@ -128,20 +136,20 @@ FROM employees_hive
 | SORT lang NULLS LAST, gender NULLS LAST;
 
 count:long | lang:integer | gender:keyword
+2          | 1            |
 4          | 1            | F
 9          | 1            | M
-2          | 1            | null
+3          | 2            |
 5          | 2            | F
 11         | 2            | M
-3          | 2            | null
 6          | 3            | F
 11         | 3            | M
+1          | 4            |
 6          | 4            | F
 11         | 4            | M
-1          | 4            | null
+4          | 5            |
 9          | 5            | F
 8          | 5            | M
-4          | 5            | null
 3          | null         | F
 7          | null         | M
 ;

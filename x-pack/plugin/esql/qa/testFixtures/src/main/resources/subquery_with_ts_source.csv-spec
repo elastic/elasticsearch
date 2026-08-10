@@ -276,13 +276,16 @@ required_capability: ts_command_v0
 required_capability: tbucket
 required_capability: aggregate_metric_double_avg_as_default_metric
 
+// tag::multiple_ts_subqueries[]
 FROM
     (TS k8s | STATS max_bytes=max(to_long(network.total_bytes_in)) BY cluster | KEEP cluster, max_bytes),
     (TS k8s-downsampled | STATS max_eth0_tx = max(network.eth0.tx) BY pod | KEEP pod, max_eth0_tx)
 | SORT cluster, pod
 | KEEP cluster, max_bytes, pod, max_eth0_tx
+// end::multiple_ts_subqueries[]
 ;
 
+// tag::multiple_ts_subqueries-result[]
 cluster:keyword | max_bytes:long | pod:keyword | max_eth0_tx:double
 prod            | 10277          | null        | null
 qa              | 10797          | null        | null
@@ -290,8 +293,8 @@ staging         | 7403           | null        | null
 null            | null           | one         | 998.0
 null            | null           | three       | 734.0
 null            | null           | two         | 576.0
+// end::multiple_ts_subqueries-result[]
 ;
-
 
 subqueryInFromWithoutMainIndexPatternWithTsAndFromSubqueries
 required_capability: subquery_in_from_command
@@ -344,6 +347,7 @@ required_capability: subquery_with_ts
 required_capability: subquery_with_row
 required_capability: ts_command_v0
 
+// tag::mixed_source_subqueries[]
 FROM sample_data,
      (FROM sample_data | WHERE client_ip == "172.21.0.5"),
      (TS k8s
@@ -353,8 +357,10 @@ FROM sample_data,
 | WHERE max_bytes IS NOT NULL OR client_ip == "172.21.0.5"
 | SORT max_bytes, cluster, @timestamp
 | KEEP @timestamp, client_ip, cluster, max_bytes
+// end::mixed_source_subqueries[]
 ;
 
+// tag::mixed_source_subqueries-result[]
 @timestamp:datetime      | client_ip:ip | cluster:keyword | max_bytes:long
 null                     | null         | staging         | 7403
 null                     | null         | prod            | 10277
@@ -362,6 +368,7 @@ null                     | null         | qa              | 10797
 null                     | null         | synthetic       | 99999
 2023-10-23T13:33:34.937Z | 172.21.0.5   | null            | null
 2023-10-23T13:33:34.937Z | 172.21.0.5   | null            | null
+// end::mixed_source_subqueries-result[]
 ;
 
 subqueryInFromWithoutMainIndexPatternWithMixedTsRowAndFromSubqueries
@@ -413,6 +420,7 @@ required_capability: subquery_in_from_command
 required_capability: subquery_with_ts
 required_capability: ts_command_v0
 
+// tag::ts_subquery[]
 FROM sample_data,
      (TS k8s
       | STATS max_rate=max(rate(network.total_bytes_in)) BY cluster
@@ -421,8 +429,10 @@ FROM sample_data,
 | WHERE rate_per_minute IS NOT NULL OR client_ip == "172.21.3.15"
 | SORT has_ts, cluster, @timestamp
 | KEEP @timestamp, client_ip, cluster, max_rate, rate_per_minute
+// end::ts_subquery[]
 ;
 
+// tag::ts_subquery-result[]
 @timestamp:datetime      | client_ip:ip | cluster:keyword | max_rate:double | rate_per_minute:double
 2023-10-23T13:51:54.732Z | 172.21.3.15  | null            | null            | null
 2023-10-23T13:52:55.015Z | 172.21.3.15  | null            | null            | null
@@ -431,6 +441,7 @@ FROM sample_data,
 null                     | null         | prod            | 8.7167          | 523.002
 null                     | null         | qa              | 13.1737         | 790.422
 null                     | null         | staging         | 7.3776          | 442.656
+// end::ts_subquery-result[]
 ;
 
 subqueryInFromWithTsSubqueryWithRenameInSubquery

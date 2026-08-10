@@ -45,6 +45,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 
 import static org.elasticsearch.common.bytes.BytesReference.bytes;
+import static org.elasticsearch.index.codec.vectors.VectorTestUtils.randomFloatVector;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.mockito.Mockito.mock;
@@ -250,7 +251,7 @@ public class HollowIndexEngineTests extends EngineTestCase {
 
             try (IndexEngine engine = newIndexEngine(engineConfig)) {
                 for (int i = 0; i < numDocs; i++) {
-                    var denseVectorSource = JsonXContent.contentBuilder().startObject().array("dv", randomVector(3)).endObject();
+                    var denseVectorSource = JsonXContent.contentBuilder().startObject().array("dv", randomFloatVector(3)).endObject();
                     var denseVectorDoc = documentMapper.parse(new SourceToParse("dv_" + i, bytes(denseVectorSource), XContentType.JSON));
                     engine.index(indexForDoc(denseVectorDoc));
 
@@ -277,14 +278,6 @@ public class HollowIndexEngineTests extends EngineTestCase {
                 assertThat(e.sparseVectorStats(mappingLookup).getValueCount(), equalTo(0L)); // should be empty for hollow shards
             }
         }
-    }
-
-    private static float[] randomVector(int numDimensions) {
-        float[] vector = new float[numDimensions];
-        for (int j = 0; j < numDimensions; j++) {
-            vector[j] = randomPositiveFloat();
-        }
-        return vector;
     }
 
     private static float randomPositiveFloat() {

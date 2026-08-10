@@ -29,8 +29,8 @@ public final class ScanningBinaryDocValuesPrefixQuery extends AbstractBinaryDocV
     private final String prefix;
     private final boolean caseInsensitive;
 
-    public ScanningBinaryDocValuesPrefixQuery(String fieldName, String prefix, boolean caseInsensitive) {
-        super(fieldName, buildMatcher(Objects.requireNonNull(prefix), caseInsensitive));
+    public ScanningBinaryDocValuesPrefixQuery(String fieldName, String prefix, boolean caseInsensitive, boolean arrayOrderInlineNull) {
+        super(fieldName, buildMatcher(Objects.requireNonNull(prefix), caseInsensitive), arrayOrderInlineNull);
         this.prefix = prefix;
         this.caseInsensitive = caseInsensitive;
     }

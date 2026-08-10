@@ -169,6 +169,7 @@ public final class ParserUtils {
         int tokenType = token.getType();
         return switch (tokenType) {
             case PromqlBaseLexer.NAMED_OR_POSITIONAL_PARAM -> token.getText().substring(SINGLE_PARAM);
+            case PromqlBaseLexer.NAMED_OR_POSITIONAL_DOUBLE_PARAMS -> token.getText().substring(DOUBLE_PARAM);
             default -> EMPTY;
         };
     }

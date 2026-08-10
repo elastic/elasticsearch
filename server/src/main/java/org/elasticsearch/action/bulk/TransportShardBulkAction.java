@@ -202,7 +202,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         if (ShardBatchIndexer.canUseBatchIndexing(request, batchIndexingEnabled)) {
             ShardBatchIndexer.performBatchIndexOnPrimary(
                 request.items(),
-                request.getBulkShardBatch().getEirfBatch(),
+                request.getBulkShardBatch().getBatch(),
                 context,
                 listener.delegateFailure((delegate, ctx) -> {
                     if (context.hasMoreOperationsToExecute() == false) {
@@ -502,6 +502,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             result = primary.applyDeleteOperationOnPrimary(
                 version,
                 request.id(),
+                request.routing(),
                 request.versionType(),
                 request.ifSeqNo(),
                 request.ifPrimaryTerm()
@@ -764,7 +765,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             if (ShardBatchIndexer.canUseBatchIndexing(request, batchIndexingEnabled)) {
                 ShardBatchIndexer.ReplicaBatchResult batchResult = ShardBatchIndexer.performBatchIndexOnReplica(
                     request.items(),
-                    request.getBulkShardBatch().getEirfBatch(),
+                    request.getBulkShardBatch().getBatch(),
                     replica
                 );
                 if (batchResult.processedItems() < request.items().length) {
@@ -868,7 +869,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     primaryResponse.getSeqNo(),
                     primaryResponse.getPrimaryTerm(),
                     primaryResponse.getVersion(),
-                    deleteRequest.id()
+                    deleteRequest.id(),
+                    deleteRequest.routing()
                 );
             }
             default -> {

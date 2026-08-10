@@ -2,15 +2,15 @@
 
 ### `approximation` [esql-approximation]
 ```{applies_to}
-serverless: preview
-stack: preview 9.4.0
+serverless: ga
+stack: ga 9.5+, preview =9.4
 ```
 Enables [query approximation](/reference/query-languages/esql/esql-query-approximation.md) if possible for the query. A boolean value `false` (default) disables query approximation and `true` enables it with default settings. Map values enable query approximation with custom settings.
 
 **Type**: `boolean` `map_param`
 
-Map entries: 
-    - `rows` (`[integer]`): Number of sampled rows used for approximating the query. Must be at least 10,000. Null uses the system default.
+Map entries:
+- `rows` (`[integer]`): Number of sampled rows used for approximating the query. Must be at least 10,000. Null uses the system default.
 - `confidence_level` (`[double]`): Confidence level of the computed confidence intervals. Default is 0.90. Null disables computing confidence intervals.
 
 

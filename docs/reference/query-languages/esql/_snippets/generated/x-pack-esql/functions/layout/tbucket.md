@@ -2,6 +2,7 @@
 
 ```{applies_to}
 stack: ga 9.2.0
+serverless: ga
 ```
 
 
@@ -23,6 +24,9 @@ stack: ga 9.2.0
 :::
 
 :::{include} ../types/tbucket.md
+:::
+
+:::{include} ../functionNamedParams/tbucket.md
 :::
 
 :::{include} ../examples/tbucket.md

@@ -15,18 +15,24 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.SettingsConfiguration;
+import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.common.oauth2.BaseOAuth2Settings;
 import org.elasticsearch.xpack.inference.common.oauth2.OAuth2Settings;
 
 import java.io.IOException;
 import java.net.URI;
+import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.inference.common.oauth2.OAuth2Settings.OAUTH2_SETTINGS_NOT_CONFIGURED_ERROR;
+import static org.elasticsearch.xpack.inference.common.oauth2.OAuth2Settings.getOAuth2Configurations;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.convertToUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalUri;
@@ -47,6 +53,7 @@ public class OpenAiOAuth2Settings extends BaseOAuth2Settings {
     public static final Set<String> REQUIRED_FIELDS = Sets.addToCopy(OAuth2Settings.REQUIRED_FIELDS, TOKEN_URL);
     public static final String REQUIRED_FIELDS_DESCRIPTION = requiredFieldsDescription(REQUIRED_FIELDS);
 
+    private static final String TOKEN_URL_CONFIG_DESCRIPTION = "The absolute URL of the OAuth2 token endpoint.";
     private static final String SERVICE_DESCRIPTION = "OpenAI";
 
     private final URI tokenUrl;
@@ -154,5 +161,23 @@ public class OpenAiOAuth2Settings extends BaseOAuth2Settings {
     @Override
     public int hashCode() {
         return Objects.hash(oAuth2Settings, tokenUrl);
+    }
+
+    public static Map<String, SettingsConfiguration> configurations(EnumSet<TaskType> supportedTaskTypes) {
+        var config = new HashMap<>(
+            Map.of(
+                TOKEN_URL,
+                new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(TOKEN_URL_CONFIG_DESCRIPTION)
+                    .setLabel("OAuth2 Token URL")
+                    .setRequired(false)
+                    .setSensitive(false)
+                    .setUpdatable(true)
+                    .setType(SettingsConfigurationFieldType.STRING)
+                    .build()
+            )
+        );
+
+        config.putAll(getOAuth2Configurations(supportedTaskTypes));
+        return config;
     }
 }

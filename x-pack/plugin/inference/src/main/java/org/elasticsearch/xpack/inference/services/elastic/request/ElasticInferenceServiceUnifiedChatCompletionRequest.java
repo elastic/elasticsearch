@@ -15,6 +15,7 @@ import org.apache.http.message.BasicHeader;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.inference.common.InferencePreferences;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.external.request.OutboundUnifiedCompletionRequest;
@@ -40,9 +41,10 @@ public class ElasticInferenceServiceUnifiedChatCompletionRequest extends Elastic
         ElasticInferenceServiceCompletionModel model,
         TraceContext traceContext,
         ElasticInferenceServiceRequestMetadata requestMetadata,
+        InferencePreferences preferences,
         CCMAuthenticationApplierFactory.AuthApplier authApplier
     ) {
-        super(requestMetadata, authApplier);
+        super(requestMetadata, preferences, authApplier);
         this.unifiedChatInput = Objects.requireNonNull(unifiedChatInput);
         this.model = Objects.requireNonNull(model);
         this.traceContextHandler = new TraceContextHandler(traceContext);

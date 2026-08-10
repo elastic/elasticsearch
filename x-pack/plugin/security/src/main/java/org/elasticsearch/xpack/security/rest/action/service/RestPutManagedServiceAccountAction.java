@@ -32,11 +32,7 @@ public class RestPutManagedServiceAccountAction extends SecurityBaseRestHandler 
 
     private final boolean managedServiceAccountsAvailable;
 
-    public RestPutManagedServiceAccountAction(
-        Settings settings,
-        XPackLicenseState licenseState,
-        boolean managedServiceAccountsAvailable
-    ) {
+    public RestPutManagedServiceAccountAction(Settings settings, XPackLicenseState licenseState, boolean managedServiceAccountsAvailable) {
         super(settings, licenseState);
         this.managedServiceAccountsAvailable = managedServiceAccountsAvailable;
     }

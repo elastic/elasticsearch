@@ -33,6 +33,7 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.compute.querydsl.query.QueryWarnings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
@@ -190,7 +191,41 @@ public abstract class LuceneOperator extends SourceOperator {
                 directoryBytesRead,
                 minDocsPerSlice,
                 LuceneSliceQueue.LeafSplitGuard.NEVER,
-                singleValueQueryWarnings
+                singleValueQueryWarnings,
+                null
+            );
+        }
+
+        protected Factory(
+            IndexedByShardId<? extends ShardContext> contextsByShardId,
+            Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction,
+            DataPartitioning dataPartitioning,
+            BiFunction<ShardContext, Query, LuceneSliceQueue.PartitioningStrategy> autoStrategy,
+            int docThresholdForAutoStrategy,
+            int taskConcurrency,
+            int limit,
+            boolean needsScore,
+            Function<ShardContext, ScoreMode> scoreModeFunction,
+            LongSupplier directoryBytesRead,
+            int minDocsPerSlice,
+            QueryWarnings singleValueQueryWarnings,
+            @Nullable LuceneSliceQueue.SlicePriority slicePriority
+        ) {
+            this(
+                contextsByShardId,
+                queryFunction,
+                dataPartitioning,
+                autoStrategy,
+                docThresholdForAutoStrategy,
+                taskConcurrency,
+                limit,
+                needsScore,
+                scoreModeFunction,
+                directoryBytesRead,
+                minDocsPerSlice,
+                LuceneSliceQueue.LeafSplitGuard.NEVER,
+                singleValueQueryWarnings,
+                slicePriority
             );
         }
 
@@ -209,6 +244,40 @@ public abstract class LuceneOperator extends SourceOperator {
             LuceneSliceQueue.LeafSplitGuard leafSplitGuard,
             QueryWarnings singleValueQueryWarnings
         ) {
+            this(
+                contextsByShardId,
+                queryFunction,
+                dataPartitioning,
+                autoStrategy,
+                docThresholdForAutoStrategy,
+                taskConcurrency,
+                limit,
+                needsScore,
+                scoreModeFunction,
+                directoryBytesRead,
+                minDocsPerSlice,
+                leafSplitGuard,
+                singleValueQueryWarnings,
+                null
+            );
+        }
+
+        protected Factory(
+            IndexedByShardId<? extends ShardContext> contextsByShardId,
+            Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction,
+            DataPartitioning dataPartitioning,
+            BiFunction<ShardContext, Query, LuceneSliceQueue.PartitioningStrategy> autoStrategy,
+            int docThresholdForAutoStrategy,
+            int taskConcurrency,
+            int limit,
+            boolean needsScore,
+            Function<ShardContext, ScoreMode> scoreModeFunction,
+            LongSupplier directoryBytesRead,
+            int minDocsPerSlice,
+            LuceneSliceQueue.LeafSplitGuard leafSplitGuard,
+            QueryWarnings singleValueQueryWarnings,
+            @Nullable LuceneSliceQueue.SlicePriority slicePriority
+        ) {
             this.directoryBytesRead = directoryBytesRead;
             this.singleValueQueryWarnings = singleValueQueryWarnings;
             this.limit = limit;
@@ -222,7 +291,8 @@ public abstract class LuceneOperator extends SourceOperator {
                 taskConcurrency,
                 scoreModeFunction,
                 leafSplitGuard,
-                minDocsPerSlice
+                minDocsPerSlice,
+                slicePriority
             );
             this.taskConcurrency = Math.min(sliceQueue.totalSlices(), taskConcurrency);
             this.needsScore = needsScore;

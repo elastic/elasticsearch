@@ -302,6 +302,13 @@ public class PlannerSettings {
         Setting.Property.Dynamic
     );
 
+    public static final Setting<Boolean> MIN_COMPETITIVE_SLICE_ORDER_BY_TIMESTAMP = Setting.boolSetting(
+        "esql.min_competitive.slice_order_by_timestamp.enabled",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     public static List<Setting<?>> settings() {
         return List.of(
             DEFAULT_DATA_PARTITIONING,
@@ -325,7 +332,8 @@ public class PlannerSettings {
             PARALLEL_OPERATOR_MAX_WORKERS,
             IN_SUBQUERY_HASH_JOIN_THRESHOLD,
             MIN_COMPETITIVE_GLOBAL_MERGE_ENABLED,
-            MIN_COMPETITIVE_GLOBAL_MERGE_BATCH_PAGES
+            MIN_COMPETITIVE_GLOBAL_MERGE_BATCH_PAGES,
+            MIN_COMPETITIVE_SLICE_ORDER_BY_TIMESTAMP
         );
     }
 
@@ -394,6 +402,10 @@ public class PlannerSettings {
                 MIN_COMPETITIVE_GLOBAL_MERGE_BATCH_PAGES,
                 v -> settings.updateAndGet(s -> s.minCompetitiveGlobalMergeBatchPages(v))
             );
+            clusterSettings.initializeAndWatch(
+                MIN_COMPETITIVE_SLICE_ORDER_BY_TIMESTAMP,
+                v -> settings.updateAndGet(s -> s.minCompetitiveSliceOrderByTimestampEnabled(v))
+            );
         }
 
         public PlannerSettings get() {
@@ -422,6 +434,7 @@ public class PlannerSettings {
     private final int inSubqueryHashJoinThreshold;
     private final boolean minCompetitiveGlobalMergeEnabled;
     private final int minCompetitiveGlobalMergeBatchPages;
+    private final boolean minCompetitiveSliceOrderByTimestampEnabled;
 
     /**
      * Defaults.
@@ -447,7 +460,8 @@ public class PlannerSettings {
         PARALLEL_OPERATOR_MAX_WORKERS.getDefault(Settings.EMPTY),
         IN_SUBQUERY_HASH_JOIN_THRESHOLD.getDefault(Settings.EMPTY),
         MIN_COMPETITIVE_GLOBAL_MERGE_ENABLED.getDefault(Settings.EMPTY),
-        MIN_COMPETITIVE_GLOBAL_MERGE_BATCH_PAGES.getDefault(Settings.EMPTY)
+        MIN_COMPETITIVE_GLOBAL_MERGE_BATCH_PAGES.getDefault(Settings.EMPTY),
+        MIN_COMPETITIVE_SLICE_ORDER_BY_TIMESTAMP.getDefault(Settings.EMPTY)
     );
 
     /**
@@ -474,7 +488,8 @@ public class PlannerSettings {
         int parallelTopNMaxWorkers,
         int inSubqueryHashJoinThreshold,
         boolean minCompetitiveGlobalMergeEnabled,
-        int minCompetitiveGlobalMergeBatchPages
+        int minCompetitiveGlobalMergeBatchPages,
+        boolean minCompetitiveSliceOrderByTimestampEnabled
     ) {
         this.defaultDataPartitioning = defaultDataPartitioning;
         this.docsThresholdForAutoPartitioning = docsThresholdForAutoPartitioning;
@@ -497,6 +512,7 @@ public class PlannerSettings {
         this.inSubqueryHashJoinThreshold = inSubqueryHashJoinThreshold;
         this.minCompetitiveGlobalMergeEnabled = minCompetitiveGlobalMergeEnabled;
         this.minCompetitiveGlobalMergeBatchPages = minCompetitiveGlobalMergeBatchPages;
+        this.minCompetitiveSliceOrderByTimestampEnabled = minCompetitiveSliceOrderByTimestampEnabled;
     }
 
     public PlannerSettings defaultDataPartitioning(DataPartitioning defaultDataPartitioning) {
@@ -521,7 +537,8 @@ public class PlannerSettings {
             parallelTopNMaxWorkers,
             inSubqueryHashJoinThreshold,
             minCompetitiveGlobalMergeEnabled,
-            minCompetitiveGlobalMergeBatchPages
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveSliceOrderByTimestampEnabled
         );
     }
 
@@ -551,7 +568,8 @@ public class PlannerSettings {
             parallelTopNMaxWorkers,
             inSubqueryHashJoinThreshold,
             minCompetitiveGlobalMergeEnabled,
-            minCompetitiveGlobalMergeBatchPages
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveSliceOrderByTimestampEnabled
         );
     }
 
@@ -581,7 +599,8 @@ public class PlannerSettings {
             parallelTopNMaxWorkers,
             inSubqueryHashJoinThreshold,
             minCompetitiveGlobalMergeEnabled,
-            minCompetitiveGlobalMergeBatchPages
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveSliceOrderByTimestampEnabled
         );
     }
 
@@ -625,7 +644,8 @@ public class PlannerSettings {
             parallelTopNMaxWorkers,
             inSubqueryHashJoinThreshold,
             minCompetitiveGlobalMergeEnabled,
-            minCompetitiveGlobalMergeBatchPages
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveSliceOrderByTimestampEnabled
         );
     }
 
@@ -655,7 +675,8 @@ public class PlannerSettings {
             parallelTopNMaxWorkers,
             inSubqueryHashJoinThreshold,
             minCompetitiveGlobalMergeEnabled,
-            minCompetitiveGlobalMergeBatchPages
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveSliceOrderByTimestampEnabled
         );
     }
 
@@ -685,7 +706,8 @@ public class PlannerSettings {
             parallelTopNMaxWorkers,
             inSubqueryHashJoinThreshold,
             minCompetitiveGlobalMergeEnabled,
-            minCompetitiveGlobalMergeBatchPages
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveSliceOrderByTimestampEnabled
         );
     }
 
@@ -715,7 +737,8 @@ public class PlannerSettings {
             parallelTopNMaxWorkers,
             inSubqueryHashJoinThreshold,
             minCompetitiveGlobalMergeEnabled,
-            minCompetitiveGlobalMergeBatchPages
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveSliceOrderByTimestampEnabled
         );
     }
 
@@ -745,7 +768,8 @@ public class PlannerSettings {
             parallelTopNMaxWorkers,
             inSubqueryHashJoinThreshold,
             minCompetitiveGlobalMergeEnabled,
-            minCompetitiveGlobalMergeBatchPages
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveSliceOrderByTimestampEnabled
         );
     }
 
@@ -782,7 +806,8 @@ public class PlannerSettings {
             parallelTopNMaxWorkers,
             inSubqueryHashJoinThreshold,
             minCompetitiveGlobalMergeEnabled,
-            minCompetitiveGlobalMergeBatchPages
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveSliceOrderByTimestampEnabled
         );
     }
 
@@ -815,7 +840,8 @@ public class PlannerSettings {
             parallelTopNMaxWorkers,
             inSubqueryHashJoinThreshold,
             minCompetitiveGlobalMergeEnabled,
-            minCompetitiveGlobalMergeBatchPages
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveSliceOrderByTimestampEnabled
         );
     }
 
@@ -848,7 +874,8 @@ public class PlannerSettings {
             parallelTopNMaxWorkers,
             inSubqueryHashJoinThreshold,
             minCompetitiveGlobalMergeEnabled,
-            minCompetitiveGlobalMergeBatchPages
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveSliceOrderByTimestampEnabled
         );
     }
 
@@ -878,7 +905,8 @@ public class PlannerSettings {
             parallelTopNMaxWorkers,
             inSubqueryHashJoinThreshold,
             minCompetitiveGlobalMergeEnabled,
-            minCompetitiveGlobalMergeBatchPages
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveSliceOrderByTimestampEnabled
         );
     }
 
@@ -908,7 +936,8 @@ public class PlannerSettings {
             parallelTopNMaxWorkers,
             inSubqueryHashJoinThreshold,
             minCompetitiveGlobalMergeEnabled,
-            minCompetitiveGlobalMergeBatchPages
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveSliceOrderByTimestampEnabled
         );
     }
 
@@ -938,7 +967,8 @@ public class PlannerSettings {
             parallelTopNMaxWorkers,
             inSubqueryHashJoinThreshold,
             minCompetitiveGlobalMergeEnabled,
-            minCompetitiveGlobalMergeBatchPages
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveSliceOrderByTimestampEnabled
         );
     }
 
@@ -968,7 +998,8 @@ public class PlannerSettings {
             parallelTopNMaxWorkers,
             inSubqueryHashJoinThreshold,
             minCompetitiveGlobalMergeEnabled,
-            minCompetitiveGlobalMergeBatchPages
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveSliceOrderByTimestampEnabled
         );
     }
 
@@ -998,7 +1029,8 @@ public class PlannerSettings {
             parallelTopNMaxWorkers,
             inSubqueryHashJoinThreshold,
             minCompetitiveGlobalMergeEnabled,
-            minCompetitiveGlobalMergeBatchPages
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveSliceOrderByTimestampEnabled
         );
     }
 
@@ -1028,7 +1060,8 @@ public class PlannerSettings {
             parallelTopNMaxWorkers,
             inSubqueryHashJoinThreshold,
             minCompetitiveGlobalMergeEnabled,
-            minCompetitiveGlobalMergeBatchPages
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveSliceOrderByTimestampEnabled
         );
     }
 
@@ -1058,7 +1091,8 @@ public class PlannerSettings {
             parallelTopNMaxWorkers,
             inSubqueryHashJoinThreshold,
             minCompetitiveGlobalMergeEnabled,
-            minCompetitiveGlobalMergeBatchPages
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveSliceOrderByTimestampEnabled
         );
     }
 
@@ -1088,7 +1122,8 @@ public class PlannerSettings {
             parallelTopNMaxWorkers,
             inSubqueryHashJoinThreshold,
             minCompetitiveGlobalMergeEnabled,
-            minCompetitiveGlobalMergeBatchPages
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveSliceOrderByTimestampEnabled
         );
     }
 
@@ -1118,7 +1153,8 @@ public class PlannerSettings {
             parallelTopNMaxWorkers,
             inSubqueryHashJoinThreshold,
             minCompetitiveGlobalMergeEnabled,
-            minCompetitiveGlobalMergeBatchPages
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveSliceOrderByTimestampEnabled
         );
     }
 
@@ -1148,7 +1184,8 @@ public class PlannerSettings {
             parallelTopNMaxWorkers,
             inSubqueryHashJoinThreshold,
             minCompetitiveGlobalMergeEnabled,
-            minCompetitiveGlobalMergeBatchPages
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveSliceOrderByTimestampEnabled
         );
     }
 
@@ -1156,4 +1193,34 @@ public class PlannerSettings {
         return minCompetitiveGlobalMergeBatchPages;
     }
 
+    public PlannerSettings minCompetitiveSliceOrderByTimestampEnabled(boolean minCompetitiveSliceOrderByTimestampEnabled) {
+        return new PlannerSettings(
+            defaultDataPartitioning,
+            docsThresholdForAutoPartitioning,
+            valuesLoadingJumboSize,
+            luceneTopNLimit,
+            intermediateLocalRelationMaxSize,
+            partialEmitKeysThreshold,
+            partialEmitUniquenessThreshold,
+            timeSeriesTargetChunkRows,
+            reuseColumnLoadersThreshold,
+            blockLoaderSizeOrdinals,
+            blockLoaderSizeScript,
+            maxKeywordSortFields,
+            sourceReservationFactor,
+            bytesRefRamOverestimateThreshold,
+            bytesRefRamOverestimateFactor,
+            docSequenceBytesRefFieldThreshold,
+            parallelTopNPromotionThresholdRows,
+            parallelTopNMaxWorkers,
+            inSubqueryHashJoinThreshold,
+            minCompetitiveGlobalMergeEnabled,
+            minCompetitiveGlobalMergeBatchPages,
+            minCompetitiveSliceOrderByTimestampEnabled
+        );
+    }
+
+    public boolean minCompetitiveSliceOrderByTimestampEnabled() {
+        return minCompetitiveSliceOrderByTimestampEnabled;
+    }
 }

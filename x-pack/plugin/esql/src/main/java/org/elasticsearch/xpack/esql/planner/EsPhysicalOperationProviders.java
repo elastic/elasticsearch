@@ -513,6 +513,11 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             var autoStrategy = context.timeSeries()
                 ? context.autoPartitioningStrategy()
                 : LuceneSourceOperator.Factory.autoStrategy(minCostForDoc);
+            LuceneMinCompetitivePilot minCompetitivePilot = context.luceneMinCompetitivePilot().get();
+            LuceneSliceQueue.SlicePriority slicePriority = null;
+            if (minCompetitivePilot != null && plannerSettings.minCompetitiveSliceOrderByTimestampEnabled()) {
+                slicePriority = new LuceneSliceQueue.SlicePriority(minCompetitivePilot.sortFieldName(), true);
+            }
             luceneFactory = new LuceneSourceOperator.Factory(
                 shardContexts,
                 querySupplier(esQueryExec.queryBuilderAndTags()),
@@ -526,7 +531,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 directoryBytesRead,
                 context.queryPragmas().minDocsPerSlice(LuceneSliceQueue.MIN_DOCS_PER_SLICE),
                 singleValueQueryWarnings,
-                planMinCompetitive(context.luceneMinCompetitivePilot().get())
+                planMinCompetitive(minCompetitivePilot),
+                slicePriority
             );
         }
         Layout.Builder layout = new Layout.Builder();

@@ -8,12 +8,14 @@
 package org.elasticsearch.compute.lucene.query;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -90,6 +92,11 @@ public final class LuceneSliceQueue {
      * Query to run and tags to add to the results.
      */
     public record QueryAndTags(Query query, List<Object> tags) {}
+
+    /**
+     * Pilot: prioritize slices whose segments have higher point-indexed values for {@code fieldName}.
+     */
+    public record SlicePriority(String fieldName, boolean descending) {}
 
     public static final int MAX_DOCS_PER_SLICE = 250_000; // copied from IndexSearcher
     public static final int MAX_SEGMENTS_PER_SLICE = 5; // copied from IndexSearcher
@@ -296,6 +303,32 @@ public final class LuceneSliceQueue {
         LeafSplitGuard leafSplitGuard,
         int minDocsPerSlice
     ) {
+        return create(
+            contexts,
+            queryFunction,
+            dataPartitioning,
+            autoStrategy,
+            docThresholdForAutoStrategy,
+            taskConcurrency,
+            scoreModeFunction,
+            leafSplitGuard,
+            minDocsPerSlice,
+            null
+        );
+    }
+
+    public static LuceneSliceQueue create(
+        IndexedByShardId<? extends ShardContext> contexts,
+        Function<ShardContext, List<QueryAndTags>> queryFunction,
+        DataPartitioning dataPartitioning,
+        BiFunction<ShardContext, Query, PartitioningStrategy> autoStrategy,
+        int docThresholdForAutoStrategy,
+        int taskConcurrency,
+        Function<ShardContext, ScoreMode> scoreModeFunction,
+        LeafSplitGuard leafSplitGuard,
+        int minDocsPerSlice,
+        @Nullable SlicePriority slicePriority
+    ) {
         List<LuceneSlice> slices = new ArrayList<>();
         Map<String, PartitioningStrategy> partitioningStrategies = new HashMap<>();
 
@@ -365,7 +398,56 @@ public final class LuceneSliceQueue {
                 ctx.stats().accumulateSearchLoad(now - startShard, now);
             }
         }
+        if (slicePriority != null) {
+            reorderSlicesByPointFieldMax(slices, slicePriority.fieldName(), slicePriority.descending());
+        }
         return new LuceneSliceQueue(contexts::get, slices, partitioningStrategies);
+    }
+
+    static void reorderSlicesByPointFieldMax(List<LuceneSlice> slices, String fieldName, boolean descending) {
+        if (slices.size() <= 1) {
+            return;
+        }
+        List<LuceneSlice> sorted = new ArrayList<>(slices.size());
+        slices.stream().sorted((lhs, rhs) -> {
+            int cmp = Long.compare(sliceMaxPointValue(lhs, fieldName), sliceMaxPointValue(rhs, fieldName));
+            return descending ? -cmp : cmp;
+        })
+            .forEachOrdered(
+                slice -> sorted.add(
+                    new LuceneSlice(
+                        sorted.size(),
+                        slice.queryHead(),
+                        slice.shardContext(),
+                        slice.leaves(),
+                        slice.weight(),
+                        slice.tags(),
+                        slice.blockedOnCaching()
+                    )
+                )
+            );
+        slices.clear();
+        slices.addAll(sorted);
+    }
+
+    static long sliceMaxPointValue(LuceneSlice slice, String fieldName) {
+        long max = Long.MIN_VALUE;
+        for (PartialLeafReaderContext partialLeaf : slice.leaves()) {
+            max = Math.max(max, leafMaxPointValue(partialLeaf.leafReaderContext(), fieldName));
+        }
+        return max;
+    }
+
+    private static long leafMaxPointValue(LeafReaderContext leaf, String fieldName) {
+        try {
+            PointValues pointValues = leaf.reader().getPointValues(fieldName);
+            if (pointValues == null) {
+                return Long.MIN_VALUE;
+            }
+            return NumericUtils.sortableBytesToLong(pointValues.getMaxPackedValue(), 0);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     /**

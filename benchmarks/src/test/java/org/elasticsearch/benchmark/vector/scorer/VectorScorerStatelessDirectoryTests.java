@@ -23,6 +23,7 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.lang.foreign.Arena;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.lang.foreign.ValueLayout.ADDRESS;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.supportsHeapSegments;
@@ -33,8 +34,8 @@ import static org.hamcrest.Matchers.startsWith;
  * Covers the {@link DirectoryType#STATELESS_INDEX_LOCAL} arm of the vector scorer benchmarks, which reads through a
  * {@code ReopeningIndexInput} the way a stateless indexing node does when a merge reopens a just-written flat vector file.
  *
- * <p>Two properties are asserted: that the arm really is on the degraded read path (everything the benchmark measures is
- * downstream of that one fact), and that the heap-copy fallback it forces still produces the same scores as the zero-copy
+ * <p>Two properties are asserted: that the arm reaches the vector data through {@link DirectAccessInput} rather than through a heap
+ * copy (everything the benchmark measures is downstream of that one fact), and that it produces the same scores as the
  * memory-mapped path.
  */
 public class VectorScorerStatelessDirectoryTests extends BenchmarkTest {
@@ -51,11 +52,10 @@ public class VectorScorerStatelessDirectoryTests extends BenchmarkTest {
 
     /**
      * A file written to the directory and not yet uploaded is read back through a {@code ReopeningIndexInput}, wrapped in
-     * the same {@link StoreMetricsIndexInput} a real shard sees. That input is a {@link DirectAccessInput}, but both
-     * zero-copy routes decline, which is what pushes {@code IndexInputUtils} onto the heap-copy fallback (and, for the
-     * bulk gather, onto no fallback at all).
+     * the same {@link StoreMetricsIndexInput} a real shard sees. Both zero-copy routes resolve through that chain down to
+     * the memory-mapped delegate, so {@code IndexInputUtils} never reaches its heap-copy fallback.
      */
-    public void testLocalFileIsReadWithoutDirectAccess() throws IOException {
+    public void testLocalFileIsReadWithDirectAccess() throws IOException {
         try (Directory dir = DirectoryType.STATELESS_INDEX_LOCAL.newDirectory(createTempDir())) {
             try (IndexOutput out = dir.createOutput("vector.data", IOContext.DEFAULT)) {
                 out.writeBytes(new byte[64], 64);
@@ -65,18 +65,15 @@ public class VectorScorerStatelessDirectoryTests extends BenchmarkTest {
                 assertThat(asInstanceOf(FilterIndexInput.class, in).getDelegate().toString(), startsWith("ReopeningIndexInput"));
 
                 var directAccess = asInstanceOf(DirectAccessInput.class, in);
-                assertFalse(directAccess.withMemorySegmentSlice(0, 64, segment -> fail("must not take the zero-copy path")));
+                var invoked = new AtomicBoolean();
+                assertTrue(directAccess.withMemorySegmentSlice(0, 64, segment -> invoked.set(true)));
+                assertTrue("the zero-copy path was not taken", invoked.get());
+
                 try (Arena arena = Arena.ofConfined()) {
                     var addresses = arena.allocate(2 * ADDRESS.byteSize(), ADDRESS.byteAlignment());
-                    assertFalse(
-                        directAccess.withSliceAddresses(
-                            new long[] { 0, 32 },
-                            32,
-                            2,
-                            addresses,
-                            segment -> fail("must not take the bulk gather path")
-                        )
-                    );
+                    invoked.set(false);
+                    assertTrue(directAccess.withSliceAddresses(new long[] { 0, 32 }, 32, 2, addresses, segment -> invoked.set(true)));
+                    assertTrue("the bulk gather path was not taken", invoked.get());
                 }
             }
         }
@@ -103,7 +100,7 @@ public class VectorScorerStatelessDirectoryTests extends BenchmarkTest {
         throws IOException {
         var bench = new VectorScorerInt4BulkBenchmark();
         bench.function = VectorSimilarityType.DOT_PRODUCT;
-        // only the native scorers route through IndexInputUtils; the others never reach the degraded path
+        // only the native scorers route through IndexInputUtils; the others never reach it
         bench.implementation = VectorImplementation.NATIVE;
         bench.directoryType = directoryType;
         bench.dims = DIMS;

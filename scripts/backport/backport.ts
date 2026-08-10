@@ -9,7 +9,9 @@ const MUTED_TESTS_FILE = "muted-tests.yml";
 await backportRun({
   options: {
     autoFixConflicts({ files, directory }) {
-      if (!files.some((f) => basename(f) === MUTED_TESTS_FILE)) return false;
+      if (!files.some((f) => basename(f) === MUTED_TESTS_FILE)) {
+        return false;
+      }
 
       try {
         const diff = execSync(
@@ -18,7 +20,9 @@ await backportRun({
         );
 
         const removedBlocks = parseRemovedBlocks(diff);
-        if (!removedBlocks || removedBlocks.length === 0) return false;
+        if (!removedBlocks || removedBlocks.length === 0) {
+          return false;
+        }
 
         // Reset to the target branch's clean version to eliminate conflict markers.
         execSync(`git checkout HEAD -- ${MUTED_TESTS_FILE}`, {

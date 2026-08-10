@@ -250,12 +250,7 @@ final class SvdUtil {
         for (int iter = 0; iter < iterations; iter++) {
             // mv = M @ v
             for (int i = 0; i < k; i++) {
-                float sum = 0;
-                int base = i * k;
-                for (int j = 0; j < k; j++) {
-                    sum = Math.fma(m[base + j], v[j], sum);
-                }
-                mv[i] = sum;
+                mv[i] = ESVectorUtil.dotProduct(m, i * k, v, 0, k);
             }
             // mtmv = M^T @ mv
             double normSq = 0;
@@ -277,11 +272,7 @@ final class SvdUtil {
         // Compute ||M @ v|| which approximates sigma_max
         double mvNormSq = 0;
         for (int i = 0; i < k; i++) {
-            double sum = 0;
-            int base = i * k;
-            for (int j = 0; j < k; j++) {
-                sum = Math.fma(m[base + j], v[j], sum);
-            }
+            double sum = ESVectorUtil.dotProduct(m, i * k, v, 0, k);
             mvNormSq += sum * sum;
         }
         return (float) Math.sqrt(mvNormSq);
@@ -368,12 +359,7 @@ final class SvdUtil {
                 int aBase = i * n;
                 int wBase = i * k;
                 for (int j = 0; j < k; j++) {
-                    float sum = 0;
-                    int vtBase = j * n;
-                    for (int d = 0; d < n; d++) {
-                        sum = Math.fma(a[aBase + d], vT[vtBase + d], sum);
-                    }
-                    w[wBase + j] = sum;
+                    w[wBase + j] = ESVectorUtil.dotProduct(a, aBase, vT, j * n, n);
                 }
             }
 

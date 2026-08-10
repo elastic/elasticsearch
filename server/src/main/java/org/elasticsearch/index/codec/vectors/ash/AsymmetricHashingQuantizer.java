@@ -180,12 +180,7 @@ public final class AsymmetricHashingQuantizer {
         int nDims = wT.length / originalDim;
         float[] centroidProjected = new float[nDims];
         for (int j = 0; j < nDims; j++) {
-            float sum = 0;
-            int base = j * originalDim;
-            for (int d = 0; d < originalDim; d++) {
-                sum = Math.fma(centroid[d], wT[base + d], sum);
-            }
-            centroidProjected[j] = sum;
+            centroidProjected[j] = ESVectorUtil.dotProduct(centroid, 0, wT, j * originalDim, originalDim);
         }
         float centroidNormSq = ESVectorUtil.dotProduct(centroid, centroid);
         return new PrecomputedCentroid(centroidProjected, centroidNormSq);
@@ -209,14 +204,10 @@ public final class AsymmetricHashingQuantizer {
         var centered = centralizeVector(vector, centroid);
 
         // Project using transposed W: xLatent[j] = dot(centered, wT[j])
+        float[] normalizedCentered = centered.normalized();
         float[] xLatent = new float[nDims];
         for (int j = 0; j < nDims; j++) {
-            float sum = 0;
-            int base = j * originalDim;
-            for (int d = 0; d < originalDim; d++) {
-                sum = Math.fma(centered.normalized()[d], wT[base + d], sum);
-            }
-            xLatent[j] = sum;
+            xLatent[j] = ESVectorUtil.dotProduct(normalizedCentered, 0, wT, j * originalDim, originalDim);
         }
 
         // Quantize

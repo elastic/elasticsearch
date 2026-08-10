@@ -22,6 +22,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.expression.ConstantEvaluators;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Lambda;
@@ -53,7 +54,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRep
  * are dropped; if nothing remains the result is null (today's ES|QL null-collapse convention).
  * Snapshot-only while the lambda feature is under development.
  */
-public class MvMap extends EsqlScalarFunction implements LambdaAccepting {
+public class MvMap extends EsqlScalarFunction implements LambdaAccepting, AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MvMap", MvMap::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MvMap.class).binary(MvMap::new).name("map");
 

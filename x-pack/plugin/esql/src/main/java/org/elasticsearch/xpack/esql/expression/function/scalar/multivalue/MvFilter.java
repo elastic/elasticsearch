@@ -21,6 +21,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.expression.ConstantEvaluators;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Lambda;
@@ -51,7 +52,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRep
  * When no element matches, the result is null (today's ES|QL null-collapse convention).
  * Snapshot-only while the lambda feature is under development.
  */
-public class MvFilter extends EsqlScalarFunction implements LambdaAccepting {
+public class MvFilter extends EsqlScalarFunction implements LambdaAccepting, AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MvFilter", MvFilter::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MvFilter.class).binary(MvFilter::new).name("filter");
 

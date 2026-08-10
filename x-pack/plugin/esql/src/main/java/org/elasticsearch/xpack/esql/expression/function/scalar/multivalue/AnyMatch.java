@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.LambdaEvaluator;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Lambda;
@@ -41,7 +42,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRep
  * Returns {@code true} if any element of a multi-value field satisfies the given lambda predicate.
  * Snapshot-only while the lambda feature is under development.
  */
-public class AnyMatch extends EsqlScalarFunction implements LambdaAccepting {
+public class AnyMatch extends EsqlScalarFunction implements LambdaAccepting, AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "AnyMatch", AnyMatch::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(AnyMatch.class).binary(AnyMatch::new).name("any_match");
 

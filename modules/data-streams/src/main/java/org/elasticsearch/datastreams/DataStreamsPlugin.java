@@ -323,11 +323,13 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
 
     @Override
     public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders(IndexSettingProvider.Parameters parameters) {
-        return List.of(
-            new DataStreamIndexSettingsProvider(parameters.mapperServiceFactory(), settings),
-            new ES95CodecClusterSettingProvider(parameters.clusterService().getClusterSettings()),
-            new RunTableOrdinalClusterSettingProvider(parameters.clusterService().getClusterSettings())
-        );
+        final List<IndexSettingProvider> providers = new ArrayList<>();
+        providers.add(new DataStreamIndexSettingsProvider(parameters.mapperServiceFactory(), settings));
+        providers.add(new ES95CodecClusterSettingProvider(parameters.clusterService().getClusterSettings()));
+        if (IndexSettings.ES95_RUNTABLE_ENCODING_FEATURE_FLAG.isEnabled()) {
+            providers.add(new RunTableOrdinalClusterSettingProvider(parameters.clusterService().getClusterSettings()));
+        }
+        return providers;
     }
 
     @Override

@@ -539,7 +539,8 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
 
     /**
      * Verifies {@code InternalHeaderReader} re-materialization: ranged reads over header regions are byte-identical to the uploaded blob,
-     * sub-ranges mid-header are correct, and a blob reassembled from chunked reads round-trips through {@code deserializeBatchedCompoundCommit}.
+     * sub-ranges mid-header are correct, and a blob reassembled from chunked reads
+     * round-trips through {@code deserializeBatchedCompoundCommit}.
      */
     public void testHeaderBytesAreRematerializedConsistently() throws Exception {
         var primaryTerm = 1;

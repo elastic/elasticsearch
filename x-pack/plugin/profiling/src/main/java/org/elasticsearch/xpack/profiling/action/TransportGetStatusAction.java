@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.injection.guice.Inject;
@@ -87,7 +88,7 @@ public class TransportGetStatusAction extends TransportMasterNodeAction<GetStatu
             clusterService,
             threadPool.getThreadContext(),
             new StatusListener(listener, localNode, clusterService, resolver),
-            resolver::isResourcesCreated,
+            resolver::isEcsResourcesCreated,
             timeout,
             log
         );
@@ -146,15 +147,17 @@ public class TransportGetStatusAction extends TransportMasterNodeAction<GetStatu
             this.templateRegistry = templateRegistry;
         }
 
-        private boolean isResourcesCreated(ClusterState state) {
-            return isResourcesCreated(state, templateRegistry.isTemplatesEnabled());
+        private boolean isEcsEnabled(ClusterState state) {
+            Settings metadataSettings = state.getMetadata().settings();
+            if (metadataSettings.hasValue(ProfilingPlugin.PROFILING_TEMPLATES_ENABLED.getKey())) {
+                return ProfilingPlugin.PROFILING_TEMPLATES_ENABLED.get(metadataSettings);
+            }
+            return ProfilingPlugin.PROFILING_TEMPLATES_ENABLED.get(clusterService.getSettings());
         }
 
-        private boolean isResourcesCreated(ClusterState state, boolean ecsEnabled) {
-            // In OTel-only mode the profiling plugin manages no resources; OTel templates are installed
-            // unconditionally by the otel-data plugin, so there is nothing to wait for here.
-            if (ecsEnabled == false) {
-                return true;
+        private boolean isEcsResourcesCreated(ClusterState state) {
+            if (isEcsEnabled(state) == false) {
+                return false;
             }
             IndexStateResolver indexStateResolver = indexStateResolver(state);
             return templateRegistry.isAllResourcesCreated(state, clusterService.getSettings())
@@ -162,8 +165,8 @@ public class TransportGetStatusAction extends TransportMasterNodeAction<GetStatu
                 && ProfilingDataStreamManager.isAllResourcesCreated(state, indexStateResolver);
         }
 
-        private boolean isAnyPre891Data(ClusterState state, boolean ecsEnabled) {
-            if (ecsEnabled == false) {
+        private boolean isAnyPre891Data(ClusterState state) {
+            if (isEcsEnabled(state) == false) {
                 return false;
             }
             IndexStateResolver indexStateResolver = indexStateResolver(state);
@@ -179,11 +182,9 @@ public class TransportGetStatusAction extends TransportMasterNodeAction<GetStatu
         private void execute(ClusterState state, ActionListener<GetStatusAction.Response> listener) {
             boolean pluginEnabled = getValue(state, XPackSettings.PROFILING_ENABLED);
             boolean resourceManagementEnabled = getValue(state, ProfilingPlugin.PROFILING_TEMPLATES_ENABLED);
-            boolean ecsEnabled = templateRegistry.isTemplatesEnabled();
-            boolean resourcesCreated = isResourcesCreated(state, ecsEnabled);
-            boolean anyPre891Data = isAnyPre891Data(state, ecsEnabled);
-            // only issue a search if there is any chance that we have data
-            if (resourcesCreated) {
+            boolean ecsResourcesCreated = isEcsResourcesCreated(state);
+            boolean anyPre891Data = isAnyPre891Data(state);
+            if (pluginEnabled) {
                 // Use a wildcard to cover both ECS (profiling-events-all) and OTel
                 // (profiling-events-all.otel-*) in a single search. LENIENT_EXPAND_OPEN
                 // silently treats missing indices as zero hits.
@@ -197,14 +198,20 @@ public class TransportGetStatusAction extends TransportMasterNodeAction<GetStatu
                 nodeClient.search(countRequest, ActionListener.wrap(searchResponse -> {
                     boolean hasData = searchResponse.getHits().getTotalHits().value() > 0;
                     listener.onResponse(
-                        new GetStatusAction.Response(pluginEnabled, resourceManagementEnabled, resourcesCreated, anyPre891Data, hasData)
+                        new GetStatusAction.Response(pluginEnabled, resourceManagementEnabled, ecsResourcesCreated, anyPre891Data, hasData)
                     );
                 }, (e) -> {
                     // no data yet
                     if (e instanceof SearchPhaseExecutionException) {
                         log.trace("Has data check has failed.", e);
                         listener.onResponse(
-                            new GetStatusAction.Response(pluginEnabled, resourceManagementEnabled, resourcesCreated, anyPre891Data, false)
+                            new GetStatusAction.Response(
+                                pluginEnabled,
+                                resourceManagementEnabled,
+                                ecsResourcesCreated,
+                                anyPre891Data,
+                                false
+                            )
                         );
                     } else {
                         listener.onFailure(e);

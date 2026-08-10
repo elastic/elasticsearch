@@ -40,14 +40,13 @@ public class GetStatusActionIT extends ProfilingTestCase {
     }
 
     public void testNoTimeoutIfNotWaiting() throws Exception {
-        // With ECS disabled (OTel-only mode), the profiling plugin has nothing to install; resources
-        // are considered immediately ready from its perspective.
         updateProfilingTemplatesEnabled(false);
         GetStatusAction.Request request = new GetStatusAction.Request(TEST_REQUEST_TIMEOUT, false, randomTimeValue());
 
         GetStatusAction.Response response = client().execute(GetStatusAction.INSTANCE, request).get();
         assertEquals(RestStatus.OK, response.status());
-        assertTrue(response.isResourcesCreated());
+        // ECS templates are disabled; no ECS resources have been created
+        assertFalse(response.isResourcesCreated());
         assertFalse(response.hasData());
     }
 

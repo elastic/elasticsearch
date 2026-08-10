@@ -28,9 +28,7 @@ public class ChatCompletionUsageTests extends AbstractBWCWireSerializationTestCa
             randomInt(100),
             randomInt(100),
             randomInt(100),
-            randomBoolean()
-                ? null
-                : new ChatCompletionUsage.PromptTokensDetails(randomNonNegativeInt(), randomNonNegativeInt()),
+            randomBoolean() ? null : new ChatCompletionUsage.PromptTokensDetails(randomNonNegativeInt(), randomNonNegativeInt()),
             randomBoolean() ? null : new ChatCompletionUsage.CompletionTokenDetails(randomNonNegativeIntOrNull())
         );
     }
@@ -91,9 +89,7 @@ public class ChatCompletionUsageTests extends AbstractBWCWireSerializationTestCa
             case 2 -> totalTokens = randomValueOtherThan(totalTokens, () -> randomInt(100));
             case 3 -> promptTokensDetails = randomValueOtherThan(
                 promptTokensDetails,
-                () -> randomBoolean()
-                    ? null
-                    : new ChatCompletionUsage.PromptTokensDetails(randomNonNegativeInt(), randomNonNegativeInt())
+                () -> randomBoolean() ? null : new ChatCompletionUsage.PromptTokensDetails(randomNonNegativeInt(), randomNonNegativeInt())
             );
             case 4 -> completionTokenDetails = randomValueOtherThan(
                 completionTokenDetails,
@@ -143,13 +139,7 @@ public class ChatCompletionUsageTests extends AbstractBWCWireSerializationTestCa
 
     public void testToXContentChunked_NullReasoningTokens_CompletionTokenDetailsOmitted() throws IOException {
         // completionTokenDetails is only emitted when reasoningTokens is non-null
-        var usage = new ChatCompletionUsage(
-            12,
-            9,
-            21,
-            null,
-            new ChatCompletionUsage.CompletionTokenDetails((Integer) null)
-        );
+        var usage = new ChatCompletionUsage(12, 9, 21, null, new ChatCompletionUsage.CompletionTokenDetails((Integer) null));
 
         assertThat(toXContent(usage), is(XContentHelper.stripWhitespace("""
             {
@@ -161,13 +151,7 @@ public class ChatCompletionUsageTests extends AbstractBWCWireSerializationTestCa
     }
 
     public void testToXContentChunked_PartialPromptTokensDetails() throws IOException {
-        var usage = new ChatCompletionUsage(
-            5,
-            3,
-            8,
-            new ChatCompletionUsage.PromptTokensDetails(2, null),
-            null
-        );
+        var usage = new ChatCompletionUsage(5, 3, 8, new ChatCompletionUsage.PromptTokensDetails(2, null), null);
 
         assertThat(toXContent(usage), is(XContentHelper.stripWhitespace("""
             {

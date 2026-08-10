@@ -80,9 +80,7 @@ public class ChatCompletionMessageTests extends AbstractBWCWireSerializationTest
             case 2 -> role = randomValueOtherThan(role, () -> randomAlphaOfLengthOrNull(FIELD_LENGTH));
             case 3 -> toolCalls = randomValueOtherThan(
                 toolCalls,
-                () -> randomBoolean()
-                    ? null
-                    : randomList(1, 3, ChatCompletionToolCallTests::randomChatCompletionToolCall)
+                () -> randomBoolean() ? null : randomList(1, 3, ChatCompletionToolCallTests::randomChatCompletionToolCall)
             );
             case 4 -> reasoning = randomValueOtherThan(reasoning, () -> randomAlphaOfLengthOrNull(FIELD_LENGTH));
             case 5 -> reasoningDetails = randomValueOtherThan(

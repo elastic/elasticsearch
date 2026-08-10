@@ -96,6 +96,28 @@ import java.util.stream.IntStream;
  * parameter controls how many sibling keys each document carries, which grows the root blob (and thus the
  * parse cost) while leaving the fused single-key read unchanged.
  *
+ * <h2>Measured baseline</h2>
+ * Reference numbers from an {@code in_order} sweep on a quiet workstation ({@code keyed_fused} from a single
+ * all-paths run; {@code root_*} from a 3-fork x 7-iteration run, {@code Cnt 21} per cell). Time is ns/op:
+ * <pre>{@code
+ * path                  subFields=5   subFields=20   subFields=100
+ * keyed_fused                  ~65           ~69            ~81
+ * root_only                  1422.4        5687.4        28570.4
+ * root_then_evaluator        1568.1        6146.7        30930.2
+ * }</pre>
+ * Two facts drive the GA priorities:
+ * <ul>
+ *   <li><b>Root reconstruction is proportional to object width.</b> {@code root_only} fits ~286 ns per
+ *       sub-field with a fixed cost indistinguishable from zero (linear, ~0 intercept). This whole-object
+ *       JSON reconstruction is exactly the cost the fused path avoids by reading one sub-key's doc values.</li>
+ *   <li><b>The per-row parse is a small, also-linear surcharge, not the bottleneck.</b> The evaluator cost
+ *       {@code (root_then_evaluator - root_only)} is ~8-10% (~23 ns per sub-field), so the fallback is
+ *       reconstruction-bound, not parse-bound.</li>
+ * </ul>
+ * At {@code subFields=100} the fallback is ~350x the fused read (~81 ns, flat in width) and the gap widens
+ * linearly, so GA effort should widen the set of query shapes that hit the fused path rather than optimize
+ * the parse. See the profiling recipes below to reproduce and attribute these numbers.
+ *
  * <h2>Running and profiling</h2>
  * Everything inside {@code --args '...'} is passed straight to JMH. During profiling add
  * {@code -jvmArgsAppend -DskipSelfTest=true}: {@link #selfTest()} runs in every fork's static initializer and
@@ -111,11 +133,20 @@ import java.util.stream.IntStream;
  * }</pre>
  *
  * <p><b>2. Async flamegraphs (the attribution: reconstruction vs parse).</b> Needs async-profiler 4.0
- * (point {@code libPath} at its {@code libasyncProfiler.so}). Profile the two root cells at the widest object
- * size separately and diff them: both should be dominated by the root loader reconstructing the object
- * (XContent/JSON serialization plus ordinal iteration over every key), while {@code FieldExtract#process}
- * appears only as a thin slice in {@code root_then_evaluator} - direct evidence the fallback is reconstruction
- * bound, not parse bound.</p>
+ * (point {@code libPath} at its {@code libasyncProfiler.so}; on macOS use {@code libasyncProfiler.dylib} and
+ * {@code event=cpu}, falling back to {@code event=itimer}). Profile the two root cells at the widest object
+ * size separately and diff them. A measured {@code subFields=100} run shows both paths are dominated by the
+ * root loader ({@code RootFlattenedDocValuesBlockLoader...writeToBlock} &asymp; 99% inclusive), and within it the
+ * cost is <em>doc-values term resolution</em>, not JSON serialization: {@code SortedSetFlattenedDocValues.next}
+ * &rarr; {@code Lucene90DocValuesProducer...lookupOrd} is &asymp; 80% (self time lands in {@code TermsDict.next}
+ * / {@code seekExact}, {@code LZ4.decompress}, and byte copies out of the compressed terms dictionary - one
+ * ordinal&rarr;term lookup per sub-field per document), while assembling the JSON blob
+ * ({@code XContentBuilder.field} / Jackson {@code writeStringField}) is only &asymp; 8-10%. {@code FieldExtract#process}
+ * (the per-row re-parse) appears only as a thin {@code UTF8StreamJsonParser} slice in {@code root_then_evaluator},
+ * which carried &asymp; 6% more total samples than {@code root_only} - direct evidence the fallback is
+ * reconstruction bound (specifically term-lookup bound), not parse bound. The corollary for GA: the lever on the
+ * fallback is fewer/cheaper {@code lookupOrd}s, not the JSON parser; better still, widen the fused path so the
+ * root is never reconstructed.</p>
  * <pre>{@code
  * ./gradlew -p benchmarks run --args 'FlattenedFieldExtractBenchmark.benchmark -p path=root_only -p layout=in_order -p subFields=100 -f 1 -jvmArgsAppend -DskipSelfTest=true -prof "async:libPath=/ABS/PATH/libasyncProfiler.so;dir=/tmp/prof-rootonly;output=flamegraph"'
  * ./gradlew -p benchmarks run --args 'FlattenedFieldExtractBenchmark.benchmark -p path=root_then_evaluator -p layout=in_order -p subFields=100 -f 1 -jvmArgsAppend -DskipSelfTest=true -prof "async:libPath=/ABS/PATH/libasyncProfiler.so;dir=/tmp/prof-rooteval;output=flamegraph"'

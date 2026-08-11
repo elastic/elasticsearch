@@ -712,7 +712,15 @@ public class AuthorizationService {
     /**
      * Records a project routing failure ({@code InvalidProjectRoutingException} or {@code NoMatchingProjectException})
      * against the appropriate endpoint counter in {@link org.elasticsearch.action.admin.cluster.stats.ProjectRoutingUsageHolder}.
-     * Only {@code _search}/{@code _async_search} and {@code _esql} failures are bucketed; other action types are silently ignored.
+     *
+     * <p>The {@code search} counter covers all endpoints that the {@code ProjectRoutingUsageHolder} Javadoc lists
+     * ({@code _search}, {@code _async_search}, {@code _count}, {@code _cat/count},
+     * {@code _msearch} sub-requests, {@code _search/template}, {@code _msearch/template}).
+     * These endpoints all ultimately dispatch a plain {@link org.elasticsearch.action.search.SearchRequest} via
+     * {@code client.search()}, so they all arrive here as {@code indices:data/read/search}
+     * ({@link org.elasticsearch.action.search.TransportSearchAction#NAME}); only {@code _async_search} uses a distinct
+     * action name ({@link org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchAction#NAME}).
+     * Action types not in either bucket (e.g. {@code indices:data/read/get}) are silently ignored.
      */
     private void recordProjectRoutingFailure(String action, TransportRequest request) {
         boolean hasLinkedProjects = false;

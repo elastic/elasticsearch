@@ -1,0 +1,97 @@
+// ClickBench `hits` Parquet, clickbench_parquet_single variant (elastic/esql-planning#1650): one of the 100
+// Athena-partitioned shards, hits_1.parquet, 1,000,000 rows -- read directly from the upstream publisher's
+// own public HTTPS/S3 object, never a local fixture or a mirrored copy. This is a different row subset than
+// both the local-fixture x-pack/plugin/esql/qa/testFixtures/src/main/resources/external-clickbench.csv-spec
+// (which uses only the first row group of 18 files) and the clickbench_parquet_shards variant (5 shards,
+// see clickbench-parquet-shards.csv-spec), so its expected results below cannot be shared with either.
+// See clickbench-gzip.csv-spec for the (not independently cross-validated) full-corpus gzip text variants.
+//
+// Provenance for every query below: DuckDB 1.x `read_parquet(...)` directly against the pinned object at
+// https://datasets.clickhouse.com/hits_compatible/athena_partitioned/hits_1.parquet -- no local copy, no
+// `httpfs` byte cap needed, since Parquet range-reads only the footer plus the specific column
+// chunks/row-groups each query touches (confirmed via `parquet_metadata()`: SNAPPY, single row group), so
+// DuckDB never bulk-downloads the ~175MB object.
+
+count_all
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{clickbench}}"
+FROM clickbench | STATS count = COUNT(*);
+
+count:long
+1000000
+;
+
+count_advengineid_nonzero
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{clickbench}}"
+FROM clickbench | WHERE AdvEngineID != 0 | STATS count = COUNT(*);
+
+count:long
+3312
+;
+
+stats_advengineid_resolutionwidth
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{clickbench}}"
+FROM clickbench | STATS sum_AdvEngineID = SUM(AdvEngineID), count = COUNT(*), avg_ResolutionWidth = AVG(ResolutionWidth);
+
+sum_AdvEngineID:long | count:long | avg_ResolutionWidth:double
+7796                 | 1000000    | 1214.214
+;
+
+avg_userid
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{clickbench}}"
+FROM clickbench | STATS avg_UserID = AVG(UserID);
+
+avg_UserID:double
+3.034534688406852E18
+;
+
+distinct_userid
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{clickbench}}"
+FROM clickbench | STATS u = MV_COUNT(VALUES(UserID));
+
+u:integer
+201298
+;
+
+min_max_eventdate
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{clickbench}}"
+FROM clickbench | STATS min_EventDate = MIN(EventDate), max_EventDate = MAX(EventDate);
+
+min_EventDate:integer | max_EventDate:integer
+15889                 | 15901
+;
+
+count_by_advengineid
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{clickbench}}"
+FROM clickbench | WHERE AdvEngineID != 0 | STATS c = COUNT(*) BY AdvEngineID | SORT c DESC, AdvEngineID;
+
+c:long | AdvEngineID:integer
+3210   | 2
+98     | 13
+3      | 25
+1      | 27
+;
+
+distinct_userid_by_regionid
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{clickbench}}"
+FROM clickbench | STATS u = MV_COUNT(VALUES(UserID)) BY RegionID | SORT u DESC, RegionID | LIMIT 10;
+
+u:integer | RegionID:integer
+39142     | 229
+23170     | 158
+17337     | 2
+7357      | 208
+3467      | 169
+3119      | 34
+2923      | 1
+2686      | 42
+2399      | 184
+2173      | 55
+;

@@ -1,0 +1,52 @@
+// pq_reproduction "orca" (elastic/esql-planning#1650): fills this catalog's UNCOMPRESSED-Parquet gap --
+// every other Parquet variant here uses SNAPPY, GZIP, or ZSTD. Published by a Hugging Face staff member
+// (severo/pq_reproduction) as a compression-format reproduction of the well-known OpenOrca instruction-
+// tuning dataset for a blog post on Parquet content-defined chunking (see
+// https://huggingface.co/datasets/severo/pq_reproduction); the underlying rows are real OpenOrca
+// question/response pairs, just re-exported once per codec for that post. This is the only publicly
+// reachable UNCOMPRESSED Parquet file found after an extensive search -- weaker provenance than this
+// catalog's other sources (a third-party re-export rather than an original publisher), documented here as
+// a known trade-off rather than silently treated as equivalent. SINGLE_FILE, SMOKE scale: 156.6MB, 100,000
+// rows.
+//
+// Hugging Face's resolve URLs 302-redirect to a per-request signed CDN URL, which is why PinValidator now
+// follows redirects (HttpClient.Redirect.NORMAL) -- confirmed the final Content-based ETag is stable across
+// repeated requests despite the signed URL differing each time. Every aggregate was computed by DuckDB
+// reading this exact file directly (full download is well under the ~500MB fetch allowance, plan section
+// 6) and is independently cross-validated.
+
+count_all
+required_capability: dataset_in_from_command
+dataset: orca: "{{orca_uncompressed}}"
+FROM orca | STATS count = COUNT(*);
+
+count:long
+100000
+;
+
+length_stats
+required_capability: dataset_in_from_command
+dataset: orca: "{{orca_uncompressed}}"
+FROM orca | STATS avg_q = ROUND(AVG(question_length), 4), avg_r = ROUND(AVG(response_length), 4), min_q = MIN(question_length), max_q = MAX(question_length);
+
+avg_q:double | avg_r:double | min_q:long | max_q:long
+1097.6161    | 431.9564     | 22         | 35968
+;
+
+distinct_prompts
+required_capability: dataset_in_from_command
+dataset: orca: "{{orca_uncompressed}}"
+FROM orca | STATS BY system_prompt | STATS distinct_prompts = COUNT(*);
+
+distinct_prompts:long
+16
+;
+
+responses_longer_than_questions
+required_capability: dataset_in_from_command
+dataset: orca: "{{orca_uncompressed}}"
+FROM orca | WHERE response_length > question_length | STATS count = COUNT(*);
+
+count:long
+35738
+;

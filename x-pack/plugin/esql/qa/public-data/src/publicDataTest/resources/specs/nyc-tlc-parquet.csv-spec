@@ -1,0 +1,62 @@
+// NYC Taxi & Limousine Commission official trip-record archive (elastic/esql-planning#1650): yellow taxi
+// trips for January 2023, published by NYC TLC itself at its own CloudFront-fronted HTTPS endpoint (the
+// authoritative source, not a third-party mirror). Distinct from the taxis-sample/taxis-full sources
+// (rally-tracks' 2015 bzip2-NDJSON benchmark export of TLC's own older data): this is Parquet, and -- unlike
+// every other Parquet variant in this catalog so far, which use SNAPPY page compression -- TLC's own export
+// pipeline uses GZIP, rounding out the Parquet x {SNAPPY, GZIP} half of elastic/esql-planning#1650's
+// compression matrix (confirmed via `parquet_metadata()`: DISTINCT compression = GZIP).
+//
+// Single ~47MB file (well under the bounded-fetch allowance regardless, but irrelevant for Parquet: it is
+// seekable, so DuckDB validated every aggregate below via range-reads directly against the pinned object,
+// never a local copy). Pin captured via HTTP HEAD 2026-08-11; upstream Last-Modified is 2023-03-20 and
+// unchanged since -- TLC's monthly archive files are published once and never revised in place.
+
+count_all
+required_capability: dataset_in_from_command
+dataset: tlc: "{{nyc_tlc}}"
+FROM tlc | STATS count = COUNT(*);
+
+count:long
+3066766
+;
+
+avg_trip_metrics
+required_capability: dataset_in_from_command
+dataset: tlc: "{{nyc_tlc}}"
+FROM tlc | STATS avg_dist = ROUND(AVG(trip_distance), 4), avg_fare = ROUND(AVG(fare_amount), 4), avg_tip = ROUND(AVG(tip_amount), 4);
+
+avg_dist:double | avg_fare:double | avg_tip:double
+3.8473          | 18.3671         | 3.3679
+;
+
+counts_by_vendor
+required_capability: dataset_in_from_command
+dataset: tlc: "{{nyc_tlc}}"
+FROM tlc | STATS count = COUNT(*) BY VendorID | SORT count DESC, VendorID ASC;
+
+count:long | VendorID:long
+2239399    | 2
+827367     | 1
+;
+
+counts_by_payment_type
+required_capability: dataset_in_from_command
+dataset: tlc: "{{nyc_tlc}}"
+FROM tlc | STATS count = COUNT(*) BY payment_type | SORT count DESC, payment_type ASC;
+
+count:long | payment_type:long
+2411462    | 1
+532241     | 2
+71743      | 0
+33297      | 4
+18023      | 3
+;
+
+max_passenger_count
+required_capability: dataset_in_from_command
+dataset: tlc: "{{nyc_tlc}}"
+FROM tlc | STATS max_passengers = MAX(passenger_count);
+
+max_passengers:double
+9.0
+;

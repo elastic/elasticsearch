@@ -1,0 +1,30 @@
+# Manually-triggered ES|QL external-data-sources suite (elastic/esql-planning#1650).
+#
+# Never part of intake, pull-request, or periodic pipelines -- this is its own independent
+# Buildkite Pipeline (configured separately in the Buildkite UI to point at this file), triggered
+# manually or on an ad hoc schedule, never on every commit/PR. Some variants stream tens of GB
+# over the network (see public-data-catalog.yml's LARGE-scale entries), so a single run can take
+# well over an hour; that is expected and is why this never runs as part of the normal CI graph.
+#
+# See x-pack/plugin/esql/qa/public-data/build.gradle, public-data-catalog.yml, and
+# PublicDataSourcesIT's class Javadoc for what this exercises and how to invoke it locally.
+#
+# Optional build env vars (all forwarded as -Dtests.public_data.* system properties; leave unset
+# to run every source/variant in the catalog):
+#   PUBLIC_DATA_SOURCE  -- comma-separated PublicDataSource ids, e.g. "clickbench,ghcn_d"
+#   PUBLIC_DATA_VARIANT -- a single SourceVariant id, e.g. "hits_zstd_single_shard"
+#   PUBLIC_DATA_SPEC    -- substring match against checked-in spec file names
+steps:
+  - label: "public-data ES|QL suite"
+    command: |
+      .ci/scripts/run-gradle.sh \
+        -Dtests.public_data.source="${PUBLIC_DATA_SOURCE:-}" \
+        -Dtests.public_data.variant="${PUBLIC_DATA_VARIANT:-}" \
+        -Dtests.public_data.spec="${PUBLIC_DATA_SPEC:-}" \
+        :x-pack:plugin:esql:qa:public-data:publicDataTest
+    timeout_in_minutes: 480
+    agents:
+      provider: gcp
+      image: family/elasticsearch-ubuntu-2404
+      machineType: n2-standard-8
+      buildDirectory: /dev/shm/bk

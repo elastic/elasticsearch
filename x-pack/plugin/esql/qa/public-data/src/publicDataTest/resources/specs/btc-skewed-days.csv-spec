@@ -1,0 +1,56 @@
+// AWS Public Blockchain Data (elastic/esql-planning#1650): four specific days from Bitcoin's transaction
+// history, addressed as a top-level comma-separated list of 4 complete date=YYYY-MM-DD/*.parquet globs
+// (see the catalog's `notes` for why a single date={a,b,c,d} brace alternative doesn't work here -- it
+// collides with the unrelated top-level comma-path-list feature). Exercises SKEWED_SHARDS: the four SNAPPY
+// Parquet shards are 9.8KB, 8.8MB, 79MB, and 228MB respectively -- a ~24,400x size ratio reflecting organic
+// network growth over six years -- a meaningfully different shape from btc_2009_transactions_many_small's
+// ~18x-skewed but otherwise uniformly-tiny 358 shards, and from every other multi-file variant in this
+// catalog (all near-uniform). Total ~331MB across the 4 files, under the ~500MB bounded-fetch allowance
+// (plan section 6).
+//
+// Same physical-`date`-column caveat as btc-2009-transactions.csv-spec: settings.hive_partitioning=false is
+// required. Every aggregate was computed by DuckDB reading this exact 4-file list directly and is
+// independently cross-validated.
+
+count_all
+required_capability: dataset_in_from_command
+dataset: btc: "{{aws_public_blockchain}}"
+FROM btc | STATS count = COUNT(*);
+
+count:long
+189548
+;
+
+counts_by_date
+required_capability: dataset_in_from_command
+dataset: btc: "{{aws_public_blockchain}}"
+// Confirms each of the 4 explicitly-listed shards contributed its own (wildly different) share of rows,
+// i.e. the brace-list resolved to all 4 objects rather than just one. With hive_partitioning=false the
+// physical `date` column (a Parquet DATE32) surfaces as keyword rather than datetime -- same as
+// btc-2009-transactions.csv-spec -- so this compares plain date strings.
+FROM btc | STATS count = COUNT(*) BY date | SORT date ASC;
+
+count:long | date:keyword
+1          | 2009-01-03
+6540       | 2011-06-01
+54311      | 2013-06-01
+128696     | 2015-06-01
+;
+
+coinbase_count
+required_capability: dataset_in_from_command
+dataset: btc: "{{aws_public_blockchain}}"
+FROM btc | WHERE is_coinbase == true | STATS count = COUNT(*);
+
+count:long
+534
+;
+
+output_value_totals
+required_capability: dataset_in_from_command
+dataset: btc: "{{aws_public_blockchain}}"
+FROM btc | STATS avg_out = ROUND(AVG(output_value), 8), sum_out = ROUND(SUM(output_value), 4);
+
+avg_out:double | sum_out:double
+12.01937831    | 2278249.1201
+;

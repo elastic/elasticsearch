@@ -1,0 +1,90 @@
+// AWS Public Blockchain Data (elastic/esql-planning#1650): every Bitcoin transaction from 2009, Bitcoin's
+// first calendar year, published by AWS itself as one SNAPPY Parquet shard per calendar day under a
+// Hive-style date=YYYY-MM-DD/ layout (s3://aws-public-blockchain/v1.0/btc/transactions/), globbed here as
+// date=2009-*/*.parquet. Unlike ghcn_d, `date` is already a real physical Parquet column here, and the
+// reader auto-detects the date=YYYY-MM-DD/ layout as Hive-style regardless of whether hive_partitioning is
+// explicitly requested, so settings.hive_partitioning=false is required to read the physical column instead
+// of an identical, redundant path-derived one. This exercises the MANY_SMALL_FILES
+// partition-layout dimension: 358 shards (one per day with recorded activity; a handful of days in 2009
+// have none), ranging 9.8KB-176KB each (~18x, reflecting organic early-network growth) -- a meaningfully
+// different shape from this catalog's other multi-file variants (clickbench_parquet_shards' 5 *equal*-size
+// Athena shards; ghcn_1900_parquet_hive's ~38 near-uniform per-element shards).
+//
+// "outputs" (a struct-list column) is deliberately never selected below, mirroring how this catalog avoids
+// ClickBench's BLOB-typed columns; every query here only touches flat scalar columns. Every aggregate was
+// computed by DuckDB reading this exact glob directly (~20MB total across all 358 files, comfortably under
+// the ~500MB bounded-fetch allowance, plan section 6) and is independently cross-validated. Pin captured via
+// HTTP HEAD (on the representative pin_check_uri shard) 2026-08-11; this is 2009's *complete* history, so
+// -- unlike a live/current-day partition -- it can never gain, lose, or revise a row from here on.
+
+count_all
+required_capability: dataset_in_from_command
+dataset: btc: "{{aws_public_blockchain}}"
+FROM btc | STATS count = COUNT(*);
+
+count:long
+32709
+;
+
+coinbase_count
+required_capability: dataset_in_from_command
+dataset: btc: "{{aws_public_blockchain}}"
+// A coinbase transaction is a block's mining-reward payout, exactly one per block; 2009 had very little
+// organic (non-coinbase) transaction volume, so this figure sits close to count_all's 32709.
+FROM btc | WHERE is_coinbase == true | STATS count = COUNT(*);
+
+count:long
+32490
+;
+
+output_value_totals
+required_capability: dataset_in_from_command
+dataset: btc: "{{aws_public_blockchain}}"
+FROM btc | STATS avg_out = ROUND(AVG(output_value), 8), sum_out = ROUND(SUM(output_value), 4);
+
+avg_out:double | sum_out:double
+60.44614907    | 1977133.09
+;
+
+block_number_range
+required_capability: dataset_in_from_command
+dataset: btc: "{{aws_public_blockchain}}"
+FROM btc | STATS min_block = MIN(block_number), max_block = MAX(block_number);
+
+min_block:long | max_block:long
+0              | 32489
+;
+
+distinct_blocks
+required_capability: dataset_in_from_command
+dataset: btc: "{{aws_public_blockchain}}"
+// STATS BY with no aggregation dedupes exactly; counting those groups is an exact distinct count regardless
+// of how many of the 358 daily shards a block's hash happens to fall in (each block appears in exactly one).
+FROM btc | STATS BY block_hash | STATS blocks = COUNT(*);
+
+blocks:long
+32490
+;
+
+counts_by_month
+required_capability: dataset_in_from_command
+dataset: btc: "{{aws_public_blockchain}}"
+// With hive_partitioning=false the physical `date` column (a Parquet DATE32) surfaces as keyword rather
+// than datetime, so DATE_EXTRACT needs an explicit DATE_PARSE first. Confirms the column is correctly read
+// and usable across all 358 matched shards, not just within a single one.
+FROM btc | EVAL parsed_date = DATE_PARSE("yyyy-MM-dd", date) | STATS count = COUNT(*) BY month = DATE_EXTRACT("month_of_year", parsed_date) | SORT month ASC;
+
+count:long | month:long
+2576       | 1
+3417       | 2
+3487       | 3
+3459       | 4
+3401       | 5
+2244       | 6
+1930       | 7
+1570       | 8
+2170       | 9
+2139       | 10
+2232       | 11
+4084       | 12
+;

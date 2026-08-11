@@ -1,0 +1,145 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
+
+apply plugin: 'java'
+// RestTestBasePlugin (applied directly, not via elasticsearch.internal-java-rest-test) wires the
+// `clusterModules`/`clusterPlugins` configurations and the default-distribution system properties that
+// the JUnit-level `ElasticsearchCluster.local()` framework needs, without creating a `javaRestTest`
+// source set/task or adding anything to `check`. This suite is deliberately never part of `check`,
+// release checks, or the normal CI task graph -- see plan section 1.
+apply plugin: org.elasticsearch.gradle.internal.test.rest.RestTestBasePlugin
+apply plugin: org.elasticsearch.gradle.internal.precommit.CheckstylePrecommitPlugin
+apply plugin: org.elasticsearch.gradle.internal.precommit.ForbiddenApisPrecommitPlugin
+apply plugin: org.elasticsearch.gradle.internal.precommit.ForbiddenPatternsPrecommitPlugin
+apply plugin: org.elasticsearch.gradle.internal.precommit.FilePermissionsPrecommitPlugin
+apply plugin: org.elasticsearch.gradle.internal.precommit.LoggerUsagePrecommitPlugin
+
+description = 'Manually invoked ES|QL suite exercising external datasource formats, codecs, and ' +
+    'partition layouts against pinned, already-public S3/HTTPS corpora (elastic/esql-planning#1650). ' +
+    'Never runs as part of check or normal CI -- see README below and the source catalog.'
+
+sourceSets {
+  publicDataTest {
+    java {
+      srcDirs = ['src/publicDataTest/java']
+    }
+    resources {
+      srcDirs = ['src/publicDataTest/resources']
+    }
+  }
+}
+
+dependencies {
+  publicDataTestImplementation project(xpackModule('esql:qa:testFixtures'))
+  publicDataTestImplementation project(xpackModule('esql:qa:server'))
+  publicDataTestImplementation project(xpackModule('esql:tools'))
+  publicDataTestImplementation project(xpackModule('esql'))
+  publicDataTestImplementation project(':test:framework')
+  publicDataTestImplementation project(':test:test-clusters')
+  publicDataTestImplementation project(':libs:x-content')
+  // Same csv-spec cell quoting (quote='"', delimiter='|') that CsvTestUtils#loadCsvSpecValues reads with;
+  // testFixtures already depends on it as `implementation` (hidden from our compile classpath), so
+  // ResultRecorder needs its own declaration to write fragments that round-trip through that exact reader.
+  publicDataTestImplementation "net.sf.supercsv:super-csv:${versions.supercsv}"
+}
+
+// Every esql-datasource-* format/codec plugin (parquet, parquet-rs, orc, csv, ndjson, gzip, snappy,
+// zstd, brotli, bzip2, lz4, compression-libs, netty-commons) is already bundled unconditionally in the
+// DEFAULT distribution (see e.g. x-pack/plugin/esql-datasource-azure/build.gradle's usesDefaultDistribution
+// comment), so this project needs no clusterPlugins entries for them; S3 storage is likewise unconditional.
+// Only the LOCAL/HTTP/GCS/AZURE/ORC/parquet-rs *readers* remain behind FeatureFlags in release builds --
+// PublicDataClusters.java force-enables those. This suite loads no local indices/inference endpoints
+// (PublicDataSpecTestCase opts out of both), so it needs no other clusterPlugins entries either.
+
+def publicDataTest = tasks.register('publicDataTest', StandaloneRestIntegTestTask) {
+  group = 'Verification'
+  description = 'Runs the public-data ES|QL suite against pinned, public, remote S3/HTTPS corpora. ' +
+      'Never part of check; invoke explicitly, e.g.:\n' +
+      '  ./gradlew :x-pack:plugin:esql:qa:public-data:publicDataTest ' +
+      '-Dtests.public_data.source=clickbench'
+  usesDefaultDistribution(
+      'needs every esql-datasource-* module bundled in the default distribution, plus repository-s3/gcs'
+  )
+  testClassesDirs = sourceSets.publicDataTest.output.classesDirs
+  classpath = sourceSets.publicDataTest.runtimeClasspath
+  // Each test class owns one cluster (its own ElasticsearchCluster @ClassRule); running sources in
+  // parallel would multiply the number of concurrent 8g-heap 3-node clusters, which is unnecessary for
+  // a suite that is invoked manually and already limits each remote scan's own concurrency.
+  maxParallelForks = 1
+  jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
+  // The un-partitioned gzip ClickBench variants alone are 16-24GB, streamed and decompressed in place
+  // over the network per plan section 3 (never downloaded/cached) -- a single COUNT(*) against one of
+  // those can legitimately take many minutes, far past ESRestTestCase's 60s default client-socket
+  // read timeout (tests.rest.client_timeout/tests.rest.socket_timeout, set previously here, are not
+  // real properties ESRestTestCase reads and were silent no-ops; tests.client.socket.timeout is the
+  // one restClientSettings() actually checks). Likewise randomizedtesting's own suite-level watchdog
+  // defaults to 10 minutes (ElasticsearchTestBasePlugin only raises it on Windows), which is far too
+  // short for one JVM fork to run every variant of a source back to back; a suite-timeout abort mid
+  // in-flight-request also leaves that request's circuit breaker reservation unreleased, which then
+  // fails the *next* test's unrelated breaker-reset assertion -- exactly what an unmodified 10-minute
+  // default did here. taxis_full_bzip2's 4.8GB whole-object bzip2 COUNT(*) is the longest-running single
+  // query in the whole catalog -- bzip2's block-sort decompression is markedly more CPU-bound than gzip's
+  // and the original (disabled) internalClusterTest budgeted a 3-hour *query* timeout alone for this exact
+  // object -- so both timeouts here need headroom beyond even the gzip ClickBench variants. All of this is
+  // generous specifically because this suite is manual-only and explicitly allowed to run far longer than
+  // anything in the normal CI task graph.
+  systemProperty 'tests.client.socket.timeout', '4h'
+  systemProperty 'tests.timeoutSuite', '14400000!'
+  // Forwards -Dtests.public_data.* filters and the opt-in recorder flag from the Gradle CLI to the JVM
+  // fork; see PublicDataSpecTestCase for how these are consumed. Gradle does not forward arbitrary -D
+  // properties from its own JVM into a forked test JVM automatically, so each one is re-declared here.
+  // Resolved eagerly at configuration time with plain System.getProperty (not providers.systemProperty(...)
+  // left unresolved): these are one-shot CLI inputs fixed for the whole build, and Test#systemProperty
+  // stores whatever Object it is given as-is -- handing it an unresolved Provider silently serializes the
+  // Provider's own toString() (e.g. "or(valueof(SystemPropertyValueSource), fixed())") as the property's
+  // value instead of the value it wraps.
+  systemProperty 'tests.public_data.source', System.getProperty('tests.public_data.source', '')
+  systemProperty 'tests.public_data.spec', System.getProperty('tests.public_data.spec', '')
+  systemProperty 'tests.public_data.record', System.getProperty('tests.public_data.record', 'false')
+  systemProperty 'tests.public_data.heap', System.getProperty('tests.public_data.heap', '8g')
+  systemProperty 'tests.public_data.variant', System.getProperty('tests.public_data.variant', '')
+  testLogging {
+    events = ['passed', 'skipped', 'failed']
+    exceptionFormat = 'full'
+    showStandardStreams = false
+  }
+}
+
+// Fast, offline, no-cluster validation of the catalog and every checked-in csv-spec: limits, deterministic
+// bounded output, unique names, valid catalog references, pin metadata, absence of file://, and absence of
+// checked-in SQL files (plan section 5). Deliberately a *separate* Test task (not the default `test` task,
+// which the `java` plugin would otherwise wire into `check`) so it stays out of check while still being a
+// quick, no-network sanity check contributors can run before invoking the slow remote suite.
+def catalogValidation = tasks.register('catalogValidation', Test) {
+  group = 'Verification'
+  description = 'Offline validation of public-data-catalog.yml and the checked-in csv-spec files ' +
+      '(no network access, no cluster).'
+  testClassesDirs = sourceSets.publicDataTest.output.classesDirs
+  classpath = sourceSets.publicDataTest.runtimeClasspath
+  include '**/validation/**'
+  testLogging {
+    events = ['passed', 'skipped', 'failed']
+    exceptionFormat = 'full'
+  }
+}
+
+// Regenerates the human-readable per-suite dimension-coverage report (plan section 7) from the catalog
+// and checked-in specs. Writes build/reports/public-data-coverage.md; never runs automatically.
+tasks.register('publicDataCoverageReport', JavaExec) {
+  group = 'Documentation'
+  description = 'Regenerates build/reports/public-data-coverage.md from the catalog and checked-in specs.'
+  dependsOn tasks.named('compilePublicDataTestJava')
+  classpath = sourceSets.publicDataTest.runtimeClasspath
+  mainClass = 'org.elasticsearch.xpack.esql.qa.publicdata.catalog.CoverageReportGenerator'
+  args = [layout.buildDirectory.dir('reports').get().asFile.path]
+}
+
+tasks.named('forbiddenPatterns').configure {
+  exclude '**/*.csv-spec'
+}

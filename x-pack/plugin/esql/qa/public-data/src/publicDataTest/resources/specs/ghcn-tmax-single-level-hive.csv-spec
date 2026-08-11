@@ -1,0 +1,62 @@
+// NOAA GHCN-Daily (elastic/esql-planning#1650): fills this catalog's single-level HIVE_PARTITIONED gap.
+// ghcn_1900_parquet_hive already exercises NESTED_HIVE_PARTITIONED (two levels, YEAR then ELEMENT); this
+// variant instead fixes ELEMENT to a literal path segment (TMAX, no wildcard) across three years
+// (1900-1902), so only YEAR is glob-wildcarded and Hive-detected -- a genuinely single-level layout, unlike
+// btc_2009_transactions_many_small/btc_skewed_days where the sole candidate partition key (date) collides
+// with a same-named physical column and has to be read as physical instead. Addressed as a top-level
+// comma-separated list of 3 complete YEAR=YYYY/ELEMENT=TMAX/*.snappy.parquet globs (see
+// btc_skewed_days' notes for why a single YEAR={1900,1901,1902} brace alternative doesn't work). Small: 6
+// shards, ~5MB total, well under the ~500MB bounded-fetch allowance (plan section 6).
+//
+// Every aggregate was computed by DuckDB reading this exact 6-file list directly with
+// hive_partitioning=true and is independently cross-validated.
+
+count_all
+required_capability: dataset_in_from_command
+dataset: ghcn: "{{ghcn_d}}"
+FROM ghcn | STATS count = COUNT(*);
+
+count:long
+2625763
+;
+
+counts_by_year
+required_capability: dataset_in_from_command
+dataset: ghcn: "{{ghcn_d}}"
+// Confirms the single Hive-detected partition column (YEAR) is correctly derived per file from the
+// directory path, and that the fixed ELEMENT=TMAX path segment was NOT also treated as a partition column
+// (it surfaces as the ordinary physical `ELEMENT` column instead, exercised by distinct_element below).
+FROM ghcn | STATS count = COUNT(*) BY YEAR | SORT YEAR ASC;
+
+count:long | YEAR:integer
+840783     | 1900
+871050     | 1901
+913930     | 1902
+;
+
+distinct_element
+required_capability: dataset_in_from_command
+dataset: ghcn: "{{ghcn_d}}"
+FROM ghcn | STATS BY ELEMENT | STATS distinct_elements = COUNT(*);
+
+distinct_elements:long
+1
+;
+
+distinct_stations
+required_capability: dataset_in_from_command
+dataset: ghcn: "{{ghcn_d}}"
+FROM ghcn | STATS BY ID | STATS distinct_stations = COUNT(*);
+
+distinct_stations:long
+3143
+;
+
+avg_tmax_celsius
+required_capability: dataset_in_from_command
+dataset: ghcn: "{{ghcn_d}}"
+FROM ghcn | STATS avg_tmax_c = ROUND(AVG(DATA_VALUE) / 10.0, 4);
+
+avg_tmax_c:double
+17.2172
+;

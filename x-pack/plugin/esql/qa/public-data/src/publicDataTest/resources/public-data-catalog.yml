@@ -1,0 +1,483 @@
+# The catalog for the public-data ES|QL suite (elastic/esql-planning#1650). Every `resource` below is an
+# already-public object the upstream publisher exposes today, over plain HTTPS or (anonymous) S3 -- never a
+# transcoded, mirrored, or re-uploaded copy. See PublicDataCatalog/SourceVariant/PinInfo for the full field
+# semantics and PublicDataCatalogValidator for the offline rules this file must satisfy.
+#
+# Onboarding the remaining public-data sources is tracked separately (elastic/esql-planning#1650,
+# "onboard-sources").
+sources:
+  - id: clickbench
+    display_name: "ClickBench hits"
+    homepage: "https://github.com/ClickHouse/ClickBench"
+    license: "Apache-2.0 (benchmark suite); source data documented at https://clickhouse.com/docs/getting-started/example-datasets/metrica"
+    query_provenance: >-
+      Adapted from ClickBench's own 43-query SQL suite (https://github.com/ClickHouse/ClickBench/blob/main/clickhouse/queries.sql),
+      translated to ES|QL. This is a distinct query set from the reduced-corpus
+      x-pack/plugin/esql/qa/testFixtures/src/main/resources/external-clickbench.csv-spec fixture, which
+      already exercises a different subset of the same SQL suite against a local, checked-in fixture.
+    variants:
+      - id: clickbench_parquet_single
+        spec: "/specs/clickbench-parquet-single.csv-spec"
+        format: PARQUET
+        codec: SNAPPY
+        provider: HTTPS
+        resource: "https://datasets.clickhouse.com/hits_compatible/athena_partitioned/hits_1.parquet"
+        partition_layout: SINGLE_FILE
+        scale: MEDIUM
+        cross_validated: true
+        notes: >-
+          One of the 100 Athena-partitioned shards ClickBench itself publishes for Presto/Athena/Spark
+          benchmarking; 1,000,000 rows. Pin captured via HTTP HEAD 2026-08-10; upstream Last-Modified is
+          2022-07-03 and unchanged since (a static benchmark corpus, not daily-refreshed), so PinStrategy.ETAG
+          is safe here. Expected results established via a transient DuckDB `read_parquet(...)` run directly
+          against this pinned object (range-reads only; SNAPPY, single row group per shard, confirmed via
+          `parquet_metadata()`), never a local copy.
+        pin:
+          etag: "\"1f5da68e097309811a675c849491ac48-9\""
+          size_bytes: 174965044
+          captured_at: "2026-08-10T00:00:00Z"
+      - id: clickbench_parquet_shards
+        spec: "/specs/clickbench-parquet-shards.csv-spec"
+        format: PARQUET
+        codec: SNAPPY
+        provider: HTTPS
+        resource: "https://datasets.clickhouse.com/hits_compatible/athena_partitioned/hits_{1..5}.parquet"
+        pin_check_uri: "https://datasets.clickhouse.com/hits_compatible/athena_partitioned/hits_1.parquet"
+        partition_layout: UNIFORM_SHARDS
+        scale: MEDIUM
+        cross_validated: true
+        notes: >-
+          5 of the 100 Athena-partitioned shards (hits_1..hits_5.parquet), addressed via the runner's
+          `{1..5}` brace-range glob syntax; 5,000,000 rows total. Same static corpus/pin reasoning as
+          clickbench_parquet_single; pin_check_uri HEAD-checks only the first shard as a representative
+          (re-verifying all 5 would need 5 HEADs, still metadata-only but not worth the extra requests for a
+          static corpus). Expected results established via a transient DuckDB
+          `read_parquet([<the 5 URLs>])` run directly against the 5 pinned objects (range-reads only), never
+          a local copy.
+        pin:
+          etag: "\"1f5da68e097309811a675c849491ac48-9\""
+          size_bytes: 174965044
+          object_count: 5
+          captured_at: "2026-08-10T00:00:00Z"
+      - id: clickbench_csv_gzip
+        spec: "/specs/clickbench-gzip.csv-spec"
+        format: CSV
+        codec: GZIP
+        provider: HTTPS
+        resource: "https://datasets.clickhouse.com/hits_compatible/hits.csv.gz"
+        settings:
+          header_row: false
+        partition_layout: SINGLE_FILE
+        scale: LARGE
+        cross_validated: false
+        notes: >-
+          The full, un-partitioned 99,997,497-row corpus (ClickBench's own exact documented count, not the
+          commonly-rounded "100 million"), headerless CSV, whole-object gzip. NOT independently
+          cross-validated: gzip is non-seekable, and this 16.6GB object is far past the ~500MB bounded-fetch
+          allowance a DuckDB cross-check would need (plan section 6). The single checked-in query is a
+          schema-agnostic COUNT(*), whose expected value instead comes from ClickBench's own documented row
+          count, not a DuckDB/Elasticsearch run -- confirmed by a live run returning exactly 99997497,
+          matching upstream. Pin captured via HTTP HEAD 2026-08-10; upstream Last-Modified is 2022-06-26 and
+          unchanged since.
+        pin:
+          etag: "\"7728690ca410a69e53450371463b6f28-931\""
+          size_bytes: 16608960810
+          captured_at: "2026-08-10T00:00:00Z"
+      - id: clickbench_tsv_gzip
+        spec: "/specs/clickbench-gzip.csv-spec"
+        format: TSV
+        codec: GZIP
+        provider: HTTPS
+        resource: "https://datasets.clickhouse.com/hits_compatible/hits.tsv.gz"
+        settings:
+          header_row: false
+        partition_layout: SINGLE_FILE
+        scale: LARGE
+        cross_validated: false
+        notes: >-
+          Same corpus/rationale as clickbench_csv_gzip, tab-delimited instead of comma-delimited; 16.3GB.
+          Pin captured via HTTP HEAD 2026-08-10; upstream Last-Modified is 2022-06-25 and unchanged since.
+        pin:
+          etag: "\"61bc7eb22518bf35f084b858be66e236-914\""
+          size_bytes: 16298506510
+          captured_at: "2026-08-10T00:00:00Z"
+      - id: clickbench_ndjson_gzip
+        spec: "/specs/clickbench-gzip.csv-spec"
+        format: NDJSON
+        codec: GZIP
+        provider: HTTPS
+        resource: "https://datasets.clickhouse.com/hits_compatible/hits.json.gz"
+        partition_layout: SINGLE_FILE
+        scale: LARGE
+        cross_validated: false
+        notes: >-
+          Same corpus/rationale as clickbench_csv_gzip, one JSON object per line instead of delimited text;
+          23.7GB, the largest of the three. Pin captured via HTTP HEAD 2026-08-10; upstream Last-Modified is
+          2022-06-27 and unchanged since.
+        pin:
+          etag: "\"0989003c39907e30e97dc66d640b7545-1171\""
+          size_bytes: 23728268670
+          captured_at: "2026-08-10T00:00:00Z"
+  - id: ghcn_d
+    display_name: "NOAA GHCN-Daily (year 1900 slice)"
+    homepage: "https://noaa-ghcn-pds.s3.amazonaws.com/index.html"
+    license: "Public domain (U.S. Government work); see https://www.ncei.noaa.gov/pub/data/ghcn/daily/GHCND_documentation.pdf"
+    query_provenance: >-
+      No upstream SQL suite is published for GHCN-D; these queries were authored from scratch after
+      inspecting the schema and a full-object DuckDB scan (station/date/element/value/mflag/qflag/sflag/
+      obstime), taking inspiration from external-clickbench.csv-spec's mix of COUNT/COUNT_DISTINCT/GROUP-BY/
+      AVG shapes.
+    variants:
+      - id: ghcn_1900_csv_gzip
+        spec: "/specs/ghcn-1900-csv.csv-spec"
+        format: CSV
+        codec: GZIP
+        provider: HTTPS
+        resource: "https://noaa-ghcn-pds.s3.amazonaws.com/csv.gz/by_year/1900.csv.gz"
+        settings:
+          header_row: false
+        partition_layout: SINGLE_FILE
+        scale: SMOKE
+        cross_validated: true
+        notes: >-
+          Full year-1900 slice (4,617,295 rows / 6,920 stations) of GHCN-D's daily-observations corpus,
+          headerless CSV, whole-object gzip; 20MB, well under the ~500MB bounded-fetch allowance (plan
+          section 6), so unlike ClickBench's gzip variants this one is independently cross-validated: DuckDB
+          materialized the full object once and every aggregate came from that in-memory table. Pinned by
+          content_signature, not ETAG: GHCN-D's pipeline wholesale-regenerates every year's export nightly
+          (confirmed -- this object's Last-Modified was hours old at pin time), so ETag/size would false-
+          positive on drift constantly even though 1900's actual data cannot change. The etag/size_bytes
+          below are only the as-observed values at capture time, logged (not asserted) by PinValidator for
+          this strategy.
+        pin:
+          etag: "\"911314689e54e249da844bf787cb1e59\""
+          size_bytes: 20086801
+          captured_at: "2026-08-11T00:00:00Z"
+          strategy: CONTENT_SIGNATURE
+          content_signature: >-
+            count=4617295; distinct(station)=6920; count(element=PRCP)=2187477;
+            count(element=TMIN)=865465; count(element=TMAX)=840783; count(element=SNOW)=488570;
+            count(element=SNWD)=172230; avg(TMAX)/10=17.43; avg(PRCP)/10=2.0;
+            top-station=USC00245685(2130) -- reproduced exactly by an independent DuckDB run against
+            ghcn_1900_parquet_hive's Hive-partitioned Parquet export of the same nominal year.
+      - id: ghcn_1900_parquet_hive
+        spec: "/specs/ghcn-1900-parquet-hive.csv-spec"
+        format: PARQUET
+        codec: SNAPPY
+        provider: S3
+        region: "us-east-1"
+        resource: "s3://noaa-ghcn-pds/parquet/by_year/YEAR=1900/ELEMENT=*/*.snappy.parquet"
+        pin_check_uri: "s3://noaa-ghcn-pds/parquet/by_year/YEAR=1900/ELEMENT=WT01/3cf0bb866a3a4815ab42e12119943b64_0.snappy.parquet"
+        settings:
+          hive_partitioning: true
+        partition_layout: NESTED_HIVE_PARTITIONED
+        scale: SMOKE
+        cross_validated: true
+        notes: >-
+          Same nominal year-1900 data as ghcn_1900_csv_gzip, but exported as ~38 small SNAPPY Parquet
+          shards under a genuinely nested Hive layout (parquet/by_year/YEAR=1900/ELEMENT=<code>/*.parquet);
+          confirmed via read_parquet(..., hive_partitioning=false) on one shard that YEAR/ELEMENT exist only
+          as path-encoded directory segments, never as physical columns. Exercises two levels of Hive
+          partition-column extraction at once: YEAR is constant across every matched shard, ELEMENT varies
+          per shard. pin_check_uri HEADs one representative (tiny) shard rather than all 38, still metadata-
+          only. Expected results established via a transient DuckDB `read_parquet('s3://.../YEAR=1900/
+          ELEMENT=*/*.snappy.parquet', hive_partitioning=true)` run directly against this glob (a few MB
+          total across all shards) and match ghcn_1900_csv_gzip's aggregates exactly, byte-for-byte on every
+          figure -- two independently-encoded exports of the same upstream data corroborating each other.
+          Pinned by content_signature for the same nightly-regeneration reason as the CSV variant.
+        pin:
+          etag: "\"721e8ec8368673a77251ec966fb41736\""
+          size_bytes: 14987
+          object_count: 38
+          captured_at: "2026-08-11T00:00:00Z"
+          strategy: CONTENT_SIGNATURE
+          content_signature: >-
+            count=4617295; distinct(id)=6920; count(element=PRCP)=2187477; count(element=TMIN)=865465;
+            count(element=TMAX)=840783; count(element=SNOW)=488570; count(element=SNWD)=172230;
+            avg(TMAX)/10=17.43; avg(PRCP)/10=2.0; top-station=USC00245685(2130); year=1900 -- reproduced
+            exactly by an independent DuckDB run against ghcn_1900_csv_gzip's headerless-CSV export of the
+            same nominal year.
+      - id: ghcn_tmax_1900_1902_hive
+        spec: "/specs/ghcn-tmax-single-level-hive.csv-spec"
+        format: PARQUET
+        codec: SNAPPY
+        provider: S3
+        region: "us-east-1"
+        resource: "s3://noaa-ghcn-pds/parquet/by_year/YEAR=1900/ELEMENT=TMAX/*.snappy.parquet,s3://noaa-ghcn-pds/parquet/by_year/YEAR=1901/ELEMENT=TMAX/*.snappy.parquet,s3://noaa-ghcn-pds/parquet/by_year/YEAR=1902/ELEMENT=TMAX/*.snappy.parquet"
+        pin_check_uri: "s3://noaa-ghcn-pds/parquet/by_year/YEAR=1900/ELEMENT=TMAX/3cf0bb866a3a4815ab42e12119943b64_0.snappy.parquet"
+        settings:
+          hive_partitioning: true
+        partition_layout: HIVE_PARTITIONED
+        scale: SMOKE
+        cross_validated: true
+        notes: >-
+          Fills this catalog's single-level HIVE_PARTITIONED gap. ghcn_1900_parquet_hive already exercises
+          NESTED_HIVE_PARTITIONED (two levels, YEAR then ELEMENT); this variant instead fixes ELEMENT to a
+          literal path segment (TMAX, no wildcard) across three years (1900-1902), so only YEAR is
+          glob-wildcarded and Hive-detected -- a genuinely single-level layout, unlike
+          btc_2009_transactions_many_small/btc_skewed_days where the sole candidate partition key (date)
+          collides with a same-named physical column and has to be read as physical instead. Addressed as a
+          top-level comma-separated list of 3 complete globs (same reason as btc_skewed_days: a single
+          YEAR={1900,1901,1902} brace alternative would collide with the top-level comma-path-list feature).
+          6 shards, ~5MB total. Every aggregate was computed by DuckDB reading this exact 6-file list
+          directly with hive_partitioning=true (plan section 6) and is independently cross-validated.
+          Pinned by content_signature for the same nightly-regeneration reason as the other ghcn_d variants
+          (confirmed: this representative shard's Last-Modified is today, same as ghcn_1900_parquet_hive's).
+        pin:
+          etag: "\"4dd5a1419e8a149ab79243a0cd0f24f2\""
+          size_bytes: 993443
+          object_count: 6
+          captured_at: "2026-08-11T00:00:00Z"
+          strategy: CONTENT_SIGNATURE
+          content_signature: >-
+            count=2625763; counts_by_year(1900,1901,1902)=840783,871050,913930; distinct_elements=1;
+            distinct_stations=3143; avg(TMAX)/10=17.2172 -- reproduced by an independent DuckDB run against
+            the same 6-file list.
+  - id: taxis
+    display_name: "NYC taxis (rally-tracks)"
+    homepage: "https://github.com/elastic/rally-tracks/tree/master/nyc_taxis"
+    license: "See https://github.com/elastic/rally-tracks/blob/master/LICENSE.txt; underlying trip records are NYC TLC open data"
+    query_provenance: >-
+      No upstream SQL suite is published for this rally-tracks fixture; these queries were authored from
+      scratch after inspecting the schema and (for the 1,000-row sample) a full-object DuckDB scan, in the
+      same spirit as elastic/esql-planning#1650's item to migrate the disabled
+      ExternalFileBzip2NdJsonCountIT#testExternalBzip2NdJsonStatsCountNycTaxisDocuments bzip2-NDJSON fixture
+      into a suite designed to tolerate its multi-hour full-corpus runtime.
+    variants:
+      - id: taxis_sample_bzip2
+        spec: "/specs/taxis-sample.csv-spec"
+        format: NDJSON
+        codec: BZIP2
+        provider: HTTPS
+        resource: "https://rally-tracks.elastic.co/nyc_taxis/documents-1k.json.bz2"
+        partition_layout: SINGLE_FILE
+        scale: SMOKE
+        cross_validated: true
+        notes: >-
+          A 1,000-document sample of the same static corpus as taxis_full_bzip2; 31KB, trivially under the
+          ~500MB bounded-fetch allowance (plan section 6), so unlike the full corpus this one is
+          independently cross-validated: DuckDB read the whole object once (bunzip2'd locally -- DuckDB's
+          httpfs read_ndjson does not auto-decompress bzip2, unlike gzip/zstd) and every aggregate came from
+          that. Pin captured via HTTP HEAD 2026-08-11; upstream Last-Modified is 2021-04-20 and unchanged
+          since (a static benchmark corpus), so PinStrategy.ETAG is safe here.
+        pin:
+          etag: "\"7f8e6f405ecf71e470e3162ef3bb5a4d\""
+          size_bytes: 31327
+          captured_at: "2026-08-11T00:00:00Z"
+      - id: taxis_full_bzip2
+        spec: "/specs/taxis-full.csv-spec"
+        format: NDJSON
+        codec: BZIP2
+        provider: HTTPS
+        resource: "https://rally-tracks.elastic.co/nyc_taxis/documents.json.bz2"
+        partition_layout: SINGLE_FILE
+        scale: LARGE
+        cross_validated: false
+        notes: >-
+          The full, un-partitioned 165,346,692-document corpus; 4.8GB, whole-object bzip2. Migrates the
+          disabled ExternalFileBzip2NdJsonCountIT#testExternalBzip2NdJsonStatsCountNycTaxisDocuments
+          (elastic/esql-planning#1650). NOT independently cross-validated: bzip2 is non-seekable, and this
+          object is far past the ~500MB bounded-fetch allowance a DuckDB cross-check would need (plan
+          section 6). The single checked-in query is a schema-agnostic COUNT(*), whose expected value comes
+          from the original (disabled) test's already-documented row count, not a DuckDB/Elasticsearch run.
+          Pin captured via HTTP HEAD 2026-08-11; upstream Last-Modified is 2021-04-20 and unchanged since (a
+          static benchmark corpus), so PinStrategy.ETAG is safe here.
+        pin:
+          etag: "\"5f244581a2b6441785ca5d9790d9b008\""
+          size_bytes: 4820107188
+          captured_at: "2026-08-11T00:00:00Z"
+  - id: nyc_tlc
+    display_name: "NYC Taxi & Limousine Commission trip records"
+    homepage: "https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page"
+    license: "See https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page (public government data)"
+    query_provenance: >-
+      No upstream SQL suite is published for TLC's own trip-record archive; these queries were authored from
+      scratch after inspecting the schema and a range-read DuckDB scan, in the same spirit as the taxis
+      source's (rally-tracks' older export of this same authority's data) queries.
+    variants:
+      - id: nyc_tlc_parquet_gzip
+        spec: "/specs/nyc-tlc-parquet.csv-spec"
+        format: PARQUET
+        codec: GZIP
+        provider: HTTPS
+        resource: "https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_2023-01.parquet"
+        partition_layout: SINGLE_FILE
+        scale: MEDIUM
+        cross_validated: true
+        notes: >-
+          January 2023 yellow-taxi trips (3,066,766 rows), published by TLC itself (not a third-party
+          mirror). Unlike every other Parquet variant in this catalog (all SNAPPY page compression), this
+          one's export pipeline uses GZIP (confirmed via `parquet_metadata()`), rounding out the Parquet x
+          {SNAPPY, GZIP} half of elastic/esql-planning#1650's compression matrix. Single ~47MB file; Parquet
+          is seekable regardless of size, so DuckDB validated every aggregate via range-reads against this
+          exact pinned object, never a local copy. Pin captured via HTTP HEAD 2026-08-11; upstream
+          Last-Modified is 2023-03-20 and unchanged since -- TLC publishes each month's archive once and
+          never revises it in place.
+        pin:
+          etag: "\"c1744317232f0b94f424e50e381189b5-3\""
+          size_bytes: 47673370
+          captured_at: "2026-08-11T00:00:00Z"
+  - id: aws_public_blockchain
+    display_name: "AWS Public Blockchain Data (Bitcoin)"
+    homepage: "https://registry.opendata.aws/aws-public-blockchain/"
+    license: "See https://registry.opendata.aws/aws-public-blockchain/ (AWS Open Data Sponsorship Program)"
+    query_provenance: >-
+      No upstream SQL suite is published for this dataset; these queries were authored from scratch after
+      inspecting the schema and a range-read DuckDB scan across the full 2009 date= glob.
+    variants:
+      - id: btc_2009_transactions_many_small
+        spec: "/specs/btc-2009-transactions.csv-spec"
+        format: PARQUET
+        codec: SNAPPY
+        provider: S3
+        region: "us-east-2"
+        resource: "s3://aws-public-blockchain/v1.0/btc/transactions/date=2009-*/*.parquet"
+        pin_check_uri: "s3://aws-public-blockchain/v1.0/btc/transactions/date=2009-01-03/part-00000-0b2f1dc9-9663-4a45-b566-d390f3e31b15-c000.snappy.parquet"
+        settings:
+          hive_partitioning: false
+        partition_layout: MANY_SMALL_FILES
+        scale: SMOKE
+        cross_validated: true
+        notes: >-
+          Every Bitcoin transaction from 2009 (Bitcoin's first calendar year), one SNAPPY Parquet shard per
+          calendar day (358 shards with recorded activity; a few 2009 days have none), globbed via
+          date=2009-*/*.parquet. Unlike ghcn_d, this dataset already carries `date` as a real physical
+          Parquet column, and the reader auto-detects the date=YYYY-MM-DD/ layout as Hive-style regardless of
+          whether hive_partitioning is explicitly requested -- so settings.hive_partitioning=false is
+          required here (confirmed: omitting it entirely, not just leaving it unset, still produced a
+          "physical column [date] is shadowed by a same-named Hive partition key" warning) to read the
+          physical column instead of the redundant path-derived one. Exercises MANY_SMALL_FILES: shards
+          range
+          9.8KB-176KB (~18x, reflecting organic early-network growth) -- a meaningfully different shape from
+          this catalog's other multi-file variants (clickbench_parquet_shards' 5 *equal*-size shards;
+          ghcn_1900_parquet_hive's ~38 near-uniform shards). Every aggregate was computed by DuckDB reading
+          this exact glob directly (~20MB total across all 358 files, plan section 6) and is independently
+          cross-validated. Pinned by content_signature, not ETag: HEAD on the representative shard shows
+          Last-Modified 2026-02-18 -- recent, despite 2009's data being logically immutable -- indicating
+          AWS's own export pipeline periodically rewrites historical partitions wholesale (the same
+          instability class as ghcn_d, just on a much longer cycle); the etag/size_bytes below are only the
+          as-observed values at capture time, logged (not asserted) by PinValidator for this strategy.
+        pin:
+          etag: "\"4e599983babd1eaca4d25f65ec740777\""
+          size_bytes: 10128
+          object_count: 358
+          captured_at: "2026-08-11T00:00:00Z"
+          strategy: CONTENT_SIGNATURE
+          content_signature: >-
+            count=32709; coinbase_count=32490; distinct(block_hash)=32490; block_number range=[0,32489];
+            sum(output_value)=1977133.09; avg(output_value)=60.44614907; counts_by_month(Jan..Dec)=
+            2576,3417,3487,3459,3401,2244,1930,1570,2170,2139,2232,4084 -- reproduced by an independent
+            DuckDB run against the same date=2009-*/*.parquet glob.
+      - id: btc_skewed_days
+        spec: "/specs/btc-skewed-days.csv-spec"
+        format: PARQUET
+        codec: SNAPPY
+        provider: S3
+        region: "us-east-2"
+        resource: "s3://aws-public-blockchain/v1.0/btc/transactions/date=2009-01-03/*.parquet,s3://aws-public-blockchain/v1.0/btc/transactions/date=2011-06-01/*.parquet,s3://aws-public-blockchain/v1.0/btc/transactions/date=2013-06-01/*.parquet,s3://aws-public-blockchain/v1.0/btc/transactions/date=2015-06-01/*.parquet"
+        pin_check_uri: "s3://aws-public-blockchain/v1.0/btc/transactions/date=2009-01-03/part-00000-0b2f1dc9-9663-4a45-b566-d390f3e31b15-c000.snappy.parquet"
+        settings:
+          hive_partitioning: false
+        partition_layout: SKEWED_SHARDS
+        scale: SMOKE
+        cross_validated: true
+        notes: >-
+          Four specific days from Bitcoin's transaction history, addressed as a top-level comma-separated
+          list of 4 complete globs (one per date=YYYY-MM-DD/*.parquet) rather than one wildcard glob over a
+          date range. A single date={a,b,c,d} brace alternative was tried first but GlobExpander.expand
+          dispatches on path.indexOf(',') before any brace-awareness, so it top-level-splits on every comma
+          -- including ones inside the braces -- producing "missing scheme" errors for the inner fragments;
+          this is a real gap (comma-list and multi-value brace-alternation are mutually exclusive within one
+          segment today), worked around here by making each date its own top-level comma segment instead.
+          Exercises SKEWED_SHARDS: the four SNAPPY Parquet shards are 9.8KB, 8.8MB, 79MB, and 228MB
+          respectively (~24,400x, reflecting organic network growth over six years) -- a meaningfully
+          different shape from btc_2009_transactions_many_small's ~18x-skewed but otherwise uniformly-tiny
+          358 shards, and from every other multi-file variant in this catalog (all near-uniform). Total
+          ~331MB across the 4 files, under the ~500MB bounded-fetch allowance (plan section 6). Same
+          physical-`date`-column caveat as btc_2009_transactions_many_small: hive_partitioning=false is
+          required. Every aggregate was computed by DuckDB reading this exact 4-file list directly and is
+          independently cross-validated. Pinned by content_signature for the same reason as the other btc
+          variant (AWS's pipeline periodically rewrites historical partitions wholesale, evidenced by all 4
+          shards sharing a recent 2026-02-18 Last-Modified despite logically-fixed historical data).
+        pin:
+          etag: "\"4e599983babd1eaca4d25f65ec740777\""
+          size_bytes: 10128
+          object_count: 4
+          captured_at: "2026-08-11T00:00:00Z"
+          strategy: CONTENT_SIGNATURE
+          content_signature: >-
+            count=189548; counts_by_date(2009-01-03,2011-06-01,2013-06-01,2015-06-01)=1,6540,54311,128696;
+            coinbase_count=534; sum(output_value)=2278249.1201; avg(output_value)=12.01937831 -- reproduced
+            by an independent DuckDB run against the same 4-file list.
+  - id: clickhouse_hits
+    display_name: "ClickHouse CostBench hits_100B"
+    homepage: "https://github.com/ClickHouse/CostBench/tree/main/full-path-realtime/hits"
+    license: "Apache-2.0 (ClickHouse project); synthetic data generated from the classic ClickBench hits schema"
+    query_provenance: >-
+      Not the upstream ClickBench SQL suite (that's clickbench_*'s provenance) -- this dataset's column
+      values are randomized/synthetic, so the real hits.tsv queries' expected results don't apply. These
+      queries were authored from scratch after inspecting the schema and a range-read DuckDB scan of the
+      pinned shard.
+    variants:
+      - id: hits_zstd_single_shard
+        spec: "/specs/clickhouse-hits-zstd-single.csv-spec"
+        format: PARQUET
+        codec: ZSTD
+        provider: S3
+        region: "eu-west-3"
+        resource: "s3://public-pme/hits_100B/2000x50m_span_27h46m40s_rps_1m/hits_p00000.parquet"
+        partition_layout: SINGLE_FILE
+        scale: LARGE
+        cross_validated: true
+        notes: >-
+          One of 2,000 shards from ClickHouse's own public 100-billion-row Parquet export of the classic
+          ClickBench `hits` schema (README: https://github.com/ClickHouse/CostBench/blob/main/full-path-realtime/hits/README.md).
+          Fills this catalog's Parquet+ZSTD gap: every other Parquet variant here uses SNAPPY or GZIP.
+          9.7GB / 50,000,328 rows -- deliberately the largest single object in this catalog (LARGE scale,
+          vs. every other variant's SMOKE/MEDIUM), to exercise a single-shard scan an order of magnitude
+          bigger than clickbench_parquet_single's 175MB. Pinned by ETag (published by ClickHouse itself as a
+          fixed benchmark export, not a live/rolling feed, so unlike the AWS btc variants no periodic
+          rewrite is expected). Every aggregate was computed by DuckDB reading this exact file directly
+          (httpfs range-reads only the referenced columns' chunks, well under the ~500MB fetch allowance
+          per plan section 6) and is independently cross-validated.
+        pin:
+          etag: "\"dd01f940b2f0e3ab391e3c90798e6722-540\""
+          size_bytes: 9741865492
+          captured_at: "2026-08-11T00:00:00Z"
+  - id: orca_uncompressed
+    display_name: "pq_reproduction orca (OpenOrca re-export)"
+    homepage: "https://huggingface.co/datasets/severo/pq_reproduction"
+    license: "See https://huggingface.co/datasets/severo/pq_reproduction (reproduction of OpenOrca-derived rows)"
+    query_provenance: >-
+      No upstream SQL suite is published for this dataset; these queries were authored from scratch after
+      inspecting the schema and a full-file DuckDB scan (156.6MB, within the bounded-fetch allowance).
+    variants:
+      - id: orca_uncompressed_single_file
+        spec: "/specs/orca-uncompressed.csv-spec"
+        format: PARQUET
+        codec: UNCOMPRESSED
+        provider: HTTPS
+        resource: "https://huggingface.co/datasets/severo/pq_reproduction/resolve/main/no_index/no_cdc/none/orca.parquet"
+        partition_layout: SINGLE_FILE
+        scale: SMOKE
+        cross_validated: true
+        notes: >-
+          Fills this catalog's UNCOMPRESSED-Parquet gap -- every other Parquet variant here uses SNAPPY,
+          GZIP, or ZSTD. Published by a Hugging Face staff member (severo/pq_reproduction) as a
+          compression-format reproduction of the OpenOrca instruction-tuning dataset for a blog post on
+          Parquet content-defined chunking; the underlying rows are real OpenOrca question/response pairs,
+          just re-exported once per codec (none/snappy x cdc/no_cdc x index/no_index) for that post. This is
+          the only publicly reachable UNCOMPRESSED Parquet file found after an extensive search of AWS
+          Open Data, NOAA, ClickHouse/ClickBench-adjacent, and Redshift's own `redset` (which turned out to
+          be SNAPPY) -- weaker provenance than this catalog's other sources (a third-party re-export rather
+          than an original publisher), noted here as a known trade-off. 156.6MB / 100,000 rows, SINGLE_FILE
+          at SMOKE scale. Hugging Face's resolve URL 302-redirects to a per-request signed CDN URL, which is
+          why PinValidator now follows redirects (HttpClient.Redirect.NORMAL, matching
+          HttpStorageProvider's own default) -- confirmed the final Content-based ETag is stable across
+          repeated requests despite the signed URL differing every time. Every aggregate was computed by
+          DuckDB reading this exact file directly (full download, well under the ~500MB fetch allowance per
+          plan section 6) and is independently cross-validated.
+        pin:
+          etag: "\"2c5c757dc4ae71ba1eceec08393619b16144cf5b54b9b5e868ebc864ff013e8e\""
+          size_bytes: 156600811
+          captured_at: "2026-08-11T00:00:00Z"

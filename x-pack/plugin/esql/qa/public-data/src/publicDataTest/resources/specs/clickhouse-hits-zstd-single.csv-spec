@@ -1,0 +1,67 @@
+// ClickHouse CostBench "hits_100B" (elastic/esql-planning#1650): a single 9.7GB shard
+// (hits_p00000.parquet) from ClickHouse's own public 100-billion-row Parquet export of the
+// classic ClickBench `hits` schema (same schema as clickbench_parquet_shards/clickbench_gzip
+// in this catalog, but this export uses randomized/synthetic column values and a synthetic
+// EventTime/EventDate timeline rather than the real ClickBench sample, so results here do NOT
+// match those variants -- see https://github.com/ClickHouse/CostBench, published by ClickHouse
+// itself). Fills this catalog's Parquet+ZSTD gap: every other Parquet variant here uses SNAPPY
+// or GZIP. SINGLE_FILE at LARGE scale (9.7GB, 50M rows) -- deliberately the largest single
+// object in this catalog, exercising a single-shard scan an order of magnitude bigger than any
+// other Parquet variant, while every other SKEWED_SHARDS/MANY_SMALL_FILES variant instead
+// exercises many small objects.
+//
+// Every aggregate was computed by DuckDB reading this exact file directly (bounded to this
+// query set's referenced columns only, well under the ~500MB fetch allowance per plan section
+// 6, since httpfs range-reads only the needed column chunks) and is independently
+// cross-validated.
+
+count_all
+required_capability: dataset_in_from_command
+dataset: hits: "{{clickhouse_hits}}"
+FROM hits | STATS count = COUNT(*);
+
+count:long
+50000328
+;
+
+avg_resolution
+required_capability: dataset_in_from_command
+dataset: hits: "{{clickhouse_hits}}"
+FROM hits | STATS avg_w = ROUND(AVG(ResolutionWidth), 4), avg_h = ROUND(AVG(ResolutionHeight), 4);
+
+avg_w:double | avg_h:double
+1514.2245    | 979.0633
+;
+
+distinct_counters
+required_capability: dataset_in_from_command
+dataset: hits: "{{clickhouse_hits}}"
+// COUNT_DISTINCT is HLL-approximate (even a max 40000 precision threshold still isn't exactly 6142 here);
+// grouping then counting groups is exact instead.
+FROM hits | STATS BY CounterID | STATS distinct_counters = COUNT(*);
+
+distinct_counters:long
+6142
+;
+
+mobile_share
+required_capability: dataset_in_from_command
+dataset: hits: "{{clickhouse_hits}}"
+FROM hits | STATS mobile_count = COUNT(*) WHERE IsMobile == 1, total = COUNT(*);
+
+mobile_count:long | total:long
+5043774            | 50000328
+;
+
+top_regions
+required_capability: dataset_in_from_command
+dataset: hits: "{{clickhouse_hits}}"
+FROM hits | STATS count = COUNT(*) BY RegionID | SORT count DESC, RegionID ASC | LIMIT 5;
+
+count:long | RegionID:integer
+9210010    | 229
+3371961    | 2
+2130909    | 208
+1631092    | 169
+906037     | 32
+;

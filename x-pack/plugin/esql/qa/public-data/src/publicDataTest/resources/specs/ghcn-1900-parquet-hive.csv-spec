@@ -1,0 +1,92 @@
+// NOAA GHCN-Daily (elastic/esql-planning#1650): the same year-1900 slice as ghcn_1900_csv_gzip
+// (ghcn-1900-csv.csv-spec), but published as SNAPPY Parquet under a genuinely nested Hive layout --
+// parquet/by_year/YEAR=1900/ELEMENT=<code>/*.snappy.parquet -- where YEAR and ELEMENT exist only as
+// path-encoded directory segments, never as physical columns inside the Parquet files themselves
+// (confirmed: read_parquet(..., hive_partitioning=false) on a single shard omits both). This exercises
+// two levels of Hive partition-column extraction at once, one constant across every matched file (YEAR)
+// and one that varies per matched file (ELEMENT), unlike the flat/uniform-shard ClickBench variants.
+//
+// Every aggregate below was computed by DuckDB reading this exact s3:// glob directly (~3s, a few MB
+// total across ~38 small per-element shards for one year -- far under the 500MB bounded-fetch allowance,
+// plan section 6) and matches ghcn_1900_csv_gzip's aggregates exactly, byte-for-byte on every figure --
+// two independently-encoded exports of the same upstream data corroborating each other. Pinned by
+// content_signature for the same reason as the CSV variant: GHCN-D's pipeline wholesale-regenerates
+// every year's export nightly, so ETags on these objects churn even though 1900's data itself is fixed.
+
+count_all
+required_capability: dataset_in_from_command
+dataset: ghcn: "{{ghcn_d}}"
+FROM ghcn | STATS count = COUNT(*);
+
+count:long
+4617295
+;
+
+distinct_stations
+required_capability: dataset_in_from_command
+dataset: ghcn: "{{ghcn_d}}"
+// COUNT_DISTINCT is HyperLogLog++-backed and only approximate once its per-shard sketches are merged
+// across splits (precision_threshold bounds a single sketch's own error, not the union of several) --
+// confirmed empirically: against this dataset's 38-shard layout it returned 6921 instead of the true 6920
+// both DuckDB and this exact grouping technique agree on. STATS BY with no aggregation dedupes exactly, so
+// counting *those* groups is an exact distinct count regardless of shard count.
+FROM ghcn | STATS BY ID | STATS stations = COUNT(*);
+
+stations:long
+6920
+;
+
+counts_by_element_top5
+required_capability: dataset_in_from_command
+dataset: ghcn: "{{ghcn_d}}"
+FROM ghcn | STATS count = COUNT(*) BY ELEMENT | SORT count DESC, ELEMENT ASC | LIMIT 5;
+
+count:long | ELEMENT:keyword
+2187477    | PRCP
+865465     | TMIN
+840783     | TMAX
+488570     | SNOW
+172230     | SNWD
+;
+
+avg_tmax_celsius
+required_capability: dataset_in_from_command
+dataset: ghcn: "{{ghcn_d}}"
+FROM ghcn | WHERE ELEMENT == "TMAX" | STATS avg_tmax_c = ROUND(AVG(DATA_VALUE) / 10.0, 2), count = COUNT(*);
+
+avg_tmax_c:double | count:long
+17.43             | 840783
+;
+
+avg_prcp_mm
+required_capability: dataset_in_from_command
+dataset: ghcn: "{{ghcn_d}}"
+FROM ghcn | WHERE ELEMENT == "PRCP" | STATS avg_prcp_mm = ROUND(AVG(DATA_VALUE) / 10.0, 2), count = COUNT(*);
+
+avg_prcp_mm:double | count:long
+2.0                | 2187477
+;
+
+top5_stations_by_observations
+required_capability: dataset_in_from_command
+dataset: ghcn: "{{ghcn_d}}"
+FROM ghcn | STATS count = COUNT(*) BY ID | SORT count DESC, ID ASC | LIMIT 5;
+
+count:long | ID:keyword
+2130       | USC00245685
+2107       | USC00250130
+2043       | USW00014850
+1901       | USC00502041
+1896       | USC00242409
+;
+
+year_partition_column
+required_capability: dataset_in_from_command
+dataset: ghcn: "{{ghcn_d}}"
+// Confirms the outer (constant) Hive partition level -- YEAR -- is correctly derived from the directory
+// path for every one of the ~38 element shards, not silently dropped or null.
+FROM ghcn | STATS count = COUNT(*) BY YEAR;
+
+count:long | YEAR:integer
+4617295    | 1900
+;

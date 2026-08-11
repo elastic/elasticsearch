@@ -1,0 +1,82 @@
+// NOAA GHCN-Daily (elastic/esql-planning#1650): year-1900 slice of the daily-observations corpus,
+// published as a single headerless gzip CSV: station_id, date(YYYYMMDD), element, value (tenths of a
+// unit), mflag, qflag, sflag, obstime -- see settings.header_row=false, so ES|QL synthesizes col0..col7.
+// This whole-object gzip is 20MB, well under the ~500MB bounded-fetch allowance (plan section 6), so
+// unlike ClickBench's gzip variants this one *is* independently cross-validated: DuckDB materialized the
+// full object once (`CREATE TABLE ... AS SELECT * FROM read_csv(...)`, ~2 minutes to stream+decompress)
+// and every aggregate below was computed from that in-memory table, not re-streamed per query.
+//
+// GHCN-D's daily pipeline wholesale-regenerates every year's export nightly (confirmed: this file's
+// Last-Modified was hours old at pin time even though 1900's *data* cannot legitimately change), so ETag
+// pinning would false-positive on drift constantly. The catalog instead pins this variant by
+// content_signature: the aggregates below serve as that fingerprint, cross-checked byte-for-byte against
+// the same year's Hive-partitioned Parquet export (ghcn_1900_parquet_hive, ghcn-1900-parquet-hive.csv-spec)
+// which independently agreed on every figure -- two differently-encoded exports of the same upstream
+// data corroborating each other is strong evidence the values are stable across regenerations.
+
+count_all
+required_capability: dataset_in_from_command
+dataset: ghcn: "{{ghcn_d}}"
+FROM ghcn | STATS count = COUNT(*);
+
+count:long
+4617295
+;
+
+distinct_stations
+required_capability: dataset_in_from_command
+dataset: ghcn: "{{ghcn_d}}"
+// COUNT_DISTINCT is HyperLogLog++-backed and only approximate once its per-shard sketches are merged
+// across splits (precision_threshold bounds a single sketch's own error, not the union of several) --
+// confirmed empirically: it returned 6921 against ghcn_1900_parquet_hive's 38-shard layout instead of the
+// true 6920 both DuckDB and this exact grouping technique agree on. STATS BY with no aggregation dedupes
+// exactly, so counting *those* groups is an exact distinct count regardless of shard count.
+FROM ghcn | STATS BY col0 | STATS stations = COUNT(*);
+
+stations:long
+6920
+;
+
+counts_by_element_top5
+required_capability: dataset_in_from_command
+dataset: ghcn: "{{ghcn_d}}"
+FROM ghcn | STATS count = COUNT(*) BY element = col2 | SORT count DESC, element ASC | LIMIT 5;
+
+count:long | element:keyword
+2187477    | PRCP
+865465     | TMIN
+840783     | TMAX
+488570     | SNOW
+172230     | SNWD
+;
+
+avg_tmax_celsius
+required_capability: dataset_in_from_command
+dataset: ghcn: "{{ghcn_d}}"
+FROM ghcn | WHERE col2 == "TMAX" | STATS avg_tmax_c = ROUND(AVG(col3) / 10.0, 2), count = COUNT(*);
+
+avg_tmax_c:double | count:long
+17.43             | 840783
+;
+
+avg_prcp_mm
+required_capability: dataset_in_from_command
+dataset: ghcn: "{{ghcn_d}}"
+FROM ghcn | WHERE col2 == "PRCP" | STATS avg_prcp_mm = ROUND(AVG(col3) / 10.0, 2), count = COUNT(*);
+
+avg_prcp_mm:double | count:long
+2.0                | 2187477
+;
+
+top5_stations_by_observations
+required_capability: dataset_in_from_command
+dataset: ghcn: "{{ghcn_d}}"
+FROM ghcn | STATS count = COUNT(*) BY station_id = col0 | SORT count DESC, station_id ASC | LIMIT 5;
+
+count:long | station_id:keyword
+2130       | USC00245685
+2107       | USC00250130
+2043       | USW00014850
+1901       | USC00502041
+1896       | USC00242409
+;

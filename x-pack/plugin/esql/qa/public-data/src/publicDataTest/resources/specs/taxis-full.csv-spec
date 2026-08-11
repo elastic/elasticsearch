@@ -1,0 +1,21 @@
+// NYC taxis, rally-tracks' full bzip2 NDJSON benchmark corpus (elastic/esql-planning#1650): the complete,
+// un-partitioned 165,346,692-document corpus (documents.json.bz2, 4.8GB). This migrates the disabled
+// ExternalFileBzip2NdJsonCountIT#testExternalBzip2NdJsonStatsCountNycTaxisDocuments (previously
+// @AwaitsFix("Very long-running test") because it has no home outside a suite explicitly designed to tolerate
+// multi-hour manual runs, which this one is) -- see taxis-sample.csv-spec for the same corpus's 1,000-row
+// sample, which additionally supports cross-validation and richer queries.
+//
+// NOT independently cross-validated: bzip2 is non-seekable (decompression must start from byte 0), and this
+// object is ~10x past the ~500MB bounded-fetch allowance a DuckDB cross-check would need (plan section 6).
+// The single checked-in query is a schema-agnostic COUNT(*); its expected value is the row count the
+// original (disabled) internalClusterTest already documented, itself sourced from the rally-tracks NYC
+// taxis track's own published corpus size, not a DuckDB/Elasticsearch run.
+
+count_all
+required_capability: dataset_in_from_command
+dataset: taxis: "{{taxis}}"
+FROM taxis | STATS count = COUNT(*);
+
+count:long
+165346692
+;

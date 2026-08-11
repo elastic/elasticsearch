@@ -1,0 +1,10 @@
+// Tiny fixture spec used only by PublicDataCatalogValidatorTests; never registered as a real source.
+
+q01_count
+required_capability: dataset_in_from_command
+dataset: demo: "{{demo}}"
+FROM demo | STATS count = COUNT(*);
+
+count:long
+1
+;

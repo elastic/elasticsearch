@@ -1,0 +1,68 @@
+// NYC taxis, rally-tracks' bzip2 NDJSON benchmark corpus (elastic/esql-planning#1650): a 1,000-document
+// sample (documents-1k.json.bz2, 31KB) of the same corpus as taxis_full_bzip2 (taxis-full.csv-spec). This
+// migrates the disabled ExternalFileBzip2NdJsonCountIT#testExternalBzip2NdJsonStatsCountNycTaxisDocuments
+// into this suite (that test's @AwaitsFix only ever exercised a schema-agnostic COUNT against the full
+// corpus; being tiny, this sample additionally supports independent cross-validation and richer per-column
+// queries the full corpus cannot afford). Every aggregate below was computed by DuckDB from the object
+// fetched whole (31KB, trivially under the ~500MB bounded-fetch allowance, plan section 6) and bunzip2'd
+// locally -- DuckDB's httpfs read_ndjson does not auto-decompress bzip2, unlike gzip/zstd.
+//
+// pickup_location/dropoff_location are [lon, lat] JSON arrays; deliberately not queried here to avoid
+// NDJSON multi-value-field inference edge cases unrelated to what this spec is exercising.
+
+count_all
+required_capability: dataset_in_from_command
+dataset: taxis: "{{taxis}}"
+FROM taxis | STATS count = COUNT(*);
+
+count:long
+1000
+;
+
+avg_trip_metrics
+required_capability: dataset_in_from_command
+dataset: taxis: "{{taxis}}"
+FROM taxis | STATS avg_fare = ROUND(AVG(fare_amount), 4), avg_dist = ROUND(AVG(trip_distance), 4), avg_tip = ROUND(AVG(tip_amount), 4);
+
+avg_fare:double | avg_dist:double | avg_tip:double
+12.9459         | 3.2138          | 1.0725
+;
+
+counts_by_vendor
+required_capability: dataset_in_from_command
+dataset: taxis: "{{taxis}}"
+FROM taxis | STATS count = COUNT(*) BY vendor_id | SORT count DESC, vendor_id ASC;
+
+count:long | vendor_id:keyword
+829        | 2
+171        | 1
+;
+
+counts_by_payment_type
+required_capability: dataset_in_from_command
+dataset: taxis: "{{taxis}}"
+FROM taxis | STATS count = COUNT(*) BY payment_type | SORT count DESC, payment_type ASC;
+
+count:long | payment_type:keyword
+621        | 2
+372        | 1
+7          | 4
+;
+
+passenger_count_range
+required_capability: dataset_in_from_command
+dataset: taxis: "{{taxis}}"
+FROM taxis | STATS max_passengers = MAX(passenger_count), min_passengers = MIN(passenger_count);
+
+max_passengers:long | min_passengers:long
+6                    | 1
+;
+
+total_revenue
+required_capability: dataset_in_from_command
+dataset: taxis: "{{taxis}}"
+FROM taxis | STATS total_rev = ROUND(SUM(total_amount), 2);
+
+total_rev:double
+15319.14
+;

@@ -1,0 +1,24 @@
+// ClickBench `hits` gzip-compressed text exports (elastic/esql-planning#1650): hits.csv.gz (16.6GB),
+// hits.tsv.gz (16.3GB), hits.json.gz (23.7GB). All three are the full, un-partitioned corpus, read
+// directly from the upstream publisher's own public S3 bucket.
+//
+// NOT independently cross-validated: gzip is non-seekable (decompression must start from byte 0), so even
+// a single DuckDB `SELECT` against one of these needs a full-object stream -- confirmed separately that a
+// 20MB gzip CSV took ~2 minutes to stream and decompress once; these objects are 800-1200x larger, far past
+// the ~500MB bounded-fetch allowance for a validation input (plan section 6). The single COUNT(*) query
+// below is schema-agnostic (touches no column, so it is immune to any doubt about header/column-naming
+// conventions) and its expected value instead comes from ClickBench's own documented, *exact* row count --
+// 99,997,497, not the commonly-rounded "100 million" figure -- stated verbatim in
+// https://github.com/ClickHouse/ClickBench ("The table consists of exactly 99'997'497 records") and
+// gendb/create.sql in that same repo. This was confirmed against a live run: all three formats returned
+// exactly 99997497, agreeing with each other and with upstream's own count. See the catalog's per-variant
+// `notes` and `cross_validated: false`.
+
+count_all
+required_capability: dataset_in_from_command
+dataset: clickbench: "{{clickbench}}"
+FROM clickbench | STATS count = COUNT(*);
+
+count:long
+99997497
+;

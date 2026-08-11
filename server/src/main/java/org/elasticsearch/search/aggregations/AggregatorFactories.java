@@ -31,9 +31,11 @@ import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -58,11 +60,22 @@ public class AggregatorFactories {
     public static final Pattern VALID_AGG_NAME = Pattern.compile("[^\\[\\]>]+");
 
     /**
+     * Maximum number of levels of aggregations that may be nested within one another in a single request.
+     * Requests with more deeply nested aggregations are rejected instead of risking a fatal
+     * {@link StackOverflowError} while the aggregators are being built.
+     */
+    public static final int MAX_NESTED_DEPTH = 100;
+
+    /**
      * Parses the aggregation request recursively generating aggregator
      * factories in turn.
      */
     public static AggregatorFactories.Builder parseAggregators(XContentParser parser) throws IOException {
         return parseAggregators(parser, 0);
+    }
+
+    private static String maxNestedDepthExceededMessage() {
+        return "The nested depth of the aggregations exceeds the maximum nested depth for aggregations of [" + MAX_NESTED_DEPTH + "]";
     }
 
     private static AggregatorFactories.Builder parseAggregators(XContentParser parser, int level) throws IOException {
@@ -85,6 +98,10 @@ public class AggregatorFactories {
                         + aggregationName
                         + "]. Aggregation names can contain any character except '[', ']', and '>'"
                 );
+            }
+
+            if (level >= MAX_NESTED_DEPTH) {
+                throw new ParsingException(parser.getTokenLocation(), maxNestedDepthExceededMessage());
             }
 
             token = parser.nextToken();
@@ -443,7 +460,29 @@ public class AggregatorFactories {
             return e;
         }
 
+        private void checkMaxNestedDepth() {
+            final Deque<Builder> builders = new ArrayDeque<>();
+            final Deque<Integer> levels = new ArrayDeque<>();
+            builders.push(this);
+            levels.push(0);
+            while (builders.isEmpty() == false) {
+                final Builder current = builders.pop();
+                final int level = levels.pop();
+                if (level >= MAX_NESTED_DEPTH
+                    && (current.aggregationBuilders.isEmpty() == false || current.pipelineAggregatorBuilders.isEmpty() == false)) {
+                    throw new IllegalArgumentException(maxNestedDepthExceededMessage());
+                }
+                for (AggregationBuilder aggBuilder : current.aggregationBuilders) {
+                    builders.push(aggBuilder.factoriesBuilder);
+                    levels.push(level + 1);
+                }
+            }
+        }
+
         public AggregatorFactories build(AggregationContext context, AggregatorFactory parent) throws IOException {
+            if (parent == null) {
+                checkMaxNestedDepth();
+            }
             if (aggregationBuilders.isEmpty() && pipelineAggregatorBuilders.isEmpty()) {
                 return AggregatorFactories.EMPTY;
             }

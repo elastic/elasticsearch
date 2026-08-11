@@ -1,10 +1,4 @@
 tests:
-- class: org.elasticsearch.packaging.test.WindowsServiceTests
-  method: test30StartStop
-  issue: https://github.com/elastic/elasticsearch/issues/113160
-- class: org.elasticsearch.packaging.test.WindowsServiceTests
-  method: test33JavaChanged
-  issue: https://github.com/elastic/elasticsearch/issues/113177
 - class: org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeToCharProcessorTests
   issue: https://github.com/elastic/elasticsearch/issues/120575
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
@@ -59,6 +53,12 @@ tests:
 - class: org.elasticsearch.search.SearchWithRejectionsIT
   method: testOpenContextsAfterRejections
   issue: https://github.com/elastic/elasticsearch/issues/156244
+- class: org.elasticsearch.snapshots.SharedClusterSnapshotRestoreIT
+  method: testCloseOrReallocateDuringPartialSnapshot
+  issue: https://github.com/elastic/elasticsearch/issues/156342
+- class: org.elasticsearch.action.search.SearchQueryThenFetchAsyncActionTests
+  method: testBottomFieldSort
+  issue: https://github.com/elastic/elasticsearch/issues/156363
 
 # Examples:
 #

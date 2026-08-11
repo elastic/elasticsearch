@@ -1,5 +1,5 @@
 area: Ranking
 issues: []
 pr: 154814
-summary: Adding a hardcoded limit on nesting retrievers
+summary: Add a hardcoded limit on nested retrievers
 type: bug

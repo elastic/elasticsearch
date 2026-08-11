@@ -680,7 +680,7 @@ public class InferencePlugin extends Plugin
                 INFERENCE_CIRCUIT_BREAKER_NAME,
                 DEFAULT_INFERENCE_CIRCUIT_BREAKER_LIMIT,
                 DEFAULT_INFERENCE_CIRCUIT_BREAKER_OVERHEAD,
-                CircuitBreaker.Type.MEMORY,
+                CircuitBreaker.Type.NOOP,
                 CircuitBreaker.Durability.TRANSIENT
             ),
             settingsToUse

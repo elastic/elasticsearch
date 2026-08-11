@@ -415,6 +415,7 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
             warningsContext.finish();
             assertThat(
                 warningsContext.warnings(),
+                // hasItems here because many threads may add duplicate warnings
                 hasItems(
                     "Line 1:1: evaluation of [test] failed, treating result as null. Only first 20 failures recorded.",
                     "Line 1:1: java.lang.IllegalArgumentException: multi-value found"

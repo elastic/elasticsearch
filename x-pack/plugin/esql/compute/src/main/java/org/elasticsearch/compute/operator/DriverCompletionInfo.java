@@ -302,8 +302,7 @@ public record DriverCompletionInfo(
         boolean partial = in.getTransportVersion().supports(ESQL_EXTERNAL_PARTIAL_RESULTS) && in.readBoolean();
         Set<String> warnings;
         if (in.getTransportVersion().supports(ESQL_DRIVER_WARNINGS)) {
-            List<String> raw = in.readCollectionAsImmutableList(StreamInput::readString);
-            warnings = raw.isEmpty() ? Set.of() : Collections.unmodifiableSet(new LinkedHashSet<>(raw));
+            warnings = Collections.unmodifiableSet(in.readCollection(LinkedHashSet::new, (stream, set) -> set.add(stream.readString())));
         } else {
             warnings = Set.of();
         }
@@ -437,6 +436,12 @@ public record DriverCompletionInfo(
             }
             Set<String> warningsSnapshot;
             synchronized (warnings) {
+                /*
+                 * Preserve insertion order of the warnings so we get stuff like:
+                 *   There was an error in the [BORT(a, b)], only the first 20 returned:
+                 *   param a must be positive but was [-1231]
+                 *   param b must be a string at least 100 characters but was [candy]
+                 */
                 warningsSnapshot = warnings.isEmpty() ? Set.of() : Collections.unmodifiableSet(new LinkedHashSet<>(warnings));
             }
             return new DriverCompletionInfo(

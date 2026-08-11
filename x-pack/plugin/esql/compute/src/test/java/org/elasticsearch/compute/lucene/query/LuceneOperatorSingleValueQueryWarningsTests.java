@@ -228,6 +228,7 @@ public class LuceneOperatorSingleValueQueryWarningsTests extends ComputeTestCase
                     collected.addAll(dc2.warnings());
                     assertThat(
                         collected,
+                        // hasItems here because many threads may add duplicate warnings
                         hasItems(
                             "Line 1:1: evaluation of [test] failed, treating result as null. Only first 20 failures recorded.",
                             "Line 1:1: java.lang.IllegalArgumentException: single-value function encountered multi-value"

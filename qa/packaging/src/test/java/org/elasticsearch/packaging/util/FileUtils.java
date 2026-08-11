@@ -10,6 +10,7 @@
 package org.elasticsearch.packaging.util;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.IOUtils;
 import org.hamcrest.FeatureMatcher;
 import org.hamcrest.Matcher;
@@ -75,19 +76,24 @@ public class FileUtils {
     }
 
     public static void rm(Path... paths) {
-        try {
-            IOUtils.rm(paths);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
+        if (Platforms.WINDOWS) {
+            runWithRetries(() -> IOUtils.rm(paths));
+        } else {
+            try {
+                IOUtils.rm(paths);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
         }
     }
 
-    public static void rmWithRetries(Path... paths) {
+    // windows needs leniency due to asinine releasing of file locking async from a process exiting
+    private static void runWithRetries(CheckedRunnable<IOException> runnable) {
         int tries = 10;
-        Exception exception = null;
+        IOException exception = null;
         while (tries-- > 0) {
             try {
-                IOUtils.rm(paths);
+                runnable.run();
                 return;
             } catch (IOException e) {
                 if (exception == null) {
@@ -103,7 +109,7 @@ public class FileUtils {
                 return;
             }
         }
-        throw new RuntimeException(exception);
+        throw new UncheckedIOException(exception);
     }
 
     public static Path mktempDir(Path path) {
@@ -131,6 +137,10 @@ public class FileUtils {
     }
 
     public static Path mv(Path source, Path target) {
+        if (Platforms.WINDOWS) {
+            runWithRetries(() -> Files.move(source, target));
+            return target;
+        }
         try {
             return Files.move(source, target);
         } catch (IOException e) {

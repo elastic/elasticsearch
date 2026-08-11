@@ -9,7 +9,7 @@ breaking:
     effect on the replica count.
   impact: >-
     Indices that have `auto_expand_replicas` set and pass through an ILM
-    `allocate` action with `number_of_replicas` configured will have
+    `allocate` action with `number_of_replicas` configured have
     `auto_expand_replicas` removed. If you rely on `auto_expand_replicas`
     continuing to take effect after the `allocate` action, remove the
     `number_of_replicas` setting from that action.

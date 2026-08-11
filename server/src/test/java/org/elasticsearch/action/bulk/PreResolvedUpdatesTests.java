@@ -643,6 +643,7 @@ public class PreResolvedUpdatesTests extends IndexShardTestCase {
         assertEquals(2, updateHelper.preResolved().size());
         assertIdsArePreResolved("0", "1");
         assertTrue(response(request, 0).isFailed());
+        assertThat(response(request, 0).getFailure().getCause(), instanceOf(EsRejectedExecutionException.class));
         assertTrue(response(request, 1).isFailed());
         assertThat(response(request, 1).getFailure().getCause(), instanceOf(EsRejectedExecutionException.class));
     }

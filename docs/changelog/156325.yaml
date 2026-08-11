@@ -1,6 +1,5 @@
-area: "Performance, Vector Search"
+area: "Vector Search"
 issues: []
 pr: 156325
-summary: Implement DAI for `ReopeningIndexInput:` avoid on-heap copy on stateless
-  merge scoring
+summary: Zero-copy vector scoring on stateless
 type: enhancement

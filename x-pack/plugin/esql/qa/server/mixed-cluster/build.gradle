@@ -48,7 +48,9 @@ GradleUtils.extendSourceSet(project, "javaRestTest", "yamlRestTest")
 esqlCsvSpecTests {
     specFilesDir = project(xpackModule('esql:qa:testFixtures')).file('src/main/resources')
     packageName = 'org.elasticsearch.xpack.esql.qa.mixed'
-    variant 'MixedClusterEsqlSpec', 'AbstractMixedClusterEsqlSpecIT'
+    // AbstractMixedClusterEsqlSpecIT is the shared base and supplies no addresses, so each variant names the
+    // leaf that pins its coordinator version.
+    variant 'MixedClusterEsqlSpec', 'AbstractMixedClusterEsqlCurrentCoordinatorSpecIT'
     variant 'MixedClusterEsqlOldCoordinatorSpec', 'AbstractMixedClusterEsqlOldCoordinatorSpecIT'
 }
 

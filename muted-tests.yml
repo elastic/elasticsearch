@@ -59,6 +59,9 @@ tests:
 - class: org.elasticsearch.snapshots.SharedClusterSnapshotRestoreIT
   method: testCloseOrReallocateDuringPartialSnapshot
   issue: https://github.com/elastic/elasticsearch/issues/156342
+- class: org.elasticsearch.action.search.SearchQueryThenFetchAsyncActionTests
+  method: testBottomFieldSort
+  issue: https://github.com/elastic/elasticsearch/issues/156363
 
 # Examples:
 #

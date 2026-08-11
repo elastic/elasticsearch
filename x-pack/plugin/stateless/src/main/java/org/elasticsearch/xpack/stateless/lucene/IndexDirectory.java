@@ -1105,6 +1105,10 @@ public class IndexDirectory extends ByteSizeDirectory {
             }
             return executeLocallyOrReopen(current -> {
                 IndexInput inner = current.getDelegate();
+                // We do not need to unwrap, as getDelegate() is the innermost input.
+                // If this changes and a wrapper is introduced, either ensure it implements DAI/MSAI too, or unwrap it to get the
+                // underlying DAI/MSAI, then remove this assertion
+                assert FilterIndexInput.unwrap(inner) == inner : "unexpected wrapper: getDelegate() should be the innermost input";
                 if (inner instanceof MemorySegmentAccessInput msai) {
                     MemorySegment slice = msai.segmentSliceOrNull(offset, length);
                     if (slice == null) {
@@ -1139,6 +1143,9 @@ public class IndexDirectory extends ByteSizeDirectory {
             }
             return executeLocallyOrReopen(current -> {
                 IndexInput inner = current.getDelegate();
+                // We do not need to unwrap, as getDelegate() is the innermost input.
+                // See also withMemorySegmentSlice.
+                assert FilterIndexInput.unwrap(inner) == inner : "unexpected wrapper: getDelegate() should be the innermost input";
                 if (inner instanceof MemorySegmentAccessInput msai) {
                     return IndexInputUtils.resolveFromMmap(msai, offsets, length, count, addressesScratch, action);
                 }

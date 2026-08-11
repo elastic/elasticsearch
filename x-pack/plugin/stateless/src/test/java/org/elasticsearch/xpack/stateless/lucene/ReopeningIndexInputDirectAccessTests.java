@@ -67,6 +67,8 @@ public class ReopeningIndexInputDirectAccessTests extends ESTestCase {
     private static final int RANGE_LENGTH = BlobCacheBufferedIndexInput.BUFFER_SIZE;
     private static final int SMALL_RANGE_LENGTH = 64;
 
+    private static final long[] RANGE_OFFSETS = new long[] { 0, RANGE_LENGTH, 4L * RANGE_LENGTH, FILE_LENGTH - RANGE_LENGTH };
+
     public void testZeroCopyFromLocalMmapFile() throws Exception {
         try (var node = newNode()) {
             var bytes = writeFile(node, MMAP_FILE);
@@ -76,7 +78,7 @@ public class ReopeningIndexInputDirectAccessTests extends ESTestCase {
 
                 assertSegmentSlice(input, bytes, 0, FILE_LENGTH);
                 assertSegmentSlice(input, bytes, RANGE_LENGTH, RANGE_LENGTH);
-                assertSliceAddresses(input, bytes, rangeOffsets());
+                assertSliceAddresses(input, bytes, RANGE_OFFSETS);
             }
         }
     }
@@ -93,7 +95,7 @@ public class ReopeningIndexInputDirectAccessTests extends ESTestCase {
 
                 assertSegmentSlice(input, bytes, 0, FILE_LENGTH);
                 assertSegmentSlice(input, bytes, RANGE_LENGTH, RANGE_LENGTH);
-                assertSliceAddresses(input, bytes, rangeOffsets());
+                assertSliceAddresses(input, bytes, RANGE_OFFSETS);
             }
         }
     }
@@ -107,7 +109,7 @@ public class ReopeningIndexInputDirectAccessTests extends ESTestCase {
             var bytes = writeFile(node, MMAP_FILE);
             try (var input = openReopeningInput(node, MMAP_FILE)) {
                 assertSegmentSlice(input, bytes, 0, FILE_LENGTH);
-                assertSliceAddresses(input, bytes, rangeOffsets());
+                assertSliceAddresses(input, bytes, RANGE_OFFSETS);
                 assertThat(input.getDelegate().isCached(), equalTo(false));
                 assertThat(Files.exists(localIndexPath(node).resolve(MMAP_FILE)), equalTo(true));
 
@@ -117,7 +119,7 @@ public class ReopeningIndexInputDirectAccessTests extends ESTestCase {
                 assertThat(Files.exists(localIndexPath(node).resolve(MMAP_FILE)), equalTo(false));
                 assertThat(input.getDelegate().isCached(), equalTo(true));
                 assertSegmentSlice(input, bytes, 0, FILE_LENGTH);
-                assertSliceAddresses(input, bytes, rangeOffsets());
+                assertSliceAddresses(input, bytes, RANGE_OFFSETS);
             }
         }
     }
@@ -137,7 +139,7 @@ public class ReopeningIndexInputDirectAccessTests extends ESTestCase {
                 assertThat(input.getDelegate().getDelegate(), instanceOf(MemorySegmentAccessInput.class));
 
                 // declined despite the delegate being able to serve it
-                assertNoSegmentSlice(input, 0, SMALL_RANGE_LENGTH);
+                assertNoSegmentSlice(input, SMALL_RANGE_LENGTH);
 
                 // ... and the caller still gets the right bytes, via the heap-copy fallback
                 var scratch = new RecordingScratch();
@@ -170,8 +172,8 @@ public class ReopeningIndexInputDirectAccessTests extends ESTestCase {
             try (var input = openReopeningInput(node, PLAIN_FILE)) {
                 assertThat(input.getDelegate().getDelegate(), not(instanceOf(MemorySegmentAccessInput.class)));
 
-                assertNoSegmentSlice(input, 0, FILE_LENGTH);
-                assertNoSliceAddresses(input, rangeOffsets());
+                assertNoSegmentSlice(input, FILE_LENGTH);
+                assertNoSliceAddresses(input);
             }
         }
     }
@@ -193,7 +195,7 @@ public class ReopeningIndexInputDirectAccessTests extends ESTestCase {
                 var clone = input.clone();
                 assertThat(clone, instanceOf(IndexDirectory.ReopeningIndexInput.class));
                 assertSegmentSlice((DirectAccessInput) clone, bytes, RANGE_LENGTH, RANGE_LENGTH);
-                assertSliceAddresses((DirectAccessInput) clone, bytes, rangeOffsets());
+                assertSliceAddresses((DirectAccessInput) clone, bytes, RANGE_OFFSETS);
             }
         }
     }
@@ -202,7 +204,7 @@ public class ReopeningIndexInputDirectAccessTests extends ESTestCase {
         try (var node = newNode()) {
             writeFile(node, MMAP_FILE);
             try (var input = openReopeningInput(node, MMAP_FILE)) {
-                var offsets = rangeOffsets();
+                var offsets = RANGE_OFFSETS;
 
                 var notInvoked = new AtomicBoolean();
                 assertThat(
@@ -354,10 +356,6 @@ public class ReopeningIndexInputDirectAccessTests extends ESTestCase {
         assertArrayEquals(expected, actual);
     }
 
-    private static long[] rangeOffsets() {
-        return new long[] { 0, RANGE_LENGTH, 4L * RANGE_LENGTH, FILE_LENGTH - RANGE_LENGTH };
-    }
-
     private static void assertSegmentSlice(DirectAccessInput input, byte[] expected, long offset, int length) throws IOException {
         var invoked = new AtomicBoolean();
         var available = input.withMemorySegmentSlice(offset, length, segment -> {
@@ -368,9 +366,9 @@ public class ReopeningIndexInputDirectAccessTests extends ESTestCase {
         assertThat(invoked.get(), equalTo(true));
     }
 
-    private static void assertNoSegmentSlice(DirectAccessInput input, long offset, int length) throws IOException {
+    private static void assertNoSegmentSlice(DirectAccessInput input, int length) throws IOException {
         var invoked = new AtomicBoolean();
-        var available = input.withMemorySegmentSlice(offset, length, segment -> invoked.set(true));
+        var available = input.withMemorySegmentSlice((long) 0, length, segment -> invoked.set(true));
         assertThat(available, equalTo(false));
         assertThat("action must not be invoked when no segment is available", invoked.get(), equalTo(false));
     }
@@ -385,13 +383,13 @@ public class ReopeningIndexInputDirectAccessTests extends ESTestCase {
         assertThat(invoked.get(), equalTo(true));
     }
 
-    private static void assertNoSliceAddresses(DirectAccessInput input, long[] offsets) throws IOException {
+    private static void assertNoSliceAddresses(DirectAccessInput input) throws IOException {
         var invoked = new AtomicBoolean();
         var available = input.withSliceAddresses(
-            offsets,
+            RANGE_OFFSETS,
             RANGE_LENGTH,
-            offsets.length,
-            addressesScratch(offsets.length),
+            RANGE_OFFSETS.length,
+            addressesScratch(ReopeningIndexInputDirectAccessTests.RANGE_OFFSETS.length),
             addresses -> invoked.set(true)
         );
         assertThat(available, equalTo(false));
@@ -399,17 +397,16 @@ public class ReopeningIndexInputDirectAccessTests extends ESTestCase {
     }
 
     private static void assertSliceAddressesThroughUtils(IndexInput input, byte[] expected, boolean expectAvailable) throws IOException {
-        var offsets = rangeOffsets();
         var invoked = new AtomicBoolean();
         var available = IndexInputUtils.withSliceAddresses(
             input,
-            offsets,
+            RANGE_OFFSETS,
             RANGE_LENGTH,
-            offsets.length,
+            RANGE_OFFSETS.length,
             ReopeningIndexInputDirectAccessTests::addressesScratch,
             addresses -> {
                 invoked.set(true);
-                assertRangeAddresses(addresses, expected, offsets);
+                assertRangeAddresses(addresses, expected, RANGE_OFFSETS);
             }
         );
         assertThat(available, equalTo(expectAvailable));

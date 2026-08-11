@@ -997,15 +997,15 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             }
             metadataListener.addListener(ActionListener.wrap(meta -> {
                 assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SNAPSHOT);
-                Metadata transformedMetadata = metadataForSnapshot(entry, meta, projectId);
-                boolean containsSecuredData = false;
+                final Metadata untransformedMetadata = metadataForSnapshot(entry, meta, projectId);
                 final CreateSnapshotRequest createRequest = pendingCreateSnapshotRequests.remove(snapshot.getSnapshotId());
+                Metadata transformedMetadata = untransformedMetadata;
                 for (SnapshotGlobalStateTransformer transformer : snapshotGlobalStateTransformers) {
-                    var transformed = transformer.transformForSnapshot(projectId, transformedMetadata, createRequest);
-                    transformedMetadata = transformed.metadata();
-                    containsSecuredData |= transformed.containsSecuredData();
+                    transformedMetadata = transformer.transformForSnapshot(projectId, transformedMetadata, createRequest);
                 }
                 final Metadata metaForSnapshot = transformedMetadata;
+                // transformers return the same instance when they secured nothing (see SnapshotGlobalStateTransformer)
+                final boolean hasEncryptedData = metaForSnapshot != untransformedMetadata;
 
                 final Map<String, SnapshotInfo.IndexSnapshotDetails> indexSnapshotDetails = Maps.newMapWithExpectedSize(
                     finalIndices.size()
@@ -1055,7 +1055,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                     entry.userMetadata(),
                     entry.startTime(),
                     indexSnapshotDetails
-                ).withHasEncryptedData(containsSecuredData);
+                ).withHasEncryptedData(hasEncryptedData);
                 assert snapshotInfo.state() != null;
                 final boolean snapshotInfoStateInvariant = getSnapshotInfoStateInvariant(snapshotInfo);
                 final ListenableFuture<List<ActionListener<SnapshotInfo>>> snapshotListeners = new ListenableFuture<>();

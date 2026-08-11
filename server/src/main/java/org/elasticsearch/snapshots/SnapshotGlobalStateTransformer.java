@@ -24,18 +24,17 @@ import org.elasticsearch.core.Nullable;
 public interface SnapshotGlobalStateTransformer {
 
     /**
-     * Global state to write, plus whether restoring it fully will require input from the restore request.
-     */
-    record TransformedGlobalState(Metadata metadata, boolean containsSecuredData) {}
-
-    /**
      * Transforms the global state before it is written to the snapshot.
+     *
+     * <p>Implementations must return the same instance when they leave the state untouched. Returning a different
+     * instance marks the snapshot as containing transformed state that requires input on the restore request to
+     * recover fully (surfaced to users as {@code has_encrypted_data} on the snapshot).
      *
      * @param request the request that initiated the snapshot, or {@code null} when it is not available on this
      *                node (e.g. the snapshot was cloned, or the elected master changed while it was running)
      */
-    default TransformedGlobalState transformForSnapshot(ProjectId projectId, Metadata metadata, @Nullable CreateSnapshotRequest request) {
-        return new TransformedGlobalState(metadata, false);
+    default Metadata transformForSnapshot(ProjectId projectId, Metadata metadata, @Nullable CreateSnapshotRequest request) {
+        return metadata;
     }
 
     /**

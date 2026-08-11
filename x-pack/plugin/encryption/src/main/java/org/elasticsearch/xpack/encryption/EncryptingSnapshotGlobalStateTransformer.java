@@ -47,7 +47,7 @@ public final class EncryptingSnapshotGlobalStateTransformer implements SnapshotG
 
     @Override
     @SuppressWarnings("unchecked")
-    public TransformedGlobalState transformForSnapshot(ProjectId projectId, Metadata metadata, @Nullable CreateSnapshotRequest request) {
+    public Metadata transformForSnapshot(ProjectId projectId, Metadata metadata, @Nullable CreateSnapshotRequest request) {
         final ProjectMetadata project = metadata.getProject(projectId);
         final var encryptionService = EncryptionServiceRegistry.getEncryptionService();
         final SecureString secret = request == null ? null : request.encryptionPassword();
@@ -65,7 +65,6 @@ public final class EncryptingSnapshotGlobalStateTransformer implements SnapshotG
             if (secret == null) {
                 hasEncryptedData |= containsEncryptedData(handler, custom);
             } else {
-                // re-keying always produces fresh values, so an unchanged result means nothing was encrypted
                 final Metadata.ProjectCustom result = handler.reEncrypt(custom, existing -> {
                     byte[] plaintext = encryptionService.decrypt(existing);
                     try {
@@ -75,7 +74,6 @@ public final class EncryptingSnapshotGlobalStateTransformer implements SnapshotG
                     }
                 });
                 if (result != custom) {
-                    hasEncryptedData = true;
                     rewrapped.put(handler.customName(), result);
                 }
             }
@@ -87,13 +85,10 @@ public final class EncryptingSnapshotGlobalStateTransformer implements SnapshotG
                     + "the encrypted data will only be restorable on a cluster holding the same project encryption key"
             );
         }
-        if (hasEncryptedData == false && secret != null) {
+        if (secret != null && rewrapped.isEmpty()) {
             logger.warn("an encryption_password was provided but the snapshot global state contains no encrypted data");
         }
-        if (rewrapped.isEmpty()) {
-            return new TransformedGlobalState(metadata, false);
-        }
-        return new TransformedGlobalState(withReplacedCustoms(metadata, project, rewrapped), true);
+        return rewrapped.isEmpty() ? metadata : withReplacedCustoms(metadata, project, rewrapped);
     }
 
     @Override

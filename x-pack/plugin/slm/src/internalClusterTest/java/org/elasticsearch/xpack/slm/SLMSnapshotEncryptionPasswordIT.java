@@ -152,8 +152,10 @@ public class SLMSnapshotEncryptionPasswordIT extends AbstractSnapshotIntegTestCa
 
         // A plain snapshot (no encryption_password on the request) of the same global state
         createSnapshot(REPO, "plain-snapshot", List.of(INDEX));
-        SnapshotInfo snapshotInfo = getSnapshot(REPO, "plain-snapshot");
-        assertFalse("snapshot must not be flagged as containing password-protected data", snapshotInfo.hasEncryptedData());
+        assertFalse(
+            "snapshot must not be flagged as containing password-protected data",
+            getSnapshot(REPO, "plain-snapshot").hasEncryptedData()
+        );
 
         deletePolicyAndIndex();
 

@@ -765,3 +765,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIpIT
   method: test {csv-spec:ip.pushDownIPWithIn}
   issue: https://github.com/elastic/elasticsearch/issues/156501
+- class: org.elasticsearch.xpack.esql.inference.textembedding.TextEmbeddingOperatorTests
+  method: testInferenceFailure
+  issue: https://github.com/elastic/elasticsearch/issues/156502

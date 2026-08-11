@@ -16,11 +16,15 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndexMappingUpdateService;
 import org.elasticsearch.logging.LogManager;
@@ -28,9 +32,6 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ClientHelper;
-
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * Ensures the {@code .inference} system index exists and has up-to-date mappings before any write
@@ -49,10 +50,10 @@ import java.util.List;
  * by a {@code PutMapping} carrying this node's latest mappings, which (as a cluster-generated,
  * origin-carrying request) is allowed to move the mappings ahead of an older master's descriptor.
  *
- * <p>Concurrent callers are handled safely: every caller that detects an update is needed is added to
- * {@link #pendingListeners}; the first of them acquires an in-flight guard ({@link #updateInProgress})
- * and performs the update. When the in-flight update completes, all queued listeners are notified with
- * the same success or failure outcome.
+ * <p>Concurrent callers are handled safely: every caller that detects an update is needed subscribes
+ * to a shared in-flight {@link SubscribableListener}; the first of them creates the listener and
+ * performs the update. When the in-flight update completes, the same success or failure outcome is
+ * fanned out to all subscribers.
  */
 public class InferenceIndexMappingManager {
 
@@ -61,8 +62,8 @@ public class InferenceIndexMappingManager {
     private final OriginSettingClient client;
     private final SystemIndexDescriptor descriptor;
 
-    private volatile boolean updateInProgress = false;
-    private final List<ActionListener<Void>> pendingListeners = new ArrayList<>();
+    @Nullable // non-null while a create/put-mapping update is in flight
+    private SubscribableListener<Void> inFlightUpdate;
 
     public InferenceIndexMappingManager(Client client, SystemIndexDescriptor descriptor) {
         this.client = new OriginSettingClient(client, ClientHelper.INFERENCE_ORIGIN);
@@ -117,58 +118,48 @@ public class InferenceIndexMappingManager {
     }
 
     /**
-     * Queues the listener and acquires the update guard atomically. If an update is already in
-     * progress this method returns immediately; the listener is notified when the in-flight update
-     * completes. Otherwise, the appropriate index-level operation (create or put-mapping) is issued
-     * and all queued listeners are notified with its outcome.
+     * Subscribes the listener to the in-flight update, creating it if there is none. If an update is
+     * already in progress this method returns after subscribing; the listener is notified when the
+     * in-flight update completes. Otherwise, the appropriate index-level operation (create or
+     * put-mapping) is issued and its outcome is fanned out to all subscribers.
      *
      * @param createIndex {@code true} to create the index, {@code false} to update mappings only
      * @param listener    the caller to notify when the update is complete
      */
     private void startUpdateIfNotInProgress(boolean createIndex, ActionListener<Void> listener) {
-        synchronized (pendingListeners) {
-            pendingListeners.add(listener);
-            if (updateInProgress) {
-                // An update is already in flight – the queued listener is notified when it completes.
-                logger.debug("Mapping update for [{}] already in progress; queuing listener", descriptor.getPrimaryIndex());
-                return;
+        final SubscribableListener<Void> updateListener;
+        final boolean startUpdate;
+        synchronized (this) {
+            if (inFlightUpdate == null) {
+                inFlightUpdate = new SubscribableListener<>();
+                startUpdate = true;
+            } else {
+                logger.debug(
+                    () -> Strings.format("Mapping update for [%s] already in progress; queuing listener", descriptor.getPrimaryIndex())
+                );
+                startUpdate = false;
             }
-            updateInProgress = true;
+            updateListener = inFlightUpdate;
         }
 
-        // All callers, including the one that initiated this update, are notified through
-        // drainPendingListeners, which guards against listeners that throw.
-        ActionListener<Void> drainingListener = ActionListener.wrap(v -> drainPendingListeners(null), this::drainPendingListeners);
+        // Restore the subscriber's thread context when it is notified: a queued caller would otherwise
+        // run in the context of the caller that initiated the in-flight update, executing its follow-up
+        // write under the wrong security/origin context.
+        updateListener.addListener(listener, EsExecutors.DIRECT_EXECUTOR_SERVICE, client.threadPool().getThreadContext());
 
-        if (createIndex) {
-            createIndex(drainingListener);
-        } else {
-            putMapping(drainingListener);
-        }
-    }
-
-    /**
-     * Clears the in-progress guard and notifies all queued listeners with the same outcome as the
-     * completed update.
-     *
-     * @param exception the failure exception, or {@code null} if the update succeeded
-     */
-    private void drainPendingListeners(Exception exception) {
-        List<ActionListener<Void>> toNotify;
-        synchronized (pendingListeners) {
-            updateInProgress = false;
-            toNotify = new ArrayList<>(pendingListeners);
-            pendingListeners.clear();
-        }
-        for (ActionListener<Void> pendingListener : toNotify) {
-            try {
-                if (exception != null) {
-                    pendingListener.onFailure(exception);
-                } else {
-                    pendingListener.onResponse(null);
+        if (startUpdate) {
+            // Clear the in-flight guard before fanning out to subscribers so that a subscriber
+            // re-entering withUpToDateMappings starts a fresh update rather than re-subscribing
+            // to the completed one.
+            ActionListener<Void> completionListener = ActionListener.runBefore(updateListener, () -> {
+                synchronized (this) {
+                    inFlightUpdate = null;
                 }
-            } catch (Exception e) {
-                logger.warn("Listener threw an error while trying to drain pending listener", e);
+            });
+            if (createIndex) {
+                createIndex(completionListener);
+            } else {
+                putMapping(completionListener);
             }
         }
     }

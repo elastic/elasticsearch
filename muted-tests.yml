@@ -328,9 +328,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvFlattenedKeywordIT
   method: test {csv-spec:scoring.testMatchAndQueryStringFunctionsWithScore}
   issue: https://github.com/elastic/elasticsearch/issues/153614
-- class: org.elasticsearch.xpack.esql.CsvFlattenedKeywordIT
-  method: test {csv-spec:k8s-timeseries.firstAndLastWithNullSort}
-  issue: https://github.com/elastic/elasticsearch/issues/153638
 - class: org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceBufferTests
   method: testRecordInformationalWarningAppliesOneGlobalCapAcrossManyCallers
   issue: https://github.com/elastic/elasticsearch/issues/153652
@@ -687,3 +684,51 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIntsIT
   method: test {csv-spec:ints.CombineBinaryComparisonsEmp}
   issue: https://github.com/elastic/elasticsearch/issues/156456
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecFloatsIT
+  method: test {csv-spec:floats.scalbWithHugeConstantScaleFactor}
+  issue: https://github.com/elastic/elasticsearch/issues/156457
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIpIT
+  method: test {csv-spec:ip.cdirMatchOrsIPs}
+  issue: https://github.com/elastic/elasticsearch/issues/156458
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecFieldExtractIT
+  method: test {csv-spec:field_extract.multiValuedSubkeyDoesNotMatchScalarEquality}
+  issue: https://github.com/elastic/elasticsearch/issues/156459
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecFloatsIT
+  method: test {csv-spec:floats.scalbWithHugeconstantFirstArgument}
+  issue: https://github.com/elastic/elasticsearch/issues/156460
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecFloatsIT
+  method: test {csv-spec:floats.equalToMultivalue}
+  issue: https://github.com/elastic/elasticsearch/issues/156461
+- class: org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceIT
+  method: testSearchShardShouldRecoverWhenWarmingFailsOnGetConnection
+  issue: https://github.com/elastic/elasticsearch/issues/156462
+- class: org.elasticsearch.xpack.stateless.recovery.PointInTimeRelocationIT
+  method: testPointInTimeRelocationClosingSourceContexts
+  issue: https://github.com/elastic/elasticsearch/issues/156463
+- class: org.elasticsearch.xpack.esql.plugin.DataNodeRequestSenderIT
+  method: testSearchWhileRelocating
+  issue: https://github.com/elastic/elasticsearch/issues/156465
+- class: org.elasticsearch.xpack.inference.external.http.sender.RequestTaskTests
+  method: testRequest_ReleasesBytesTrackedByCircuitBreaker_OnTimedListenerTimeout
+  issue: https://github.com/elastic/elasticsearch/issues/156467
+- class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobStoreRepositoryTests
+  method: testSnapshotWithLargeSegmentFiles
+  issue: https://github.com/elastic/elasticsearch/issues/156468
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecDateNanosIT
+  method: test {csv-spec:date_nanos.Date nanos date extract, no mv max}
+  issue: https://github.com/elastic/elasticsearch/issues/156470
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIpIT
+  method: test {csv-spec:ip.cdirMatchMultipleArgs}
+  issue: https://github.com/elastic/elasticsearch/issues/156472
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecStringIT
+  method: test {csv-spec:string.mvStringNotEqualsLong}
+  issue: https://github.com/elastic/elasticsearch/issues/156473
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecFoldingIT
+  method: test {csv-spec:folding.svDouble_NotEquals_MultiValueConstant}
+  issue: https://github.com/elastic/elasticsearch/issues/156475
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecStatsIT
+  method: test {csv-spec:stats.sumWithOverflowGrouping}
+  issue: https://github.com/elastic/elasticsearch/issues/156476
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIpIT
+  method: test {csv-spec:ip.cidrMatchFunctionArg}
+  issue: https://github.com/elastic/elasticsearch/issues/156477

@@ -741,3 +741,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecUnmappedTypeConflictsIT
   method: test {csv-spec:unmapped-type-conflicts.typeConflictLongDateUnmappedCastToDouble}
   issue: https://github.com/elastic/elasticsearch/issues/156485
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecStringIT
+  method: test {csv-spec:string.reverseMultiValue}
+  issue: https://github.com/elastic/elasticsearch/issues/156487

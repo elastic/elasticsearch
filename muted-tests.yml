@@ -729,3 +729,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecStatsIT
   method: test {csv-spec:stats.sumWithOverflowGrouping}
   issue: https://github.com/elastic/elasticsearch/issues/156476
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIpIT
+  method: test {csv-spec:ip.cidrMatchFunctionArg}
+  issue: https://github.com/elastic/elasticsearch/issues/156477

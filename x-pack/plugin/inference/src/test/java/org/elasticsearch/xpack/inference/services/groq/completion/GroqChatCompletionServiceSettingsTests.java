@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.groq.completion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -22,6 +23,7 @@ import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTest
 import java.io.IOException;
 import java.net.URI;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.MatchersUtils.equalToIgnoringWhitespaceInJsonString;
@@ -30,6 +32,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
 import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields.ORGANIZATION;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.is;
 
 public class GroqChatCompletionServiceSettingsTests extends AbstractWireSerializingTestCase<GroqChatCompletionServiceSettings> {
@@ -154,7 +157,7 @@ public class GroqChatCompletionServiceSettingsTests extends AbstractWireSerializ
         assertThat(updatedServiceSettings.rateLimitSettings(), is(new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)));
     }
 
-    public void testUpdateServiceSettings_ImmutableField_ModelId_Rejected() {
+    public void testUpdateServiceSettings_GivenImmutableFields_ThrowsException() {
         var originalServiceSettings = new GroqChatCompletionServiceSettings(
             INITIAL_TEST_MODEL_ID,
             INITIAL_TEST_URI,
@@ -162,24 +165,16 @@ public class GroqChatCompletionServiceSettingsTests extends AbstractWireSerializ
             new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
         );
 
-        var updateMap = new HashMap<String, Object>();
-        updateMap.put(MODEL_ID, TEST_MODEL_ID);
-
-        expectThrows(XContentParseException.class, () -> originalServiceSettings.updateServiceSettings(updateMap));
-    }
-
-    public void testUpdateServiceSettings_ImmutableField_Url_Rejected() {
-        var originalServiceSettings = new GroqChatCompletionServiceSettings(
-            INITIAL_TEST_MODEL_ID,
-            INITIAL_TEST_URI,
-            INITIAL_TEST_ORGANIZATION_ID,
-            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
-        );
-
-        var updateMap = new HashMap<String, Object>();
-        updateMap.put(URL, TEST_URI.toString());
-
-        expectThrows(XContentParseException.class, () -> originalServiceSettings.updateServiceSettings(updateMap));
+        for (String immutableField : List.of(MODEL_ID, URL)) {
+            var e = expectThrows(
+                XContentParseException.class,
+                () -> originalServiceSettings.updateServiceSettings(new HashMap<>(Map.of(immutableField, "value")))
+            );
+            assertThat(
+                e.getMessage(),
+                endsWith(Strings.format("[%s] unknown field [%s]", ModelConfigurations.SERVICE_SETTINGS, immutableField))
+            );
+        }
     }
 
     public void testUpdateServiceSettings_OrganizationId_IsUpdated() {

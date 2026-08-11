@@ -24,6 +24,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.index.reindex.BulkByScrollTaskStatusWireSerializingTests.mutateStatus;
+
 public class BulkByScrollResponseWireSerializingTests extends AbstractWireSerializingTestCase<
     BulkByScrollResponseWireSerializingTests.BulkByScrollResponseWrapper> {
     @Override
@@ -57,7 +59,7 @@ public class BulkByScrollResponseWireSerializingTests extends AbstractWireSerial
             );
             case 1 -> new BulkByScrollResponse(
                 r.getTook(),
-                mutateRandomStatus(r.getStatus()),
+                mutateStatus(r.getStatus()),
                 r.getBulkFailures(),
                 r.getSearchFailures(),
                 r.isTimedOut()
@@ -85,19 +87,6 @@ public class BulkByScrollResponseWireSerializingTests extends AbstractWireSerial
             );
             default -> throw new AssertionError();
         });
-    }
-
-    private BulkByScrollTask.Status mutateRandomStatus(BulkByScrollTask.Status currentStatus) {
-        while (true) {
-            BulkByScrollTask.Status candidate = BulkByScrollTaskStatusTests.randomStatus();
-            try {
-                BulkByScrollTaskStatusTests.assertTaskStatusEquals(currentStatus, candidate);
-                // Equal → try again
-            } catch (AssertionError e) {
-                // Not equal → success
-                return candidate;
-            }
-        }
     }
 
     private List<Failure> mutateBulkFailures(List<Failure> currentFailures) {

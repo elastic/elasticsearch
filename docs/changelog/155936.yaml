@@ -1,0 +1,6 @@
+area: Codec
+issues:
+ - 155653
+pr: 155936
+summary: Fix false positives in boolean queries with `must_not` clauses on non-indexed fields
+type: bug

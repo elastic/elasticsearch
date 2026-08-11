@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.azureaistudio.action;
 
 import org.apache.http.HttpHeaders;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.breaker.TestCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -70,7 +71,13 @@ public class AzureAiStudioActionAndCreatorTests extends ESTestCase {
     public void init() throws Exception {
         webServer.start();
         threadPool = createThreadPool(inferenceUtilityExecutors());
-        clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
+        clientManager = HttpClientManager.create(
+            Settings.EMPTY,
+            threadPool,
+            mockClusterServiceEmpty(),
+            mock(ThrottlerManager.class),
+            new TestCircuitBreaker()
+        );
     }
 
     @After
@@ -105,7 +112,7 @@ public class AzureAiStudioActionAndCreatorTests extends ESTestCase {
             final var action = creator.create(model, Map.of());
             final PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             final var inputType = InputTypeTests.randomSearchAndIngestWithNull();
-            action.execute(new EmbeddingsInput(List.of("abc"), inputType), null, listener);
+            action.execute(EmbeddingsInput.fromStrings(List.of("abc"), inputType), null, listener);
 
             final var result = listener.actionGet(TIMEOUT);
 
@@ -233,7 +240,13 @@ public class AzureAiStudioActionAndCreatorTests extends ESTestCase {
             TimeValue.timeValueMinutes(1),
             TimeValue.timeValueSeconds(0)
         );
-        return new ServiceComponents(threadPool, mock(ThrottlerManager.class), timeoutSettings, TruncatorTests.createTruncator());
+        return new ServiceComponents(
+            threadPool,
+            mock(ThrottlerManager.class),
+            timeoutSettings,
+            TruncatorTests.createTruncator(),
+            new TestCircuitBreaker()
+        );
     }
 
     private final String testEmbeddingsTokenResponseJson = """

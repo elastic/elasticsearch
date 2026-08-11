@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 149600
-summary: CSV datetime fast path follow-ups
-type: enhancement

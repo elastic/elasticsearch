@@ -278,12 +278,13 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
             ProjectId project2 = randomUniqueProjectId();
             clusterStateBuilder.metadata(
                 Metadata.builder().put(ProjectMetadata.builder(project1)).put(ProjectMetadata.builder(project2)).build()
-            ).routingTable(
-                GlobalRoutingTable.builder()
-                    .put(project1, RoutingTable.EMPTY_ROUTING_TABLE)
-                    .put(project2, RoutingTable.EMPTY_ROUTING_TABLE)
-                    .build()
-            );
+            )
+                .routingTable(
+                    GlobalRoutingTable.builder()
+                        .put(project1, RoutingTable.EMPTY_ROUTING_TABLE)
+                        .put(project2, RoutingTable.EMPTY_ROUTING_TABLE)
+                        .build()
+                );
         } else {
             clusterStateBuilder.metadata(Metadata.builder().build()).routingTable(RoutingTable.EMPTY_ROUTING_TABLE);
         }

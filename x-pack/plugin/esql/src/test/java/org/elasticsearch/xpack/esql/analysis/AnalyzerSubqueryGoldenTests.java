@@ -821,6 +821,94 @@ public class AnalyzerSubqueryGoldenTests extends GoldenTestCase {
             """, STAGES);
     }
 
+    // -- nested UnionAll + unmapped field resolution (nullify / load) --
+
+    /**
+     * A truly unmapped field referenced at the outer level in NULLIFY mode. Verifies that {@code nullify()} via
+     * {@code transformUp(EsRelation.class)} visits all three EsRelations (employees, languages, sample_data) in a
+     * 3-level nested UnionAll and adds a null-typed field to each.
+     */
+    public void testNestedSubqueryNullifyUnmappedFieldReferencedInMainQueryKeep() {
+        requireNullifySupport();
+        runGoldenTest("""
+            SET unmapped_fields="nullify";
+            FROM employees, (FROM languages, (FROM sample_data))
+            | KEEP emp_no, does_not_exist_field
+            """, STAGES);
+    }
+
+    /**
+     * A truly unmapped field referenced inside the inner subquery scope in NULLIFY mode. The inner rule invocation
+     * finds it unresolved within the inner UnionAll (not surfaced by languages or sample_data) and null-types it in
+     * both inner EsRelations. The outer employees EsRelation gets cross-branch null-Eval alignment instead.
+     */
+    public void testNestedSubqueryNullifyWithUnmappedFieldReferencedInSubqueryStats() {
+        requireNullifySupport();
+        runGoldenTest("""
+            SET unmapped_fields="nullify";
+            FROM employees, (FROM languages, (FROM sample_data | STATS count(*) BY does_not_exist_field))
+            | KEEP emp_no, does_not_exist_field
+            """, STAGES);
+    }
+
+    /**
+     * A ROW source inside a nested subquery combined with a truly unmapped field in NULLIFY mode. Verifies that
+     * {@code nullifyNonEsRelationSources} injects {@code EVAL does_not_exist_field = NULL} atop the ROW source
+     * via {@code evalUnresolvedAtopNaryNonEsRelation} on the inner UnionAll.
+     */
+    public void testNestedSubqueryNullifyWithRowSourceInSubqueryUnmappedFieldInMainQueryKeep() {
+        requireNullifySupport();
+        requireRowSubquerySupport();
+        runGoldenTest("""
+            SET unmapped_fields="nullify";
+            FROM employees, (FROM languages, (ROW x = 1))
+            | KEEP does_not_exist_field, x
+            """, STAGES);
+    }
+
+    /**
+     * Two truly unmapped fields referenced at the outer level in NULLIFY mode. Verifies that {@code nullify()}
+     * batch-processes all UnresolvedAttributes and adds all of them to every EsRelation in the 3-level nested tree.
+     */
+    public void testNestedSubqueryNullifyWithMultipleUnmappedFieldsReferencedInMainQueryKeep() {
+        requireNullifySupport();
+        runGoldenTest("""
+            SET unmapped_fields="nullify";
+            FROM employees, (FROM languages, (FROM sample_data))
+            | KEEP emp_no, does_not_exist_field1, does_not_exist_field2
+            """, STAGES);
+    }
+
+    /**
+     * A truly unmapped field referenced at the outer level in LOAD mode. {@code mainSpineUnionBranchOutputNames}
+     * collects outer UnionAll branch outputs (employees + inner subquery merged output); neither includes the
+     * field, so it is classified as an outer reference and {@code _source} keyword loaders are added to all three
+     * EsRelations via {@code loadIntoSources}.
+     */
+    public void testNestedSubqueryLoadWithUnmappedFieldReferencedInMainQuery() {
+        runGoldenTest("""
+            SET unmapped_fields="load";
+            FROM employees, (FROM languages, (FROM sample_data))
+            | KEEP emp_no, does_not_exist_field
+            """, STAGES);
+    }
+
+    /**
+     * A truly unmapped field referenced inside the inner subquery scope in LOAD mode. The inner rule invocation
+     * loads it from both inner EsRelations (languages, sample_data). Once loaded, the inner subquery output
+     * surfaces it, so the outer rule does NOT classify it as an outer reference and does not load it into
+     * employees — employees instead gets cross-branch null-Eval alignment. Tests the Decision-A scoped loading
+     * behavior extended to 3-level nesting, exercising {@code mainSpineUnionBranchOutputNames} seeing through
+     * nested union outputs.
+     */
+    public void testNestedSubqueryLoadWithUnmappedFieldReferencedInSubqueryStats() {
+        runGoldenTest("""
+            SET unmapped_fields="load";
+            FROM employees, (FROM languages, (FROM sample_data | STATS count(*) BY does_not_exist_field))
+            | KEEP emp_no, does_not_exist_field
+            """, STAGES);
+    }
+
     // -- helpers --
 
     /**

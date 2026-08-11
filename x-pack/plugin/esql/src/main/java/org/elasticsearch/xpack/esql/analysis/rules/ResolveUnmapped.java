@@ -211,7 +211,9 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
 
     private static void collectMainSpineUnionBranchOutputNames(LogicalPlan plan, Set<String> names) {
         if (plan instanceof UnionAll ua) {
-            // Outermost union's direct branch outputs only; nested unions are rejected downstream by checkNestedUnionAlls.
+            // Outermost union's direct branch outputs only: a branch's root output already surfaces whatever any
+            // union nested inside it exposes, and names surfaced only inside a nested union but not by the branch
+            // itself do not resolve past the outer union anyway.
             for (LogicalPlan branch : ua.children()) {
                 names.addAll(Expressions.names(branch.output()));
             }
@@ -295,7 +297,10 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
             return ua;
         };
         var refreshed = plan.transformExpressionsOnlyUp(UnresolvedAttribute.class, refresh);
-        return refreshed.transformDown(Fork.class, ResolveUnmapped::patchFork);
+        // Bottom-up: patchForkProject reads project.child().output(), and a Fork reports a stored output rather than recomputing it,
+        // so a nested union has to be patched (and refreshOutput'd) before its parent reads it. Top-down leaves the outer branch's
+        // alignment Project without the newly loaded attribute, and resolveFork then null-fills the column.
+        return refreshed.transformUp(Fork.class, ResolveUnmapped::patchFork);
     }
 
     /**

@@ -509,6 +509,14 @@ public final class ExchangeService extends AbstractLifecycleComponent {
         return sinks.keySet();
     }
 
+    /**
+     * The registered exchange source ids, for tests that need to check the consumer side too. {@link #isEmpty()} and
+     * {@link #sinkKeys()} only cover sinks, so a test asserting on those alone would not notice a leaked source handler.
+     */
+    public Set<String> sourceKeys() {
+        return exchangeSources.keySet();
+    }
+
     @Override
     protected void doStart() {
 

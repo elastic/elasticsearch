@@ -163,9 +163,24 @@ public class FieldNameUtils {
                 forkRefsResult.addAll(referencesBuilder.get());
                 var parentKeepRefs = AttributeSet.builder();
                 parentKeepRefs.addAll(keepRefs);
+                // The KEEP refs of every branch, applied to keepRefs once the loop is done so that plans downstream of the whole
+                // fork still observe all of them.
+                var forkKeepRefsResult = AttributeSet.builder();
+                forkKeepRefsResult.addAll(parentKeepRefs);
+                // When this fork sits inside a branch of an enclosing fork (nested subqueries), the enclosing fork is mid-loop and
+                // its own branch state must survive this one. Restored at every exit below, the same way the AbstractSubqueryJoin
+                // handler restores state around an independent subquery. Note that holding the enclosing builder and putting it
+                // back is safe only because currentBranchKeepRefs is replaced, never cleared; keepRefs is cleared, so it is saved
+                // by copy into parentKeepRefs above.
+                var enclosingBranchKeepRefs = currentBranchKeepRefs.get();
 
                 for (var forkBranch : fork.children()) {
-                    // Reset branch-specific state for each fork branch
+                    // Reset branch-specific state for each fork branch. keepRefs accumulates across the whole plan, so without
+                    // resetting it a KEEP in one branch would reach the next branch and make it look column-constrained: a nested
+                    // fork there would inherit those refs as its parentKeepRefs and never request all fields, and a LookupJoin
+                    // there would skip wildcard lookup-index resolution. Either way the query under-collects fields.
+                    keepRefs.clear();
+                    keepRefs.addAll(parentKeepRefs);
                     currentBranchKeepRefs.set(AttributeSet.builder());
                     currentBranchKeepRefs.get().addAll(parentKeepRefs);
                     referencesBuilder.set(AttributeSet.builder());
@@ -178,9 +193,9 @@ public class FieldNameUtils {
                         && lastFork != fork
                         && fork instanceof UnionAll == false
                         && lastFork instanceof UnionAll == false) {
-                        // UnionAll is a special case of FORK, fork inside subquery or fork after subquery or nested subqueries can
-                        // be flattened and supported by LogicalPlanOptimizer and ComputeService in the future, defer this assertion
-                        // LogicalPlanOptimizer verifier. Add the check here to avoid assertion on subqueries nested with fork.
+                        // UnionAll is a special case of FORK and is excluded here: nested subqueries (UnionAll within
+                        // UnionAll) are supported and handled recursively by this processor, while fork inside subquery
+                        // and fork after subquery are rejected later by the Analyzer/LogicalPlanOptimizer verifiers.
                         // TODO consider deferring the nested fork check to Analyzer verifier or LogicalPlanOptimizer verifier.
                         //
                         // Note: lastFork == fork is excluded here because an AbstractSubqueryJoin handler inside a fork branch saves
@@ -211,14 +226,19 @@ public class FieldNameUtils {
                         && false == reduceColumnsAfterFork.get()) {
                         projectAll.set(true);
                         // Return early, we'll be returning all references no matter what the remainder of the query is.
+                        currentBranchKeepRefs.set(enclosingBranchKeepRefs);
                         breakEarly.set(true);
                         return;
                     }
                     forkRefsResult.addAll(referencesBuilder.get());
+                    forkKeepRefsResult.addAll(keepRefs);
                 }
 
                 forkRefsResult.removeIf(attr -> attr.name().equals(Fork.FORK_FIELD));
                 referencesBuilder.set(forkRefsResult);
+                keepRefs.clear();
+                keepRefs.addAll(forkKeepRefsResult);
+                currentBranchKeepRefs.set(enclosingBranchKeepRefs);
 
                 // Return early, we've already explored all fork branches.
                 breakEarly.set(true);
@@ -263,10 +283,15 @@ public class FieldNameUtils {
                 // The subquery (right side) is an independent query: save all mutable traversal state, traverse it
                 // with a clean slate, then restore before traversing the left (main pipeline) side. Only joinRefs,
                 // wildcardJoinIndices, protectedSubqueryRefs, and projectAll accumulate across the boundary.
+                //
+                // keepRefs and dropWildcardRefs are saved by copy, not by build(): AttributeSet.Builder.build() hands back a view
+                // over the builder's own map, so the clear() below would empty the "saved" set too and the restore would put
+                // nothing back. The two Holder-based builders do not need this - they are replaced with a fresh builder rather
+                // than cleared, which leaves the built view attached to the old one.
                 AttributeSet savedRefs = referencesBuilder.get().build();
-                AttributeSet savedKeepRefs = keepRefs.build();
+                AttributeSet savedKeepRefs = AttributeSet.builder().addAll(keepRefs).build();
                 AttributeSet savedBranchKeepRefs = currentBranchKeepRefs.get().build();
-                AttributeSet savedDropWildcardRefs = dropWildcardRefs.build();
+                AttributeSet savedDropWildcardRefs = AttributeSet.builder().addAll(dropWildcardRefs).build();
                 boolean savedCanRemoveAliases = canRemoveAliases.get();
                 LogicalPlan savedLastSeenFork = lastSeenFork.get();
                 boolean savedReduceColumnsAfterFork = reduceColumnsAfterFork.get();

@@ -9,6 +9,8 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
@@ -27,13 +29,17 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
 import static java.util.Collections.emptySet;
 
-public class AliasMetadata implements SimpleDiffable<AliasMetadata>, ToXContentFragment, AliasInfo {
+public class AliasMetadata implements SimpleDiffable<AliasMetadata>, ToXContentFragment, AliasInfo, Accountable {
+
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(AliasMetadata.class);
 
     private final String alias;
 
@@ -121,6 +127,36 @@ public class AliasMetadata implements SimpleDiffable<AliasMetadata>, ToXContentF
 
     public Set<String> searchRoutingValues() {
         return searchRoutingValues;
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        long size = BASE_RAM_BYTES_USED;
+        size += RamUsageEstimator.sizeOf(alias);
+        if (filter != null) {
+            size += filter.ramBytesUsed();
+        }
+        size += RamUsageEstimator.sizeOf(indexRouting);
+        size += RamUsageEstimator.sizeOf(searchRouting);
+        size += ramBytesUsedBySearchRoutingValues(searchRoutingValues);
+        // writeIndex and isHidden are boxed Booleans referenced from the shallow size; count the boxed instances when present.
+        size += RamUsageEstimator.shallowSizeOf(writeIndex);
+        size += RamUsageEstimator.shallowSizeOf(isHidden);
+        return size;
+    }
+
+    /**
+     * {@code searchRoutingValues} is either the shared empty-set singleton or an unmodifiable wrapper around a {@link HashSet}.
+     * {@link RamUsageEstimator#sizeOfCollection} assumes array-backed List storage and under-counts the HashMap node/table graph, so
+     * non-empty sets also add the backing {@link HashSet}/{@link HashMap} shallow sizes. String payloads in the set are distinct from
+     * {@code searchRouting} (comma-split copies) and are counted via {@code sizeOfCollection}.
+     */
+    private static long ramBytesUsedBySearchRoutingValues(Set<String> values) {
+        if (values.isEmpty()) {
+            return 0L;
+        }
+        return RamUsageEstimator.sizeOfCollection(values) + RamUsageEstimator.shallowSizeOfInstance(HashSet.class) + RamUsageEstimator
+            .shallowSizeOfInstance(HashMap.class);
     }
 
     public Boolean writeIndex() {

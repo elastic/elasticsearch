@@ -750,19 +750,19 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
                 )
             );
 
-            // Run prepareForShutdown in a background thread: it marks the task for relocation then blocks
-            // waiting for the task to exit (which won’t happen until we release the transport block).
+            // Prevent the cancellation from beginning until the task is in HANDOFF_INITIATED state.
             final var shutdownPrepareService = asInstanceOf(
                 ListenableShutdownPrepareService.class,
                 internalCluster().getInstance(ShutdownPrepareService.class, coordNodeName)
             );
-            // Prevent the cancellation from beginning until the task is in HANDOFF_INITIATED state.
             shutdownPrepareService.addTaskTimeoutListener((taskName, tasks) -> {
                 if (ReindexAction.NAME.equals(taskName)) {
                     safeAwait(resumeStarted);
                 }
             });
 
+            // Run prepareForShutdown in a background thread: it marks the task for relocation then blocks
+            // waiting for the task to exit (which won’t happen until we release the transport block).
             Future<?> shutdownFuture = executor.submit(shutdownPrepareService::prepareForShutdown);
 
             // Wait for the cancellation to fail

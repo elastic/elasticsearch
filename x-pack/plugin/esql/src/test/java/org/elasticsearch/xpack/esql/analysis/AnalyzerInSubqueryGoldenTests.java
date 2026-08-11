@@ -988,6 +988,29 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
             """);
     }
 
+    // -- IN subquery inside CASE, COALESCE, IS [NOT] NULL in WHERE --
+
+    public void testInSubqueryInCaseThenArm() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE CASE(salary > 50000, emp_no IN (FROM employees | KEEP emp_no), false)
+            """, STAGES);
+    }
+
+    public void testInSubqueryInCaseElseArm() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE CASE(salary > 50000, false, emp_no IN (FROM employees | KEEP emp_no))
+            """, STAGES);
+    }
+
+    public void testNotInSubqueryInCoalesce() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE COALESCE(emp_no NOT IN (FROM employees | KEEP emp_no), false)
+            """, STAGES);
+    }
+
     // -- helpers --
 
     /**

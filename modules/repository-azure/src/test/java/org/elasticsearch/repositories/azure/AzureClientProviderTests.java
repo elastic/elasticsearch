@@ -9,21 +9,36 @@
 
 package org.elasticsearch.repositories.azure;
 
+import io.netty.buffer.ByteBufAllocator;
+import io.netty.channel.EventLoopGroup;
+import io.netty.resolver.AddressResolverGroup;
+import reactor.core.publisher.Mono;
+import reactor.netty.Connection;
+import reactor.netty.ConnectionObserver;
+import reactor.netty.resources.ConnectionProvider;
+import reactor.netty.transport.TransportConfig;
+
 import com.azure.storage.common.policy.RequestRetryOptions;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
+import java.net.SocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 
 public class AzureClientProviderTests extends ESTestCase {
     private static final AzureClientProvider.RequestMetricsHandler NOOP_HANDLER = (purpose, request, metrics) -> {};
@@ -114,6 +129,224 @@ public class AzureClientProviderTests extends ESTestCase {
                 randomFrom(OperationPurpose.values())
             )
         );
+    }
+
+    private AzureStorageSettings createStorageSettings(String clientName, Settings.Builder builder) {
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString(Strings.format("azure.client.%s.account", clientName), "account");
+        secureSettings.setString(Strings.format("azure.client.%s.key", clientName), encodeKey("key"));
+
+        final Settings settings = builder.setSecureSettings(secureSettings).build();
+
+        Map<String, AzureStorageSettings> clientSettings = AzureStorageSettings.load(settings);
+        AzureStorageSettings storageSettings = clientSettings.get(clientName);
+        assertNotNull(storageSettings);
+        return storageSettings;
+    }
+
+    private AzureStorageSettings createStorageSettings(String clientName, int perClientMaxConnections) {
+        return createStorageSettings(
+            clientName,
+            Settings.builder().put(Strings.format("azure.client.%s.max_connections", clientName), perClientMaxConnections)
+        );
+    }
+
+    private AzureBlobServiceClient createClient(
+        AzureClientProvider clientProvider,
+        String clientName,
+        AzureStorageSettings storageSettings
+    ) {
+        return clientProvider.createClient(
+            null,
+            clientName,
+            storageSettings,
+            LocationMode.PRIMARY_ONLY,
+            new RequestRetryOptions(),
+            null,
+            NOOP_HANDLER,
+            randomFrom(OperationPurpose.values())
+        );
+    }
+
+    private AzureBlobServiceClient createClient(String clientName, AzureStorageSettings storageSettings) {
+        return createClient(azureClientProvider, clientName, storageSettings);
+    }
+
+    public void testFallBacksToDefaultMaxConnections() {
+        final int defaultMaxConnections = randomIntBetween(1, 200);
+        final String clientName = "azure";
+        var storageSettings = createStorageSettings(
+            "azure",
+            Settings.builder().put("repository.azure.http_client.max_open_connections", defaultMaxConnections)
+        );
+
+        createClient(clientName, storageSettings);
+
+        AzureClientProvider.ConnectionProviderKey key = new AzureClientProvider.ConnectionProviderKey(null, clientName, storageSettings);
+        assertEquals(
+            defaultMaxConnections,
+            azureClientProvider.getConnectionProvidersCache().get(key).connectionProvider().maxConnections()
+        );
+    }
+
+    public void testUsesPerClientMaxConnections() {
+        final int defaultMaxConnections = randomIntBetween(1, 200);
+        final int perClientMaxConnections = randomValueOtherThan(defaultMaxConnections, () -> randomIntBetween(1, 200));
+        final String clientName = "azure";
+        var storageSettings = createStorageSettings(
+            "azure",
+            Settings.builder()
+                .put("repository.azure.http_client.max_open_connections", defaultMaxConnections)
+                .put(Strings.format("azure.client.%s.max_connections", clientName), perClientMaxConnections)
+        );
+
+        createClient(clientName, storageSettings);
+
+        AzureClientProvider.ConnectionProviderKey key = new AzureClientProvider.ConnectionProviderKey(null, clientName, storageSettings);
+        assertEquals(
+            perClientMaxConnections,
+            azureClientProvider.getConnectionProvidersCache().get(key).connectionProvider().maxConnections()
+        );
+    }
+
+    public void testSameClientSameConnectionProvider() {
+        final var clientName = "azure";
+        final int maxConnections = randomIntBetween(1, 200);
+        final var storageSettings = createStorageSettings(clientName, maxConnections);
+        final var key = new AzureClientProvider.ConnectionProviderKey(null, clientName, storageSettings);
+
+        var ref = azureClientProvider.getConnectionProvidersCache().get(key);
+        assertNull(ref);
+
+        try (var client1 = createClient(clientName, storageSettings)) {
+            ref = azureClientProvider.getConnectionProvidersCache().get(key);
+            assertNotNull(ref);
+            var connectionProvider = ref.connectionProvider();
+            assertEquals(2, ref.refCount()); // 2 = (1 from being in the cache + 1 from the client)
+
+            var sameClientName = new String(clientName);
+            var sameStorageSettings = createStorageSettings(sameClientName, maxConnections);
+            var sameKey = new AzureClientProvider.ConnectionProviderKey(null, sameClientName, sameStorageSettings);
+            try (var client2 = createClient(sameClientName, sameStorageSettings)) {
+                ref = azureClientProvider.getConnectionProvidersCache().get(sameKey);
+                var sameConnectionProvider = ref.connectionProvider();
+                assertSame(connectionProvider, sameConnectionProvider);
+                assertEquals(3, ref.refCount()); // 3 = (2 (from before) + 1 for the client pointing at it)
+            }
+            assertEquals(2, ref.refCount()); // 2 because `client2` closed
+        }
+        assertEquals(1, ref.refCount()); // 1 from being in the cache
+    }
+
+    public void testDifferentClientsDifferentConnectionProviders() {
+        final var clientName = "azure";
+        final int maxConnections = randomIntBetween(1, 200);
+        final var storageSettings = createStorageSettings(clientName, maxConnections);
+        final var key = new AzureClientProvider.ConnectionProviderKey(null, clientName, storageSettings);
+
+        var ref = azureClientProvider.getConnectionProvidersCache().get(key);
+        assertNull(ref);
+
+        try (var client = createClient(clientName, storageSettings)) {
+            ref = azureClientProvider.getConnectionProvidersCache().get(key);
+            assertNotNull(ref);
+            assertEquals(2, ref.refCount()); // 2 = (1 from being in the cache + 1 from the client)
+
+            final var otherClientName = "otherAzure";
+            final var otherKey = new AzureClientProvider.ConnectionProviderKey(null, otherClientName, storageSettings);
+
+            try (var otherClient = createClient(otherClientName, storageSettings)) {
+                final var otherRef = azureClientProvider.getConnectionProvidersCache().get(otherKey);
+                assertNotNull(otherRef);
+                // this is a different reference and hence 2 = (1 from being in the cache + 1 from the client)
+                assertEquals(2, otherRef.refCount());
+                assertNotSame(ref.connectionProvider(), otherRef.connectionProvider());
+            }
+
+            // get a different client by having different storage settings, i.e, `maxConnections` is different
+            final var otherStorageSettings = createStorageSettings(
+                clientName,
+                randomValueOtherThan(maxConnections, () -> randomIntBetween(1, 200))
+            );
+            final var otherKey2 = new AzureClientProvider.ConnectionProviderKey(null, clientName, otherStorageSettings);
+            try (var otherClient2 = createClient(clientName, otherStorageSettings)) {
+                final var otherRef = azureClientProvider.getConnectionProvidersCache().get(otherKey2);
+                assertNotNull(otherRef);
+                // this is a different reference and hence 2 = (1 from being in the cache + 1 from the client)
+                assertEquals(2, otherRef.refCount());
+                assertNotSame(ref.connectionProvider(), otherRef.connectionProvider());
+            }
+        }
+        assertEquals(1, ref.refCount()); // 1 from being in the cache
+    }
+
+    public void testDisposeLaterIsTriggeredWhenProviderIsNotReferenced() {
+        final var clientName = "azure";
+        final int maxConnections = randomIntBetween(1, 200);
+        final var storageSettings = createStorageSettings(clientName, maxConnections);
+
+        class RecordingAzureClientProvider extends AzureClientProvider {
+            final AtomicBoolean calledDisposeLater = new AtomicBoolean();
+
+            RecordingAzureClientProvider(
+                ThreadPool threadPool,
+                String reactorExecutorName,
+                EventLoopGroup eventLoopGroup,
+                TimeValue openConnectionTimeout,
+                TimeValue maxIdleTime,
+                ByteBufAllocator byteBufAllocator,
+                int multipartUploadMaxConcurrency
+            ) {
+                super(
+                    threadPool,
+                    reactorExecutorName,
+                    eventLoopGroup,
+                    openConnectionTimeout,
+                    maxIdleTime,
+                    byteBufAllocator,
+                    multipartUploadMaxConcurrency
+                );
+            }
+
+            @Override
+            ConnectionProvider buildConnectionProvider(ConnectionProviderKey key) {
+                return new ConnectionProvider() {
+                    @Override
+                    public Mono<? extends Connection> acquire(
+                        TransportConfig config,
+                        ConnectionObserver connectionObserver,
+                        Supplier<? extends SocketAddress> remoteAddress,
+                        AddressResolverGroup<?> resolverGroup
+                    ) {
+                        return null;
+                    }
+
+                    @Override
+                    public Mono<Void> disposeLater() {
+                        calledDisposeLater.set(true);
+                        return Mono.empty();
+                    }
+                };
+            }
+
+            public boolean getCalledDisposeLater() {
+                return calledDisposeLater.get();
+            }
+        }
+
+        final var recordingAzureClientProvider = new RecordingAzureClientProvider(threadPool, null, null, null, null, null, 0);
+
+        assertFalse(recordingAzureClientProvider.getCalledDisposeLater());
+
+        final var key = new AzureClientProvider.ConnectionProviderKey(null, clientName, storageSettings);
+
+        try (var client = createClient(recordingAzureClientProvider, clientName, storageSettings)) {
+            assertFalse(recordingAzureClientProvider.getCalledDisposeLater());
+        }
+        assertFalse(recordingAzureClientProvider.getCalledDisposeLater());
+
+        recordingAzureClientProvider.dropConnectionProviders(Set.of(key));
+        assertTrue(recordingAzureClientProvider.getCalledDisposeLater());
     }
 
     private static String encodeKey(final String value) {

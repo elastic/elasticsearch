@@ -90,6 +90,9 @@ public class AzureStorageClientsManagerTests extends ESTestCase {
                 encodeKey(clientName + "_cluster_key")
             );
             if (randomBoolean()) {
+                builder.put("azure.client." + clientName + ".max_connections", between(1, 10));
+            }
+            if (randomBoolean()) {
                 builder.put("azure.client." + clientName + ".max_retries", between(1, 10));
             }
             if (randomBoolean()) {
@@ -325,6 +328,7 @@ public class AzureStorageClientsManagerTests extends ESTestCase {
             assertThat(projectClientCredentials, containsString(";AccountName=" + projectClientAccount(projectId, clientName)));
             assertThat(projectClientCredentials, containsString(";AccountKey=" + projectClientKey(projectId, clientName)));
             // Inherit setting override from the cluster client of the same name
+            assertThat(projectClientSettings.getMaxConnections(), equalTo(clusterClientSettings.getMaxConnections()));
             assertThat(projectClientSettings.getMaxRetries(), equalTo(clusterClientSettings.getMaxRetries()));
             assertThat(projectClientSettings.getTimeout(), equalTo(clusterClientSettings.getTimeout()));
         }

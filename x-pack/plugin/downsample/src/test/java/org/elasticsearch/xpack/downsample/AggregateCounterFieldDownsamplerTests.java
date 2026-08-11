@@ -11,13 +11,13 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.internal.hppc.IntArrayList;
 import org.apache.lucene.internal.hppc.LongArrayList;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.downsample.SortedNumericDoubleValuesTestUtils.DocValuesType;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.downsample.SortedNumericDoubleValuesTestUtils.trackingWithDocIdIterator;
 import static org.elasticsearch.xpack.downsample.SortedNumericDoubleValuesTestUtils.withDocIdIterator;
@@ -95,10 +95,10 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
         resetDataPoints.processDataPoints((timestamp, dataPoints) -> {
             assertThat(timestamp, anyOf(equalTo(60L), equalTo(50L)));
             if (timestamp == 60L) {
-                assertThat(dataPoints, equalTo(List.of(Tuple.tuple("my-counter", new ResetDataPoints.CounterResetValue(5.0)))));
+                assertThat(dataPoints, equalTo(Map.of("my-counter", new ResetDataPoints.CounterResetValue(5.0))));
             }
             if (timestamp == 50L) {
-                assertThat(dataPoints, equalTo(List.of(Tuple.tuple("my-counter", new ResetDataPoints.CounterResetValue(16.0)))));
+                assertThat(dataPoints, equalTo(Map.of("my-counter", new ResetDataPoints.CounterResetValue(16.0))));
             }
         });
         producer.reset();
@@ -132,7 +132,7 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
         assertThat(resetDataPoints.countResetDocuments(), equalTo(1));
         resetDataPoints.processDataPoints((timestamp, dataPoints) -> {
             assertThat(timestamp, equalTo(20L));
-            assertThat(dataPoints, equalTo(List.of(Tuple.tuple("my-counter", new ResetDataPoints.CounterResetValue(0.0)))));
+            assertThat(dataPoints, equalTo(Map.of("my-counter", new ResetDataPoints.CounterResetValue(0.0))));
         });
         producer.reset();
         assertThat(producer.downsampledValue(), equalTo(Double.NaN));
@@ -167,13 +167,13 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
         resetDataPoints.processDataPoints((timestamp, dataPoints) -> {
             assertThat(timestamp, anyOf(equalTo(40L), equalTo(60L), equalTo(70L)));
             if (timestamp == 40L) {
-                assertThat(dataPoints, equalTo(List.of(Tuple.tuple("my-counter", new ResetDataPoints.CounterResetValue(8.0)))));
+                assertThat(dataPoints, equalTo(Map.of("my-counter", new ResetDataPoints.CounterResetValue(8.0))));
             }
             if (timestamp == 60L) {
-                assertThat(dataPoints, equalTo(List.of(Tuple.tuple("my-counter", new ResetDataPoints.CounterResetValue(5.0)))));
+                assertThat(dataPoints, equalTo(Map.of("my-counter", new ResetDataPoints.CounterResetValue(5.0))));
             }
             if (timestamp == 70L) {
-                assertThat(dataPoints, equalTo(List.of(Tuple.tuple("my-counter", new ResetDataPoints.CounterResetValue(2.0)))));
+                assertThat(dataPoints, equalTo(Map.of("my-counter", new ResetDataPoints.CounterResetValue(2.0))));
             }
         });
         producer.reset();
@@ -209,16 +209,16 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
         resetDataPoints.processDataPoints((timestamp, dataPoints) -> {
             assertThat(timestamp, anyOf(equalTo(30L), equalTo(40L), equalTo(50L), equalTo(60L)));
             if (timestamp == 30L) {
-                assertThat(dataPoints, equalTo(List.of(Tuple.tuple("my-counter", new ResetDataPoints.CounterResetValue(4.0)))));
+                assertThat(dataPoints, equalTo(Map.of("my-counter", new ResetDataPoints.CounterResetValue(4.0))));
             }
             if (timestamp == 40L) {
-                assertThat(dataPoints, equalTo(List.of(Tuple.tuple("my-counter", new ResetDataPoints.CounterResetValue(3.0)))));
+                assertThat(dataPoints, equalTo(Map.of("my-counter", new ResetDataPoints.CounterResetValue(3.0))));
             }
             if (timestamp == 50L) {
-                assertThat(dataPoints, equalTo(List.of(Tuple.tuple("my-counter", new ResetDataPoints.CounterResetValue(5.0)))));
+                assertThat(dataPoints, equalTo(Map.of("my-counter", new ResetDataPoints.CounterResetValue(5.0))));
             }
             if (timestamp == 60L) {
-                assertThat(dataPoints, equalTo(List.of(Tuple.tuple("my-counter", new ResetDataPoints.CounterResetValue(2.0)))));
+                assertThat(dataPoints, equalTo(Map.of("my-counter", new ResetDataPoints.CounterResetValue(2.0))));
             }
         });
         producer.reset();
@@ -265,10 +265,10 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
             assertThat("timestamp " + timestamp + " must have exactly one reset value", dataPoints.size(), equalTo(1));
             assertThat(timestamp, anyOf(equalTo(30L), equalTo(40L)));
             if (timestamp == 30L) {
-                assertThat(dataPoints, equalTo(List.of(Tuple.tuple("my-counter", new ResetDataPoints.CounterResetValue(10.0)))));
+                assertThat(dataPoints, equalTo(Map.of("my-counter", new ResetDataPoints.CounterResetValue(10.0))));
             }
             if (timestamp == 40L) {
-                assertThat(dataPoints, equalTo(List.of(Tuple.tuple("my-counter", new ResetDataPoints.CounterResetValue(5.0)))));
+                assertThat(dataPoints, equalTo(Map.of("my-counter", new ResetDataPoints.CounterResetValue(5.0))));
             }
         });
     }
@@ -305,7 +305,7 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
         assertThat(resetDataPoints.countResetDocuments(), equalTo(1));
         resetDataPoints.processDataPoints((timestamp, dataPoints) -> {
             assertThat(timestamp, equalTo(20L));
-            assertThat(dataPoints, equalTo(List.of(Tuple.tuple("my-counter", new ResetDataPoints.CounterResetValue(8.0)))));
+            assertThat(dataPoints, equalTo(Map.of("my-counter", new ResetDataPoints.CounterResetValue(8.0))));
         });
         producer.reset();
         assertThat(producer.downsampledValue(), equalTo(Double.NaN));
@@ -352,10 +352,10 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
         resetDataPoints.processDataPoints((timestamp, dataPoints) -> {
             assertThat(timestamp, anyOf(equalTo(20L), equalTo(30L)));
             if (timestamp == 20L) {
-                assertThat(dataPoints, equalTo(List.of(Tuple.tuple("my-counter", new ResetDataPoints.CounterResetValue(8.0)))));
+                assertThat(dataPoints, equalTo(Map.of("my-counter", new ResetDataPoints.CounterResetValue(8.0))));
             }
             if (timestamp == 30L) {
-                assertThat(dataPoints, equalTo(List.of(Tuple.tuple("my-counter", new ResetDataPoints.CounterResetValue(0.0)))));
+                assertThat(dataPoints, equalTo(Map.of("my-counter", new ResetDataPoints.CounterResetValue(0.0))));
             }
         });
         producer.reset();

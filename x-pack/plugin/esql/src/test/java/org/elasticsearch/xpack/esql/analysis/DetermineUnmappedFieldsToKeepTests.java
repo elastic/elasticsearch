@@ -197,6 +197,24 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         assertKept(pattern, "unmapped_extra", "first_name_suffix");
     }
 
+    public void testInlineStatsExcludesUnmappedByKey() {
+        UnmappedFieldsPattern pattern = patternFor("FROM test | INLINE STATS c = COUNT(*) BY unmapped_extra");
+        assertNotKept(pattern, excl("c", "unmapped_extra"));
+        assertKept(pattern, "first_name_suffix");
+    }
+
+    public void testInlineStatsExcludesUnmappedByAlias() {
+        UnmappedFieldsPattern pattern = patternFor("FROM test | INLINE STATS c = COUNT(*) BY x = unmapped_extra");
+        assertNotKept(pattern, excl("c", "x", "unmapped_extra"));
+        assertKept(pattern, "first_name_suffix");
+    }
+
+    public void testInlineStatsExcludesUnmappedFieldInsideAggregate() {
+        UnmappedFieldsPattern pattern = patternFor("FROM test | INLINE STATS c = COUNT(unmapped_extra)");
+        assertNotKept(pattern, excl("c", "unmapped_extra"));
+        assertKept(pattern, "first_name_suffix");
+    }
+
     public void testRenameThenEval() {
         UnmappedFieldsPattern pattern = patternFor("FROM test | RENAME last_name AS x | EVAL y = 2");
         assertKept(pattern, "unmapped_extra");

@@ -552,7 +552,8 @@ public class Verifier {
 
     private static boolean supportedInLoadAllMode(LogicalPlan plan, Set<LogicalPlan> inlineStatsAggregates) {
         // Keep/Drop/Rename may still be present, or already resolved to Project, by the time verification runs.
-        // Aggregate is allowed only when it is the inner aggregate of an InlineStats (not a bare STATS).
+        // InlineStats is visited by forEachDown, so it must be allowed explicitly. Its child Aggregate is allowed
+        // only via the identity set (InlineStats.aggregate()) — allowing every Aggregate would also admit bare STATS.
         return plan instanceof EsRelation
             || plan instanceof Project
             || plan instanceof Keep

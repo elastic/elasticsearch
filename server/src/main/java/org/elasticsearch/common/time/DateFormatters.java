@@ -231,13 +231,8 @@ public class DateFormatters {
         new JavaTimeDateTimePrinter(
             new DateTimeFormatterBuilder().appendPattern(FAST_DATE_PATTERN).toFormatter(Locale.ROOT).withResolverStyle(ResolverStyle.STRICT)
         ),
-        new FastDateTimeParser(
-            Set.of(MONTH_OF_YEAR, DAY_OF_MONTH),
-            false,
-            DAY_OF_MONTH,
-            DecimalSeparator.BOTH,
-            TimezonePresence.FORBIDDEN
-        ).withLocale(Locale.ROOT)
+        new FastDateTimeParser(Set.of(MONTH_OF_YEAR, DAY_OF_MONTH), false, DAY_OF_MONTH, DecimalSeparator.BOTH, TimezonePresence.FORBIDDEN)
+            .withLocale(Locale.ROOT)
     );
 
     /////////////////////////////////////////
@@ -668,8 +663,9 @@ public class DateFormatters {
                 .toFormatter(Locale.ROOT)
                 .withResolverStyle(ResolverStyle.STRICT)
         ),
-        new FastDateTimeParser(Set.of(MONTH_OF_YEAR), false, MONTH_OF_YEAR, DecimalSeparator.BOTH, TimezonePresence.FORBIDDEN)
-            .withLocale(Locale.ROOT)
+        new FastDateTimeParser(Set.of(MONTH_OF_YEAR), false, MONTH_OF_YEAR, DecimalSeparator.BOTH, TimezonePresence.FORBIDDEN).withLocale(
+            Locale.ROOT
+        )
     );
 
     /*
@@ -682,9 +678,7 @@ public class DateFormatters {
                 .toFormatter(Locale.ROOT)
                 .withResolverStyle(ResolverStyle.STRICT)
         ),
-        new FastDateTimeParser(Set.of(), false, ChronoField.YEAR, DecimalSeparator.BOTH, TimezonePresence.FORBIDDEN).withLocale(
-            Locale.ROOT
-        )
+        new FastDateTimeParser(Set.of(), false, ChronoField.YEAR, DecimalSeparator.BOTH, TimezonePresence.FORBIDDEN).withLocale(Locale.ROOT)
     );
 
     /*

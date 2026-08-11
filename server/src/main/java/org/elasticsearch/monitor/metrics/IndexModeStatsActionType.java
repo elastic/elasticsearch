@@ -53,8 +53,11 @@ public final class IndexModeStatsActionType extends ActionType<IndexModeStatsAct
     }
 
     public static final class StatsResponse extends BaseNodesResponse<NodeResponse> {
-        StatsResponse(ClusterName clusterName, List<NodeResponse> nodes, List<FailedNodeException> failures) {
+        private final IndexMode[] availableModes;
+
+        StatsResponse(ClusterName clusterName, List<NodeResponse> nodes, List<FailedNodeException> failures, IndexMode[] availableModes) {
             super(clusterName, nodes, failures);
+            this.availableModes = availableModes;
         }
 
         @Override
@@ -77,12 +80,15 @@ public final class IndexModeStatsActionType extends ActionType<IndexModeStatsAct
 
         public Map<IndexMode, IndexStats> stats() {
             final Map<IndexMode, IndexStats> stats = new EnumMap<>(IndexMode.class);
-            for (IndexMode mode : IndexMode.availableModes()) {
+            for (IndexMode mode : availableModes) {
                 stats.put(mode, new IndexStats());
             }
             for (NodeResponse node : getNodes()) {
                 for (Map.Entry<IndexMode, IndexStats> e : node.stats.entrySet()) {
-                    stats.get(e.getKey()).add(e.getValue());
+                    final IndexStats target = stats.get(e.getKey());
+                    if (target != null) {
+                        target.add(e.getValue());
+                    }
                 }
             }
             return stats;
@@ -154,7 +160,7 @@ public final class IndexModeStatsActionType extends ActionType<IndexModeStatsAct
 
         @Override
         protected StatsResponse newResponse(StatsRequest request, List<NodeResponse> nodeResponses, List<FailedNodeException> failures) {
-            return new StatsResponse(ClusterName.DEFAULT, nodeResponses, failures);
+            return new StatsResponse(ClusterName.DEFAULT, nodeResponses, failures, IndexMode.availableModes());
         }
 
         @Override
@@ -169,7 +175,10 @@ public final class IndexModeStatsActionType extends ActionType<IndexModeStatsAct
 
         @Override
         protected NodeResponse nodeOperation(NodeRequest request, Task task) {
-            return new NodeResponse(clusterService.localNode(), IndicesMetrics.getStatsWithoutCache(indicesService));
+            return new NodeResponse(
+                clusterService.localNode(),
+                IndicesMetrics.getStatsWithoutCache(indicesService, IndexMode.availableModes())
+            );
         }
     }
 }

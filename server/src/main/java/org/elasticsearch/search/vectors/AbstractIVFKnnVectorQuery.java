@@ -102,12 +102,13 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             && numCands == that.numCands
             && Objects.equals(field, that.field)
             && Objects.equals(filter, that.filter)
-            && Objects.equals(providedVisitRatio, that.providedVisitRatio);
+            && Objects.equals(providedVisitRatio, that.providedVisitRatio)
+            && Objects.equals(ivfQueryConfigResolver, that.ivfQueryConfigResolver);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field, k, numCands, filter, providedVisitRatio);
+        return Objects.hash(field, k, numCands, filter, providedVisitRatio, ivfQueryConfigResolver);
     }
 
     @Override

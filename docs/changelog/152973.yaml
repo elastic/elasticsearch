@@ -1,6 +1,0 @@
-area: ES|QL
-issues:
- - 151403
-pr: 152973
-summary: Unmapped fields/full text null warning
-type: feature

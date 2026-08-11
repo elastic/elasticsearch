@@ -804,7 +804,14 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
     private ShardRouting newShardRouting(ShardRouting.Role role) {
         final UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "_message");
-        return ShardRouting.newUnassigned(shardId, true, RecoverySource.ExistingStoreRecoverySource.INSTANCE, unassignedInfo, role);
+        return ShardRouting.newUnassigned(
+            shardId,
+            true,
+            RecoverySource.ExistingStoreRecoverySource.INSTANCE,
+            unassignedInfo,
+            role,
+            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
+        );
     }
 
     public void testRequestItemAreNotReplacedByPreparedRequestWhenRunningInServerless() throws Exception {
@@ -962,7 +969,9 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         final long resultSeqNo = 13;
         Engine.DeleteResult deleteResult = new FakeDeleteResult(1, 1, resultSeqNo, found, resultLocation, "id");
         IndexShard shard = mockShard(indexSettings, null);
-        when(shard.applyDeleteOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong())).thenReturn(deleteResult);
+        // applyDeleteOperationOnPrimary now takes the routing (threaded through for slice-enabled indices), so the stub
+        // must match the 6-arg overload (version, id, routing, versionType, ifSeqNo, ifPrimaryTerm).
+        when(shard.applyDeleteOperationOnPrimary(anyLong(), any(), any(), any(), anyLong(), anyLong())).thenReturn(deleteResult);
         ShardRouting shardRouting = newShardRouting(ShardRouting.Role.DEFAULT);
         when(shard.routingEntry()).thenReturn(shardRouting);
 

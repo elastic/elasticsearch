@@ -58,6 +58,7 @@ public final class EscfEncoder implements SourceBatchEncoder {
             parser.nextToken(); // START_OBJECT
             flattenObject(row, parser, parser.nextToken(), sink);
         }
+        row.finishRow();
     }
 
     @Override

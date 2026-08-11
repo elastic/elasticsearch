@@ -25,8 +25,8 @@ import java.util.Arrays;
  * fields are encountered.
  *
  * <p>Usage: call {@link #beginRow()} (or {@link EscfBatchBuilder#beginRow()}), populate fields
- * via {@link #startObject}/{@link #endObject} and the leaf writers, then call
- * {@link EscfBatchBuilder#commit} to drain into column builders.
+ * via {@link #startObject}/{@link #endObject} and the leaf writers, call {@link #finishRow()},
+ * then call {@link EscfBatchBuilder#commit} to drain into column builders.
  */
 public final class EscfRowBuffer {
 
@@ -44,7 +44,7 @@ public final class EscfRowBuffer {
     private int parentDepth;
 
     /**
-     * Whether {@link #beginRow()} has been called but {@link EscfBatchBuilder#commit} has not.
+     * Whether {@link #finishRow()} has been called but {@link EscfBatchBuilder#commit} has not.
      * Package-private so {@link EscfBatchBuilder#commit} can reset it after draining.
      */
     boolean rowStarted;
@@ -66,6 +66,15 @@ public final class EscfRowBuffer {
         Arrays.fill(scratchVar, 0, Math.min(columnCountBefore, scratchVar.length), null);
         columnsSet.clear();
         parentDepth = 0;
+        rowStarted = false;
+    }
+
+    /**
+     * Marks the row as fully staged and ready to commit. Must be called after all field writes
+     * succeed; if parsing throws before this point, {@link EscfBatchBuilder#commit} will reject
+     * the half-populated row rather than draining it silently.
+     */
+    public void finishRow() {
         rowStarted = true;
     }
 
@@ -79,6 +88,7 @@ public final class EscfRowBuffer {
 
     /** Exits the current nested object, restoring the parent context. */
     public void endObject() {
+        assert parentDepth > 0 : "endObject called without matching startObject";
         parentDepth--;
     }
 
@@ -188,8 +198,6 @@ public final class EscfRowBuffer {
     boolean isStarted() {
         return rowStarted;
     }
-
-    // ── Private helpers ──
 
     private int addLeaf(String name) {
         int colIdx = schema.appendLeaf(name, parentStack[parentDepth]);

@@ -18,6 +18,8 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.util.List;
@@ -28,6 +30,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.appliesTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
@@ -121,6 +124,8 @@ public abstract class SpatialGridFunctionTestCase extends AbstractScalarFunction
         }
     }
 
+    private static final FunctionAppliesTo geoShapeAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.6.0", "", false);
+
     public static TestCaseSupplier.TypedDataSupplier testCaseSupplier(DataType dataType, boolean pointsOnly) {
         if (pointsOnly) {
             return switch (dataType) {
@@ -131,9 +136,9 @@ public abstract class SpatialGridFunctionTestCase extends AbstractScalarFunction
         } else {
             return switch (dataType) {
                 case GEO_POINT -> TestCaseSupplier.geoPointCases(() -> false).getFirst();
-                case GEO_SHAPE -> TestCaseSupplier.geoShapeCases(() -> false).getFirst();
+                case GEO_SHAPE -> TestCaseSupplier.geoShapeCases(() -> false).getFirst().withAppliesTo(geoShapeAppliesTo);
                 case CARTESIAN_POINT -> TestCaseSupplier.cartesianPointCases(() -> false).getFirst();
-                case CARTESIAN_SHAPE -> TestCaseSupplier.cartesianShapeCases(() -> false).getFirst();
+                case CARTESIAN_SHAPE -> TestCaseSupplier.cartesianShapeCases(() -> false).getFirst().withAppliesTo(geoShapeAppliesTo);
                 default -> throw new IllegalArgumentException("Unsupported datatype for " + functionName() + ": " + dataType);
             };
         }

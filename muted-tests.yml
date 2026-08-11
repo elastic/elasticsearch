@@ -1,13 +1,4 @@
 tests:
-- class: org.elasticsearch.xpack.logsdb.qa.StandardVersusStandardReindexedIntoLogsDbChallengeRestIT
-  method: testTermsQuery
-  issue: https://github.com/elastic/elasticsearch/issues/156361
-- class: org.elasticsearch.xpack.logsdb.qa.BulkChallengeRestIT
-  method: testTermsQuery
-  issue: https://github.com/elastic/elasticsearch/issues/156361
-- class: org.elasticsearch.xpack.logsdb.qa.StoredSourceLogsDbVersusReindexedLogsDbChallengeRestIT
-  method: testTermsQuery
-  issue: https://github.com/elastic/elasticsearch/issues/156361
 - class: org.elasticsearch.xpack.ml.aggs.changepoint.ChangePointAggregatorTests
   method: testSlopeUp
   issue: https://github.com/elastic/elasticsearch/issues/156237
@@ -640,48 +631,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:k8s-misc.four_rates_by_four_dims}
   issue: https://github.com/elastic/elasticsearch/issues/156314
-- class: org.elasticsearch.xpack.logsdb.RandomizedRollingUpgradeIT
-  method: testIndexingLogsdb
-  issue: https://github.com/elastic/elasticsearch/issues/156345
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:lookup-join.mvKeywordFieldJoinWarningsFromLeftSideWhenNotKept}
   issue: https://github.com/elastic/elasticsearch/issues/156348
-- class: org.elasticsearch.xpack.logsdb.qa.StoredSourceLogsDbVersusReindexedLogsDbChallengeRestIT
-  method: testMatchAllQuery
-  issue: https://github.com/elastic/elasticsearch/issues/156349
-- class: org.elasticsearch.xpack.logsdb.qa.StandardVersusStandardReindexedIntoLogsDbChallengeRestIT
-  method: testMatchAllQuery
-  issue: https://github.com/elastic/elasticsearch/issues/156350
-- class: org.elasticsearch.xpack.logsdb.qa.BulkChallengeRestIT
-  method: testMatchAllQuery
-  issue: https://github.com/elastic/elasticsearch/issues/156351
-- class: org.elasticsearch.xpack.logsdb.RandomizedRollingUpgradeIT
-  method: testIndexingSyntheticSource
-  issue: https://github.com/elastic/elasticsearch/issues/156352
-- class: org.elasticsearch.xpack.logsdb.qa.StoredSourceLogsDbVersusReindexedLogsDbChallengeRestIT
-  method: testEsqlSource
-  issue: https://github.com/elastic/elasticsearch/issues/156353
-- class: org.elasticsearch.xpack.logsdb.qa.BulkChallengeRestIT
-  method: testEsqlSource
-  issue: https://github.com/elastic/elasticsearch/issues/156354
-- class: org.elasticsearch.xpack.logsdb.qa.StandardVersusStandardReindexedIntoLogsDbChallengeRestIT
-  method: testEsqlSource
-  issue: https://github.com/elastic/elasticsearch/issues/156355
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecBucketIncludeEmptyBucketsIT
   method: test {csv-spec:bucket_include_empty_buckets.Large number of buckets doesn't OOM - stats}
   issue: https://github.com/elastic/elasticsearch/issues/156356
-- class: org.elasticsearch.xpack.logsdb.qa.BulkChallengeRestIT
-  method: testRandomQueries
-  issue: https://github.com/elastic/elasticsearch/issues/156357
-- class: org.elasticsearch.xpack.logsdb.qa.StoredSourceLogsDbVersusReindexedLogsDbChallengeRestIT
-  method: testRandomQueries
-  issue: https://github.com/elastic/elasticsearch/issues/156358
-- class: org.elasticsearch.xpack.logsdb.qa.StandardVersusStandardReindexedIntoLogsDbChallengeRestIT
-  method: testRandomQueries
-  issue: https://github.com/elastic/elasticsearch/issues/156359
-- class: org.elasticsearch.xpack.logsdb.RandomizedRollingUpgradeIT
-  method: testIndexingStandardSource
-  issue: https://github.com/elastic/elasticsearch/issues/156360
 - class: org.elasticsearch.index.mapper.GeoPointFieldMapperTests
   method: testSyntheticSourceKeepAll
   issue: https://github.com/elastic/elasticsearch/issues/156375
@@ -691,3 +646,6 @@ tests:
 - class: org.elasticsearch.index.mapper.blockloader.GeoPointFieldBlockLoaderTests
   method: testBlockLoaderForFieldInObjectWithCranky {preference=Params[indexMode=standard, sourceMode=SYNTHETIC, preference=STORED]}
   issue: https://github.com/elastic/elasticsearch/issues/156383
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecChangePointIT
+  method: test {csv-spec:change_point.null keys}
+  issue: https://github.com/elastic/elasticsearch/issues/156397

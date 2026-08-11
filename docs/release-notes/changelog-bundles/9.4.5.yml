@@ -1,9 +1,9 @@
 version: 9.4.5
-released: false
-generated: 2026-08-07T00:04:03.056559723Z
+released: true
+generated: 2026-08-11T18:39:43.229474428Z
 changelogs:
   - pr: 2841
-    summary: Improve messaging for OOM process termination
+    summary: Better messaging regarding OOM process termination
     area: Machine Learning
     type: enhancement
     issues: []
@@ -21,7 +21,7 @@ changelogs:
     issues: []
     source_repo: elastic/ml-cpp
   - pr: 2851
-    summary: Restrict file system access for PyTorch models
+    summary: Restrict file system access for pytorch models
     area: Machine Learning
     type: enhancement
     issues: []
@@ -39,50 +39,50 @@ changelogs:
     issues: []
     source_repo: elastic/ml-cpp
   - pr: 2894
-    summary: Improve error handling for quantiles state documents
+    summary: Better error handling regarding quantiles state documents
     area: Machine Learning
     type: enhancement
     issues: []
     source_repo: elastic/ml-cpp
   - pr: 2895
-    summary: Improve handling of invalid JSON state documents
+    summary: Better handling of invalid JSON state documents
     area: Machine Learning
     type: enhancement
     issues: []
     source_repo: elastic/ml-cpp
   - pr: 3008
-    summary: "Harden `pytorch_inference` with TorchScript model graph validation"
+    summary: Harden pytorch_inference with TorchScript model graph validation
     area: Machine Learning
     type: enhancement
     issues:
       - 2890
     source_repo: elastic/ml-cpp
   - pr: 3015
-    summary: Add EuroBERT and Jina v5 ops to the graph validation allowlist
+    summary: Add EuroBERT and Jina v5 ops to graph validation allowlist
     area: Machine Learning
     type: enhancement
     issues: []
     source_repo: elastic/ml-cpp
   - pr: 3017
-    summary: "Fix flaky `CIoManagerTest/testFileIoGood` test"
+    summary: Fix flaky CIoManagerTest/testFileIoGood test
     area: Machine Learning
     type: bug
     issues: []
     source_repo: elastic/ml-cpp
   - pr: 3078
-    summary: "Reject TorchScript custom state hooks before load and forbid `inductor::_reinterpret_tensor`"
+    summary: Reject TorchScript custom state hooks before load and forbid inductor::_reinterpret_tensor
     area: Machine Learning
     type: bug
     issues: []
     source_repo: elastic/ml-cpp
   - pr: 3080
-    summary: "Reject non-native ABIs in the ML seccomp filter (`socketcall`/`getuid` collision)"
+    summary: Reject non-native ABIs in ML seccomp filter (socketcall/getuid collision)
     area: Machine Learning
     type: bug
     issues: []
     source_repo: elastic/ml-cpp
   - pr: 3081
-    summary: Mark the ML controller non-dumpable before accepting commands
+    summary: Mark ML controller non-dumpable before accepting commands
     area: Machine Learning
     type: bug
     issues: []
@@ -94,18 +94,18 @@ changelogs:
     issues: []
     source_repo: elastic/ml-cpp
   - pr: 152718
-    summary: Prevent out-of-memory errors caused by scripted fields
+    summary: Scripted fields can cause oom
     area: Search
     type: bug
     issues:
       - 120459
   - pr: 153057
-    summary: Upgrade Apache HttpComponents 5.x to address CVEs
+    summary: Upgrade Apache `HttpComponents` 5.x to fix CVEs
     area: Security
     type: upgrade
     issues: []
   - pr: 153213
-    summary: "Use the model's `deployment_id` when waiting for model allocation"
+    summary: Use model's deployment_id when waiting for model allocation
     area: Machine Learning
     type: bug
     issues:
@@ -116,7 +116,7 @@ changelogs:
     type: bug
     issues: []
   - pr: 153366
-    summary: Prevent mixing time series and standard indices with time series views
+    summary: Prevents mixing TS and STANDARD indexes with TS and views
     area: ES|QL
     type: bug
     issues:
@@ -124,7 +124,7 @@ changelogs:
       - 153030
       - 145445
   - pr: 153467
-    summary: Upgrade Apache HttpCore 5 to 5.4.3 to fix header DoS CVEs
+    summary: Upgrade httpcore5 to 5.4.3 to fix header DoS CVEs
     area: Security
     type: upgrade
     issues: []
@@ -135,74 +135,74 @@ changelogs:
     issues:
       - 150699
   - pr: 153675
-    summary: "Fix an off-by-one error in `ZeroBucket.index()` due to rounding errors"
+    summary: Fix off-by-one in `ZeroBucket.index()` due to rounding errors
     area: ES|QL
     type: bug
     issues:
       - 153270
   - pr: 153688
-    summary: Fix associating an inference endpoint with an ML node deployment
+    summary: "[Inference API] Fix associating an inference endpoint to an ML node deployment"
     area: Inference
     type: bug
     issues:
       - 144860
   - pr: 153831
-    summary: "Ensure cancelled `_field_caps` tasks are removed from the tasks API"
+    summary: Ensure cancelled `_field_caps` tasks are removed from the tasks API
     area: Search
     type: bug
     issues:
       - 137475
   - pr: 153886
-    summary: Deploy text embedding models before the validation call
+    summary: "[Inference API] Deploy text embedding models before validation call"
     area: Inference
     type: bug
     issues:
       - 144871
   - pr: 154016
-    summary: "Fix a cause of lost ES|QL warnings by preserving thread context"
+    summary: Fix one of the causes of losing warnings
     area: ES|QL
     type: bug
     issues: []
   - pr: 154115
-    summary: Upgrade Log4j to 2.26.1
+    summary: Upgrade the version of log4j to 2.26.1
     area: Security
     type: upgrade
     issues: []
   - pr: 154155
-    summary: Fix SSE parsing across network read boundaries
+    summary: "[Inference API] Fix SSE parsing across network read boundaries"
     area: Inference
     type: bug
     issues:
       - 153980
   - pr: 154287
-    summary: "Retype `text` to `keyword` to fulfill the CASE `resolveType` contract"
+    summary: Re-type a TEXT data type to KEYWORD to fulfill the CASE `resolveType` contract
     area: ES|QL
     type: bug
     issues:
       - 154278
   - pr: 154295
-    summary: "Avoid an integer overflow loop in the `REPEAT` function"
+    summary: Avoid MAX_INT loop on Repeat
     area: ES|QL
     type: bug
     issues: []
   - pr: 154317
-    summary: "Guard `ROUND_TO` to fields from indices in the physical optimizer"
+    summary: Guard ROUND_TO to fields coming from indices in the physical optimized
     area: ES|QL
     type: bug
     issues:
       - 154315
   - pr: 154373
-    summary: Cache little-endian float layout in the DiskBBQ scalar corrections loop
+    summary: Cache little-endian float layout in DiskBBQ scalar corrections loop
     area: Vector Search
     type: enhancement
     issues: []
   - pr: 154417
-    summary: "Fix `MV_SORT` incorrectly allowing geospatial types, which are not sortable"
+    summary: "Fixed the case where MV_SORT incorrectly allowed geospatial types, which are not sortable"
     area: ES|QL
     type: bug
     issues: []
   - pr: 154508
-    summary: Fix incorrect inclusion of flattened subfields in multi-index queries
+    summary: Don't accidentally add flattened subfields
     area: ES|QL
     type: bug
     issues:
@@ -210,22 +210,22 @@ changelogs:
       - 154484
       - 154011
   - pr: 154521
-    summary: "Add `policy_base_id` field to fleet-agents and fleet-policies index templates"
+    summary: "[Fleet] Add `policy_base_id` field to fleet-agents and fleet-policies index templates"
     area: Infra/Plugins
     type: enhancement
     issues: []
   - pr: 154525
-    summary: "Use `readArraySize` in `readImmutableMap` and `readImmutableOpenMap`"
+    summary: Use `readArraySize` in `readImmutableMap` and `readImmutableOpenMap`
     area: Search
     type: bug
     issues: []
   - pr: 154542
-    summary: Parse scroll ID from a bounded byte array
+    summary: Parse scroll id from a bounded byte array
     area: Search
     type: bug
     issues: []
   - pr: 154569
-    summary: Upgrade Jackson to 2.18.9
+    summary: Upgrade the version of jackson to 2.18.9
     area: Security
     type: upgrade
     issues: []
@@ -235,13 +235,13 @@ changelogs:
     type: bug
     issues: []
   - pr: 154577
-    summary: Fix double decrement of the pending inference request count
+    summary: Fix pending inference request count double decrement
     area: Machine Learning
     type: bug
     issues:
       - 154483
   - pr: 154632
-    summary: Fix SSE parser handling of empty lines and byte order marks
+    summary: "[Inference API] Documenting SSE parser deviations and fix some issues"
     area: Inference
     type: bug
     issues: []
@@ -251,44 +251,44 @@ changelogs:
     type: bug
     issues: []
   - pr: 154694
-    summary: "Fix view and alias data deduplication in `ViewResolver`"
+    summary: Fix view+alias data deduplication in `ViewResolver`
     area: ES|QL
     type: bug
     issues: []
   - pr: 154735
-    summary: Delete default inference endpoints using the master node action only
+    summary: "[Inference API] Delete default endpoints using master node action only"
     area: Inference
     type: bug
     issues:
       - 154710
   - pr: 154793
-    summary: Add a check against self-referencing filters
+    summary: Adding check against self referencing filters
     area: Analysis
     type: bug
     issues: []
   - pr: 154795
-    summary: "Validate the inference ingest processor `target_field`"
+    summary: Validate the inference ingest processor `target_field`
     area: Machine Learning
     type: bug
     issues:
       - 88059
   - pr: 154814
-    summary: Add a hardcoded limit on nested retrievers
+    summary: Adding a hardcoded limit on nesting retrievers
     area: Ranking
     type: bug
     issues: []
   - pr: 154837
-    summary: Trip the request breaker on term and phrase suggesters based on backing array estimates
+    summary: Trip request breaker on term and phrase suggesters based on backing array estimates
     area: Analysis
     type: bug
     issues: []
   - pr: 154955
-    summary: "Fix `FROM_BASE64` generating invalid non-UTF-8 strings. Previously it could create binary values that ES|QL does not support in other operations; only valid UTF-8 is supported, and invalid cases now return null with a warning."
+    summary: "Fix FROM_BASE64 generating wrong non-UTF strings. Previously it could create binary values that ES|QL does not yet support in other operations; only valid UTF-8 is supported, and invalid cases now return null with a warning."
     area: ES|QL
     type: bug
     issues: []
   - pr: 154972
-    summary: "Fix a concurrency issue in `InferenceOperator#pollNextRequest` for failed responses"
+    summary: Fixing a concurrency issue in InferenceOperator#pollNextRequest in case of a failed response
     area: ES|QL
     type: bug
     issues:
@@ -299,17 +299,21 @@ changelogs:
     type: bug
     issues: []
   - pr: 155099
-    summary: Fix an error caused by empty reranker results
+    summary: Fix error caused by empty reranker results
     area: Ranking
     type: bug
     issues: []
   - pr: 155231
-    summary: "Apply `max_regex_length` limit to intervals regexp and wildcard rules"
+    summary: Apply `max_regex_length` limit to intervals regexp and wildcard rules
     area: Search
     type: bug
     issues: []
   - pr: 155279
-    summary: "When `number_of_replicas` is specified in the ILM `allocate` action, `auto_expand_replicas` is now explicitly removed from the index settings."
+    summary: |-
+      When `number_of_replicas` is specified in the ILM `allocate` action, `auto_expand_replicas` is now explicitly removed from the index settings.
+      Previously, if an index had `auto_expand_replicas` configured, this setting would remain in place even after the `allocate` action ran, overriding the specified `number_of_replicas` and causing the action to have no effect on the actual replica count.
+      With this change, specifying `number_of_replicas` in an `allocate` action will always take effect by also clearing `auto_expand_replicas`.
+      If you want `auto_expand_replicas` to continue taking effect after the `allocate` action runs, remove the `number_of_replicas` setting from that action.
     area: ILM
     type: breaking
     issues:
@@ -318,16 +322,16 @@ changelogs:
       area: ILM
       title: ILM allocate action now removes auto_expand_replicas when number_of_replicas is set
       details: "When `number_of_replicas` is specified in the ILM `allocate` action, the `auto_expand_replicas` setting is now explicitly removed from the index. Previously, a pre-existing `auto_expand_replicas` setting would remain and override the configured `number_of_replicas`, causing the action to have no effect on the replica count."
-      impact: "Indices that have `auto_expand_replicas` set and pass through an ILM `allocate` action with `number_of_replicas` configured have `auto_expand_replicas` removed. If you rely on `auto_expand_replicas` continuing to take effect after the `allocate` action, remove the `number_of_replicas` setting from that action."
+      impact: "Indices that have `auto_expand_replicas` set and pass through an ILM `allocate` action with `number_of_replicas` configured will have `auto_expand_replicas` removed. If you rely on `auto_expand_replicas` continuing to take effect after the `allocate` action, remove the `number_of_replicas` setting from that action."
       notable: false
       essSettingChange: false
   - pr: 155418
-    summary: "Allow garbage collection of closed search contexts in ES|QL"
+    summary: Allow GC of closed search contexts in ES|QL
     area: ES|QL
     type: bug
     issues: []
   - pr: 155552
-    summary: Add security stats to the monitoring mapping
+    summary: Add security stats to monitoring mapping
     area: Security
     type: enhancement
     issues: []
@@ -337,7 +341,7 @@ changelogs:
     type: upgrade
     issues: []
   - pr: 155630
-    summary: "Fix `EUCLIDEAN` score clamping order in the BBQ vector scorer"
+    summary: Fix EUCLIDEAN score clamping order in BBQ vector scorer
     area: Vector Search
     type: bug
     issues:
@@ -350,7 +354,7 @@ changelogs:
       - 96594
       - 155678
   - pr: 155819
-    summary: Upgrade Bouncy Castle to 1.85
+    summary: Upgrade bouncycastle to 1.85
     area: Security
     type: upgrade
     issues: []

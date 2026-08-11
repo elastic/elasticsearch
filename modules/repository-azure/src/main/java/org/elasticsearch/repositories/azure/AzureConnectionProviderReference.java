@@ -11,6 +11,7 @@ package org.elasticsearch.repositories.azure;
 
 import reactor.netty.resources.ConnectionProvider;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Releasable;
 
@@ -18,9 +19,11 @@ import org.elasticsearch.core.Releasable;
 class AzureConnectionProviderReference extends AbstractRefCounted implements Releasable {
 
     private final ConnectionProvider connectionProvider;
+    private final ActionListener<Void> disposalListener;
 
-    AzureConnectionProviderReference(ConnectionProvider connectionProvider) {
+    AzureConnectionProviderReference(ConnectionProvider connectionProvider, ActionListener<Void> disposalListener) {
         this.connectionProvider = connectionProvider;
+        this.disposalListener = disposalListener;
     }
 
     public ConnectionProvider connectionProvider() {
@@ -34,8 +37,11 @@ class AzureConnectionProviderReference extends AbstractRefCounted implements Rel
 
     @Override
     protected void closeInternal() {
-        // we do not `block()` here because we do not want to block the thread that is calling this
-        // TODO (think): might be problematic with an upcoming shutdown
-        connectionProvider.dispose();
+        connectionProvider.disposeLater()
+            .subscribe(
+                ignored -> {},
+                t -> disposalListener.onFailure(t instanceof Exception e ? e : new RuntimeException(t)),
+                () -> disposalListener.onResponse(null)
+            );
     }
 }

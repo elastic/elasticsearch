@@ -614,6 +614,7 @@ public class TopSnippets extends EsqlScalarFunction
         return new CustomUnifiedHighlighter(
             builder,
             UnifiedHighlighter.OffsetSource.POSTINGS,
+            false,
             null,
             "",
             MemoryIndexChunkScorer.CONTENT_FIELD,

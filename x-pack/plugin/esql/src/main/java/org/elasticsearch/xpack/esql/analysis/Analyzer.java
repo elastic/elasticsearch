@@ -2614,7 +2614,41 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     fa.synthetic()
                 );
             }
-            return fa.flagTypeConflicts();
+            // Drop coordinator-only conflict fields nested in a healthy parent's properties (dead weight that throws on transport).
+            EsField cleaned = stripNestedConflicts(field);
+            FieldAttribute attr = cleaned == field
+                ? fa
+                : new FieldAttribute(
+                    fa.source(),
+                    fa.parentName(),
+                    fa.qualifier(),
+                    fa.name(),
+                    cleaned,
+                    fa.nullable(),
+                    fa.id(),
+                    fa.synthetic()
+                );
+            return attr.flagTypeConflicts();
+        }
+
+        private static EsField stripNestedConflicts(EsField field) {
+            Map<String, EsField> properties = field.getProperties();
+            if (properties == null || properties.isEmpty()) {
+                return field;
+            }
+            Map<String, EsField> kept = new LinkedHashMap<>(properties.size());
+            boolean changed = false;
+            for (Map.Entry<String, EsField> entry : properties.entrySet()) {
+                EsField child = entry.getValue();
+                if (child instanceof InvalidMappedField || child instanceof InvalidMappedTsField) {
+                    changed = true;
+                    continue;
+                }
+                EsField cleanedChild = stripNestedConflicts(child);
+                kept.put(entry.getKey(), cleanedChild);
+                changed |= cleanedChild != child;
+            }
+            return changed ? field.withProperties(kept) : field;
         }
 
         private static LogicalPlan planWithoutSyntheticAttributes(LogicalPlan plan) {

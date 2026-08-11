@@ -14,7 +14,6 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.slice.SliceBuilder;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 
 import java.io.IOException;
@@ -40,7 +39,7 @@ import static org.junit.Assert.assertTrue;
  * single unsliced reindex, as long as the source query and slice parameters are consistent
  * across calls.es.
  */
-public class ManualSlicingReindexIT extends ESRestTestCase {
+public class ManualSlicingReindexIT extends AbstractReindexIT {
 
     /**
      * Tests that reindexing can handle bulk updates to the source index during reindexing.

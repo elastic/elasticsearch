@@ -392,7 +392,7 @@ public class EndpointClusterStateTests extends AbstractBWCSerializationTestCase<
 
     public void testToXContent_UsingWithoutEndpointMetadata_DoesNotSerializeEndpointMetadata() throws IOException {
         var builder = XContentFactory.contentBuilder(XContentType.JSON);
-        MINIMAL_SERVICE_SETTINGS_WITH_METADATA.toXContent(builder, EndpointClusterState.withoutEndpointMetadata(ToXContent.EMPTY_PARAMS));
+        MINIMAL_SERVICE_SETTINGS_WITH_METADATA.toXContent(builder, EndpointClusterState.withoutEndpointMetadata());
         var json = Strings.toString(builder);
 
         assertThat(json, is(XContentHelper.stripWhitespace(MINIMAL_SERVICE_SETTINGS_WITHOUT_METADATA_JSON)));

@@ -76,7 +76,7 @@ public interface ESVectorUtilSupport {
 
     /**
      * Compute dot product between {@code q} and {@code d}
-     * @param q query vector, {@link #B_QUERY}-bit quantized and striped (see {@code ESVectorUtil.transposeHalfByte})
+     * @param q query vector, {@link #B_QUERY}-bit quantized and striped (see {@code ESVectorUtil.stride4BitValues})
      * @param d data vector, 1-bit quantized
      */
     long ipByteBinByte(byte[] q, byte[] d);
@@ -168,13 +168,13 @@ public interface ESVectorUtilSupport {
         float[] distances
     );
 
-    void packAsBinary(int[] vector, byte[] packed);
+    void pack1BitValues(int[] vector, byte[] packed);
 
-    void packDibit(int[] vector, byte[] packed);
+    void stride2BitValues(int[] vector, byte[] packed);
 
-    void packDibitQuad(int[] vector, byte[] packed);
+    void pack2BitValues(int[] vector, byte[] packed);
 
-    void transposeHalfByte(int[] q, byte[] quantQueryByte);
+    void stride4BitValues(int[] vector, byte[] packed);
 
     int indexOf(byte[] bytes, int offset, int length, byte marker);
 

@@ -23,7 +23,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
-import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.tencentcloud.request.TencentCloudUtils;
@@ -50,10 +49,8 @@ public abstract class TencentCloudCommonServiceSettings extends FilteredXContent
     public static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(20);
 
     /**
-     * Declares the common TencentCloud service-settings fields ({@code model_id}, {@code region}, {@code rate_limit},
-     * and a no-op {@code url}) onto the given parser so that every task-specific settings parser can reuse the
-     * same declaration. The {@code url} field (if present) is silently consumed for backward compatibility with
-     * persisted configurations.
+     * Declares the common TencentCloud service-settings fields ({@code model_id}, {@code region}, {@code rate_limit})
+     * onto the given parser so that every task-specific settings parser can reuse the same declaration.
      */
     public static <B extends Builder<? extends TencentCloudCommonServiceSettings>> void declareCommonFields(
         AbstractObjectParser<B, ConfigurationParseContext> parser,
@@ -61,16 +58,11 @@ public abstract class TencentCloudCommonServiceSettings extends FilteredXContent
     ) {
         parser.declareString(Builder::setModelId, new ParseField(ServiceFields.MODEL_ID));
         parser.declareString(Builder::setRegion, new ParseField(REGION));
-        // Consume the legacy url field silently so that persisted configurations from older versions don't fail to parse.
-        parser.declareString((b, v) -> {}, new ParseField(ServiceFields.URL));
         parser.declareObject(
             Builder::setRateLimitSettings,
             (p, c) -> RateLimitSettings.createParser(c == ConfigurationParseContext.PERSISTENT, defaultRateLimit).apply(p, null),
             new ParseField(RateLimitSettings.FIELD_NAME)
         );
-        // api_key appears in the same JSON block as service settings in REST requests; DefaultSecretSettings extracts
-        // it separately. Declare it here as a no-op so the strict REQUEST parser does not reject it as an unknown field.
-        parser.declareString((b, v) -> {}, new ParseField(DefaultSecretSettings.API_KEY));
     }
 
     /**
@@ -135,8 +127,6 @@ public abstract class TencentCloudCommonServiceSettings extends FilteredXContent
 
         protected abstract T build();
     }
-
-    // ---- instance fields and methods ----
 
     private final String modelId;
     private final String region;

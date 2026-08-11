@@ -67,11 +67,6 @@ public class TencentCloudChatCompletionModel extends TencentCloudModel {
     }
 
     @Override
-    public DefaultSecretSettings getSecretSettings() {
-        return super.getSecretSettings();
-    }
-
-    @Override
     public ExecutableAction accept(TencentCloudActionVisitor visitor, Map<String, Object> taskSettings) {
         return visitor.create(this, taskSettings);
     }

@@ -667,3 +667,6 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.qa.StoredSourceLogsDbVersusReindexedLogsDbChallengeRestIT
   method: testRandomQueries
   issue: https://github.com/elastic/elasticsearch/issues/156358
+- class: org.elasticsearch.xpack.logsdb.qa.StandardVersusStandardReindexedIntoLogsDbChallengeRestIT
+  method: testRandomQueries
+  issue: https://github.com/elastic/elasticsearch/issues/156359

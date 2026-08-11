@@ -823,12 +823,15 @@ public class Strings {
             while (chunks.hasNext()) {
                 chunks.next().toXContent(builder, ToXContent.EMPTY_PARAMS);
                 builder.flush();
+                if (truncatedStream.isTruncated()) {
+                    break;
+                }
             }
             if (chunkedToXContent.isFragment()) {
                 builder.endObject();
             }
 
-            return new TruncatedString(toString(builder), truncatedStream.isTruncated());
+            return new TruncatedString(toString(builder, /* silent = */ true), truncatedStream.isTruncated());
         } catch (IOException e) {
             return new TruncatedString(exceptionToJsonString(e, pretty, human), false);
         }
@@ -877,7 +880,15 @@ public class Strings {
      * @param xContentBuilder builder containing an object to converted to a string
      */
     public static String toString(XContentBuilder xContentBuilder) {
-        xContentBuilder.close();
+        return toString(xContentBuilder, /* silent = */ false);
+    }
+
+    private static String toString(XContentBuilder xContentBuilder, boolean silent) {
+        if (silent) {
+            xContentBuilder.closeSilently();
+        } else {
+            xContentBuilder.close();
+        }
         OutputStream stream = xContentBuilder.getOutputStream();
         if (stream instanceof ByteArrayOutputStream baos) {
             return baos.toString(StandardCharsets.UTF_8);

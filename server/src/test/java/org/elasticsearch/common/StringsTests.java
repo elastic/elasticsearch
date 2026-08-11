@@ -381,7 +381,6 @@ public class StringsTests extends ESTestCase {
             startObject(),
             IntStream.iterate(0, i -> i + 1)
                 .<ToXContent>mapToObj(i -> (b, p) -> b.field("field" + i, randomAlphaOfLengthBetween(0, 50)))
-                .limit(1024 * 1024)
                 .iterator(),
             endObject()
         );

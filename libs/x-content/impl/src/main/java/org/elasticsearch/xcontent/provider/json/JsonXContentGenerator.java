@@ -602,19 +602,49 @@ public class JsonXContentGenerator implements XContentGenerator {
 
     @Override
     public void close() throws IOException {
+        close(false);
+    }
+
+    @Override
+    public void closeSilently() throws IOException {
+        close(true);
+    }
+
+    private void close(boolean silent) throws IOException {
         if (generator.isClosed()) {
             return;
         }
-        JsonStreamContext context = generator.getOutputContext();
-        if ((context != null) && (context.inRoot() == false)) {
-            throw new IOException("Unclosed object or array found");
+
+        IOException exception = null;
+        try {
+            if (silent == false) {
+                JsonStreamContext context = generator.getOutputContext();
+                if ((context != null) && (context.inRoot() == false)) {
+                    throw new IOException("Unclosed object or array found");
+                }
+            }
+            if (writeLineFeedAtEnd) {
+                flush();
+                // Bypass generator to always write the line feed
+                getLowLevelGenerator().writeRaw(LF);
+            }
+        } catch (IOException e) {
+            exception = e;
         }
-        if (writeLineFeedAtEnd) {
-            flush();
-            // Bypass generator to always write the line feed
-            getLowLevelGenerator().writeRaw(LF);
+
+        try {
+            generator.close();
+        } catch (IOException | RuntimeException e) {
+            if (exception == null) {
+                exception = e instanceof IOException ioe ? ioe : new IOException(e);
+            } else {
+                exception.addSuppressed(e);
+            }
         }
-        generator.close();
+
+        if (exception != null) {
+            throw exception;
+        }
     }
 
     @Override

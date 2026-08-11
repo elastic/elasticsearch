@@ -563,4 +563,33 @@ public class XContentBuilderTests extends ESTestCase {
     public void testEnumIsXContentable() {
         XContentBuilder.ensureToXContentable(XContentableEnum.A);
     }
+
+    public void testCloseAlwaysClosesUnderlyingJacksonGenerator() throws IOException {
+        XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+
+        var e = expectThrows(IllegalStateException.class, () -> {
+            builder.startObject();
+            builder.field("foo", true);
+            builder.close();
+        });
+        assertThat(e.getMessage(), equalTo("Failed to close the XContentBuilder"));
+
+        assertTrue(builder.generator().isClosed());
+    }
+
+    public void testCloseSilentlyDoesNotValidateStructuralCorrectness() throws IOException {
+        var type = randomFrom(XContentType.values()).canonical();
+
+        XContentBuilder builder = XContentFactory.contentBuilder(type);
+        builder.startObject();
+        builder.field("foo", true);
+        builder.closeSilently();
+
+        // SnakeYAML fails with an exception when trying to close a generator that is in the middle of object/array
+        // which is why the generator will not be marked as closed in that case: the important thing is that the XContentGenerator does not
+        // throw
+        if (type != XContentType.YAML) {
+            assertTrue(builder.generator().isClosed());
+        }
+    }
 }

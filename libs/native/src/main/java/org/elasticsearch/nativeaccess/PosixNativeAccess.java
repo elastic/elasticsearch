@@ -152,7 +152,7 @@ public abstract class PosixNativeAccess extends AbstractNativeAccess {
     @Override
     public OptionalLong allocatedSizeInBytes(Path path) {
         assert Files.isRegularFile(path) : path;
-        var stats = libc.newStat64(constants.statStructSize(), constants.statStructSizeOffset(), constants.statStructBlocksOffset());
+        var stats = libc.newStat64();
 
         int fd = libc.open(path.toAbsolutePath().toString(), O_RDONLY);
         if (fd == -1) {
@@ -191,7 +191,7 @@ public abstract class PosixNativeAccess extends AbstractNativeAccess {
             return;
         }
 
-        var stats = libc.newStat64(constants.statStructSize(), constants.statStructSizeOffset(), constants.statStructBlocksOffset());
+        var stats = libc.newStat64();
         if (libc.fstat64(fd, stats) != 0) {
             logger.warn("Could not get stats for file [" + file + "] to preallocate size: " + libc.strerror(libc.errno()));
         } else {

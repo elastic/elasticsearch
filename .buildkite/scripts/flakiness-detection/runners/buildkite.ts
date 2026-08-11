@@ -154,14 +154,21 @@ const FLAKINESS_SKIPPED_ARTIFACT = "flakiness-skipped.json";
 // batches (which are skipped) producing none. Keep in sync with entrypoints/analyze.ts.
 const FLAKINESS_PRECOMPILE_ARTIFACT = "flakiness-precompile.json";
 
-// Pre-flight compile gate. A PR that does not compile otherwise fails every
-// re-run batch identically (up to 100x fan-out), which wastes CI and floods the
-// metric with `infra_fail`. This step compiles the affected source sets once;
-// batch steps hard-depend on it (allow_failure: false) so Buildkite skips them
-// when it fails. It is intentionally NOT never-fail wrapped: it must exit
-// non-zero to make Buildkite skip the batches. That turns the step red, but only
-// ever on a PR that genuinely does not compile - which is already red from its
-// main build - so it never introduces a false failure on an otherwise-green PR.
+// Pre-flight compile gate. A PR that does not compile otherwise runs every
+// re-run batch to a doomed failure (up to 100x fan-out), wasting CI. This step
+// compiles the affected source sets once; batch steps hard-depend on it
+// (allow_failure: false) so Buildkite skips them when it fails, saving that
+// compute. It is intentionally NOT never-fail wrapped: it must exit non-zero to
+// make Buildkite skip the batches. That turns the step red, but only ever on a
+// PR that genuinely does not compile - which is already red from its main build -
+// so it never introduces a false failure on an otherwise-green PR.
+//
+// Note on the metric: skipping the batches saves CI, but does not by itself
+// reduce the `infra_fail` count. A skipped job writes no status file, so the
+// external pipeline still records each skipped batch (and this gate job) as
+// `infra_fail` from job state. The analyze step folds the gate failure into a
+// single `build_failed`; suppressing the skipped-job fallback is an
+// external-pipeline concern (see README).
 const PRECOMPILE_KEY = "flakiness-detection:precompile";
 const PRECOMPILE_TIMEOUT_MINUTES = 30;
 

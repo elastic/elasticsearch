@@ -9,6 +9,8 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -29,7 +31,7 @@ import java.util.stream.Stream;
  * IndexReshardingState is an abstract class holding the persistent state of a generic resharding operation. It contains
  * concrete subclasses for the operations that are currently defined (which is only split for now).
  */
-public abstract sealed class IndexReshardingState implements Writeable, ToXContentFragment {
+public abstract sealed class IndexReshardingState implements Writeable, ToXContentFragment, Accountable {
     /**
      * @return the number of shards the index has at the start of this operation
      */
@@ -43,6 +45,8 @@ public abstract sealed class IndexReshardingState implements Writeable, ToXConte
     // This class exists only so that tests can check that IndexReshardingMetadata can support more than one kind of operation.
     // When we have another real operation such as Shrink this can be removed.
     public static final class Noop extends IndexReshardingState {
+        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Noop.class);
+
         private static final ObjectParser<Noop, Void> NOOP_PARSER = new ObjectParser<>("noop", Noop::new);
 
         Noop() {}
@@ -85,9 +89,16 @@ public abstract sealed class IndexReshardingState implements Writeable, ToXConte
         public int shardCountAfter() {
             return 1;
         }
+
+        @Override
+        public long ramBytesUsed() {
+            return BASE_RAM_BYTES_USED;
+        }
     }
 
     public static final class Split extends IndexReshardingState {
+        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Split.class);
+
         /// States of split source shards:
         ///
         /// [SourceShardState#SOURCE] - split is in progress, source shard is expecting start_split requests from target shards.
@@ -269,6 +280,20 @@ public abstract sealed class IndexReshardingState implements Writeable, ToXConte
         @Override
         public int shardCountAfter() {
             return newShardCount;
+        }
+
+        @Override
+        public long ramBytesUsed() {
+            // Array elements are shared enum singletons; counting each slot over-counts when the same enum appears repeatedly or when
+            // many Splits are summed, which keeps the estimate a safe upper bound vs RamUsageTester.
+            long size = BASE_RAM_BYTES_USED + RamUsageEstimator.shallowSizeOf(sourceShards) + RamUsageEstimator.shallowSizeOf(targetShards);
+            for (SourceShardState state : sourceShards) {
+                size += RamUsageEstimator.shallowSizeOf(state);
+            }
+            for (TargetShardState state : targetShards) {
+                size += RamUsageEstimator.shallowSizeOf(state);
+            }
+            return size;
         }
 
         // visible for testing

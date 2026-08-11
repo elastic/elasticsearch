@@ -1,0 +1,41 @@
+---
+"roaring_bitmap aggregation returns a portable bitmap and normal total hits":
+
+  - do:
+      indices.create:
+        index: test_roaring_bitmap_aggregation
+        body:
+          mappings:
+            properties:
+              id:
+                type: integer
+
+  - do:
+      bulk:
+        refresh: true
+        index: test_roaring_bitmap_aggregation
+        body:
+          - '{"index": {}}'
+          - '{"id": 5}'
+          - '{"index": {}}'
+          - '{"id": 10}'
+          - '{"index": {}}'
+          - '{"id": 5}'
+
+  - do:
+      search:
+        index: test_roaring_bitmap_aggregation
+        body:
+          size: 0
+          track_total_hits: true
+          aggs:
+            ids:
+              roaring_bitmap:
+                field: id
+
+  - match: { hits.total.value: 3 }
+  - match: { hits.total.relation: "eq" }
+  # The YAML test runner decodes JSON binary values back to bytes. The unit test verifies those bytes
+  # are the standard portable 32-bit Roaring serialization for the distinct set {5, 10}.
+  - is_true: aggregations.ids.value
+  - is_false: aggregations.ids.cardinality

@@ -22,4 +22,15 @@ public class BitmapPlugin extends Plugin implements SearchPlugin {
             new QuerySpec<>(BitmapTermsQueryBuilder.NAME, BitmapTermsQueryBuilder::new, BitmapTermsQueryBuilder::fromXContent)
         );
     }
+
+    @Override
+    public List<AggregationSpec> getAggregations() {
+        return List.of(
+            new AggregationSpec(
+                RoaringBitmapAggregationBuilder.NAME,
+                RoaringBitmapAggregationBuilder::new,
+                RoaringBitmapAggregationBuilder.PARSER
+            ).addResultReader(InternalRoaringBitmap::new).setAggregatorRegistrar(RoaringBitmapAggregationBuilder::registerAggregators)
+        );
+    }
 }

@@ -89,7 +89,7 @@ public enum NumericFormat {
                     (f, bs) -> es95FieldContext(workload, f, bs)
                 );
             }
-            case COLUMNAR -> new ColumNARDocValuesFormat.Builder().numericPipelineSelector(
+            case COLUMNAR -> new ColumNARDocValuesFormat.Builder().pipelineSelector(
                 (f, t) -> (profile, bs) -> selectPipeline(workload, bs)
             ).blockSize(blockSize).build();
         };

@@ -627,17 +627,15 @@ public class JsonXContentGenerator implements XContentGenerator {
                 // Bypass generator to always write the line feed
                 getLowLevelGenerator().writeRaw(LF);
             }
-        } catch (RuntimeException e) {
-            exception = new IOException(e);
         } catch (IOException e) {
             exception = e;
         }
 
         try {
             generator.close();
-        } catch (IOException | RuntimeException e) {
+        } catch (IOException e) {
             if (exception == null) {
-                exception = e instanceof IOException ioe ? ioe : new IOException(e);
+                exception = e;
             } else {
                 exception.addSuppressed(e);
             }

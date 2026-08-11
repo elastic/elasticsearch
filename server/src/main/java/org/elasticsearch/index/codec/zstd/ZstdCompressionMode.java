@@ -149,7 +149,8 @@ public class ZstdCompressionMode extends CompressionMode {
          * {@link #decompress(DataInput, int, int, int, BytesRef)} always decompresses using out offset zero.
          */
         public void decompressDirect(DataInput in, byte[] out, int outOffset, int outLength) throws IOException {
-            assert out.length >= outLength || isFullDecompress(outOffset, out.length, outLength);
+            assert out.length - outOffset >= outLength
+                : "buffer too small: out.length=" + out.length + " outOffset=" + outOffset + " outLength=" + outLength;
             if (outLength == 0) {
                 return;
             }

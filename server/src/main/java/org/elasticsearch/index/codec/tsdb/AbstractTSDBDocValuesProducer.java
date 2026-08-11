@@ -613,18 +613,17 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         private final IndexInput readAhead;
         /**
          * Tracks which block is currently materialized in {@link #uncompressedBlock}. Serves two
-         * purposes: (1) cache key — {@link #decode} skips decompression when the requested doc is
-         * already in the buffer; (2) lower-bound hint for the binary search in
-         * {@link #findAndUpdateBlock}. Set to {@code -1} after a {@link #decodeBulk} call, because
-         * the bulk fast-path decompresses directly into its own buffer and leaves
-         * {@code uncompressedBlock} stale.
+         * purposes: (1) cache key — {@link #decode} and {@link #decodeBulk} skip decompression when
+         * the requested block is already in the buffer; (2) lower-bound hint for the binary search in
+         * {@link #findAndUpdateBlock}.
          */
         private long lastBlockId = -1;
         /**
          * Lower-bound hint for the binary search in {@link #decodeBulk}: tracks the last block
          * index that {@code decodeBulk} processed. Kept separate from {@link #lastBlockId} because
-         * the bulk fast-path does not land data in {@link #uncompressedBlock}, so {@code lastBlockId}
-         * cannot serve double duty as a search hint after a fast-path bulk read.
+         * the bulk fast-path decompresses directly into its own output buffer for interior blocks and
+         * does not update {@code lastBlockId} in those cases, so {@code lastBlockId} alone would not
+         * be a reliable forward-search hint after such calls.
          */
         private long lastBulkBlockId = -1;
         private final int[] uncompressedDocStarts;
@@ -933,11 +932,26 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 assert header.isCompressed() : "uncompressed blocks shouldn't exist";
                 int fullBlockLength = uncompressedDocStarts[numDocsInBlock];
 
-                // Decompress directly into valuesBuffer at valuesBufferIndex. decompressDirect writes
-                // at bytes.offset, so no intermediate buffer or arraycopy is needed.
-                // Note that in production no uncompressed blocks exists. Only tests run with configuration that do that,
-                // but that doesn't happen for tests that test bulk decoding.
-                decompressor.decompressDirect(compressedData, valuesBuffer, valuesBufferIndex, fullBlockLength);
+                if (blockId == lastBlockId) {
+                    // Cache hit: uncompressedBlock already holds this block's decompressed data. Skip
+                    // decompression and copy from the cache. compressedData is positioned after this
+                    // block's offsets but before its value bytes — that's fine because the next
+                    // iteration's decompressOffsets() seeks to the next block's absolute position.
+                    assert fullBlockLength <= uncompressedBlock.length;
+                    System.arraycopy(uncompressedBlock, 0, valuesBuffer, valuesBufferIndex, fullBlockLength);
+                } else if (blockId == endBlockId && lastDocId + 1 < blockEndDocId) {
+                    // Partial last block: cache it in uncompressedBlock so the next decodeBulk call
+                    // can hit the cache on entry when it begins in this same block.
+                    decompressValues(header.isCompressed(), numDocsInBlock);
+                    lastBlockId = blockId;
+                    startDocNumForBlock = blockStartDocId;
+                    limitDocNumForBlock = blockEndDocId;
+                    System.arraycopy(uncompressedBlock, 0, valuesBuffer, valuesBufferIndex, fullBlockLength);
+                } else {
+                    // Fast path: decompress directly into valuesBuffer at valuesBufferIndex, avoiding
+                    // an intermediate buffer and arraycopy for fully-consumed interior blocks.
+                    decompressor.decompressDirect(compressedData, valuesBuffer, valuesBufferIndex, fullBlockLength);
+                }
 
                 int startDocId = blockId == firstBlockId ? firstDocId : blockStartDocId;
                 int endDocId = blockId == endBlockId ? lastDocId + 1 : blockEndDocId;
@@ -952,8 +966,6 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 valuesBufferIndex += fullBlockLength;
             }
             offsetBuffer[offsetBufferIndex] = lastOffsetIndex;
-            // uncompressedBlock was bypassed: invalidate it so a subsequent decode() re-decompresses.
-            lastBlockId = -1;
             lastBulkBlockId = endBlockId;
 
             assert count == offsetBufferIndex;

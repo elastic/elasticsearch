@@ -39,6 +39,8 @@ final class SvdUtil {
      * Computes the thin SVD of matrix A (m x n) where m >= n.
      * Returns U (m x n), S (n), Vt (n x n).
      * <p>
+     * For m &lt; n, returns U (m x m), S (m), Vt (m x n)
+     * <p>
      * Uses one-sided Jacobi SVD which is simple and numerically stable for small matrices.
      *
      * @param a the input matrix of shape (m x n)
@@ -55,7 +57,7 @@ final class SvdUtil {
             return new SvdResult(
                 result.vt() != null ? transposeMatrix(result.vt(), m, m) : null,
                 result.s(),
-                transposeMatrix(result.u(), m, n)
+                transposeMatrix(result.u(), n, m)
             );
         }
 

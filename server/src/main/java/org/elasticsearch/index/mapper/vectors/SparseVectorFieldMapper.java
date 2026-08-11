@@ -378,7 +378,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
     }
 
     @Override
-    public ParseResult parse(DocumentParserContext context) throws IOException {
+    public void parse(DocumentParserContext context) throws IOException {
 
         // No support for indexing / searching 7.x sparse_vector field types
         if (context.indexSettings().getIndexVersionCreated().before(PREVIOUS_SPARSE_VECTOR_INDEX_VERSION)) {
@@ -430,7 +430,6 @@ public class SparseVectorFieldMapper extends FieldMapper {
         } finally {
             context.path().setWithinLeafObject(isWithinLeaf);
         }
-        return ParseResult.INDEXED;
     }
 
     @Override

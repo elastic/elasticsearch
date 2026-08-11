@@ -277,6 +277,11 @@ public class ThrottlerTests extends ESTestCase {
             for (String msg : messages) {
                 assertEquals(message, msg);
             }
+            if (throwables.isEmpty()) {
+                Mockito.verify(logger, times(times)).log(eq(Level.WARN), any(String.class));
+            } else {
+                Mockito.verify(logger, times(times)).log(eq(Level.WARN), ArgumentMatchers.<Supplier<String>>any(), any(Throwable.class));
+            }
 
             return this;
         }
@@ -285,6 +290,11 @@ public class ThrottlerTests extends ESTestCase {
             assertThat("Expected " + times + " log messages", messages, hasSize(times));
             for (String msg : messages) {
                 assertThat(msg, containsString(substring));
+            }
+            if (throwables.isEmpty()) {
+                Mockito.verify(logger, times(times)).log(eq(Level.WARN), any(String.class));
+            } else {
+                Mockito.verify(logger, times(times)).log(eq(Level.WARN), ArgumentMatchers.<Supplier<String>>any(), any(Throwable.class));
             }
 
             return this;

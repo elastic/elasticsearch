@@ -35,8 +35,7 @@ public class MultiClusterWithSecurityYamlTestSuiteIT extends ESClientYamlSuiteTe
     private static final String USER = "test_user";
     private static final String PASS = "x-pack-test-password";
 
-    public static LocalClusterConfigProvider commonConfig = c -> c
-        .distribution(DistributionType.DEFAULT)
+    public static LocalClusterConfigProvider commonConfig = c -> c.distribution(DistributionType.DEFAULT)
         .module("transform")
         .setting("xpack.security.enabled", "true")
         .setting("xpack.watcher.enabled", "false")
@@ -47,9 +46,7 @@ public class MultiClusterWithSecurityYamlTestSuiteIT extends ESClientYamlSuiteTe
         .name("remote-cluster")
         .apply(commonConfig)
         .setting("node.roles", "[data,ingest,master]")
-        .withNode(node ->
-            node.version(Build.current().minWireCompatVersion())
-        )
+        .withNode(node -> node.version(Build.current().minWireCompatVersion()))
         .withNode(node -> node.version(Build.current().version()))
         .build();
 
@@ -58,11 +55,8 @@ public class MultiClusterWithSecurityYamlTestSuiteIT extends ESClientYamlSuiteTe
         .apply(commonConfig)
         .setting("cluster.remote.my_remote_cluster.seeds", () -> "\"" + remoteCluster.getTransportEndpoints() + "\"")
         .setting("cluster.remote.connections_per_cluster", "1")
-        .withNode(node ->
-            node.setting("node.roles", "[data,ingest,master,transform]")
-        )
-        .withNode(node ->
-            node.setting("node.roles", "[data,ingest,master,transform,remote_cluster_client]"))
+        .withNode(node -> node.setting("node.roles", "[data,ingest,master,transform]"))
+        .withNode(node -> node.setting("node.roles", "[data,ingest,master,transform,remote_cluster_client]"))
         .build();
 
     @ClassRule

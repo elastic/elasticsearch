@@ -57,7 +57,6 @@ import org.elasticsearch.repositories.ShardGenerations;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -1116,7 +1115,11 @@ public class SnapshotsServiceUtils {
         for (Map.Entry<Snapshot, Set<Index>> entry : indicesBySnapshot.entrySet()) {
             Snapshot snapshot = entry.getKey();
             collector.appendItem(
-                "[" + snapshot.getRepository() + "/" + snapshot.getSnapshotId().getName() + "] indices:"
+                "["
+                    + snapshot.getRepository()
+                    + "/"
+                    + snapshot.getSnapshotId().getName()
+                    + "] indices:"
                     + entry.getValue().stream().map(i -> i.getName() + "/" + i.getUUID()).toList()
             );
         }

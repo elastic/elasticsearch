@@ -934,7 +934,10 @@ public class MetadataIndexStateService {
                 }
 
                 // Check if index closing conflicts with any running snapshots
-                Map<Snapshot, Set<Index>> snapshottingIndices = SnapshotsServiceUtils.snapshottingIndicesBySnapshot(currentProjectState, Set.of(index));
+                Map<Snapshot, Set<Index>> snapshottingIndices = SnapshotsServiceUtils.snapshottingIndicesBySnapshot(
+                    currentProjectState,
+                    Set.of(index)
+                );
                 if (snapshottingIndices.isEmpty() == false) {
                     closingResults.put(
                         result.getKey(),

@@ -645,7 +645,9 @@ public class AuthorizationServiceTests extends ESTestCase {
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
         RoleDescriptor role = new RoleDescriptor(
             "manage_security_role",
-            new String[] { ClusterPrivilegeResolver.MANAGE_SECURITY.name() },
+            // manage_slm: the SLM policy put action is audited as a security config change (policies can carry an
+            // encryption password) but is granted by the SLM privileges rather than manage_security
+            new String[] { ClusterPrivilegeResolver.MANAGE_SECURITY.name(), ClusterPrivilegeResolver.MANAGE_SLM.name() },
             null,
             null,
             null,

@@ -31,6 +31,7 @@ import org.elasticsearch.action.datastreams.PastTimeSeriesIndexCreationAction;
 import org.elasticsearch.action.delete.TransportDeleteAction;
 import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -67,6 +68,8 @@ import org.elasticsearch.transport.LinkedProjectConfigService;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.usage.UsageService;
+import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchAction;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyRequest;
@@ -169,6 +172,7 @@ public class AuthorizationService {
     private final DlsFlsFeatureTrackingIndicesAccessControlWrapper indicesAccessControlWrapper;
     private final AuthorizedProjectsResolver authorizedProjectsResolver;
     private final ProjectRoutingResolver projectRoutingResolver;
+    private final UsageService usageService;
 
     public AuthorizationService(
         Settings settings,
@@ -190,7 +194,8 @@ public class AuthorizationService {
         ProjectResolver projectResolver,
         AuthorizedProjectsResolver authorizedProjectsResolver,
         CrossProjectModeDecider crossProjectModeDecider,
-        ProjectRoutingResolver projectRoutingResolver
+        ProjectRoutingResolver projectRoutingResolver,
+        UsageService usageService
     ) {
         this.clusterService = clusterService;
         this.auditTrailService = auditTrailService;
@@ -223,6 +228,7 @@ public class AuthorizationService {
         this.authorizationDenialMessages = authorizationDenialMessages;
         this.projectResolver = projectResolver;
         this.authorizedProjectsResolver = authorizedProjectsResolver;
+        this.usageService = usageService;
     }
 
     public void checkPrivileges(
@@ -638,13 +644,24 @@ public class AuthorizationService {
                 }
                 return existing;
             }
-            final TargetProjects targetProjects = projectRoutingResolver.resolve(
-                crossProjectCandidate.getProjectRouting(),
-                projectMetadata,
-                authorizedProjects
-            );
-            crossProjectCandidate.setResolvedTargetProjects(targetProjects);
-            return targetProjects;
+            // Compute hadLinks before resolving: the resolver may throw InvalidProjectRoutingException
+            // before setResolvedTargetProjects() is called. The catch block stores a pre-routing
+            // TargetProjects so onAuthorizedResourceLoadFailure() can read hasLinkedProjects.
+            boolean hadLinks = authorizedProjects.linkedProjects() != null && authorizedProjects.linkedProjects().isEmpty() == false;
+            try {
+                final TargetProjects targetProjects = projectRoutingResolver.resolve(
+                    crossProjectCandidate.getProjectRouting(),
+                    projectMetadata,
+                    authorizedProjects
+                );
+                crossProjectCandidate.setResolvedTargetProjects(targetProjects);
+                return targetProjects;
+            } catch (InvalidProjectRoutingException e) {
+                crossProjectCandidate.setResolvedTargetProjects(
+                    new TargetProjects(authorizedProjects.originProject(), authorizedProjects.linkedProjects(), null, hadLinks)
+                );
+                throw e;
+            }
         }
         assert authorizedProjects == TargetProjects.LOCAL_ONLY_FOR_CPS_DISABLED
             : "expected LOCAL_ONLY_FOR_CPS_DISABLED when CPS does not apply but got [" + authorizedProjects + "]";
@@ -663,6 +680,9 @@ public class AuthorizationService {
         final TransportRequest request = requestInfo.getRequest();
         final Authentication authentication = requestInfo.getAuthentication();
 
+        if (ex instanceof InvalidProjectRoutingException || ex instanceof NoMatchingProjectException) {
+            recordProjectRoutingFailure(action, request);
+        }
         if (ex instanceof InvalidIndexNameException
             || ex instanceof InvalidSelectorException
             || ex instanceof UnsupportedSelectorException
@@ -686,6 +706,26 @@ public class AuthorizationService {
             listener.onFailure(ex);
         } else {
             listener.onFailure(actionDenied(authentication, authzInfo, action, request, ex));
+        }
+    }
+
+    /**
+     * Records a project routing failure ({@code InvalidProjectRoutingException} or {@code NoMatchingProjectException})
+     * against the appropriate endpoint counter in {@link org.elasticsearch.action.admin.cluster.stats.ProjectRoutingUsageHolder}.
+     * Only {@code _search}/{@code _async_search} and {@code _esql} failures are bucketed; other action types are silently ignored.
+     */
+    private void recordProjectRoutingFailure(String action, TransportRequest request) {
+        boolean hasLinkedProjects = false;
+        if (request instanceof IndicesRequest.CrossProjectCandidate candidate) {
+            TargetProjects tp = candidate.getResolvedTargetProjects();
+            if (tp != null) {
+                hasLinkedProjects = tp.hasLinkedProjects();
+            }
+        }
+        if (TransportSearchAction.NAME.equals(action) || SubmitAsyncSearchAction.NAME.equals(action)) {
+            usageService.getProjectRoutingUsageHolder().recordSearchProjectRoutingFailure(hasLinkedProjects);
+        } else if ("indices:data/read/esql".equals(action)) {
+            usageService.getProjectRoutingUsageHolder().recordEsqlProjectRoutingFailure(hasLinkedProjects);
         }
     }
 

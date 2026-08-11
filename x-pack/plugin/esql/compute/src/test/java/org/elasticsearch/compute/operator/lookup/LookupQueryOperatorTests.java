@@ -16,6 +16,7 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.tests.store.MockDirectoryWrapper;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DocBlock;
@@ -29,6 +30,7 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.compute.test.TestWarningsSource;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -432,7 +434,8 @@ public class LookupQueryOperatorTests extends OperatorTestCase {
     }
 
     private static Warnings warnings() {
-        return Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, new TestWarningsSource("test"));
+        DriverContext driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TestBlockFactory.getNonBreakingInstance(), null);
+        return driverContext.createWarnings(new TestWarningsSource("test"));
     }
 
     private record DirectoryData(

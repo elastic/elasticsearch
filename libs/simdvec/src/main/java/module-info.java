@@ -19,6 +19,7 @@ module org.elasticsearch.simdvec {
     requires org.elasticsearch.base;
     requires org.elasticsearch.logging;
     requires org.elasticsearch.nativeaccess;
+    requires org.elasticsearch.lucene.store;
     requires org.apache.lucene.core;
 
     exports org.elasticsearch.simdvec to org.elasticsearch.server, org.elasticsearch.columnar;

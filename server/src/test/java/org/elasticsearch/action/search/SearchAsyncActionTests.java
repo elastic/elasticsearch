@@ -797,7 +797,8 @@ public class SearchAsyncActionTests extends ESTestCase {
                 true,
                 RecoverySource.EmptyStoreRecoverySource.INSTANCE,
                 new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foobar"),
-                ShardRouting.Role.DEFAULT
+                ShardRouting.Role.DEFAULT,
+                ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
             );
             if (primaryNode != null) {
                 routing = routing.initialize(primaryNode.getId(), i + "p", 0);
@@ -810,7 +811,8 @@ public class SearchAsyncActionTests extends ESTestCase {
                     false,
                     RecoverySource.PeerRecoverySource.INSTANCE,
                     new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foobar"),
-                    ShardRouting.Role.DEFAULT
+                    ShardRouting.Role.DEFAULT,
+                    ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
                 );
                 if (replicaNode != null) {
                     routing = routing.initialize(replicaNode.getId(), i + "r", 0);

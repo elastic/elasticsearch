@@ -62,6 +62,7 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
     private ClusterState node1MasterClusterState;
     private ClusterState node2MasterClusterState;
     private ClusterState node3MasterClusterState;
+    private boolean multiProject;
     private static final String TEST_SOURCE = "test";
 
     @Before
@@ -69,6 +70,8 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
         node1 = DiscoveryNodeUtils.create("node1", randomNodeId());
         node2 = DiscoveryNodeUtils.create("node2", randomNodeId());
         node3 = DiscoveryNodeUtils.create("node3", randomNodeId());
+        // Randomly simulate a multi-project or single-project cluster; master stability is cluster-wide either way.
+        multiProject = randomBoolean();
         nullMasterClusterState = createClusterState(null);
         node1MasterClusterState = createClusterState(node1);
         node2MasterClusterState = createClusterState(node2);
@@ -260,17 +263,6 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
     }
 
     private ClusterState createClusterState(DiscoveryNode masterNode) {
-        // Include multiple projects to verify master stability health is unaffected by multi-project metadata.
-        ProjectId project1 = randomUniqueProjectId();
-        ProjectId project2 = randomUniqueProjectId();
-        Metadata metadata = Metadata.builder()
-            .put(ProjectMetadata.builder(project1))
-            .put(ProjectMetadata.builder(project2))
-            .build();
-        GlobalRoutingTable routingTable = GlobalRoutingTable.builder()
-            .put(project1, RoutingTable.EMPTY_ROUTING_TABLE)
-            .put(project2, RoutingTable.EMPTY_ROUTING_TABLE)
-            .build();
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
         if (masterNode != null) {
             nodesBuilder.masterNodeId(masterNode.getId());
@@ -278,11 +270,24 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
         nodesBuilder.add(node1);
         nodesBuilder.add(node2);
         nodesBuilder.add(node3);
-        return ClusterState.builder(new ClusterName("test-cluster"))
-            .routingTable(routingTable)
-            .metadata(metadata)
-            .nodes(nodesBuilder)
-            .build();
+
+        var clusterStateBuilder = ClusterState.builder(new ClusterName("test-cluster")).nodes(nodesBuilder);
+        if (multiProject) {
+            // Include multiple projects to verify master stability health is unaffected by multi-project metadata.
+            ProjectId project1 = randomUniqueProjectId();
+            ProjectId project2 = randomUniqueProjectId();
+            clusterStateBuilder.metadata(
+                Metadata.builder().put(ProjectMetadata.builder(project1)).put(ProjectMetadata.builder(project2)).build()
+            ).routingTable(
+                GlobalRoutingTable.builder()
+                    .put(project1, RoutingTable.EMPTY_ROUTING_TABLE)
+                    .put(project2, RoutingTable.EMPTY_ROUTING_TABLE)
+                    .build()
+            );
+        } else {
+            clusterStateBuilder.metadata(Metadata.builder().build()).routingTable(RoutingTable.EMPTY_ROUTING_TABLE);
+        }
+        return clusterStateBuilder.build();
     }
 
     private static String randomNodeId() {

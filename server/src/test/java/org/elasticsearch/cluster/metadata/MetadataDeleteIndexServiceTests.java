@@ -110,8 +110,8 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         );
         assertEquals(
             "Cannot delete indices that are being snapshotted: "
-                + "[doesn't matter/snapshot name]: "
-                + List.of(index.getName())
+                + "[doesn't matter/snapshot name] indices:"
+                + List.of(index.getName() + "/" + index.getUUID())
                 + ". Try again after these snapshots finish, or cancel them.",
             e.getMessage()
         );

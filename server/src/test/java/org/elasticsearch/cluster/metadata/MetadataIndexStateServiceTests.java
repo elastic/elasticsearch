@@ -292,7 +292,7 @@ public class MetadataIndexStateServiceTests extends ESTestCase {
                 allOf(
                     containsString("Cannot close indices that are being snapshotted:"),
                     containsString("[test-repo/test-snap] indices:"),
-                    containsString("[snapshotted]")
+                    containsString("snapshotted/")
                 )
             );
         }

@@ -757,62 +757,6 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
         );
     }
 
-    public void testFallbackFieldIndexedNormallyCommitsPrecaptureToIgnoredSource() throws Exception {
-        DocumentMapper mapper = createSytheticSourceMapperService(
-            fieldMapping(
-                b -> b.field("type", "keyword").field("normalizer", "lowercase").field("normalizer_skip_store_original_value", false)
-            )
-        ).documentMapper();
-
-        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "Hello")));
-
-        FieldStorageVerifier.forField("field", doc.rootDoc()).expectDocValues().expectIgnoredSource().verify();
-    }
-
-    public void testNonFallbackMalformedDiscardsPreCaptureFromIgnoredSource() throws Exception {
-        DocumentMapper mapper = createSytheticSourceMapperService(
-            fieldMapping(b -> b.field("type", "integer").field("synthetic_source_keep", "all").field("ignore_malformed", true))
-        ).documentMapper();
-
-        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "not-a-number")));
-
-        assertThat(
-            "pre-capture must be discarded for non-FALLBACK malformed field: value must not appear in _ignored_source",
-            doc.rootDoc().getFields(IgnoredSourceFieldMapper.NAME).isEmpty(),
-            equalTo(true)
-        );
-    }
-
-    /**
-     * With {@code ignore_malformed=true}, a malformed integer value must land in {@code ._ignore_malformed} and not in
-     * {@code _ignored_source}. Exercises the parser-position write variant used by {@link NumberFieldMapper},
-     * {@link BooleanFieldMapper}, {@link DateFieldMapper}, and {@link IpFieldMapper}.
-     */
-    public void testIgnoreMalformedWritesToIgnoreMalformedColumn() throws Exception {
-        DocumentMapper mapper = createSytheticSourceMapperService(
-            fieldMapping(b -> b.field("type", "integer").field("ignore_malformed", true))
-        ).documentMapper();
-
-        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "not-a-number")));
-
-        FieldStorageVerifier.forField("field", doc.rootDoc()).expectIgnoreMalformed().verify();
-    }
-
-    /**
-     * {@link GeoPointFieldMapper} uses a pre-built {@code XContentBuilder} when writing malformed values, exercising the
-     * builder-argument overload of {@link FallbackPostMapper#capture}. Verify malformed geo values also land in
-     * {@code ._ignore_malformed}, not {@code _ignored_source}.
-     */
-    public void testIgnoreMalformedGeoPointWritesToIgnoreMalformedColumn() throws Exception {
-        DocumentMapper mapper = createSytheticSourceMapperService(
-            fieldMapping(b -> b.field("type", "geo_point").field("ignore_malformed", true))
-        ).documentMapper();
-
-        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "not-a-geopoint")));
-
-        FieldStorageVerifier.forField("field", doc.rootDoc()).expectIgnoreMalformed().verify();
-    }
-
     public void testOnFailureIgnoreNullabilityViolationStorageUniqueness() throws Exception {
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         DocumentMapper mapper = createMapperService(

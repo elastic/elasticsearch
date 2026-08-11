@@ -79,11 +79,14 @@ public class ShutdownPrepareService {
 
     private static final Logger logger = LogManager.getLogger(ShutdownPrepareService.class);
 
+    public interface TaskTimeoutListener {
+        void onTimeout(String taskName, List<Task> tasks);
+    }
+
     private final TimeValue maxTimeout;
     private final TerminationHandler terminationHandler;
     private final List<ShutdownHook> hooks = new ArrayList<>();
     private volatile boolean isShuttingDown = false;
-    private volatile Runnable preCancelRelocationsHook = null;
 
     @SuppressWarnings(value = "this-escape")
     public ShutdownPrepareService(
@@ -180,16 +183,27 @@ public class ShutdownPrepareService {
         }
     }
 
-    /// The polling interval used by [#awaitTasksComplete]. Chosen to allow short response times, but (since checking the tasks list is
-    /// relatively expensive) not so short that we waste CPU time we could be spending on finishing those tasks.
+    /// The polling interval used by [#awaitTasksCompleteInternal]. Chosen to allow short response times, but (since checking the tasks list
+    /// is relatively expensive) not so short that we waste CPU time we could be spending on finishing those tasks.
     static final TimeValue AWAIT_TASKS_POLL_INTERVAL = TimeValue.timeValueMillis(500);
 
     // exists and package-private for testing
-    static class Sleeper {
+    protected static class Sleeper {
 
         void sleep(TimeValue interval) throws InterruptedException {
             Thread.sleep(interval.millis());
         }
+    }
+
+    protected boolean awaitTasksComplete(
+        TimeValue timeout,
+        Sleeper sleeper,
+        String taskName,
+        TaskManager taskManager,
+        @Nullable Consumer<Task> taskNotifier,
+        @Nullable Consumer<List<Task>> onTimeout
+    ) {
+        return awaitTasksCompleteInternal(timeout, sleeper, taskName, taskManager, taskNotifier, onTimeout);
     }
 
     /// Repeatedly polls the `taskManager` to list tasks whose action name is `taskName`, invoking `sleeper` to sleep for
@@ -197,7 +211,7 @@ public class ShutdownPrepareService {
     /// `timeout`. Invokes `taskNotifier` exactly once for each matching task encountered. Returns true if it found no matching tasks, false
     /// if it timed out or was interrupted.
     // package-private for testing
-    static boolean awaitTasksComplete(
+    static boolean awaitTasksCompleteInternal(
         TimeValue timeout,
         Sleeper sleeper,
         String taskName,
@@ -263,9 +277,6 @@ public class ShutdownPrepareService {
             tasks -> {
                 // Cancel any reindex tasks that could not be relocated, then wait a short time
                 // for them to exit the task manager before proceeding with shutdown.
-                if (preCancelRelocationsHook != null) {
-                    preCancelRelocationsHook.run();
-                }
                 tasks.forEach(t -> {
                     if (t instanceof CancellableTask cancellable) {
                         try {
@@ -348,10 +359,5 @@ public class ShutdownPrepareService {
         } else {
             logger.warn("Requested relocation task for non-bulk-by-paginated-search task {}", task);
         }
-    }
-
-    // Used for testing
-    public void setPreCancelRelocationsHook(Runnable preCancelRelocationsHook) {
-        this.preCancelRelocationsHook = preCancelRelocationsHook;
     }
 }

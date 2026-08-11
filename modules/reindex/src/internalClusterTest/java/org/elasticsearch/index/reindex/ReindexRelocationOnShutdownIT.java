@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.node.ListenableShutdownPrepareService;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.node.ShutdownPrepareService;
 import org.elasticsearch.plugins.Plugin;
@@ -96,7 +97,12 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(ReindexPlugin.class, ReindexManagementPlugin.class, MockTransportService.TestPlugin.class);
+        return Arrays.asList(
+            ReindexPlugin.class,
+            ReindexManagementPlugin.class,
+            MockTransportService.TestPlugin.class,
+            ListenableShutdownPrepareService.TestPlugin.class
+        );
     }
 
     @Override
@@ -746,9 +752,17 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
 
             // Run prepareForShutdown in a background thread: it marks the task for relocation then blocks
             // waiting for the task to exit (which won’t happen until we release the transport block).
-            final var shutdownPrepareService = internalCluster().getInstance(ShutdownPrepareService.class, coordNodeName);
+            final var shutdownPrepareService = asInstanceOf(
+                ListenableShutdownPrepareService.class,
+                internalCluster().getInstance(ShutdownPrepareService.class, coordNodeName)
+            );
             // Prevent the cancellation from beginning until the task is in HANDOFF_INITIATED state.
-            shutdownPrepareService.setPreCancelRelocationsHook(() -> safeAwait(resumeStarted));
+            shutdownPrepareService.addTaskTimeoutListener((taskName, tasks) -> {
+                if (ReindexAction.NAME.equals(taskName)) {
+                    safeAwait(resumeStarted);
+                }
+            });
+
             Future<?> shutdownFuture = executor.submit(shutdownPrepareService::prepareForShutdown);
 
             // Wait for the cancellation to fail

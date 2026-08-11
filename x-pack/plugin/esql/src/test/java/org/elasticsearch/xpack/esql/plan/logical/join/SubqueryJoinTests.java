@@ -131,15 +131,33 @@ public class SubqueryJoinTests extends ESTestCase {
 
         LocalRelation emptyResult = new LocalRelation(Source.EMPTY, List.of(rightField), LocalSupplier.of(new Page(0)));
 
-        // SEMI with empty result -> FALSE
+        // SEMI with empty result: x IN () is FALSE for every row, so the join collapses to an empty LocalRelation
         SemiJoin semiJoin = semiJoin(leftField, rightField);
-        var inlined = as(AbstractSubqueryJoin.inlineData(semiJoin, emptyResult, HASH_JOIN_THRESHOLD, BLOCK_FACTORY, null), Filter.class);
-        assertThat(inlined.condition(), equalTo(Literal.FALSE));
+        assertEmptyRelation(
+            AbstractSubqueryJoin.inlineData(semiJoin, emptyResult, HASH_JOIN_THRESHOLD, BLOCK_FACTORY, null),
+            leftField,
+            true
+        );
 
-        // ANTI with empty result -> TRUE
+        // ANTI with empty result: x NOT IN () is TRUE for every row, so the join collapses LHS child
         AntiJoin antiJoin = antiJoin(leftField, rightField);
-        inlined = as(AbstractSubqueryJoin.inlineData(antiJoin, emptyResult, HASH_JOIN_THRESHOLD, BLOCK_FACTORY, null), Filter.class);
-        assertThat(inlined.condition(), equalTo(Literal.TRUE));
+        assertEmptyRelation(
+            AbstractSubqueryJoin.inlineData(antiJoin, emptyResult, HASH_JOIN_THRESHOLD, BLOCK_FACTORY, null),
+            leftField,
+            false
+        );
+    }
+
+    /**
+     * The empty-result and NULL short-circuit paths collapse the join to an empty {@link LocalRelation} — the same
+     * rewrite {@code PruneFilters} applies to a constant-false filter, inlined into the join because subquery
+     * substitution runs after the logical optimizer and a {@code Filter(FALSE)} would otherwise survive to physical
+     * planning. The relation must carry the join's output (the left side's attributes) so references above resolve.
+     */
+    private static void assertEmptyRelation(LogicalPlan inlined, FieldAttribute leftField, boolean hasEmptySupplier) {
+        LocalRelation relation = as(inlined, LocalRelation.class);
+        assertEquals("expected the empty supplier, not materialized rows", hasEmptySupplier, relation.hasEmptySupplier());
+        assertThat(relation.output(), equalTo(List.of(leftField)));
     }
 
     // -- hash join threshold tests --
@@ -236,9 +254,9 @@ public class SubqueryJoinTests extends ESTestCase {
     /**
      * SQL {@code x NOT IN (..., NULL, ...)} is never TRUE — FALSE for matches, NULL otherwise —
      * so every row is filtered out. {@code inlineAsHashJoin} short-circuits ANTI + null-on-right
-     * to {@code Filter(FALSE)} without invoking BlockHash or the LEFT join.
+     * to an empty {@code LocalRelation} without invoking BlockHash or the LEFT join.
      */
-    public void testInlineAsHashJoinAntiJoinWithNullOnRightShortCircuitsToFalse() {
+    public void testInlineAsHashJoinAntiJoinWithNullOnRightShortCircuitsToEmpty() {
         FieldAttribute leftField = getFieldAttribute("emp_no", DataType.INTEGER);
         FieldAttribute rightField = getFieldAttribute("emp_no", DataType.INTEGER);
         AntiJoin antiJoin = antiJoin(leftField, rightField);
@@ -247,15 +265,14 @@ public class SubqueryJoinTests extends ESTestCase {
         LocalRelation result = new LocalRelation(Source.EMPTY, List.of(rightField), LocalSupplier.of(new Page(keyBlock)));
 
         LogicalPlan inlined = AbstractSubqueryJoin.inlineData(antiJoin, result, 0, BLOCK_FACTORY, null);
-        Filter filter = as(inlined, Filter.class);
-        assertThat(filter.condition(), equalTo(Literal.FALSE));
+        assertEmptyRelation(inlined, leftField, true);
     }
 
     /**
      * SEMI with a subquery whose every right value is NULL has no candidate match key, so the
-     * predicate is NULL for every left row and the whole join collapses to {@code Filter(FALSE)}.
+     * predicate is NULL for every left row and the whole join collapses to an empty {@code LocalRelation}.
      */
-    public void testInlineAsHashJoinSemiJoinAllNullRightShortCircuitsToFalse() {
+    public void testInlineAsHashJoinSemiJoinAllNullRightShortCircuitsToEmpty() {
         FieldAttribute leftField = getFieldAttribute("emp_no", DataType.INTEGER);
         FieldAttribute rightField = getFieldAttribute("emp_no", DataType.INTEGER);
         SemiJoin semiJoin = semiJoin(leftField, rightField);
@@ -264,8 +281,7 @@ public class SubqueryJoinTests extends ESTestCase {
         LocalRelation result = new LocalRelation(Source.EMPTY, List.of(rightField), LocalSupplier.of(new Page(keyBlock)));
 
         LogicalPlan inlined = AbstractSubqueryJoin.inlineData(semiJoin, result, 0, BLOCK_FACTORY, null);
-        Filter filter = as(inlined, Filter.class);
-        assertThat(filter.condition(), equalTo(Literal.FALSE));
+        assertEmptyRelation(inlined, leftField, true);
     }
 
     /**
@@ -663,10 +679,10 @@ public class SubqueryJoinTests extends ESTestCase {
      * SEMI when every right position is multi-valued: {@code AbstractSubqueryJoin#convertMvPositionsToNull}
      * folds every position to NULL, BlockHash emits exactly one NULL group, and the post-dedup
      * "all right NULL" check ({@code dedupPositions == 1 && rightHadNulls}) fires the
-     * {@code AbstractSubqueryJoin#buildShortCircuitPlan} branch, returning {@code Filter(FALSE)} without ever
-     * constructing an {@link In} or a LEFT join.
+     * {@code AbstractSubqueryJoin#buildShortCircuitPlan} branch, returning an empty {@code LocalRelation} without
+     * ever constructing an {@link In} or a LEFT join.
      */
-    public void testInlineDataAllMvRightShortCircuitsToFalseForSemi() {
+    public void testInlineDataAllMvRightShortCircuitsToEmptyForSemi() {
         FieldAttribute leftField = getFieldAttribute("emp_no", DataType.INTEGER);
         FieldAttribute rightField = getFieldAttribute("emp_no", DataType.INTEGER);
         SemiJoin semiJoin = semiJoin(leftField, rightField);
@@ -675,17 +691,16 @@ public class SubqueryJoinTests extends ESTestCase {
         LocalRelation result = new LocalRelation(Source.EMPTY, List.of(rightField), LocalSupplier.of(new Page(keyBlock)));
 
         LogicalPlan inlined = AbstractSubqueryJoin.inlineData(semiJoin, result, HASH_JOIN_THRESHOLD, BLOCK_FACTORY, null);
-        Filter filter = as(inlined, Filter.class);
-        assertThat(filter.condition(), equalTo(Literal.FALSE));
+        assertEmptyRelation(inlined, leftField, true);
     }
 
     /**
      * ANTI: {@code shortCircuitOnAnyRightNull()} is true, so any NULL position in the dedup
      * output (including one produced from an MV input via {@code AbstractSubqueryJoin#convertMvPositionsToNull})
-     * forces a {@code Filter(FALSE)} short-circuit. This mirrors {@code x NOT IN (..., NULL, ...)}
+     * forces an empty-{@code LocalRelation} short-circuit. This mirrors {@code x NOT IN (..., NULL, ...)}
      * semantics — never TRUE for any row.
      */
-    public void testInlineDataAntiJoinMvRightShortCircuitsToFalse() {
+    public void testInlineDataAntiJoinMvRightShortCircuitsToEmpty() {
         FieldAttribute leftField = getFieldAttribute("emp_no", DataType.INTEGER);
         FieldAttribute rightField = getFieldAttribute("emp_no", DataType.INTEGER);
         AntiJoin antiJoin = antiJoin(leftField, rightField);
@@ -695,8 +710,7 @@ public class SubqueryJoinTests extends ESTestCase {
         LocalRelation result = new LocalRelation(Source.EMPTY, List.of(rightField), LocalSupplier.of(new Page(keyBlock)));
 
         LogicalPlan inlined = AbstractSubqueryJoin.inlineData(antiJoin, result, HASH_JOIN_THRESHOLD, BLOCK_FACTORY, null);
-        Filter filter = as(inlined, Filter.class);
-        assertThat(filter.condition(), equalTo(Literal.FALSE));
+        assertEmptyRelation(inlined, leftField, true);
     }
 
     /**

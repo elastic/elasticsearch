@@ -23,12 +23,15 @@ import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
+import org.elasticsearch.xpack.inference.integration.IntegrationTestUtils;
 import org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsMapperTests;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
@@ -36,7 +39,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT.registerModel;
-import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomSemanticInput;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomSemanticTextInput;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -48,79 +50,40 @@ public class ShardBulkInferenceActionFilterBasicLicenseIT extends ESIntegTestCas
     private static final String DENSE_INFERENCE_ID = "dense-endpoint";
     private static final String EMBEDDING_INFERENCE_ID = "embedding-endpoint";
 
-    private final SemanticFieldType fieldTypeTestParameter;
+    private final SemanticFieldType semanticFieldType;
     private final boolean useLegacyFormat;
 
     private enum SemanticFieldType {
         SEMANTIC_TEXT {
             @Override
-            String getMapping() {
-                return Strings.format("""
-                    {
-                        "properties": {
-                            "sparse_field": {
-                                "type": "semantic_text",
-                                "inference_id": "%s"
-                            },
-                            "dense_field": {
-                                "type": "semantic_text",
-                                "inference_id": "%s"
-                            }
-                        }
-                    }
-                    """, SPARSE_INFERENCE_ID, DENSE_INFERENCE_ID);
+            Map<String, String> getFields() {
+                return Map.of("sparse_field", SPARSE_INFERENCE_ID, "dense_field", DENSE_INFERENCE_ID);
             }
 
             @Override
-            Map<String, Object> sampleSource() {
-                return Map.of("sparse_field", randomSemanticTextInput(), "dense_field", randomSemanticTextInput());
-            }
-
-            @Override
-            Map<String, Object> nullSource() {
-                final Map<String, Object> source = new HashMap<>();
-                source.put("sparse_field", null);
-                source.put("dense_field", null);
-                return source;
+            XContentBuilder getMapping() throws IOException {
+                return IntegrationTestUtils.generateSemanticTextMapping(getFields());
             }
         },
         SEMANTIC {
             @Override
-            String getMapping() {
-                return Strings.format("""
-                    {
-                        "properties": {
-                            "semantic_field": {
-                                "type": "semantic",
-                                "inference_id": "%s"
-                            }
-                        }
-                    }
-                    """, EMBEDDING_INFERENCE_ID);
+            Map<String, String> getFields() {
+                return Map.of("semantic_field", EMBEDDING_INFERENCE_ID);
             }
 
             @Override
-            Map<String, Object> sampleSource() {
-                return Map.of("semantic_field", randomSemanticInput(true));
-            }
-
-            @Override
-            Map<String, Object> nullSource() {
-                final Map<String, Object> source = new HashMap<>();
-                source.put("semantic_field", null);
-                return source;
+            XContentBuilder getMapping() throws IOException {
+                return IntegrationTestUtils.generateSemanticMapping(getFields());
             }
         };
 
-        abstract String getMapping();
+        abstract Map<String, String> getFields();
 
-        abstract Map<String, Object> sampleSource();
-
-        abstract Map<String, Object> nullSource();
+        abstract XContentBuilder getMapping() throws IOException;
     }
 
-    public ShardBulkInferenceActionFilterBasicLicenseIT(SemanticFieldType fieldTypeTestParameter, boolean useLegacyFormat) {
-        this.fieldTypeTestParameter = fieldTypeTestParameter;
+    public ShardBulkInferenceActionFilterBasicLicenseIT(SemanticFieldType semanticFieldType, boolean useLegacyFormat) {
+        this.semanticFieldType = semanticFieldType;
         this.useLegacyFormat = useLegacyFormat;
     }
 
@@ -172,17 +135,18 @@ public class ShardBulkInferenceActionFilterBasicLicenseIT extends ESIntegTestCas
         return settingsBuilder.build();
     }
 
-    public void testLicenseInvalidForInference() {
-        prepareCreate(INDEX_NAME).setMapping(fieldTypeTestParameter.getMapping()).get();
+    public void testLicenseInvalidForInference() throws Exception {
+        prepareCreate(INDEX_NAME).setMapping(semanticFieldType.getMapping()).get();
 
         BulkRequestBuilder bulkRequest = client().prepareBulk();
         int totalBulkReqs = randomIntBetween(2, 100);
         for (int i = 0; i < totalBulkReqs; i++) {
-            bulkRequest.add(
-                new IndexRequestBuilder(client()).setIndex(INDEX_NAME)
-                    .setId(Long.toString(i))
-                    .setSource(fieldTypeTestParameter.sampleSource())
-            );
+            Map<String, Object> source = new HashMap<>();
+            for (String field : semanticFieldType.getFields().keySet()) {
+                source.put(field, randomSemanticTextInput());
+            }
+
+            bulkRequest.add(new IndexRequestBuilder(client()).setIndex(INDEX_NAME).setId(Long.toString(i)).setSource(source));
         }
 
         BulkResponse bulkResponse = bulkRequest.get();
@@ -196,17 +160,18 @@ public class ShardBulkInferenceActionFilterBasicLicenseIT extends ESIntegTestCas
         }
     }
 
-    public void testNullSourceSucceeds() {
-        prepareCreate(INDEX_NAME).setMapping(fieldTypeTestParameter.getMapping()).get();
+    public void testNullSourceSucceeds() throws Exception {
+        prepareCreate(INDEX_NAME).setMapping(semanticFieldType.getMapping()).get();
 
         BulkRequestBuilder bulkRequest = client().prepareBulk();
         int totalBulkReqs = randomIntBetween(2, 100);
         for (int i = 0; i < totalBulkReqs; i++) {
-            bulkRequest.add(
-                new IndexRequestBuilder(client()).setIndex(INDEX_NAME)
-                    .setId(Long.toString(i))
-                    .setSource(fieldTypeTestParameter.nullSource())
-            );
+            Map<String, Object> source = new HashMap<>();
+            for (String field : semanticFieldType.getFields().keySet()) {
+                source.put(field, null);
+            }
+
+            bulkRequest.add(new IndexRequestBuilder(client()).setIndex(INDEX_NAME).setId(Long.toString(i)).setSource(source));
         }
 
         BulkResponse bulkResponse = bulkRequest.get();

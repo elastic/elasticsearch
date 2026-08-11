@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.inference.common.parser.StatefulValue;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiTaskSettings;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -100,15 +99,15 @@ public class OpenAiChatCompletionTaskSettings extends OpenAiTaskSettings<OpenAiC
             return new Parsed(null, null, null);
         }
 
-        var mutableMap = new HashMap<>(map);
+        // Mutate the caller's map so known keys are consumed before unknown-settings validation.
         ValidationException validationException = new ValidationException();
 
-        String user = extractOptionalString(mutableMap, USER, ModelConfigurations.TASK_SETTINGS, validationException);
-        Map<String, Object> headers = extractOptionalMapRemoveNulls(mutableMap, HEADERS, validationException);
+        String user = extractOptionalString(map, USER, ModelConfigurations.TASK_SETTINGS, validationException);
+        Map<String, Object> headers = extractOptionalMapRemoveNulls(map, HEADERS, validationException);
         var stringHeaders = validateMapStringValues(headers, HEADERS, validationException, false, null);
 
         Reasoning reasoning = null;
-        Object reasoningValue = mutableMap.remove(REASONING_FIELD);
+        Object reasoningValue = map.remove(REASONING_FIELD);
         if (reasoningValue != null) {
             if (reasoningValue instanceof Map<?, ?> == false) {
                 validationException.addValidationError(
@@ -226,11 +225,11 @@ public class OpenAiChatCompletionTaskSettings extends OpenAiTaskSettings<OpenAiC
             return this;
         }
 
-        var mutableMap = new HashMap<>(newSettings);
+        // Mutate newSettings so known keys are consumed before unknown-settings validation.
         ValidationException validationException = new ValidationException();
 
-        String updatedUser = extractOptionalString(mutableMap, USER, ModelConfigurations.TASK_SETTINGS, validationException);
-        Map<String, Object> updatedHeadersMap = extractOptionalMapRemoveNulls(mutableMap, HEADERS, validationException);
+        String updatedUser = extractOptionalString(newSettings, USER, ModelConfigurations.TASK_SETTINGS, validationException);
+        Map<String, Object> updatedHeadersMap = extractOptionalMapRemoveNulls(newSettings, HEADERS, validationException);
         var updatedHeaders = updatedHeadersMap == null
             ? null
             : validateMapStringValues(updatedHeadersMap, HEADERS, validationException, false, null);
@@ -240,13 +239,14 @@ public class OpenAiChatCompletionTaskSettings extends OpenAiTaskSettings<OpenAiC
         var headersToUse = updatedHeaders == null ? headers() : updatedHeaders;
 
         Reasoning reasoningToUse = reasoning;
-        if (mutableMap.containsKey(REASONING_FIELD)) {
+        if (newSettings.containsKey(REASONING_FIELD)) {
             try (var xParser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, newSettings)) {
                 reasoningToUse = applyUpdate(Update.PARSER.apply(xParser, null).reasoning, reasoning);
             } catch (IOException e) {
                 throw new ElasticsearchParseException("Failed to parse [{}] update", e, ModelConfigurations.TASK_SETTINGS);
             }
             validateReasoning(reasoningToUse, TaskType.CHAT_COMPLETION);
+            newSettings.remove(REASONING_FIELD);
         }
 
         return new OpenAiChatCompletionTaskSettings(userToUse, headersToUse, reasoningToUse);

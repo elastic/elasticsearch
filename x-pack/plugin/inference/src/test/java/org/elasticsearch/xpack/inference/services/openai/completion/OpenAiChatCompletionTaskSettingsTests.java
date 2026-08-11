@@ -87,7 +87,7 @@ public class OpenAiChatCompletionTaskSettingsTests extends OpenAiTaskSettingsTes
 
     public void testFromMap_ParsesReasoning() {
         var settings = OpenAiChatCompletionTaskSettings.fromMap(
-            Map.of(REASONING_FIELD, Map.of(EFFORT_FIELD, "none")),
+            new HashMap<>(Map.of(REASONING_FIELD, Map.of(EFFORT_FIELD, "none"))),
             TaskType.CHAT_COMPLETION
         );
         assertThat(settings.reasoning(), is(NONE_REASONING));
@@ -96,7 +96,10 @@ public class OpenAiChatCompletionTaskSettingsTests extends OpenAiTaskSettingsTes
     public void testFromMap_NonChatCompletionTaskType_WithReasoning_Throws() {
         var exception = expectThrows(
             IllegalArgumentException.class,
-            () -> OpenAiChatCompletionTaskSettings.fromMap(Map.of(REASONING_FIELD, Map.of(EFFORT_FIELD, "none")), TaskType.COMPLETION)
+            () -> OpenAiChatCompletionTaskSettings.fromMap(
+                new HashMap<>(Map.of(REASONING_FIELD, Map.of(EFFORT_FIELD, "none"))),
+                TaskType.COMPLETION
+            )
         );
         assertThat(exception.getMessage(), containsString("is only supported for the [chat_completion] task type"));
     }

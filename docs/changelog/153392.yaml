@@ -2,5 +2,5 @@ area: ES|QL
 issues:
  - 153389
 pr: 153392
-summary: Fix BUCKET with very large bucket counts
+summary: Fix `BUCKET` with very large bucket counts
 type: bug

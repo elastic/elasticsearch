@@ -9,6 +9,8 @@
 
 package org.elasticsearch.action.admin.indices.rollover;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -19,7 +21,7 @@ import java.util.Objects;
 /**
  * Base class for rollover request conditions
  */
-public abstract class Condition<T> implements NamedWriteable, ToXContentFragment {
+public abstract class Condition<T> implements NamedWriteable, ToXContentFragment, Accountable {
 
     /*
      * Describes the type of condition - a min_* condition (MIN), max_* condition (MAX), or an automatic condition (automatic conditions
@@ -82,6 +84,16 @@ public abstract class Condition<T> implements NamedWriteable, ToXContentFragment
 
     public Type type() {
         return type;
+    }
+
+    /**
+     * Estimated heap footprint of this condition. Counts the shared {@code type} enum singleton (so summing many conditions over-counts
+     * those few bytes). All concrete subclasses only set the inherited {@code value} and declare no extra fields.
+     */
+    @Override
+    public final long ramBytesUsed() {
+        return RamUsageEstimator.shallowSizeOf(this) + RamUsageEstimator.shallowSizeOf(type) + RamUsageEstimator.sizeOf(name)
+            + RamUsageEstimator.sizeOfObject(value);
     }
 
     /**

@@ -7,8 +7,10 @@
 
 package org.elasticsearch.compute.querydsl.query;
 
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.compute.test.TestWarningsSource;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -18,6 +20,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.contains;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -44,13 +47,18 @@ public class SingleValueQueryWarningsTests extends ESTestCase {
     public void testRegisterDelegatesToBoundWarnings() {
         QueryWarnings bridge = QueryWarnings.EMIT;
         SingleValueMatchQuery query = newQuery(bridge, "field", "boom");
-        Warnings warnings = Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, new TestWarningsSource("test"));
+        DriverContext driverContext = collectingContext();
+        Warnings warnings = driverContext.createWarnings(new TestWarningsSource("test"));
         try (Releasable ignored = bridge.bind(Map.of(query, warnings))) {
             bridge.registerException(query, IllegalArgumentException.class, "boom");
         }
-        assertWarnings(
-            "Line 1:1: evaluation of [test] failed, treating result as null. Only first 20 failures recorded.",
-            "Line 1:1: java.lang.IllegalArgumentException: boom"
+        driverContext.finish();
+        assertThat(
+            driverContext.warnings(),
+            contains(
+                "Line 1:1: evaluation of [test] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: java.lang.IllegalArgumentException: boom"
+            )
         );
     }
 
@@ -64,7 +72,7 @@ public class SingleValueQueryWarningsTests extends ESTestCase {
         QueryWarnings bridge = QueryWarnings.EMIT;
         SingleValueMatchQuery known = newQuery(bridge, "known", "known");
         SingleValueMatchQuery unknown = newQuery(bridge, "unknown", "unknown");
-        Warnings warnings = Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, new TestWarningsSource("test"));
+        Warnings warnings = collectingContext().createWarnings(new TestWarningsSource("test"));
         try (Releasable ignored = bridge.bind(Map.of(known, warnings))) {
             expectThrows(IllegalStateException.class, () -> bridge.registerException(unknown, IllegalArgumentException.class, "boom"));
         }
@@ -73,7 +81,7 @@ public class SingleValueQueryWarningsTests extends ESTestCase {
     public void testReentrantBindThrows() {
         QueryWarnings bridge = QueryWarnings.EMIT;
         SingleValueMatchQuery query = newQuery(bridge, "field", "boom");
-        Warnings warnings = Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, new TestWarningsSource("test"));
+        Warnings warnings = collectingContext().createWarnings(new TestWarningsSource("test"));
         try (Releasable ignored = bridge.bind(Map.of(query, warnings))) {
             expectThrows(IllegalStateException.class, () -> bridge.bind(Map.of(query, warnings)));
         }
@@ -87,7 +95,7 @@ public class SingleValueQueryWarningsTests extends ESTestCase {
     public void testSequentialBindUnbindNeverLeaks() {
         QueryWarnings bridge = QueryWarnings.EMIT;
         SingleValueMatchQuery query = newQuery(bridge, "field", "boom");
-        Warnings warnings = Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, new TestWarningsSource("test"));
+        Warnings warnings = collectingContext().createWarnings(new TestWarningsSource("test"));
         try (Releasable ignored = bridge.bind(Map.of(query, warnings))) {
             // unbinding via close(), below, allows bind() to be called again on the same thread
         }
@@ -105,8 +113,8 @@ public class SingleValueQueryWarningsTests extends ESTestCase {
         QueryWarnings bridge = QueryWarnings.EMIT;
         SingleValueMatchQuery queryA = newQuery(bridge, "a", "a");
         SingleValueMatchQuery queryB = newQuery(bridge, "b", "b");
-        Warnings warningsA = Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, new TestWarningsSource("a"));
-        Warnings warningsB = Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, new TestWarningsSource("b"));
+        Warnings warningsA = collectingContext().createWarnings(new TestWarningsSource("a"));
+        Warnings warningsB = collectingContext().createWarnings(new TestWarningsSource("b"));
 
         CountDownLatch bothBound = new CountDownLatch(2);
         AtomicReference<Throwable> failure = new AtomicReference<>();
@@ -147,5 +155,9 @@ public class SingleValueQueryWarningsTests extends ESTestCase {
         // runner's) thread -- that's expected and not what this test is checking. What matters here is
         // that registering on the "wrong" query for a thread's bound map always throws, and registering
         // on the "right" one never does, even with two threads racing on the same bridge instance.
+    }
+
+    private static DriverContext collectingContext() {
+        return new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TestBlockFactory.getNonBreakingInstance(), null);
     }
 }

@@ -95,6 +95,8 @@ public final class Case extends EsqlScalarFunction {
             "unsigned_long",
             "version",
             "exponential_histogram" },
+        // Identity-return overloads omitted: the return type follows the first non-null value
+        // branch, so a fixed $N return reference cannot express it.
         briefSummary = "Returns the value for the first condition that evaluates to true.",
         description = """
             Accepts pairs of conditions and values. The function returns the value that

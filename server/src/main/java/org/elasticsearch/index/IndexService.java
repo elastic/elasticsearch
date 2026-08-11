@@ -1373,6 +1373,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
     }
 
+    // public for tests
+    public AbstractAsyncTask getGlobalCheckpointTask() {
+        return globalCheckpointTask;
+    }
+
     AsyncRefreshTask getRefreshTask() { // for tests
         return refreshTask;
     }

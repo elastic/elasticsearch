@@ -37,6 +37,7 @@ import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.IsBlockedResult;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancellationService;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -395,6 +396,31 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
         )) {
             assertExchangeFailureLoggedAt(Level.ERROR, failure);
             assertExchangeFailureLoggedAt(Level.WARN, failure);
+        }
+    }
+
+    /**
+     * A lookup-join whose target index is transiently unavailable on the routed node (for example during a
+     * rolling restart, or before the index has recovered/propagated) fails with {@link IndexNotFoundException},
+     * including when wrapped by transport ({@link RemoteTransportException}), which is the shape that reaches
+     * the setup/status callbacks. The failure is still propagated to the coordinator, so these are downgraded to
+     * DEBUG (not ERROR or WARN) regardless of the non-cancellation level the caller asked for, to avoid spurious
+     * noise and Serverless promotion quality-gate log-error-rate trips.
+     */
+    public void testIndexNotFoundIsLoggedAtDebugNotError() {
+        for (Exception failure : List.of(
+            new IndexNotFoundException(".entities.v2.latest.security_default-00001"),
+            new RemoteTransportException("node", new IndexNotFoundException(".entities.v2.latest.security_default-00001"))
+        )) {
+            Logger clientLogger = LogManager.getLogger(BidirectionalBatchExchangeClient.class);
+            String loggerName = BidirectionalBatchExchangeClient.class.getCanonicalName();
+            MockLog.assertThatLogger(
+                () -> BidirectionalBatchExchangeBase.logExchangeFailure(clientLogger, Level.ERROR, failure, "failure: {}", "msg"),
+                BidirectionalBatchExchangeClient.class,
+                new MockLog.SeenEventExpectation("logged at DEBUG", loggerName, Level.DEBUG, "failure: msg"),
+                new MockLog.UnseenEventExpectation("not logged at ERROR", loggerName, Level.ERROR, "*"),
+                new MockLog.UnseenEventExpectation("not logged at WARN", loggerName, Level.WARN, "*")
+            );
         }
     }
 

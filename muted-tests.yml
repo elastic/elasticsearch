@@ -705,3 +705,15 @@ tests:
 - class: org.elasticsearch.xpack.stateless.recovery.PointInTimeRelocationIT
   method: testPointInTimeRelocationClosingSourceContexts
   issue: https://github.com/elastic/elasticsearch/issues/156463
+- class: org.elasticsearch.xpack.esql.plugin.DataNodeRequestSenderIT
+  method: testSearchWhileRelocating
+  issue: https://github.com/elastic/elasticsearch/issues/156465
+- class: org.elasticsearch.xpack.inference.external.http.sender.RequestTaskTests
+  method: testRequest_ReleasesBytesTrackedByCircuitBreaker_OnTimedListenerTimeout
+  issue: https://github.com/elastic/elasticsearch/issues/156467
+- class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobStoreRepositoryTests
+  method: testSnapshotWithLargeSegmentFiles
+  issue: https://github.com/elastic/elasticsearch/issues/156468
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecDateNanosIT
+  method: test {csv-spec:date_nanos.Date nanos date extract, no mv max}
+  issue: https://github.com/elastic/elasticsearch/issues/156470

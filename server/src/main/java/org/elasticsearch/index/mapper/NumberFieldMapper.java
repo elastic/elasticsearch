@@ -2862,20 +2862,30 @@ public class NumberFieldMapper extends FieldMapper {
             && dimension == false;
     }
 
-    // FieldType constants for the two SortedNumericDocValuesField variants emitted by dvFactory.addNumericField.
-    // The compat harness compares frozen FieldType, so the column must carry exactly the same type.
+    // FieldType constants for the Lucene field variants emitted by the columnar parse path.
+    // The compat harness compares frozen FieldType, so the column must carry exactly the same type
+    // as the corresponding field produced by the row-major path.
     private static final IndexableFieldType SORTED_NUMERIC_DV_FIELD_TYPE = SortedNumericDocValuesField.TYPE;
     private static final IndexableFieldType SORTED_NUMERIC_DV_INDEXED_FIELD_TYPE = SortedNumericDocValuesField.indexedField("_sentinel", 0L)
         .fieldType();
+    // Match the field types produced by the indexed+DV branches in addLongFields / NumberType.addFields.
+    // half_float is excluded: it uses separate HalfFloatPoint (2-byte) + DV fields; ColumnLongField cannot
+    // emit the 2-byte point encoding, so indexed half_float fields fall back to the row path.
+    private static final IndexableFieldType LONG_FIELD_TYPE = new LongField("_sentinel", 0L, Field.Store.NO).fieldType();
+    private static final IndexableFieldType INT_FIELD_TYPE = new IntField("_sentinel", 0, Field.Store.NO).fieldType();
+    private static final IndexableFieldType FLOAT_FIELD_TYPE = new FloatField("_sentinel", 0f, Field.Store.NO).fieldType();
+    private static final IndexableFieldType DOUBLE_FIELD_TYPE = new DoubleField("_sentinel", 0.0, Field.Store.NO).fieldType();
 
     @Override
     public boolean supportsColumnarParse(IndexSettings indexSettings) {
         // Neither doc_values.multi_value nor ignore_malformed is implemented by mapColumnBatch, but
         // neither is rejected up front either: both only matter for documents the columnar path
         // already refuses, and refusing late falls back to row path.
+        // Indexed half_float uses a 2-byte HalfFloatPoint that ColumnLongField cannot encode, so
+        // indexed half_float fields fall back to the row path.
         return indexSettings.getMode().isStrictColumnar()
             && docValuesParameters.enabled()
-            && indexed == false
+            && (indexed == false || type != NumberType.HALF_FLOAT)
             && stored == false
             && indexTerms == false
             && hasScript() == false
@@ -2906,9 +2916,20 @@ public class NumberFieldMapper extends FieldMapper {
             BytesRefRecycler.NON_RECYCLING_INSTANCE,
             nullSortableLong
         );
-        IndexableFieldType columnFieldType = fieldType().indexType().hasDocValuesSkipper()
-            ? SORTED_NUMERIC_DV_INDEXED_FIELD_TYPE
-            : SORTED_NUMERIC_DV_FIELD_TYPE;
+        final IndexableFieldType columnFieldType;
+        if (fieldType().indexType().hasDocValuesSkipper()) {
+            columnFieldType = SORTED_NUMERIC_DV_INDEXED_FIELD_TYPE;
+        } else if (indexed) {
+            columnFieldType = switch (type) {
+                case LONG -> LONG_FIELD_TYPE;
+                case BYTE, SHORT, INTEGER -> INT_FIELD_TYPE;
+                case FLOAT -> FLOAT_FIELD_TYPE;
+                case DOUBLE -> DOUBLE_FIELD_TYPE;
+                case HALF_FLOAT -> throw new AssertionError("indexed half_float must not reach mapColumnBatch");
+            };
+        } else {
+            columnFieldType = SORTED_NUMERIC_DV_FIELD_TYPE;
+        }
         ctx.addColumn(LuceneLongColumn.of(outData, fieldType().name(), columnFieldType, numericKind(type)));
     }
 

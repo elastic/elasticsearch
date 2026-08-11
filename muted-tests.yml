@@ -682,3 +682,12 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.RandomizedRollingUpgradeIT
   method: testIndexingStandardSource
   issue: https://github.com/elastic/elasticsearch/issues/156360
+- class: org.elasticsearch.index.mapper.GeoPointFieldMapperTests
+  method: testSyntheticSourceKeepAll
+  issue: https://github.com/elastic/elasticsearch/issues/156375
+- class: org.elasticsearch.xpack.esql.optimizer.rules.logical.local.IgnoreNullMetricsTests
+  method: testDimensionsAreNotFiltered
+  issue: https://github.com/elastic/elasticsearch/issues/156380
+- class: org.elasticsearch.index.mapper.blockloader.GeoPointFieldBlockLoaderTests
+  method: testBlockLoaderForFieldInObjectWithCranky {preference=Params[indexMode=standard, sourceMode=SYNTHETIC, preference=STORED]}
+  issue: https://github.com/elastic/elasticsearch/issues/156383

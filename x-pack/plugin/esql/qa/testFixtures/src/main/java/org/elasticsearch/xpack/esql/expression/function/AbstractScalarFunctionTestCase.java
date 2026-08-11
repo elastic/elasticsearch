@@ -427,6 +427,10 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
                 f.get();
             }
         }
+        // This test exercises thread-safety, not warning content: each thread accumulates (possibly duplicated)
+        // warnings into its own per-driver sink. Consume them so the leak-check passes, asserting only that nothing
+        // unexpected surfaced.
+        consumeAndAssertExpectedDriverWarnings();
     }
 
     public final void testEvaluatorToString() {

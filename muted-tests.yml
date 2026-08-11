@@ -678,3 +678,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/156439
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecLookupJoinExpressionIT
   issue: https://github.com/elastic/elasticsearch/issues/156440
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecFieldExtractIT
+  method: test {csv-spec:field_extract.multiValuedSubkeyDoesNotMatchScalarInequality}
+  issue: https://github.com/elastic/elasticsearch/issues/156441

@@ -72,9 +72,8 @@ public class CacheFileReader {
 
     // On post-6.4 Linux kernels, MADV_RANDOM causes pages to not be marked as accessed,
     // leading to aggressive eviction under MGLRU even without memory pressure.
-    // Enabled on snapshot builds for benchmarking; disabled in production.
-    // Override with -Des.blob_cache_madvise_random_feature_flag_enabled=true|false.
-    static final FeatureFlag MADVISE_RANDOM_FEATURE_FLAG = new FeatureFlag("blob_cache_madvise_random");
+    // Enabled by default on all builds. Can be disabled with -Des.blob_cache_madvise_random_feature_flag_enabled=false.
+    static final FeatureFlag MADVISE_RANDOM_FEATURE_FLAG = FeatureFlag.enabledByDefault("blob_cache_madvise_random");
 
     private final StatelessSharedBlobCacheService.CacheFile cacheFile;
     private final CacheBlobReader cacheBlobReader;

@@ -18,6 +18,8 @@ import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAwa
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationPlanVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
+import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -267,6 +269,34 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
      * Keys are option names, values are the expected data types.
      */
     protected abstract Map<String, DataType> getAllowedOptions();
+
+    /** Resolves the analyzer from {@code opts} and delegates to {@link RuntimeSearch#textEvaluatorForQuery}. */
+    protected ExpressionEvaluator.Factory textEvaluatorForQueryWithOptions(
+        Query query,
+        Map<String, Object> opts,
+        EvaluatorMapper.ToEvaluator toEvaluator
+    ) {
+        return RuntimeSearch.textEvaluatorForQuery(
+            source(),
+            toEvaluator.apply(field()),
+            query,
+            RuntimeSearch.resolveNamedAnalyzer(opts, toEvaluator)
+        );
+    }
+
+    /** Resolves the analyzer from {@code opts} and delegates to {@link RuntimeSearch#textScoreEvaluatorForQuery}. */
+    protected ExpressionEvaluator.Factory textScoreEvaluatorForQueryWithOptions(
+        Query query,
+        Map<String, Object> opts,
+        EvaluatorMapper.ToEvaluator toEvaluator
+    ) {
+        return RuntimeSearch.textScoreEvaluatorForQuery(
+            source(),
+            toEvaluator.apply(field()),
+            query,
+            RuntimeSearch.resolveNamedAnalyzer(opts, toEvaluator)
+        );
+    }
 
     /**
      * Returns a human-readable string listing the expected field types.

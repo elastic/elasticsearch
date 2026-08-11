@@ -398,9 +398,7 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
         // When options are used, we build a Lucene query
         if (field.dataType() == TEXT) {
             Map<String, Object> opts = matchPhraseQueryOptions();
-            var matchPhraseQuery = new MatchPhraseQuery(source(), RuntimeSearch.CONTENT_FIELD, queryAsObject(), opts);
-            var analyzer = RuntimeSearch.resolveNamedAnalyzer(opts, toEvaluator);
-            return RuntimeSearch.textEvaluatorForQuery(source(), toEvaluator.apply(field()), matchPhraseQuery, analyzer);
+            return textEvaluatorForQueryWithOptions(new MatchPhraseQuery(source(), RuntimeSearch.CONTENT_FIELD, queryAsObject(), opts), opts, toEvaluator);
         }
         // Guard against a field type that resolveField() accepts but this method was not taught to evaluate:
         // falling through to exact matching would silently give it the wrong semantics. NULL fields never get
@@ -439,9 +437,7 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
         // With options, score through the same Lucene query the boolean evaluator runs.
         if (field.dataType() == TEXT && options() != null) {
             Map<String, Object> opts = matchPhraseQueryOptions();
-            var matchPhraseQuery = new MatchPhraseQuery(source(), RuntimeSearch.CONTENT_FIELD, queryAsObject(), opts);
-            var analyzer = RuntimeSearch.resolveNamedAnalyzer(opts, toScorer.toEvaluator());
-            return RuntimeSearch.textScoreEvaluatorForQuery(source(), toScorer.toEvaluator().apply(field()), matchPhraseQuery, analyzer);
+            return textScoreEvaluatorForQueryWithOptions(new MatchPhraseQuery(source(), RuntimeSearch.CONTENT_FIELD, queryAsObject(), opts), opts, toScorer.toEvaluator());
         }
         // No options, so both the text phrase matcher and the keyword exact matcher both score 1.0 on hits.
         return new RuntimeSearchScoreFromBooleanEvaluator.Factory(source(), toEvaluator(toScorer.toEvaluator()));

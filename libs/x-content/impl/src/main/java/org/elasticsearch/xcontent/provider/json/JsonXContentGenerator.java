@@ -627,6 +627,8 @@ public class JsonXContentGenerator implements XContentGenerator {
                 // Bypass generator to always write the line feed
                 getLowLevelGenerator().writeRaw(LF);
             }
+        } catch (RuntimeException e) {
+            exception = new IOException(e);
         } catch (IOException e) {
             exception = e;
         }

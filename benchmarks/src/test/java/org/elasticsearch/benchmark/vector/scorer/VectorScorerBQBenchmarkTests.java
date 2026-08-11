@@ -12,6 +12,7 @@ package org.elasticsearch.benchmark.vector.scorer;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.elasticsearch.benchmark.store.DirectoryType;
 
 public class VectorScorerBQBenchmarkTests extends BenchmarkTest {
 
@@ -20,14 +21,10 @@ public class VectorScorerBQBenchmarkTests extends BenchmarkTest {
 
     private final float deltaPercent = 0.05f;
     private final int dims;
-    private final VectorScorerBQBenchmark.DirectoryType directoryType;
+    private final DirectoryType directoryType;
     private final VectorSimilarityFunction similarityFunction;
 
-    public VectorScorerBQBenchmarkTests(
-        int dims,
-        VectorScorerBQBenchmark.DirectoryType directoryType,
-        VectorSimilarityFunction similarityFunction
-    ) {
+    public VectorScorerBQBenchmarkTests(int dims, DirectoryType directoryType, VectorSimilarityFunction similarityFunction) {
         this.dims = dims;
         this.directoryType = directoryType;
         this.similarityFunction = similarityFunction;

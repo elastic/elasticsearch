@@ -20,8 +20,8 @@ import jdk.incubator.vector.VectorSpecies;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.lucene.store.IndexInputUtils;
 import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
-import org.elasticsearch.simdvec.IndexInputUtils;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;

@@ -11,6 +11,8 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.LowerCaseFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
+import org.apache.lucene.analysis.core.KeywordAnalyzer;
+import org.apache.lucene.analysis.shingle.ShingleFilter;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
 import org.apache.lucene.analysis.synonym.SynonymGraphFilter;
@@ -34,6 +36,8 @@ import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.expression.LoadFromPageEvaluator;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.operator.blocksource.BytesRefBlockSourceOperator;
+import org.elasticsearch.index.analysis.AnalyzerScope;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.lucene.search.uhighlight.Snippet;
 import org.hamcrest.Matcher;
 
@@ -138,6 +142,99 @@ public class HighlightOperatorTests extends OperatorTestCase {
             BytesRef scratch = new BytesRef();
             assertThat(result.getBytesRef(first, scratch).utf8ToString(), equalTo("Senior Team <em>Lead</em>"));
             assertThat(result.getBytesRef(first + 1, scratch).utf8ToString(), equalTo("<em>Lead</em> Architect"));
+        } finally {
+            result.close();
+        }
+    }
+
+    public void testMultiValuedKeywordAnalyzerAnalyzesValuesSeparately() {
+        BytesRefBlock result = highlight(
+            config("foo", 5, 0, 0),
+            contentTerm("foo"),
+            new KeywordAnalyzer(),
+            bytesRefs(List.of(List.of("foo", "bar")))
+        );
+        try {
+            assertThat(value(result, 0), equalTo("<em>foo</em>"));
+        } finally {
+            result.close();
+        }
+    }
+
+    public void testMultiValuedAnalyzerDoesNotCreateCrossValueTokens() {
+        BytesRefBlock result = highlight(
+            config("foo bar", 5, 0, 0),
+            contentTerm("foo bar"),
+            shingleAnalyzer(),
+            bytesRefs(List.of(List.of("foo", "bar")))
+        );
+        try {
+            assertThat(result.isNull(0), equalTo(true));
+        } finally {
+            result.close();
+        }
+    }
+
+    public void testMaxAnalyzedOffsetAppliesAcrossValues() {
+        BytesRefBlock result = highlight(
+            configWithMaxAnalyzedOffset("foo", 4),
+            contentTerm("foo"),
+            new KeywordAnalyzer(),
+            bytesRefs(List.of(List.of("long", "foo")))
+        );
+        try {
+            assertThat(result.isNull(0), equalTo(true));
+        } finally {
+            result.close();
+        }
+    }
+
+    public void testMultiValuedEmptyValuesKeepOffsets() {
+        BytesRefBlock result = highlight(
+            config("foo", 5, 0, 0),
+            contentTerm("foo"),
+            new KeywordAnalyzer(),
+            bytesRefs(List.of(List.of("", "foo", "")))
+        );
+        try {
+            assertThat(value(result, 0), equalTo("<em>foo</em>"));
+        } finally {
+            result.close();
+        }
+    }
+
+    // Without the analyzer's position gap, the phrase matches across the value boundary.
+    public void testMultiValuePositionGapPreventsCrossValuePhraseMatch() {
+        Query phrase = new PhraseQuery(CONTENT_FIELD, "lead", "lead");
+        List<List<String>> rows = List.of(List.of("Senior Team Lead", "Lead Architect"));
+
+        BytesRefBlock withoutGap = highlight(config("\"lead lead\"", 5, 0, 0), phrase, standardAnalyzerWithGap(0), bytesRefs(rows));
+        try {
+            assertThat(withoutGap.isNull(0), equalTo(false));
+        } finally {
+            withoutGap.close();
+        }
+
+        BytesRefBlock withGap = highlight(config("\"lead lead\"", 5, 0, 0), phrase, standardAnalyzerWithGap(100), bytesRefs(rows));
+        try {
+            assertThat(withGap.isNull(0), equalTo(true));
+        } finally {
+            withGap.close();
+        }
+    }
+
+    // The gap must not affect a phrase contained in one value.
+    public void testMultiValuePositionGapKeepsWithinValuePhraseMatch() {
+        Query phrase = new PhraseQuery(CONTENT_FIELD, "team", "lead");
+        BytesRefBlock result = highlight(
+            config("\"team lead\"", 5, 0, 0),
+            phrase,
+            standardAnalyzerWithGap(100),
+            bytesRefs(List.of(List.of("Senior Team Lead", "Lead Architect")))
+        );
+        try {
+            assertThat(result.getValueCount(0), equalTo(1));
+            assertThat(value(result, 0), equalTo("Senior <em>Team Lead</em>"));
         } finally {
             result.close();
         }
@@ -449,6 +546,22 @@ public class HighlightOperatorTests extends OperatorTestCase {
         return new TermQuery(new Term(field, term));
     }
 
+    private static Analyzer standardAnalyzerWithGap(int gap) {
+        return new NamedAnalyzer("standard", AnalyzerScope.GLOBAL, new StandardAnalyzer(), gap);
+    }
+
+    private static Analyzer shingleAnalyzer() {
+        return new Analyzer() {
+            @Override
+            protected TokenStreamComponents createComponents(String fieldName) {
+                Tokenizer tokenizer = new StandardTokenizer();
+                ShingleFilter shingles = new ShingleFilter(new LowerCaseFilter(tokenizer), 2, 2);
+                shingles.setOutputUnigrams(false);
+                return new TokenStreamComponents(tokenizer, shingles);
+            }
+        };
+    }
+
     private static Analyzer synonymAnalyzer(SynonymMap synonyms) {
         return new Analyzer() {
             @Override
@@ -580,6 +693,23 @@ public class HighlightOperatorTests extends OperatorTestCase {
             orderByScore,
             null,
             -1
+        );
+    }
+
+    private static HighlightConfig configWithMaxAnalyzedOffset(String queryText, int maxAnalyzedOffset) {
+        return new HighlightConfig(
+            queryText,
+            DEFAULT_PRE_TAG,
+            DEFAULT_POST_TAG,
+            DEFAULT_ENCODER,
+            5,
+            0,
+            0,
+            false,
+            Locale.ROOT,
+            false,
+            null,
+            maxAnalyzedOffset
         );
     }
 

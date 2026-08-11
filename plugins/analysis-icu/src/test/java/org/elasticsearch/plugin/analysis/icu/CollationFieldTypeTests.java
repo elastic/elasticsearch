@@ -95,8 +95,8 @@ public class CollationFieldTypeTests extends FieldTypeTestCase {
 
     public void testRegexpQuery() {
         MappedFieldType ft = createFieldType();
-        UnsupportedOperationException e = expectThrows(
-            UnsupportedOperationException.class,
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
             () -> ft.regexpQuery("foo.*", 0, 0, 10, null, randomMockContext())
         );
         assertEquals("[regexp] queries are not supported on [icu_collation_keyword] fields.", e.getMessage());
@@ -104,8 +104,8 @@ public class CollationFieldTypeTests extends FieldTypeTestCase {
 
     public void testFuzzyQuery() {
         MappedFieldType ft = createFieldType();
-        UnsupportedOperationException e = expectThrows(
-            UnsupportedOperationException.class,
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
             () -> ft.fuzzyQuery("foo", Fuzziness.fromEdits(2), 1, 50, true, randomMockContext())
         );
         assertEquals("[fuzzy] queries are not supported on [icu_collation_keyword] fields.", e.getMessage());
@@ -113,8 +113,8 @@ public class CollationFieldTypeTests extends FieldTypeTestCase {
 
     public void testPrefixQuery() {
         MappedFieldType ft = createFieldType();
-        UnsupportedOperationException e = expectThrows(
-            UnsupportedOperationException.class,
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
             () -> ft.prefixQuery("prefix", null, randomMockContext())
         );
         assertEquals("[prefix] queries are not supported on [icu_collation_keyword] fields.", e.getMessage());
@@ -122,8 +122,8 @@ public class CollationFieldTypeTests extends FieldTypeTestCase {
 
     public void testWildcardQuery() {
         MappedFieldType ft = createFieldType();
-        UnsupportedOperationException e = expectThrows(
-            UnsupportedOperationException.class,
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
             () -> ft.wildcardQuery("foo*", null, randomMockContext())
         );
         assertEquals("[wildcard] queries are not supported on [icu_collation_keyword] fields.", e.getMessage());

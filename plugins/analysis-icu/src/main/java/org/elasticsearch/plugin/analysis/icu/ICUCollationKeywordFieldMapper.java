@@ -168,7 +168,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
             SearchExecutionContext context,
             @Nullable MultiTermQuery.RewriteMethod rewriteMethod
         ) {
-            throw new UnsupportedOperationException("[fuzzy] queries are not supported on [" + CONTENT_TYPE + "] fields.");
+            throw new IllegalArgumentException("[fuzzy] queries are not supported on [" + CONTENT_TYPE + "] fields.");
         }
 
         @Override
@@ -178,7 +178,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
             boolean caseInsensitive,
             SearchExecutionContext context
         ) {
-            throw new UnsupportedOperationException("[prefix] queries are not supported on [" + CONTENT_TYPE + "] fields.");
+            throw new IllegalArgumentException("[prefix] queries are not supported on [" + CONTENT_TYPE + "] fields.");
         }
 
         @Override
@@ -188,7 +188,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
             boolean caseInsensitive,
             SearchExecutionContext context
         ) {
-            throw new UnsupportedOperationException("[wildcard] queries are not supported on [" + CONTENT_TYPE + "] fields.");
+            throw new IllegalArgumentException("[wildcard] queries are not supported on [" + CONTENT_TYPE + "] fields.");
         }
 
         @Override
@@ -200,7 +200,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
             MultiTermQuery.RewriteMethod method,
             SearchExecutionContext context
         ) {
-            throw new UnsupportedOperationException("[regexp] queries are not supported on [" + CONTENT_TYPE + "] fields.");
+            throw new IllegalArgumentException("[regexp] queries are not supported on [" + CONTENT_TYPE + "] fields.");
         }
 
         public static final DocValueFormat COLLATE_FORMAT = new DocValueFormat() {

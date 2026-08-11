@@ -44,7 +44,7 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
 required_capability: promql_label_functions
-PROMQL index=prom-metrics-name step=1h result=(sum by (region) (label_replace(metrics.requests{pod=~"podA|podB"}, "region", "$1", "zone", "(.+)")))
+PROMQL index=prom-metrics-name step=1h result=(sum by (region) (label_replace(metrics.requests{pod=~"pod[AB]"}, "region", "$1", "zone", "(.+)")))
 | KEEP result, region
 | SORT result;
 
@@ -121,7 +121,7 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
 required_capability: promql_label_functions
-PROMQL index=prom-metrics-name step=1h result=(sum by (zone) (label_replace(metrics.requests{pod=~"podA|podB"}, "zone", "same", "zone", "(.+)")))
+PROMQL index=prom-metrics-name step=1h result=(sum by (zone) (label_replace(metrics.requests{pod=~"pod[AB]"}, "zone", "same", "zone", "(.+)")))
 | KEEP result, zone
 | SORT result;
 
@@ -200,7 +200,7 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
 required_capability: promql_label_functions
-PROMQL index=prom-metrics-name step=1h result=(sum by (region) (label_replace(metrics.requests{pod=~"podA|podC"}, "region", "R", "zone", "(.*)")))
+PROMQL index=prom-metrics-name step=1h result=(sum by (region) (label_replace(metrics.requests{pod=~"pod[AC]"}, "region", "R", "zone", "(.*)")))
 | KEEP result, region
 | SORT result;
 

@@ -45,7 +45,7 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
         .filter(t -> t != DataType.DOC_DATA_TYPE)
         .filter(t -> t != DataType.TSID_DATA_TYPE)
         .filter(t -> t != DataType.DATE_RANGE || EsqlCapabilities.Cap.CASE_DATE_RANGE.isEnabled())
-        .filter(t -> t != DataType.DOUBLE_RANGE || EsqlCapabilities.Cap.DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V8.isEnabled())
+        .filter(t -> t != DataType.DOUBLE_RANGE || EsqlCapabilities.Cap.DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V10.isEnabled())
         .toList();
 
     /**

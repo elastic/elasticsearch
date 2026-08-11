@@ -977,7 +977,7 @@ public class SearchEngine extends Engine {
      * Stateless byte terms from {@link #getLastCommittedSegmentInfos()} via {@link DirectoryReaderHeapEstimator}
      * — the same commit the current reader is on and the reservation charged for that reader. Not on the
      * autoscaling publication path today (index tier publishes); kept correct for {@code IndexShard} cache
-     * refresh and Phase-3 readiness.
+     * refresh.
      */
     @Override
     public ShardFieldStats shardFieldStats() {

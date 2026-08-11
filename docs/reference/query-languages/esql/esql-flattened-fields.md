@@ -1,6 +1,6 @@
 ---
 applies_to:
-  stack: preview 9.5.0
+  stack: preview 9.5+
   serverless: preview
 navigation_title: "Flattened fields"
 description: How ES|QL queries flattened fields and extracts sub-fields using FIELD_EXTRACT.
@@ -12,16 +12,15 @@ description: How ES|QL queries flattened fields and extracts sub-fields using FI
 and extract their sub-fields using the [`FIELD_EXTRACT`](functions-operators/string-functions/field_extract.md) function.
 
 A `flattened` field maps an entire object as a single field, indexing all leaf values as [`keywords`](/reference/elasticsearch/mapping-reference/keyword.md).
-It is commonly used for objects with a large or unpredictable set of keys — for example, OpenTelemetry
+It is commonly used for objects with a large or unpredictable set of keys, for example OpenTelemetry
 `resource.attributes`, where each service contributes its own set of attributes.
 
 ::::{note}
-Right now {{esql}} only "sees" the "root" flattened field, and you *must* use `FIELD_EXTRACT` to
-get the subfield. We have [big plans](https://github.com/elastic/elasticsearch/issues/152537) to
-make it nicer.
+Currently {{esql}} can access only the root flattened field directly and you must use `FIELD_EXTRACT` to
+get the subfield. This will change in a future release. See [elasticsearch/issues/152537](https://github.com/elastic/elasticsearch/issues/152537).
 ::::
 
-## Extracting a sub-field [esql-flattened-fields-extract]
+## Extract a sub-field [esql-flattened-fields-extract]
 
 Use `FIELD_EXTRACT` to pull a single sub-field out of a flattened root as a `keyword` column.
 The function takes the flattened field and the path as its arguments:
@@ -33,27 +32,15 @@ The second argument is the dotted path within the flattened field.
 
 ## Key behaviors [esql-flattened-fields-behaviors]
 
-`flattened` only contains `keyword`s
-:   So `FIELD_EXTRACT` will always return `keyword` fields. Numbers and booleans come
-    back as their string representation — `"184896"`, `"true"`.
+- [Flattened fields only contain keywords](#esql-flattened-fields-keywords): `FIELD_EXTRACT` always returns `keyword` values, so numbers and booleans come back as their string representation.
+- [Keys are always in the collapsed dotted form](#esql-flattened-fields-dotted-keys): nested objects are stored as dotted keys, and `FIELD_EXTRACT` resolves a key the same way regardless of how the document was written.
+- [Extracting an object returns null](#esql-flattened-fields-object-null): pointing `FIELD_EXTRACT` at an object instead of a leaf returns `null`.
+- Missing keys and JSON `null` return `null`: `FIELD_EXTRACT` returns `null` if the key does not exist, if the stored value is JSON `null`, or if either argument is `null`.
 
-Keys are always in the collapsed dotted form
-:   Flattened field indexing collapses nested objects into dotted keys: `{"http": {"status_code": "200"}}`
-    is stored as `http.status_code`. `FIELD_EXTRACT(attributes, "http.status_code")` retrieves that value
-    regardless of whether the original document used nested objects or a literal dotted key.
+## Flattened fields only contain keywords [esql-flattened-fields-keywords]
 
-`FIELD_EXTRACT`ing an object returns `null`
-:   If the sub-field's value is itself a JSON object rather than a scalar, `FIELD_EXTRACT` returns `null`.
-    Address the leaf directly — for example, `"http.request.body.size"` rather than `"http.request"`.
-
-`null` for absent or JSON-null values
-:   `FIELD_EXTRACT` returns `null` if the key does not exist, if the stored value is JSON `null`,
-    or if either argument is `null`.
-
-## `flattened` only contains `keyword`s
-
-Numbers and booleans come back as their string representation — `"184896"`, `"true"`.
-Use casts to get different values:
+Numbers and booleans come back as their string representation, for example: `"184896"`, `"true"`.
+Use casts to get other types. Create an index, index a document, and run a query that casts the extracted values:
 
 ```console
 PUT /flattened-cast-demo
@@ -79,6 +66,8 @@ FROM flattened-cast-demo
 }
 ```
 
+This query returns the following:
+
 ```console-result
 {
   "columns": [
@@ -93,10 +82,10 @@ FROM flattened-cast-demo
 }
 ```
 
-## Keys are always in the collapsed dotted form
+## Keys are always in the collapsed dotted form [esql-flattened-fields-dotted-keys]
 
 When you index a `flattened` field {{es}} "flattens" it. `{"a": {"b": "v"}}` becomes
-`{"a.b": "v"}`. When you load the `flattened` with {{esql}} you get the flattened result:
+`{"a.b": "v"}`. When you load the `flattened` with {{esql}}, you get the flattened result:
 
 ```console
 PUT /flattened-keys-demo
@@ -117,6 +106,8 @@ POST /_query
   "query": "FROM flattened-keys-demo"
 }
 ```
+
+This query returns the following:
 
 ```console-result
 {
@@ -147,6 +138,8 @@ POST /_query
 }
 ```
 
+This query returns the following:
+
 ```console-result
 {
   "columns": [
@@ -161,10 +154,11 @@ POST /_query
 }
 ```
 
-## `FIELD_EXTRACT`ing an object returns `null`
+## Extracting an object with FIELD_EXTRACT returns NULL [esql-flattened-fields-object-null]
 
-`FIELD_EXTRACT` can only extract *leaf* fields. If you point it at an object, it'll return `null`.
-Address the leaf directly — for example, `"http.request.body.size"` rather than `"http.request"`.
+`FIELD_EXTRACT` can only extract *leaf* fields. If you point it at an object, it returns `null`.
+Address the leaf directly. For example, use `"http.request.body.size"` rather than `"http.request"`.
+Create an index, index a document whose value is an object, and extract that object key:
 
 ```console
 PUT /flattened-object-demo
@@ -187,6 +181,8 @@ FROM flattened-object-demo
 """
 }
 ```
+
+This query returns the following, with `a` set to `null` because `a` is an object:
 
 ```console-result
 {

@@ -209,6 +209,11 @@ Because `labels` is a `flattened` field type, the entire object is mapped as a s
 
 ## Query with {{esql}} [flattened-esql]
 
+```{applies_to}
+stack: preview 9.5+
+serverless: preview
+```
+
 {{esql}} reads a `flattened` field as a single column and extracts individual keys with the [`FIELD_EXTRACT`](/reference/query-languages/esql/functions-operators/string-functions/field_extract.md) function. Pass the flattened field and the dotted path to the key:
 
 ```esql

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.apache.lucene.search.IndexSearcher;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.compute.operator.topn.GroupedTopNOperator;
@@ -780,42 +779,6 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             pushedQuery(version).toString(),
             equalTo(unscore(rangeQuery("version").from("1.0.0", true).to("2.0.0", true)).toString())
         );
-    }
-
-    /**
-     * Foldable {@code CIDR_MATCH} lowers onto {@code MV_IN_RANGE}, so Lucene pushdown is a bare inclusive IP range
-     * (any-value over multivalue docs) rather than a {@code SingleValueQuery}-wrapped terms query.
-     */
-    public void testCidrMatchLowersToMvInRangeIpPushdown() {
-        var analyzer = makeAnalyzer("mapping-all-types.json");
-        var planner = new TestPlannerOptimizer(
-            config,
-            analyzer,
-            new LogicalPlanOptimizer(new LogicalOptimizerContext(config, FoldContext.small(), TransportVersion.current()))
-        );
-        var plan = planner.plan("from test | where cidr_match(ip, \"10.0.0.0/8\")", IS_SV_STATS, analyzer);
-        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(false));
-        assertThat(
-            pushedQuery(plan).toString(),
-            equalTo(unscore(rangeQuery("ip").from("10.0.0.0", true).to("10.255.255.255", true)).toString())
-        );
-    }
-
-    /**
-     * Variadic foldable {@code CIDR_MATCH} pushes a bool should of one inclusive IP range per block.
-     */
-    public void testCidrMatchMultiBlockLowersToMvInRangePushdown() {
-        var analyzer = makeAnalyzer("mapping-all-types.json");
-        var planner = new TestPlannerOptimizer(
-            config,
-            analyzer,
-            new LogicalPlanOptimizer(new LogicalOptimizerContext(config, FoldContext.small(), TransportVersion.current()))
-        );
-        var plan = planner.plan("from test | where cidr_match(ip, \"10.0.0.0/8\", \"192.168.0.0/16\")", IS_SV_STATS, analyzer);
-        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(false));
-        var expected = boolQuery().should(unscore(rangeQuery("ip").from("10.0.0.0", true).to("10.255.255.255", true)))
-            .should(unscore(rangeQuery("ip").from("192.168.0.0", true).to("192.168.255.255", true)));
-        assertThat(pushedQuery(plan).toString(), equalTo(expected.toString()));
     }
 
     /**
@@ -1875,9 +1838,8 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         var query = as(field.child(), EsQueryExec.class);
         assertThat(as(query.limit(), Literal.class).value(), is(1000));
 
-        // Not SingleValueTranslationAware: MV OR must not wrap the Lucene query in SingleValueQuery.
-        // Below the mv_in_range lowering TV, foldable CIDR_MATCH still pushes a bare TermsQuery of CIDR strings.
-        var terms = unscore(termsQuery("ip", "127.0.0.1/32"));
+        Source filterSource = new Source(2, testCase.esqlQuery().length() + 13, "cidr_match(ip, \"127.0.0.1/32\")");
+        var terms = wrapWithSingleQuery(queryText, unscore(termsQuery("ip", "127.0.0.1/32")), "ip", filterSource);
         var queryBuilder = testCase.queryBuilder();
         var expected = boolQuery().must(queryBuilder).must(terms);
         assertEquals(expected.toString(), query.query().toString());

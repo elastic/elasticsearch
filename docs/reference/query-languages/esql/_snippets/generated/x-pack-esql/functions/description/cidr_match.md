@@ -4,7 +4,3 @@
 
 Returns true if the provided IP is contained in one of the provided CIDR blocks.
 
-{applies_to}`stack: ga 9.6.0`
-Returns `true` if any value of the provided IP is contained in one of the provided CIDR
-blocks. A missing or empty IP (or CIDR) yields `false`, never `null`.
-

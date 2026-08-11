@@ -687,3 +687,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIntsIT
   method: test {csv-spec:ints.CombineBinaryComparisonsEmp}
   issue: https://github.com/elastic/elasticsearch/issues/156456
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecFloatsIT
+  method: test {csv-spec:floats.scalbWithHugeConstantScaleFactor}
+  issue: https://github.com/elastic/elasticsearch/issues/156457

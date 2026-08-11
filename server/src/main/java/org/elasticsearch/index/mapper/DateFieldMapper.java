@@ -1274,15 +1274,13 @@ public final class DateFieldMapper extends FieldMapper {
 
     @Override
     public boolean supportsColumnarParse(IndexSettings indexSettings) {
-        // Columnar support requires strict-columnar index mode and a plain, single-valued
-        // doc-values-only date field. ignore_malformed is excluded because per-value error
-        // handling (addIgnoredField) is not yet implemented in the columnar path.
+        // Columnar support requires strict-columnar index mode and a plain doc-values-only date
+        // field. doc_values.multi_value and ignore_malformed are not implemented by mapColumnBatch
+        // but are deliberately not rejected here instead rejected at parse time.
         return indexSettings.getMode().isStrictColumnar()
             && docValuesParameters.enabled()
-            && docValuesParameters.multiValue() == false
             && indexed == false
             && store == false
-            && ignoreMalformed == false
             && hasScript() == false
             && copyTo().copyToFields().isEmpty()
             && multiFields().iterator().hasNext() == false
@@ -1311,7 +1309,8 @@ public final class DateFieldMapper extends FieldMapper {
     private EscfColumnData datesFromStrings(EscfColumn source) {
         EscfColumnBuilder builder = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, BytesRefRecycler.NON_RECYCLING_INSTANCE);
         builder.lockScalar(EscfColumnKind.LONG);
-        final ObjectTupleCursor<BytesRef> cursor = source.bytesRefCursor();
+        // retainValues=false: each value is parsed inside the loop body, before the cursor advances.
+        final ObjectTupleCursor<BytesRef> cursor = source.bytesRefCursor(false);
         for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
             final BytesRef value = cursor.value();
             if (value == null) {
@@ -1367,7 +1366,7 @@ public final class DateFieldMapper extends FieldMapper {
                 if (ignoreMalformed) {
                     context.addIgnoredField(mappedFieldType.name());
                     if (isSourceSynthetic) {
-                        IgnoreMalformedStoredValues.storeMalformedValueForSyntheticSource(context, fullPath(), context.parser());
+                        FallbackPostMapper.capture(context, fullPath(), FallbackPostMapper.Reason.MALFORMED);
                     } else {
                         context.parser().skipChildren();
                     }
@@ -1384,7 +1383,7 @@ public final class DateFieldMapper extends FieldMapper {
                         context.addIgnoredField(mappedFieldType.name());
                         if (isSourceSynthetic) {
                             // Save a copy of the field so synthetic source can load it
-                            IgnoreMalformedStoredValues.storeMalformedValueForSyntheticSource(context, fullPath(), context.parser());
+                            FallbackPostMapper.capture(context, fullPath(), FallbackPostMapper.Reason.MALFORMED);
                         }
                         return;
                     } else {

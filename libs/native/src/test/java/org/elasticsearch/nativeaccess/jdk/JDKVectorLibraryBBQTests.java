@@ -105,18 +105,16 @@ public class JDKVectorLibraryBBQTests extends SimdVecLibraryTests {
             float expected = ScalarOperations.similarity(function, unpackedQueryVectors[queryIndex], unpackedIndexVectors[indexIndex]);
             assertEquals(expected, nativeSimilarity(indexSlice, querySlice, indexVectorBytes), 0f);
 
-            if (supportsHeapSegments()) {
-                var queryHeapSegment = MemorySegment.ofArray(queryVectors[queryIndex]);
-                var indexHeapSegment = MemorySegment.ofArray(indexVectors[indexIndex]);
-                assertEquals(expected, nativeSimilarity(indexHeapSegment, queryHeapSegment, indexVectorBytes), 0f);
-                assertEquals(expected, nativeSimilarity(indexHeapSegment, querySlice, indexVectorBytes), 0f);
-                assertEquals(expected, nativeSimilarity(indexSlice, queryHeapSegment, indexVectorBytes), 0f);
+            var queryHeapSegment = MemorySegment.ofArray(queryVectors[queryIndex]);
+            var indexHeapSegment = MemorySegment.ofArray(indexVectors[indexIndex]);
+            assertEquals(expected, nativeSimilarity(indexHeapSegment, queryHeapSegment, indexVectorBytes), 0f);
+            assertEquals(expected, nativeSimilarity(indexHeapSegment, querySlice, indexVectorBytes), 0f);
+            assertEquals(expected, nativeSimilarity(indexSlice, queryHeapSegment, indexVectorBytes), 0f);
 
-                // trivial bulk with a single vector
-                float[] bulkScore = new float[1];
-                nativeSimilarityBulk(indexSlice, querySlice, indexVectorBytes, 1, MemorySegment.ofArray(bulkScore));
-                assertEquals(expected, bulkScore[0], 0f);
-            }
+            // trivial bulk with a single vector
+            float[] bulkScore = new float[1];
+            nativeSimilarityBulk(indexSlice, querySlice, indexVectorBytes, 1, MemorySegment.ofArray(bulkScore));
+            assertEquals(expected, bulkScore[0], 0f);
         }
     }
 
@@ -199,17 +197,15 @@ public class JDKVectorLibraryBBQTests extends SimdVecLibraryTests {
         nativeSimilarityBulk(testData.indexSegment, testData.querySegment, testData.indexVectorBytes, numVecs, bulkScoresSeg);
         assertScoresEquals(expectedScores, bulkScoresSeg);
 
-        if (supportsHeapSegments()) {
-            float[] bulkScores = new float[numVecs];
-            nativeSimilarityBulk(
-                testData.indexSegment,
-                testData.querySegment,
-                testData.indexVectorBytes,
-                numVecs,
-                MemorySegment.ofArray(bulkScores)
-            );
-            assertArrayEquals(expectedScores, bulkScores, 0f);
-        }
+        float[] bulkScores = new float[numVecs];
+        nativeSimilarityBulk(
+            testData.indexSegment,
+            testData.querySegment,
+            testData.indexVectorBytes,
+            numVecs,
+            MemorySegment.ofArray(bulkScores)
+        );
+        assertArrayEquals(expectedScores, bulkScores, 0f);
     }
 
     public void testInt4BulkWithOffsets() {
@@ -274,8 +270,6 @@ public class JDKVectorLibraryBBQTests extends SimdVecLibraryTests {
     }
 
     public void testInt4BulkWithOffsetsHeapSegments() {
-        assumeTrue(notSupportedMsg(), supported());
-        assumeTrue("Requires support for heap MemorySegments", supportsHeapSegments());
         assumeTrue(notSupportedMsg(), supported());
 
         final int numVecs = randomIntBetween(2, 101);

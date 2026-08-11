@@ -691,4 +691,3 @@ tests:
 - class: org.elasticsearch.index.mapper.blockloader.GeoPointFieldBlockLoaderTests
   method: testBlockLoaderForFieldInObjectWithCranky {preference=Params[indexMode=standard, sourceMode=SYNTHETIC, preference=STORED]}
   issue: https://github.com/elastic/elasticsearch/issues/156383
-

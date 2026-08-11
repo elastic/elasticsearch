@@ -1,4 +1,13 @@
 tests:
+- class: org.elasticsearch.xpack.logsdb.qa.StandardVersusStandardReindexedIntoLogsDbChallengeRestIT
+  method: testTermsQuery
+  issue: https://github.com/elastic/elasticsearch/issues/156361
+- class: org.elasticsearch.xpack.logsdb.qa.BulkChallengeRestIT
+  method: testTermsQuery
+  issue: https://github.com/elastic/elasticsearch/issues/156361
+- class: org.elasticsearch.xpack.logsdb.qa.StoredSourceLogsDbVersusReindexedLogsDbChallengeRestIT
+  method: testTermsQuery
+  issue: https://github.com/elastic/elasticsearch/issues/156361
 - class: org.elasticsearch.xpack.ml.aggs.changepoint.ChangePointAggregatorTests
   method: testSlopeUp
   issue: https://github.com/elastic/elasticsearch/issues/156237

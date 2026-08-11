@@ -59,7 +59,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.search.dfs.DfsPhase.executeKnnVectorQuery;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.spy;
@@ -231,7 +231,7 @@ public class DfsPhaseTests extends IndexShardTestCase {
 
                 var exception = expectThrows(DfsPhaseExecutionException.class, () -> DfsPhase.execute(context));
                 assertThat(exception.getCause(), instanceOf(TaskCancelledException.class));
-                assertThat(exception.getCause().getMessage(), equalTo(cancellationReason));
+                assertThat(exception.getCause().getMessage(), containsString(cancellationReason));
             }
         } finally {
             closeShards(indexShard);

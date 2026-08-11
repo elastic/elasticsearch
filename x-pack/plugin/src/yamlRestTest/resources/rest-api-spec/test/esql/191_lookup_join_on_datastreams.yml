@@ -70,5 +70,17 @@ setup:
   - match: {columns.1.type: "keyword"}
   - match: {values.0: ["foo", "y1"]}
 
+---
+"data streams supported in LOOKUP JOIN after rollover":
+  - do:
+      indices.rollover:
+        alias: my_data_stream
 
+  - match: {rolled_over: true}
+
+  - do:
+      catch: /resolves to multiple indices/
+      esql.query:
+        body:
+          query: 'ROW x = "foo" | LOOKUP JOIN my_data_stream ON x | KEEP x, y | LIMIT 1'
 

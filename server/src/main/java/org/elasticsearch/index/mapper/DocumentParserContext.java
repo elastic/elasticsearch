@@ -585,7 +585,11 @@ public abstract class DocumentParserContext {
     /**
      * Tentative pre-capture variant used by {@link FallbackPostMapper}.
      * Clones the parser sub-context (capturing XContent) and registers the result in the pending list.
-     * The caller must follow with {@link #commitPendingPreCapture} or {@link #discardPendingPreCapture}.
+     * The caller <strong>must always</strong> follow with {@link #commitPendingPreCapture}; discarding
+     * a pre-capture is not permitted because {@code _ignored_source} is all-or-nothing per field path
+     * on the read side (see {@link FallbackPostMapper#parseField} for the full invariant). The
+     * two-phase shape exists solely so that {@link #commitPendingPreCapture} can evict a copy_to void
+     * placeholder before adding the real entry.
      */
     final DocumentParserContext addPendingPreCapture(IgnoredSourceFieldMapper.NameValue ignoredFieldWithNoSource) throws IOException {
         assert ignoredFieldWithNoSource != null;
@@ -609,18 +613,6 @@ public abstract class DocumentParserContext {
             ignoredFieldValues.removeIf(e -> e.name().equals(fieldPath) && XContentDataHelper.isDataPresent(e.value()) == false);
             ignoredFieldValues.add(nv);
         }
-    }
-
-    /**
-     * Removes the pending pre-capture entry for {@code fieldPath} without committing it.
-     */
-    final void discardPendingPreCapture(String fieldPath) {
-        pendingIgnoredFieldValues.remove(fieldPath);
-    }
-
-    /** Returns {@code true} if a pending pre-capture entry exists for {@code fieldPath}. */
-    final boolean hasPendingPreCapture(String fieldPath) {
-        return pendingIgnoredFieldValues.containsKey(fieldPath);
     }
 
     /**

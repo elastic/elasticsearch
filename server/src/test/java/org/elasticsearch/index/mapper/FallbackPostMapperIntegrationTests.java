@@ -9,11 +9,41 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.store.Directory;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.xcontent.XContentBuilder;
+
 import java.io.IOException;
 
 import static org.elasticsearch.index.mapper.FieldStorageVerifier.forField;
 
 public class FallbackPostMapperIntegrationTests extends MapperServiceTestCase {
+
+    /**
+     * Computes synthetic source without the round-trip stored-field equality check.
+     *
+     * <p>The standard {@link #syntheticSource(DocumentMapper, org.elasticsearch.core.CheckedConsumer)}
+     * helper calls {@code validateRoundTripReader}, which asserts that re-indexing the synthetic
+     * source string produces byte-identical stored fields. That assertion legitimately fails when the
+     * original document uses an object-array structure that gets flattened in the synthetic source:
+     * the per-element pre-capture tokens written on the first pass differ in raw bytes from the
+     * single flat-array token captured on the round-trip, even though the rendered output is the same.
+     */
+    private String syntheticSourceSkipRoundTrip(DocumentMapper mapper, CheckedConsumer<XContentBuilder, IOException> build)
+        throws IOException {
+        try (Directory directory = newDirectory()) {
+            var iw = indexWriterForSyntheticSource(directory);
+            ParsedDocument doc = mapper.parse(source(build));
+            doc.updateSeqID(0, 0);
+            doc.version().setLongValue(0);
+            iw.addDocuments(doc.docs());
+            iw.close();
+            try (DirectoryReader reader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
+                return syntheticSource(mapper, reader, doc.docs().size() - 1);
+            }
+        }
+    }
 
     public void testCopyToDestinationWithIgnoreMalformedPreservesValueInSyntheticSource() throws IOException {
         DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
@@ -67,6 +97,110 @@ public class FallbackPostMapperIntegrationTests extends MapperServiceTestCase {
         String syntheticSource = syntheticSource(mapper, b -> b.field("field", "not-a-number"));
 
         assertEquals("{\"field\":\"not-a-number\"}", syntheticSource);
+    }
+
+    /**
+     * Regression: a double field with {@code synthetic_source_keep: arrays} and
+     * {@code ignore_malformed: true} that receives values via an object array must preserve every
+     * value — including the first malformed one — in {@code _ignored_source}.
+     *
+     * <p>Root cause of the regression: {@code FallbackPostMapper.postParse} discarded the
+     * per-element pre-capture when {@link FieldMapper.ParseResult} was {@code Ignored}. Because
+     * {@link FieldMapper#resolveIgnoredResult} is edge-triggered (at most one value per field per
+     * document can return {@code Ignored}), later valid values would commit their own pre-captures,
+     * leaving a partial {@code _ignored_source} array. On the read side, any {@code _ignored_source}
+     * entry for a field suppresses that field's native loader entirely — including the
+     * {@code ._ignore_malformed} reader — so the malformed value was silently lost.
+     */
+    public void testSourceKeepArraysWithMixedMalformedInObjectArrayPreservesAllValues() throws IOException {
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
+            b.startObject("obj");
+            {
+                b.field("type", "object");
+                b.startObject("properties");
+                {
+                    b.startObject("d");
+                    {
+                        b.field("type", "double");
+                        b.field("synthetic_source_keep", "arrays");
+                        b.field("ignore_malformed", true);
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        })).documentMapper();
+
+        // Both values must survive in synthetic source: the malformed "bad" and the valid 0.5.
+        // Before the fix, only 0.5 appeared (the "bad" pre-capture was discarded, leaving a partial
+        // _ignored_source that then suppressed the ._ignore_malformed reader).
+        //
+        // Round-trip stored-field equality is intentionally not checked here: per-element pre-captures
+        // produce different raw _ignored_source bytes than the single flat-array token captured when
+        // the round-trip re-indexes {"obj":{"d":["bad",0.5]}}. The rendered output is identical.
+        assertEquals("{\"obj\":{\"d\":[\"bad\",0.5]}}", syntheticSourceSkipRoundTrip(mapper, b -> {
+            b.startArray("obj");
+            b.startObject().field("d", "bad").endObject();
+            b.startObject().field("d", 0.5).endObject();
+            b.endArray();
+        }));
+    }
+
+    /**
+     * Variant of the regression test using {@code synthetic_source_keep: all}, which exercises the
+     * {@link FallbackPostMapper.Reason#SOURCE_KEEP_ALL} branch rather than
+     * {@link FallbackPostMapper.Reason#SOURCE_KEEP_ARRAYS_IN_ARRAY}.
+     */
+    public void testSourceKeepAllWithMixedMalformedInObjectArrayPreservesAllValues() throws IOException {
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
+            b.startObject("obj");
+            {
+                b.field("type", "object");
+                b.startObject("properties");
+                {
+                    b.startObject("d");
+                    {
+                        b.field("type", "double");
+                        b.field("synthetic_source_keep", "all");
+                        b.field("ignore_malformed", true);
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        })).documentMapper();
+
+        assertEquals("{\"obj\":{\"d\":[\"bad\",0.5]}}", syntheticSourceSkipRoundTrip(mapper, b -> {
+            b.startArray("obj");
+            b.startObject().field("d", "bad").endObject();
+            b.startObject().field("d", 0.5).endObject();
+            b.endArray();
+        }));
+    }
+
+    /**
+     * Variant where the array is at the root (flat field array), not inside an object array.
+     * A flat array is captured as a single XContent token — the whole array is pre-captured once.
+     * The {@code ParseResult.Ignored} case (from the first element being malformed) must still
+     * commit that pre-capture rather than discarding it.
+     */
+    public void testSourceKeepAllWithMixedMalformedFlatArrayPreservesAllValues() throws IOException {
+        DocumentMapper mapper = createSytheticSourceMapperService(
+            fieldMapping(b -> b.field("type", "double").field("synthetic_source_keep", "all").field("ignore_malformed", true))
+        ).documentMapper();
+
+        // The entire ["bad", 0.5] array is pre-captured as one token. Before the fix the
+        // ParseResult.Ignored result caused the pre-capture to be discarded, so only 0.5
+        // appeared in the synthetic source (via doc values). With the fix the full array is
+        // committed to _ignored_source and rendered intact.
+        assertEquals("{\"field\":[\"bad\",0.5]}", syntheticSource(mapper, b -> {
+            b.startArray("field");
+            b.value("bad");
+            b.value(0.5);
+            b.endArray();
+        }));
     }
 
     /**

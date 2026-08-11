@@ -177,47 +177,41 @@ public final class FallbackPostMapper {
 
     /**
      * The single entry point for parsing a mapped leaf field.
-     * Handles pre-capture, delegates to {@link FieldMapper#parse}, then commits or discards
-     * the pre-capture and routes any {@link FieldMapper.ParseResult.MultiValueViolation}.
+     *
+     * <p>Pre-capture semantics: when {@link #resolvePrecaptureReason} returns non-null, this method
+     * captures the current XContent token to {@code _ignored_source} <em>before</em> delegating to
+     * {@link FieldMapper#parse}, and unconditionally commits that capture afterward.
+     *
+     * <p>The commit is unconditional by design. {@code _ignored_source} is an <em>all-or-nothing</em>
+     * structure per field path on the read side: as soon as any {@code _ignored_source} entry names a
+     * field, {@link ObjectMapper}'s synthetic-source field loader suppresses that field's entire
+     * native loader (see {@code prepare()}). A per-value commit/discard decision would leave a partial array
+     * in {@code _ignored_source}, causing values served by other storage (e.g. {@code ._ignore_malformed})
+     * to be silently lost.
+     *
+     * <p>{@link #resolvePrecaptureReason} is a pure function of {@code (mapper, context)} that never
+     * inspects the parsed value, so its result is uniform across every element of a multi-valued field.
+     * The commit therefore applies uniformly too. Multiple committed entries for the same path are merged
+     * in document order by {@code ObjectMapper.FieldWriter.IgnoredSource.mergeWith}.
      */
     public static void parseField(DocumentParserContext context, FieldMapper fieldMapper) throws IOException {
-        DocumentParserContext parseCtx = preCaptureIfNeeded(context, fieldMapper);
-        FieldMapper.ParseResult result = fieldMapper.parse(parseCtx);
-        postParse(context, result, fieldMapper);
-    }
-
-    private static DocumentParserContext preCaptureIfNeeded(DocumentParserContext context, FieldMapper fieldMapper) throws IOException {
-        FieldContext fc = FieldContext.forField(context, fieldMapper);
-        if (resolvePrecaptureReason(fc) != null) {
-            return context.addPendingPreCapture(IgnoredSourceFieldMapper.NameValue.fromContext(context, fieldMapper.fullPath(), null));
-        }
-        return context;
-    }
-
-    private static void postParse(DocumentParserContext context, FieldMapper.ParseResult result, FieldMapper fieldMapper)
-        throws IOException {
         String fieldPath = fieldMapper.fullPath();
-        boolean precaptured = context.hasPendingPreCapture(fieldPath);
-        switch (result) {
-            case FieldMapper.ParseResult.MultiValueViolation mvv -> {
-                if (precaptured) context.discardPendingPreCapture(fieldPath);
-                if (context.mappingLookup().isSourceSynthetic() || context.mappingLookup().isSourceColumnarStored()) {
-                    OnFailureStoredValues.storeEncoded(context, fieldPath, mvv.capturedValue());
-                }
-            }
-            case FieldMapper.ParseResult.Ignored() -> {
-                if (precaptured) {
-                    Reason precaptureReason = resolvePrecaptureReason(FieldContext.forField(context, fieldMapper));
-                    if (fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK
-                        || precaptureReason == Reason.COPY_TO_DESTINATION) {
-                        context.commitPendingPreCapture(fieldPath);
-                    } else {
-                        context.discardPendingPreCapture(fieldPath);
-                    }
-                }
-            }
-            case FieldMapper.ParseResult.Indexed ignored -> {
-                if (precaptured) context.commitPendingPreCapture(fieldPath);
+        boolean preCaptured = resolvePrecaptureReason(FieldContext.forField(context, fieldMapper)) != null;
+        DocumentParserContext parseCtx = preCaptured
+            ? context.addPendingPreCapture(IgnoredSourceFieldMapper.NameValue.fromContext(context, fieldPath, null))
+            : context;
+
+        FieldMapper.ParseResult result = fieldMapper.parse(parseCtx);
+
+        if (preCaptured) {
+            context.commitPendingPreCapture(fieldPath);
+        }
+        if (result instanceof FieldMapper.ParseResult.MultiValueViolation mvv) {
+            // multi_value violations require columnar mode, which disables canAddIgnoredField(), so
+            // pre-capture is never active for the same field simultaneously.
+            assert preCaptured == false : "multi_value violation on pre-captured field [" + fieldPath + "]";
+            if (context.mappingLookup().isSourceSynthetic() || context.mappingLookup().isSourceColumnarStored()) {
+                OnFailureStoredValues.storeEncoded(context, fieldPath, mvv.capturedValue());
             }
         }
     }

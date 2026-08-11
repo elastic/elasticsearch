@@ -246,8 +246,7 @@ public abstract class AbstractRemoteClusterSecurityBWCRestIT extends AbstractRem
             return false;
         }
         final String oldClusterVersion = System.getProperty("tests.old_cluster_version");
-        return oldClusterVersion != null
-            && Version.fromString(oldClusterVersion).onOrAfter(MANAGED_SERVICE_ACCOUNTS_VERSION);
+        return oldClusterVersion != null && Version.fromString(oldClusterVersion).onOrAfter(MANAGED_SERVICE_ACCOUNTS_VERSION);
     }
 
     private void assertManagedServiceAccountCcsFailsClosed(ManagedServiceAccountCcsContext context) throws Exception {

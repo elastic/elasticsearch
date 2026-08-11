@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 154016
-summary: Fix a cause of lost ES|QL warnings by preserving thread context
-type: bug

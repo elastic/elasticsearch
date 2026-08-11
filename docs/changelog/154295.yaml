@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 154295
-summary: Avoid an integer overflow loop in the `REPEAT` function
-type: bug

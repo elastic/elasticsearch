@@ -1,5 +1,0 @@
-area: Analysis
-issues: []
-pr: 154793
-summary: Add a check against self-referencing filters
-type: bug

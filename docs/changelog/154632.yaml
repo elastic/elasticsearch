@@ -1,5 +1,0 @@
-area: Inference
-issues: []
-pr: 154632
-summary: Fix SSE parser handling of empty lines and byte order marks
-type: bug

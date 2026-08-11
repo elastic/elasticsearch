@@ -1,6 +1,0 @@
-area: Inference
-issues:
- - 144871
-pr: 153886
-summary: Deploy text embedding models before the validation call
-type: bug

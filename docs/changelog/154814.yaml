@@ -1,5 +1,0 @@
-area: Ranking
-issues: []
-pr: 154814
-summary: Add a hardcoded limit on nested retrievers
-type: bug

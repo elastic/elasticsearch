@@ -1,8 +1,0 @@
-area: ES|QL
-issues:
- - 154743
- - 154484
- - 154011
-pr: 154508
-summary: Fix incorrect inclusion of flattened subfields in multi-index queries
-type: bug

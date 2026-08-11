@@ -1,6 +1,0 @@
-pr: 154577
-summary: Fix double decrement of the pending inference request count
-area: Machine Learning
-type: bug
-issues:
- - 154483

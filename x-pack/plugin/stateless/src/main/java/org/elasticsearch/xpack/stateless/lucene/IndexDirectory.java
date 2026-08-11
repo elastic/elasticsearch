@@ -263,7 +263,7 @@ public class IndexDirectory extends ByteSizeDirectory {
      * for MADV_RANDOM on the indexing tier. Currently supports stored fields data files (.fdt).
      */
     static IOContext maybeAddStatelessAdviceHint(String name, IOContext context) {
-        if (name.endsWith(".fdt") && context.hints().contains(DataAccessHint.RANDOM)) {
+        if (LuceneFilesExtensions.fromFile(name) == LuceneFilesExtensions.FDT && context.hints().contains(DataAccessHint.RANDOM)) {
             var existingHints = context.hints();
             var allHints = new IOContext.FileOpenHint[existingHints.size() + 1];
             int i = 0;

@@ -91,10 +91,18 @@ setup:
   - gt: { hits.hits.1.inner_hits.nested.hits.total.value: 0 }
   - gt: { hits.hits.2.inner_hits.nested.hits.total.value: 0 }
 
-  # Compared with a tolerance rather than for equality against the parent _score: the two are computed at
-  # different call sites and can differ in the last bit. The quantized score this guards against is ~1.6e-2 away,
-  # two orders of magnitude outside this tolerance.
-  - close_to: { hits.hits.0.inner_hits.nested.hits.max_score: { value: 0.5725435, error: 0.0002 } }
+  # close_to rather than match: the parent score and the inner hit score are computed at different call sites and
+  # can differ in the last bit, which varies with the SIMD instructions used for the dot product. The tolerance is
+  # ~170x the float spacing at these values, and still three orders of magnitude below the ~1.6e-2 gap that a
+  # quantized inner hit score would show.
+  - set: { hits.hits.0._score: parent_score_0 }
+  - close_to: { hits.hits.0.inner_hits.nested.hits.max_score: { value: $parent_score_0, error: 0.00001 } }
+
+  - set: { hits.hits.1._score: parent_score_1 }
+  - close_to: { hits.hits.1.inner_hits.nested.hits.max_score: { value: $parent_score_1, error: 0.00001 } }
+
+  - set: { hits.hits.2._score: parent_score_2 }
+  - close_to: { hits.hits.2.inner_hits.nested.hits.max_score: { value: $parent_score_2, error: 0.00001 } }
 
   # A `similarity` threshold is evaluated once in the query phase and again when inner_hits re-runs the child
   # query. If the two phases score at different fidelity, a child accepted by the first check can be rejected by
@@ -120,4 +128,5 @@ setup:
 
   - gt: { hits.total.value: 0 }
   - gt: { hits.hits.0.inner_hits.nested.hits.total.value: 0 }
-  - close_to: { hits.hits.0.inner_hits.nested.hits.max_score: { value: 0.5725435, error: 0.0002 } }
+  - set: { hits.hits.0._score: threshold_score_0 }
+  - close_to: { hits.hits.0.inner_hits.nested.hits.max_score: { value: $threshold_score_0, error: 0.00001 } }

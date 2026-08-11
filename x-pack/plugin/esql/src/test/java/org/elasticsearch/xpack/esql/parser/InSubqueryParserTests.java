@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Lambda;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
@@ -23,6 +24,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
@@ -48,7 +50,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
-import org.junit.Before;
 
 import java.util.List;
 import java.util.Map;
@@ -59,9 +60,8 @@ import static org.hamcrest.Matchers.containsString;
 
 public class InSubqueryParserTests extends AbstractStatementParserTests {
 
-    @Before
-    public void checkSubqueryInFromCommandSupport() {
-        assumeTrue("Requires IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
+    private static void checkLambda() {
+        assumeTrue("Requires Lambda syntax support", EsqlCapabilities.Cap.LAMBDA_SYNTAX.isEnabled());
     }
 
     /*
@@ -1386,6 +1386,85 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
         assertEquals("sub_index", subqueryRelation.indexPattern().indexPattern());
         UnresolvedRelation mainRelation = as(filter.child(), UnresolvedRelation.class);
         assertEquals("main_index", mainRelation.indexPattern().indexPattern());
+    }
+
+    public void testInSubqueryNestedInsideCaseAddAndEquals() {
+        String query = "FROM main | WHERE (CASE(x IN (FROM sub), 1, 0) + 1) == 2";
+        LogicalPlan plan = query(query);
+        Filter filter = as(plan, Filter.class);
+        Equals equals = as(filter.condition(), Equals.class);
+        // Add
+        Add add = as(equals.left(), Add.class);
+        // CASE
+        UnresolvedFunction caseFunc = as(add.left(), UnresolvedFunction.class);
+        assertEquals("CASE", caseFunc.name());
+        // InSubquery
+        InSubquery inSubquery = as(caseFunc.children().get(0), InSubquery.class);
+        assertEquals("x", as(inSubquery.value(), Attribute.class).name());
+        assertEquals("sub", as(inSubquery.subquery(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    public void testInSubqueryNestedInsideCoalesceAddAndEquals() {
+        String query = "FROM main | WHERE (CASE(COALESCE(x IN (FROM sub), false), 1, 0) + 1) == 2";
+        LogicalPlan plan = query(query);
+        Filter filter = as(plan, Filter.class);
+        Equals equals = as(filter.condition(), Equals.class);
+        // Add
+        Add add = as(equals.left(), Add.class);
+        // CASE
+        UnresolvedFunction caseFunc = as(add.left(), UnresolvedFunction.class);
+        assertEquals("CASE", caseFunc.name());
+        // COALESCE
+        UnresolvedFunction coalesceFunc = as(caseFunc.children().get(0), UnresolvedFunction.class);
+        assertEquals("COALESCE", coalesceFunc.name());
+        // InSubquery
+        InSubquery inSubquery = as(coalesceFunc.children().get(0), InSubquery.class);
+        assertEquals("x", as(inSubquery.value(), Attribute.class).name());
+        assertEquals("sub", as(inSubquery.subquery(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    public void testInSubqueryNestedInsideNotAndCase() {
+        String query = "FROM main | WHERE CASE(NOT(x IN (FROM sub)), true, false)";
+        LogicalPlan plan = query(query);
+        Filter filter = as(plan, Filter.class);
+        UnresolvedFunction caseFunc = as(filter.condition(), UnresolvedFunction.class);
+        assertEquals("CASE", caseFunc.name());
+        Not not = as(caseFunc.children().get(0), Not.class);
+        InSubquery inSubquery = as(not.field(), InSubquery.class);
+        assertEquals("x", as(inSubquery.value(), Attribute.class).name());
+        assertEquals("sub", as(inSubquery.subquery(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    public void testWhereInSubqueryInsideLambda() {
+        checkLambda();
+        String query = "FROM main | WHERE filter(a, x -> x IN (FROM sub))";
+        LogicalPlan plan = query(query);
+        Filter filter = as(plan, Filter.class);
+        UnresolvedFunction filterFunc = as(filter.condition(), UnresolvedFunction.class);
+        assertEquals("filter", filterFunc.name());
+        // Lambda
+        Lambda lambda = as(filterFunc.children().get(1), Lambda.class);
+        InSubquery inSubquery = as(lambda.body(), InSubquery.class);
+        assertEquals("x", as(inSubquery.value(), Attribute.class).name());
+        assertEquals("sub", as(inSubquery.subquery(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    public void testWhereInSubqueryInsideCoalesceInsideLambda() {
+        checkLambda();
+        String query = "FROM main | WHERE filter(a, x -> COALESCE(x IN (FROM sub), false))";
+        LogicalPlan plan = query(query);
+        Filter filter = as(plan, Filter.class);
+        UnresolvedFunction filterFunc = as(filter.condition(), UnresolvedFunction.class);
+        assertEquals("filter", filterFunc.name());
+        // Lambda
+        Lambda lambda = as(filterFunc.children().get(1), Lambda.class);
+        // COALESCE
+        UnresolvedFunction coalesceFunc = as(lambda.body(), UnresolvedFunction.class);
+        assertEquals("COALESCE", coalesceFunc.name());
+        // InSubquery
+        InSubquery inSubquery = as(coalesceFunc.children().get(0), InSubquery.class);
+        assertEquals("x", as(inSubquery.value(), Attribute.class).name());
+        assertEquals("sub", as(inSubquery.subquery(), UnresolvedRelation.class).indexPattern().indexPattern());
     }
 
     // ---- WHERE IN subquery negative tests ----

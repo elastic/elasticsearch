@@ -414,16 +414,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
             """, STAGES);
     }
 
-    public void testEligibleInSubqueryWrappersNestedInComparisons() {
-        runGoldenTest("""
-            FROM employees
-            | WHERE CASE(emp_no IN (FROM employees | KEEP emp_no), true, false) == true
-              AND COALESCE(languages IN (FROM employees | KEEP languages), false) != true
-              AND ((salary IN (FROM employees | KEEP salary)) IS NULL) == false
-              AND ((languages IN (FROM employees | KEEP languages)) IS NOT NULL) != false
-            """, STAGES);
-    }
-
     public void testCaseWithConjunctiveInSubqueries() {
         runGoldenTest("""
             FROM employees
@@ -523,6 +513,39 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
             FROM employees
             | WHERE CASE(emp_no IN (FROM employees | KEEP emp_no), true, false)
               AND (salary > 50000 OR languages IN (FROM employees | KEEP languages))
+            """, STAGES);
+    }
+
+    public void testInSubqueryNestedInCaseAndEquals() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE CASE(emp_no IN (FROM employees | KEEP emp_no), "yes", "no") == "yes"
+            """, STAGES);
+    }
+
+    public void testInSubqueryNestedInCaseCoalesceAndNotEquals() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE COALESCE(CASE(emp_no IN (FROM employees | KEEP emp_no), "yes", null), "no") != "yes"
+            """, STAGES);
+    }
+
+    public void testInSubqueryDeeplyNestedInExpressionsWithKeyword() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE CASE(emp_no IN (FROM employees | KEEP emp_no), "A", "B") == "A"
+              AND COALESCE(CASE(languages IN (FROM employees | KEEP languages), "X", null), "Y") != "Z"
+              AND TO_STRING((salary IN (FROM employees | KEEP salary)) IS NULL) == "false"
+            """, STAGES);
+    }
+
+    public void testInSubqueryDeeplyNestedInExpressionsWithBoolean() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE CASE(emp_no IN (FROM employees | KEEP emp_no), true, false) == true
+              AND COALESCE(languages IN (FROM employees | KEEP languages), false) != true
+              AND ((salary IN (FROM employees | KEEP salary)) IS NULL) == false
+              AND ((languages IN (FROM employees | KEEP languages)) IS NOT NULL) != false
             """, STAGES);
     }
 }

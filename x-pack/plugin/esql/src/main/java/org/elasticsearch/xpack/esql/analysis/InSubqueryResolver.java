@@ -244,23 +244,33 @@ public class InSubqueryResolver {
     }
 
     /**
-     * Walks the expression replacing every {@link InSubquery} whose direct parent is an eligible boolean-composing node with a fresh
-     * synthetic mark attribute, recording a {@link MarkJoinSpec} per replacement. The boolean-composing nodes are:
+     * Walks the expression replacing every {@link InSubquery} whose position in the tree is eligible for join-hoisting with a fresh
+     * synthetic mark attribute, recording a {@link MarkJoinSpec} per replacement.
+     * <p>
+     * An {@link InSubquery} is eligible if its direct parent is one of the "eligible boolean-composing nodes":
      * <ul>
      *   <li>{@link And}, {@link Or}, {@link Not} — standard boolean connectives.</li>
-     *   <li>{@link IsNull}, {@link IsNotNull} — {@code (x IN (sub)) IS [NOT] NULL}; the operand is a {@code valueExpression} in the
-     *       grammar so it must be parenthesized, but the  resulting {@link IsNull}/{@link IsNotNull} node wraps the {@link InSubquery}
-     *       directly.</li>
-     *   <li>An {@link UnresolvedFunction} whose name is {@code CASE} or {@code COALESCE} (case-insensitive): every argument position may
-     *       contain an {@link InSubquery} because all {@code functionParam} grammar alternatives accept a full {@code booleanExpression}.
-     *       Note: at this stage the plan is pre-analysis, so these appear as {@link UnresolvedFunction}, not as the resolved
-     *       {@code Case}/{@code Coalesce} classes.</li>
+     *   <li>{@link IsNull}, {@link IsNotNull} — e.g. {@code (x IN (sub)) IS [NOT] NULL}.</li>
+     *   <li>An {@link UnresolvedFunction} whose name is {@code CASE} or {@code COALESCE} (case-insensitive).</li>
      * </ul>
-     * Ordinary expressions are traversed so eligible nodes can be discovered below them, but they do not make a directly nested
-     * {@link InSubquery} eligible. For example, {@code CASE(x IN (sub), true, false) == true} is rewritten, while
-     * {@code (x IN (sub)) == true} is not. Scope-bearing expressions such as {@link Lambda} stop the traversal because hoisting a
-     * subquery whose LHS references a locally bound parameter would be incorrect. Any expression with no eligible {@link InSubquery}
-     * below it is returned unchanged.
+     * <p>
+     * The resolver uses a recursive traversal to find these nodes. When it encounters an eligible wrapper, it re-enables rewriting for
+     * all its children. This allows subqueries to be resolved even when deeply nested, provided they are directly inside an eligible node.
+     * <p>
+     * For example, in {@code (CASE(x IN (sub), true, false) + 1) == 2}:
+     * <ol>
+     *   <li>The {@code ==} operator is an "ordinary" expression. It does not allow an immediate {@code InSubquery} child, but it is
+     *       transparent to traversal, so it calls into its children with {@code rewriteCurrentInSubquery = false}.</li>
+     *   <li>The {@code +} operator is also transparent and continues the traversal.</li>
+     *   <li>The {@code CASE} function is an eligible wrapper. It calls into its arguments with {@code rewriteCurrentInSubquery = true}.
+     *       </li>
+     *   <li>The {@code InSubquery} is now eligible because its direct parent (the {@code CASE}) is an eligible wrapper. It is replaced
+     *       with a mark attribute and a {@link MarkJoin} is recorded.</li>
+     * </ol>
+     * Conversely, in {@code (x IN (sub)) == true}, the {@code ==} operator does not enable rewriting for its children, so the subquery
+     * remains unresolved and is later caught by {@link #verify}.
+     * <p>
+     * Scope-bearing expressions such as {@link Lambda} act as a rewrite boundary and stop the traversal entirely.
      */
     private static Expression rewriteInSubqueries(
         Expression expr,
@@ -407,8 +417,8 @@ public class InSubqueryResolver {
      * here it means the LHS of the subquery is not yet supported (e.g. a non-attribute, non-foldable expression like {@code abs(x)}). In
      * that case we report the whole filter source (the entire {@code WHERE} clause).
      * <p>
-     * Otherwise (the IN subquery is nested inside an expression that is not in the supported
-     * allowlist), we report the immediately enclosing expression.
+     * Otherwise (the IN subquery is nested inside an expression that is not in the supported allowlist), we report the immediately
+     * enclosing expression.
      */
     private static void checkInFilterCondition(
         Filter filter,

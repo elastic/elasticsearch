@@ -1508,6 +1508,13 @@ public class EsqlCapabilities {
         WHERE_IN_SUBQUERY_WITH_CASE_COALESCE_IS_NULL,
 
         /**
+         * Support IN subquery inside {@code CASE}, {@code COALESCE}, and {@code IS [NOT] NULL} expressions in the {@code WHERE} command.
+         * And the {@code CASE}, {@code COALESCE}, and {@code IS [NOT] NULL} expressions are nested inside another expression, where an
+         * IN subquery is not directly supported there.
+         */
+        WHERE_IN_SUBQUERY_WITH_CASE_COALESCE_IS_NULL_DEEPLY_NESTED,
+
+        /**
          * Support for views in cluster state (and REST API).
          */
         VIEWS_IN_CLUSTER_STATE,

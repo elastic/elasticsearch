@@ -35,7 +35,6 @@ import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
-import org.junit.Before;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -60,9 +59,8 @@ import static org.hamcrest.Matchers.containsString;
  */
 public class InSubqueryResolverTests extends ESTestCase {
 
-    @Before
-    public void checkCapability() {
-        assumeTrue("Requires IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
+    private static void requireLambda() {
+        assumeTrue("Requires Lambda syntax support", EsqlCapabilities.Cap.LAMBDA_SYNTAX.isEnabled());
     }
 
     // ---- positive: WHERE IN subquery → SemiJoin ----
@@ -785,15 +783,6 @@ public class InSubqueryResolverTests extends ESTestCase {
         );
     }
 
-    // ---- positive: IN subquery inside CASE ----
-
-    private static void requireInSubqueryInCaseCoalesceIsNull() {
-        assumeTrue(
-            "Requires IN subquery in CASE/COALESCE/IS NULL",
-            EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_CASE_COALESCE_IS_NULL.isEnabled()
-        );
-    }
-
     /**
      * {@code WHERE CASE(x IN (FROM sub), true, false)}: the WHEN condition contains an IN subquery.
      * The resolver recurses into the CASE arguments and rewrites the InSubquery into a MarkJoin:
@@ -804,7 +793,6 @@ public class InSubqueryResolverTests extends ESTestCase {
      * </pre>
      */
     public void testCaseWhenConditionInSubquery() {
-        requireInSubqueryInCaseCoalesceIsNull();
         LogicalPlan plan = resolve("FROM main | WHERE CASE(x IN (FROM sub), true, false)");
         Filter filter = as(plan, Filter.class);
         UnresolvedFunction caseExpr = as(filter.condition(), UnresolvedFunction.class);
@@ -822,7 +810,6 @@ public class InSubqueryResolverTests extends ESTestCase {
      * {@code WHERE CASE(a == 1, x IN (FROM sub), false)}: the THEN value arm contains an IN subquery.
      */
     public void testCaseThenArmInSubquery() {
-        requireInSubqueryInCaseCoalesceIsNull();
         LogicalPlan plan = resolve("FROM main | WHERE CASE(a == 1, x IN (FROM sub), false)");
         Filter filter = as(plan, Filter.class);
         UnresolvedFunction caseExpr = as(filter.condition(), UnresolvedFunction.class);
@@ -836,7 +823,6 @@ public class InSubqueryResolverTests extends ESTestCase {
      * {@code WHERE CASE(a == 1, false, x IN (FROM sub))}: the ELSE arm contains an IN subquery.
      */
     public void testCaseElseArmInSubquery() {
-        requireInSubqueryInCaseCoalesceIsNull();
         LogicalPlan plan = resolve("FROM main | WHERE CASE(a == 1, false, x IN (FROM sub))");
         Filter filter = as(plan, Filter.class);
         UnresolvedFunction caseExpr = as(filter.condition(), UnresolvedFunction.class);
@@ -850,7 +836,6 @@ public class InSubqueryResolverTests extends ESTestCase {
      * {@code WHERE CASE(x NOT IN (FROM sub), true, false)}: NOT IN inside CASE condition.
      */
     public void testCaseNotInSubquery() {
-        requireInSubqueryInCaseCoalesceIsNull();
         LogicalPlan plan = resolve("FROM main | WHERE CASE(x NOT IN (FROM sub), true, false)");
         Filter filter = as(plan, Filter.class);
         UnresolvedFunction caseExpr = as(filter.condition(), UnresolvedFunction.class);
@@ -872,7 +857,6 @@ public class InSubqueryResolverTests extends ESTestCase {
      * </pre>
      */
     public void testCaseWithDisjunctiveInSubqueries() {
-        requireInSubqueryInCaseCoalesceIsNull();
         LogicalPlan plan = resolve("FROM main | WHERE CASE(x IN (FROM sub1) OR (y == 1 OR (w NOT IN (FROM sub2)) OR z < 0), true, false)");
         Filter filter = as(plan, Filter.class);
         UnresolvedFunction caseExpr = as(filter.condition(), UnresolvedFunction.class);
@@ -912,7 +896,6 @@ public class InSubqueryResolverTests extends ESTestCase {
      * </pre>
      */
     public void testCaseWithConjunctiveInSubqueries() {
-        requireInSubqueryInCaseCoalesceIsNull();
         LogicalPlan plan = resolve("FROM main | WHERE CASE(x IN (FROM sub1) AND w IN (FROM sub2), true, false)");
         Filter filter = as(plan, Filter.class);
         UnresolvedFunction caseExpr = as(filter.condition(), UnresolvedFunction.class);
@@ -948,7 +931,6 @@ public class InSubqueryResolverTests extends ESTestCase {
      * </pre>
      */
     public void testCaseWithMixedConjunctiveDisjunctiveInSubqueries() {
-        requireInSubqueryInCaseCoalesceIsNull();
         LogicalPlan plan = resolve("FROM main | WHERE CASE(x IN (FROM sub1) AND (y > 0 OR w IN (FROM sub2)), true, false)");
         Filter filter = as(plan, Filter.class);
         UnresolvedFunction caseExpr = as(filter.condition(), UnresolvedFunction.class);
@@ -987,7 +969,6 @@ public class InSubqueryResolverTests extends ESTestCase {
      * </pre>
      */
     public void testIsNotNullInSubquery() {
-        requireInSubqueryInCaseCoalesceIsNull();
         LogicalPlan plan = resolve("FROM main | WHERE (x IN (FROM sub)) IS NOT NULL");
         Filter filter = as(plan, Filter.class);
         IsNotNull isNotNull = as(filter.condition(), IsNotNull.class);
@@ -1004,7 +985,6 @@ public class InSubqueryResolverTests extends ESTestCase {
      * {@code WHERE (x IN (FROM sub)) IS NULL}: IS NULL with IN subquery operand.
      */
     public void testIsNullInSubquery() {
-        requireInSubqueryInCaseCoalesceIsNull();
         LogicalPlan plan = resolve("FROM main | WHERE (x IN (FROM sub)) IS NULL");
         Filter filter = as(plan, Filter.class);
         IsNull isNull = as(filter.condition(), IsNull.class);
@@ -1018,7 +998,6 @@ public class InSubqueryResolverTests extends ESTestCase {
      * {@code WHERE (x NOT IN (FROM sub)) IS NULL}: NOT IN operand inside IS NULL.
      */
     public void testIsNullNotInSubquery() {
-        requireInSubqueryInCaseCoalesceIsNull();
         LogicalPlan plan = resolve("FROM main | WHERE (x NOT IN (FROM sub)) IS NULL");
         Filter filter = as(plan, Filter.class);
         IsNull isNull = as(filter.condition(), IsNull.class);
@@ -1040,7 +1019,6 @@ public class InSubqueryResolverTests extends ESTestCase {
      * </pre>
      */
     public void testIsNotNullWithDisjunctiveInSubqueries() {
-        requireInSubqueryInCaseCoalesceIsNull();
         LogicalPlan plan = resolve("FROM main | WHERE (x IN (FROM sub1) OR y IN (FROM sub2)) IS NOT NULL");
         Filter filter = as(plan, Filter.class);
         IsNotNull isNotNull = as(filter.condition(), IsNotNull.class);
@@ -1070,7 +1048,6 @@ public class InSubqueryResolverTests extends ESTestCase {
      * </pre>
      */
     public void testIsNullWithConjunctiveInSubqueries() {
-        requireInSubqueryInCaseCoalesceIsNull();
         LogicalPlan plan = resolve("FROM main | WHERE (x IN (FROM sub1) AND y IN (FROM sub2)) IS NULL");
         Filter filter = as(plan, Filter.class);
         IsNull isNull = as(filter.condition(), IsNull.class);
@@ -1100,7 +1077,6 @@ public class InSubqueryResolverTests extends ESTestCase {
      * </pre>
      */
     public void testCoalesceInSubquery() {
-        requireInSubqueryInCaseCoalesceIsNull();
         LogicalPlan plan = resolve("FROM main | WHERE COALESCE(x IN (FROM sub), false)");
         Filter filter = as(plan, Filter.class);
         UnresolvedFunction coalesceExpr = as(filter.condition(), UnresolvedFunction.class);
@@ -1118,7 +1094,6 @@ public class InSubqueryResolverTests extends ESTestCase {
      * {@code WHERE COALESCE(x NOT IN (FROM sub), false)}: NOT IN inside COALESCE.
      */
     public void testCoalesceNotInSubquery() {
-        requireInSubqueryInCaseCoalesceIsNull();
         LogicalPlan plan = resolve("FROM main | WHERE COALESCE(x NOT IN (FROM sub), false)");
         Filter filter = as(plan, Filter.class);
         UnresolvedFunction coalesceExpr = as(filter.condition(), UnresolvedFunction.class);
@@ -1139,7 +1114,6 @@ public class InSubqueryResolverTests extends ESTestCase {
      * </pre>
      */
     public void testCoalesceInSubqueryNotFirstArg() {
-        requireInSubqueryInCaseCoalesceIsNull();
         LogicalPlan plan = resolve("FROM main | WHERE COALESCE(null, x IN (FROM sub))");
         Filter filter = as(plan, Filter.class);
         UnresolvedFunction coalesceExpr = as(filter.condition(), UnresolvedFunction.class);
@@ -1163,7 +1137,6 @@ public class InSubqueryResolverTests extends ESTestCase {
      * </pre>
      */
     public void testCoalesceInSubqueryLastArg() {
-        requireInSubqueryInCaseCoalesceIsNull();
         LogicalPlan plan = resolve("FROM main | WHERE COALESCE(null, false, x IN (FROM sub))");
         Filter filter = as(plan, Filter.class);
         UnresolvedFunction coalesceExpr = as(filter.condition(), UnresolvedFunction.class);
@@ -1188,7 +1161,6 @@ public class InSubqueryResolverTests extends ESTestCase {
      * </pre>
      */
     public void testCoalesceWithDisjunctiveInSubqueries() {
-        requireInSubqueryInCaseCoalesceIsNull();
         LogicalPlan plan = resolve("FROM main | WHERE COALESCE(x IN (FROM sub1) OR y IN (FROM sub2), false)");
         Filter filter = as(plan, Filter.class);
         UnresolvedFunction coalesceExpr = as(filter.condition(), UnresolvedFunction.class);
@@ -1219,7 +1191,6 @@ public class InSubqueryResolverTests extends ESTestCase {
      * </pre>
      */
     public void testCoalesceWithConjunctiveInSubqueries() {
-        requireInSubqueryInCaseCoalesceIsNull();
         LogicalPlan plan = resolve("FROM main | WHERE COALESCE(x IN (FROM sub1), y IN (FROM sub2), false)");
         Filter filter = as(plan, Filter.class);
         UnresolvedFunction coalesceExpr = as(filter.condition(), UnresolvedFunction.class);
@@ -1252,7 +1223,6 @@ public class InSubqueryResolverTests extends ESTestCase {
      * </pre>
      */
     public void testCaseMixingCoalesceAndIsNotNull() {
-        requireInSubqueryInCaseCoalesceIsNull();
         LogicalPlan plan = resolve(
             "FROM main | WHERE CASE(COALESCE(x IN (FROM sub1), false) AND (y IN (FROM sub2)) IS NOT NULL, true, false)"
         );
@@ -1286,7 +1256,6 @@ public class InSubqueryResolverTests extends ESTestCase {
      * </pre>
      */
     public void testDisjunctiveIsNotNullAndCoalesceCase() {
-        requireInSubqueryInCaseCoalesceIsNull();
         LogicalPlan plan = resolve(
             "FROM main | WHERE (x IN (FROM sub1) AND y IN (FROM sub2)) IS NOT NULL"
                 + " OR COALESCE(CASE(z IN (FROM sub3), true, false), false)"
@@ -1317,50 +1286,6 @@ public class InSubqueryResolverTests extends ESTestCase {
         filter.forEachExpression(InSubquery.class, inSub -> fail("InSubquery survived: " + inSub));
     }
 
-    // ---- positive: eligible wrappers nested inside ordinary expressions ----
-
-    public void testCaseInSubqueryNestedInEquals() {
-        requireInSubqueryInCaseCoalesceIsNull();
-        Filter filter = as(resolve("FROM main | WHERE CASE(x IN (FROM sub), true, false) == true"), Filter.class);
-        Equals equals = as(filter.condition(), Equals.class);
-        UnresolvedFunction caseExpr = as(equals.left(), UnresolvedFunction.class);
-        assertEquals("CASE", caseExpr.name());
-        assertMarkJoinReplacedInSubquery(filter, caseExpr.children().get(0), "x", "sub");
-    }
-
-    public void testCoalesceInSubqueryNestedInNotEquals() {
-        requireInSubqueryInCaseCoalesceIsNull();
-        Filter filter = as(resolve("FROM main | WHERE COALESCE(x IN (FROM sub), false) != false"), Filter.class);
-        MarkJoin markJoin = assertSingleMarkJoin(filter, "x", "sub");
-        assertTrue(filter.condition().anyMatch(e -> e instanceof UnresolvedFunction uf && uf.name().equals("COALESCE")));
-        assertTrue(filter.condition().anyMatch(e -> e instanceof Attribute a && a.id().equals(markJoin.markAttribute().id())));
-    }
-
-    public void testIsNullInSubqueryNestedInEquals() {
-        requireInSubqueryInCaseCoalesceIsNull();
-        Filter filter = as(resolve("FROM main | WHERE ((x IN (FROM sub)) IS NULL) == true"), Filter.class);
-        Equals equals = as(filter.condition(), Equals.class);
-        IsNull isNull = as(equals.left(), IsNull.class);
-        assertMarkJoinReplacedInSubquery(filter, isNull.field(), "x", "sub");
-    }
-
-    public void testIsNotNullInSubqueryNestedInNotEquals() {
-        requireInSubqueryInCaseCoalesceIsNull();
-        Filter filter = as(resolve("FROM main | WHERE ((x IN (FROM sub)) IS NOT NULL) != false"), Filter.class);
-        MarkJoin markJoin = assertSingleMarkJoin(filter, "x", "sub");
-        assertTrue(filter.condition().anyMatch(e -> e instanceof IsNotNull));
-        assertTrue(filter.condition().anyMatch(e -> e instanceof Attribute a && a.id().equals(markJoin.markAttribute().id())));
-    }
-
-    public void testCaseInSubqueryNestedInsideFunctionAndEquals() {
-        requireInSubqueryInCaseCoalesceIsNull();
-        Filter filter = as(resolve("FROM main | WHERE TO_STRING(CASE(x IN (FROM sub), true, false)) == \"true\""), Filter.class);
-        MarkJoin markJoin = assertSingleMarkJoin(filter, "x", "sub");
-        assertTrue(filter.condition().anyMatch(e -> e instanceof UnresolvedFunction uf && uf.name().equals("TO_STRING")));
-        assertTrue(filter.condition().anyMatch(e -> e instanceof UnresolvedFunction uf && uf.name().equals("CASE")));
-        assertTrue(filter.condition().anyMatch(e -> e instanceof Attribute a && a.id().equals(markJoin.markAttribute().id())));
-    }
-
     /**
      * {@code WHERE salary > 50000 AND COALESCE(x IN (FROM sub1) OR y IN (FROM sub2), false) AND (z IN (FROM sub3)) IS NULL}:
      * top-level AND chain mixing a plain predicate, a COALESCE wrapping a disjunction of two IN
@@ -1375,7 +1300,6 @@ public class InSubqueryResolverTests extends ESTestCase {
      * </pre>
      */
     public void testConjunctiveWithCoalesceDisjunctionAndIsNull() {
-        requireInSubqueryInCaseCoalesceIsNull();
         LogicalPlan plan = resolve(
             "FROM main | WHERE salary > 50000"
                 + " AND COALESCE(x IN (FROM sub1) OR y IN (FROM sub2), false)"
@@ -1424,7 +1348,6 @@ public class InSubqueryResolverTests extends ESTestCase {
      * </pre>
      */
     public void testCaseInSubqueryAndBareInSubqueryWithAndPredicate() {
-        requireInSubqueryInCaseCoalesceIsNull();
         LogicalPlan plan = resolve("FROM main | WHERE CASE(x IN (FROM sub1), true, false) AND salary == 50000 AND y IN (FROM sub2)");
         // Bare IN conjunct → SemiJoin at the top
         SemiJoin sj = as(plan, SemiJoin.class);
@@ -1458,7 +1381,6 @@ public class InSubqueryResolverTests extends ESTestCase {
      * </pre>
      */
     public void testCaseInSubqueryAndBareInSubqueryWithOrPredicate() {
-        requireInSubqueryInCaseCoalesceIsNull();
         LogicalPlan plan = resolve("FROM main | WHERE CASE(x IN (FROM sub1), true, false) OR salary == 50000 OR y IN (FROM sub2)");
         Filter filter = as(plan, Filter.class);
         // Outer MarkJoin for y/sub2 (bare IN subquery, processed last)
@@ -1498,7 +1420,6 @@ public class InSubqueryResolverTests extends ESTestCase {
      * </pre>
      */
     public void testCaseInSubqueryAndOrWithBareInSubqueryAndPredicate() {
-        requireInSubqueryInCaseCoalesceIsNull();
         LogicalPlan plan = resolve("FROM main | WHERE CASE(x IN (FROM sub1), true, false) AND (salary == 50000 OR y IN (FROM sub2))");
         Filter filter = as(plan, Filter.class);
         // Outer MarkJoin for y/sub2 (inside the OR, processed after x/sub1)
@@ -1521,6 +1442,45 @@ public class InSubqueryResolverTests extends ESTestCase {
         filter.forEachExpression(InSubquery.class, inSub -> fail("InSubquery survived: " + inSub));
     }
 
+    // ---- positive: eligible wrappers nested inside ordinary expressions ----
+
+    public void testInSubqueryNestedInCaseAndEquals() {
+        Filter filter = as(resolve("FROM main | WHERE CASE(x IN (FROM sub), true, false) == true"), Filter.class);
+        Equals equals = as(filter.condition(), Equals.class);
+        UnresolvedFunction caseExpr = as(equals.left(), UnresolvedFunction.class);
+        assertEquals("CASE", caseExpr.name());
+        assertMarkJoinReplacedInSubquery(filter, caseExpr.children().get(0), "x", "sub");
+    }
+
+    public void testInSubqueryNestedInCoalesceAndNotEquals() {
+        Filter filter = as(resolve("FROM main | WHERE COALESCE(x IN (FROM sub), false) != false"), Filter.class);
+        MarkJoin markJoin = assertSingleMarkJoin(filter, "x", "sub");
+        assertTrue(filter.condition().anyMatch(e -> e instanceof UnresolvedFunction uf && uf.name().equals("COALESCE")));
+        assertTrue(filter.condition().anyMatch(e -> e instanceof Attribute a && a.id().equals(markJoin.markAttribute().id())));
+    }
+
+    public void testInSubqueryNestedInIsNullAndEquals() {
+        Filter filter = as(resolve("FROM main | WHERE ((x IN (FROM sub)) IS NULL) == true"), Filter.class);
+        Equals equals = as(filter.condition(), Equals.class);
+        IsNull isNull = as(equals.left(), IsNull.class);
+        assertMarkJoinReplacedInSubquery(filter, isNull.field(), "x", "sub");
+    }
+
+    public void testInSubqueryNestedInIsNotNullAndNotEquals() {
+        Filter filter = as(resolve("FROM main | WHERE ((x IN (FROM sub)) IS NOT NULL) != false"), Filter.class);
+        MarkJoin markJoin = assertSingleMarkJoin(filter, "x", "sub");
+        assertTrue(filter.condition().anyMatch(e -> e instanceof IsNotNull));
+        assertTrue(filter.condition().anyMatch(e -> e instanceof Attribute a && a.id().equals(markJoin.markAttribute().id())));
+    }
+
+    public void testInSubqueryNestedInsideToStringAndEquals() {
+        Filter filter = as(resolve("FROM main | WHERE TO_STRING(CASE(x IN (FROM sub), true, false)) == \"true\""), Filter.class);
+        MarkJoin markJoin = assertSingleMarkJoin(filter, "x", "sub");
+        assertTrue(filter.condition().anyMatch(e -> e instanceof UnresolvedFunction uf && uf.name().equals("TO_STRING")));
+        assertTrue(filter.condition().anyMatch(e -> e instanceof UnresolvedFunction uf && uf.name().equals("CASE")));
+        assertTrue(filter.condition().anyMatch(e -> e instanceof Attribute a && a.id().equals(markJoin.markAttribute().id())));
+    }
+
     // ---- negative: complex LHS inside transparent wrappers ----
 
     /**
@@ -1529,7 +1489,6 @@ public class InSubqueryResolverTests extends ESTestCase {
      * and reports the "Complicated IN subquery" error pointing at the whole WHERE clause.
      */
     public void testRejectsComplexLHSInCase() {
-        requireInSubqueryInCaseCoalesceIsNull();
         var e = expectThrows(VerificationException.class, () -> resolve("FROM main | WHERE CASE(abs(x) IN (FROM sub), true, false)"));
         assertThat(e.getMessage(), containsString("Complicated IN subquery is not yet supported in the WHERE command"));
     }
@@ -1538,19 +1497,16 @@ public class InSubqueryResolverTests extends ESTestCase {
      * {@code WHERE (abs(x) IN (FROM sub)) IS NULL}: complex LHS inside IS NULL.
      */
     public void testRejectsComplexLHSInIsNull() {
-        requireInSubqueryInCaseCoalesceIsNull();
         var e = expectThrows(VerificationException.class, () -> resolve("FROM main | WHERE (abs(x) IN (FROM sub)) IS NULL"));
         assertThat(e.getMessage(), containsString("Complicated IN subquery is not yet supported in the WHERE command"));
     }
 
     public void testRejectsInSubqueryDirectlyNestedInEquals() {
-        requireInSubqueryInCaseCoalesceIsNull();
         var e = expectThrows(VerificationException.class, () -> resolve("FROM main | WHERE (x IN (FROM sub)) == true"));
         assertThat(e.getMessage(), containsString("IN subquery is not supported within other expressions"));
     }
 
     public void testRejectsComplexLHSInCaseNestedInEquals() {
-        requireInSubqueryInCaseCoalesceIsNull();
         var e = expectThrows(
             VerificationException.class,
             () -> resolve("FROM main | WHERE CASE(abs(x) IN (FROM sub), true, false) == true")
@@ -1567,6 +1523,22 @@ public class InSubqueryResolverTests extends ESTestCase {
         assertResolveError(
             "FROM main | WHERE abs(a) IN (FROM sub)",
             "line 1:19: Complicated IN subquery is not yet supported in the WHERE command [WHERE abs(a) IN (FROM sub)]"
+        );
+    }
+
+    public void testRejectsInSubqueryNestedInsideLambda() {
+        requireLambda();
+        assertResolveError(
+            "FROM main | WHERE filter(a, x -> x IN (FROM sub))",
+            "line 1:34: IN subquery is not supported within other expressions [filter(a, x -> x IN (FROM sub))]"
+        );
+    }
+
+    public void testRejectsInSubqueryNestedInsideCoalesceAndLambda() {
+        requireLambda();
+        assertResolveError(
+            "FROM main | WHERE filter(a, x -> COALESCE(x IN (FROM sub), false))",
+            "line 1:43: IN subquery is not supported within other expressions [filter(a, x -> COALESCE(x IN (FROM sub), false))]"
         );
     }
 

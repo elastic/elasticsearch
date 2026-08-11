@@ -26,12 +26,13 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.highlight.DefaultEncoder;
 import org.apache.lucene.search.highlight.Encoder;
 import org.apache.lucene.search.highlight.SimpleHTMLEncoder;
+import org.apache.lucene.search.uhighlight.CharArrayMatcher;
 import org.apache.lucene.search.uhighlight.CustomSeparatorBreakIterator;
+import org.apache.lucene.search.uhighlight.LabelledCharArrayMatcher;
 import org.apache.lucene.search.uhighlight.PassageFormatter;
 import org.apache.lucene.search.uhighlight.SplittingBreakIterator;
 import org.apache.lucene.search.uhighlight.UnifiedHighlighter;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.UnicodeUtil;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.Block;
@@ -165,15 +166,15 @@ public class HighlightOperator extends AbstractPageMappingOperator {
     private static TokenKeepSet buildKeepSet(Query query) {
         TermCollector collector = new TermCollector();
         query.visit(collector);
-        if (collector.unfilterable || (collector.terms.isEmpty() && collector.automata.isEmpty())) {
+        if (collector.unfilterable || (collector.terms.isEmpty() && collector.matchers.isEmpty())) {
             return null;
         }
-        return new TokenKeepSet(collector.terms, collector.automata.toArray(ByteRunAutomaton[]::new));
+        return new TokenKeepSet(collector.terms, collector.matchers.toArray(CharArrayMatcher[]::new));
     }
 
     private static final class TermCollector extends QueryVisitor {
         private final CharArraySet terms = new CharArraySet(8, false);
-        private final List<ByteRunAutomaton> automata = new ArrayList<>();
+        private final List<CharArrayMatcher> matchers = new ArrayList<>();
         private boolean unfilterable;
 
         @Override
@@ -185,7 +186,8 @@ public class HighlightOperator extends AbstractPageMappingOperator {
 
         @Override
         public void consumeTermsMatching(Query query, String field, Supplier<ByteRunAutomaton> automaton) {
-            automata.add(automaton.get());
+            // The labelled wrapper is Lucene's only public UTF-16 view of a ByteRunAutomaton; the label goes unread here.
+            matchers.add(LabelledCharArrayMatcher.wrap("", automaton.get()));
         }
 
         @Override
@@ -200,51 +202,18 @@ public class HighlightOperator extends AbstractPageMappingOperator {
         }
     }
 
-    /** Terms and multi-term automata that a query can match. */
-    private record TokenKeepSet(CharArraySet terms, ByteRunAutomaton[] automata) {
+    /** Terms and multi-term matchers that a query can match. */
+    private record TokenKeepSet(CharArraySet terms, CharArrayMatcher[] matchers) {
         boolean accept(char[] buffer, int length) {
             if (terms.contains(buffer, 0, length)) {
                 return true;
             }
-            for (ByteRunAutomaton automaton : automata) {
-                if (matches(automaton, buffer, length)) {
+            for (CharArrayMatcher matcher : matchers) {
+                if (matcher.match(buffer, 0, length)) {
                     return true;
                 }
             }
             return false;
-        }
-
-        private static boolean matches(ByteRunAutomaton automaton, char[] chars, int length) {
-            int state = 0;
-            for (int i = 0; i < length; i++) {
-                final int code = chars[i];
-                if (code < 0x80) {
-                    state = automaton.step(state, code);
-                    if (state == -1) {
-                        return false;
-                    }
-                } else if (code < 0x800) {
-                    state = automaton.step(state, 0xC0 | (code >> 6));
-                    if (state == -1) {
-                        return false;
-                    }
-                    state = automaton.step(state, 0x80 | (code & 0x3F));
-                    if (state == -1) {
-                        return false;
-                    }
-                } else {
-                    byte[] utf8 = new byte[4 * (length - i)];
-                    int utf8Len = UnicodeUtil.UTF16toUTF8(chars, i, length - i, utf8);
-                    for (int b = 0; b < utf8Len; b++) {
-                        state = automaton.step(state, utf8[b] & 0xFF);
-                        if (state == -1) {
-                            return false;
-                        }
-                    }
-                    break;
-                }
-            }
-            return automaton.isAccept(state);
         }
     }
 

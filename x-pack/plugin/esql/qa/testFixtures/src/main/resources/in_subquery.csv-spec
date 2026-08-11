@@ -3740,6 +3740,24 @@ c:long
 3
 ;
 
+eligibleInSubqueryWrappersNestedInComparisons
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_case_coalesce_is_null
+
+// The CASE and COALESCE comparisons narrow the result to the first 8 employees.
+// Both IS [NOT] NULL comparisons are true for every non-null emp_no because their RHS keys contain no nulls.
+FROM employees
+| WHERE CASE(emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 10 | KEEP emp_no), true, false) == true
+    AND COALESCE(emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 8 | KEEP emp_no), false) != false
+    AND ((emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 6 | KEEP emp_no)) IS NULL) == false
+    AND ((emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 4 | KEEP emp_no)) IS NOT NULL) != false
+| STATS c = COUNT(*)
+;
+
+c:long
+8
+;
+
 // ===================================================================
 // Null-semantics tests for CASE/COALESCE/IS NULL with IN subquery
 // ===================================================================

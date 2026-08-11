@@ -173,8 +173,7 @@ public abstract class BlockTestCase<B extends Block, BB extends Block.Builder, V
 
     /**
      * Smoke-test {@code toString} for a tiny block. When the block exposes a {@link Vector},
-     * also checks filter/slice shapes that collapse to constants — coverage formerly in
-     * {@link BasicBlockTests#testToStringSmall}.
+     * also checks filter/slice shapes that collapse to constants.
      */
     public final void testToStringSmall() {
         V first = randomValue();

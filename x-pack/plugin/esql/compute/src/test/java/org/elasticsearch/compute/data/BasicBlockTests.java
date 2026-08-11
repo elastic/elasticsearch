@@ -34,7 +34,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.BitSet;
 import java.util.List;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.IntStream;
 
@@ -62,22 +61,7 @@ public class BasicBlockTests extends ESTestCase {
     }
 
     public void testEmpty() {
-        assertZeroPositionsAndRelease(blockFactory.newFloatArrayBlock(new float[] {}, 0, new int[] { 0 }, new BitSet(), randomOrdering()));
-        assertZeroPositionsAndRelease(blockFactory.newFloatBlockBuilder(0).build());
-        assertZeroPositionsAndRelease(blockFactory.newFloatArrayVector(new float[] {}, 0));
-        assertZeroPositionsAndRelease(blockFactory.newFloatVectorBuilder(0).build());
         assertZeroPositionsAndRelease(blockFactory.newAggregateMetricDoubleBlockBuilder(0).build());
-    }
-
-    public void testSmallSingleValueDenseGrowthFloat() {
-        for (int initialSize : List.of(0, 1, 2, 3, 4, 5)) {
-            try (var blockBuilder = blockFactory.newFloatBlockBuilder(initialSize)) {
-                IntStream.range(0, 10).forEach(blockBuilder::appendFloat);
-                FloatBlock block = blockBuilder.build();
-                assertSingleValueDenseBlock(block);
-                block.close();
-            }
-        }
     }
 
     public void testSmallSingleValueDenseGrowthAggregateMetricDouble() {
@@ -159,109 +143,6 @@ public class BasicBlockTests extends ESTestCase {
         assertDeepCopy(initialBlock);
     }
 
-    public void testFloatBlock() {
-        for (int i = 0; i < 1000; i++) {
-            assertThat(breaker.getUsed(), is(0L));
-            int positionCount = randomIntBetween(1, 16 * 1024);
-            FloatBlock block;
-            if (randomBoolean()) {
-                final int builderEstimateSize = randomBoolean() ? randomIntBetween(1, positionCount) : positionCount;
-                var blockBuilder = blockFactory.newFloatBlockBuilder(builderEstimateSize);
-                IntStream.range(0, positionCount).forEach(blockBuilder::appendFloat);
-                block = blockBuilder.build();
-            } else {
-                float[] fa = new float[positionCount];
-                IntStream.range(0, positionCount).forEach(v -> fa[v] = (float) v);
-                block = blockFactory.newFloatArrayVector(fa, positionCount).asBlock();
-            }
-
-            assertThat(positionCount, is(block.getPositionCount()));
-            assertThat(0f, is(block.getFloat(0)));
-            assertThat((float) positionCount - 1, is(block.getFloat(positionCount - 1)));
-            int pos = (int) block.getFloat(randomPosition(positionCount));
-            assertThat((float) pos, is(block.getFloat(pos)));
-            assertSingleValueDenseBlock(block);
-            if (positionCount > 2) {
-                assertLookup(block, positions(blockFactory, 1, 2, new int[] { 1, 2 }), List.of(List.of(1f), List.of(2f), List.of(1f, 2f)));
-            }
-            assertLookup(block, positions(blockFactory, positionCount + 1000), singletonList(null));
-            assertEmptyLookup(blockFactory, block);
-            assertThat(block.valueMaxByteSize(), equalTo(Float.BYTES));
-
-            try (FloatBlock.Builder blockBuilder = blockFactory.newFloatBlockBuilder(1)) {
-                FloatBlock copy = blockBuilder.copyFrom(block, 0, block.getPositionCount()).build();
-                assertThat(copy, equalTo(block));
-                assertInsertNulls(block);
-                assertDeepCopy(block);
-                releaseAndAssertBreaker(block, copy);
-            }
-
-            if (positionCount > 1) {
-                assertNullValues(
-                    positionCount,
-                    blockFactory::newFloatBlockBuilder,
-                    FloatBlock.Builder::appendFloat,
-                    position -> (float) position,
-                    FloatBlock.Builder::build,
-                    (randomNonNullPosition, b) -> {
-                        assertThat((float) randomNonNullPosition, is(b.getFloat(randomNonNullPosition.intValue())));
-                    }
-                );
-            }
-
-            try (
-                DoubleVector.Builder vectorBuilder = blockFactory.newDoubleVectorBuilder(
-                    randomBoolean() ? randomIntBetween(1, positionCount) : positionCount
-                )
-            ) {
-                IntStream.range(0, positionCount).mapToDouble(ii -> 1.0 / ii).forEach(vectorBuilder::appendDouble);
-                DoubleVector vector = vectorBuilder.build();
-                assertSingleValueDenseBlock(vector.asBlock());
-                assertThat(vector.valueMaxByteSize(), equalTo(Double.BYTES));
-                assertInsertNulls(vector.asBlock());
-                assertDeepCopy(vector.asBlock());
-                releaseAndAssertBreaker(vector.asBlock());
-            }
-        }
-    }
-
-    public void testConstantFloatBlock() {
-        for (int i = 0; i < 1000; i++) {
-            int positionCount = randomIntBetween(1, 16 * 1024);
-            float value = randomFloat();
-            FloatBlock block = blockFactory.newConstantFloatBlockWith(value, positionCount);
-            assertThat(positionCount, is(block.getPositionCount()));
-            assertThat(value, is(block.getFloat(0)));
-            assertThat(value, is(block.getFloat(positionCount - 1)));
-            assertThat(value, is(block.getFloat(randomPosition(positionCount))));
-            assertSingleValueDenseBlock(block);
-            if (positionCount > 2) {
-                assertLookup(
-                    block,
-                    positions(blockFactory, 1, 2, new int[] { 1, 2 }),
-                    List.of(List.of(value), List.of(value), List.of(value, value))
-                );
-                assertLookup(
-                    block,
-                    positions(blockFactory, 1, 2),
-                    List.of(List.of(value), List.of(value)),
-                    b -> assertThat(b.asVector(), instanceOf(ConstantFloatVector.class))
-                );
-            }
-            assertLookup(
-                block,
-                positions(blockFactory, positionCount + 1000),
-                singletonList(null),
-                b -> assertThat(b, instanceOf(ConstantNullBlock.class))
-            );
-            assertEmptyLookup(blockFactory, block);
-            assertThat(block.valueMaxByteSize(), equalTo(Float.BYTES));
-            assertInsertNulls(block);
-            assertDeepCopy(block);
-            releaseAndAssertBreaker(block);
-        }
-    }
-
     public void testConstantNullBlock() {
         for (int i = 0; i < 100; i++) {
             assertThat(breaker.getUsed(), is(0L));
@@ -304,80 +185,6 @@ public class BasicBlockTests extends ESTestCase {
             assertInsertNulls(block);
             assertDeepCopy(block);
             releaseAndAssertBreaker(block);
-        }
-    }
-
-    public void testToStringSmall() {
-        // Types on BlockTestCase cover toString via BlockTestCase#testToStringSmall.
-        // Keep Float here until it is migrated.
-        final int estimatedSize = randomIntBetween(1024, 4096);
-        try (
-            var floatBlock = blockFactory.newFloatBlockBuilder(estimatedSize).appendFloat(1.1f).appendFloat(2.2f).build();
-            var floatVector = blockFactory.newFloatVectorBuilder(estimatedSize).appendFloat(1.1f).appendFloat(2.2f).build()
-        ) {
-            for (Object obj : List.of(floatVector, floatBlock, floatBlock.asVector())) {
-                String s = obj.toString();
-                assertThat(s, containsString("[1.1, 2.2]"));
-                assertThat(s, containsString("positions=2"));
-            }
-        }
-    }
-
-    interface BlockBuilderFactory<B extends Block.Builder> {
-        B create(int estimatedSize);
-    }
-
-    interface BlockProducer<B extends Block, BB extends Block.Builder> {
-        B build(BB blockBuilder);
-    }
-
-    interface ValueAppender<BB extends Block.Builder, T> {
-        void appendValue(BB blockBuilder, T value);
-    }
-
-    interface ValueSupplier<T> {
-        T getValue(int position);
-    }
-
-    <B extends Block, BB extends Block.Builder, T> void assertNullValues(
-        int positionCount,
-        BlockBuilderFactory<BB> blockBuilderFactory,
-        ValueAppender<BB, T> valueAppender,
-        ValueSupplier<T> valueSupplier,
-        BlockProducer<B, BB> blockProducer,
-        BiConsumer<Integer, B> asserter
-    ) {
-        assertThat("test needs at least two positions", positionCount, greaterThan(1));
-        int randomNullPosition = randomIntBetween(0, positionCount - 1);
-        int randomNonNullPosition = randomValueOtherThan(randomNullPosition, () -> randomIntBetween(0, positionCount - 1));
-        BitSet nullsMask = new BitSet(positionCount);
-        nullsMask.set(randomNullPosition);
-
-        var blockBuilder = blockBuilderFactory.create(positionCount);
-        IntStream.range(0, positionCount).forEach(position -> {
-            if (nullsMask.get(position)) {
-                blockBuilder.appendNull();
-            } else {
-                valueAppender.appendValue(blockBuilder, valueSupplier.getValue(position));
-            }
-        });
-        var block = blockProducer.build(blockBuilder);
-
-        assertThat(block.getPositionCount(), equalTo(positionCount));
-        assertValueCounts(block);
-        assertThat(block.getTotalValueCount(), equalTo(positionCount - 1));
-        asserter.accept(randomNonNullPosition, block);
-        assertTrue(block.isNull(randomNullPosition));
-        assertFalse(block.isNull(randomNonNullPosition));
-        assertInsertNulls(block);
-        releaseAndAssertBreaker(block);
-        if (block instanceof BooleanBlock bb) {
-            try (ToMask mask = bb.toMask()) {
-                assertThat(mask.hadMultivaluedFields(), equalTo(false));
-                for (int p = 0; p < positionCount; p++) {
-                    assertThat(mask.mask().getBoolean(p), equalTo(nullsMask.get(p) == false && p % 10 == 0));
-                }
-            }
         }
     }
 
@@ -1212,33 +1019,6 @@ public class BasicBlockTests extends ESTestCase {
     private static void assertSliceFullRange(Vector vector) {
         try (var sliced = vector.slice(0, vector.getPositionCount())) {
             assertThat(sliced, sameInstance(vector));
-        }
-    }
-
-    public void testCopyToFloat() {
-        int positionCount = randomIntBetween(1, 1000);
-        try (FloatVector.Builder builder = blockFactory.newFloatVectorBuilder(positionCount)) {
-            for (int i = 0; i < positionCount; i++) {
-                builder.appendFloat(randomFloat());
-            }
-            try (FloatVector vector = builder.build()) {
-                int srcPosition = randomIntBetween(0, positionCount - 1);
-                int length = randomIntBetween(0, positionCount - srcPosition);
-                int dstPosition = randomIntBetween(0, 10);
-                float sentinel = randomFloat();
-                float[] dst = new float[dstPosition + length + randomIntBetween(0, 10)];
-                Arrays.fill(dst, sentinel);
-                vector.copyTo(srcPosition, dst, dstPosition, length);
-                for (int i = 0; i < length; i++) {
-                    assertThat(dst[dstPosition + i], equalTo(vector.getFloat(srcPosition + i)));
-                }
-                for (int i = 0; i < dstPosition; i++) {
-                    assertThat(dst[i], equalTo(sentinel));
-                }
-                for (int i = dstPosition + length; i < dst.length; i++) {
-                    assertThat(dst[i], equalTo(sentinel));
-                }
-            }
         }
     }
 

@@ -11,6 +11,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MemorySegmentAccessInput;
+import org.elasticsearch.blobcache.common.BlobCacheBufferedIndexInput;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -42,6 +43,7 @@ import static org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils
 import static org.elasticsearch.xpack.stateless.commits.BlobLocationTestUtils.createBlobFileRanges;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 
 /**
@@ -60,7 +62,10 @@ public class ReopeningIndexInputDirectAccessTests extends ESTestCase {
     private static final String PLAIN_FILE = "file.fdt";
 
     private static final int FILE_LENGTH = 16 * 1024;
-    private static final int RANGE_LENGTH = 512;
+    /** Big enough that {@link IndexDirectory.ReopeningIndexInput#withMemorySegmentSlice} serves it directly rather than leaving it to the
+     * buffer, so that the tests below exercise the zero-copy path. {@link #testSmallReadIsLeftToTheBuffer} covers the other side. */
+    private static final int RANGE_LENGTH = BlobCacheBufferedIndexInput.BUFFER_SIZE;
+    private static final int SMALL_RANGE_LENGTH = 64;
 
     public void testZeroCopyFromLocalMmapFile() throws Exception {
         try (var node = newNode()) {
@@ -113,6 +118,48 @@ public class ReopeningIndexInputDirectAccessTests extends ESTestCase {
                 assertThat(input.getDelegate().isCached(), equalTo(true));
                 assertSegmentSlice(input, bytes, 0, FILE_LENGTH);
                 assertSliceAddresses(input, bytes, rangeOffsets());
+            }
+        }
+    }
+
+    /**
+     * A single read smaller than the buffer is declined, so that {@link IndexInputUtils#withSlice} leaves it on the buffered path.
+     */
+    public void testSmallReadIsLeftToTheBuffer() throws Exception {
+        try (var node = newNode()) {
+            var bytes = writeFile(node, MMAP_FILE);
+            try (var input = openReopeningInput(node, MMAP_FILE)) {
+                assertThat(
+                    "the read has to be smaller than the buffer for this test to cover the branch it is about",
+                    SMALL_RANGE_LENGTH,
+                    lessThan(input.getBufferSize())
+                );
+                assertThat(input.getDelegate().getDelegate(), instanceOf(MemorySegmentAccessInput.class));
+
+                // declined despite the delegate being able to serve it
+                assertNoSegmentSlice(input, 0, SMALL_RANGE_LENGTH);
+
+                // ... and the caller still gets the right bytes, via the heap-copy fallback
+                var scratch = new RecordingScratch();
+                input.seek(0L);
+                assertArrayEquals(
+                    Arrays.copyOfRange(bytes, 0, SMALL_RANGE_LENGTH),
+                    IndexInputUtils.withSlice(input, SMALL_RANGE_LENGTH, scratch, ReopeningIndexInputDirectAccessTests::toByteArray)
+                );
+                assertThat("the buffered fallback should have been used", scratch.used.get(), equalTo(true));
+
+                // the bulk gather is unaffected by the size of the ranges
+                var offsets = new long[] { 0, SMALL_RANGE_LENGTH, 2L * SMALL_RANGE_LENGTH };
+                var invoked = new AtomicBoolean();
+                var available = input.withSliceAddresses(
+                    offsets,
+                    SMALL_RANGE_LENGTH,
+                    offsets.length,
+                    addressesScratch(offsets.length),
+                    addresses -> invoked.set(true)
+                );
+                assertThat("withSliceAddresses must not be gated on the buffer size", available, equalTo(true));
+                assertThat(invoked.get(), equalTo(true));
             }
         }
     }

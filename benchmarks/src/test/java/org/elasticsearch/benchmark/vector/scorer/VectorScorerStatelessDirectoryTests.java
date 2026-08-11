@@ -16,6 +16,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.benchmark.store.DirectoryType;
 import org.elasticsearch.benchmark.vector.VectorImplementation;
+import org.elasticsearch.blobcache.common.BlobCacheBufferedIndexInput;
 import org.elasticsearch.core.DirectAccessInput;
 import org.elasticsearch.index.store.StoreMetricsIndexInput;
 import org.elasticsearch.simdvec.VectorSimilarityType;
@@ -44,6 +45,7 @@ public class VectorScorerStatelessDirectoryTests extends BenchmarkTest {
     private static final int NUM_VECTORS = 1000;
     private static final int NUM_VECTORS_TO_SCORE = 200;
     private static final float DELTA = 1e-3f;
+    private static final int SINGLE_READ_LENGTH = BlobCacheBufferedIndexInput.BUFFER_SIZE;
 
     @BeforeClass
     public static void skipUnsupported() {
@@ -58,7 +60,7 @@ public class VectorScorerStatelessDirectoryTests extends BenchmarkTest {
     public void testLocalFileIsReadWithDirectAccess() throws IOException {
         try (Directory dir = DirectoryType.STATELESS_INDEX_LOCAL.newDirectory(createTempDir())) {
             try (IndexOutput out = dir.createOutput("vector.data", IOContext.DEFAULT)) {
-                out.writeBytes(new byte[64], 64);
+                out.writeBytes(new byte[2 * SINGLE_READ_LENGTH], 2 * SINGLE_READ_LENGTH);
             }
             try (IndexInput in = dir.openInput("vector.data", IOContext.DEFAULT)) {
                 assertThat(in, instanceOf(StoreMetricsIndexInput.class));
@@ -66,7 +68,7 @@ public class VectorScorerStatelessDirectoryTests extends BenchmarkTest {
 
                 var directAccess = asInstanceOf(DirectAccessInput.class, in);
                 var invoked = new AtomicBoolean();
-                assertTrue(directAccess.withMemorySegmentSlice(0, 64, segment -> invoked.set(true)));
+                assertTrue(directAccess.withMemorySegmentSlice(0, SINGLE_READ_LENGTH, segment -> invoked.set(true)));
                 assertTrue("the zero-copy path was not taken", invoked.get());
 
                 try (Arena arena = Arena.ofConfined()) {

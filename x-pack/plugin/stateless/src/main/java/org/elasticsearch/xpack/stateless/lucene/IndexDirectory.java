@@ -1097,6 +1097,12 @@ public class IndexDirectory extends ByteSizeDirectory {
         @Override
         public boolean withMemorySegmentSlice(long offset, long length, CheckedConsumer<MemorySegment, IOException> action)
             throws IOException {
+            if (length < getBufferSize()) {
+                // A read this small is cheaper through the buffer: one refill serves several consecutive reads, whereas every
+                // direct access pays for an executeLocallyOrReopen. This is the same trade-off readBytes makes with its own
+                // `len < bufferSize` check. Only single reads are affected.
+                return false;
+            }
             return executeLocallyOrReopen(current -> {
                 IndexInput inner = current.getDelegate();
                 if (inner instanceof MemorySegmentAccessInput msai) {

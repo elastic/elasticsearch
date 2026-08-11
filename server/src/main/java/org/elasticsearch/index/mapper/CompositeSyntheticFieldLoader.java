@@ -223,8 +223,7 @@ public class CompositeSyntheticFieldLoader implements SourceLoader.SyntheticFiel
 
     /**
      * Returns the layer that reconstructs values from the {@code ._on_failure} sidecar column for synthetic source.
-     * When a {@code multi_value=false, on_failure=ignore} field receives multiple values, the first goes to the primary column and
-     * values 2..N are stored here in encounter order; appending this layer <em>last</em> in the composite reproduces the original order.
+     * Append it <em>last</em> in the composite so values 2..N trail the primary column and encounter order is preserved.
      */
     public static Layer onFailureValuesLayer(String fieldName, IndexVersion indexVersion) {
         return new OnFailureValuesBinaryDocValuesLayer(fieldName, indexVersion);

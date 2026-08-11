@@ -1098,9 +1098,8 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
     }
 
     /**
-     * Tests that {@code ._on_failure} sidecars and their {@code .counts} companions are correctly attributed to their parent field by
-     * {@code FieldSubsetReader.sidecarParentName}: a user authorized to read {@code foo} may also read {@code foo._on_failure} and
-     * {@code foo._on_failure.counts}. Also covers {@code ._ignore_malformed.counts} to verify the strip-counts-first ordering.
+     * Tests that {@code ._on_failure} sidecars and their {@code .counts} companions are attributed to their parent for FLS.
+     * Also covers {@code ._ignore_malformed.counts} to verify the strip-{@code .counts}-first ordering in {@code sidecarParentName}.
      */
     public void testVisibilityOnFailureAndCountsFieldNames() throws Exception {
         try (Directory dir = newDirectory()) {
@@ -1118,7 +1117,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
                 // a is authorized, b is not — sidecar fields follow their parent's authorization
                 var filter = new CharacterRunAutomaton(Automatons.patterns(List.of("a", "c")));
 
-                // isMapped -> false: sidecar names are unmapped, so sidecarParentName strips the suffix and checks the parent
+                // isMapped -> false: strip sidecar suffix → check parent authorization
                 try (
                     DirectoryReader ir = FieldSubsetReader.wrap(
                         DirectoryReader.open(iw),
@@ -1136,7 +1135,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
                     assertEquals(new BytesRef("c"), fields.getBinaryValue("c"));
                 }
 
-                // isMapped -> true: every field name is treated as a mapped field name itself, so only exact-match names pass
+                // isMapped -> true: names are returned as-is; only exact-match names pass the filter
                 try (
                     DirectoryReader ir = FieldSubsetReader.wrap(
                         DirectoryReader.open(iw),

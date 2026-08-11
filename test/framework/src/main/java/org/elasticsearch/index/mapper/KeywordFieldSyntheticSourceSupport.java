@@ -90,15 +90,14 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
 
     @Override
     public boolean enforcesSingleValue() {
-        // multi_value=false with on_failure=FAIL throws on extra values → force single-valued examples only.
-        // multi_value=false with on_failure=IGNORE redirects extra values to ._on_failure → multi-valued examples are valid.
+        // on_failure=FAIL: extra values throw → single-valued examples only.
+        // on_failure=IGNORE: extra values redirect to ._on_failure → multi-valued examples are valid.
         return docValues.multiValue() == false && docValues.onFailure() == FieldMapper.DocValuesParameter.Values.OnFailure.FAIL;
     }
 
     /**
-     * {@code true} when extra values are silently redirected to the {@code ._on_failure} sidecar column rather than causing a parse error.
-     * The example generator uses this to produce multi-valued inputs whose expected reconstruction equals the original array (encounter
-     * order preserved; primary column carries the first value, sidecar carries the rest).
+     * {@code true} when {@code multi_value=false, on_failure=ignore}: extra values go to {@code ._on_failure} instead of failing.
+     * Used by the example generator to produce multi-valued inputs whose reconstruction preserves encounter order.
      */
     public boolean redirectsMultipleValues() {
         return docValues.multiValue() == false && docValues.onFailure() == FieldMapper.DocValuesParameter.Values.OnFailure.IGNORE;
@@ -127,9 +126,7 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
         boolean flipOrder,
         boolean ignoredValuesSorted
     ) {
-        // When multi_value is disabled and on_failure=FAIL a document may only have a single value.
-        // When multi_value=false and on_failure=IGNORE, extra values are redirected to ._on_failure and the full array is reconstructed.
-        // If maxValues < 2, callers request only a single-value example regardless of the redirect mode.
+        // Produce a single-value example when enforced (FAIL), maxValues < 2, or randomly when not in redirect mode.
         if (enforcesSingleValue() || maxValues < 2 || (redirectsMultipleValues() == false && ESTestCase.randomBoolean())) {
             Tuple<String, String> v = generateValue();
             Object sourceValue = preservesExactSource() ? v.v1() : v.v2();
@@ -137,8 +134,7 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
         }
 
         if (redirectsMultipleValues()) {
-            // 2+ values: position 0 goes to the primary column (parseCreateField runs, null_value substitution applies → use v2);
-            // positions 1+ go to ._on_failure via enforceSingleValue before parseCreateField, so null stays null → use v1 directly.
+            // Position 0 → primary column (null_value substitutes → v2); positions 1+ → ._on_failure (null stays null → v1).
             List<Tuple<String, String>> values = ESTestCase.randomList(2, maxValues, this::generateValue);
             List<String> expected = new ArrayList<>();
             for (int i = 0; i < values.size(); i++) {

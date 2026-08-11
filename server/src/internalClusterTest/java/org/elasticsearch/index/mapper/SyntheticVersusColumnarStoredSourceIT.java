@@ -162,10 +162,8 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
     }
 
     /**
-     * A {@code multi_value=false, on_failure=ignore} field that receives two values redirects the extra value to the
-     * {@code ._on_failure} column. Both source modes must reconstruct the same document: {@code synthetic} reads the first
-     * value from its doc-values column and the second from {@code ._on_failure}; {@code columnar_stored} reads it from the
-     * whole-document blob written before the column is pruned.
+     * A {@code multi_value=false, on_failure=ignore} field redirects extra values to {@code ._on_failure}.
+     * Both source modes must reconstruct the same document from their respective storage mechanisms.
      */
     public void testMultiValueViolationRestoredIdenticallyAcrossSourceModes() throws Exception {
         assumeTrue("doc_values on_failure feature flag must be enabled", FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled());
@@ -235,8 +233,7 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
             .endObject()
             .endObject()
             .endObject();
-        // The built-in "lowercase" normalizer sets normalizerSkipStoreOriginalValue=true, keeping the field in NATIVE synthetic-source
-        // mode. The primary column stores the normalized form ("hello"); ._on_failure stores the raw input ("WORLD").
+        // "lowercase" sets normalizerSkipStoreOriginalValue=true → NATIVE mode. Primary = normalized; ._on_failure = raw.
         var document = Map.of("kw", List.of("HELLO", "WORLD"));
         var expectedSource = Map.of("kw", List.of("hello", "WORLD"));
         assertEqualSource(mappingXContent, document, randomBoolean(), expectedSource);
@@ -292,9 +289,8 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
     }
 
     /**
-     * Like {@link #assertEqualSource(XContentBuilder, Map, boolean)} but additionally asserts that the reconstructed source
-     * matches {@code expectedSource}. Use this for tests where the exact reconstruction result must be verified (rather than
-     * just confirming that both modes agree with each other).
+     * Like {@link #assertEqualSource(XContentBuilder, Map, boolean)} but also asserts the reconstructed source equals
+     * {@code expectedSource}, not just that both modes agree with each other.
      */
     private void assertEqualSource(
         XContentBuilder mappingXContent,

@@ -201,9 +201,8 @@ public final class FallbackPostMapper {
         switch (result) {
             case FieldMapper.ParseResult.MultiValueViolation mvv -> {
                 if (fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK) {
-                    // FALLBACK fields have no ._on_failure composite layer, so commit the pre-capture to _ignored_source instead.
-                    // Not reachable today: strict-columnar rejects FALLBACK regular leaves, and multi-fields (which are exempt from that
-                    // check) are parsed by MultiFields#parse instead. Kept as a safety guard.
+                    // FALLBACK fields have no ._on_failure layer; commit to _ignored_source instead.
+                    // Not reachable today: strict-columnar rejects FALLBACK leaves; multi-fields use MultiFields#parse. Safety guard.
                     if (precaptured) context.commitPendingPreCapture(fieldPath);
                 } else {
                     if (precaptured) context.discardPendingPreCapture(fieldPath);

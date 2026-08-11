@@ -346,8 +346,8 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
             return ESTestCase.randomBoolean();
         }
 
-        // doc_values can't be disabled here; multi_value:false is exercised separately by SingleValueDocValuesDataSourceHandler.
-        // on_failure=ignore is rejected at parse time while the feature flag is off, so all on_failure=ignore entries are flag-gated.
+        // doc_values can't be disabled here; multi_value:false is in SingleValueDocValuesDataSourceHandler.
+        // on_failure=ignore is rejected when the flag is off, so all on_failure=ignore entries are flag-gated.
         var choices = new ArrayList<Object>(List.of(true, Map.of("multi_value", true)));
         if (FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled()) {
             choices.add(Map.of("on_failure", ESTestCase.randomFrom("fail", "ignore")));

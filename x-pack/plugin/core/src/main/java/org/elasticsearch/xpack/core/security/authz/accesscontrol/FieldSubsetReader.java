@@ -178,14 +178,9 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
     }
 
     /**
-     * Given a Lucene field name, returns the mapped field name to use for the field-level security filter check.
-     * <p>
-     * Sidecar columns ({@code ._original}, {@code ._ignore_malformed}, and {@code ._on_failure}) are associated with their parent field
-     * for permission checks: a user who can read {@code foo} may also read {@code foo._ignore_malformed}. The optional
-     * {@code .counts} companion suffix (added by {@link MultiValuedBinaryDocValuesField.SeparateCount}) is stripped first,
-     * before checking for any sidecar suffix, so that e.g. {@code foo._ignore_malformed.counts} is correctly attributed to {@code foo}.
-     * <p>
-     * Returns the parent field name for unmapped sidecar fields; returns the original name unchanged for all other fields.
+     * Returns the parent field name for FLS filter checks. Sidecar columns ({@code ._original}, {@code ._ignore_malformed},
+     * {@code ._on_failure}) are attributed to their parent: a reader of {@code foo} may also read {@code foo._on_failure}.
+     * The {@code .counts} companion suffix is stripped first, so {@code foo._ignore_malformed.counts} maps to {@code foo}.
      */
     private static String sidecarParentName(String fieldName, Function<String, Boolean> isMapped) {
         if (isMapped.apply(fieldName)) {

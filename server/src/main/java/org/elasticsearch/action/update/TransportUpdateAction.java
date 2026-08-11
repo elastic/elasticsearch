@@ -248,7 +248,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                     threadPool::absoluteTimeInMillis,
                     // Exclude inference fields to ensure embeddings are recomputed.
                     FetchSourceContext.FETCH_ALL_SOURCE_EXCLUDE_INFERENCE_FIELDS,
-                    SplitShardCountSummary.IRRELEVANT
+                    SplitShardCountSummary.UNSET
                 ),
                 indexService.getMetadata(),
                 mappingLookup

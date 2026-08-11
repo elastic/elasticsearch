@@ -100,7 +100,8 @@ public class UpdateHelper {
         FetchSourceContext fetchSourceContext,
         SplitShardCountSummary splitShardCountSummary
     ) {
-        final Engine.GetResult getResult = indexShard.getService().preResolveForUpdate(request.id(), request.routing());
+        final Engine.GetResult getResult = indexShard.getService()
+            .preResolveForUpdate(request.id(), request.routing(), splitShardCountSummary);
         // a missing document has nothing to prefetch (the upsert path keeps today's semantics), and holding a
         // translog-served get result would pin an in-memory copy of the document for the whole bulk while its reads
         // never touch stored fields

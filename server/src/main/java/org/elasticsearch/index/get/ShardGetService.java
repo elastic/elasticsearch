@@ -407,7 +407,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
      * Resolves the document targeted by an update ahead of its execution. OCC validation happens on consumption via
      * {@link #getForUpdate(PreResolved, long, long, FetchSourceContext, SplitShardCountSummary)}. The caller must release the result.
      */
-    public Engine.GetResult preResolveForUpdate(String id, @Nullable String routing) {
+    public Engine.GetResult preResolveForUpdate(String id, @Nullable String routing, SplitShardCountSummary splitShardCountSummary) {
         currentMetric.inc();
         final long now = System.nanoTime();
         try {
@@ -422,7 +422,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                 UNASSIGNED_SEQ_NO,
                 UNASSIGNED_PRIMARY_TERM
             );
-            final Engine.GetResult getResult = indexShard.get(engineGet, SplitShardCountSummary.UNSET);
+            final Engine.GetResult getResult = indexShard.get(engineGet, splitShardCountSummary);
 
             // counted in addition to the consuming get: the id resolution and the fetch are accounted separately
             if (getResult.exists()) {

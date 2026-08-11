@@ -823,9 +823,6 @@ public class Strings {
             while (chunks.hasNext()) {
                 chunks.next().toXContent(builder, ToXContent.EMPTY_PARAMS);
                 builder.flush();
-                if (truncatedStream.isTruncated()) {
-                    break;
-                }
             }
             if (chunkedToXContent.isFragment()) {
                 builder.endObject();

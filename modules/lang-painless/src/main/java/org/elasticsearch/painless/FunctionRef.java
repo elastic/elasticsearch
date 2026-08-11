@@ -303,7 +303,8 @@ public class FunctionRef {
                 factoryMethodType,
                 needsScriptInstance ? WriterConstants.CLASS_TYPE : null,
                 isScriptAware,
-                allocationEstimator
+                allocationEstimator,
+                false
             );
         } catch (IllegalArgumentException iae) {
             if (location != null) {
@@ -339,12 +340,16 @@ public class FunctionRef {
     /** whether the delegate is a {@code @script_aware} augmentation (script captured as a leading factory parameter) */
     public final boolean isScriptAware;
     /**
-     * the resolved {@code @allocates} estimator for the delegate target, or {@code null}. Its presence is the charge signal:
-     * a reference reaching code generation with a non-null estimator is charged per invocation against the captured script.
-     * {@code create} resolves it for every annotated target; the compiler clears it (see {@link #withoutAllocationEstimator})
-     * on references it decides not to charge (tracking off, or ineligible), leaving them to emit unchanged.
+     * the resolved {@code @allocates} estimator for the delegate target, or {@code null}. Not the charge signal (that is
+     * {@link #chargesAllocation}); a non-charging reference may carry an unread estimator. Supplies the estimator emitted into
+     * the charge call site when charging.
      */
     public final java.lang.reflect.Method allocationEstimator;
+    /**
+     * Whether this reference is charged per invocation. Set by {@link #withAllocationCharge}. The typed-path counterpart of
+     * {@code Def.Encoding#chargesAllocation}, so neither path infers the charge from {@link #allocationEstimator} being set.
+     */
+    public final boolean chargesAllocation;
 
     private FunctionRef(
         String interfaceMethodName,
@@ -359,7 +364,8 @@ public class FunctionRef {
         MethodType factoryMethodType,
         Type factoryMethodReceiver,
         boolean isScriptAware,
-        java.lang.reflect.Method allocationEstimator
+        java.lang.reflect.Method allocationEstimator,
+        boolean chargesAllocation
     ) {
 
         this.interfaceMethodName = interfaceMethodName;
@@ -375,6 +381,7 @@ public class FunctionRef {
         this.factoryMethodReceiver = factoryMethodReceiver;
         this.isScriptAware = isScriptAware;
         this.allocationEstimator = allocationEstimator;
+        this.chargesAllocation = chargesAllocation;
     }
 
     /** Get the factory method type, with updated receiver if {@code factoryMethodReceiver} is set */
@@ -407,19 +414,16 @@ public class FunctionRef {
             factoryMethodType.insertParameterTypes(0, scriptClass),
             factoryMethodReceiver,
             isScriptAware,
-            allocationEstimator
+            allocationEstimator,
+            chargesAllocation
         );
     }
 
     /**
-     * Returns a copy with {@link #allocationEstimator} cleared, so the reference is not charged. Used by the compiler for
-     * annotated targets it decides not to charge (tracking off, or an ineligible reference form), so they emit unchanged.
-     * Returns {@code this} when there is nothing to clear.
+     * Returns a copy that charges this reference per invocation: prepends the script as a leading factory capture and sets
+     * {@link #chargesAllocation}. The charging bootstrap drops the script capture before the delegate runs.
      */
-    public FunctionRef withoutAllocationEstimator() {
-        if (allocationEstimator == null) {
-            return this;
-        }
+    public FunctionRef withAllocationCharge(Class<?> scriptClass) {
         return new FunctionRef(
             interfaceMethodName,
             interfaceMethodType,
@@ -430,10 +434,11 @@ public class FunctionRef {
             delegateMethodName,
             delegateMethodType,
             delegateInjections,
-            factoryMethodType,
+            factoryMethodType.insertParameterTypes(0, scriptClass),
             factoryMethodReceiver,
             isScriptAware,
-            null
+            allocationEstimator,
+            true
         );
     }
 

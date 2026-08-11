@@ -589,13 +589,13 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     @Override
     public final void setUp() throws Exception {
-        // do not override setUp, use an @Before method
+        // use an @Before method for per-test setup
         super.setUp();
     }
 
     @Override
     public final void tearDown() throws Exception {
-        // do not override tearDown, use an @After method
+        // use an @After method for per-test cleanup
         super.tearDown();
     }
 

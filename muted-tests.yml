@@ -328,9 +328,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvFlattenedKeywordIT
   method: test {csv-spec:scoring.testMatchAndQueryStringFunctionsWithScore}
   issue: https://github.com/elastic/elasticsearch/issues/153614
-- class: org.elasticsearch.xpack.esql.CsvFlattenedKeywordIT
-  method: test {csv-spec:k8s-timeseries.firstAndLastWithNullSort}
-  issue: https://github.com/elastic/elasticsearch/issues/153638
 - class: org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceBufferTests
   method: testRecordInformationalWarningAppliesOneGlobalCapAcrossManyCallers
   issue: https://github.com/elastic/elasticsearch/issues/153652
@@ -619,18 +616,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.RestEsqlIT
   method: testAutoPartitioning {SYNC}
   issue: https://github.com/elastic/elasticsearch/issues/156243
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecK8sMiscIT
-  method: test {csv-spec:k8s-misc.by_four_dims}
-  issue: https://github.com/elastic/elasticsearch/issues/156307
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingK8sMiscIT
-  method: test {csv-spec:k8s-misc.by_four_dims}
-  issue: https://github.com/elastic/elasticsearch/issues/156312
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:k8s-misc.by_four_dims}
-  issue: https://github.com/elastic/elasticsearch/issues/156313
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:k8s-misc.four_rates_by_four_dims}
-  issue: https://github.com/elastic/elasticsearch/issues/156314
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:lookup-join.mvKeywordFieldJoinWarningsFromLeftSideWhenNotKept}
   issue: https://github.com/elastic/elasticsearch/issues/156348
@@ -696,3 +681,27 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecFloatsIT
   method: test {csv-spec:floats.equalToOrEqualToMultivalue}
   issue: https://github.com/elastic/elasticsearch/issues/156452
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIntsIT
+  method: test {csv-spec:ints.CombineBinaryComparisonsEmp}
+  issue: https://github.com/elastic/elasticsearch/issues/156456
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecFloatsIT
+  method: test {csv-spec:floats.scalbWithHugeConstantScaleFactor}
+  issue: https://github.com/elastic/elasticsearch/issues/156457
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIpIT
+  method: test {csv-spec:ip.cdirMatchOrsIPs}
+  issue: https://github.com/elastic/elasticsearch/issues/156458
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecFieldExtractIT
+  method: test {csv-spec:field_extract.multiValuedSubkeyDoesNotMatchScalarEquality}
+  issue: https://github.com/elastic/elasticsearch/issues/156459
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecFloatsIT
+  method: test {csv-spec:floats.scalbWithHugeconstantFirstArgument}
+  issue: https://github.com/elastic/elasticsearch/issues/156460
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecFloatsIT
+  method: test {csv-spec:floats.equalToMultivalue}
+  issue: https://github.com/elastic/elasticsearch/issues/156461
+- class: org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceIT
+  method: testSearchShardShouldRecoverWhenWarmingFailsOnGetConnection
+  issue: https://github.com/elastic/elasticsearch/issues/156462
+- class: org.elasticsearch.xpack.stateless.recovery.PointInTimeRelocationIT
+  method: testPointInTimeRelocationClosingSourceContexts
+  issue: https://github.com/elastic/elasticsearch/issues/156463

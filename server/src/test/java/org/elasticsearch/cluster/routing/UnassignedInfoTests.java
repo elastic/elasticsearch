@@ -89,7 +89,8 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
             UnassignedInfo.Reason.INDEX_CLOSED,
             UnassignedInfo.Reason.NODE_RESTARTING,
             UnassignedInfo.Reason.UNPROMOTABLE_REPLICA,
-            UnassignedInfo.Reason.RESHARD_ADDED };
+            UnassignedInfo.Reason.RESHARD_ADDED,
+            UnassignedInfo.Reason.RECOVERY_CANCELLED };
         for (int i = 0; i < order.length; i++) {
             assertThat(order[i].ordinal(), equalTo(i));
         }
@@ -239,7 +240,14 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
                 for (DiscoveryNode node : routingAllocation.nodes()) {
                     if (routingAllocation.routingNodes().node(node.getId()).getByShardId(indexShardRoutingTable.shardId()) == null) {
                         routingAllocation.routingNodes()
-                            .relocateShard(indexShardRoutingTable.shard(0), node.getId(), 0L, "test", routingAllocation.changes());
+                            .relocateShard(
+                                indexShardRoutingTable.shard(0),
+                                node.getId(),
+                                0L,
+                                "test",
+                                routingAllocation.changes(),
+                                ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+                            );
                         return;
                     }
                 }

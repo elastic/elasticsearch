@@ -76,4 +76,9 @@ public final class ActiveFetchPhaseTasks {
         }
         return outerRequest;
     }
+
+    // VisibleForTesting
+    boolean isRegistered(long coordinatingTaskId, ShardId shardId) {
+        return tasks.containsKey(new ResponseStreamKey(coordinatingTaskId, shardId));
+    }
 }

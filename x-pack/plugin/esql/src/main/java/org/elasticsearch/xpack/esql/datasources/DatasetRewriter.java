@@ -88,10 +88,10 @@ public final class DatasetRewriter {
         ProjectMetadata projectMetadata,
         IndexNameExpressionResolver iner
     ) {
-        // (a) authorized datasets: request.indices(), which the filter already narrowed to the authorized subset on a
-        // secured cluster (and equals rawPatterns without security). Empty short-circuits, else an empty list would
-        // normalize to "_all" and re-expand to every dataset.
-        Set<String> authorizedDatasets = authorizedIndices.length == 0
+        // (a) resolved external datasets: request.indices(), which the security filter already narrowed to the
+        // read-privileged subset on a secured cluster (and equals rawPatterns without security). Empty short-circuits,
+        // else an empty list would normalize to "_all" and re-expand to every dataset.
+        Set<String> resolvedExternalDatasets = authorizedIndices.length == 0
             ? new LinkedHashSet<>()
             : new LinkedHashSet<>(iner.datasets(projectMetadata, RESOLVER_OPTIONS, indicesRequestOf(authorizedIndices)));
 
@@ -129,13 +129,13 @@ public final class DatasetRewriter {
                 continue;
             }
             String name = IndexNameExpressionResolver.resolveDateMathExpression(pattern);
-            if (rawDatasetNames.contains(name) && authorizedDatasets.contains(name) == false) {
+            if (rawDatasetNames.contains(name) && resolvedExternalDatasets.contains(name) == false) {
                 explicitUnauthorized.add(name);
             }
         }
 
         Set<String> result = new LinkedHashSet<>(rawDatasetNames);
-        result.retainAll(authorizedDatasets);
+        result.retainAll(resolvedExternalDatasets);
         return new DatasetResolution(result, nonDatasetNames, explicitUnauthorized);
     }
 
@@ -196,7 +196,7 @@ public final class DatasetRewriter {
     }
 
     /**
-     * Walks {@code parsed} and rewrites every {@link UnresolvedRelation} that resolved to authorized dataset(s) into
+     * Walks {@code parsed} and rewrites every {@link UnresolvedRelation} that resolved to external dataset(s) into
      * {@link UnresolvedExternalRelation} (single dataset) or {@link UnionAll} of such (multi), using the per-relation
      * {@link DatasetResolution} computed engine-side by {@link #resolve}. All other relations are left untouched. The
      * {@code projectMetadata == null} / no-datasets-registered short-circuits avoid touching the common path.
@@ -250,10 +250,10 @@ public final class DatasetRewriter {
             throw new VerificationException("Unknown index [" + resolution.explicitUnauthorized().iterator().next() + "]");
         }
 
-        List<String> datasetNames = new ArrayList<>(resolution.authorizedDatasets());
+        List<String> datasetNames = new ArrayList<>(resolution.resolvedExternalDatasets());
 
         if (datasetNames.isEmpty()) {
-            // Nothing authorized (or matched) here: the relation flows through to index resolution unchanged. Note this
+            // Nothing resolved here: the relation flows through to index resolution unchanged. Note this
             // path is reached even when the relation has non-dataset targets — an ordinary FROM <index> looks exactly
             // like this and must not be rejected as a "mix".
             return relation;
@@ -474,10 +474,10 @@ public final class DatasetRewriter {
     }
 
     /**
-     * Per-relation result of {@link #resolve}: the authorized concrete dataset names the relation targets, the
-     * concrete non-dataset names resolved from the same pattern (drives heterogeneous-FROM {@link UnionAll} building),
-     * and the explicitly-named datasets absent from the authorized set (surfaced by {@link #rewriteOne} as
-     * {@code Unknown index}).
+     * Per-relation result of {@link #resolve}: the external dataset names the relation resolved to (security-filtered
+     * to those the caller may read), the concrete non-dataset names resolved from the same pattern (drives
+     * heterogeneous-FROM {@link UnionAll} building), and the explicitly-named datasets absent from the resolved set
+     * (surfaced by {@link #rewriteOne} as {@code Unknown index}).
      */
-    public record DatasetResolution(Set<String> authorizedDatasets, Set<String> nonDatasetNames, Set<String> explicitUnauthorized) {}
+    public record DatasetResolution(Set<String> resolvedExternalDatasets, Set<String> nonDatasetNames, Set<String> explicitUnauthorized) {}
 }

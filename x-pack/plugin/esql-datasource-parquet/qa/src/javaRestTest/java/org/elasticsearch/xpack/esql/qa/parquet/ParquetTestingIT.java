@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.datasource.parquet.PlainCompressionCodecFactory;
 import org.elasticsearch.xpack.esql.datasource.parquet.PlainParquetReadOptions;
 import org.elasticsearch.xpack.esql.datasources.DatasetRegistry;
+import org.elasticsearch.xpack.esql.datasources.HttpDownloadRetry;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -265,7 +266,15 @@ public class ParquetTestingIT extends ESRestTestCase {
     private void testGoodData(String url, String dataset) throws Exception {
         logger.info("Testing good data: {}", parquetFile);
 
-        byte[] parquetBytes = downloadFile(url);
+        byte[] parquetBytes;
+        try {
+            parquetBytes = downloadFile(url);
+        } catch (IOException e) {
+            // raw.githubusercontent.com occasionally rate-limits (HTTP 429) the pinned-commit fixture under
+            // CI load; that is an environmental condition, not a reader regression.
+            assumeNoException("Unable to download parquet-testing fixture [" + url + "]", e);
+            return;
+        }
         GroundTruth groundTruth;
         try {
             groundTruth = readGroundTruth(parquetBytes);
@@ -274,7 +283,12 @@ public class ParquetTestingIT extends ESRestTestCase {
             // but ESQL might handle it fine — verify ESQL doesn't error out
             logger.warn("Ground truth reader failed for {}: {} — verifying ESQL reads it OK", parquetFile, e.getMessage());
             String query = buildQuery(dataset, 100000);
-            Map<String, Object> result = runEsqlSync(requestObjectBuilder().query(query), new AssertWarnings.NoWarnings(), null);
+            Map<String, Object> result;
+            try {
+                result = runEsqlSync(requestObjectBuilder().query(query), new AssertWarnings.NoWarnings(), null);
+            } catch (IOException ioe) {
+                throw skipIfTransientFailure(ioe, "querying");
+            }
             assertNotNull("ESQL should read " + parquetFile + " despite parquet-mr failure", result.get("columns"));
             return;
         }
@@ -288,6 +302,8 @@ public class ParquetTestingIT extends ESRestTestCase {
         Map<String, Object> result;
         try {
             result = runEsqlSync(requestObjectBuilder().query(query), new AssertWarnings.NoWarnings(), null);
+        } catch (IOException e) {
+            throw skipIfTransientFailure(e, "querying");
         } catch (org.elasticsearch.xcontent.XContentParseException e) {
             // ESQL returned 200 but the response contains raw binary that isn't valid UTF-8/JSON.
             // This happens for files with raw BINARY/FIXED_LEN_BYTE_ARRAY columns without string annotation.
@@ -348,21 +364,63 @@ public class ParquetTestingIT extends ESRestTestCase {
                 Map<String, Object> result = runEsqlSync(requestObjectBuilder().query(query), new AssertWarnings.NoWarnings(), null);
                 assertNotNull("Expected " + parquetFile + " to read successfully (known readable)", result.get("columns"));
                 logger.info("Confirmed: {} is readable by ESQL despite being in bad_data/", parquetFile);
-            } catch (ResponseException ex) {
+            } catch (IOException ex) {
+                skipIfTransientFailure(ex, "testing bad data");
                 throw new AssertionError("File " + parquetFile + " is in BAD_DATA_READS_OK but returned error: " + ex.getMessage(), ex);
             }
             return;
         }
 
-        ResponseException ex = expectThrows(
-            ResponseException.class,
-            () -> runEsqlSync(requestObjectBuilder().query(query), new AssertWarnings.NoWarnings(), null)
-        );
+        // Not using expectThrows here: a transient external-host failure (client-side timeout, or a
+        // server-side 503 after the cluster exhausts its own retry budget) must be told apart from the
+        // expected 4xx client error *before* asserting on the status code below.
+        ResponseException ex;
+        try {
+            runEsqlSync(requestObjectBuilder().query(query), new AssertWarnings.NoWarnings(), null);
+            throw new AssertionError("Expected " + parquetFile + " to produce a 4xx error, but the query succeeded");
+        } catch (ResponseException e) {
+            ex = skipIfTransientFailure(e, "testing bad data");
+        } catch (IOException e) {
+            throw skipIfTransientFailure(e, "testing bad data");
+        }
         int status = ex.getResponse().getStatusLine().getStatusCode();
         assertTrue(
             "Bad data file " + parquetFile + " should produce a 4xx error but got " + status + ": " + ex.getMessage(),
             status >= 400 && status < 500
         );
+    }
+
+    /**
+     * Whether {@code failure} is an environmental symptom of {@code raw.githubusercontent.com}
+     * throttling/slowness reaching the cluster's {@code http} data source read, rather than a query or
+     * reader defect: either the REST client gave up waiting on a response (a bare transport-level
+     * {@link IOException}, e.g. {@link java.net.SocketTimeoutException}, carrying no HTTP response), or
+     * the cluster itself gave up after exhausting its own retry budget against the throttled/unavailable
+     * host (surfaced as a {@code 503} -- see {@code ExternalUnavailableException#status()} in the ESQL
+     * datasources retry layer). Mirrors the handling already applied to {@link #downloadFile} failures.
+     */
+    private static boolean isTransientExternalFailure(IOException failure) {
+        if (failure instanceof ResponseException responseException) {
+            return responseException.getResponse().getStatusLine().getStatusCode() == 503;
+        }
+        return true;
+    }
+
+    /**
+     * Skips the test via {@code assumeNoException} if {@code failure} is a
+     * {@linkplain #isTransientExternalFailure transient external-host failure} encountered while
+     * {@code action} (e.g. {@code "querying"}); {@code assumeNoException} always throws, so this
+     * method never returns normally in that case. Otherwise returns {@code failure} unchanged, so
+     * callers can either {@code throw} it to propagate as-is, or assign it (the declared type is the
+     * caller's exception type, e.g. {@link ResponseException}, so no cast is needed) to keep handling
+     * it below -- centralizing the classify-and-skip logic that would otherwise be repeated at every
+     * {@code runEsqlSync} call site in this class.
+     */
+    private <T extends IOException> T skipIfTransientFailure(T failure, String action) {
+        if (isTransientExternalFailure(failure)) {
+            assumeNoException("External host unavailable while " + action + " [" + parquetFile + "]", failure);
+        }
+        return failure;
     }
 
     // -- Ground truth generation using parquet-mr --
@@ -741,12 +799,33 @@ public class ParquetTestingIT extends ESRestTestCase {
         return "FROM " + dataset + " | LIMIT " + limit;
     }
 
+    private static final int DOWNLOAD_MAX_ATTEMPTS = 4;
+    private static final long DOWNLOAD_INITIAL_BACKOFF_MILLIS = 1000L;
+    private static final long DOWNLOAD_MAX_BACKOFF_MILLIS = 8000L;
+
+    /**
+     * Downloads {@code url}, retrying transient failures (HTTP 429/5xx, or connection-level errors below
+     * the HTTP layer) via {@link HttpDownloadRetry#withRetries}. A permanent HTTP error (e.g. 404) is
+     * thrown immediately without retrying. Throws the last failure once attempts are exhausted; the
+     * caller treats that as an environmental skip rather than a test failure.
+     */
     private static byte[] downloadFile(String url) throws IOException {
+        return HttpDownloadRetry.withRetries(
+            logger,
+            "download [" + url + "]",
+            DOWNLOAD_MAX_ATTEMPTS,
+            DOWNLOAD_INITIAL_BACKOFF_MILLIS,
+            DOWNLOAD_MAX_BACKOFF_MILLIS,
+            () -> downloadFileOnce(url)
+        );
+    }
+
+    private static byte[] downloadFileOnce(String url) throws IOException {
         HttpGet request = new HttpGet(url);
         try (CloseableHttpResponse response = httpClient.execute(request)) {
             int status = response.getStatusLine().getStatusCode();
             if (status != 200) {
-                throw new IOException("Failed to download " + url + ": HTTP " + status);
+                throw new HttpDownloadRetry.HttpStatusException("Failed to download " + url + ": HTTP " + status, status);
             }
             return EntityUtils.toByteArray(response.getEntity());
         }

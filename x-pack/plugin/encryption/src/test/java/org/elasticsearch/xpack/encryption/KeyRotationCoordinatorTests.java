@@ -38,6 +38,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.encryption.ProjectEncryptionKeyMetadata.KeyEntry;
 import org.elasticsearch.xpack.encryption.spi.EncryptedDataHandler;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
+import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
 import java.util.EnumSet;
@@ -417,6 +418,26 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         );
     }
 
+    public void testTickDefersKeyLifecycleWhenHandlerApplyTaskSubmitted() {
+        long generatedAt = 1_000_000_000L;
+        long now = generatedAt + TimeValue.timeValueDays(30).millis() + 1;
+        ProjectEncryptionKeyMetadata metadata = new ProjectEncryptionKeyMetadata(
+            Map.of("k1", entry(generatedAt)),
+            "k1",
+            PASSWORD_ID,
+            Map.of(),
+            NO_OP_ENCRYPTION
+        );
+        TestCustom seeded = TestCustom.encryptedUnder("old-key");
+        AtomicInteger calls = new AtomicInteger();
+        setup(clusterStateWith(metadata, seeded, true), now, TimeValue.timeValueDays(30), List.of(captureHandler(calls, "k1")));
+
+        coordinator.tick();
+
+        assertEquals(1, calls.get());
+        verify(taskQueue).submitTask(eq("re-encrypt-test_kc_custom"), isA(KeyRotationCoordinator.ReEncryptApplyTask.class), any());
+    }
+
     public void testTickDoesNotBeginRotationWhenOneIsAlreadyInFlight() {
         long generatedAt = 1_000_000_000L;
         long now = generatedAt + TimeValue.timeValueDays(30).millis() + 1;
@@ -494,7 +515,7 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         verify(taskQueue).submitTask(eq("re-encrypt-" + TestCustom.TYPE), isA(KeyRotationCoordinator.ReEncryptApplyTask.class), any());
     }
 
-    public void testHandlerReturningInputSkipsTaskSubmission() {
+    public void testTickSubmitsApplyTaskWhenHandlerReturnsSameCustom() {
         long now = 100L;
         ProjectEncryptionKeyMetadata metadata = new ProjectEncryptionKeyMetadata(
             Map.of("k1", entry(50L)),
@@ -518,6 +539,46 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
             }
         };
         setup(clusterStateWith(metadata, seeded, true), now, TimeValue.timeValueDays(30), List.of(identityHandler));
+
+        coordinator.tick();
+
+        ArgumentCaptor<KeyRotationCoordinator.ReEncryptApplyTask> taskCaptor = ArgumentCaptor.forClass(
+            KeyRotationCoordinator.ReEncryptApplyTask.class
+        );
+
+        assertEquals(1, calls.get());
+        verify(taskQueue).submitTask(eq("re-encrypt-" + TestCustom.TYPE), taskCaptor.capture(), any());
+
+        KeyRotationCoordinator.ReEncryptApplyTask task = taskCaptor.getValue();
+        assertSame(seeded, task.expectedOld());
+        assertSame(seeded, task.newCustom());
+        assertEquals("k1", task.expectedActiveKeyId());
+    }
+
+    public void testHandlerReturningNullForExistingCustomDoesNotSubmitApplyTask() {
+        long now = 100L;
+        ProjectEncryptionKeyMetadata metadata = new ProjectEncryptionKeyMetadata(
+            Map.of("k1", entry(50L)),
+            "k1",
+            PASSWORD_ID,
+            Map.of(),
+            NO_OP_ENCRYPTION
+        );
+        TestCustom seeded = TestCustom.encryptedUnder("k1");
+        AtomicInteger calls = new AtomicInteger();
+        EncryptedDataHandler<TestCustom> nullReturningHandler = new EncryptedDataHandler<>() {
+            @Override
+            public String customName() {
+                return TestCustom.TYPE;
+            }
+
+            @Override
+            public TestCustom reEncrypt(TestCustom current, EncryptionService svc, String activeKeyId) {
+                calls.incrementAndGet();
+                return null;
+            }
+        };
+        setup(clusterStateWith(metadata, seeded, true), now, TimeValue.timeValueDays(30), List.of(nullReturningHandler));
 
         coordinator.tick();
 

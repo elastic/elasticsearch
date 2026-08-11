@@ -7,16 +7,86 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-description = """\
-Launches versions of Elasticsearch prior to 5.0 for testing.
-These need special handling because they do not support writing
-a "ports" file with the port on which Elasticsearch is running.
-"""
-
 apply plugin: 'elasticsearch.java'
-tasks.named("test").configure { enabled = false }
+apply plugin: 'elasticsearch.cache-test-fixtures'
+apply plugin: 'elasticsearch.deploy-test-fixtures'
+
+description = 'Testcontainers fixture for old Elasticsearch versions'
+
+def fixtureVersion = '1.3'
+def sharedDockerContext = project.file('src/main/resources/docker')
+
+dockerFixtures {
+  create('old-elasticsearch-0-90-13') {
+    dockerContext = sharedDockerContext
+    version = fixtureVersion
+    baseImages = ['eclipse-temurin:8-jdk']
+    buildArgs = ['ES_VERSION': '0.90.13']
+  }
+  create('old-elasticsearch-1-7-6') {
+    dockerContext = sharedDockerContext
+    version = fixtureVersion
+    baseImages = ['eclipse-temurin:8-jdk']
+    buildArgs = ['ES_VERSION': '1.7.6']
+  }
+  create('old-elasticsearch-2-4-5') {
+    dockerContext = sharedDockerContext
+    version = fixtureVersion
+    baseImages = ['eclipse-temurin:8-jdk']
+    buildArgs = ['ES_VERSION': '2.4.5']
+  }
+  create('old-elasticsearch-5-0-0') {
+    dockerContext = sharedDockerContext
+    version = fixtureVersion
+    baseImages = ['eclipse-temurin:8-jdk']
+    buildArgs = ['ES_VERSION': '5.0.0']
+  }
+  create('old-elasticsearch-5-6-16') {
+    dockerContext = sharedDockerContext
+    version = fixtureVersion
+    baseImages = ['eclipse-temurin:8-jdk']
+    buildArgs = ['ES_VERSION': '5.6.16']
+  }
+  create('old-elasticsearch-6-0-0') {
+    dockerContext = sharedDockerContext
+    version = fixtureVersion
+    baseImages = ['eclipse-temurin:8-jdk']
+    buildArgs = ['ES_VERSION': '6.0.0']
+  }
+  create('old-elasticsearch-6-8-20') {
+    dockerContext = sharedDockerContext
+    version = fixtureVersion
+    baseImages = ['eclipse-temurin:8-jdk']
+    buildArgs = ['ES_VERSION': '6.8.20']
+  }
+  create('old-elasticsearch-7-9-3') {
+    dockerContext = sharedDockerContext
+    version = fixtureVersion
+    baseImages = ['eclipse-temurin:8-jdk']
+    buildArgs = ['ES_VERSION': '7.9.3']
+  }
+  create('old-elasticsearch-7-10-0') {
+    dockerContext = sharedDockerContext
+    version = fixtureVersion
+    baseImages = ['eclipse-temurin:8-jdk']
+    buildArgs = ['ES_VERSION': '7.10.0']
+  }
+}
+
+configurations.all {
+  exclude group: 'org.hamcrest', module: 'hamcrest-core'
+}
 
 dependencies {
-  // Just for the constants....
-  api "org.apache.lucene:lucene-core:${versions.lucene}"
+  api "junit:junit:${versions.junit}"
+  api project(':test:fixtures:testcontainer-utils')
+  api("org.testcontainers:testcontainers:${versions.testcontainer}") {
+    transitive = false
+  }
+  api("com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}") {
+    transitive = false
+  }
+
+  runtimeOnly "org.slf4j:slf4j-simple:${versions.slf4j}"
+  runtimeOnly("org.hamcrest:hamcrest:${versions.hamcrest}")
 }

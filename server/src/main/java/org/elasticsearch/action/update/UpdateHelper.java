@@ -19,6 +19,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.DocumentSourceMissingException;
@@ -66,7 +67,7 @@ public class UpdateHelper {
             throw new UpdateNotSupportedException(indexShard.shardId());
         }
         final GetResult getResult = indexShard.getService()
-            .getForUpdate(request.id(), request.ifSeqNo(), request.ifPrimaryTerm(), fetchSourceContext);
+            .getForUpdate(request.id(), request.routing(), request.ifSeqNo(), request.ifPrimaryTerm(), fetchSourceContext);
         return prepare(indexShard, request, getResult, nowInMillis);
     }
 
@@ -183,6 +184,9 @@ public class UpdateHelper {
     static String calculateRouting(GetResult getResult, @Nullable IndexRequest updateIndexRequest, @Nullable String requestRouting) {
         if (updateIndexRequest != null && updateIndexRequest.routing() != null) {
             return updateIndexRequest.routing();
+        } else if (getResult.getFields().containsKey(SliceIndexing.FIELD_NAME)) {
+            // A slice-enabled index surfaces the routing value as _slice rather than _routing.
+            return getResult.field(SliceIndexing.FIELD_NAME).getValue().toString();
         } else if (getResult.getFields().containsKey(RoutingFieldMapper.NAME)) {
             return getResult.field(RoutingFieldMapper.NAME).getValue().toString();
         } else {

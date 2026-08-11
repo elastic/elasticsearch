@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.analysis;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.index.EsIndex;
@@ -30,6 +31,11 @@ abstract class AnalyzerUnmappedTestBase extends ESTestCase {
 
     static String setUnmappedLoad(String query) {
         return "SET unmapped_fields=\"load\"; " + query;
+    }
+
+    static String setUnmappedLoadAll(String query) {
+        assumeTrue("Requires OPTIONAL_FIELDS_LOAD_ALL", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL.isEnabled());
+        return "SET unmapped_fields=\"LOAD_ALL\"; " + query;
     }
 
     static String setUnmappedNullify(String query) {

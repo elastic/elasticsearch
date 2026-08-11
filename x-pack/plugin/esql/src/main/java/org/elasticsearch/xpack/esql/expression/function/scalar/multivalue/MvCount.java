@@ -13,11 +13,14 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -32,7 +35,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.isRepresentable;
 /**
  * Reduce a multivalued field to a single valued field containing the count of values.
  */
-public class MvCount extends AbstractMultivalueFunction {
+public class MvCount extends AbstractMultivalueFunction implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MvCount", MvCount::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MvCount.class)
         .unary(MvCount::new)
@@ -40,6 +43,7 @@ public class MvCount extends AbstractMultivalueFunction {
         .name("mv_count");
 
     @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = "integer",
         briefSummary = "Counts the values in a multi-value field.",
         description = "Converts a multivalued expression into a single valued column containing a count of the number of values.",
@@ -57,6 +61,7 @@ public class MvCount extends AbstractMultivalueFunction {
                 "date_nanos",
                 "date_range",
                 "double",
+                "double_range",
                 "flattened",
                 "geo_point",
                 "geo_shape",

@@ -79,7 +79,7 @@ public final class Dataset implements Writeable, ToXContentObject, IndexAbstract
         PARSER.declareString(ConstructingObjectParser.constructorArg(), RESOURCE);
         PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), DESCRIPTION);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), SETTINGS);
-        // Declared mapping: an optional `mappings` block (columns + the `_source`/`_id` meta-fields).
+        // Declared mapping: an optional `mappings` block (columns + the `_id` meta-field).
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> DatasetMapping.parseMappings(p), MAPPINGS);
     }
 

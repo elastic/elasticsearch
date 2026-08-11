@@ -44,7 +44,6 @@ public class AnalyzerContext {
     private final ExternalSourceResolution externalSourceResolution;
     private final TransportVersion minimumVersion;
     private final ProjectMetadata projectMetadata;
-    private Boolean hasRemoteIndices;
     private final UnmappedResolution unmappedResolution;
     private final Set<String> deferredHeaderWarnings = new LinkedHashSet<>();
     private final TimestampBounds timestampBounds;
@@ -174,14 +173,6 @@ public class AnalyzerContext {
         return projectMetadata;
     }
 
-    public boolean includesRemoteIndices() {
-        assert indexResolution != null;
-        if (hasRemoteIndices == null) {
-            hasRemoteIndices = indexResolution.values().stream().anyMatch(IndexResolution::includesRemoteIndices);
-        }
-        return hasRemoteIndices;
-    }
-
     public UnmappedResolution unmappedResolution() {
         return unmappedResolution;
     }
@@ -221,8 +212,7 @@ public class AnalyzerContext {
                 .filter(Metadata.TaggedProjectCustom.class::isInstance)
                 .map(Metadata.TaggedProjectCustom.class::cast)
                 .forEach(x -> {
-                    Set<String> tagNames = x.tags().tags().keySet();
-                    for (String tagName : tagNames) {
+                    for (String tagName : x.allowedTagsNames()) {
                         result.add(x.tagPrefix() + tagName);
                     }
                 });

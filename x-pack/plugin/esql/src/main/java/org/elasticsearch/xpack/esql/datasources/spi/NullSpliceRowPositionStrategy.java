@@ -96,16 +96,22 @@ public final class NullSpliceRowPositionStrategy implements RowPositionStrategy 
         }
 
         @Override
+        public Page tryAdvance() {
+            Page innerPage = inner.tryAdvance();
+            return innerPage != null ? splicePage(innerPage) : null;
+        }
+
+        @Override
         public Page next() {
             if (inner.hasNext() == false) {
                 throw new NoSuchElementException();
             }
-            Page innerPage = inner.next();
+            return splicePage(inner.next());
+        }
+
+        private Page splicePage(Page innerPage) {
             int positions = innerPage.getPositionCount();
             int innerBlockCount = innerPage.getBlockCount();
-            // The splice loops below only cover slots in [0, innerBlockCount]; today the optimizer
-            // appends _rowPosition at the end (slot == innerBlockCount), so lock the bound against
-            // a future rule emitting a slot past the inner page's width.
             assert rowPosSlot <= innerBlockCount : "rowPosSlot " + rowPosSlot + " past inner block count " + innerBlockCount;
             Block[] blocks = new Block[innerBlockCount + 1];
             boolean success = false;

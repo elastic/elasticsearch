@@ -181,7 +181,8 @@ class HardcodedEntitlements {
                         )
                     )
                 )
-            )
+            ),
+            new Scope("org.elasticsearch.simdvec", List.of(new LoadNativeLibrariesEntitlement()))
         );
 
         // conditionally add FIPS entitlements if FIPS only functionality is enforced

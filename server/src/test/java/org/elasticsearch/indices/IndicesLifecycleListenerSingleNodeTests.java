@@ -29,7 +29,6 @@ import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.cluster.IndexRemovalReason;
-import org.elasticsearch.indices.recovery.RecoverySchedulingListener;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
@@ -121,15 +120,10 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
             ShardRouting newRouting = shardRouting;
             String nodeId = newRouting.currentNodeId();
             UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "boom");
-            newRouting = newRouting.moveToUnassigned(unassignedInfo)
+            newRouting = newRouting.moveToUnassigned(unassignedInfo, ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY)
                 .updateUnassigned(unassignedInfo, RecoverySource.EmptyStoreRecoverySource.INSTANCE);
             newRouting = ShardRoutingHelper.initialize(newRouting, nodeId);
-            IndexShard shard = index.createShard(
-                newRouting,
-                IndexShardTestCase.NOOP_GCP_SYNCER,
-                RetentionLeaseSyncer.EMPTY,
-                RecoverySchedulingListener.NOOP
-            );
+            IndexShard shard = index.createShard(newRouting, IndexShardTestCase.NOOP_GCP_SYNCER, RetentionLeaseSyncer.EMPTY);
             IndexShardTestCase.updateRoutingEntry(shard, newRouting);
             assertEquals(5, counter.get());
             final DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
@@ -173,15 +167,10 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
             ShardRouting newRouting = shardRouting;
             String nodeId = newRouting.currentNodeId();
             UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "boom");
-            newRouting = newRouting.moveToUnassigned(unassignedInfo)
+            newRouting = newRouting.moveToUnassigned(unassignedInfo, ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY)
                 .updateUnassigned(unassignedInfo, RecoverySource.EmptyStoreRecoverySource.INSTANCE);
             newRouting = ShardRoutingHelper.initialize(newRouting, nodeId);
-            IndexShard shard = index.createShard(
-                newRouting,
-                IndexShardTestCase.NOOP_GCP_SYNCER,
-                RetentionLeaseSyncer.EMPTY,
-                RecoverySchedulingListener.NOOP
-            );
+            IndexShard shard = index.createShard(newRouting, IndexShardTestCase.NOOP_GCP_SYNCER, RetentionLeaseSyncer.EMPTY);
             IndexShardTestCase.updateRoutingEntry(shard, newRouting);
             final DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
             shard.markAsRecovering("store", new RecoveryState(newRouting, localNode, null));

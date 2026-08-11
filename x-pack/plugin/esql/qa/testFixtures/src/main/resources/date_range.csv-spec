@@ -71,6 +71,18 @@ str:keyword                                          | range:date_range
 // end::to_date_range-str-result[]
 ;
 
+toDateRangeFromKeywordField
+required_capability: date_range_field_type_v6
+
+FROM conv_from_keyword
+| EVAL range = TO_DATE_RANGE(date_range_str)
+| KEEP date_range_str, range
+;
+
+date_range_str:keyword                                  | range:date_range
+2023-01-01T00:00:00.000Z..2024-01-01T00:00:00.000Z      | 2023-01-01T00:00:00.000Z..2024-01-01T00:00:00.000Z
+;
+
 toDateRangeIdentity
 required_capability: date_range_field_type_v6
 

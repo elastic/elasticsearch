@@ -72,9 +72,7 @@ public class TransportHealthNodeActionTests extends ESTestCase {
     }
 
     @Before
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    public void startServices() throws Exception {
         taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
         transport = new CapturingTransport();
         clusterService = createClusterService(threadPool);
@@ -98,8 +96,7 @@ public class TransportHealthNodeActionTests extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void stopServices() throws Exception {
         clusterService.close();
         transportService.close();
     }

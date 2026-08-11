@@ -535,7 +535,6 @@ public final class RemoteFetchService {
                 closed = true;
                 try {
                     finish();
-                    client.finishCollectingResponseHeaders();
                     client.close();
                 } catch (Exception e) {
                     logger.debug("failed to close remote fetch target exchange", e);

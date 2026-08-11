@@ -676,3 +676,5 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecStatsIT
   method: test {csv-spec:stats.weightedAvgWeightConstantMvWarning}
   issue: https://github.com/elastic/elasticsearch/issues/156439
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecLookupJoinExpressionIT
+  issue: https://github.com/elastic/elasticsearch/issues/156440

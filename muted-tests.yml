@@ -684,3 +684,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecFloatsIT
   method: test {csv-spec:floats.scalbWithHugeScaleFactor}
   issue: https://github.com/elastic/elasticsearch/issues/156444
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecStatsIT
+  method: test {csv-spec:stats.weightedAvgFieldMvWarning}
+  issue: https://github.com/elastic/elasticsearch/issues/156446

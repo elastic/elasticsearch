@@ -12,10 +12,10 @@ package org.elasticsearch.index.query.bitmapterms;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LimitedBreaker;
@@ -91,8 +91,6 @@ public class RoaringBitmapAggregatorTests extends AggregatorTestCase {
         CircuitBreakerService breakerService = LimitedBreaker.service(CircuitBreaker.REQUEST, ByteSizeValue.ofMb(64));
         CircuitBreaker breaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
         long baseline = breaker.getUsed();
-        MatchAllDocsQuery query = new MatchAllDocsQuery();
-
         try (Directory directory = newDirectory(); RandomIndexWriter writer = new RandomIndexWriter(random(), directory)) {
             for (int i = 0; i < 20_000; i++) {
                 Document document = new Document();
@@ -104,7 +102,7 @@ public class RoaringBitmapAggregatorTests extends AggregatorTestCase {
                 AggregationContext context = createAggregationContext(
                     reader,
                     createIndexSettings(),
-                    query,
+                    Queries.ALL_DOCS_INSTANCE,
                     breakerService,
                     0,
                     DEFAULT_MAX_BUCKETS,

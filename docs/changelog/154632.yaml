@@ -1,5 +1,5 @@
 area: Inference
 issues: []
 pr: 154632
-summary: "[Inference API] Documenting SSE parser deviations and fix some issues"
+summary: Fix SSE parser handling of empty lines and byte order marks
 type: bug

@@ -4,5 +4,5 @@ issues:
  - 154484
  - 154011
 pr: 154508
-summary: Don't accidentally add flattened subfields
+summary: Fix incorrect inclusion of flattened subfields in multi-index queries
 type: bug

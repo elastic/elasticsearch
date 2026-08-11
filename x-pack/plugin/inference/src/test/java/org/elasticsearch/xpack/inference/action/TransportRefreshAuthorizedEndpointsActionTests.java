@@ -18,7 +18,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.FeatureService;
-import org.elasticsearch.inference.MinimalServiceSettings;
+import org.elasticsearch.inference.EndpointClusterState;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.StatusHeuristic;
 import org.elasticsearch.inference.TaskType;
@@ -447,11 +447,11 @@ public class TransportRefreshAuthorizedEndpointsActionTests extends ESTestCase {
         );
     }
 
-    private static MinimalServiceSettings createEisSparseSettingsWithFingerprintAndVersion(
+    private static EndpointClusterState createEisSparseSettingsWithFingerprintAndVersion(
         @Nullable String fingerprint,
         @Nullable Long version
     ) {
-        return new MinimalServiceSettings(
+        return new EndpointClusterState(
             "eis",
             TaskType.SPARSE_EMBEDDING,
             null,

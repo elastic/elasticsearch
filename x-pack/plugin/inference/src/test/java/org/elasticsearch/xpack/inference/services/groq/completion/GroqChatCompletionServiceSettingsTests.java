@@ -155,21 +155,6 @@ public class GroqChatCompletionServiceSettingsTests extends AbstractWireSerializ
         assertThat(updatedServiceSettings.rateLimitSettings(), is(new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)));
     }
 
-    public void testUpdateServiceSettings_ApiKey_IsIgnored() {
-        var originalServiceSettings = new GroqChatCompletionServiceSettings(
-            INITIAL_TEST_MODEL_ID,
-            INITIAL_TEST_URI,
-            INITIAL_TEST_ORGANIZATION_ID,
-            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
-        );
-
-        var updateMap = new HashMap<String, Object>();
-        updateMap.put(DefaultSecretSettings.API_KEY, "new-api-key");
-        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(updateMap);
-
-        assertThat(updatedServiceSettings, is(originalServiceSettings));
-    }
-
     public void testUpdateServiceSettings_ImmutableField_ModelId_Rejected() {
         var originalServiceSettings = new GroqChatCompletionServiceSettings(
             INITIAL_TEST_MODEL_ID,

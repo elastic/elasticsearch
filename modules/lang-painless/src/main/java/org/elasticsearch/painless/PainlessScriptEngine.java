@@ -9,7 +9,9 @@
 
 package org.elasticsearch.painless;
 
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.painless.Compiler.Loader;
 import org.elasticsearch.painless.lookup.PainlessLookup;
@@ -77,9 +79,20 @@ public final class PainlessScriptEngine implements ScriptEngine {
             CompilerSettings contextDefaults = new CompilerSettings();
             contextDefaults.setRegexesEnabled(regexEnabled);
             contextDefaults.setRegexLimitFactor(regexLimitFactor);
-            contextDefaults.setMaxAllocationBytes(
-                CompilerSettings.MAX_ALLOCATION_BYTES.getConcreteSettingForNamespace(context.name).get(settings).getBytes()
+            long maxAllocationBytes = CompilerSettings.MAX_ALLOCATION_BYTES.getConcreteSettingForNamespace(context.name)
+                .get(settings)
+                .getBytes();
+            Setting<ByteSizeValue> warnSetting = CompilerSettings.WARN_ALLOCATION_BYTES.getConcreteSettingForNamespace(context.name);
+            // Both thresholds are NodeScope, so the limit ceiling is applied once here at startup rather than per compile.
+            long warnAllocationBytes = CompilerSettings.resolveWarnAllocationBytes(
+                context.name,
+                maxAllocationBytes,
+                warnSetting.get(settings).getBytes(),
+                warnSetting.exists(settings)
             );
+            contextDefaults.setMaxAllocationBytes(maxAllocationBytes);
+            contextDefaults.setWarnAllocationBytes(warnAllocationBytes);
+            contextDefaults.setScriptContextName(context.name);
 
             mutableContextsToCompilers.put(
                 context,
@@ -417,10 +430,12 @@ public final class PainlessScriptEngine implements ScriptEngine {
             // Use custom settings specified by params.
             compilerSettings = new CompilerSettings();
 
-            // Except node-level settings, which can't be changed in the request: regexes and the allocation limit.
+            // Except node-level settings, which can't be changed in the request: regexes and the allocation thresholds.
             compilerSettings.setRegexesEnabled(contextDefaults.areRegexesEnabled());
             compilerSettings.setRegexLimitFactor(contextDefaults.getAppliedRegexLimitFactor());
             compilerSettings.setMaxAllocationBytes(contextDefaults.getMaxAllocationBytes());
+            compilerSettings.setWarnAllocationBytes(contextDefaults.getWarnAllocationBytes());
+            compilerSettings.setScriptContextName(contextDefaults.getScriptContextName());
 
             Map<String, String> copy = new HashMap<>(params);
 

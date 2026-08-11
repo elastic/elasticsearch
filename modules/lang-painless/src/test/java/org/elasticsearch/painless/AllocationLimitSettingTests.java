@@ -34,10 +34,27 @@ public class AllocationLimitSettingTests extends ESTestCase {
 
     private static final String TEST_CONTEXT = PainlessTestScript.CONTEXT.name;
     private static final String LIMIT_KEY = "script.painless.max_allocation_bytes.context." + TEST_CONTEXT + ".limit";
+    private static final String WARN_KEY = "script.painless.max_allocation_bytes.context." + TEST_CONTEXT + ".warn_threshold";
 
     private static ByteSizeValue resolve(String value) {
         Settings settings = Settings.builder().put(LIMIT_KEY, value).build();
         return CompilerSettings.MAX_ALLOCATION_BYTES.getConcreteSettingForNamespace(TEST_CONTEXT).get(settings);
+    }
+
+    private static ByteSizeValue resolveWarn(String value) {
+        Settings settings = Settings.builder().put(WARN_KEY, value).build();
+        return CompilerSettings.WARN_ALLOCATION_BYTES.getConcreteSettingForNamespace(TEST_CONTEXT).get(settings);
+    }
+
+    private static PainlessScriptEngine engine(String limit, String warnThreshold) {
+        Settings.Builder builder = Settings.builder();
+        if (limit != null) {
+            builder.put(LIMIT_KEY, limit);
+        }
+        if (warnThreshold != null) {
+            builder.put(WARN_KEY, warnThreshold);
+        }
+        return new PainlessScriptEngine(builder.build(), scriptContexts());
     }
 
     public void testDefaultIsDisabledSentinel() {
@@ -61,9 +78,11 @@ public class AllocationLimitSettingTests extends ESTestCase {
         assertTrue(e.getMessage(), e.getMessage().contains("tracking disabled"));
     }
 
-    public void testAboveUpperBoundRejected() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> resolve("2gb"));
-        assertTrue(e.getMessage(), e.getMessage().contains("1gb"));
+    public void testNoUpperBound() {
+        // A sensible limit scales with heap, and heaps vary by orders of magnitude, so any fixed ceiling is too low for
+        // someone. An unusably large limit just never trips, which is no worse than leaving enforcement off.
+        assertEquals(ByteSizeValue.ofGb(2).getBytes(), resolve("2gb").getBytes());
+        assertEquals(ByteSizeValue.ofGb(64).getBytes(), resolve("64gb").getBytes());
     }
 
     public void testNegativesOtherThanSentinelRejected() {
@@ -106,6 +125,96 @@ public class AllocationLimitSettingTests extends ESTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new SettingsModule(withLimit));
         assertThat(e.getMessage(), containsString("unknown setting"));
         assertThat(e.getMessage(), containsString(LIMIT_KEY));
+    }
+
+    public void testWarnThresholdDefaultIsDisabledSentinel() {
+        ByteSizeValue value = CompilerSettings.WARN_ALLOCATION_BYTES.getConcreteSettingForNamespace(TEST_CONTEXT).get(Settings.EMPTY);
+        assertEquals(-1L, value.getBytes());
+    }
+
+    public void testWarnThresholdSharesTheLimitBoundsAndSentinel() {
+        assertEquals(-1L, resolveWarn("-1b").getBytes());
+        assertEquals(1L, resolveWarn("1b").getBytes());
+        assertEquals(ByteSizeValue.ofGb(64).getBytes(), resolveWarn("64gb").getBytes());
+        expectThrows(IllegalArgumentException.class, () -> resolveWarn("0b"));
+    }
+
+    public void testWarnThresholdAloneEnablesTrackingWithoutEnforcement() {
+        // The mode the warning threshold exists for: observe allocation with no limit in force.
+        CompilerSettings contextDefaults = engine(null, "8mb").getDefaultCompilerSettings(PainlessTestScript.CONTEXT);
+        assertEquals(ByteSizeValue.ofMb(8).getBytes(), contextDefaults.getWarnAllocationBytes());
+        assertEquals(-1L, contextDefaults.getMaxAllocationBytes());
+        assertTrue(contextDefaults.isAllocationWarningEnabled());
+        assertFalse(contextDefaults.isAllocationLimitEnabled());
+        assertTrue(contextDefaults.isAllocationTrackingEnabled());
+    }
+
+    public void testLimitAloneLeavesWarningOff() {
+        CompilerSettings contextDefaults = engine("32mb", null).getDefaultCompilerSettings(PainlessTestScript.CONTEXT);
+        assertEquals(-1L, contextDefaults.getWarnAllocationBytes());
+        assertFalse(contextDefaults.isAllocationWarningEnabled());
+        assertTrue(contextDefaults.isAllocationLimitEnabled());
+        assertTrue(contextDefaults.isAllocationTrackingEnabled());
+    }
+
+    public void testWarnThresholdBelowLimitAccepted() {
+        CompilerSettings contextDefaults = engine("32mb", "8mb").getDefaultCompilerSettings(PainlessTestScript.CONTEXT);
+        assertEquals(ByteSizeValue.ofMb(8).getBytes(), contextDefaults.getWarnAllocationBytes());
+        assertEquals(ByteSizeValue.ofMb(32).getBytes(), contextDefaults.getMaxAllocationBytes());
+    }
+
+    public void testWarnThresholdEqualToLimitAccepted() {
+        // Equal is the boundary case and is still useful: the warning is reported just before the limit fails the script.
+        CompilerSettings contextDefaults = engine("32mb", "32mb").getDefaultCompilerSettings(PainlessTestScript.CONTEXT);
+        assertEquals(ByteSizeValue.ofMb(32).getBytes(), contextDefaults.getWarnAllocationBytes());
+    }
+
+    public void testWarnThresholdAboveLimitClampedToLimit() {
+        // Dead configuration: the limit would fail the script before the total could reach the higher warning threshold. Rather
+        // than refusing to start, the limit acts as the ceiling and the warning lands on the allocation that trips the limit.
+        CompilerSettings contextDefaults = engine("8mb", "32mb").getDefaultCompilerSettings(PainlessTestScript.CONTEXT);
+        assertEquals(ByteSizeValue.ofMb(8).getBytes(), contextDefaults.getWarnAllocationBytes());
+        assertEquals(ByteSizeValue.ofMb(8).getBytes(), contextDefaults.getMaxAllocationBytes());
+    }
+
+    public void testWarnThresholdAboveDisabledLimitNotClamped() {
+        // With enforcement off there is no ceiling to clamp to, so any warning threshold passes through.
+        CompilerSettings contextDefaults = engine("-1b", "64gb").getDefaultCompilerSettings(PainlessTestScript.CONTEXT);
+        assertEquals(ByteSizeValue.ofGb(64).getBytes(), contextDefaults.getWarnAllocationBytes());
+    }
+
+    public void testResolveWarnPassesThroughWhenNoClampNeeded() {
+        long limit = ByteSizeValue.ofMb(32).getBytes();
+        long warn = ByteSizeValue.ofMb(8).getBytes();
+        assertEquals(warn, CompilerSettings.resolveWarnAllocationBytes(TEST_CONTEXT, limit, warn, true));
+        assertEquals(limit, CompilerSettings.resolveWarnAllocationBytes(TEST_CONTEXT, limit, limit, true));
+        // Either threshold off means there is nothing to compare.
+        assertEquals(warn, CompilerSettings.resolveWarnAllocationBytes(TEST_CONTEXT, -1L, warn, true));
+        assertEquals(-1L, CompilerSettings.resolveWarnAllocationBytes(TEST_CONTEXT, limit, -1L, false));
+    }
+
+    public void testResolveWarnClampsWhetherExplicitOrDefaulted() {
+        // The explicit/defaulted flag only picks the log level; the clamped value is the same either way. The defaulted branch
+        // is unreachable while the default is the -1b sentinel, but exists for when a deployment-specific default is added.
+        long limit = ByteSizeValue.ofMb(8).getBytes();
+        long warn = ByteSizeValue.ofMb(32).getBytes();
+        assertEquals(limit, CompilerSettings.resolveWarnAllocationBytes(TEST_CONTEXT, limit, warn, true));
+        assertEquals(limit, CompilerSettings.resolveWarnAllocationBytes(TEST_CONTEXT, limit, warn, false));
+    }
+
+    public void testWarnThresholdSettingIsNodeScopeAndNotDynamic() {
+        assertTrue(CompilerSettings.WARN_ALLOCATION_BYTES.hasNodeScope());
+        assertFalse(CompilerSettings.WARN_ALLOCATION_BYTES.getProperties().contains(Setting.Property.Dynamic));
+        assertFalse(CompilerSettings.WARN_ALLOCATION_BYTES.getProperties().contains(Setting.Property.OperatorDynamic));
+    }
+
+    public void testWarnThresholdKeyIsRegistered() {
+        // Same rolling-upgrade boundary as the limit key: a node that does not register it refuses to start.
+        Settings withWarn = Settings.builder().put(WARN_KEY, "8mb").build();
+        new SettingsModule(withWarn, CompilerSettings.WARN_ALLOCATION_BYTES);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new SettingsModule(withWarn));
+        assertThat(e.getMessage(), containsString("unknown setting"));
+        assertThat(e.getMessage(), containsString(WARN_KEY));
     }
 
     private static Map<ScriptContext<?>, List<Whitelist>> scriptContexts() {

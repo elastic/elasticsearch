@@ -280,6 +280,13 @@ public final class WriterConstants {
      */
     public static final String ALLOC_BYTES_FIELD = "$allocBytes";
 
+    /**
+     * Name of the synthetic {@code boolean} field added to generated script classes when the allocation warning threshold is
+     * enabled. Latches once the threshold has been reported for the current execution, so a script that stays above it does
+     * not warn again at every subsequent allocation; reset alongside {@link #ALLOC_BYTES_FIELD} at every {@code execute} entry.
+     */
+    public static final String ALLOC_WARNED_FIELD = "$allocWarned";
+
     /** Generated override of {@link org.elasticsearch.painless.PainlessScript#$incAllocBytes(long)}. */
     public static final Method INC_ALLOC_BYTES = getAsmMethod(long.class, "$incAllocBytes", long.class);
 
@@ -295,10 +302,28 @@ public final class WriterConstants {
     /** ASM {@link Type} for {@link AllocationGuard}, the log-and-throw helper called on a limit breach. */
     public static final Type ALLOCATION_GUARD_TYPE = Type.getType(AllocationGuard.class);
 
-    /** {@link AllocationGuard#allocationLimitExceeded(long, long, long)} — called from {@code $checkAllocBytes} on breach. */
+    /**
+     * {@link AllocationGuard#allocationLimitExceeded(String, long, long, long)} — called from {@code $checkAllocBytes} on
+     * breach. The script context name is baked in as a constant at the call site, for the message and the metric attribute.
+     */
     public static final Method ALLOCATION_LIMIT_EXCEEDED = getAsmMethod(
         void.class,
         "allocationLimitExceeded",
+        String.class,
+        long.class,
+        long.class,
+        long.class
+    );
+
+    /**
+     * {@link AllocationGuard#allocationWarnThresholdExceeded(PainlessScript, String, long, long, long)} — called from
+     * {@code $checkAllocBytes} the first time an execution crosses the warning threshold.
+     */
+    public static final Method ALLOCATION_WARN_THRESHOLD_EXCEEDED = getAsmMethod(
+        void.class,
+        "allocationWarnThresholdExceeded",
+        PainlessScript.class,
+        String.class,
         long.class,
         long.class,
         long.class

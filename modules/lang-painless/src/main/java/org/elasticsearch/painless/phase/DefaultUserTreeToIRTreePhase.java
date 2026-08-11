@@ -257,6 +257,7 @@ import org.elasticsearch.painless.symbol.IRDecorations.IRDUnaryType;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDValue;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDVariableName;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDVariableType;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDWarnAllocationBytes;
 import org.elasticsearch.painless.symbol.ScriptScope;
 import org.elasticsearch.painless.symbol.SemanticScope.Variable;
 import org.objectweb.asm.Opcodes;
@@ -292,6 +293,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
      */
     protected static void attachAllocationLimit(FunctionNode irFunctionNode, ScriptScope scriptScope) {
         irFunctionNode.attachDecoration(new IRDMaxAllocationBytes(scriptScope.getCompilerSettings().getMaxAllocationBytes()));
+        irFunctionNode.attachDecoration(new IRDWarnAllocationBytes(scriptScope.getCompilerSettings().getWarnAllocationBytes()));
     }
 
     /** Attaches the member's resolved estimator (when tracking is on) so the ASM phase emits from the decoration. */

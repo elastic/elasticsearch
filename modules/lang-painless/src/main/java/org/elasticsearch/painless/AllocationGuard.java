@@ -22,6 +22,9 @@ public final class AllocationGuard {
 
     private static final Logger logger = LogManager.getLogger(AllocationGuard.class);
 
+    /** Cap on how much script source a threshold warning logs; see {@link #abbreviateSource}. */
+    static final int MAX_LOGGED_SOURCE_LENGTH = 256;
+
     private AllocationGuard() {}
 
     /**
@@ -51,22 +54,78 @@ public final class AllocationGuard {
     }
 
     /**
+     * Logs a {@code WARN} naming the script whose running allocation total crossed its warning threshold, and returns
+     * normally — crossing the warning threshold never fails the script. The generated {@code $checkAllocBytes} calls this at
+     * most once per execution (it latches on a {@code $allocWarned} flag reset alongside the counter), because the total stays
+     * above the threshold for every subsequent allocation and a hot script would otherwise flood the log once per document.
+     * <p>
+     * Unlike {@link #allocationLimitExceeded}, this message names the script: nothing else follows it to identify the
+     * culprit, and a warning an operator cannot trace back to a script is not actionable.
+     *
+     * @param script the script whose total crossed the threshold, used for its name and source
+     * @param scriptContextName the script context, for the log message and the metric attribute
+     * @param attemptedBytes the size of the allocation that crossed the threshold
+     * @param totalBytes the running total after charging the allocation
+     * @param warnBytes the per-context warning threshold
+     */
+    public static void allocationWarnThresholdExceeded(
+        PainlessScript script,
+        String scriptContextName,
+        long attemptedBytes,
+        long totalBytes,
+        long warnBytes
+    ) {
+        logger.warn(
+            "Painless script [{}] in context [{}] exceeded its allocation warning threshold: allocation of [{}] bytes brings "
+                + "running total to [{}] bytes (warning threshold [{}] bytes); this is reported once per execution and does "
+                + "not fail the script. Source: [{}]",
+            script.getName(),
+            scriptContextName,
+            attemptedBytes,
+            totalBytes,
+            warnBytes,
+            abbreviateSource(script.getSource())
+        );
+        AllocationMetrics.getInstance().recordWarnExceeded(scriptContextName);
+    }
+
+    /**
+     * Truncates a script's source for logging. The source is the only thing that lets an operator act on a warning without
+     * first hunting down the script by name, but a stored script can be arbitrarily long and this line repeats once per
+     * execution, so it is capped rather than logged whole.
+     */
+    static String abbreviateSource(String source) {
+        if (source == null) {
+            return "";
+        }
+        if (source.length() <= MAX_LOGGED_SOURCE_LENGTH) {
+            return source;
+        }
+        return source.substring(0, MAX_LOGGED_SOURCE_LENGTH) + "... (truncated from " + source.length() + " chars)";
+    }
+
+    /**
      * Logs a {@code WARN} and throws a {@link PainlessError} describing an allocation that pushed a script over its limit.
      * {@link PainlessError} is an {@link Error}, so it cannot be caught from Painless source. Never returns normally. The
      * specific allocation that crossed the limit is not reported: it is whichever happened to tip the running total, not
-     * necessarily the dominant cost, so naming it would mislead more than help.
+     * necessarily the dominant cost, so naming it would mislead more than help. Unlike the warning path this does not log the
+     * script's name or source, because the {@link PainlessError} it throws is surfaced to the caller with both attached.
      *
+     * @param scriptContextName the script context, for the log message and the metric attribute
      * @param attemptedBytes the size of the allocation that tripped the limit
      * @param totalBytes the running total after charging the allocation
      * @param limitBytes the per-context limit
      */
-    public static void allocationLimitExceeded(long attemptedBytes, long totalBytes, long limitBytes) {
+    public static void allocationLimitExceeded(String scriptContextName, long attemptedBytes, long totalBytes, long limitBytes) {
         logger.warn(
-            "Painless script allocation limit exceeded: allocation of [{}] bytes brings running total to [{}] bytes (limit [{}] bytes)",
+            "Painless script in context [{}] exceeded its allocation limit: allocation of [{}] bytes brings running total to "
+                + "[{}] bytes (limit [{}] bytes)",
+            scriptContextName,
             attemptedBytes,
             totalBytes,
             limitBytes
         );
+        AllocationMetrics.getInstance().recordLimitExceeded(scriptContextName);
         throw new PainlessError(
             "script allocation limit exceeded: allocation of ["
                 + attemptedBytes

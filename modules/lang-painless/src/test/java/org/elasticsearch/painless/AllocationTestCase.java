@@ -26,17 +26,39 @@ public abstract class AllocationTestCase extends ScriptTestCase {
     /** Affix-setting key carrying the allocation byte limit for the test context. */
     protected static final String LIMIT_KEY = "script.painless.max_allocation_bytes.context." + PainlessTestScript.CONTEXT.name + ".limit";
 
+    /** Affix-setting key carrying the allocation warning threshold for the test context. */
+    protected static final String WARN_KEY = "script.painless.max_allocation_bytes.context."
+        + PainlessTestScript.CONTEXT.name
+        + ".warn_threshold";
+
+    /** The name scripts are compiled under, and so the name the warning message reports. */
+    protected static final String SCRIPT_NAME = "test";
+
     @Override
     protected PainlessScriptEngine buildScriptEngine() {
         // Each test builds its own engine via compile(source, limit) to set a per-test limit, so the shared engine is unused.
         return null;
     }
 
-    /** Compiles {@code source} for the test context under {@code limit} and returns a fresh script instance. */
+    /** Compiles {@code source} for the test context under {@code limit}, with the warning threshold off. */
     protected PainlessTestScript compile(String source, String limit) {
-        Settings settings = Settings.builder().put(LIMIT_KEY, limit).build();
-        PainlessScriptEngine engine = new PainlessScriptEngine(settings, scriptContexts());
-        PainlessTestScript.Factory factory = engine.compile("test", source, PainlessTestScript.CONTEXT, Map.of());
+        return compile(source, limit, null);
+    }
+
+    /**
+     * Compiles {@code source} for the test context and returns a fresh script instance. Either threshold may be {@code null}
+     * to leave it at its disabled default, which is how warning-only and enforcement-only modes are exercised.
+     */
+    protected PainlessTestScript compile(String source, String limit, String warnThreshold) {
+        Settings.Builder builder = Settings.builder();
+        if (limit != null) {
+            builder.put(LIMIT_KEY, limit);
+        }
+        if (warnThreshold != null) {
+            builder.put(WARN_KEY, warnThreshold);
+        }
+        PainlessScriptEngine engine = new PainlessScriptEngine(builder.build(), scriptContexts());
+        PainlessTestScript.Factory factory = engine.compile(SCRIPT_NAME, source, PainlessTestScript.CONTEXT, Map.of());
         return factory.newInstance(Map.of());
     }
 

@@ -65,6 +65,7 @@ import org.elasticsearch.painless.symbol.IRDecorations.IRDReturnType;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDSymbol;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDThisMethod;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDTypeParameters;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDWarnAllocationBytes;
 import org.elasticsearch.painless.symbol.ScriptScope;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
@@ -146,9 +147,10 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
             irFunctionNode.attachDecoration(new IRDTypeParameters(localFunction.getTypeParameters()));
             irFunctionNode.attachDecoration(new IRDParameterNames(parameterNames));
             attachLoopProtection(irFunctionNode, scriptScope);
-            // Carry the per-context allocation limit on the execute entry so its prologue can reset $allocBytes; the value
-            // is -1 when tracking is disabled, in which case no counter bytecode is emitted.
+            // Carry the per-context allocation thresholds on the execute entry so its prologue can reset $allocBytes (and the
+            // $allocWarned latch); each is -1 when that threshold is off, and no counter bytecode is emitted when both are.
             irFunctionNode.attachDecoration(new IRDMaxAllocationBytes(scriptScope.getCompilerSettings().getMaxAllocationBytes()));
+            irFunctionNode.attachDecoration(new IRDWarnAllocationBytes(scriptScope.getCompilerSettings().getWarnAllocationBytes()));
 
             injectStaticFieldsAndGetters();
             injectGetsDeclarations(irBlockNode, scriptScope);

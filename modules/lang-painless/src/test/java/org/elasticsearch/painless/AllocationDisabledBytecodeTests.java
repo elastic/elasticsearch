@@ -22,9 +22,48 @@ import static org.hamcrest.Matchers.not;
 public class AllocationDisabledBytecodeTests extends ScriptTestCase {
 
     private static String bytecode(String source, long maxAllocationBytes) {
+        return bytecode(source, maxAllocationBytes, -1L);
+    }
+
+    private static String bytecode(String source, long maxAllocationBytes, long warnAllocationBytes) {
         CompilerSettings settings = new CompilerSettings();
         settings.setMaxAllocationBytes(maxAllocationBytes);
+        settings.setWarnAllocationBytes(warnAllocationBytes);
         return Debugger.toString(PainlessTestScript.class, source, settings, PAINLESS_BASE_WHITELIST);
+    }
+
+    public void testNoCounterBytecodeWhenBothThresholdsDisabled() {
+        // "Disabled" now means both thresholds off; the warning threshold alone is enough to enable tracking.
+        String asm = bytecode("int[] a = new int[] {1, 2, 3}; return 1;", -1L, -1L);
+        assertThat(asm, not(containsString("$allocBytes")));
+        assertThat(asm, not(containsString("$allocWarned")));
+        assertThat(asm, not(containsString("AllocationGuard")));
+    }
+
+    public void testWarnThresholdAloneEmitsTrackingWithoutTheLimitPath() {
+        // Warning-only: the counter and the warning latch are emitted, but nothing calls the limit breach helper.
+        String asm = bytecode("int[] a = new int[] {1, 2, 3}; return 1;", -1L, 1024L);
+        assertThat(asm, containsString("$allocBytes"));
+        assertThat(asm, containsString("$allocWarned"));
+        assertThat(asm, containsString("$checkAllocBytes"));
+        assertThat(asm, containsString("allocationWarnThresholdExceeded"));
+        assertThat(asm, not(containsString("allocationLimitExceeded")));
+    }
+
+    public void testLimitAloneEmitsNoWarningLatchOrHelper() {
+        // Enforcement-only keeps the pre-existing shape: no latch field and no warning call.
+        String asm = bytecode("int[] a = new int[] {1, 2, 3}; return 1;", 1024L, -1L);
+        assertThat(asm, containsString("$allocBytes"));
+        assertThat(asm, not(containsString("$allocWarned")));
+        assertThat(asm, containsString("allocationLimitExceeded"));
+        assertThat(asm, not(containsString("allocationWarnThresholdExceeded")));
+    }
+
+    public void testBothThresholdsEmitBothPaths() {
+        String asm = bytecode("int[] a = new int[] {1, 2, 3}; return 1;", 2048L, 1024L);
+        assertThat(asm, containsString("$allocWarned"));
+        assertThat(asm, containsString("allocationWarnThresholdExceeded"));
+        assertThat(asm, containsString("allocationLimitExceeded"));
     }
 
     public void testNoCounterBytecodeWhenDisabled() {

@@ -99,6 +99,10 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
+        // Install the allocation-threshold counters. They are held statically because the only callers are AllocationGuard
+        // methods invoked straight from generated script bytecode; this runs well before any script can execute.
+        AllocationMetrics.setInstance(new AllocationMetrics(services.telemetryProvider().getMeterRegistry()));
+
         // this is a hack to bind the painless script engine in guice (all components are added to guice), so that
         // the painless context api. this is a temporary measure until transport actions do no require guice
         return Collections.singletonList(painlessScriptEngine.get());
@@ -106,7 +110,12 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
 
     @Override
     public List<Setting<?>> getSettings() {
-        return Arrays.asList(CompilerSettings.REGEX_ENABLED, CompilerSettings.REGEX_LIMIT_FACTOR, CompilerSettings.MAX_ALLOCATION_BYTES);
+        return Arrays.asList(
+            CompilerSettings.REGEX_ENABLED,
+            CompilerSettings.REGEX_LIMIT_FACTOR,
+            CompilerSettings.MAX_ALLOCATION_BYTES,
+            CompilerSettings.WARN_ALLOCATION_BYTES
+        );
     }
 
     @Override

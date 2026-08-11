@@ -48,7 +48,10 @@ public class AllocationGuardTests extends ESTestCase {
     }
 
     public void testAllocationLimitExceededThrows() {
-        PainlessError error = expectThrows(PainlessError.class, () -> AllocationGuard.allocationLimitExceeded(20L, 110L, 100L));
+        PainlessError error = expectThrows(
+            PainlessError.class,
+            () -> AllocationGuard.allocationLimitExceeded("painless_test", 20L, 110L, 100L)
+        );
 
         // PainlessError is an Error, not an Exception, so a script cannot catch it.
         assertFalse("must not be catchable as an Exception", Exception.class.isAssignableFrom(error.getClass()));

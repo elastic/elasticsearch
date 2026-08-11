@@ -332,7 +332,7 @@ public class AggregatorFactoriesTests extends ESTestCase {
         int maxDepth = defaultMaxNestedDepth();
         ActionRequestValidationException e = veryDeeplyNestedTermsBuilder().validate(null);
         assertNotNull(e);
-        assertThat(e.getMessage(), containsString("exceeds the maximum nested depth for aggregations of [" + maxDepth + "]"));
+        assertThat(e.getMessage(), containsString(maxNestedDepthExceededMessage(maxDepth)));
     }
 
     public void testValidationOfVeryDeepTreeInSearchRequestDoesNotOverflowTheStack() {
@@ -340,7 +340,7 @@ public class AggregatorFactoriesTests extends ESTestCase {
         SearchRequest request = new SearchRequest().source(new SearchSourceBuilder().aggregationsBuilder(veryDeeplyNestedTermsBuilder()));
         ActionRequestValidationException e = request.validate();
         assertNotNull(e);
-        assertThat(e.getMessage(), containsString("exceeds the maximum nested depth for aggregations of [" + maxDepth + "]"));
+        assertThat(e.getMessage(), containsString(maxNestedDepthExceededMessage(maxDepth)));
     }
 
     public void testMaxNestedDepthEnforcedAtValidationTimeRegardlessOfAllowPartialSearchResults() {
@@ -393,6 +393,18 @@ public class AggregatorFactoriesTests extends ESTestCase {
 
     private static int defaultMaxNestedDepth() {
         return AggregatorFactories.MAX_NESTED_DEPTH_SETTING.getDefault(Settings.EMPTY);
+    }
+
+    /**
+     * Mirrors {@code AggregatorFactories.maxNestedDepthExceededMessage()} so tests can assert against the full
+     * expected message, including the setting name, rather than a hand-typed partial substring.
+     */
+    private static String maxNestedDepthExceededMessage(int maxDepth) {
+        return "The nested depth of the aggregations exceeds the maximum nested depth for aggregations of ["
+            + maxDepth
+            + "] set in ["
+            + AggregatorFactories.MAX_NESTED_DEPTH_SETTING.getKey()
+            + "]";
     }
 
     private void assertNestedDepthAccepted(int depth) throws IOException {

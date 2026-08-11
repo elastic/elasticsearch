@@ -685,3 +685,6 @@ tests:
 - class: org.elasticsearch.index.mapper.GeoPointFieldMapperTests
   method: testSyntheticSourceKeepAll
   issue: https://github.com/elastic/elasticsearch/issues/156375
+- class: org.elasticsearch.xpack.esql.optimizer.rules.logical.local.IgnoreNullMetricsTests
+  method: testDimensionsAreNotFiltered
+  issue: https://github.com/elastic/elasticsearch/issues/156380

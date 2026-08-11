@@ -717,3 +717,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecDateNanosIT
   method: test {csv-spec:date_nanos.Date nanos date extract, no mv max}
   issue: https://github.com/elastic/elasticsearch/issues/156470
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIpIT
+  method: test {csv-spec:ip.cdirMatchMultipleArgs}
+  issue: https://github.com/elastic/elasticsearch/issues/156472

@@ -299,13 +299,23 @@ EXPORT f32_t diskbbq_apply_corrections_dot_product_bulk(
     // Scalar tail
     for (; i < bulkSize; ++i) {
         const f32_t score = apply_base_corrections_common(
-            dimensions, queryLowerInterval, queryUpperInterval,
-            queryComponentSum, queryBitScale, indexBitScale,
-            c.lowerIntervals[i], c.upperIntervals[i],
-            c.targetComponentSums[i], scores[i]
+            dimensions,
+            queryLowerInterval,
+            queryUpperInterval,
+            queryComponentSum,
+            queryBitScale,
+            indexBitScale,
+            c.lowerIntervals[i],
+            c.upperIntervals[i],
+            c.targetComponentSums[i],
+            scores[i]
         );
-        scores[i] = legacy_dot_product_correction(score, queryAdditionalCorrection,
-            c.additionalCorrections[i], centroidDp);
+        scores[i] = legacy_dot_product_correction(
+            score,
+            queryAdditionalCorrection,
+            c.additionalCorrections[i],
+            centroidDp
+        );
         maxScore = __builtin_fmaxf(maxScore, scores[i]);
     }
 

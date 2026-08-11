@@ -25,6 +25,14 @@ import java.util.function.Consumer;
 /// A [ShutdownPrepareService] that allows tests to listen for task timeouts
 public class ListenableShutdownPrepareService extends ShutdownPrepareService {
 
+    /// Notified when [#awaitTasksComplete(TimeValue, Sleeper, String, TaskManager, Consumer, Consumer)] times out
+    public interface TaskTimeoutListener {
+
+        /// @param taskName The type of task that failed
+        /// @param tasks The list of tasks that timed out
+        void onTimeout(String taskName, List<Task> tasks);
+    }
+
     private final List<TaskTimeoutListener> taskTimeoutListeners = new CopyOnWriteArrayList<>();
 
     public ListenableShutdownPrepareService(

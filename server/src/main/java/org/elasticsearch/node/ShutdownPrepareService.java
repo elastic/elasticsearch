@@ -79,10 +79,6 @@ public class ShutdownPrepareService {
 
     private static final Logger logger = LogManager.getLogger(ShutdownPrepareService.class);
 
-    public interface TaskTimeoutListener {
-        void onTimeout(String taskName, List<Task> tasks);
-    }
-
     private final TimeValue maxTimeout;
     private final TerminationHandler terminationHandler;
     private final List<ShutdownHook> hooks = new ArrayList<>();

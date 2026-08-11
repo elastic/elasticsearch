@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 156326
+summary: Strip conflicted sub-fields before transport
+type: bug

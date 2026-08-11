@@ -27,11 +27,6 @@ import static org.hamcrest.Matchers.containsString;
 public class InSubqueryFailureIT extends AbstractEsqlIntegTestCase {
 
     @Before
-    public void checkCapability() {
-        assumeTrue("Requires IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
-    }
-
-    @Before
     public void setupIndices() {
         assertAcked(
             client().admin()

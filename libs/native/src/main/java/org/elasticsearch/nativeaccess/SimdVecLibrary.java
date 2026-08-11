@@ -122,6 +122,10 @@ public abstract class SimdVecLibrary {
         }
     }
 
+    /**
+     * Loads the native vector library, or returns an empty {@code Optional} if this host CPU/OS does not
+     * support vector functions. Callers have already established that the library is supported here.
+     */
     static Optional<SimdVecLibrary> tryLoad() {
         int capability = VecCaps.caps();
         if (capability < 0) {
@@ -135,6 +139,8 @@ public abstract class SimdVecLibrary {
             return Optional.empty();
         }
         var lib = LibraryProvider.lookupLibrary(SimdVecLibrary.class);
+        // lookupLibrary must succeed here, we already checked requirements
+        // (and loaded the native library to call vec_caps)
         assert lib != null;
         return Optional.of(lib);
     }

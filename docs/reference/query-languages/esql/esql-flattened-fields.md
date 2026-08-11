@@ -53,18 +53,20 @@ PUT /flattened-cast-demo
 }
 POST /flattened-cast-demo/_doc?refresh
 {
-  "attrs": { "b": false, "d": 1.2, "l": 123 }
+  "attrs": { "b": false, "d": 1.2, "l": 123 } <1>
 }
 POST /_query
 {
   "query": """
 FROM flattened-cast-demo
-| EVAL b = FIELD_EXTRACT(attrs, "b")::BOOLEAN,
+| EVAL b = FIELD_EXTRACT(attrs, "b")::BOOLEAN, <2>
        d = FIELD_EXTRACT(attrs, "d")::DOUBLE,
        l = FIELD_EXTRACT(attrs, "l")::LONG
 """
 }
 ```
+1. The document stores a boolean, a double, and a long.
+2. `FIELD_EXTRACT` returns each value as a `keyword`, so cast it to the type you want.
 
 This query returns the following:
 
@@ -99,13 +101,14 @@ PUT /flattened-keys-demo
 }
 
 POST /flattened-keys-demo/_doc?refresh
-{ "name": "nested", "attrs": { "a": { "b": "something" } } }
+{ "name": "nested", "attrs": { "a": { "b": "something" } } } <1>
 
 POST /_query
 {
   "query": "FROM flattened-keys-demo"
 }
 ```
+1. The document nests `b` inside `a`. {{es}} stores it as the dotted key `a.b`.
 
 This query returns the following:
 
@@ -126,17 +129,19 @@ So `{ "a.b": "something" }` is the same as `{ "a": { "b": "something" } }`:
 
 ```console
 POST /flattened-keys-demo/_doc?refresh
-{ "name": "pre-dotted","attrs": { "a.b": "something" } }
+{ "name": "pre-dotted","attrs": { "a.b": "something" } } <1>
 
 POST /_query
 {
   "query": """
     FROM flattened-keys-demo
-    | EVAL ab = FIELD_EXTRACT(attrs, "a.b")
+    | EVAL ab = FIELD_EXTRACT(attrs, "a.b") <2>
     | SORT name ASC
   """
 }
 ```
+1. This document uses a literal dotted key instead of a nested object.
+2. The same path resolves both documents, since they collapse to the same key.
 
 This query returns the following:
 
@@ -171,16 +176,18 @@ PUT /flattened-object-demo
 }
 
 POST /flattened-object-demo/_doc?refresh
-{ "attrs": { "a": { "b": "something" } } }
+{ "attrs": { "a": { "b": "something" } } } <1>
 
 POST /_query
 {
   "query": """
 FROM flattened-object-demo
-| EVAL a = FIELD_EXTRACT(attrs, "a")
+| EVAL a = FIELD_EXTRACT(attrs, "a") <2>
 """
 }
 ```
+1. `a` holds an object, not a leaf value.
+2. Extracting the object returns `null`. Extract the leaf `a.b` instead.
 
 This query returns the following, with `a` set to `null` because `a` is an object:
 

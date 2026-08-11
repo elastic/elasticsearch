@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.encryption;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -45,9 +47,10 @@ public final class EncryptingSnapshotGlobalStateTransformer implements SnapshotG
 
     @Override
     @SuppressWarnings("unchecked")
-    public TransformedGlobalState transformForSnapshot(ProjectId projectId, Metadata metadata, @Nullable SecureString secret) {
+    public TransformedGlobalState transformForSnapshot(ProjectId projectId, Metadata metadata, @Nullable CreateSnapshotRequest request) {
         final ProjectMetadata project = metadata.getProject(projectId);
         final var encryptionService = EncryptionServiceRegistry.getEncryptionService();
+        final SecureString secret = request == null ? null : request.encryptionPassword();
 
         boolean hasEncryptedData = false;
         final Map<String, Metadata.ProjectCustom> rewrapped = new HashMap<>();
@@ -95,9 +98,10 @@ public final class EncryptingSnapshotGlobalStateTransformer implements SnapshotG
 
     @Override
     @SuppressWarnings("unchecked")
-    public Metadata transformForRestore(ProjectId projectId, Metadata restored, @Nullable SecureString secret) {
+    public Metadata transformForRestore(ProjectId projectId, Metadata restored, RestoreSnapshotRequest request) {
         final ProjectMetadata project = restored.getProject(projectId);
         final var encryptionService = EncryptionServiceRegistry.getEncryptionService();
+        final SecureString secret = request.encryptionPassword();
 
         final Map<String, Metadata.ProjectCustom> rewrapped = new HashMap<>();
         for (EncryptedDataHandler<?> rawHandler : EncryptedDataHandlerRegistry.getInstance().handlers()) {

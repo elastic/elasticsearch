@@ -9,38 +9,39 @@
 
 package org.elasticsearch.snapshots;
 
+import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 
 /**
  * SPI for transforming the global state written to and restored from snapshots. The transformation is applied
  * to the cluster {@link Metadata} just before it is written to the repository, and again to the restored
- * {@link Metadata} before it is applied to the cluster. Implementations live in plugins (e.g. the encryption
- * plugin re-wraps secrets under a snapshot-password-derived key). Any number of plugins may provide one; the
- * transformers are chained at snapshot time and applied in reverse order on restore.
+ * {@link Metadata} before it is applied to the cluster. Implementations live in plugins. Any number of plugins
+ * may provide one; the transformers are chained at snapshot time and applied in reverse order on restore.
  */
 public interface SnapshotGlobalStateTransformer {
 
     /**
-     * Global state to write, plus whether restoring it fully will require the same secret again.
+     * Global state to write, plus whether restoring it fully will require input from the restore request.
      */
     record TransformedGlobalState(Metadata metadata, boolean containsSecuredData) {}
 
     /**
-     * Transforms the global state before it is written to the snapshot. Implementations decide whether the
-     * given {@code secret} applies and are responsible for logging when secured data cannot be included.
+     * Transforms the global state before it is written to the snapshot.
+     *
+     * @param request the request that initiated the snapshot, or {@code null} when it is not available on this
+     *                node (e.g. the snapshot was cloned, or the elected master changed while it was running)
      */
-    default TransformedGlobalState transformForSnapshot(ProjectId projectId, Metadata metadata, @Nullable SecureString secret) {
+    default TransformedGlobalState transformForSnapshot(ProjectId projectId, Metadata metadata, @Nullable CreateSnapshotRequest request) {
         return new TransformedGlobalState(metadata, false);
     }
 
     /**
-     * Transforms the restored global state before it is applied to the cluster. Implementations are
-     * responsible for logging when secured data cannot be recovered with the given {@code secret}.
+     * Transforms the restored global state before it is applied to the cluster.
      */
-    default Metadata transformForRestore(ProjectId projectId, Metadata restored, @Nullable SecureString secret) {
+    default Metadata transformForRestore(ProjectId projectId, Metadata restored, RestoreSnapshotRequest request) {
         return restored;
     }
 }

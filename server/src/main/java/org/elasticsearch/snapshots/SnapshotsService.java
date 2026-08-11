@@ -56,7 +56,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -179,7 +178,11 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
     private final List<SnapshotGlobalStateTransformer> snapshotGlobalStateTransformers;
 
-    private final ConcurrentHashMap<SnapshotId, SecureString> pendingEncryptionPasswords = new ConcurrentHashMap<>();
+    /**
+     * Create requests for in-flight snapshots, kept so {@link SnapshotGlobalStateTransformer}s can read request
+     * fields (e.g. the encryption password) at finalization time, long after the transport request has completed.
+     */
+    private final ConcurrentHashMap<SnapshotId, CreateSnapshotRequest> pendingCreateSnapshotRequests = new ConcurrentHashMap<>();
 
     private final MasterServiceTaskQueue<SnapshotTask> masterServiceTaskQueue;
 
@@ -289,10 +292,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             );
             return;
         }
-        if (request.encryptionPassword() != null) {
-            // store an owned copy: the entry is closed once the snapshot completes or fails
-            pendingEncryptionPasswords.put(snapshotId, request.encryptionPassword().clone());
-        }
+        pendingCreateSnapshotRequests.put(snapshotId, request);
         submitCreateSnapshotRequest(
             request,
             listener,
@@ -999,12 +999,11 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SNAPSHOT);
                 Metadata transformedMetadata = metadataForSnapshot(entry, meta, projectId);
                 boolean containsSecuredData = false;
-                try (SecureString encryptionPassword = pendingEncryptionPasswords.remove(snapshot.getSnapshotId())) {
-                    for (SnapshotGlobalStateTransformer transformer : snapshotGlobalStateTransformers) {
-                        var transformed = transformer.transformForSnapshot(projectId, transformedMetadata, encryptionPassword);
-                        transformedMetadata = transformed.metadata();
-                        containsSecuredData |= transformed.containsSecuredData();
-                    }
+                final CreateSnapshotRequest createRequest = pendingCreateSnapshotRequests.remove(snapshot.getSnapshotId());
+                for (SnapshotGlobalStateTransformer transformer : snapshotGlobalStateTransformers) {
+                    var transformed = transformer.transformForSnapshot(projectId, transformedMetadata, createRequest);
+                    transformedMetadata = transformed.metadata();
+                    containsSecuredData |= transformed.containsSecuredData();
                 }
                 final Metadata metaForSnapshot = transformedMetadata;
 
@@ -1170,10 +1169,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         // makes sure we don't have listeners for snapshots that aren't tracked in any internal state of this class
         final List<ActionListener<SnapshotInfo>> listenersToComplete = snapshotCompletionListeners.remove(snapshot);
         endingSnapshots.remove(snapshot);
-        final SecureString unusedPassword = pendingEncryptionPasswords.remove(snapshot.getSnapshotId());
-        if (unusedPassword != null) {
-            unusedPassword.close();
-        }
+        pendingCreateSnapshotRequests.remove(snapshot.getSnapshotId());
         return listenersToComplete;
     }
 

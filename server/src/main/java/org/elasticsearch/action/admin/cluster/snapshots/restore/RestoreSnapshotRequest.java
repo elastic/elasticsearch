@@ -44,7 +44,7 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBo
 public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotRequest> implements ToXContentObject {
 
     private static final int MIN_PASSWORD_LENGTH = 15;
-    private static final TransportVersion SNAPSHOT_ENCRYPTION_PASSWORD_TV = TransportVersion.fromName("snapshot_encryption_password");
+    private static final TransportVersion SNAPSHOT_ENCRYPTION_PASSWORD = TransportVersion.fromName("snapshot_encryption_password");
 
     private String snapshot;
     private String repository;
@@ -103,7 +103,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         indexSettings = readSettingsFromStream(in);
         ignoreIndexSettings = in.readStringArray();
         snapshotUuid = in.readOptionalString();
-        if (in.getTransportVersion().supports(SNAPSHOT_ENCRYPTION_PASSWORD_TV)) {
+        if (in.getTransportVersion().supports(SNAPSHOT_ENCRYPTION_PASSWORD)) {
             encryptionPassword = in.readOptionalSecureString();
         }
     }
@@ -126,7 +126,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         indexSettings.writeTo(out);
         out.writeStringArray(ignoreIndexSettings);
         out.writeOptionalString(snapshotUuid);
-        if (out.getTransportVersion().supports(SNAPSHOT_ENCRYPTION_PASSWORD_TV)) {
+        if (out.getTransportVersion().supports(SNAPSHOT_ENCRYPTION_PASSWORD)) {
             out.writeOptionalSecureString(encryptionPassword);
         }
     }
@@ -698,7 +698,8 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
             && Objects.equals(indexSettings, that.indexSettings)
             && Arrays.equals(ignoreIndexSettings, that.ignoreIndexSettings)
             && Objects.equals(snapshotUuid, that.snapshotUuid)
-            && skipOperatorOnlyState == that.skipOperatorOnlyState;
+            && skipOperatorOnlyState == that.skipOperatorOnlyState
+            && Objects.equals(encryptionPassword, that.encryptionPassword);
     }
 
     @Override
@@ -716,7 +717,8 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
             quiet,
             indexSettings,
             snapshotUuid,
-            skipOperatorOnlyState
+            skipOperatorOnlyState,
+            encryptionPassword
         );
         result = 31 * result + Arrays.hashCode(indices);
         result = 31 * result + Arrays.hashCode(ignoreIndexSettings);

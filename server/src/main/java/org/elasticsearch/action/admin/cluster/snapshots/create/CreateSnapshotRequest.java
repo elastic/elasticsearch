@@ -58,7 +58,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
 
     public static final int MAXIMUM_METADATA_BYTES = 1024; // chosen arbitrarily
     private static final int MIN_PASSWORD_LENGTH = 15;
-    private static final TransportVersion SNAPSHOT_ENCRYPTION_PASSWORD_TV = TransportVersion.fromName("snapshot_encryption_password");
+    private static final TransportVersion SNAPSHOT_ENCRYPTION_PASSWORD = TransportVersion.fromName("snapshot_encryption_password");
 
     private String snapshot;
 
@@ -114,7 +114,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         partial = in.readBoolean();
         userMetadata = in.readGenericMap();
         uuid = in.readOptionalString();
-        if (in.getTransportVersion().supports(SNAPSHOT_ENCRYPTION_PASSWORD_TV)) {
+        if (in.getTransportVersion().supports(SNAPSHOT_ENCRYPTION_PASSWORD)) {
             encryptionPassword = in.readOptionalSecureString();
         }
     }
@@ -132,7 +132,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         out.writeBoolean(partial);
         out.writeGenericMap(userMetadata);
         out.writeOptionalString(uuid);
-        if (out.getTransportVersion().supports(SNAPSHOT_ENCRYPTION_PASSWORD_TV)) {
+        if (out.getTransportVersion().supports(SNAPSHOT_ENCRYPTION_PASSWORD)) {
             out.writeOptionalSecureString(encryptionPassword);
         }
     }
@@ -534,12 +534,23 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
             && Arrays.equals(featureStates, that.featureStates)
             && Objects.equals(masterNodeTimeout(), that.masterNodeTimeout())
             && Objects.equals(userMetadata, that.userMetadata)
-            && Objects.equals(uuid, that.uuid);
+            && Objects.equals(uuid, that.uuid)
+            && Objects.equals(encryptionPassword, that.encryptionPassword);
     }
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(snapshot, repository, indicesOptions, partial, includeGlobalState, waitForCompletion, userMetadata, uuid);
+        int result = Objects.hash(
+            snapshot,
+            repository,
+            indicesOptions,
+            partial,
+            includeGlobalState,
+            waitForCompletion,
+            userMetadata,
+            uuid,
+            encryptionPassword
+        );
         result = 31 * result + Arrays.hashCode(indices);
         result = 31 * result + Arrays.hashCode(featureStates);
         return result;

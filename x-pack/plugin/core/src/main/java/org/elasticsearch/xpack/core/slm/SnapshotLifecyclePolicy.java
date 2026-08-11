@@ -48,7 +48,7 @@ import static org.elasticsearch.xpack.core.ilm.GenerateSnapshotNameStep.validate
  */
 public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecyclePolicy>, Writeable, ToXContentObject {
 
-    private static final TransportVersion SLM_ENCRYPTION_PASSWORD_TV = TransportVersion.fromName("snapshot_encryption_password");
+    private static final TransportVersion SLM_ENCRYPTION_PASSWORD = TransportVersion.fromName("snapshot_encryption_password");
 
     private final String id;
     private final String name;
@@ -163,7 +163,7 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
         this.unhealthyIfNoSnapshotWithin = in.getTransportVersion().supports(SLM_UNHEALTHY_IF_NO_SNAPSHOT_WITHIN)
             ? in.readOptionalTimeValue()
             : null;
-        this.encryptedPassword = in.getTransportVersion().supports(SLM_ENCRYPTION_PASSWORD_TV)
+        this.encryptedPassword = in.getTransportVersion().supports(SLM_ENCRYPTION_PASSWORD)
             ? in.readOptionalWriteable(EncryptedData::new)
             : null;
         this.isCronSchedule = isCronSchedule(schedule);
@@ -434,7 +434,7 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
         if (out.getTransportVersion().supports(SLM_UNHEALTHY_IF_NO_SNAPSHOT_WITHIN)) {
             out.writeOptionalTimeValue(this.unhealthyIfNoSnapshotWithin);
         }
-        if (out.getTransportVersion().supports(SLM_ENCRYPTION_PASSWORD_TV)) {
+        if (out.getTransportVersion().supports(SLM_ENCRYPTION_PASSWORD)) {
             out.writeOptionalWriteable(this.encryptedPassword);
         }
     }

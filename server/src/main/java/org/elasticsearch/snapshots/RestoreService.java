@@ -403,8 +403,7 @@ public final class RestoreService implements ClusterStateApplier {
             Metadata restoredMetadata = repository.getSnapshotGlobalMetadata(snapshotId, deserializeProjectMetadata);
             // inverse order of the snapshot-side application
             for (int i = snapshotGlobalStateTransformers.size() - 1; i >= 0; i--) {
-                restoredMetadata = snapshotGlobalStateTransformers.get(i)
-                    .transformForRestore(projectId, restoredMetadata, request.encryptionPassword());
+                restoredMetadata = snapshotGlobalStateTransformers.get(i).transformForRestore(projectId, restoredMetadata, request);
             }
             globalMetadata = restoredMetadata;
             metadataBuilder = Metadata.builder(globalMetadata);

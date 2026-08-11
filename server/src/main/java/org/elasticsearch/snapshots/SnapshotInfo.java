@@ -90,7 +90,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
 
     static final String UNKNOWN_REPO_NAME = "_na_";
 
-    private static final TransportVersion SNAPSHOT_ENCRYPTION_PASSWORD_TV = TransportVersion.fromName("snapshot_encryption_password");
+    private static final TransportVersion SNAPSHOT_ENCRYPTION_PASSWORD = TransportVersion.fromName("snapshot_encryption_password");
 
     private static final Comparator<SnapshotInfo> COMPARATOR = Comparator.comparing(SnapshotInfo::startTime)
         .thenComparing(SnapshotInfo::snapshotId);
@@ -394,7 +394,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
         final List<String> dataStreams = in.readStringCollectionAsImmutableList();
         final List<SnapshotFeatureInfo> featureStates = in.readCollectionAsImmutableList(SnapshotFeatureInfo::new);
         final Map<String, IndexSnapshotDetails> indexSnapshotDetails = in.readImmutableMap(IndexSnapshotDetails::new);
-        final boolean hasEncryptedData = in.getTransportVersion().supports(SNAPSHOT_ENCRYPTION_PASSWORD_TV) && in.readBoolean();
+        final boolean hasEncryptedData = in.getTransportVersion().supports(SNAPSHOT_ENCRYPTION_PASSWORD) && in.readBoolean();
         return new SnapshotInfo(
             snapshot,
             indices,
@@ -942,7 +942,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
         out.writeStringCollection(dataStreams);
         out.writeCollection(featureStates);
         out.writeMap(indexSnapshotDetails, StreamOutput::writeWriteable);
-        if (out.getTransportVersion().supports(SNAPSHOT_ENCRYPTION_PASSWORD_TV)) {
+        if (out.getTransportVersion().supports(SNAPSHOT_ENCRYPTION_PASSWORD)) {
             out.writeBoolean(hasEncryptedData);
         }
     }

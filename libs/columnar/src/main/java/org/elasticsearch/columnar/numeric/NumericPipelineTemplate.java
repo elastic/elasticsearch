@@ -37,5 +37,5 @@ public interface NumericPipelineTemplate {
      * {@link ColumnarWriteProfile#version()} against a {@code VERSION_*} constant before
      * constructing the pipeline.
      */
-    NumericPipeline build(final ColumnarWriteProfile profile, int blockSize);
+    NumericPipeline build(ColumnarWriteProfile profile, int blockSize);
 }

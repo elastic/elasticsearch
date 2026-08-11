@@ -19,7 +19,7 @@ import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.common.io.stream.CountingStreamOutput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.SlicedByteArrayOutputStream;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -1046,7 +1046,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
             this.timestampFieldValueRange = timestampFieldValueRange;
         }
 
-        private long writeHeader(StreamOutput out) throws IOException {
+        private long writeHeader(OutputStream out) throws IOException {
             assert getBlobName() != null;
             return StatelessCompoundCommit.writeXContentHeader(
                 shardId,
@@ -1058,7 +1058,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
                 referencedFiles,
                 internalFiles,
                 replicatedRanges,
-                out,
+                new OutputStreamStreamOutput(out),
                 useInternalFilesReplicatedContent,
                 extraContentFiles
             );
@@ -1068,23 +1068,19 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
             return writeHeader(new CountingStreamOutput());
         }
 
-        byte[] materializeHeader() throws IOException {
-            try (ByteArrayOutputStream os = new ByteArrayOutputStream()) {
-                writeHeader(new OutputStreamStreamOutput(os));
-                return os.toByteArray();
-            }
+        private InputStream writeHeaderToInputStream(ByteArrayOutputStream out) throws IOException {
+            writeHeader(out);
+            return new ByteArrayInputStream(out.toByteArray());
         }
 
         @Override
         public InputStream getInputStream(long offset, long length) throws IOException {
-            var stream = new ByteArrayInputStream(materializeHeader());
-            stream.skipNBytes(offset);
-            return limitStream(stream, length);
+            return writeHeaderToInputStream(new SlicedByteArrayOutputStream((int) offset, (int) length));
         }
 
         @Override
         public InputStream getInputStream() throws IOException {
-            return new ByteArrayInputStream(materializeHeader());
+            return writeHeaderToInputStream(new ByteArrayOutputStream());
         }
     }
 

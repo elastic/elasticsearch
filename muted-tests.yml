@@ -616,15 +616,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecBucketIncludeEmptyBucketsIT
   method: test {csv-spec:bucket_include_empty_buckets.Large number of buckets doesn't OOM - stats}
   issue: https://github.com/elastic/elasticsearch/issues/156356
-- class: org.elasticsearch.index.mapper.GeoPointFieldMapperTests
-  method: testSyntheticSourceKeepAll
-  issue: https://github.com/elastic/elasticsearch/issues/156375
 - class: org.elasticsearch.xpack.esql.optimizer.rules.logical.local.IgnoreNullMetricsTests
   method: testDimensionsAreNotFiltered
   issue: https://github.com/elastic/elasticsearch/issues/156380
-- class: org.elasticsearch.index.mapper.blockloader.GeoPointFieldBlockLoaderTests
-  method: testBlockLoaderForFieldInObjectWithCranky {preference=Params[indexMode=standard, sourceMode=SYNTHETIC, preference=STORED]}
-  issue: https://github.com/elastic/elasticsearch/issues/156383
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecChangePointIT
   method: test {csv-spec:change_point.null keys}
   issue: https://github.com/elastic/elasticsearch/issues/156397
@@ -783,3 +777,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecFoldingIT
   method: test {csv-spec:folding.mvDouble_Equals_MultiValueConstant}
   issue: https://github.com/elastic/elasticsearch/issues/156510
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecFoldingIT
+  method: test {csv-spec:folding.integer_GreaterThan_MultiValueConstant}
+  issue: https://github.com/elastic/elasticsearch/issues/156511

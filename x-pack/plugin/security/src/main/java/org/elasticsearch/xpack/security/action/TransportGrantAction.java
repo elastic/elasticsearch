@@ -26,10 +26,12 @@ import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountToken;
 import org.elasticsearch.xpack.core.security.authc.support.BearerToken;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.jwt.JwtAuthenticationToken;
+import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 
 import static org.elasticsearch.xpack.core.security.action.Grant.ACCESS_TOKEN_GRANT_TYPE;
@@ -143,6 +145,10 @@ public abstract class TransportGrantAction<Request extends GrantRequest, Respons
                 "[client_authentication] not supported with the supplied access_token type",
                 RestStatus.BAD_REQUEST
             );
+        }
+        final ServiceAccountToken serviceAccountToken = ServiceAccountService.tryParseToken(grant.getAccessToken());
+        if (serviceAccountToken != null) {
+            return serviceAccountToken;
         }
         // here we effectively assume it's an ES access token (from the {@code TokenService})
         return new BearerToken(grant.getAccessToken());

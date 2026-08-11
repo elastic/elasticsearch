@@ -8,11 +8,18 @@
 package org.elasticsearch.xpack.security.authc.service;
 
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.SecuritySingleNodeTestCase;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.service.CreateManagedServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenRequest;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenResponse;
@@ -38,7 +45,11 @@ import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSetting
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.junit.Before;
 
+import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.EnumSet;
 import java.util.Map;
 import java.util.Optional;
@@ -51,6 +62,7 @@ import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class ManagedServiceAccountSingleNodeTests extends SecuritySingleNodeTestCase {
 
@@ -58,6 +70,7 @@ public class ManagedServiceAccountSingleNodeTests extends SecuritySingleNodeTest
     private static final String NAMESPACE = "poc-team";
     private static final String MONITOR_ROLE = "managed_sa_monitor_role";
     private static final String API_KEY_ROLE = "managed_sa_api_key_role";
+    private static final String GRANT_API_KEY_ROLE = "managed_sa_grant_api_key_role";
 
     private String serviceName;
     private String principal;
@@ -88,7 +101,11 @@ public class ManagedServiceAccountSingleNodeTests extends SecuritySingleNodeTest
             + API_KEY_ROLE
             + ":\n"
             + "  cluster:\n"
-            + "    - 'manage_own_api_key'\n";
+            + "    - 'manage_own_api_key'\n"
+            + GRANT_API_KEY_ROLE
+            + ":\n"
+            + "  cluster:\n"
+            + "    - 'grant_api_key'\n";
     }
 
     @Override
@@ -162,6 +179,86 @@ public class ManagedServiceAccountSingleNodeTests extends SecuritySingleNodeTest
         assertHasClusterPrivilege(bearer.toString(), "manage_own_api_key", true);
     }
 
+    public void testGrantApiKeyAsManagedServiceAccount() {
+        final String granteeServiceName = "grantee-" + randomAlphaOfLengthBetween(4, 10).toLowerCase(java.util.Locale.ROOT);
+        final String granteePrincipal = NAMESPACE + "/" + granteeServiceName;
+
+        putManagedAccount(GRANT_API_KEY_ROLE);
+        final SecureString granterBearer = createManagedToken("token-granter");
+
+        final PutManagedServiceAccountResponse granteeResponse = securityAdminClient().execute(
+            PutManagedServiceAccountAction.INSTANCE,
+            new PutManagedServiceAccountRequest(NAMESPACE, granteeServiceName, java.util.List.of(MONITOR_ROLE), true)
+        ).actionGet();
+        assertThat(granteeResponse.getResult(), equalTo(PutManagedServiceAccountResponse.Result.CREATED));
+
+        final SecureString granteeBearer = securityAdminClient().execute(
+            CreateManagedServiceAccountTokenAction.INSTANCE,
+            new CreateServiceAccountTokenRequest(NAMESPACE, granteeServiceName, "token-grantee")
+        ).actionGet().getValue();
+
+        final GrantApiKeyRequest grantApiKeyRequest = new GrantApiKeyRequest();
+        grantApiKeyRequest.getGrant().setType("access_token");
+        grantApiKeyRequest.getGrant().setAccessToken(granteeBearer.clone());
+        grantApiKeyRequest.getApiKeyRequest().setName("granted-key");
+        grantApiKeyRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+
+        final CreateApiKeyResponse createApiKeyResponse = bearerClient(granterBearer.toString()).execute(
+            GrantApiKeyAction.INSTANCE,
+            grantApiKeyRequest
+        ).actionGet();
+
+        assertThat(createApiKeyResponse.getName(), equalTo("granted-key"));
+
+        final Authentication apiKeyAuthentication = authenticateWithApiKey(createApiKeyResponse.getId(), createApiKeyResponse.getKey());
+        assertThat(apiKeyAuthentication.isApiKey(), is(true));
+        assertThat(apiKeyAuthentication.getEffectiveSubject().getUser().principal(), equalTo(granteePrincipal));
+        assertThat(
+            apiKeyAuthentication.getEffectiveSubject().getUser().metadata().get(ServiceAccountSettings.MANAGED_SERVICE_ACCOUNT_FIELD),
+            equalTo(true)
+        );
+        assertHasClusterPrivilegeWithApiKey(granteePrincipal, createApiKeyResponse.getId(), createApiKeyResponse.getKey(), "monitor", true);
+        assertHasClusterPrivilegeWithApiKey(
+            granteePrincipal,
+            createApiKeyResponse.getId(),
+            createApiKeyResponse.getKey(),
+            "grant_api_key",
+            false
+        );
+    }
+
+    public void testCreateExpiringApiKeyAsManagedServiceAccount() {
+        putManagedAccount(API_KEY_ROLE);
+        final SecureString bearer = createManagedToken("token-api-key");
+
+        final Instant start = Instant.ofEpochMilli(Instant.now().toEpochMilli());
+        final CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest("short-lived-key", null, TimeValue.timeValueHours(1), null);
+        createApiKeyRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        final CreateApiKeyResponse createApiKeyResponse = bearerClient(bearer.toString()).execute(
+            CreateApiKeyAction.INSTANCE,
+            createApiKeyRequest
+        ).actionGet();
+
+        assertThat(createApiKeyResponse.getName(), equalTo("short-lived-key"));
+        assertThat(createApiKeyResponse.getExpiration(), notNullValue());
+        assertThat(ChronoUnit.HOURS.between(start, createApiKeyResponse.getExpiration()), equalTo(1L));
+
+        final Authentication apiKeyAuthentication = authenticateWithApiKey(createApiKeyResponse.getId(), createApiKeyResponse.getKey());
+        assertThat(apiKeyAuthentication.isApiKey(), is(true));
+        assertThat(apiKeyAuthentication.getEffectiveSubject().getUser().principal(), equalTo(principal));
+        assertThat(
+            apiKeyAuthentication.getEffectiveSubject().getUser().metadata().get(ServiceAccountSettings.MANAGED_SERVICE_ACCOUNT_FIELD),
+            equalTo(true)
+        );
+        assertHasClusterPrivilegeWithApiKey(
+            principal,
+            createApiKeyResponse.getId(),
+            createApiKeyResponse.getKey(),
+            "manage_own_api_key",
+            true
+        );
+    }
+
     public void testDeleteRecreateRestoresSameServiceAccount() {
         putManagedAccount(MONITOR_ROLE);
         final SecureString oldBearer = createManagedToken("token-delete-recreate");
@@ -207,6 +304,14 @@ public class ManagedServiceAccountSingleNodeTests extends SecuritySingleNodeTest
         return client().filterWithHeader(Map.of("Authorization", "Bearer " + bearerString));
     }
 
+    private Client apiKeyClient(String apiKeyId, SecureString apiKey) {
+        return client().filterWithHeader(Map.of("Authorization", "ApiKey " + encodedApiKey(apiKeyId, apiKey)));
+    }
+
+    private static String encodedApiKey(String apiKeyId, SecureString apiKey) {
+        return Base64.getEncoder().encodeToString((apiKeyId + ":" + apiKey).getBytes(StandardCharsets.UTF_8));
+    }
+
     private void putManagedAccount(String roleName) {
         final PutManagedServiceAccountResponse response = securityAdminClient().execute(
             PutManagedServiceAccountAction.INSTANCE,
@@ -232,6 +337,14 @@ public class ManagedServiceAccountSingleNodeTests extends SecuritySingleNodeTest
         return authenticateResponse.authentication();
     }
 
+    private Authentication authenticateWithApiKey(String apiKeyId, SecureString apiKey) {
+        final AuthenticateResponse authenticateResponse = apiKeyClient(apiKeyId, apiKey).execute(
+            AuthenticateAction.INSTANCE,
+            AuthenticateRequest.INSTANCE
+        ).actionGet();
+        return authenticateResponse.authentication();
+    }
+
     private void assertAuthenticationFails(String bearerString) {
         final ElasticsearchSecurityException exception = expectThrows(
             ElasticsearchSecurityException.class,
@@ -247,6 +360,22 @@ public class ManagedServiceAccountSingleNodeTests extends SecuritySingleNodeTest
         request.indexPrivileges(new RoleDescriptor.IndicesPrivileges[0]);
         request.applicationPrivileges(new RoleDescriptor.ApplicationResourcePrivileges[0]);
         final HasPrivilegesResponse response = bearerClient(bearerString).execute(HasPrivilegesAction.INSTANCE, request).actionGet();
+        assertThat(response.getClusterPrivileges().get(privilege), equalTo(expected));
+    }
+
+    private void assertHasClusterPrivilegeWithApiKey(
+        String username,
+        String apiKeyId,
+        SecureString apiKey,
+        String privilege,
+        boolean expected
+    ) {
+        final HasPrivilegesRequest request = new HasPrivilegesRequest();
+        request.username(username);
+        request.clusterPrivileges(privilege);
+        request.indexPrivileges(new RoleDescriptor.IndicesPrivileges[0]);
+        request.applicationPrivileges(new RoleDescriptor.ApplicationResourcePrivileges[0]);
+        final HasPrivilegesResponse response = apiKeyClient(apiKeyId, apiKey).execute(HasPrivilegesAction.INSTANCE, request).actionGet();
         assertThat(response.getClusterPrivileges().get(privilege), equalTo(expected));
     }
 }

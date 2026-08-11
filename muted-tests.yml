@@ -693,3 +693,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIpIT
   method: test {csv-spec:ip.cdirMatchOrsIPs}
   issue: https://github.com/elastic/elasticsearch/issues/156458
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecFieldExtractIT
+  method: test {csv-spec:field_extract.multiValuedSubkeyDoesNotMatchScalarEquality}
+  issue: https://github.com/elastic/elasticsearch/issues/156459

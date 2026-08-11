@@ -149,6 +149,10 @@ public class TransformUpdater {
         final boolean willMintCredential = TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()
             && mintCloudCredential
             && callerCredential != null;
+        final boolean migrateFromUIAM = TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()
+            && mintCloudCredential
+            && callerCredential == null
+            && config.getCredentialId() != null;
 
         // rewrite config into a new format if necessary
         final TransformConfig rewrittenConfig = TransformConfig.rewriteForUpdate(config);
@@ -163,7 +167,7 @@ public class TransformUpdater {
                 appliedConfig.getSource().withProjectRouting(ProjectRoutingResolver.LOCAL_ONLY)
             ).build();
         }
-        final TransformConfig updatedConfig = appliedConfig;
+        final TransformConfig updatedConfig = migrateFromUIAM ? appliedConfig.withCredentialId(null) : appliedConfig;
         final SetOnce<AuthorizationState> authStateHolder = new SetOnce<>();
 
         // <5> Update state document + checkpoints, then emit result.
@@ -210,7 +214,12 @@ public class TransformUpdater {
                 seqNoPrimaryTermAndIndex,
                 clusterState,
                 destIndexSettings,
-                ActionListener.wrap(r -> updateTransformListener.onResponse(configToWrite), configWriteFailure -> {
+                ActionListener.wrap(r -> {
+                    if (migrateFromUIAM) {
+                        auditor.info(configToWrite.getId(), "cleared cloud credential on update with non-cloud credentials");
+                    }
+                    updateTransformListener.onResponse(configToWrite);
+                }, configWriteFailure -> {
                     if (willMintCredential == false) {
                         // No fresh mint to roll back (Reset / Upgrade, or mint was skipped).
                         l.onFailure(configWriteFailure);

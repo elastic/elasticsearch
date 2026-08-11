@@ -20,6 +20,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.support.SecondaryAuthentication;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredential;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredentialManager;
@@ -291,7 +292,7 @@ public class TransformCloudCredentialManagerTests extends ESTestCase {
         var config = randomTransformConfig(TRANSFORM_ID);
         var newPersisted = randomPersistedCloudCredential("new-id");
         // AuthenticationTestHelper builds with TransportVersion.current() as the subject version.
-        var grantedAuthentication = org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper.builder().build();
+        var grantedAuthentication = AuthenticationTestHelper.builder().build();
         doAnswer(invocation -> {
             ActionListener<CloudGrantApiKeyResult> l = invocation.getArgument(2);
             l.onResponse(new CloudGrantApiKeyResult(newPersisted, grantedAuthentication));
@@ -309,6 +310,8 @@ public class TransformCloudCredentialManagerTests extends ESTestCase {
         // Compute a minTransportVersion older than the authentication's subject version so that
         // supports() returns false and the maybeRewriteForOlderVersion branch is exercised.
         var subjectVersion = grantedAuthentication.getEffectiveSubject().getTransportVersion();
+        // One ID lower than the subject version — the smallest version for which supports() returns
+        // false, ensuring maybeRewriteForOlderVersion is exercised rather than the no-rewrite path.
         var olderMinVersion = TransportVersion.fromId(subjectVersion.id() - 1);
         assertFalse("test pre-condition: olderMinVersion must not support subjectVersion", olderMinVersion.supports(subjectVersion));
 
@@ -469,7 +472,7 @@ public class TransformCloudCredentialManagerTests extends ESTestCase {
 
         // grant returns a fresh persisted credential with a known id and a real (non-mockable) Authentication
         var newPersisted = randomPersistedCloudCredential("new-id");
-        var grantedAuthentication = org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper.builder().build();
+        var grantedAuthentication = AuthenticationTestHelper.builder().build();
         doAnswer(invocation -> {
             ActionListener<CloudGrantApiKeyResult> l = invocation.getArgument(2);
             l.onResponse(new CloudGrantApiKeyResult(newPersisted, grantedAuthentication));
@@ -519,7 +522,7 @@ public class TransformCloudCredentialManagerTests extends ESTestCase {
         // grant succeeds — use a real (non-null) Authentication: replaceSecurityHeaders now runs
         // before putTransformCloudCredential, so a null authentication would NPE before the persist.
         var mintedCredential = randomPersistedCloudCredential("minted-id");
-        var grantedAuthentication = org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper.builder().build();
+        var grantedAuthentication = AuthenticationTestHelper.builder().build();
         doAnswer(invocation -> {
             ActionListener<CloudGrantApiKeyResult> l = invocation.getArgument(2);
             l.onResponse(new CloudGrantApiKeyResult(mintedCredential, grantedAuthentication));

@@ -226,8 +226,8 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
                         // running task and no auth state worth persisting. A non-CPS header-only
                         // _update never lands here (isNoop includes headers, so it is
                         // Status.UPDATED), which keeps the re-authorize-by-empty-update behaviour
-                        // intact. Gated on changesHeaders rather than unconditional: a NONE +
-                        // changesSettings case falls through to the pre-existing chain unchanged.
+                        // intact. Gated on changesHeaders: when headers are also unchanged there
+                        // is nothing to skip, and the existing chain handles it correctly.
                         if (updateResult.getStatus() == TransformUpdater.UpdateResult.Status.NONE
                             && update.changesHeaders(originalConfig)) {
                             afterCredentialCleanup.onResponse(new Response(updatedConfig));

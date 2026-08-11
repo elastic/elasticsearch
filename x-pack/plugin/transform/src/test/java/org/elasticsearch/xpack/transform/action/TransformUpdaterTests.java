@@ -1109,6 +1109,190 @@ public class TransformUpdaterTests extends ESTestCase {
     }
 
     /**
+     * When an already-UIAM transform receives a non-noop update from a non-UIAM caller, clear the
+     * stored credential id (demigration) so TransportUpdateTransformAction / indexer prior-revoke
+     * paths can run. mintAndPersist must not be called. Matches datafeeds' Intent.CLEAR.
+     */
+    public void testNonUiamUpdateClearsExistingUiamCredential() throws InterruptedException {
+        assumeTrue("Only relevant if feature flag is enabled", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
+
+        InMemoryTransformConfigManager transformConfigManager = new InMemoryTransformConfigManager();
+        String priorTokenId = "prior-token-id";
+        Map<String, String> priorHeaders = Map.of(AuthenticationField.AUTHENTICATION_KEY, "prior-minted-auth");
+        TransformConfig existing = new TransformConfig.Builder(
+            TransformConfigTests.randomTransformConfig(randomAlphaOfLengthBetween(1, 10), TransformConfigVersion.CURRENT)
+        ).setCredentialId(priorTokenId).setHeaders(priorHeaders).setDescription("before").build();
+        transformConfigManager.putTransformConfiguration(existing, ActionListener.noop());
+
+        TransformConfigUpdate descriptionUpdate = new TransformConfigUpdate(null, null, null, null, "after", null, null, null);
+        descriptionUpdate.setHeaders(Map.of(AuthenticationField.AUTHENTICATION_KEY, "caller-api-key-auth"));
+
+        MockTransformAuditor mockAuditor = (MockTransformAuditor) auditor;
+        mockAuditor.addExpectation(
+            new MockTransformAuditor.SeenAuditExpectation(
+                "cleared-on-demigration",
+                org.elasticsearch.xpack.core.common.notifications.Level.INFO,
+                existing.getId(),
+                "cleared cloud credential on update with non-cloud credentials"
+            )
+        );
+
+        assertUpdate(
+            listener -> TransformUpdater.updateTransform(
+                bobSecurityContext,
+                indexNameExpressionResolver,
+                ClusterState.EMPTY_STATE,
+                settings,
+                client,
+                transformConfigManager,
+                auditor,
+                existing,
+                descriptionUpdate,
+                null,
+                true,
+                false,
+                false,
+                true,
+                AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
+                destIndexSettings,
+                cloudCredentialManager,
+                true, // mintCloudCredential — real _update
+                null, // non-UIAM caller
+                listener
+            ),
+            updateResult -> {
+                assertThat(updateResult.getStatus(), equalTo(UpdateResult.Status.UPDATED));
+                assertThat(updateResult.getConfig().getCredentialId(), is(nullValue()));
+                assertThat(updateResult.getConfig().getHeaders(), hasEntry(AuthenticationField.AUTHENTICATION_KEY, "caller-api-key-auth"));
+                assertThat(updateResult.getConfig().getDescription(), equalTo("after"));
+            }
+        );
+        verify(cloudCredentialManager, never()).mintAndPersist(any(), any(), any(), any());
+        mockAuditor.assertAllExpectationsMatched();
+    }
+
+    /**
+     * A headers-only {@code _update} (no user-visible fields changed in the body) from a non-UIAM
+     * caller on an already-UIAM transform must trigger demigration: the write is forced purely by
+     * {@code credentialId} inequality after the stored id is cleared, not by any user-visible field
+     * change. Complements {@link #testNonUiamUpdateClearsExistingUiamCredential}, which uses a
+     * description change as the driving change.
+     */
+    public void testHeadersOnlyUpdateFromNonUiamCallerDemigrates() throws InterruptedException {
+        assumeTrue("Only relevant if feature flag is enabled", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
+
+        InMemoryTransformConfigManager transformConfigManager = new InMemoryTransformConfigManager();
+        String priorTokenId = "prior-token-id";
+        Map<String, String> priorHeaders = Map.of(AuthenticationField.AUTHENTICATION_KEY, "prior-minted-auth");
+        TransformConfig existing = new TransformConfig.Builder(
+            TransformConfigTests.randomTransformConfig(randomAlphaOfLengthBetween(1, 10), TransformConfigVersion.CURRENT)
+        ).setCredentialId(priorTokenId).setHeaders(priorHeaders).build();
+        transformConfigManager.putTransformConfiguration(existing, ActionListener.noop());
+
+        // Headers-only update: only the caller's security headers are set, no other fields.
+        // This mirrors what TransportUpdateTransformAction does on an empty _update body.
+        TransformConfigUpdate headersOnlyUpdate = new TransformConfigUpdate(null, null, null, null, null, null, null, null);
+        headersOnlyUpdate.setHeaders(Map.of(AuthenticationField.AUTHENTICATION_KEY, "caller-api-key-auth"));
+
+        MockTransformAuditor mockAuditor = (MockTransformAuditor) auditor;
+        mockAuditor.addExpectation(
+            new MockTransformAuditor.SeenAuditExpectation(
+                "cleared-on-headers-only-demigration",
+                org.elasticsearch.xpack.core.common.notifications.Level.INFO,
+                existing.getId(),
+                "cleared cloud credential on update with non-cloud credentials"
+            )
+        );
+
+        assertUpdate(
+            listener -> TransformUpdater.updateTransform(
+                bobSecurityContext,
+                indexNameExpressionResolver,
+                ClusterState.EMPTY_STATE,
+                settings,
+                client,
+                transformConfigManager,
+                auditor,
+                existing,
+                headersOnlyUpdate,
+                null,
+                true,
+                false,
+                false,
+                true,
+                AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
+                destIndexSettings,
+                cloudCredentialManager,
+                true, // mintCloudCredential — real _update
+                null, // non-UIAM caller — triggers demigration
+                listener
+            ),
+            updateResult -> {
+                // Write is forced by credentialId inequality alone; description is unchanged.
+                assertThat(updateResult.getStatus(), equalTo(UpdateResult.Status.UPDATED));
+                assertThat(updateResult.getConfig().getCredentialId(), is(nullValue()));
+                assertThat(updateResult.getConfig().getHeaders(), hasEntry(AuthenticationField.AUTHENTICATION_KEY, "caller-api-key-auth"));
+                assertThat(updateResult.getConfig().getDescription(), equalTo(existing.getDescription()));
+            }
+        );
+        verify(cloudCredentialManager, never()).mintAndPersist(any(), any(), any(), any());
+        mockAuditor.assertAllExpectationsMatched();
+    }
+
+    /**
+     * Reset and Upgrade always call {@code updateTransform} with {@code mintCloudCredential=false},
+     * which must collapse both {@code willMintCredential} and {@code migrateFromUIAM} to false
+     * regardless of whether a caller credential is present. This protects an already-UIAM transform
+     * (credentialId set) from having its stored credential cleared or replaced on Reset/Upgrade.
+     */
+    public void testResetAndUpgradeNeverMintOrDemigrateEvenWithCallerCredential() throws InterruptedException {
+        assumeTrue("Only relevant if feature flag is enabled", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
+
+        InMemoryTransformConfigManager transformConfigManager = new InMemoryTransformConfigManager();
+        // Config at CURRENT version with a stored credentialId — simulates an already-UIAM transform
+        // being passed through Reset or Upgrade.
+        TransformConfig migratedConfig = new TransformConfig.Builder(
+            TransformConfigTests.randomTransformConfig(randomAlphaOfLengthBetween(1, 10), TransformConfigVersion.CURRENT)
+        ).setCredentialId("existing-token-id").build();
+        transformConfigManager.putTransformConfiguration(migratedConfig, ActionListener.noop());
+
+        // A non-null caller credential is supplied (as it could be on the request) but since
+        // mintCloudCredential=false, neither willMintCredential nor migrateFromUIAM can be true.
+        CloudCredential callerCredential = new CloudCredential(new SecureString("caller-cred".toCharArray()));
+        try (callerCredential) {
+            assertUpdate(
+                listener -> TransformUpdater.updateTransform(
+                    bobSecurityContext,
+                    indexNameExpressionResolver,
+                    ClusterState.EMPTY_STATE,
+                    settings,
+                    client,
+                    transformConfigManager,
+                    auditor,
+                    migratedConfig,
+                    TransformConfigUpdate.EMPTY,
+                    null,
+                    true,
+                    false,
+                    false,
+                    false,
+                    AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
+                    destIndexSettings,
+                    cloudCredentialManager,
+                    false, // mintCloudCredential=false — Reset/Upgrade path
+                    callerCredential,
+                    listener
+                ),
+                updateResult -> {
+                    assertThat(updateResult.getStatus(), equalTo(UpdateResult.Status.NONE));
+                    assertThat(updateResult.getConfig().getCredentialId(), equalTo("existing-token-id"));
+                    verify(cloudCredentialManager, never()).mintAndPersist(any(), any(), any(), any());
+                }
+            );
+        }
+    }
+
+    /**
      * An empty-body {@code _update} from a UIAM caller on an already-UIAM transform (headers
      * differ only) must produce {@code Status.NONE} and return the stored config — with its minted
      * authentication intact, not the caller's headers that {@code apply()} copied into the in-memory

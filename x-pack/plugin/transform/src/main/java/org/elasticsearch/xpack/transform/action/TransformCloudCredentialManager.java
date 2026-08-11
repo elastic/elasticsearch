@@ -253,7 +253,7 @@ public class TransformCloudCredentialManager {
         Map<String, String> headers,
         TransportVersion minTransportVersion
     ) {
-        var updated = new HashMap<>(headers);
+        var updated = headers == null ? new HashMap<String, String>() : new HashMap<>(headers);
         updated.keySet().removeAll(ClientHelper.SECURITY_HEADER_FILTERS);
         var safe = minTransportVersion.supports(authentication.getEffectiveSubject().getTransportVersion())
             ? authentication

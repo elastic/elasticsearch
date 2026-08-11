@@ -1091,4 +1091,25 @@ public class ESVectorUtil {
     public static void inRangeBitmask(long[] values, long lowerValue, long upperValue, long[] matches) {
         IMPL.inRangeBitmask(values, lowerValue, upperValue, matches);
     }
+
+    /**
+     * Transposes a matrix from (rows x cols) to (cols x rows).
+     */
+    public static float[][] transposeMatrix(float[][] m) {
+        assert m.length > 0;
+        return transposeMatrix(m, m.length, m[0].length);
+    }
+
+    /**
+     * Transposes a matrix from (rows x cols) to (cols x rows).
+     */
+    public static float[][] transposeMatrix(float[][] m, int rows, int cols) {
+        float[][] t = new float[cols][rows];
+        for (int i = 0; i < rows; i++) {
+            for (int j = 0; j < cols; j++) {
+                t[j][i] = m[i][j];
+            }
+        }
+        return t;
+    }
 }

@@ -227,25 +227,6 @@ public final class AsymmetricHashingQuantizer {
         return new EncodedVector(xEnc, scale, offset);
     }
 
-    /**
-     * Transposes W from (originalDim x nDims) to (nDims x originalDim).
-     * The transposed layout enables SIMD-friendly row-wise dot products during encoding.
-     *
-     * @param w the projection matrix, shape (originalDim, nDims)
-     * @return the transposed matrix, shape (nDims, originalDim)
-     */
-    static float[][] transposeW(float[][] w) {
-        int originalDim = w.length;
-        int nDims = w[0].length;
-        float[][] wT = new float[nDims][originalDim];
-        for (int i = 0; i < originalDim; i++) {
-            for (int j = 0; j < nDims; j++) {
-                wT[j][i] = w[i][j];
-            }
-        }
-        return wT;
-    }
-
     private float[][] learnedTraining(float[][] xTraining, int originalDim, int nDims) {
         // PCA initialization: extract top nDims right singular vectors via power iteration
         // This is much faster than full SVD when nDims << originalDim

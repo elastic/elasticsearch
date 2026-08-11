@@ -47,6 +47,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.escf.EscfColumn;
 import org.elasticsearch.escf.EscfColumnData;
 import org.elasticsearch.escf.EscfColumnKind;
+import org.elasticsearch.escf.LuceneBinaryColumn;
 import org.elasticsearch.escf.LuceneLongColumn;
 import org.elasticsearch.escf.NumberColumnTransform;
 import org.elasticsearch.index.IndexMode;
@@ -2869,23 +2870,21 @@ public class NumberFieldMapper extends FieldMapper {
     private static final IndexableFieldType SORTED_NUMERIC_DV_INDEXED_FIELD_TYPE = SortedNumericDocValuesField.indexedField("_sentinel", 0L)
         .fieldType();
     // Match the field types produced by the indexed+DV branches in addLongFields / NumberType.addFields.
-    // half_float is excluded: it uses separate HalfFloatPoint (2-byte) + DV fields; ColumnLongField cannot
-    // emit the 2-byte point encoding, so indexed half_float fields fall back to the row path.
     private static final IndexableFieldType LONG_FIELD_TYPE = new LongField("_sentinel", 0L, Field.Store.NO).fieldType();
     private static final IndexableFieldType INT_FIELD_TYPE = new IntField("_sentinel", 0, Field.Store.NO).fieldType();
     private static final IndexableFieldType FLOAT_FIELD_TYPE = new FloatField("_sentinel", 0f, Field.Store.NO).fieldType();
     private static final IndexableFieldType DOUBLE_FIELD_TYPE = new DoubleField("_sentinel", 0.0, Field.Store.NO).fieldType();
+    // half_float uses a separate HalfFloatPoint (2-byte BKD points) alongside its doc-values column;
+    // LuceneHalfFloatPointColumn emits this type for the points column.
+    private static final IndexableFieldType HALF_FLOAT_POINT_FIELD_TYPE = new HalfFloatPoint("_sentinel", 0f).fieldType();
 
     @Override
     public boolean supportsColumnarParse(IndexSettings indexSettings) {
         // Neither doc_values.multi_value nor ignore_malformed is implemented by mapColumnBatch, but
         // neither is rejected up front either: both only matter for documents the columnar path
         // already refuses, and refusing late falls back to row path.
-        // Indexed half_float uses a 2-byte HalfFloatPoint that ColumnLongField cannot encode, so
-        // indexed half_float fields fall back to the row path.
         return indexSettings.getMode().isStrictColumnar()
             && docValuesParameters.enabled()
-            && (indexed == false || type != NumberType.HALF_FLOAT)
             && stored == false
             && indexTerms == false
             && hasScript() == false
@@ -2916,29 +2915,38 @@ public class NumberFieldMapper extends FieldMapper {
             BytesRefRecycler.NON_RECYCLING_INSTANCE,
             nullSortableLong
         );
-        final IndexableFieldType columnFieldType;
         if (fieldType().indexType().hasDocValuesSkipper()) {
-            columnFieldType = SORTED_NUMERIC_DV_INDEXED_FIELD_TYPE;
-        } else if (indexed) {
-            columnFieldType = switch (type) {
-                case LONG -> LONG_FIELD_TYPE;
-                case BYTE, SHORT, INTEGER -> INT_FIELD_TYPE;
-                case FLOAT -> FLOAT_FIELD_TYPE;
-                case DOUBLE -> DOUBLE_FIELD_TYPE;
-                case HALF_FLOAT -> throw new AssertionError("indexed half_float must not reach mapColumnBatch");
-            };
+            ctx.addColumn(LuceneLongColumn.of(outData, fieldType().name(), SORTED_NUMERIC_DV_INDEXED_FIELD_TYPE, numericKind(type)));
+        } else if (indexed && type == NumberType.HALF_FLOAT) {
+            // half_float uses separate HalfFloatPoint (2-byte BKD) and SortedNumericDocValuesField,
+            // unlike other numeric types which use a combined field. Send one column for each.
+            ctx.addColumn(LuceneLongColumn.of(outData, fieldType().name(), SORTED_NUMERIC_DV_FIELD_TYPE, LongColumn.NumericKind.FLOAT));
+            EscfColumnData halfFloatPointData = NumberColumnTransform.toHalfFloatPointBinaryColumn(
+                EscfColumn.from(outData),
+                BytesRefRecycler.NON_RECYCLING_INSTANCE
+            );
+            ctx.addColumn(LuceneBinaryColumn.of(halfFloatPointData, fieldType().name(), HALF_FLOAT_POINT_FIELD_TYPE));
         } else {
-            columnFieldType = SORTED_NUMERIC_DV_FIELD_TYPE;
+            IndexableFieldType columnFieldType = indexed ? indexableFieldType(type) : SORTED_NUMERIC_DV_FIELD_TYPE;
+            ctx.addColumn(LuceneLongColumn.of(outData, fieldType().name(), columnFieldType, numericKind(type)));
         }
-        ctx.addColumn(LuceneLongColumn.of(outData, fieldType().name(), columnFieldType, numericKind(type)));
+    }
+
+    private static IndexableFieldType indexableFieldType(NumberType type) {
+        return switch (type) {
+            case BYTE, SHORT, INTEGER -> INT_FIELD_TYPE;
+            case FLOAT -> FLOAT_FIELD_TYPE;
+            case LONG -> LONG_FIELD_TYPE;
+            case DOUBLE -> DOUBLE_FIELD_TYPE;
+            case HALF_FLOAT -> throw new AssertionError("unreachable: indexed half_float is handled separately");
+        };
     }
 
     private static LongColumn.NumericKind numericKind(NumberType type) {
         return switch (type) {
             case BYTE, SHORT, INTEGER -> LongColumn.NumericKind.INT;
-            case HALF_FLOAT -> LongColumn.NumericKind.FLOAT;
+            case HALF_FLOAT, FLOAT -> LongColumn.NumericKind.FLOAT;
             case LONG -> LongColumn.NumericKind.LONG;
-            case FLOAT -> LongColumn.NumericKind.FLOAT;
             case DOUBLE -> LongColumn.NumericKind.DOUBLE;
         };
     }

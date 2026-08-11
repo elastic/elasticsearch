@@ -157,19 +157,12 @@ public class NumberFieldMapperColumnarCompatibilityTests extends AbstractColumna
         );
     }
 
-    /**
-     * Indexed {@code half_float} cannot use the columnar path — {@code HalfFloatPoint} uses a
-     * 2-byte point encoding that {@code ColumnLongField} cannot produce. {@link
-     * NumberFieldMapper#supportsColumnarParse} returns {@code false} for these fields, so they fall
-     * back to the row path.
-     */
-    public void testHalfFloatField_indexedFallsBackToRowPath() throws Exception {
-        final MapperService mapperService = createMapperService(
+    public void testHalfFloatField_indexed() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "half_float").field("index", true).endObject()),
             columnarSettings(),
-            mapping(b -> b.startObject(FIELD).field("type", "half_float").field("index", true).endObject())
+            batch("half_float indexed", 1L, doc("d1", 1L, "{\"f\":1.5}"), doc("d2", 2L, "{}"), doc("d3", 3L, "{\"f\":-2.25}"))
         );
-        final FieldMapper mapper = (FieldMapper) mapperService.mappingLookup().getMapper(FIELD);
-        assertFalse(mapper.supportsColumnarParse(mapperService.getIndexSettings()));
     }
 
     public void testFloatField_doubleColumn() throws IOException {

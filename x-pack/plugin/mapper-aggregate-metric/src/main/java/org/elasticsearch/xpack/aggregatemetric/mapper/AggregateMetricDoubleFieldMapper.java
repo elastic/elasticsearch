@@ -922,7 +922,7 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
         }
 
         @Override
-        public long valueCount() {
+        public long valueCount() throws IOException {
             return hasValue() ? 1 : 0;
         }
 

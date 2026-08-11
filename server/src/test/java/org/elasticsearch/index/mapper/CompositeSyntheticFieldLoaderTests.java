@@ -119,7 +119,7 @@ public class CompositeSyntheticFieldLoaderTests extends ESTestCase {
             }
 
             @Override
-            public long valueCount() {
+            public long valueCount() throws IOException {
                 return 2;
             }
         }, new CompositeSyntheticFieldLoader.Layer() {
@@ -154,7 +154,7 @@ public class CompositeSyntheticFieldLoaderTests extends ESTestCase {
             }
 
             @Override
-            public long valueCount() {
+            public long valueCount() throws IOException {
                 return 1;
             }
         }));
@@ -211,7 +211,7 @@ public class CompositeSyntheticFieldLoaderTests extends ESTestCase {
                 }
 
                 @Override
-                public long valueCount() {
+                public long valueCount() throws IOException {
                     return 1;
                 }
             })

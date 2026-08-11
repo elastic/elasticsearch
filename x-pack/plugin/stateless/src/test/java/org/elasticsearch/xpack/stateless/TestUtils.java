@@ -12,7 +12,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
@@ -32,6 +31,7 @@ import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryMetrics;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
@@ -71,18 +71,9 @@ public class TestUtils {
     /// settings that such components watch, in addition to the built-in ones.
     public static ClusterService mockClusterService(Settings settings) {
         final ClusterService clusterService = mock(ClusterService.class);
-        when(clusterService.getClusterSettings()).thenReturn(
-            new ClusterSettings(
-                settings,
-                Sets.addToCopy(
-                    ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
-                    StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING,
-                    StatelessSharedBlobCacheService.STATELESS_CACHE_DEMOTE_CLOSED_SHARD_REGIONS_ENABLED_SETTING,
-                    StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_TIMESTAMP_BACKFILL_ENABLED_SETTING,
-                    StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_DELETED_INDEX_REGIONS_ENABLED_SETTING
-                )
-            )
-        );
+        var registered = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        registered.addAll(new StatelessPlugin(settings).getSettings());
+        when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(settings, registered));
         return clusterService;
     }
 

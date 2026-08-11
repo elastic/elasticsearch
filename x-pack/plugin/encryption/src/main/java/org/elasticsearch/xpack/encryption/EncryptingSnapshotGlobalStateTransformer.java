@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.encryption.spi.EncryptionServiceRegistry;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Implements {@link SnapshotGlobalStateTransformer} by re-wrapping {@link org.elasticsearch.xpack.core.encryption.EncryptedData}
@@ -52,8 +51,7 @@ public final class EncryptingSnapshotGlobalStateTransformer implements SnapshotG
         final var encryptionService = EncryptionServiceRegistry.getEncryptionService();
         final SecureString secret = request == null ? null : request.encryptionPassword();
 
-        boolean hasEncryptedData = false;
-        final Map<String, Metadata.ProjectCustom> rewrapped = new HashMap<>();
+        final Map<String, Metadata.ProjectCustom> transformed = new HashMap<>();
         for (EncryptedDataHandler<?> rawHandler : EncryptedDataHandlerRegistry.getInstance().handlers()) {
             final EncryptedDataHandler<Metadata.ProjectCustom> handler = (EncryptedDataHandler<Metadata.ProjectCustom>) rawHandler;
             final Metadata.ProjectCustom custom = project.custom(handler.customName());
@@ -62,33 +60,31 @@ public final class EncryptingSnapshotGlobalStateTransformer implements SnapshotG
             if (custom == null || custom.context().contains(Metadata.XContentContext.SNAPSHOT) == false) {
                 continue;
             }
-            if (secret == null) {
-                hasEncryptedData |= containsEncryptedData(handler, custom);
-            } else {
-                final Metadata.ProjectCustom result = handler.reEncrypt(custom, existing -> {
-                    byte[] plaintext = encryptionService.decrypt(existing);
-                    try {
-                        return PasswordBasedEncryption.wrap(plaintext, SNAPSHOT_PASSWORD_KEY_ID, secret.getChars());
-                    } finally {
-                        Arrays.fill(plaintext, (byte) 0);
-                    }
-                });
-                if (result != custom) {
-                    rewrapped.put(handler.customName(), result);
+            // with a password, re-wrap each value under it; without one, exclude the values so the snapshot
+            // never contains data wrapped under this cluster's project encryption key
+            final Metadata.ProjectCustom result = handler.reEncrypt(custom, secret == null ? existing -> null : existing -> {
+                byte[] plaintext = encryptionService.decrypt(existing);
+                try {
+                    return PasswordBasedEncryption.wrap(plaintext, SNAPSHOT_PASSWORD_KEY_ID, secret.getChars());
+                } finally {
+                    Arrays.fill(plaintext, (byte) 0);
                 }
+            });
+            if (result != custom) {
+                transformed.put(handler.customName(), result);
             }
         }
 
-        if (hasEncryptedData && secret == null) {
+        if (secret == null && transformed.isEmpty() == false) {
             logger.warn(
                 "snapshot global state contains encrypted data but no encryption_password was provided; "
-                    + "the encrypted data will only be restorable on a cluster holding the same project encryption key"
+                    + "the encrypted data is excluded from the snapshot"
             );
         }
-        if (secret != null && rewrapped.isEmpty()) {
+        if (secret != null && transformed.isEmpty()) {
             logger.warn("an encryption_password was provided but the snapshot global state contains no encrypted data");
         }
-        return rewrapped.isEmpty() ? metadata : withReplacedCustoms(metadata, project, rewrapped);
+        return transformed.isEmpty() ? metadata : withReplacedCustoms(metadata, project, transformed);
     }
 
     @Override
@@ -107,8 +103,13 @@ public final class EncryptingSnapshotGlobalStateTransformer implements SnapshotG
             }
             final Metadata.ProjectCustom result = handler.reEncrypt(custom, existing -> {
                 if (SNAPSHOT_PASSWORD_KEY_ID.equals(existing.keyId()) == false) {
-                    // PEK-wrapped: a same-cluster restore needs no password
-                    return existing;
+                    // snapshots only ever contain password-wrapped values; anything else is foreign or corrupt
+                    logger.warn(
+                        "restored [{}] contains a value encrypted under unknown key [{}]; the value is cleared",
+                        handler.customName(),
+                        existing.keyId()
+                    );
+                    return null;
                 }
                 if (secret == null) {
                     logger.warn(
@@ -131,15 +132,6 @@ public final class EncryptingSnapshotGlobalStateTransformer implements SnapshotG
         }
 
         return rewrapped.isEmpty() ? restored : withReplacedCustoms(restored, project, rewrapped);
-    }
-
-    private static boolean containsEncryptedData(EncryptedDataHandler<Metadata.ProjectCustom> handler, Metadata.ProjectCustom custom) {
-        AtomicBoolean found = new AtomicBoolean();
-        handler.reEncrypt(custom, existing -> {
-            found.set(true);
-            return existing;
-        });
-        return found.get();
     }
 
     private static Metadata withReplacedCustoms(Metadata metadata, ProjectMetadata project, Map<String, Metadata.ProjectCustom> customs) {

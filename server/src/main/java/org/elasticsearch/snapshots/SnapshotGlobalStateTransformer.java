@@ -26,9 +26,9 @@ public interface SnapshotGlobalStateTransformer {
     /**
      * Transforms the global state before it is written to the snapshot.
      *
-     * <p>Implementations must return the same instance when they leave the state untouched. Returning a different
-     * instance marks the snapshot as containing transformed state that requires input on the restore request to
-     * recover fully (surfaced to users as {@code has_encrypted_data} on the snapshot).
+     * <p>Implementations must return the same instance when they leave the state untouched. A different instance
+     * signals that the state was transformed; when the request also supplied an encryption password, the snapshot
+     * is marked as requiring that password to restore fully (surfaced to users as {@code has_encrypted_data}).
      *
      * @param request the request that initiated the snapshot, or {@code null} when it is not available on this
      *                node (e.g. the snapshot was cloned, or the elected master changed while it was running)

@@ -103,6 +103,14 @@ public class SnapshotLifecycleMetadata implements Metadata.ProjectCustom {
     }
 
     /**
+     * Returns a copy of this metadata with the given policy configurations; the (legacy) operation mode and stats
+     * are preserved verbatim.
+     */
+    public SnapshotLifecycleMetadata withSnapshotConfigurations(Map<String, SnapshotLifecyclePolicyMetadata> snapshotConfigurations) {
+        return new SnapshotLifecycleMetadata(snapshotConfigurations, this.operationMode, this.slmStats);
+    }
+
+    /**
      * @deprecated use {@link LifecycleOperationMetadata#getSLMOperationMode()} instead. This may be incorrect.
      */
     @Deprecated(since = "8.7.0")

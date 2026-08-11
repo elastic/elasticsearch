@@ -142,7 +142,7 @@ public class SLMSnapshotEncryptionPasswordIT extends AbstractSnapshotIntegTestCa
         assertThat(cleared.getEncryptedPassword(), nullValue());
     }
 
-    public void testSnapshotWithoutPasswordKeepsPekWrappedPolicyPassword() throws Exception {
+    public void testSnapshotWithoutPasswordExcludesPolicyPassword() throws Exception {
         ensureGreen();
         waitForEncryptionService();
 
@@ -150,7 +150,8 @@ public class SLMSnapshotEncryptionPasswordIT extends AbstractSnapshotIntegTestCa
         indexRandomDocs(INDEX, 10);
         putPolicyWithEncryptionPassword();
 
-        // A plain snapshot (no encryption_password on the request) of the same global state
+        // A plain snapshot (no encryption_password on the request) excludes the encrypted values from the
+        // snapshot's global state entirely, so it never contains data wrapped under this cluster's PEK
         createSnapshot(REPO, "plain-snapshot", List.of(INDEX));
         assertFalse(
             "snapshot must not be flagged as containing password-protected data",
@@ -159,13 +160,11 @@ public class SLMSnapshotEncryptionPasswordIT extends AbstractSnapshotIntegTestCa
 
         deletePolicyAndIndex();
 
-        // Same-cluster restore without a password: the policy password is still PEK-wrapped and remains usable
+        // The policy restores, but its password was never in the snapshot
         RestoreSnapshotResponse restore = restore("plain-snapshot", null).get();
         assertThat(restore.getRestoreInfo().failedShards(), equalTo(0));
         SnapshotLifecyclePolicy restored = storedPolicy();
-        assertThat(restored.getEncryptedPassword(), notNullValue());
-        byte[] decrypted = masterEncryptionService().decrypt(restored.getEncryptedPassword());
-        assertThat(new String(decrypted, StandardCharsets.UTF_8), equalTo(ENCRYPTION_PASSWORD));
+        assertThat(restored.getEncryptedPassword(), nullValue());
     }
 
     private void waitForEncryptionService() throws Exception {

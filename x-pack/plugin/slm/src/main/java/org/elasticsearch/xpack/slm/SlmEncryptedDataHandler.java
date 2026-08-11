@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.slm;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.xpack.core.encryption.EncryptedData;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
@@ -14,6 +16,7 @@ import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
 import org.elasticsearch.xpack.encryption.spi.EncryptedDataHandler;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.UnaryOperator;
 
@@ -24,16 +27,16 @@ import java.util.function.UnaryOperator;
  */
 public final class SlmEncryptedDataHandler implements EncryptedDataHandler<SnapshotLifecycleMetadata> {
 
+    private static final Logger logger = LogManager.getLogger(SlmEncryptedDataHandler.class);
+
     @Override
     public String customName() {
         return SnapshotLifecycleMetadata.TYPE;
     }
 
     @Override
-    @SuppressWarnings("deprecation")
     public SnapshotLifecycleMetadata reEncrypt(SnapshotLifecycleMetadata current, UnaryOperator<EncryptedData> rewrap) {
-        boolean changed = false;
-        Map<String, SnapshotLifecyclePolicyMetadata> rebuilt = new HashMap<>(current.getSnapshotConfigurations());
+        Map<String, SnapshotLifecyclePolicyMetadata> rebuilt = null;
         for (Map.Entry<String, SnapshotLifecyclePolicyMetadata> entry : current.getSnapshotConfigurations().entrySet()) {
             SnapshotLifecyclePolicyMetadata policyMeta = entry.getValue();
             EncryptedData existing = policyMeta.getPolicy().getEncryptedPassword();
@@ -42,12 +45,14 @@ public final class SlmEncryptedDataHandler implements EncryptedDataHandler<Snaps
             }
             EncryptedData rewrapped = rewrap.apply(existing);
             if (rewrapped != existing) {
+                if (rebuilt == null) {
+                    rebuilt = new HashMap<>(current.getSnapshotConfigurations());
+                }
                 SnapshotLifecyclePolicy newPolicy = policyMeta.getPolicy().withEncryptedPassword(rewrapped);
                 rebuilt.put(entry.getKey(), SnapshotLifecyclePolicyMetadata.builder(policyMeta).setPolicy(newPolicy).build());
-                changed = true;
             }
         }
-        return changed ? new SnapshotLifecycleMetadata(rebuilt, current.getOperationMode(), current.getStats()) : current;
+        return rebuilt != null ? current.withSnapshotConfigurations(rebuilt) : current;
     }
 
     /**
@@ -59,6 +64,22 @@ public final class SlmEncryptedDataHandler implements EncryptedDataHandler<Snaps
         if (current == null) {
             return null;
         }
-        return reEncrypt(current, existing -> null);
+        SnapshotLifecycleMetadata result = reEncrypt(current, existing -> null);
+        if (result != current) {
+            List<String> clearedPolicies = current.getSnapshotConfigurations()
+                .values()
+                .stream()
+                .filter(meta -> meta.getPolicy().getEncryptedPassword() != null)
+                .map(SnapshotLifecyclePolicyMetadata::getId)
+                .sorted()
+                .toList();
+            logger.warn(
+                "destructive encryption reset permanently destroyed the snapshot encryption passwords of SLM policies {}; "
+                    + "the policies remain active but their snapshots will exclude any encrypted values and will not be "
+                    + "password-protected until each policy is updated with a new encryption_password",
+                clearedPolicies
+            );
+        }
+        return result;
     }
 }

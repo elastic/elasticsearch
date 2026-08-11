@@ -1004,8 +1004,11 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                     transformedMetadata = transformer.transformForSnapshot(projectId, transformedMetadata, createRequest);
                 }
                 final Metadata metaForSnapshot = transformedMetadata;
-                // transformers return the same instance when they secured nothing (see SnapshotGlobalStateTransformer)
-                final boolean hasEncryptedData = metaForSnapshot != untransformedMetadata;
+                // a transformed state (transformers return the same instance when untouched, see SnapshotGlobalStateTransformer)
+                // is password-protected only when the request carried a password; without one the transformation excluded data
+                final boolean hasEncryptedData = createRequest != null
+                    && createRequest.encryptionPassword() != null
+                    && metaForSnapshot != untransformedMetadata;
 
                 final Map<String, SnapshotInfo.IndexSnapshotDetails> indexSnapshotDetails = Maps.newMapWithExpectedSize(
                     finalIndices.size()

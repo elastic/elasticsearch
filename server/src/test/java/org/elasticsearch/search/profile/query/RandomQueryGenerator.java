@@ -41,7 +41,6 @@ public class RandomQueryGenerator {
         return randomQueryBuilder(stringFields, numericFields, numDocs, depth, new AtomicInteger(MAX_TERMINAL_QUERIES));
     }
 
-
     private static QueryBuilder randomQueryBuilder(
         List<String> stringFields,
         List<String> numericFields,

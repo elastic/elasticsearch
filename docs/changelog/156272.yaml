@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 156272
-summary: Factorize dependencies using libs/arrow
-type: upgrade

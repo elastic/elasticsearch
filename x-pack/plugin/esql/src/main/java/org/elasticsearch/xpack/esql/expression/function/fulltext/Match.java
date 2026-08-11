@@ -595,7 +595,11 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
         // When options are used, we build a Lucene query
         if (field.dataType() == TEXT && options() != null) {
             Map<String, Object> opts = matchQueryOptions();
-            return textEvaluatorForQueryWithOptions(new MatchQuery(source(), RuntimeSearch.CONTENT_FIELD, queryAsObject(), opts), opts, toEvaluator);
+            return textEvaluatorForQueryWithOptions(
+                new MatchQuery(source(), RuntimeSearch.CONTENT_FIELD, queryAsObject(), opts),
+                opts,
+                toEvaluator
+            );
         }
 
         Object queryValue = queryAsRuntimeSearchValue(field.dataType(), query().dataType(), Foldables.queryAsObject(query(), sourceText()));
@@ -637,7 +641,11 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
         // With options, score through the same Lucene query the boolean evaluator runs.
         if (field.dataType() == TEXT && options() != null) {
             Map<String, Object> opts = matchQueryOptions();
-            return textScoreEvaluatorForQueryWithOptions(new MatchQuery(source(), RuntimeSearch.CONTENT_FIELD, queryAsObject(), opts), opts, toScorer.toEvaluator());
+            return textScoreEvaluatorForQueryWithOptions(
+                new MatchQuery(source(), RuntimeSearch.CONTENT_FIELD, queryAsObject(), opts),
+                opts,
+                toScorer.toEvaluator()
+            );
         }
         // Exact (non-text) matches: 1.0 on match, like a pushed-down term query under boolean similarity.
         return new RuntimeSearchScoreFromBooleanEvaluator.Factory(source(), toEvaluator(toScorer.toEvaluator()));

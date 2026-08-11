@@ -504,7 +504,6 @@ public class PreResolvedUpdatesTests extends IndexShardTestCase {
         assertTrue(response.isFailed());
         assertThat(response.getFailure().getCause(), instanceOf(VersionConflictEngineException.class));
         assertEquals("concurrent", source(primary, "0").get("foo"));
-
     }
 
     public void testAbortedItemsAreNotPreResolved() throws Exception {

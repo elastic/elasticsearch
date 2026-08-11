@@ -147,8 +147,7 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
             irFunctionNode.attachDecoration(new IRDTypeParameters(localFunction.getTypeParameters()));
             irFunctionNode.attachDecoration(new IRDParameterNames(parameterNames));
             attachLoopProtection(irFunctionNode, scriptScope);
-            // Carry the per-context allocation thresholds on the execute entry so its prologue can reset $allocBytes (and the
-            // $allocWarned latch); each is -1 when that threshold is off, and no counter bytecode is emitted when both are.
+            // Carry both thresholds on the execute entry so its prologue can reset $allocBytes and the $allocWarned latch.
             irFunctionNode.attachDecoration(new IRDMaxAllocationBytes(scriptScope.getCompilerSettings().getMaxAllocationBytes()));
             irFunctionNode.attachDecoration(new IRDWarnAllocationBytes(scriptScope.getCompilerSettings().getWarnAllocationBytes()));
 

@@ -15,15 +15,15 @@ import org.elasticsearch.painless.spi.PainlessTestScript;
 import org.elasticsearch.test.MockLog;
 
 /**
- * Behaviour of the allocation warning threshold: it reports a script's allocation without failing it, works with the
- * enforcement limit off entirely, and reports at most once per execution so a hot script cannot flood the log.
+ * The allocation warning threshold: reports without failing the script, works with the limit off entirely, and reports at
+ * most once per execution so a hot script cannot flood the log.
  */
 public class AllocationWarnThresholdTests extends AllocationTestCase {
 
     /** A script that allocates well past any small threshold, but is bounded so it always completes. */
     private static final String ALLOCATING = "String s = ''; for (int i = 0; i < 200; ++i) { s = 'abcdefghij'.toUpperCase(); } return s;";
 
-    /** Counts warning-threshold log events, since the stock expectations only record whether one was seen at all. */
+    /** Counts events; the stock expectations only record whether one was seen. */
     private static class WarnCountingExpectation implements MockLog.LoggingExpectation {
 
         private int count;
@@ -47,15 +47,14 @@ public class AllocationWarnThresholdTests extends AllocationTestCase {
             WarnCountingExpectation counter = new WarnCountingExpectation();
             mockLog.addExpectation(counter);
             action.run();
-            // MockLog requires every expectation to be asserted before release, even a purely counting one.
+            // MockLog requires every expectation to be asserted before release.
             mockLog.assertAllExpectationsMatched();
             return counter.count;
         }
     }
 
     public void testWarnsWithLimitOff() {
-        // The point of the feature: observe an allocation-heavy script without enforcing anything on it. The script must run
-        // to completion and produce its normal result, and still be reported.
+        // The point of the feature: observe without enforcing. The script completes normally and is still reported.
         PainlessTestScript script = compile(ALLOCATING, null, "1b");
         assertEquals(1, countWarnings(() -> assertEquals("ABCDEFGHIJ", script.execute())));
     }
@@ -75,7 +74,7 @@ public class AllocationWarnThresholdTests extends AllocationTestCase {
     }
 
     public void testWarningIncludesTheScriptSource() {
-        // The source is what makes the warning actionable without first hunting down the script by name.
+        // The source is what makes the warning actionable.
         PainlessTestScript script = compile(ALLOCATING, null, "1b");
         MockLog.assertThatLogger(
             script::execute,
@@ -107,15 +106,13 @@ public class AllocationWarnThresholdTests extends AllocationTestCase {
     }
 
     public void testWarnsOncePerExecution() {
-        // Once the running total is past the threshold it stays past it, so every one of the 200 charged allocations in this
-        // loop would otherwise warn. The $allocWarned latch is what keeps a per-document script from flooding the log.
+        // The total stays past the threshold, so all 200 charged allocations would otherwise warn. The latch prevents that.
         PainlessTestScript script = compile(ALLOCATING, null, "1b");
         assertEquals(1, countWarnings(script::execute));
     }
 
     public void testWarnsAgainOnNextExecution() {
-        // The latch is reset at the execute entry alongside the counter, so a reused instance reports on each execution
-        // rather than only the first.
+        // The latch resets at the execute entry, so a reused instance reports on each execution rather than only the first.
         PainlessTestScript script = compile(ALLOCATING, null, "1b");
         assertEquals(3, countWarnings(() -> {
             script.execute();
@@ -125,19 +122,19 @@ public class AllocationWarnThresholdTests extends AllocationTestCase {
     }
 
     public void testWarnsAndStillEnforcesWhenBothOn() {
-        // With both on, the warning is reported and the limit still fails the script.
+        // Both on: warning reported, limit still fails the script.
         PainlessTestScript script = compile(ALLOCATING, "2kb", "1b");
         assertEquals(1, countWarnings(() -> expectThrows(Exception.class, script::execute)));
     }
 
     public void testNoWarningWhenOnlyLimitIsOn() {
-        // Enforcement alone must not produce warning-threshold events; the limit breach has its own message.
+        // Enforcement alone produces no warning events; the limit breach has its own message.
         PainlessTestScript script = compile(ALLOCATING, "2kb");
         assertEquals(0, countWarnings(() -> expectThrows(Exception.class, script::execute)));
     }
 
     public void testCounterStillTracksInWarningOnlyMode() {
-        // Warning alone enables tracking, so the running total must be charged exactly as it is under enforcement.
+        // Warning alone enables tracking, so the total is charged exactly as under enforcement.
         PainlessTestScript script = compile(ALLOCATING, null, "1mb");
         script.execute();
         assertTrue(((PainlessScript) script).getAllocBytes() > 0L);

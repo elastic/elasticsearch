@@ -83,7 +83,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
                 .get(settings)
                 .getBytes();
             Setting<ByteSizeValue> warnSetting = CompilerSettings.WARN_ALLOCATION_BYTES.getConcreteSettingForNamespace(context.name);
-            // Both thresholds are NodeScope, so the limit ceiling is applied once here at startup rather than per compile.
+            // Both are NodeScope, so the limit ceiling is applied once at startup rather than per compile.
             long warnAllocationBytes = CompilerSettings.resolveWarnAllocationBytes(
                 context.name,
                 maxAllocationBytes,

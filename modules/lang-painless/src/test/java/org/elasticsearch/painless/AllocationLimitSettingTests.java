@@ -79,8 +79,7 @@ public class AllocationLimitSettingTests extends ESTestCase {
     }
 
     public void testNoUpperBound() {
-        // A sensible limit scales with heap, and heaps vary by orders of magnitude, so any fixed ceiling is too low for
-        // someone. An unusably large limit just never trips, which is no worse than leaving enforcement off.
+        // A sensible limit scales with heap, so any fixed ceiling is too low for someone; an oversized one just never trips.
         assertEquals(ByteSizeValue.ofGb(2).getBytes(), resolve("2gb").getBytes());
         assertEquals(ByteSizeValue.ofGb(64).getBytes(), resolve("64gb").getBytes());
     }
@@ -140,7 +139,7 @@ public class AllocationLimitSettingTests extends ESTestCase {
     }
 
     public void testWarnThresholdAloneEnablesTrackingWithoutEnforcement() {
-        // The mode the warning threshold exists for: observe allocation with no limit in force.
+        // The mode the threshold exists for: observe with no limit in force.
         CompilerSettings contextDefaults = engine(null, "8mb").getDefaultCompilerSettings(PainlessTestScript.CONTEXT);
         assertEquals(ByteSizeValue.ofMb(8).getBytes(), contextDefaults.getWarnAllocationBytes());
         assertEquals(-1L, contextDefaults.getMaxAllocationBytes());
@@ -164,21 +163,20 @@ public class AllocationLimitSettingTests extends ESTestCase {
     }
 
     public void testWarnThresholdEqualToLimitAccepted() {
-        // Equal is the boundary case and is still useful: the warning is reported just before the limit fails the script.
+        // Equal is the boundary case and still useful: the warning lands on the allocation that trips the limit.
         CompilerSettings contextDefaults = engine("32mb", "32mb").getDefaultCompilerSettings(PainlessTestScript.CONTEXT);
         assertEquals(ByteSizeValue.ofMb(32).getBytes(), contextDefaults.getWarnAllocationBytes());
     }
 
     public void testWarnThresholdAboveLimitClampedToLimit() {
-        // Dead configuration: the limit would fail the script before the total could reach the higher warning threshold. Rather
-        // than refusing to start, the limit acts as the ceiling and the warning lands on the allocation that trips the limit.
+        // Dead config: the limit fails the script first. Clamp rather than refuse to start.
         CompilerSettings contextDefaults = engine("8mb", "32mb").getDefaultCompilerSettings(PainlessTestScript.CONTEXT);
         assertEquals(ByteSizeValue.ofMb(8).getBytes(), contextDefaults.getWarnAllocationBytes());
         assertEquals(ByteSizeValue.ofMb(8).getBytes(), contextDefaults.getMaxAllocationBytes());
     }
 
     public void testWarnThresholdAboveDisabledLimitNotClamped() {
-        // With enforcement off there is no ceiling to clamp to, so any warning threshold passes through.
+        // Enforcement off means no ceiling, so any warning threshold passes through.
         CompilerSettings contextDefaults = engine("-1b", "64gb").getDefaultCompilerSettings(PainlessTestScript.CONTEXT);
         assertEquals(ByteSizeValue.ofGb(64).getBytes(), contextDefaults.getWarnAllocationBytes());
     }
@@ -194,8 +192,8 @@ public class AllocationLimitSettingTests extends ESTestCase {
     }
 
     public void testResolveWarnClampsWhetherExplicitOrDefaulted() {
-        // The explicit/defaulted flag only picks the log level; the clamped value is the same either way. The defaulted branch
-        // is unreachable while the default is the -1b sentinel, but exists for when a deployment-specific default is added.
+        // The flag only picks the log level. The defaulted branch is unreachable while the default is -1b, but exists for
+        // when a deployment-specific default is added.
         long limit = ByteSizeValue.ofMb(8).getBytes();
         long warn = ByteSizeValue.ofMb(32).getBytes();
         assertEquals(limit, CompilerSettings.resolveWarnAllocationBytes(TEST_CONTEXT, limit, warn, true));

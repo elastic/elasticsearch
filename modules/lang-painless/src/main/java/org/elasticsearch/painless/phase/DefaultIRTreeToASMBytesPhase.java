@@ -271,13 +271,11 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             pollCancellation.endMethod();
         }
 
-        // The per-context allocation thresholds (-1 when that threshold is off) are fixed for the whole compile, so they are
-        // baked directly into the generated $checkAllocBytes override rather than threaded to each call site. Either one alone
-        // enables tracking: warning without enforcement is a supported mode.
+        // Both thresholds are fixed for the compile, so they are baked into $checkAllocBytes rather than threaded to each
+        // call site. Either one alone enables tracking.
         long maxAllocationBytes = scriptScope.getCompilerSettings().getMaxAllocationBytes();
         long warnAllocationBytes = scriptScope.getCompilerSettings().getWarnAllocationBytes();
-        // Baked in alongside the thresholds so a breach can name its context in the log and count against it as a metric
-        // attribute; it is constant for the compile, so this costs one LDC on the off path.
+        // Baked in alongside the thresholds so a breach can name and count its context; one LDC on the off path.
         String scriptContextName = scriptScope.getCompilerSettings().getScriptContextName();
 
         if (scriptScope.getCompilerSettings().isAllocationTrackingEnabled()) {
@@ -319,11 +317,8 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             // }
             // if (total > <limit>) AllocationGuard.allocationLimitExceeded(bytes, total, <limit>); // only when enforcing
             // }
-            // Both thresholds are baked-in constants and each block is emitted only when its threshold is on, so warning-only
-            // and enforcement-only scripts each carry just the one comparison. The off-path delegates to AllocationGuard to
-            // keep this method compact. Warning is checked first so an allocation that crosses both is reported before the
-            // error is raised; since the warning threshold can never exceed the limit, an execution that reaches the limit has
-            // normally already warned on an earlier allocation.
+            // Each block is emitted only when its threshold is on, so warning-only and enforcement-only scripts carry just
+            // one comparison. Warning is checked first so an allocation crossing both is reported before the error is raised.
             MethodWriter checkAllocBytes = classWriter.newMethodWriter(Opcodes.ACC_PUBLIC, WriterConstants.CHECK_ALLOC_BYTES);
             checkAllocBytes.visitCode();
             checkAllocBytes.loadThis();
@@ -489,8 +484,8 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             methodWriter.mark(skipEntry);
         }
 
-        // Reset the per-instance allocation counter at the entry of the execute method so each execution starts fresh, along
-        // with the warning latch so a long-lived instance reports again on its next execution rather than only the first.
+        // Reset the counter at the execute entry so each execution starts fresh, and the latch so a reused instance reports
+        // again rather than only on its first execution.
         // The entry method is the single non-static method named "execute"; user functions are mangled and lambdas are static.
         if (allocationTracking && hasThis && "execute".equals(method.getName())) {
             methodWriter.loadThis();
@@ -505,9 +500,8 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         }
 
         // Define the #allocLimit marker when tracking is on and a script pointer is reachable: `this` (instance functions)
-        // or the captured #scriptThis (static lambdas, see IRCStaticScriptCapture). Only its presence matters — allocation
-        // sites read it as a signal to emit pre-checks (see writeAllocationCheck); the thresholds themselves are baked into
-        // $checkAllocBytes, so the stored value is unused and may be -1 in a warning-only compile.
+        // or the captured #scriptThis (static lambdas, see IRCStaticScriptCapture). Only its presence matters (see
+        // writeAllocationCheck); the thresholds live in $checkAllocBytes, so the stored value is unused.
         if (allocationTracking && (hasThis || staticScriptCapture)) {
             Variable allocLimit = writeScope.defineInternalVariable(long.class, "allocLimit");
             methodWriter.push(maxAllocationBytes);

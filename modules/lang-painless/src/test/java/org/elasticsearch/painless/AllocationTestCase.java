@@ -46,8 +46,8 @@ public abstract class AllocationTestCase extends ScriptTestCase {
     }
 
     /**
-     * Compiles {@code source} for the test context and returns a fresh script instance. Either threshold may be {@code null}
-     * to leave it at its disabled default, which is how warning-only and enforcement-only modes are exercised.
+     * Compiles {@code source} and returns a fresh script instance. Either threshold may be {@code null} to leave it disabled,
+     * which is how warning-only and enforcement-only modes are exercised.
      */
     protected PainlessTestScript compile(String source, String limit, String warnThreshold) {
         Settings.Builder builder = Settings.builder();

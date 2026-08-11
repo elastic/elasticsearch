@@ -281,9 +281,9 @@ public final class WriterConstants {
     public static final String ALLOC_BYTES_FIELD = "$allocBytes";
 
     /**
-     * Name of the synthetic {@code boolean} field added to generated script classes when the allocation warning threshold is
-     * enabled. Latches once the threshold has been reported for the current execution, so a script that stays above it does
-     * not warn again at every subsequent allocation; reset alongside {@link #ALLOC_BYTES_FIELD} at every {@code execute} entry.
+     * Synthetic {@code boolean} field added when the allocation warning threshold is enabled. Latches once the threshold has
+     * been reported for this execution, so a script that stays above it does not warn at every later allocation; reset
+     * alongside {@link #ALLOC_BYTES_FIELD} at every {@code execute} entry.
      */
     public static final String ALLOC_WARNED_FIELD = "$allocWarned";
 
@@ -304,7 +304,7 @@ public final class WriterConstants {
 
     /**
      * {@link AllocationGuard#allocationLimitExceeded(String, long, long, long)} — called from {@code $checkAllocBytes} on
-     * breach. The script context name is baked in as a constant at the call site, for the message and the metric attribute.
+     * breach. The context name is a baked-in constant at the call site.
      */
     public static final Method ALLOCATION_LIMIT_EXCEEDED = getAsmMethod(
         void.class,

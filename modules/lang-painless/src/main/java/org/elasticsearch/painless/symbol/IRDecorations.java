@@ -372,9 +372,8 @@ public class IRDecorations {
     }
 
     /**
-     * describes the per-context heuristic allocation enforcement limit in bytes for a method, or {@code -1} when enforcement
-     * is disabled. Mirrors {@link IRDMaxLoopCounter}: attached to every protected function so allocation-tracking bytecode can
-     * read the limit without reaching back into the compiler settings. Tracking may still be on with this at {@code -1} — see
+     * describes the per-context allocation enforcement limit in bytes for a method, or {@code -1} when enforcement is off.
+     * Mirrors {@link IRDMaxLoopCounter}. Tracking may still be on with this at {@code -1} — see
      * {@link IRDWarnAllocationBytes}.
      */
     public static class IRDMaxAllocationBytes extends IRDecoration<Long> {
@@ -385,9 +384,8 @@ public class IRDecorations {
     }
 
     /**
-     * describes the per-context heuristic allocation warning threshold in bytes for a method, or {@code -1} when warning is
-     * disabled. Attached alongside {@link IRDMaxAllocationBytes}; either being positive means tracking bytecode is emitted,
-     * since warning without enforcement is a supported mode.
+     * describes the per-context allocation warning threshold in bytes for a method, or {@code -1} when warning is off.
+     * Attached alongside {@link IRDMaxAllocationBytes}; either being positive emits tracking bytecode.
      */
     public static class IRDWarnAllocationBytes extends IRDecoration<Long> {
 

@@ -18,12 +18,12 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * The APM counters for allocation-threshold breaches. Because a breach is counted from a static helper called by generated
- * bytecode, these tests install a recording registry for the duration of each test and restore the no-op afterwards.
+ * The APM counters for allocation-threshold breaches. A breach is counted from a static helper, so each test installs a
+ * recording registry and restores the no-op afterwards.
  */
 public class AllocationMetricsTests extends AllocationTestCase {
 
-    /** Allocates well past any small threshold but stays bounded, so it completes unless a limit fails it. */
+    /** Allocates past any small threshold but stays bounded, so it completes unless a limit fails it. */
     private static final String ALLOCATING = "String s = ''; for (int i = 0; i < 200; ++i) { s = 'abcdefghij'.toUpperCase(); } return s;";
 
     private RecordingMeterRegistry meterRegistry;
@@ -37,7 +37,7 @@ public class AllocationMetricsTests extends AllocationTestCase {
 
     @Override
     public void tearDown() throws Exception {
-        // The instance is static, so leaving a recording registry installed would leak into unrelated tests.
+        // The instance is static; a recording registry left installed would leak into unrelated tests.
         AllocationMetrics.setInstance(AllocationMetrics.NOOP);
         super.tearDown();
     }
@@ -57,7 +57,7 @@ public class AllocationMetricsTests extends AllocationTestCase {
     }
 
     public void testWarnThresholdCountedOncePerExecution() {
-        // Matches the log latch: 200 charged allocations in one execution produce one count, and a second execution one more.
+        // Matches the log latch: one count per execution, not per allocation.
         PainlessTestScript script = compile(ALLOCATING, null, "1b");
         script.execute();
         script.execute();
@@ -83,7 +83,7 @@ public class AllocationMetricsTests extends AllocationTestCase {
     }
 
     public void testWarningOnlyModeCountsNoLimitBreaches() {
-        // The mode the warning threshold exists for: reported, counted, never enforced.
+        // The mode the threshold exists for: reported, counted, never enforced.
         PainlessTestScript script = compile(ALLOCATING, null, "1b");
         script.execute();
 
@@ -100,7 +100,7 @@ public class AllocationMetricsTests extends AllocationTestCase {
     }
 
     public void testNoopInstanceIsUsableWithoutTelemetry() {
-        // A node without telemetry configured keeps the no-op, and a breach must still work.
+        // A node without telemetry keeps the no-op, and a breach must still work.
         AllocationMetrics.setInstance(AllocationMetrics.NOOP);
         PainlessTestScript script = compile(ALLOCATING, null, "1b");
         assertEquals("ABCDEFGHIJ", script.execute());

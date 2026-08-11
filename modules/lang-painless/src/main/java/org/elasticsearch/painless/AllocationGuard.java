@@ -54,18 +54,15 @@ public final class AllocationGuard {
     }
 
     /**
-     * Logs a {@code WARN} naming the script whose running allocation total crossed its warning threshold, and returns
-     * normally — crossing the warning threshold never fails the script. The generated {@code $checkAllocBytes} calls this at
-     * most once per execution (it latches on a {@code $allocWarned} flag reset alongside the counter), because the total stays
-     * above the threshold for every subsequent allocation and a hot script would otherwise flood the log once per document.
-     * <p>
-     * Unlike {@link #allocationLimitExceeded}, this message names the script: nothing else follows it to identify the
-     * culprit, and a warning an operator cannot trace back to a script is not actionable.
+     * Logs a {@code WARN} and returns normally — crossing the warning threshold never fails the script. Called at most once
+     * per execution ({@code $checkAllocBytes} latches on {@code $allocWarned}), since the total stays above the threshold for
+     * every later allocation and a hot script would otherwise log once per document. Unlike
+     * {@link #allocationLimitExceeded} this names the script, as nothing follows it to identify the culprit.
      *
-     * @param script the script whose total crossed the threshold, used for its name and source
-     * @param scriptContextName the script context, for the log message and the metric attribute
-     * @param attemptedBytes the size of the allocation that crossed the threshold
-     * @param totalBytes the running total after charging the allocation
+     * @param script the breaching script, for its name and source
+     * @param scriptContextName script context, for the message and the metric attribute
+     * @param attemptedBytes size of the allocation that crossed the threshold
+     * @param totalBytes running total after charging it
      * @param warnBytes the per-context warning threshold
      */
     public static void allocationWarnThresholdExceeded(
@@ -90,9 +87,8 @@ public final class AllocationGuard {
     }
 
     /**
-     * Truncates a script's source for logging. The source is the only thing that lets an operator act on a warning without
-     * first hunting down the script by name, but a stored script can be arbitrarily long and this line repeats once per
-     * execution, so it is capped rather than logged whole.
+     * Truncates a script's source for logging. The source is what makes a warning actionable, but a stored script can be
+     * arbitrarily long and this line repeats once per execution, so it is capped rather than logged whole.
      */
     static String abbreviateSource(String source) {
         if (source == null) {
@@ -108,10 +104,10 @@ public final class AllocationGuard {
      * Logs a {@code WARN} and throws a {@link PainlessError} describing an allocation that pushed a script over its limit.
      * {@link PainlessError} is an {@link Error}, so it cannot be caught from Painless source. Never returns normally. The
      * specific allocation that crossed the limit is not reported: it is whichever happened to tip the running total, not
-     * necessarily the dominant cost, so naming it would mislead more than help. Unlike the warning path this does not log the
-     * script's name or source, because the {@link PainlessError} it throws is surfaced to the caller with both attached.
+     * necessarily the dominant cost, so naming it would mislead more than help. Unlike the warning path this omits the script
+     * name and source, since the {@link PainlessError} it throws reaches the caller with both attached.
      *
-     * @param scriptContextName the script context, for the log message and the metric attribute
+     * @param scriptContextName script context, for the message and the metric attribute
      * @param attemptedBytes the size of the allocation that tripped the limit
      * @param totalBytes the running total after charging the allocation
      * @param limitBytes the per-context limit

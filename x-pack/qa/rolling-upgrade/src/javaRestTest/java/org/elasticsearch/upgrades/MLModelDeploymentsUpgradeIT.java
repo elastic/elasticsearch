@@ -7,15 +7,20 @@
 
 package org.elasticsearch.upgrades;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -30,7 +35,9 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.oneOf;
 
-public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
+public class MLModelDeploymentsUpgradeIT extends AbstractXpackRollingUpgradeTestCase {
+
+    private static final boolean SKIP_ML_TESTS = Booleans.parseBoolean(System.getProperty("tests.ml.skip", "false"));
 
     // See PyTorchModelIT for how this model was created
     static final String BASE_64_ENCODED_MODEL =
@@ -59,6 +66,18 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
     static final long RAW_MODEL_SIZE; // size of the model before base64 encoding
     static {
         RAW_MODEL_SIZE = Base64.getDecoder().decode(BASE_64_ENCODED_MODEL).length;
+    }
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = buildCluster();
+
+    public MLModelDeploymentsUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
+        super(upgradedNodes);
+    }
+
+    @Override
+    protected ElasticsearchCluster getUpgradeCluster() {
+        return cluster;
     }
 
     @BeforeClass
@@ -98,58 +117,52 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     public void testTrainedModelDeployment() throws Exception {
-        var originalClusterAtLeastV8 = isOriginalClusterVersionAtLeast(Version.V_8_0_0);
+        var originalClusterAtLeastV8 = UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_0_0);
         // These tests assume the original cluster is v8 - testing for features on the _current_ cluster will break for NEW
         assumeTrue("NLP model deployments added in 8.0", originalClusterAtLeastV8);
 
         final String modelId = "upgrade-deployment-test";
 
-        switch (CLUSTER_TYPE) {
-            case OLD -> {
-                setupDeployment(modelId);
+        if (isOldCluster()) {
+            setupDeployment(modelId);
+            assertInfer(modelId);
+        }
+        if (isMixedCluster()) {
+            ensureYellowAndNoInitializingShards(".ml-inference-*,.ml-config*", "120s");
+            waitForDeploymentStarted(modelId);
+            // attempt inference on new and old nodes multiple times
+            for (int i = 0; i < 10; i++) {
                 assertInfer(modelId);
             }
-            case MIXED -> {
-                ensureYellowAndNoInitializingShards(".ml-inference-*,.ml-config*", "120s");
-                waitForDeploymentStarted(modelId);
-                // attempt inference on new and old nodes multiple times
-                for (int i = 0; i < 10; i++) {
-                    assertInfer(modelId);
-                }
-            }
-            case UPGRADED -> {
-                ensureYellowAndNoInitializingShards(".ml-inference-*,.ml-config*", "120s");
+        }
+        if (isUpgradedCluster()) {
+            ensureYellowAndNoInitializingShards(".ml-inference-*,.ml-config*", "120s");
 
-                waitForDeploymentStarted(modelId);
-                assertInfer(modelId);
-                assertNewInfer(modelId);
-                stopDeployment(modelId);
-            }
-            default -> throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
+            waitForDeploymentStarted(modelId);
+            assertInfer(modelId);
+            assertNewInfer(modelId);
+            stopDeployment(modelId);
         }
     }
 
     public void testTrainedModelDeploymentStopOnMixedCluster() throws Exception {
-        var originalClusterAtLeastV8 = isOriginalClusterVersionAtLeast(Version.V_8_0_0);
+        var originalClusterAtLeastV8 = UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_0_0);
         // These tests assume the original cluster is v8 - testing for features on the _current_ cluster will break for NEW
         assumeTrue("NLP model deployments added in 8.0", originalClusterAtLeastV8);
 
         final String modelId = "upgrade-deployment-test-stop-mixed-cluster";
 
-        switch (CLUSTER_TYPE) {
-            case OLD -> {
-                setupDeployment(modelId);
-                assertInfer(modelId);
-            }
-            case MIXED -> {
-                ensureYellowAndNoInitializingShards(".ml-inference-*,.ml-config*", "120s");
-                stopDeployment(modelId);
-            }
-            case UPGRADED -> {
-                ensureYellowAndNoInitializingShards(".ml-inference-*,.ml-config*", "120s");
-                assertThatTrainedModelAssignmentMetadataIsEmpty(modelId);
-            }
-            default -> throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
+        if (isOldCluster()) {
+            setupDeployment(modelId);
+            assertInfer(modelId);
+        }
+        if (isMixedCluster()) {
+            ensureYellowAndNoInitializingShards(".ml-inference-*,.ml-config*", "120s");
+            stopDeployment(modelId);
+        }
+        if (isUpgradedCluster()) {
+            ensureYellowAndNoInitializingShards(".ml-inference-*,.ml-config*", "120s");
+            assertThatTrainedModelAssignmentMetadataIsEmpty(modelId);
         }
     }
 

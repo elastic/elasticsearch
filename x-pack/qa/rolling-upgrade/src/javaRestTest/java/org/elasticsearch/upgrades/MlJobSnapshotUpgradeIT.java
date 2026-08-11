@@ -6,31 +6,33 @@
  */
 package org.elasticsearch.upgrades;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.test.rest.XPackRestTestConstants;
+import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -39,23 +41,41 @@ import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
-public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
+public class MlJobSnapshotUpgradeIT extends AbstractXpackRollingUpgradeTestCase {
+
+    private static final boolean SKIP_ML_TESTS = Booleans.parseBoolean(System.getProperty("tests.ml.skip", "false"));
 
     private static final String JOB_ID = "ml-snapshots-upgrade-job";
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = buildCluster();
+
+    public MlJobSnapshotUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
+        super(upgradedNodes);
+    }
+
+    @Override
+    protected ElasticsearchCluster getUpgradeCluster() {
+        return cluster;
+    }
 
     @BeforeClass
     public static void maybeSkip() {
         assumeFalse("Skip ML tests on unsupported glibc versions", SKIP_ML_TESTS);
     }
 
-    @Override
-    protected Collection<String> templatesToWaitFor() {
-        // We shouldn't wait for ML templates during the upgrade - production won't
-        if (CLUSTER_TYPE != ClusterType.OLD) {
-            return super.templatesToWaitFor();
+    @Before
+    public void waitForMlTemplates() throws Exception {
+        // We shouldn't wait for ML templates during the upgrade - production won't.
+        // On the old cluster, wait for the ML index templates to be installed before running tests.
+        if (isOldCluster()) {
+            for (String templateName : XPackRestTestConstants.ML_POST_V7120_TEMPLATES) {
+                assertBusy(() -> {
+                    Request request = new Request("GET", "/_index_template/" + templateName);
+                    assertOK(client().performRequest(request));
+                });
+            }
         }
-        return Stream.concat(XPackRestTestConstants.ML_POST_V7120_TEMPLATES.stream(), super.templatesToWaitFor().stream())
-            .collect(Collectors.toSet());
     }
 
     protected static void waitForPendingUpgraderTasks() throws Exception {
@@ -71,32 +91,32 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
         adjustLoggingLevels.setJsonEntity("""
             {"persistent": {"logger.org.elasticsearch.xpack.ml": "trace"}}""");
         client().performRequest(adjustLoggingLevels);
-        switch (CLUSTER_TYPE) {
-            case OLD -> createJobAndSnapshots();
-            case MIXED -> {
-                assumeTrue("We should only test if old cluster is before new cluster", isOriginalClusterCurrent() == false);
-                assumeTrue(
-                    "Older versions could not always reliably determine if we were in a mixed cluster state",
-                    Version.fromString(UPGRADE_FROM_VERSION).after(Version.V_8_19_6)
-                );
-                ensureHealth((request -> {
-                    request.addParameter("timeout", "70s");
-                    request.addParameter("wait_for_nodes", "3");
-                    request.addParameter("wait_for_status", "yellow");
-                }));
-                testSnapshotUpgradeFailsOnMixedCluster();
-            }
-            case UPGRADED -> {
-                assumeTrue("We should only test if old cluster is before new cluster", isOriginalClusterCurrent() == false);
-                ensureHealth((request -> {
-                    request.addParameter("timeout", "70s");
-                    request.addParameter("wait_for_nodes", "3");
-                    request.addParameter("wait_for_status", "yellow");
-                }));
-                testSnapshotUpgrade();
-                waitForPendingUpgraderTasks();
-            }
-            default -> throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
+
+        if (isOldCluster()) {
+            createJobAndSnapshots();
+        }
+        if (isMixedCluster()) {
+            assumeTrue("We should only test if old cluster is before new cluster", isOriginalClusterCurrent() == false);
+            assumeTrue(
+                "Older versions could not always reliably determine if we were in a mixed cluster state",
+                UPGRADE_FROM_VERSION.after(org.elasticsearch.Version.V_8_19_6)
+            );
+            ensureHealth((request -> {
+                request.addParameter("timeout", "70s");
+                request.addParameter("wait_for_nodes", "3");
+                request.addParameter("wait_for_status", "yellow");
+            }));
+            testSnapshotUpgradeFailsOnMixedCluster();
+        }
+        if (isUpgradedCluster()) {
+            assumeTrue("We should only test if old cluster is before new cluster", isOriginalClusterCurrent() == false);
+            ensureHealth((request -> {
+                request.addParameter("timeout", "70s");
+                request.addParameter("wait_for_nodes", "3");
+                request.addParameter("wait_for_status", "yellow");
+            }));
+            testSnapshotUpgrade();
+            waitForPendingUpgraderTasks();
         }
     }
 

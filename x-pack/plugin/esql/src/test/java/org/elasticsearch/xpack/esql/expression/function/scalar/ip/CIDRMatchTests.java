@@ -88,11 +88,10 @@ public class CIDRMatchTests extends AbstractScalarFunctionTestCase {
         );
 
         return parameterSuppliersFromTypedData(
-            anyNullIsFalse(
-                randomizeBytesRefsOffset(suppliers),
-                (nullPosition, nullValueDataType, original) -> original.expectedType(),
-                (nullPosition, nullData, original) -> original
-            )
+            anyNullIsFalse(randomizeBytesRefsOffset(suppliers), (nullPosition, nullValueDataType, original) -> original.expectedType(), (
+                nullPosition,
+                nullData,
+                original) -> original)
         );
     }
 

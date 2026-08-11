@@ -2141,7 +2141,9 @@ public final class TextFieldMapper extends FieldMapper {
         if (store) {
             if (onFailureBehavior() == DocValuesParameter.Values.OnFailure.IGNORE) {
                 // on_failure=ignore is configured: wrap the stored-field loader in a composite so the on-failure sidecar values can be
-                // appended and the full multi-valued array is reconstructed correctly.
+                // appended and the full multi-valued array is reconstructed correctly. The inner writesOnFailureColumn() check is not
+                // redundant — copy_to forces FALLBACK mode, and it must be evaluated lazily inside the lambda to avoid recursing into
+                // this method before the syntheticSourceMode cache has been populated.
                 return new SyntheticSourceSupport.Native(() -> {
                     var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>();
                     layers.add(new CompositeSyntheticFieldLoader.StoredFieldLayer(fullPath()) {

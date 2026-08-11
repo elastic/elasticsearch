@@ -54,10 +54,13 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
     public static FieldMapper.DocValuesParameter.Values randomDocValuesParams(boolean allowIgnoredSource, boolean isColumnar) {
         // multi_value=false is only valid in strict-columnar index modes.
         boolean multiValue = isColumnar == false || ESTestCase.randomBoolean();
-        FieldMapper.DocValuesParameter.Values.OnFailure onFailure = ESTestCase.randomFrom(
-            FieldMapper.DocValuesParameter.Values.OnFailure.FAIL,
-            FieldMapper.DocValuesParameter.Values.OnFailure.IGNORE
-        );
+        // on_failure=ignore is rejected at parse time while the feature flag is off; keep release builds on FAIL only.
+        FieldMapper.DocValuesParameter.Values.OnFailure onFailure = FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled()
+            ? ESTestCase.randomFrom(
+                FieldMapper.DocValuesParameter.Values.OnFailure.FAIL,
+                FieldMapper.DocValuesParameter.Values.OnFailure.IGNORE
+            )
+            : FieldMapper.DocValuesParameter.Values.OnFailure.FAIL;
 
         // Generate nullability=true only: nullability=false has no synthetic-source roundtrip behavior to fuzz.
         return switch (ESTestCase.randomInt(allowIgnoredSource ? 2 : 1)) {
@@ -126,20 +129,22 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
     ) {
         // When multi_value is disabled and on_failure=FAIL a document may only have a single value.
         // When multi_value=false and on_failure=IGNORE, extra values are redirected to ._on_failure and the full array is reconstructed.
-        if (enforcesSingleValue() || (redirectsMultipleValues() == false && ESTestCase.randomBoolean())) {
+        // If maxValues < 2, callers request only a single-value example regardless of the redirect mode.
+        if (enforcesSingleValue() || maxValues < 2 || (redirectsMultipleValues() == false && ESTestCase.randomBoolean())) {
             Tuple<String, String> v = generateValue();
             Object sourceValue = preservesExactSource() ? v.v1() : v.v2();
             return new MapperTestCase.SyntheticSourceExample(v.v1(), sourceValue, this::mapping);
         }
 
         if (redirectsMultipleValues()) {
-            // Generate 2+ values; first goes to the primary column, rest to ._on_failure. Encounter order is preserved end-to-end.
+            // 2+ values: position 0 goes to the primary column (parseCreateField runs, null_value substitution applies → use v2);
+            // positions 1+ go to ._on_failure via enforceSingleValue before parseCreateField, so null stays null → use v1 directly.
             List<Tuple<String, String>> values = ESTestCase.randomList(2, maxValues, this::generateValue);
-            List<String> in = values.stream().map(Tuple::v1).toList();
-            // Non-null values only: leading nulls consume the single-value slot and their array position is lost (accepted lossiness).
-            List<String> nonNullIn = in.stream().filter(v -> v != null).toList();
-            Object out = nonNullIn.size() == 1 ? nonNullIn.get(0) : nonNullIn;
-            return new MapperTestCase.SyntheticSourceExample(in, out, this::mapping);
+            List<String> expected = new ArrayList<>();
+            for (int i = 0; i < values.size(); i++) {
+                expected.add(i == 0 ? values.get(i).v2() : values.get(i).v1());
+            }
+            return new MapperTestCase.SyntheticSourceExample(values.stream().map(Tuple::v1).toList(), expected, this::mapping);
         }
         List<Tuple<String, String>> values = ESTestCase.randomList(1, maxValues, this::generateValue);
         List<String> in = values.stream().map(Tuple::v1).toList();

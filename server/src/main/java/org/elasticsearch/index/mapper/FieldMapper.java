@@ -1822,8 +1822,8 @@ public abstract class FieldMapper extends Mapper {
          *   <li>{@code "doc_values": { "on_failure": "fail" }} - reject the document if it violates multi_value/nullability (default)</li>
          *   <li>{@code "doc_values": { "on_failure": "ignore" }} - accept the document, routing the offending value to a per-field
          *       failure column instead of rejecting it (see {@link DocumentParserContext#enforceSingleValue}). Rejected at parse time
-         *       unless {@link #DOC_VALUES_ON_FAILURE_FEATURE_FLAG} is enabled, since reconstruction of the failure column isn't wired
-         *       into synthetic source, block loaders, or search yet.</li>
+         *       unless {@link #DOC_VALUES_ON_FAILURE_FEATURE_FLAG} is enabled. The failure column is surfaced in synthetic
+         *       {@code _source} reconstruction; it is deliberately not exposed to block loaders, ESQL, or aggregations.</li>
          * </ul>
          * <p>
          * The presence of {@code doc_values} as a map indicates the user wants doc_values enabled. The map format allows specifying

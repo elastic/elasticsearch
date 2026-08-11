@@ -126,7 +126,7 @@ public class CacheFileReader {
     /**
      * Creates a reader for a top-level file opened via {@code BlobStoreCacheDirectory.openInput}.
      * Top-level files exclusively own their blob, so all cache regions contain only this file's data.
-     * If the IOContext contains {@link DataAccessHint#RANDOM} and the feature flag is enabled,
+     * The IOContext will be passed to {@link #contextToAdvice} to determine if
      * {@code MADV_RANDOM} will be applied to all regions.
      */
     public CacheFileReader(
@@ -201,7 +201,8 @@ public class CacheFileReader {
      * only those interior regions will receive {@code MADV_RANDOM}. Boundary regions that
      * contain data from adjacent sub-files fall back to {@code MADV_NORMAL}.
      *
-     * @param context the IOContext for the sub-file (may contain {@link DataAccessHint#RANDOM})
+     * @param context the IOContext will be passed to {@link #contextToAdvice} to determine
+     *                if {@code MADV_RANDOM} will be applied to interior regions
      * @param subFileOffset the sub-file's absolute byte offset within the blob
      * @param subFileLength the sub-file's length in bytes
      */

@@ -7,16 +7,19 @@
 
 package org.elasticsearch.xpack.unsignedlong;
 
+import org.elasticsearch.common.Numbers;
 import org.elasticsearch.datageneration.FieldType;
 import org.elasticsearch.index.mapper.NumberFieldBlockLoaderTestCase;
 import org.elasticsearch.plugins.Plugin;
 
+import java.math.BigInteger;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
 public class UnsignedLongFieldBlockLoaderTests extends NumberFieldBlockLoaderTestCase<Long> {
     private static final long MASK_2_63 = 0x8000000000000000L;
+    private static final BigInteger BIGINTEGER_2_64_MINUS_ONE = BigInteger.ONE.shiftLeft(64).subtract(BigInteger.ONE);
 
     public UnsignedLongFieldBlockLoaderTests(Params params) {
         super(FieldType.UNSIGNED_LONG, params);
@@ -28,6 +31,23 @@ public class UnsignedLongFieldBlockLoaderTests extends NumberFieldBlockLoaderTes
         // See mapper implementation.
         var unsigned = value.longValue();
         return unsigned ^ MASK_2_63;
+    }
+
+    @Override
+    protected Number tryParseString(String s) {
+        try {
+            return Long.parseUnsignedLong(s);
+        } catch (NumberFormatException ignored) {
+            try {
+                var bigInteger = Numbers.newBigDecimal(s).toBigIntegerExact();
+                if (bigInteger.signum() < 0 || bigInteger.compareTo(BIGINTEGER_2_64_MINUS_ONE) > 0) {
+                    return null;
+                }
+                return bigInteger.longValue();
+            } catch (ArithmeticException | NumberFormatException e) {
+                return null;
+            }
+        }
     }
 
     @Override

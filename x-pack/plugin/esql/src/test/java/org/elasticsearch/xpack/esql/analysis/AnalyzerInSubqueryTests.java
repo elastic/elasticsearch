@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
 import org.hamcrest.Matcher;
-import org.junit.Before;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -43,11 +42,6 @@ import static org.hamcrest.Matchers.nullValue;
  * Unit tests for IN/NOT IN subquery analysis that don't fit the golden-test model: the negative (rejection / error) cases.
  */
 public class AnalyzerInSubqueryTests extends ESTestCase {
-
-    @Before
-    public void checkInSubquerySupport() {
-        assumeTrue("Requires IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
-    }
 
     // basic IN and NOT IN subquery, validate JoinConfig
 
@@ -95,6 +89,20 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         Project rightProject = as(antiJoin.right(), Project.class);
         EsRelation rightRelation = as(rightProject.child(), EsRelation.class);
         assertEquals("employees", rightRelation.indexPattern());
+    }
+
+    // -- negative: IN subquery in INLINESTATS --
+
+    public void testInSubqueryInInlineStatsWhereWithTSSource() {
+        assumeTrue("Requires the TS command", EsqlCapabilities.Cap.TS_COMMAND_V0.isEnabled());
+        errorWithK8s(
+            "TS k8s | INLINE STATS m = MAX(network.bytes_in) WHERE cluster IN (FROM k8s | STATS c = COUNT(*) BY cluster | KEEP cluster)",
+            containsString(
+                "INLINE STATS "
+                    + "[INLINE STATS m = MAX(network.bytes_in) WHERE cluster IN (FROM k8s | STATS c = COUNT(*) BY cluster | KEEP cluster)] "
+                    + "can only be used after STATS when used with TS command"
+            )
+        );
     }
 
     // -- negative: IN subquery in EVAL --
@@ -535,18 +543,6 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
                 | EVAL result = COALESCE(emp_no IN (FROM employees | KEEP emp_no), false)
                 """,
             containsString("IN subquery is not supported in [EVAL result = COALESCE(emp_no IN (FROM employees | KEEP emp_no), false)]")
-        );
-    }
-
-    public void testInSubqueryInInlineStatsWhereWithTSSource() {
-        assumeTrue("Requires the TS command", EsqlCapabilities.Cap.TS_COMMAND_V0.isEnabled());
-        errorWithK8s(
-            "TS k8s | INLINE STATS m = MAX(network.bytes_in) WHERE cluster IN (FROM k8s | STATS c = COUNT(*) BY cluster | KEEP cluster)",
-            containsString(
-                "INLINE STATS "
-                    + "[INLINE STATS m = MAX(network.bytes_in) WHERE cluster IN (FROM k8s | STATS c = COUNT(*) BY cluster | KEEP cluster)] "
-                    + "can only be used after STATS when used with TS command"
-            )
         );
     }
 

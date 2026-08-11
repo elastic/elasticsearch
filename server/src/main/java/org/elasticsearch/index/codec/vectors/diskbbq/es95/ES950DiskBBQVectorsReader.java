@@ -77,6 +77,15 @@ public class ES950DiskBBQVectorsReader extends IVFVectorsReader<ES950DiskBBQVect
         );
     }
 
+    private ES950DiskBBQVectorsReader(ES950DiskBBQVectorsReader other, GenericFlatVectorReaders genericReaders) {
+        super(other, genericReaders);
+    }
+
+    @Override
+    protected ES950DiskBBQVectorsReader mergeInstance(GenericFlatVectorReaders genericReaders) {
+        return new ES950DiskBBQVectorsReader(this, genericReaders);
+    }
+
     CentroidIterator getPostingListPrefetchIterator(CentroidIterator centroidIterator, IndexInput postingListSlice) throws IOException {
         // TODO we may want to prefetch more than one postings list, however, we will likely want to place a limit
         // so we don't bother prefetching many lists we won't end up scoring

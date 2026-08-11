@@ -40,10 +40,7 @@ public final class OnFailureStoredValues {
      */
     public static void storeValueForOnFailureIgnore(DocumentParserContext context, String fieldPath, XContentParser parser)
         throws IOException {
-        storeEncoded(context, fieldPath, XContentDataHelper.encodeToken(parser));
-    }
-
-    static void storeEncoded(DocumentParserContext context, String fieldPath, BytesRef encoded) {
+        BytesRef encoded = XContentDataHelper.encodeToken(parser);
         MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(
             context.doc(),
             fieldPath + ON_FAILURE_FIELD_NAME_SUFFIX,

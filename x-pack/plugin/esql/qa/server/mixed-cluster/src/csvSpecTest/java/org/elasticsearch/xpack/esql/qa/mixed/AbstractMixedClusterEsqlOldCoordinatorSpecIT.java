@@ -34,11 +34,11 @@ import static org.junit.Assume.assumeTrue;
 /**
  * Runs csv-spec tests in a mixed-version cluster with the old node pinned as coordinator.
  * <p>
- * {@link AbstractMixedClusterEsqlSpecIT} routes queries to all four nodes so the coordinator
- * is random (~50% old, ~50% new). This suite routes every query to node 0, which runs the
- * old version, making the coordinator deterministically old. This catches regressions where
- * a new-node data node sends a capability-gated response fragment to an old coordinator that
- * cannot deserialize it.
+ * This suite routes every query to node 0, which runs the old version, making the coordinator
+ * deterministically old. It catches regressions where a new-version data node sends a
+ * capability-gated response fragment to an old coordinator that cannot deserialize it.
+ * {@link AbstractMixedClusterEsqlSpecIT} is the counterpart, pinned to a current-version node,
+ * so between them both coordinator versions are exercised on every run.
  * <p>
  * The cluster is declared with {@code shared(true)}, so it starts once per JVM and is reused by
  * every generated subclass; test data is ingested exactly once, guarded by the {@code INGEST}

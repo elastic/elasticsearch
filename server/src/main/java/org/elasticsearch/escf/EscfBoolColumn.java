@@ -29,7 +29,7 @@ final class EscfBoolColumn extends EscfColumn {
     }
 
     @Override
-    byte kind() {
+    public byte kind() {
         return EscfColumnKind.BOOL;
     }
 

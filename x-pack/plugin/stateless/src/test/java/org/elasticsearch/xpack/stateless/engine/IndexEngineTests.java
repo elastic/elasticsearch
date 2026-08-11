@@ -10,30 +10,43 @@ package org.elasticsearch.xpack.stateless.engine;
 import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.escf.EscfBatch;
+import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineBatch;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
+import org.elasticsearch.index.engine.EngineTestCase;
+import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.index.engine.MergeMemoryEstimator;
 import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.merge.OnGoingMerge;
+import org.elasticsearch.index.shard.ShardSplittingQuery;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.plugins.internal.DocumentSizeAccumulator;
 import org.elasticsearch.plugins.internal.DocumentSizeReporter;
+import org.elasticsearch.sourcebatch.MappedColumns;
+import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
@@ -73,8 +86,10 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.argThat;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
@@ -432,6 +447,117 @@ public class IndexEngineTests extends AbstractEngineTestCase {
         }
     }
 
+    public void testDocSizeIsReportedUponBatchIndex() throws IOException {
+        TranslogReplicator mockTranslogReplicator = mock(TranslogReplicator.class);
+        StatelessCommitService mockCommitService = mockCommitService(Settings.EMPTY);
+        DocumentParsingProvider documentParsingProvider = mock(DocumentParsingProvider.class);
+        when(documentParsingProvider.createDocumentSizeAccumulator()).thenReturn(DocumentSizeAccumulator.EMPTY_INSTANCE);
+        MapperService mapperService = mock(MapperService.class);
+        when(mapperService.mappingLookup()).thenReturn(MappingLookup.EMPTY);
+        EngineConfig indexConfig = indexConfig(mapperService);
+        DocumentSizeReporter documentSizeReporter = mock(DocumentSizeReporter.class);
+        when(
+            documentParsingProvider.newDocumentSizeReporter(
+                eq(indexConfig.getShardId().getIndex()),
+                eq(mapperService),
+                any(DocumentSizeAccumulator.class)
+            )
+        ).thenReturn(documentSizeReporter);
+        try (
+            var engine = newIndexEngine(
+                indexConfig,
+                mockTranslogReplicator,
+                mock(ObjectStoreService.class),
+                mockCommitService,
+                mock(HollowShardsService.class),
+                mock(SharedBlobCacheWarmingService.class),
+                documentParsingProvider,
+                new IndexEngine.EngineMetrics(TranslogRecoveryMetrics.NOOP, MergeMetrics.NOOP, HollowShardsMetrics.NOOP)
+            )
+        ) {
+            // Success case: all docs in the batch succeed. The columnar batch path reports metering for the
+            // materialized per-op views (see IndexOperationBatch#materializeIndexOps), not the original
+            // Engine.Index#parsedDoc() instances, so we match the reported document by id rather than by
+            // object identity.
+            // TODO: The materialized ParsedDocument carries only id/routing, not the ingested source, so
+            // document-size metering for batch-indexed docs is not yet accurate. Revisit once the columnar
+            // path threads real per-document sizes through to the reporter.
+            List<Engine.Index> ops = List.of(randomDoc("id1"), randomDoc("id2"), randomDoc("id3"));
+            List<Engine.IndexResult> results = engine.indexBatch(engineBatch(ops, encodeAsEscfBatch(ops)));
+            for (int i = 0; i < results.size(); i++) {
+                final String id = ops.get(i).id();
+                assertThat(results.get(i).getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+                verify(documentSizeReporter).onParsingCompleted(argThat(doc -> doc.id().equals(id)));
+                verify(documentSizeReporter).onIndexingCompleted(argThat(doc -> doc.id().equals(id)));
+            }
+
+            // Failure case: a version-conflicting op is parsed but never gets onIndexingCompleted. It reuses
+            // id "id1", so onParsingCompleted has now fired twice for that id (success batch + this batch)
+            // while onIndexingCompleted stays at the single success-batch call.
+            Engine.Index conflictingOp = versionConflictingIndexOperation(randomDoc("id1"));
+            List<Engine.Index> failOps = List.of(conflictingOp);
+            List<Engine.IndexResult> failResults = engine.indexBatch(engineBatch(failOps, encodeAsEscfBatch(failOps)));
+            assertThat(failResults.get(0).getResultType(), equalTo(Engine.Result.Type.FAILURE));
+            verify(documentSizeReporter, times(2)).onParsingCompleted(argThat(doc -> doc.id().equals("id1")));
+            verify(documentSizeReporter, times(1)).onIndexingCompleted(argThat(doc -> doc.id().equals("id1")));
+        }
+    }
+
+    public void testHollowEngineCannotIngestBatch() throws Exception {
+        try (var engine = newIndexEngine(indexConfig())) {
+            var indexedDoc = randomDoc(String.valueOf(0));
+            engine.index(indexedDoc);
+            final PlainActionFuture<Engine.FlushResult> future = new PlainActionFuture<>();
+            engine.flushHollow(future);
+            future.actionGet();
+            final var maxSeqNo = engine.getMaxSeqNo();
+
+            List<Engine.Index> batchOps = List.of(randomDoc(String.valueOf(1)));
+            expectThrows(IllegalStateException.class, () -> engine.indexBatch(engineBatch(batchOps, encodeAsEscfBatch(batchOps))));
+            assertThat(engine.getMaxSeqNo(), equalTo(maxSeqNo));
+        }
+    }
+
+    /**
+     * Builds an {@link EngineBatch} for the given operations and source batch, assembling a minimal
+     * {@link MappedColumns} (a {@code _source} column plus the seqNo/primaryTerm/version byte arrays
+     * shared by reference with the {@link IndexOperationBatch}).
+     *
+     * <p>Note: this does not run the metadata-mapper columnar pipeline (this test's {@link MapperService}
+     * is a mock with {@link MappingLookup#EMPTY}); the id/seqNo/version metadata is carried by the
+     * {@link IndexOperationBatch} itself, so a minimal {@code _source} column is enough for the engine to
+     * index the batch.
+     */
+    private static EngineBatch engineBatch(List<Engine.Index> operations, SourceBatch batch) {
+        final IndexOperationBatch indexBatch = EngineTestCase.fromIndexOps(operations, batch);
+        final BytesRef[] sources = new BytesRef[operations.size()];
+        for (int i = 0; i < operations.size(); i++) {
+            sources[i] = operations.get(i).source().originalBytes().toBytesRef();
+        }
+        final MappedColumns columns = new MappedColumns(
+            0,
+            operations.size(),
+            indexBatch.seqNoBytes(),
+            indexBatch.primaryTermBytes(),
+            indexBatch.versionBytes(),
+            List.of(MappedColumns.binaryColumn(sources, SourceFieldMapper.NAME, SourceFieldMapper.Defaults.FIELD_TYPE))
+        );
+        return new EngineBatch(indexBatch, columns);
+    }
+
+    /**
+     * Encodes a list of index operations as an {@link EscfBatch}. All operations must share the same
+     * {@link XContentType}.
+     */
+    private static SourceBatch encodeAsEscfBatch(List<Engine.Index> operations) throws IOException {
+        List<BytesReference> sources = new ArrayList<>(operations.size());
+        XContentType xContentType = operations.get(0).parsedDoc().getXContentType();
+        for (Engine.Index op : operations) {
+            sources.add(op.source().originalBytes());
+        }
+        return EscfEncoder.encode(sources, xContentType);
+    }
+
     public void testCommitUserDataIsEnrichedByAccumulatorData() throws IOException {
         TranslogReplicator mockTranslogReplicator = mock(TranslogReplicator.class);
         when(mockTranslogReplicator.getMaxUploadedFile()).thenReturn(456L);
@@ -783,6 +909,36 @@ public class IndexEngineTests extends AbstractEngineTestCase {
                 assertEquals(0, ongoingMerges.get());
                 assertEquals(0, ongoingMemoryEstimations.size());
             });
+        }
+    }
+
+    public void testDeleteUnownedDocumentsBumpsForceMergeUUID() throws Exception {
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .build();
+        try (var engine = newIndexEngine(indexConfig(settings))) {
+            engine.index(randomDoc("doc-1"));
+            engine.flush(true, true);
+
+            assertNull(engine.getForceMergeUUID());
+            assertNull(engine.getLastCommittedSegmentInfos().getUserData().get(Engine.FORCE_MERGE_UUID_KEY));
+
+            IndexMetadata metadata = engine.config().getIndexSettings().getIndexMetadata();
+            engine.deleteUnownedDocuments(new ShardSplittingQuery(metadata, 0, false));
+            engine.flush(true, true);
+
+            String firstUuid = engine.getForceMergeUUID();
+            assertNotNull(firstUuid);
+            assertThat(engine.getLastCommittedSegmentInfos().getUserData().get(Engine.FORCE_MERGE_UUID_KEY), equalTo(firstUuid));
+
+            engine.deleteUnownedDocuments(new ShardSplittingQuery(metadata, 0, false));
+            engine.flush(true, true);
+
+            String secondUuid = engine.getForceMergeUUID();
+            assertNotNull(secondUuid);
+            assertThat(secondUuid, not(equalTo(firstUuid)));
+            assertThat(engine.getLastCommittedSegmentInfos().getUserData().get(Engine.FORCE_MERGE_UUID_KEY), equalTo(secondUuid));
         }
     }
 }

@@ -38,7 +38,7 @@ public class MvSingleValueOrNullErrorTests extends ErrorsForCasesWithoutExamples
                 validPerPosition,
                 signature,
                 (v, p) -> "any type except counter types, dense_vector, "
-                    + "aggregate_metric_double, tdigest, histogram, exponential_histogram, or date_range"
+                    + "aggregate_metric_double, tdigest, histogram, exponential_histogram, date_range, or double_range"
             )
         );
     }

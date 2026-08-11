@@ -2383,7 +2383,12 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         semanticScope.setCondition(userBlockNode, LastSource.class);
         visit(userBlockNode, lambdaScope);
 
-        boolean needsScriptCapture = lambdaScope.usesInstanceMethod() || scriptScope.getScriptClassInfo().supportsCancellation();
+        // A def lambda (no TargetType) can't use the typed #scriptThis-parameter injection the IR phase applies to typed
+        // static lambdas, so when allocation tracking is on it instead captures the script as an instance, letting its body
+        // reach $checkAllocBytes through `this`. Typed lambdas are unaffected here and keep the injection path.
+        boolean needsScriptCapture = lambdaScope.usesInstanceMethod()
+            || scriptScope.getScriptClassInfo().supportsCancellation()
+            || (targetType == null && scriptScope.getCompilerSettings().isAllocationTrackingEnabled());
 
         if (needsScriptCapture) {
             semanticScope.setCondition(userLambdaNode, InstanceCapturingLambda.class);
@@ -2482,7 +2487,25 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
             }
             if (targetType == null) {
                 valueType = String.class;
-                semanticScope.putDecoration(userFunctionRefNode, EncodingDecoration.of(true, isInstanceReference, symbol, methodName, 0));
+                // Under allocation tracking, capture the script for an external def reference whose target has an @allocates
+                // method, so a runtime-resolved annotated overload can be charged per invocation (see
+                // Def.lookupReferenceInternal). needsInstance carries the capture through the def-call argument index math;
+                // the charge bootstrap drops it when the resolved target turns out unannotated. this:: references already
+                // capture the script for a real delegate argument; tracking off leaves the encoding unchanged.
+                boolean chargeCapture = isInstanceReference == false
+                    && scriptScope.getCompilerSettings().isAllocationTrackingEnabled()
+                    && scriptScope.getPainlessLookup().hasAllocationEstimatorMethod(type, methodName);
+                if (chargeCapture) {
+                    // needsInstance=true on this external symbol captures the script; Def.lookupReferenceInternal detects the
+                    // charge from (needsInstance && symbol != "this") and routes through the charging lambda bootstrap.
+                    semanticScope.setCondition(userFunctionRefNode, InstanceCapturingFunctionRef.class);
+                    semanticScope.putDecoration(userFunctionRefNode, EncodingDecoration.of(true, true, symbol, methodName, 0));
+                } else {
+                    semanticScope.putDecoration(
+                        userFunctionRefNode,
+                        EncodingDecoration.of(true, isInstanceReference, symbol, methodName, 0)
+                    );
+                }
             } else {
                 FunctionRef ref = FunctionRef.create(
                     scriptScope.getPainlessLookup(),
@@ -2533,8 +2556,15 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                     // dynamic implementation
                     encodingDecoration = EncodingDecoration.of(false, false, symbol, methodName, 1);
                 } else {
-                    // typed implementation
-                    encodingDecoration = EncodingDecoration.of(true, false, captured.getCanonicalTypeName(), methodName, 1);
+                    // typed implementation. Under allocation tracking, capture the script (needsInstance=true) for a bound
+                    // reference to an annotated target so it charges per invocation, prepended ahead of the receiver
+                    // capture (see Def.lookupReferenceInternal / LambdaBootstrap); the charge bootstrap drops it.
+                    boolean chargeCapture = scriptScope.getCompilerSettings().isAllocationTrackingEnabled()
+                        && scriptScope.getPainlessLookup().hasAllocationEstimatorMethod(captured.type(), methodName);
+                    if (chargeCapture) {
+                        semanticScope.setCondition(userFunctionRefNode, InstanceCapturingFunctionRef.class);
+                    }
+                    encodingDecoration = EncodingDecoration.of(true, chargeCapture, captured.getCanonicalTypeName(), methodName, 1);
                 }
                 valueType = String.class;
                 semanticScope.putDecoration(userFunctionRefNode, encodingDecoration);

@@ -182,6 +182,7 @@ tasks.named("yamlRestCompatTestTransform").configure(
     task.skipTest("esql/192_lookup_join_on_aliases/alias-pattern-single", "New SORT warning not in original test")
     task.skipTest("ml/data_frame_analytics_crud/Test put config with remote source index", "Error message changed")
     task.skipTest("esql/40_tsdb/PromQL irate on counter field", "We filter out null values now")
+    task.skipTest("esql/40_tsdb/to_aggregate_metric_double with multi_values", "We convert correctly the unsigned long")
     // Expected deprecation warning to compat yaml tests:
     task.addAllowedWarningRegex("Parameter \\[default_metric\\] is deprecated and will be removed in a future version")
     task.skipTest("aggregate-metrics/10_basic/Sort", "Average is used now instead of the default metric")

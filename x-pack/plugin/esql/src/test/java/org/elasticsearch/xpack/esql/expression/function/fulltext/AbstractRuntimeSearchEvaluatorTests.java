@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -16,13 +17,21 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
+import org.elasticsearch.xpack.esql.score.ScoreMapper;
 import org.junit.After;
 
 import java.util.ArrayList;
@@ -78,6 +87,11 @@ public abstract class AbstractRuntimeSearchEvaluatorTests extends ESTestCase {
             public FoldContext foldCtx() {
                 return FoldContext.small();
             }
+
+            @Override
+            public Analyzer getAnalyzer(String name) {
+                return PlannerUtils.resolveAnalyzer(name, EsqlTestUtils.TEST_ANALYSIS_REGISTRY);
+            }
         };
     }
 
@@ -109,10 +123,47 @@ public abstract class AbstractRuntimeSearchEvaluatorTests extends ESTestCase {
         }
     }
 
+    /**
+     * Builds the runtime scorer for the given full-text function through {@link ScoreMapper} and runs it over a
+     * single field block, returning the per-position scores. A row that doesn't match gets a score of 0.0.
+     */
+    protected Double[] score(FullTextFunction function, Function<BlockFactory, Block> fieldBuilder) {
+        DriverContext context = driverContext();
+        Block fieldBlock = fieldBuilder.apply(context.blockFactory());
+        ExpressionEvaluator.Factory factory = ScoreMapper.toScorer(function, EmptyIndexedByShardId.instance(), toEvaluator());
+        try (ExpressionEvaluator scorer = factory.get(context)) {
+            Page page = new Page(fieldBlock);
+            try (DoubleBlock result = (DoubleBlock) scorer.eval(page)) {
+                Double[] out = new Double[result.getPositionCount()];
+                for (int p = 0; p < out.length; p++) {
+                    out[p] = result.isNull(p) ? null : result.getDouble(result.getFirstValueIndex(p));
+                }
+                return out;
+            } finally {
+                page.releaseBlocks();
+            }
+        }
+    }
+
     protected static Block bytesRefBlock(BlockFactory factory, Consumer<BytesRefBlock.Builder> build) {
         try (BytesRefBlock.Builder builder = factory.newBytesRefBlockBuilder(4)) {
             build.accept(builder);
             return builder.build();
         }
+    }
+
+    /**
+     * Builds a {@link MapExpression} from alternating key/value string pairs. All values are keyword literals,
+     * which {@code Options.populateMap} converts to the option's declared type (BOOLEAN, INTEGER, etc.) via
+     * {@code DataTypeConverter.convert}.
+     */
+    protected static MapExpression mapOptions(String... kvs) {
+        assert kvs.length % 2 == 0;
+        List<Expression> entries = new ArrayList<>(kvs.length);
+        for (int i = 0; i < kvs.length; i += 2) {
+            entries.add(Literal.keyword(Source.EMPTY, kvs[i]));
+            entries.add(Literal.keyword(Source.EMPTY, kvs[i + 1]));
+        }
+        return new MapExpression(Source.EMPTY, entries);
     }
 }

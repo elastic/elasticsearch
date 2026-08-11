@@ -136,9 +136,7 @@ public class QueryPhase {
             LOGGER.trace("{}", new SearchContextSourcePrinter(searchContext));
         }
 
-        // Pre-process aggregations as late as possible. In the case of a DFS_Q_T_F
-        // request, preProcess is called on the DFS phase, this is why we pre-process them
-        // here to make sure it happens during the QUERY phase
+        // Pre-process aggregations as late as possible, i.e. during the QUERY phase, after the query has been rewritten.
         AggregationPhase.preProcess(searchContext);
 
         addCollectorsAndSearch(searchContext, searchContext.getSearchExecutionContext().getTimeRangeFilterFromMillis());
@@ -155,6 +153,11 @@ public class QueryPhase {
      * wire everything (mapperService, etc.)
      */
     static void addCollectorsAndSearch(SearchContext searchContext, Long timeRangeFilterFromMillis) throws QueryPhaseExecutionException {
+        addCollectorsAndSearch(searchContext, timeRangeFilterFromMillis, getTimeoutCheck(searchContext));
+    }
+
+    private static void addCollectorsAndSearch(SearchContext searchContext, Long timeRangeFilterFromMillis, Runnable timeoutRunnable)
+        throws QueryPhaseExecutionException {
         final ContextIndexSearcher searcher = searchContext.searcher();
         final IndexReader reader = searcher.getIndexReader();
         QuerySearchResult queryResult = searchContext.queryResult();
@@ -164,13 +167,17 @@ public class QueryPhase {
             queryResult.from(searchContext.from());
             queryResult.size(searchContext.size());
 
-            final Runnable timeoutRunnable = getTimeoutCheck(searchContext);
             if (timeoutRunnable != null) {
                 searcher.addQueryCancellation(timeoutRunnable);
             }
 
             Query query = searchContext.rewrittenQuery();
             assert query == searcher.rewrite(query); // already rewritten
+
+            if (searcher.timeExceeded()) {
+                finalizeAsTimedOutResult(searchContext);
+                return;
+            }
 
             final ScrollContext scrollContext = searchContext.scrollContext();
             if (scrollContext != null) {

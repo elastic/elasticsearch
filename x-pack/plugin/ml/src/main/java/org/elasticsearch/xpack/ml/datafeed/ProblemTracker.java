@@ -103,6 +103,7 @@ class ProblemTracker {
     public void finishReport() {
         if (hasProblems == false && hadProblems) {
             auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_RECOVERED));
+            previousProblem = null;
         }
 
         hadProblems = hasProblems;

@@ -11,6 +11,7 @@ package org.elasticsearch.telemetry.metric;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.function.Supplier;
 
 /**
@@ -91,6 +92,18 @@ public interface MeterRegistry {
      * @return the registered meter.
      */
     DoubleHistogram registerDoubleHistogram(String name, String description, String unit);
+
+    /**
+     * Register a {@link DoubleHistogram} with explicit bucket boundaries.  The returned object may be reused.
+     * Callers that need bucket boundaries tuned to a specific range should prefer this over
+     * {@link #registerDoubleHistogram(String, String, String)}, which uses the APM default sqrt(2) ladder.
+     * @param name name of the histogram
+     * @param description description of purpose
+     * @param unit the unit (bytes, sec, hour)
+     * @param bucketBoundaries explicit upper-inclusive bucket boundaries, in ascending order
+     * @return the registered meter.
+     */
+    DoubleHistogram registerDoubleHistogram(String name, String description, String unit, List<Double> bucketBoundaries);
 
     /**
      * Retrieved a previously registered {@link DoubleHistogram}.
@@ -241,6 +254,18 @@ public interface MeterRegistry {
     LongHistogram registerLongHistogram(String name, String description, String unit);
 
     /**
+     * Register a {@link LongHistogram} with explicit bucket boundaries.  The returned object may be reused.
+     * Callers that need bucket boundaries tuned to a specific range should prefer this over
+     * {@link #registerLongHistogram(String, String, String)}, which uses the APM default sqrt(2) ladder.
+     * @param name name of the histogram
+     * @param description description of purpose
+     * @param unit the unit (bytes, sec, hour)
+     * @param bucketBoundaries explicit upper-inclusive bucket boundaries, in ascending order
+     * @return the registered meter.
+     */
+    LongHistogram registerLongHistogram(String name, String description, String unit, List<Long> bucketBoundaries);
+
+    /**
      * Retrieved a previously registered {@link LongHistogram}.
      * @param name name of the histogram
      * @return the registered meter.
@@ -287,6 +312,11 @@ public interface MeterRegistry {
 
         @Override
         public DoubleHistogram registerDoubleHistogram(String name, String description, String unit) {
+            return DoubleHistogram.NOOP;
+        }
+
+        @Override
+        public DoubleHistogram registerDoubleHistogram(String name, String description, String unit, List<Double> bucketBoundaries) {
             return DoubleHistogram.NOOP;
         }
 
@@ -362,6 +392,11 @@ public interface MeterRegistry {
 
         @Override
         public LongHistogram registerLongHistogram(String name, String description, String unit) {
+            return LongHistogram.NOOP;
+        }
+
+        @Override
+        public LongHistogram registerLongHistogram(String name, String description, String unit, List<Long> bucketBoundaries) {
             return LongHistogram.NOOP;
         }
 

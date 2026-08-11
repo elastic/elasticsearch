@@ -152,15 +152,32 @@ public class KnnIndexTester {
         Directory create(Path indexPath) throws IOException;
     }
 
-    record DirectoryTypeConfig(DirectoryFactory factory, boolean shared, boolean preWarm, BiConsumer<Directory, String> diagnosticLogger) {
+    /**
+     * @param shared             when true a single directory instance serves indexing, merging and searching, instead of one
+     *                           per phase
+     * @param preWarm            when true the directory's cache is filled by reading every file before searching
+     * @param requiresFreshIndex when true the directory cannot reuse an index it did not write itself, so the index is built
+     *                           from scratch on every run and gets an index path of its own
+     */
+    record DirectoryTypeConfig(
+        DirectoryFactory factory,
+        boolean shared,
+        boolean preWarm,
+        BiConsumer<Directory, String> diagnosticLogger,
+        boolean requiresFreshIndex
+    ) {
         private static final BiConsumer<Directory, String> NOOP = (a, b) -> {};
 
         DirectoryTypeConfig(DirectoryFactory factory, boolean shared, boolean preWarm) {
-            this(factory, shared, preWarm, NOOP);
+            this(factory, shared, preWarm, NOOP, false);
+        }
+
+        DirectoryTypeConfig(DirectoryFactory factory, boolean shared, boolean preWarm, BiConsumer<Directory, String> diagnosticLogger) {
+            this(factory, shared, preWarm, diagnosticLogger, false);
         }
     }
 
-    private static final Map<String, DirectoryTypeConfig> directoryTypeRegistry = new ConcurrentHashMap<>(3);
+    private static final Map<String, DirectoryTypeConfig> directoryTypeRegistry = new ConcurrentHashMap<>(4);
 
     static {
         directoryTypeRegistry.put("default", new DirectoryTypeConfig(KnnIndexer::getDirectory, false, false));
@@ -168,6 +185,13 @@ public class KnnIndexTester {
         directoryTypeRegistry.put(
             "stateless",
             new DirectoryTypeConfig(KnnIndexer::openStatelessDirectory, true, true, KnnIndexer::logStatelessCacheStats)
+        );
+        // "stateless-index" uses `shared = true` because the directory only serves reads for files it created itself, and
+        // it wipes the index path when opened: a second instance for the force merge would destroy the index and then find
+        // nothing to merge.
+        directoryTypeRegistry.put(
+            "stateless-index",
+            new DirectoryTypeConfig(KnnIndexer::openStatelessIndexDirectory, true, false, DirectoryTypeConfig.NOOP, true)
         );
     }
 
@@ -179,7 +203,7 @@ public class KnnIndexTester {
         return config;
     }
 
-    private static String formatIndexPath(TestConfiguration args) {
+    private static String formatIndexPath(TestConfiguration args, DirectoryTypeConfig dirConfig) {
         List<String> suffix = new ArrayList<>();
         switch (args.indexType()) {
             case FLAT -> suffix.add("flat");
@@ -206,6 +230,11 @@ public class KnnIndexTester {
                     suffix.add(Integer.toString(args.quantizeBits()));
                 }
             }
+        }
+        if (dirConfig.requiresFreshIndex()) {
+            // These types rebuild the index on every run and wipe the index path doing so, so they must not share it with the
+            // types that can reuse an index built by "default".
+            suffix.add(args.directoryType());
         }
 
         return INDEX_DIR + "/" + args.docVectors().getFirst().getFileName() + "-" + String.join("-", suffix) + ".index";
@@ -419,7 +448,9 @@ public class KnnIndexTester {
         for (TestConfiguration testConfiguration : testConfigurationList) {
             // check this here so IVF/GPUHNSW can guarantee quantizeBits is set properly
             checkQuantizeBits(testConfiguration);
-            String indexPathName = formatIndexPath(testConfiguration);
+            DirectoryTypeConfig dirConfig = getDirectoryTypeConfig(testConfiguration.directoryType());
+            checkCanReuseIndex(testConfiguration, dirConfig);
+            String indexPathName = formatIndexPath(testConfiguration, dirConfig);
             String indexType = testConfiguration.indexType().name().toLowerCase(Locale.ROOT);
             Results indexResults = new Results(indexPathName, indexType, testConfiguration.numDocs());
             Results[] results = new Results[testConfiguration.numberOfSearchRuns()];
@@ -436,7 +467,6 @@ public class KnnIndexTester {
                 Codec codec = createCodec(testConfiguration, exec);
                 Path indexPath = PathUtils.get(indexPathName);
                 MergePolicy mergePolicy = getMergePolicy(testConfiguration);
-                DirectoryTypeConfig dirConfig = getDirectoryTypeConfig(testConfiguration.directoryType());
 
                 runTestConfiguration(
                     testConfiguration,
@@ -684,6 +714,23 @@ public class KnnIndexTester {
         return QuantEncoding.fromDocAndQueryBits((byte) docQuantizeBits, queryQuantizeBits.byteValue());
     }
 
+    /**
+     * Fails fast rather than silently reporting nothing. A directory type that only tracks the files it wrote itself cannot see
+     * an index left on disk by a previous run: it would open the empty bootstrap commit, the force merge would find no segments
+     * and report close to zero milliseconds, and the searches would run against no documents.
+     */
+    private static void checkCanReuseIndex(TestConfiguration args, DirectoryTypeConfig dirConfig) {
+        if (dirConfig.requiresFreshIndex() && args.reindex() == false) {
+            throw new IllegalArgumentException(
+                "directory_type '"
+                    + args.directoryType()
+                    + "' cannot reuse an existing index: it only reads files it wrote itself, so an index on disk is invisible to "
+                    + "it and the force merge would silently be a no-op. Set \"reindex\": true. Note this rebuilds, and therefore "
+                    + "wipes, the index path on every run."
+            );
+        }
+    }
+
     private static void checkQuantizeBits(TestConfiguration args) {
         switch (args.indexType()) {
             case IVF:
@@ -895,6 +942,7 @@ public class KnnIndexTester {
                 "oversampling_factor",
                 "num_candidates",
                 "early_termination",
+                "post_filter",
                 "exact",
                 "exact_quantized"
             );
@@ -942,6 +990,7 @@ public class KnnIndexTester {
                     String.format(Locale.ROOT, "%.2f", queryResult.overSamplingFactor),
                     String.format(Locale.ROOT, "%d", queryResult.numCandidates),
                     Boolean.toString(queryResult.earlyTermination),
+                    Boolean.toString(queryResult.postFilter),
                     Boolean.toString(queryResult.exact),
                     Boolean.toString(queryResult.exactQuantized)
                 );
@@ -1042,6 +1091,7 @@ public class KnnIndexTester {
         boolean filterCached;
         double overSamplingFactor;
         boolean earlyTermination;
+        boolean postFilter;
         boolean exact;
         boolean exactQuantized;
         int numCandidates;
@@ -1185,6 +1235,7 @@ public class KnnIndexTester {
         "visit_percentage",
         "over_sampling_factor",
         "early_termination",
+        "post_filter",
         "exact",
         "exact_quantized",
         "filter_selectivity",
@@ -1299,6 +1350,7 @@ public class KnnIndexTester {
                             String.format(Locale.ROOT, "%.4f", sp.visitPercentage()),
                             String.format(Locale.ROOT, "%.4f", sp.overSamplingFactor()),
                             Boolean.toString(sp.earlyTermination()),
+                            Boolean.toString(sp.postFilter()),
                             Boolean.toString(sp.exact()),
                             Boolean.toString(sp.exactQuantized()),
                             String.format(Locale.ROOT, "%.4f", sp.filterSelectivity()),

@@ -241,10 +241,10 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
     }
 
     @Override
-    public void l2Normalize(float[] v, int offset, int length) {
+    public float l2Normalize(float[] v, int offset, int length) {
         float normSq = dotProduct(v, v, offset, length);
         if (normSq == 0f) {
-            return;
+            return 0;
         }
 
         float scale = (float) (1.0 / Math.sqrt(normSq));
@@ -261,6 +261,7 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         for (; i < end; i++) {
             v[i] *= scale;
         }
+        return normSq;
     }
 
     @Override
@@ -906,6 +907,33 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         }
 
         return sum;
+    }
+
+    @Override
+    public float squareDistance(byte[] a, float[] b) {
+        int i = 0;
+        float result = 0;
+        // SIMD path: load bytes as floats, load floats, subtract, square, accumulate.
+        // BYTES_FOR_4BYTE_SPECIES is a byte vector species sized so that each byte lane maps to
+        // exactly one float lane after castShape — i.e., its lane count equals FLOAT_SPECIES.length().
+        if (a.length >= BYTES_FOR_4BYTE_SPECIES.length()) {
+            FloatVector acc = FloatVector.zero(FLOAT_SPECIES);
+            int limit = a.length - BYTES_FOR_4BYTE_SPECIES.length();
+            for (; i <= limit; i += FLOAT_SPECIES.length()) {
+                ByteVector va = ByteVector.fromArray(BYTES_FOR_4BYTE_SPECIES, a, i);
+                FloatVector fa = (FloatVector) va.castShape(FLOAT_SPECIES, 0);
+                FloatVector fb = FloatVector.fromArray(FLOAT_SPECIES, b, i);
+                FloatVector diff = fa.sub(fb);
+                acc = fma(diff, diff, acc);
+            }
+            result = acc.reduceLanes(ADD);
+        }
+        // Scalar tail
+        for (; i < a.length; i++) {
+            float diff = a[i] - b[i];
+            result = fma(diff, diff, result);
+        }
+        return result;
     }
 
     @Override
@@ -2357,22 +2385,22 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
     }
 
     @Override
-    public void packAsBinary(int[] vector, byte[] packed) {
+    public void pack1BitValues(int[] vector, byte[] packed) {
         // 128 / 32 == 4
         if (vector.length >= 8 && HAS_FAST_INTEGER_VECTORS) {
             // TODO: can we optimize for >= 512?
             if (VECTOR_BITSIZE >= 256) {
-                packAsBinary256(vector, packed);
+                pack1BitValues256(vector, packed);
                 return;
             } else if (VECTOR_BITSIZE == 128) {
-                packAsBinary128(vector, packed);
+                pack1BitValues128(vector, packed);
                 return;
             }
         }
-        DefaultESVectorUtilSupport.packAsBinaryImpl(vector, packed);
+        DefaultESVectorUtilSupport.pack1BitValuesImpl(vector, packed);
     }
 
-    private void packAsBinary256(int[] vector, byte[] packed) {
+    private void pack1BitValues256(int[] vector, byte[] packed) {
         final int limit = INT_SPECIES_256.loopBound(vector.length);
         int i = 0;
         int index = 0;
@@ -2392,7 +2420,7 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         packed[index] = result;
     }
 
-    private void packAsBinary128(int[] vector, byte[] packed) {
+    private void pack1BitValues128(int[] vector, byte[] packed) {
         final int limit = INT_SPECIES_128.loopBound(vector.length) - INT_SPECIES_128.length();
         int i = 0;
         int index = 0;
@@ -2416,31 +2444,31 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
     }
 
     @Override
-    public void packDibit(int[] vector, byte[] packed) {
-        DefaultESVectorUtilSupport.packDibitImpl(vector, packed);
+    public void stride2BitValues(int[] vector, byte[] packed) {
+        DefaultESVectorUtilSupport.stride2BitValuesImpl(vector, packed);
     }
 
     @Override
-    public void packDibitQuad(int[] vector, byte[] packed) {
-        DefaultESVectorUtilSupport.packDibitQuadImpl(vector, packed);
+    public void pack2BitValues(int[] vector, byte[] packed) {
+        DefaultESVectorUtilSupport.pack2BitValuesImpl(vector, packed);
     }
 
     @Override
-    public void transposeHalfByte(int[] q, byte[] quantQueryByte) {
+    public void stride4BitValues(int[] vector, byte[] packed) {
         // 128 / 32 == 4
-        if (q.length >= 8 && HAS_FAST_INTEGER_VECTORS) {
+        if (vector.length >= 8 && HAS_FAST_INTEGER_VECTORS) {
             if (VECTOR_BITSIZE >= 256) {
-                transposeHalfByte256(q, quantQueryByte);
+                stride4BitValues256(vector, packed);
                 return;
             } else if (VECTOR_BITSIZE == 128) {
-                transposeHalfByte128(q, quantQueryByte);
+                stride4BitValues128(vector, packed);
                 return;
             }
         }
-        DefaultESVectorUtilSupport.transposeHalfByteImpl(q, quantQueryByte);
+        DefaultESVectorUtilSupport.stride4BitValuesImpl(vector, packed);
     }
 
-    private void transposeHalfByte256(int[] q, byte[] quantQueryByte) {
+    private void stride4BitValues256(int[] q, byte[] quantQueryByte) {
         final int limit = INT_SPECIES_256.loopBound(q.length);
         int i = 0;
         int index = 0;
@@ -2477,7 +2505,7 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         quantQueryByte[index + 3 * quantQueryByte.length / 4] = (byte) upperByte;
     }
 
-    private void transposeHalfByte128(int[] q, byte[] quantQueryByte) {
+    private void stride4BitValues128(int[] q, byte[] quantQueryByte) {
         final int limit = INT_SPECIES_128.loopBound(q.length) - INT_SPECIES_128.length();
         int i = 0;
         int index = 0;

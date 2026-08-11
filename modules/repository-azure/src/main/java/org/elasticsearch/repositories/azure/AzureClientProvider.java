@@ -38,6 +38,8 @@ import com.azure.storage.common.policy.RequestRetryOptions;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -48,6 +50,8 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.repositories.azure.executors.ReactorScheduledExecutorService;
 import org.elasticsearch.rest.RestStatus;
@@ -57,6 +61,7 @@ import org.elasticsearch.transport.netty4.NettyAllocator;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -145,7 +150,6 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         // to avoid creating multiple connection pools.
         this.nioLoopResources = useNative -> eventLoopGroup;
         this.multipartUploadMaxConcurrency = multipartUploadMaxConcurrency;
-
     }
 
     static int eventLoopThreadsFromSettings(Settings settings) {
@@ -159,45 +163,59 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         }
     }
 
+    // Cache that keeps connection providers that can be reused. The key of the cache includes all Azure settings
+    // to prevent future reloadable `SecureSetting`s from breaking anything.
     private volatile Map<ConnectionProviderKey, AzureConnectionProviderReference> connectionProvidersCache = Collections.emptyMap();
 
-    synchronized void refreshCache(Set<ConnectionProviderKey> keysToRemove) {
-        if (keysToRemove.isEmpty()) {
+    // The following listeners are used together in order to dispose all connection providers when we stop the provider (see `doStop`).
+    private final PlainActionFuture<Void> allConnectionProvidersDisposed = new PlainActionFuture<>();
+    private final RefCountingListener connectionProviderDisposals = new RefCountingListener(allConnectionProvidersDisposed);
+
+    // Drop (i.e., decrement their ref count) connection providers from the cache. We only start the disposal of a connection provider
+    // after the final reference is released (i.e., ref count is 0).
+    void dropConnectionProviders(Set<ConnectionProviderKey> keys) {
+        if (keys.isEmpty()) {
             return;
         }
 
-        var refs = connectionProvidersCache.entrySet()
-            .stream()
-            .filter(entry -> keysToRemove.contains(entry.getKey()))
-            .map(entry -> entry.getValue())
-            .toList();
+        List<AzureConnectionProviderReference> refs;
+        synchronized (this) {
+            refs = connectionProvidersCache.entrySet()
+                .stream()
+                .filter(entry -> keys.contains(entry.getKey()))
+                .map(entry -> entry.getValue())
+                .toList();
 
-        // We can remove from the cache for now but the reference is still alive as long as we haven't closed it (i.e., have not called
-        // closeInternal).
-        var newConnectionProvidersCache = new HashMap<>(connectionProvidersCache);
-        for (ConnectionProviderKey key : keysToRemove) {
-            newConnectionProvidersCache.remove(key);
+            // Note that we can remove from the cache for now but the reference is still alive as long as we haven't closed it (i.e., have
+            // not called `closeInternal`).
+            var newConnectionProvidersCache = new HashMap<>(connectionProvidersCache);
+            for (ConnectionProviderKey key : keys) {
+                newConnectionProvidersCache.remove(key);
+            }
+            connectionProvidersCache = Map.copyOf(newConnectionProvidersCache);
         }
-        connectionProvidersCache = Map.copyOf(newConnectionProvidersCache);
 
-        IOUtils.closeWhileHandlingException(refs); // for doing the disposeLater on `ConnectionProvider`s
+        IOUtils.closeWhileHandlingException(refs);
     }
 
     private AzureConnectionProviderReference acquireConnectionProvider(ConnectionProviderKey key) {
+        if (closed) {
+            throw new AlreadyClosedException("AzureClientProvider is already closed");
+        }
+
         final var connectionProviderRef = connectionProvidersCache.get(key);
         if (connectionProviderRef != null && connectionProviderRef.tryIncRef()) {
             return connectionProviderRef;
         }
 
         synchronized (this) {
+            if (closed) {
+                throw new AlreadyClosedException("AzureClientProvider is already closed");
+            }
+
             final var existing = connectionProvidersCache.get(key);
             if (existing != null && existing.tryIncRef()) {
                 return existing;
-            }
-
-            if (closed) {
-                // Not adding a new provider once the AzureClientProvider is closed since there won't be anything to close it
-                throw new AlreadyClosedException("AzureClientProvider is already closed");
             }
 
             ConnectionProvider provider = ConnectionProvider.builder("azure-sdk-connection-pool")
@@ -207,8 +225,11 @@ class AzureClientProvider extends AbstractLifecycleComponent {
                 .maxIdleTime(Duration.ofMillis(maxIdleTime.millis()))
                 .build();
 
-            final var newConnectionProviderRef = new AzureConnectionProviderReference(provider);
-            newConnectionProviderRef.incRef();
+            final var newConnectionProviderRef = new AzureConnectionProviderReference(provider, connectionProviderDisposals.acquire());
+            // `newConnectionProviderRef` starts with a reference count of 1 which corresponds to it being in the cache and is potentially
+            // dropped during `dropConnectionProviders`. The second reference introduced below is for the client we're about to build, which
+            // is dropped when we `close` the client.
+            newConnectionProviderRef.mustIncRef();
             connectionProvidersCache = Maps.copyMapWithAddedEntry(connectionProvidersCache, key, newConnectionProviderRef);
             return newConnectionProviderRef;
         }
@@ -250,60 +271,68 @@ class AzureClientProvider extends AbstractLifecycleComponent {
 
         ConnectionProviderKey key = new ConnectionProviderKey(projectId, clientName, settings);
         AzureConnectionProviderReference connectionProviderReference = acquireConnectionProvider(key);
+        // We release the reference if constructing the client fails, so that we don't leak the connection provider.
+        Releasable toRelease = connectionProviderReference::close;
 
-        reactor.netty.http.client.HttpClient nettyHttpClient = reactor.netty.http.client.HttpClient.create(
-            connectionProviderReference.connectionProvider()
-        );
-        nettyHttpClient = nettyHttpClient.port(80)
-            .wiretap(false)
-            .resolver(DefaultAddressResolverGroup.INSTANCE)
-            .runOn(nioLoopResources)
-            .option(ChannelOption.ALLOCATOR, byteBufAllocator);
+        try {
+            reactor.netty.http.client.HttpClient nettyHttpClient = reactor.netty.http.client.HttpClient.create(
+                connectionProviderReference.connectionProvider()
+            );
+            nettyHttpClient = nettyHttpClient.port(80)
+                .wiretap(false)
+                .resolver(DefaultAddressResolverGroup.INSTANCE)
+                .runOn(nioLoopResources)
+                .option(ChannelOption.ALLOCATOR, byteBufAllocator);
 
-        final NettyAsyncHttpClientBuilder httpClientBuilder = new NettyAsyncHttpClientBuilder(nettyHttpClient).disableBufferCopy(true)
-            .proxy(proxyOptions);
-        if (settings.getReadTimeout().equals(TimeValue.MINUS_ONE) == false) {
-            httpClientBuilder.readTimeout(Duration.ofMillis(settings.getReadTimeout().millis()));
-        }
-
-        final String connectionString = settings.getConnectString();
-        BlobServiceClientBuilder builder = new BlobServiceClientBuilder().connectionString(connectionString)
-            .httpClient(httpClientBuilder.build())
-            .retryOptions(retryOptions);
-
-        if (settings.hasCredentials() == false) {
-            final DefaultAzureCredentialBuilder credentialBuilder = new DefaultAzureCredentialBuilder().executorService(eventLoopGroup);
-            if (DISABLE_INSTANCE_DISCOVERY) {
-                credentialBuilder.disableInstanceDiscovery();
-            }
-            builder.credential(credentialBuilder.build());
-        }
-
-        if (requestMetricsHandler != null) {
-            builder.addPolicy(new RequestMetricsTracker(purpose, requestMetricsHandler));
-            builder.addPolicy(RetryMetricsTracker.INSTANCE);
-        }
-
-        if (locationMode.isSecondary()) {
-            String secondaryUri = settings.getStorageEndpoint().secondaryURI();
-            if (secondaryUri == null) {
-                throw new IllegalArgumentException(
-                    "Unable to configure an AzureClient using a secondary location without a secondary endpoint"
-                );
+            final NettyAsyncHttpClientBuilder httpClientBuilder = new NettyAsyncHttpClientBuilder(nettyHttpClient).disableBufferCopy(true)
+                .proxy(proxyOptions);
+            if (settings.getReadTimeout().equals(TimeValue.MINUS_ONE) == false) {
+                httpClientBuilder.readTimeout(Duration.ofMillis(settings.getReadTimeout().millis()));
             }
 
-            builder.endpoint(secondaryUri);
-        }
+            final String connectionString = settings.getConnectString();
+            BlobServiceClientBuilder builder = new BlobServiceClientBuilder().connectionString(connectionString)
+                .httpClient(httpClientBuilder.build())
+                .retryOptions(retryOptions);
 
-        BlobServiceClient blobServiceClient = builder.buildClient();
-        BlobServiceAsyncClient asyncClient = builder.buildAsyncClient();
-        return new AzureBlobServiceClient(
-            blobServiceClient,
-            asyncClient,
-            settings.getMaxRetries(),
-            byteBufAllocator,
-            connectionProviderReference
-        );
+            if (settings.hasCredentials() == false) {
+                final DefaultAzureCredentialBuilder credentialBuilder = new DefaultAzureCredentialBuilder().executorService(eventLoopGroup);
+                if (DISABLE_INSTANCE_DISCOVERY) {
+                    credentialBuilder.disableInstanceDiscovery();
+                }
+                builder.credential(credentialBuilder.build());
+            }
+
+            if (requestMetricsHandler != null) {
+                builder.addPolicy(new RequestMetricsTracker(purpose, requestMetricsHandler));
+                builder.addPolicy(RetryMetricsTracker.INSTANCE);
+            }
+
+            if (locationMode.isSecondary()) {
+                String secondaryUri = settings.getStorageEndpoint().secondaryURI();
+                if (secondaryUri == null) {
+                    throw new IllegalArgumentException(
+                        "Unable to configure an AzureClient using a secondary location without a secondary endpoint"
+                    );
+                }
+
+                builder.endpoint(secondaryUri);
+            }
+
+            BlobServiceClient blobServiceClient = builder.buildClient();
+            BlobServiceAsyncClient asyncClient = builder.buildAsyncClient();
+            final var client = new AzureBlobServiceClient(
+                blobServiceClient,
+                asyncClient,
+                settings.getMaxRetries(),
+                byteBufAllocator,
+                connectionProviderReference
+            );
+            toRelease = null;
+            return client;
+        } finally {
+            Releasables.close(toRelease);
+        }
     }
 
     @Override
@@ -338,13 +367,23 @@ class AzureClientProvider extends AbstractLifecycleComponent {
     @Override
     protected void doStop() {
         closed = true;
-        // Dispose of the connection provider first and wait for it to complete before we close the event loop.
         try {
-            // FIXME: connectionProvider.disposeLater().block(Duration.ofSeconds(5));
+            // We first close all the references that reside in the cache. However, there might still be clients using connection providers.
+            // Eventually those clients would complete their `disposedListener` eventually completing the `allDisposed` future.
+            final List<AzureConnectionProviderReference> refs;
+            synchronized (this) {
+                refs = List.copyOf(connectionProvidersCache.values());
+                connectionProvidersCache = Map.of();
+                // Note that because we first set `closed=true`, `connectionProvidersCache` cannot be re-populated.
+            }
+
+            IOUtils.closeWhileHandlingException(refs);
+            connectionProviderDisposals.close();
+            allConnectionProvidersDisposed.actionGet(TimeValue.timeValueSeconds(10));
         } catch (RuntimeException e) {
-            logger.warn("Error disposing connection provider", e);
+            logger.warn("Error disposing connection providers", e);
         } finally {
-            // Now it's safe to shut down the event loop
+            // shut down the event loop after completing all disposals or timing out
             try {
                 FutureUtils.get(eventLoopGroup.shutdownGracefully(), 5, TimeUnit.SECONDS);
             } catch (RuntimeException e) {

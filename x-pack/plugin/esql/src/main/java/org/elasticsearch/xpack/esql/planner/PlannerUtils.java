@@ -145,22 +145,34 @@ public class PlannerUtils {
      * The result pages from each sub plan will be funneled to the main coordinator plan.
      * To achieve this, we wire each sub plan with a {@code ExchangeSinkExec} and add a {@code ExchangeSourceExec}
      * to the main coordinator plan.
+     * Only the topmost {@code MergeExec} is broken apart here: a sub plan may itself contain nested
+     * {@code MergeExec}s (from nested subqueries), which are broken recursively when that sub plan is executed,
+     * see {@code MergeLevelExecutor}.
+     * A coordinator segment may contain only one independent topmost merge because all exchange sources in the
+     * segment would otherwise consume the same exchange handler and mix their input streams.
      * There is an additional split of each sub plan into a data node plan and coordinator plan.
      * This split is not done here, but as part of {@code PlannerUtils#breakPlanBetweenCoordinatorAndDataNode}.
      */
     public static Tuple<List<PhysicalPlan>, PhysicalPlan> breakPlanIntoSubPlansAndMainPlan(PhysicalPlan plan) {
-        var subplans = new Holder<List<PhysicalPlan>>();
-        PhysicalPlan mainPlan = plan.transformUp(MergeExec.class, me -> {
-            subplans.set(
-                me.children()
-                    .stream()
-                    .map(child -> (PhysicalPlan) new ExchangeSinkExec(child.source(), child.output(), false, child))
-                    .toList()
-            );
+        List<PhysicalPlan> subplans = new ArrayList<>();
+        var topmostMerge = new Holder<MergeExec>();
+        // transformDown replaces each topmost MergeExec with a leaf ExchangeSourceExec, so the traversal does not
+        // descend into the merged branches: nested MergeExecs stay intact inside the collected sub plans.
+        PhysicalPlan mainPlan = plan.transformDown(MergeExec.class, me -> {
+            if (topmostMerge.get() != null) {
+                throw new EsqlIllegalArgumentException(
+                    "expected a single topmost MergeExec in a coordinator segment, found multiple in [{}]",
+                    plan
+                );
+            }
+            topmostMerge.set(me);
+            for (PhysicalPlan child : me.children()) {
+                subplans.add(new ExchangeSinkExec(child.source(), child.output(), false, child));
+            }
             return new ExchangeSourceExec(me.source(), me.output(), false);
         });
 
-        return new Tuple<>(subplans.get(), mainPlan);
+        return new Tuple<>(subplans, mainPlan);
     }
 
     public static Tuple<PhysicalPlan, PhysicalPlan> breakPlanBetweenCoordinatorAndDataNode(PhysicalPlan plan, Configuration config) {

@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
+import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -54,6 +55,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -1857,6 +1859,47 @@ public class AnalyzerSubqueryTests extends ESTestCase {
      */
     private static LogicalPlan analyzeMaybeNullify(TestAnalyzer analyzer, String query) {
         return randomBoolean() ? analyzer.statement("SET unmapped_fields=\"nullify\";\n" + query) : analyzer.query(query);
+    }
+
+    /**
+     * When every branch of a union resolves to an empty subquery, {@code PruneEmptyUnionAllBranch} removes them all. A union of no
+     * branches is the empty relation, so {@link UnionAll#pruneEmptyBranches} collapses it to an empty {@link LocalRelation} rather than
+     * leaving a branchless node - which would throw {@code NoSuchElementException} out of {@code Fork#expressionsResolved} during
+     * analysis and surface as a 500.
+     * <p>
+     * The {@code EMPTY_SUBQUERY} resolutions are injected here rather than reached through a real cluster: end-to-end, the
+     * substitution gate in {@code EsqlSession} plus the order the analyzer prunes in never left an inner union branchless in any shape
+     * tried against {@code CrossClusterSubqueryIT}. So this covers the plan-level invariant, not a reproduced request.
+     */
+    public void testAllBranchesPrunedCollapseToEmptyRelation() {
+        var plan = analyzer().addEmployees("test")
+            .addIndex("remote:missingA", IndexResolution.EMPTY_SUBQUERY)
+            .addIndex("remote:missingB", IndexResolution.EMPTY_SUBQUERY)
+            .query("FROM (FROM remote:missingA), (FROM remote:missingB)");
+
+        assertTrue(as(as(plan, Limit.class).child(), LocalRelation.class).hasEmptySupplier());
+    }
+
+    /**
+     * As {@link #testAllBranchesPrunedCollapseToEmptyRelation}, but the all-pruned union is nested under a resolved sibling. The outer
+     * union keeps both branches; the collapsed one contributes no rows, so the query returns the {@code test} rows. Rules run
+     * bottom-up ({@code AnalyzerRules.ParameterizedAnalyzerRule} uses {@code transformUp}), so the inner union is pruned - and
+     * collapsed - before the outer one is visited.
+     */
+    public void testAllInnerBranchesPrunedCollapseToEmptyRelation() {
+        var plan = analyzer().addEmployees("test")
+            .addIndex("remote:missingA", IndexResolution.EMPTY_SUBQUERY)
+            .addIndex("remote:missingB", IndexResolution.EMPTY_SUBQUERY)
+            .query("FROM test, (FROM (FROM remote:missingA), (FROM remote:missingB))");
+
+        var union = as(as(plan, Limit.class).child(), UnionAll.class);
+        assertEquals(2, union.children().size());
+        assertEquals("test", as(as(union.children().get(0), Project.class).child(), EsRelation.class).indexPattern());
+
+        // The pruned branch keeps the null-padding Eval that supplies the output attributes the union expects; below it, the inner
+        // union is now an empty relation.
+        var subquery = as(as(as(union.children().get(1), Project.class).child(), Eval.class).child(), Subquery.class);
+        assertTrue(as(subquery.child(), LocalRelation.class).hasEmptySupplier());
     }
 
     @Override

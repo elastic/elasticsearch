@@ -9,6 +9,7 @@
 package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -424,6 +425,9 @@ public class AggregatorFactories {
          * Validate the root of the aggregation tree.
          */
         public ActionRequestValidationException validate(ActionRequestValidationException e) {
+            if (exceedsMaxNestedDepth()) {
+                return ValidateActions.addValidationError(maxNestedDepthExceededMessage(), e);
+            }
             PipelineAggregationBuilder.ValidationContext context = PipelineAggregationBuilder.ValidationContext.forTreeRoot(
                 aggregationBuilders,
                 e
@@ -461,6 +465,12 @@ public class AggregatorFactories {
         }
 
         private void checkMaxNestedDepth() {
+            if (exceedsMaxNestedDepth()) {
+                throw new IllegalArgumentException(maxNestedDepthExceededMessage());
+            }
+        }
+
+        private boolean exceedsMaxNestedDepth() {
             final Deque<Builder> builders = new ArrayDeque<>();
             final Deque<Integer> levels = new ArrayDeque<>();
             builders.push(this);
@@ -470,13 +480,14 @@ public class AggregatorFactories {
                 final int level = levels.pop();
                 if (level >= MAX_NESTED_DEPTH
                     && (current.aggregationBuilders.isEmpty() == false || current.pipelineAggregatorBuilders.isEmpty() == false)) {
-                    throw new IllegalArgumentException(maxNestedDepthExceededMessage());
+                    return true;
                 }
                 for (AggregationBuilder aggBuilder : current.aggregationBuilders) {
                     builders.push(aggBuilder.factoriesBuilder);
                     levels.push(level + 1);
                 }
             }
+            return false;
         }
 
         public AggregatorFactories build(AggregationContext context, AggregatorFactory parent) throws IOException {

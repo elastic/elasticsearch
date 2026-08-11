@@ -1,17 +1,17 @@
-ProjectExec[[keyword{f}#0]]
+ProjectExec[[double{f}#0]]
 \_LimitExec[1000[INTEGER],null]
-  \_ExchangeExec[[keyword{f}#0],false]
-    \_ProjectExec[[keyword{f}#0]]
-      \_LimitExec[1000[INTEGER],70]
-        \_FilterExec[MVGREATER(keyword{f}#0,m[KEYWORD])]
-          \_FieldExtractExec[keyword{f}#0]<[],[],[]>
-            \_EsQueryExec[all_types], indexMode[standard], [_doc{f}#1], limit[], sort[] estimatedRowSize[54] queryBuilderAndTags [[QueryBuilderAndTags[query={
+  \_ExchangeExec[[double{f}#0],false]
+    \_ProjectExec[[double{f}#0]]
+      \_LimitExec[1000[INTEGER],28]
+        \_FilterExec[MVGREATER(double{f}#0,1.0[DOUBLE])]
+          \_FieldExtractExec[double{f}#0]<[],[],[]>
+            \_EsQueryExec[all_types], indexMode[standard], [_doc{f}#1], limit[], sort[] estimatedRowSize[12] queryBuilderAndTags [[QueryBuilderAndTags[query={
   "bool" : {
     "filter" : [
       {
         "range" : {
-          "keyword" : {
-            "gte" : "m",
+          "double" : {
+            "gte" : 1.0,
             "boost" : 0.0
           }
         }

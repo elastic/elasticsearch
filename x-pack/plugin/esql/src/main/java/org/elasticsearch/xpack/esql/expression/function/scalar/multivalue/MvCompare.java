@@ -314,16 +314,25 @@ public abstract class MvCompare extends EsqlScalarFunction implements OptionalAr
             return Translatable.NO;
         }
         if (pushdownPredicates.isPushableFieldAttribute(field) && isPushableBound(bound)) {
-            // Exact types: drop the filter. Others: push a superset and recheck (negation not pushable).
+            // Exact types (integral + ip/version/keyword) push a faithful range, so drop the filter (YES) and allow
+            // must_not(range) under negation. DOUBLE stays RECHECK — push a superset and re-check: reduced-precision
+            // mappers (float/half_float/scaled_float) round the bound outward. RECHECK negation cannot be pushed.
             return isExactRangeType() ? Translatable.YES : Translatable.RECHECK_BUT_NO_NEGATED;
         }
         return Translatable.NO;
     }
 
-    /** INT/LONG element types — Lucene range matches the evaluator exactly. */
+    /** True when the pushed Lucene range matches the evaluator exactly (integral types, plus ip/version/keyword). */
     private boolean isExactRangeType() {
         var elementType = PlannerUtils.toElementType(field.dataType());
-        return elementType == ElementType.INT || elementType == ElementType.LONG;
+        if (elementType == ElementType.INT || elementType == ElementType.LONG) {
+            return true;
+        }
+        if (elementType == ElementType.BYTES_REF) {
+            DataType dt = field.dataType();
+            return dt == DataType.IP || dt == DataType.VERSION || dt == DataType.KEYWORD;
+        }
+        return false;
     }
 
     private static boolean isPushableBound(Expression bound) {
@@ -333,8 +342,9 @@ public abstract class MvCompare extends EsqlScalarFunction implements OptionalAr
     @Override
     public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
         // Reuse Range's per-type bound formatting (dates, ip, version, unsigned_long). One-sided:
-        // open end is Literal.NULL. Exact types keep real inclusivity; RECHECK types push inclusive
-        // so mapper rounding cannot drop a restore-able row. Bare RangeQuery = any-value over MV.
+        // open end is Literal.NULL. Exact types (integral + ip/version/keyword) keep real inclusivity;
+        // DOUBLE (RECHECK) pushes inclusive so mapper rounding cannot drop a restore-able row.
+        // Bare RangeQuery = any-value over MV.
         boolean exact = isExactRangeType();
         boolean include = exact ? includeBound() : true;
         Expression pushBound = widenZeroBound(bound);

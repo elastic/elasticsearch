@@ -316,7 +316,7 @@ public class PushdownGoldenTests extends UnmappedGoldenTestCase {
 
     /**
      * mv_greater Lucene pushdown strategies: YES (exact drop filter), YES+inclusive, YES+NOT,
-     * RECHECK (pre-filter + keep filter), RECHECK+NOT (no push), text NO.
+     * YES keyword (exact byte-encoded), YES keyword+NOT, RECHECK double, RECHECK+NOT, text NO.
      */
     public void testMvGreaterPushdown() {
         runGoldenTest("""
@@ -338,11 +338,21 @@ public class PushdownGoldenTests extends UnmappedGoldenTestCase {
                 FROM all_types
                 | KEEP keyword
                 | WHERE mv_greater(keyword, "m")
-            """, STAGES, "recheck");
+            """, STAGES, "yes_keyword");
         runGoldenTest("""
                 FROM all_types
                 | KEEP keyword
                 | WHERE NOT mv_greater(keyword, "m")
+            """, STAGES, "yes_keyword_not");
+        runGoldenTest("""
+                FROM all_types
+                | KEEP double
+                | WHERE mv_greater(double, 1.0)
+            """, STAGES, "recheck");
+        runGoldenTest("""
+                FROM all_types
+                | KEEP double
+                | WHERE NOT mv_greater(double, 1.0)
             """, STAGES, "recheck_not");
         runGoldenTest("""
                 FROM all_types
@@ -374,11 +384,21 @@ public class PushdownGoldenTests extends UnmappedGoldenTestCase {
                 FROM all_types
                 | KEEP keyword
                 | WHERE mv_less(keyword, "m")
-            """, STAGES, "recheck");
+            """, STAGES, "yes_keyword");
         runGoldenTest("""
                 FROM all_types
                 | KEEP keyword
                 | WHERE NOT mv_less(keyword, "m")
+            """, STAGES, "yes_keyword_not");
+        runGoldenTest("""
+                FROM all_types
+                | KEEP double
+                | WHERE mv_less(double, 1.0)
+            """, STAGES, "recheck");
+        runGoldenTest("""
+                FROM all_types
+                | KEEP double
+                | WHERE NOT mv_less(double, 1.0)
             """, STAGES, "recheck_not");
         runGoldenTest("""
                 FROM all_types

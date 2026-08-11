@@ -845,13 +845,20 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         assertThat(pushedQuery(plan).toString(), equalTo(expected.toString()));
     }
 
-    /** mv_greater over a keyword field pushes the range as a pre-filter but keeps the FilterExec (RECHECK). */
-    public void testMvGreaterKeywordRecheck() {
+    /** mv_greater over keyword/ip/version is YES: drop FilterExec and push the real exclusivity. */
+    public void testMvGreaterKeywordIpVersionPushdown() {
         var plan = plannerOptimizer.plan("from test | where mv_greater(first_name, \"m\")");
-        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(true));
-        // RECHECK types push the bound INCLUSIVE regardless of the option (superset pre-filter).
-        var expected = boolQuery().filter(unscore(rangeQuery("first_name").from("m", true)));
-        assertThat(pushedQuery(plan).toString(), equalTo(expected.toString()));
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(false));
+        assertThat(pushedQuery(plan).toString(), equalTo(unscore(rangeQuery("first_name").from("m", false)).toString()));
+
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        var ip = plannerOptimizer.plan("from test | where mv_greater(ip, \"1.1.1.1\"::ip)", IS_SV_STATS, analyzer);
+        assertThat(ip.anyMatch(FilterExec.class::isInstance), is(false));
+        assertThat(pushedQuery(ip).toString(), equalTo(unscore(rangeQuery("ip").from("1.1.1.1", false)).toString()));
+
+        var version = plannerOptimizer.plan("from test | where mv_greater(version, \"1.0.0\"::version)", IS_SV_STATS, analyzer);
+        assertThat(version.anyMatch(FilterExec.class::isInstance), is(false));
+        assertThat(pushedQuery(version).toString(), equalTo(unscore(rangeQuery("version").from("1.0.0", false)).toString()));
     }
 
     /** A text field is never pushed for mv_greater. */
@@ -897,13 +904,20 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         assertThat(pushedQuery(plan).toString(), equalTo(expected.toString()));
     }
 
-    /** mv_less over a keyword field pushes the range as a pre-filter but keeps the FilterExec (RECHECK). */
-    public void testMvLessKeywordRecheck() {
+    /** mv_less over keyword/ip/version is YES: drop FilterExec and push the real exclusivity. */
+    public void testMvLessKeywordIpVersionPushdown() {
         var plan = plannerOptimizer.plan("from test | where mv_less(first_name, \"m\")");
-        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(true));
-        // RECHECK types push the bound INCLUSIVE regardless of the option (superset pre-filter).
-        var expected = boolQuery().filter(unscore(rangeQuery("first_name").to("m", true)));
-        assertThat(pushedQuery(plan).toString(), equalTo(expected.toString()));
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(false));
+        assertThat(pushedQuery(plan).toString(), equalTo(unscore(rangeQuery("first_name").to("m", false)).toString()));
+
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        var ip = plannerOptimizer.plan("from test | where mv_less(ip, \"2.2.2.2\"::ip)", IS_SV_STATS, analyzer);
+        assertThat(ip.anyMatch(FilterExec.class::isInstance), is(false));
+        assertThat(pushedQuery(ip).toString(), equalTo(unscore(rangeQuery("ip").to("2.2.2.2", false)).toString()));
+
+        var version = plannerOptimizer.plan("from test | where mv_less(version, \"2.0.0\"::version)", IS_SV_STATS, analyzer);
+        assertThat(version.anyMatch(FilterExec.class::isInstance), is(false));
+        assertThat(pushedQuery(version).toString(), equalTo(unscore(rangeQuery("version").to("2.0.0", false)).toString()));
     }
 
     /** A text field is never pushed for mv_less. */
@@ -928,23 +942,48 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         assertThat(pushedQuery(plan).toString(), equalTo(expected.toString()));
     }
 
-    /** NOT of a RECHECK-typed mv_greater is not pushed at all. */
+    /**
+     * NOT over exact byte-encoded types pushes must_not(range). Keyword/ip/version share the YES path with
+     * integral types (see testMvGreaterNotPushdown); only the double family stays RECHECK and unpushed under NOT.
+     */
+    public void testMvGreaterNotExactBytesRefPushdown() {
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        var kw = plannerOptimizer.plan("from test | where not mv_greater(keyword, \"m\")", IS_SV_STATS, analyzer);
+        assertThat(kw.anyMatch(FilterExec.class::isInstance), is(false));
+        assertThat(pushedQuery(kw).toString(), equalTo(boolQuery().mustNot(unscore(rangeQuery("keyword").from("m", false))).toString()));
+
+        var ip = plannerOptimizer.plan("from test | where not mv_greater(ip, \"1.1.1.1\"::ip)", IS_SV_STATS, analyzer);
+        assertThat(ip.anyMatch(FilterExec.class::isInstance), is(false));
+        assertThat(pushedQuery(ip).toString(), equalTo(boolQuery().mustNot(unscore(rangeQuery("ip").from("1.1.1.1", false))).toString()));
+    }
+
+    /** NOT of a RECHECK-typed (double-family) mv_greater is not pushed at all. */
     public void testMvGreaterNotRecheckTypeNotPushed() {
         var analyzer = makeAnalyzer("mapping-all-types.json");
-        for (var field : List.of("double", "keyword")) {
-            var bound = field.equals("keyword") ? "\"m\"" : "1.0";
-            var plan = plannerOptimizer.plan("from test | where not mv_greater(" + field + ", " + bound + ")", IS_SV_STATS, analyzer);
+        for (var field : List.of("double", "float", "half_float", "scaled_float")) {
+            var plan = plannerOptimizer.plan("from test | where not mv_greater(" + field + ", 1.0)", IS_SV_STATS, analyzer);
             assertThat("NOT over " + field + " must retain the filter", plan.anyMatch(FilterExec.class::isInstance), is(true));
             assertThat("NOT over " + field + " must not push a range", pushedQuery(plan), is(nullValue()));
         }
     }
 
-    /** NOT of a RECHECK-typed mv_less is not pushed at all. */
+    /** NOT over exact byte-encoded types for mv_less pushes must_not(range). */
+    public void testMvLessNotExactBytesRefPushdown() {
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        var kw = plannerOptimizer.plan("from test | where not mv_less(keyword, \"m\")", IS_SV_STATS, analyzer);
+        assertThat(kw.anyMatch(FilterExec.class::isInstance), is(false));
+        assertThat(pushedQuery(kw).toString(), equalTo(boolQuery().mustNot(unscore(rangeQuery("keyword").to("m", false))).toString()));
+
+        var ip = plannerOptimizer.plan("from test | where not mv_less(ip, \"2.2.2.2\"::ip)", IS_SV_STATS, analyzer);
+        assertThat(ip.anyMatch(FilterExec.class::isInstance), is(false));
+        assertThat(pushedQuery(ip).toString(), equalTo(boolQuery().mustNot(unscore(rangeQuery("ip").to("2.2.2.2", false))).toString()));
+    }
+
+    /** NOT of a RECHECK-typed (double-family) mv_less is not pushed at all. */
     public void testMvLessNotRecheckTypeNotPushed() {
         var analyzer = makeAnalyzer("mapping-all-types.json");
-        for (var field : List.of("double", "keyword")) {
-            var bound = field.equals("keyword") ? "\"m\"" : "1.0";
-            var plan = plannerOptimizer.plan("from test | where not mv_less(" + field + ", " + bound + ")", IS_SV_STATS, analyzer);
+        for (var field : List.of("double", "float", "half_float", "scaled_float")) {
+            var plan = plannerOptimizer.plan("from test | where not mv_less(" + field + ", 1.0)", IS_SV_STATS, analyzer);
             assertThat("NOT over " + field + " must retain the filter", plan.anyMatch(FilterExec.class::isInstance), is(true));
             assertThat("NOT over " + field + " must not push a range", pushedQuery(plan), is(nullValue()));
         }

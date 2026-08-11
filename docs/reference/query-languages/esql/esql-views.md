@@ -145,7 +145,7 @@ at which point `METADATA _index` will contain the name of the view.
 
 ## How views execute
 
-Understanding how views execute under the hood helps when you start combining multiple views, hitting branch limits, or troubleshooting unexpected results.
+Views behave like inline subqueries at execution time and when you start combining multiple views, it helps to know how nesting works and where the limits are.
 
 ### Execution model
 

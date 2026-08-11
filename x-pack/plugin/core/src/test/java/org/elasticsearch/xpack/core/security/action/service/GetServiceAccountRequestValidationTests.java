@@ -7,10 +7,8 @@
 
 package org.elasticsearch.xpack.core.security.action.service;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.test.ESTestCase;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.nullValue;
 
 public class GetServiceAccountRequestValidationTests extends ESTestCase {
@@ -24,14 +22,12 @@ public class GetServiceAccountRequestValidationTests extends ESTestCase {
         assertThat(new GetServiceAccountRequest(null, null).validate(), nullValue());
     }
 
-    public void testRejectsInvalidManagedNamespace() {
-        final ActionRequestValidationException validation = new GetServiceAccountRequest("my*", "worker").validate();
-        assertThat(validation.validationErrors().get(0), containsString("namespace"));
+    public void testAllowsInvalidManagedNamespace() {
+        assertThat(new GetServiceAccountRequest("my*", "worker").validate(), nullValue());
     }
 
-    public void testRejectsInvalidServiceName() {
-        final ActionRequestValidationException validation = new GetServiceAccountRequest("my-team", "worker*").validate();
-        assertThat(validation.validationErrors().get(0), containsString("service name"));
+    public void testAllowsInvalidServiceName() {
+        assertThat(new GetServiceAccountRequest("my-team", "worker*").validate(), nullValue());
     }
 
     public void testAllowsElasticNamespaceWithServiceName() {

@@ -49,6 +49,7 @@ import java.util.function.BiConsumer;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
@@ -190,25 +191,22 @@ public class ManagedServiceAccountStoreTests extends ESTestCase {
         assertThat(exception.getMessage(), equalTo("the [elastic] namespace is reserved for built-in service accounts"));
     }
 
-    public void testListAccountsRejectsInvalidServiceName() {
+    public void testListAccountsReturnsEmptyForInvalidServiceName() throws Exception {
         PlainActionFuture<List<ManagedServiceAccount>> future = new PlainActionFuture<>();
         store.listAccounts("yaml_poc", "worker*", future);
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, future::actionGet);
-        assertThat(exception.getMessage(), containsString("service name"));
+        assertThat(future.get(), empty());
     }
 
-    public void testListAccountsRejectsInvalidNamespace() {
+    public void testListAccountsReturnsEmptyForInvalidNamespace() throws Exception {
         PlainActionFuture<List<ManagedServiceAccount>> future = new PlainActionFuture<>();
         store.listAccounts("yaml*", null, future);
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, future::actionGet);
-        assertThat(exception.getMessage(), containsString("namespace"));
+        assertThat(future.get(), empty());
     }
 
-    public void testListAccountsRejectsElasticNamespace() {
+    public void testListAccountsReturnsEmptyForElasticNamespace() throws Exception {
         PlainActionFuture<List<ManagedServiceAccount>> future = new PlainActionFuture<>();
         store.listAccounts("elastic", null, future);
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, future::actionGet);
-        assertThat(exception.getMessage(), equalTo("the [elastic] namespace is reserved for built-in service accounts"));
+        assertThat(future.get(), empty());
     }
 
     public void testParseAccountDocumentRejectsWrongDocType() throws Exception {

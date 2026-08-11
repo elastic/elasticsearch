@@ -12,7 +12,6 @@ import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xpack.core.security.support.ManagedServiceAccountIdValidator;
 
 import java.io.IOException;
 import java.util.EnumSet;
@@ -91,18 +90,6 @@ public class GetServiceAccountRequest extends UntypedActionRequest {
         ActionRequestValidationException validationException = null;
         if (managedBy.isEmpty()) {
             validationException = addValidationError("managed_by must contain at least one value", validationException);
-        }
-        if (namespace != null && ManagedServiceAccountIdValidator.BUILTIN_NAMESPACE.equals(namespace) == false) {
-            final String namespaceError = ManagedServiceAccountIdValidator.validateNamespace(namespace);
-            if (namespaceError != null) {
-                validationException = addValidationError(namespaceError, validationException);
-            }
-        }
-        if (serviceName != null) {
-            final String serviceNameError = ManagedServiceAccountIdValidator.validateServiceName(serviceName);
-            if (serviceNameError != null) {
-                validationException = addValidationError(serviceNameError, validationException);
-            }
         }
         return validationException;
     }

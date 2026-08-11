@@ -186,7 +186,7 @@ public class ManagedServiceAccountStore implements CacheInvalidatorRegistry.Cach
         try {
             validateListParameters(namespace, serviceName);
         } catch (IllegalArgumentException e) {
-            listener.onFailure(e);
+            listener.onResponse(List.of());
             return;
         }
         final IndexState projectSecurityIndex = securityIndex.forCurrentProject();

@@ -260,8 +260,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                 .validate(
                     RemoteConnectionManager.wrapConnectionWithRemoteClusterInfo(
                         connection,
-                        clusterAlias,
-                        connectionManager.getLinkedProjectId(),
+                        connectionManager.getRemoteClusterProjectInfo(),
                         connectionManager.getCredentialsManager()
                     ),
                     profile,

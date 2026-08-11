@@ -75,8 +75,7 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
             transportService.handshake(
                 RemoteConnectionManager.wrapConnectionWithRemoteClusterInfo(
                     newConnection,
-                    clusterAlias,
-                    connectionManager.getLinkedProjectId(),
+                    connectionManager.getRemoteClusterProjectInfo(),
                     connectionManager.getCredentialsManager()
                 ),
                 actualProfile.getHandshakeTimeout(),

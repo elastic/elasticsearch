@@ -193,9 +193,9 @@ public class DateFormatters {
         new FastDateTimeParser(Set.of(), false, null, DecimalSeparator.BOTH, TimezonePresence.OPTIONAL).withLocale(Locale.ROOT)
     );
 
-    /*
-     * The literal date patterns for which we provide a {@link FastDateParser}-based parser instead of the slower,
-     * allocation-heavy generic java.time parsing. These are not registered format names, so without these they would
+    /**
+     * The literal date patterns for which we provide a {@link FastDateTimeParser}-based parser instead of the slower,
+     * allocation-heavy generic java.time.* parsing. These are not registered format names, so without these they would
      * otherwise fall through to the generic path in {@link #forPattern(String)}.
      */
     private static final String ISO_LOCAL_DATE_TIME_NO_T_PATTERN = "yyyy-MM-dd HH:mm:ss";

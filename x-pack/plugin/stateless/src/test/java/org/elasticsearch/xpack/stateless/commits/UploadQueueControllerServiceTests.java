@@ -113,18 +113,22 @@ public class UploadQueueControllerServiceTests extends ESTestCase {
         assertTrue(throttler.history.get(0).throttled);
 
         // We should hold this state for the specified cooldown period.
-        time.set(settings.cooldownPeriodMs() - 1);
+        Map<ShardId, ThrottleState> throttleKeepState = throttleState;
+        for (int i = 0; i < settings.cooldownPeriodMs(); i++) {
+            time.incrementAndGet();
 
-        // So this is all the same as above.
-        Map<ShardId, ThrottleState> throttleKeepState = calculator.newState(throttleState, Stream.of(stats), settings, 1);
-        var throttleKeepShardState = throttleKeepState.get(shardId);
-        assertEquals(Type.THROTTLED, throttleKeepShardState.latestDecision());
-        assertEquals(0, throttleKeepShardState.relativeApplicationTimeMs());
-        assertEquals(1, throttleKeepShardState.consecutiveApplications());
-        // We don't reapply throttling if it's already there.
-        assertEquals(1, throttler.history.size());
+            // So this is all the same as above.
+            throttleKeepState = calculator.newState(throttleState, Stream.of(stats), settings, 1);
+            var throttleKeepShardState = throttleKeepState.get(shardId);
+            assertEquals(Type.THROTTLED, throttleKeepShardState.latestDecision());
+            assertEquals(0, throttleKeepShardState.relativeApplicationTimeMs());
+            assertEquals(1, throttleKeepShardState.consecutiveApplications());
+            assertEquals(1, throttler.history.size());
+        }
 
-        // Once the period passes, we'll keep the throttle until we reach the maximum period count.
+        time.incrementAndGet();
+
+        // We keep the throttle as long as needed if we still see the queue.
         time.addAndGet(settings.cooldownPeriodMs() + 1);
 
         Map<ShardId, ThrottleState> secondPeriodState = calculator.newState(throttleKeepState, Stream.of(stats), settings, 1);
@@ -134,26 +138,6 @@ public class UploadQueueControllerServiceTests extends ESTestCase {
         assertEquals(2, secondPeriodShardState.consecutiveApplications());
         // We don't reapply throttling if it's already there.
         assertEquals(1, throttler.history.size());
-
-        time.addAndGet(settings.cooldownPeriodMs() + 1);
-
-        Map<ShardId, ThrottleState> thirdPeriodState = calculator.newState(secondPeriodState, Stream.of(stats), settings, 1);
-        var thirdPeriodShardState = thirdPeriodState.get(shardId);
-        assertEquals(Type.THROTTLED, thirdPeriodShardState.latestDecision());
-        assertEquals(time.get(), thirdPeriodShardState.relativeApplicationTimeMs());
-        assertEquals(3, thirdPeriodShardState.consecutiveApplications());
-        // We don't reapply throttling if it's already there.
-        assertEquals(1, throttler.history.size());
-
-        time.addAndGet(settings.cooldownPeriodMs() + 1);
-
-        Map<ShardId, ThrottleState> unthrottledDueToMaxPeriodsState = calculator.newState(thirdPeriodState, Stream.of(stats), settings, 1);
-        var unthrottledDueToMaxPeriodsShardState = unthrottledDueToMaxPeriodsState.get(shardId);
-        assertEquals(Type.THROTTLE_REMOVED, unthrottledDueToMaxPeriodsShardState.latestDecision());
-        assertEquals(time.get(), unthrottledDueToMaxPeriodsShardState.relativeApplicationTimeMs());
-        assertEquals(2, throttler.history.size());
-        assertEquals(shardId, throttler.history.get(1).shardId);
-        assertFalse(throttler.history.get(1).throttled);
     }
 
     public void testRemoveThrottleCooldown() {

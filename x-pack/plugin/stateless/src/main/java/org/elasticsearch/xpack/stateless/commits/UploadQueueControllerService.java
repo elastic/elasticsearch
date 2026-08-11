@@ -198,7 +198,9 @@ public class UploadQueueControllerService extends AbstractLifecycleComponent {
     record ThrottleSettings(long activationThresholdSeconds, long deactivationThresholdSeconds, long cooldownPeriodMs) {}
 
     static class ThrottleCalculator {
-        public final int MAXIMUM_CONSECUTIVE_THROTTLING_PERIODS = 3;
+        public final int MAXIMUM_CONSECUTIVE_THROTTLING_PERIODS_LOGGING_THRESHOLD = 3;
+
+        private static final Logger logger = LogManager.getLogger(ThrottleCalculator.class);
 
         private final Supplier<Long> relativeTimeMillis;
         private final Throttler throttler;
@@ -235,33 +237,32 @@ public class UploadQueueControllerService extends AbstractLifecycleComponent {
 
                 if (queueInSeconds > settings.activationThresholdSeconds) {
                     // This is a throttle condition.
-                    if (shardState != null && shardState.latestDecision == Type.THROTTLED) {
-                        // The throttle is currently applied, it just expired.
-                        // We know that we still need throttling, apply unless we have reached
-                        // maximum amount of consequtive periods.
-                        if (shardState.consecutiveApplications < MAXIMUM_CONSECUTIVE_THROTTLING_PERIODS) {
-                            newState.put(
+                    if (shardState != null && shardState.latestDecision() == Type.THROTTLED) {
+                        /// We are currently throttling, and we still see the queue.
+                        ///
+                        /// Indexing throttling reduces the amount of threads available for indexing to one.
+                        /// See [org.elasticsearch.indices.IndexingMemoryController#PAUSE_INDEXING_ON_THROTTLE].\
+                        /// So if we see that we should throttle we'll keep it applied as long as needed
+                        /// since it is not a "full stop" scenario for the customer.
+                        /// We do want to understand how often this happens though.
+                        if (shardState.consecutiveApplications() >= MAXIMUM_CONSECUTIVE_THROTTLING_PERIODS_LOGGING_THRESHOLD) {
+                            logger.info(
+                                "Indexing  throttling for shard {} has been applied {} consecutive times",
                                 shardId,
-                                ThrottleState.throttled(relativeTimeMillis.get(), shardState.consecutiveApplications + 1)
+                                shardState.consecutiveApplications()
                             );
-                        } else {
-                            // If maximum periods are reached, deactivate to allow clients to make at least some progress.
-                            // Note that `shardId` does not uniquely identify an instance of shard.
-                            // Due to shard movements it's possible in theory that between two runs of the calculation,
-                            // the shard moved off the node and back in.
-                            // This will be resolved in the throttler implementation.
-                            throttler.deactivate(shardId);
-                            newState.put(shardId, ThrottleState.throttleRemoved(relativeTimeMillis.get()));
                         }
-                        return;
-                    }
 
-                    // Otherwise we can throttle - the grace period after the latest throttle expired
-                    // or there was no prior decision.
-                    // Note that the shard may be closed at this point.
-                    // This is okay since we will drop it from the state on the next run anyway.
-                    throttler.activate(shardId);
-                    newState.put(shardId, ThrottleState.throttled(relativeTimeMillis.get(), 1));
+                        // We don't need to apply throttling since it's already applied.
+                        newState.put(shardId, ThrottleState.throttled(relativeTimeMillis.get(), shardState.consecutiveApplications() + 1));
+                    } else {
+                        // We know we can apply throttling - the grace period after the latest throttle expired
+                        // or there was no prior decision.
+                        // Note that the shard may be closed at this point.
+                        // This is okay since we will drop it from the state on the next run anyway.
+                        throttler.activate(shardId);
+                        newState.put(shardId, ThrottleState.throttled(relativeTimeMillis.get(), 1));
+                    }
                 } else if (queueInSeconds < settings.deactivationThresholdSeconds) {
                     // This is a "stop throttle" condition.
                     if (shardState != null && shardState.latestDecision == Type.THROTTLED) {

@@ -1350,9 +1350,9 @@ public final class XContentBuilder implements Closeable, Flushable {
      * Closes this {@linkplain XContentBuilder builder}, but skips checks validating the correctness of the XContent structure (e.g.
      * unclosed object or array).
      */
-    public void closeSilently() {
+    public void closeAllowIllFormed() {
         try {
-            generator.closeSilently();
+            generator.closeAllowIllFormed();
         } catch (IOException e) {
             throw new IllegalStateException("Failed to close the XContentBuilder", e);
         }

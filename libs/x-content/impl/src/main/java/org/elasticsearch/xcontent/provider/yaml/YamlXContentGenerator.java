@@ -40,10 +40,10 @@ public class YamlXContentGenerator extends JsonXContentGenerator {
     }
 
     @Override
-    public void closeSilently() {
+    public void closeAllowIllFormed() {
         // SnakeYAML fails with an exception when trying to close a generator that is in the middle of object/array
         try {
-            super.closeSilently();
+            super.closeAllowIllFormed();
         } catch (IOException ignored) {}
     }
 }

@@ -606,22 +606,21 @@ public class JsonXContentGenerator implements XContentGenerator {
     }
 
     @Override
-    public void closeSilently() throws IOException {
+    public void closeAllowIllFormed() throws IOException {
         close(true);
     }
 
-    private void close(boolean silent) throws IOException {
+    private void close(boolean allowIllFormed) throws IOException {
         if (generator.isClosed()) {
             return;
         }
 
+        boolean failsStructuralCheck = false;
         IOException exception = null;
         try {
-            if (silent == false) {
+            if (allowIllFormed == false) {
                 JsonStreamContext context = generator.getOutputContext();
-                if ((context != null) && (context.inRoot() == false)) {
-                    throw new IOException("Unclosed object or array found");
-                }
+                failsStructuralCheck = (context != null) && (context.inRoot() == false);
             }
             if (writeLineFeedAtEnd) {
                 flush();
@@ -642,7 +641,10 @@ public class JsonXContentGenerator implements XContentGenerator {
             }
         }
 
-        if (exception != null) {
+        if (failsStructuralCheck) {
+            assert false : "Unclosed object or array found";
+            throw new IOException("Unclosed object or array found", exception);
+        } else if (exception != null) {
             throw exception;
         }
     }

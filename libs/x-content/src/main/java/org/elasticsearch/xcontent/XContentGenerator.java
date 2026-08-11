@@ -188,5 +188,5 @@ public interface XContentGenerator extends Closeable, Flushable {
      * Closes this {@linkplain XContentGenerator generator}, but skips checks validating the correctness of the XContent structure (e.g.
      * unclosed object or array).
      */
-    void closeSilently() throws IOException;
+    void closeAllowIllFormed() throws IOException;
 }

@@ -827,11 +827,14 @@ public class Strings {
                     break;
                 }
             }
-            if (chunkedToXContent.isFragment()) {
+            if (truncatedStream.isTruncated() == false && chunkedToXContent.isFragment()) {
                 builder.endObject();
             }
 
-            return new TruncatedString(toString(builder, /* silent = */ true), truncatedStream.isTruncated());
+            return new TruncatedString(
+                toString(builder, /* allowIllFormed = */ truncatedStream.isTruncated()),
+                truncatedStream.isTruncated()
+            );
         } catch (IOException e) {
             return new TruncatedString(exceptionToJsonString(e, pretty, human), false);
         }
@@ -880,12 +883,12 @@ public class Strings {
      * @param xContentBuilder builder containing an object to converted to a string
      */
     public static String toString(XContentBuilder xContentBuilder) {
-        return toString(xContentBuilder, /* silent = */ false);
+        return toString(xContentBuilder, /* allowIllFormed = */ false);
     }
 
-    private static String toString(XContentBuilder xContentBuilder, boolean silent) {
-        if (silent) {
-            xContentBuilder.closeSilently();
+    private static String toString(XContentBuilder xContentBuilder, boolean allowIllFormed) {
+        if (allowIllFormed) {
+            xContentBuilder.closeAllowIllFormed();
         } else {
             xContentBuilder.close();
         }

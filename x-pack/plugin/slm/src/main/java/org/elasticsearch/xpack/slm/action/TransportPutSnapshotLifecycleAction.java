@@ -34,7 +34,7 @@ import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.slm.action.PutSnapshotLifecycleAction;
-import org.elasticsearch.xpack.encryption.spi.EncryptionService;
+import org.elasticsearch.xpack.encryption.spi.EncryptionServiceRegistry;
 import org.elasticsearch.xpack.slm.SnapshotLifecycleService;
 
 import java.nio.charset.StandardCharsets;
@@ -51,15 +51,12 @@ public class TransportPutSnapshotLifecycleAction extends TransportMasterNodeActi
 
     private static final Logger logger = LogManager.getLogger(TransportPutSnapshotLifecycleAction.class);
 
-    private final EncryptionService encryptionService;
-
     @Inject
     public TransportPutSnapshotLifecycleAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
-        ActionFilters actionFilters,
-        EncryptionService encryptionService
+        ActionFilters actionFilters
     ) {
         super(
             PutSnapshotLifecycleAction.NAME,
@@ -71,7 +68,6 @@ public class TransportPutSnapshotLifecycleAction extends TransportMasterNodeActi
             AcknowledgedResponse::readFrom,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
-        this.encryptionService = encryptionService;
     }
 
     @Override
@@ -91,7 +87,7 @@ public class TransportPutSnapshotLifecycleAction extends TransportMasterNodeActi
         final Map<String, String> filteredHeaders = ClientHelper.getPersistableSafeSecurityHeaders(threadPool.getThreadContext(), state);
         LifecyclePolicy.validatePolicyName(request.getLifecycleId());
 
-        final SnapshotLifecyclePolicy lifecycle = encryptPasswordIfPresent(request.getLifecycle(), encryptionService);
+        final SnapshotLifecyclePolicy lifecycle = encryptPasswordIfPresent(request.getLifecycle());
         final PutSnapshotLifecycleAction.Request effectiveRequest = lifecycle == request.getLifecycle()
             ? request
             : new PutSnapshotLifecycleAction.Request(
@@ -112,7 +108,7 @@ public class TransportPutSnapshotLifecycleAction extends TransportMasterNodeActi
      * and returns a new policy with {@code encryptedPassword} set and the plaintext removed from the config.
      * Returns the original policy unchanged if no password is present.
      */
-    private static SnapshotLifecyclePolicy encryptPasswordIfPresent(SnapshotLifecyclePolicy policy, EncryptionService encryptionService) {
+    private static SnapshotLifecyclePolicy encryptPasswordIfPresent(SnapshotLifecyclePolicy policy) {
         final Map<String, Object> config = policy.getConfig();
         if (config == null || config.containsKey("encryption_password") == false) {
             return policy;
@@ -123,7 +119,7 @@ public class TransportPutSnapshotLifecycleAction extends TransportMasterNodeActi
         }
         final byte[] passwordBytes = ((String) rawPassword).getBytes(StandardCharsets.UTF_8);
         try {
-            final var encryptedPassword = encryptionService.encrypt(passwordBytes);
+            final var encryptedPassword = EncryptionServiceRegistry.getEncryptionService().encrypt(passwordBytes);
             final Map<String, Object> newConfig = new HashMap<>(config);
             newConfig.remove("encryption_password");
             return new SnapshotLifecyclePolicy(

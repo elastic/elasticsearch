@@ -34,8 +34,8 @@ import java.util.function.IntUnaryOperator;
  * yielding higher recall than symmetric approaches.
  * <p>
  * All matrices (W, Wt, P, R, etc.) are represented as flat row-major {@code float[]} of
- * length rows*cols. Arrays that are logically a collection of independent vectors (the
- * {@code vectors} training input, {@code centeredCodes}) are {@code float[][]}.
+ * length rows*cols. The {@code vectors} training input is {@code float[][]} because the
+ * writer owns and reuses that array.
  */
 public final class AsymmetricHashingQuantizer {
 
@@ -267,16 +267,17 @@ public final class AsymmetricHashingQuantizer {
             if (epoch < nTrainingIterations) {
                 // X_transformed = X_ld @ R (nTraining x nDims)
                 float[] xTransformed = matMul(xLd, r, nTraining, nDims, nDims);
-                // Quantize -- encode() takes float[][], so convert the flat xTransformed to rows
-                AshSphericalScalarQuantizer.QuantizeResult qr = quantizer.encode(toRows(xTransformed, nTraining, nDims));
-                float[][] xEnc = qr.centeredCodes();
+                // Quantize
+                AshSphericalScalarQuantizer.QuantizeResult qr = quantizer.encode(xTransformed, nTraining, nDims);
+                float[] xEnc = qr.centeredCodes();
                 float[] codeNorms = qr.codeNorms();
                 // Normalize encoded: xEnc[i] /= codeNorms[i]
                 for (int i = 0; i < nTraining; i++) {
                     if (codeNorms[i] > 0) {
                         float inv = 1.0f / codeNorms[i];
+                        int base = i * nDims;
                         for (int j = 0; j < nDims; j++) {
-                            xEnc[i][j] *= inv;
+                            xEnc[base + j] *= inv;
                         }
                     }
                 }
@@ -327,14 +328,12 @@ public final class AsymmetricHashingQuantizer {
      * the returned array is just [0, n) in order.
      */
     private int[] sampleIndices(int n, int sampleSize) {
-        if (sampleSize >= n) {
-            int[] all = new int[n];
-            Arrays.setAll(all, IntUnaryOperator.identity());
-            return all;
-        }
-        Random rng = new Random(seed);
         int[] indices = new int[n];
         Arrays.setAll(indices, IntUnaryOperator.identity());
+        if (sampleSize >= n) {
+            return indices;
+        }
+        Random rng = new Random(seed);
         for (int i = 0; i < sampleSize; i++) {
             int j = i + rng.nextInt(n - i);
             int tmp = indices[i];
@@ -344,15 +343,6 @@ public final class AsymmetricHashingQuantizer {
         int[] picked = new int[sampleSize];
         System.arraycopy(indices, 0, picked, 0, sampleSize);
         return picked;
-    }
-
-    /** Converts a flat row-major (rows x cols) array to a float[][] of row slices. */
-    private static float[][] toRows(float[] flat, int rows, int cols) {
-        float[][] result = new float[rows][cols];
-        for (int i = 0; i < rows; i++) {
-            System.arraycopy(flat, i * cols, result[i], 0, cols);
-        }
-        return result;
     }
 
     /** C = A @ B where A is flat (m x k), B is flat (k x n).
@@ -373,20 +363,20 @@ public final class AsymmetricHashingQuantizer {
         return c;
     }
 
-    /** C = A.T @ B where A is flat (m x k), B is float[][] (m x n), result is flat (k x n).
+    /** C = A.T @ B where A is flat (m x k), B is flat (m x n), result is flat (k x n).
      *  Uses row-broadcast accumulation for cache-friendly access patterns. */
-    private static float[] matMulTransposeA(float[] a, float[][] b, int m, int k, int n) {
+    private static float[] matMulTransposeA(float[] a, float[] b, int m, int k, int n) {
         float[] c = new float[k * n];
         // Accumulate by iterating over shared dimension (rows of A and B) in the outer loop.
-        // This gives sequential reads on a[l*k..] and b[l], and scattered writes to c[i*n..].
+        // This gives sequential reads on a[l*k..] and b[l*n..], and scattered writes to c[i*n..].
         for (int l = 0; l < m; l++) {
             int aBase = l * k;
-            float[] bRow = b[l];
+            int bBase = l * n;
             for (int i = 0; i < k; i++) {
                 float aVal = a[aBase + i];
                 int cBase = i * n;
                 for (int j = 0; j < n; j++) {
-                    c[cBase + j] = Math.fma(aVal, bRow[j], c[cBase + j]);
+                    c[cBase + j] = Math.fma(aVal, b[bBase + j], c[cBase + j]);
                 }
             }
         }

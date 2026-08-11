@@ -132,12 +132,12 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
 
     public void testSphericalScalarQuantizer2Bit() {
         AshSphericalScalarQuantizer ssq = new AshSphericalScalarQuantizer(2);
-        float[][] x = { { 0.8f, -0.5f, 0.3f, -0.9f } };
-        AshSphericalScalarQuantizer.QuantizeResult result = ssq.encode(x);
+        float[] x = { 0.8f, -0.5f, 0.3f, -0.9f };
+        AshSphericalScalarQuantizer.QuantizeResult result = ssq.encode(x, 1, x.length);
 
         // Codes should be centered: sign * (0.5 + level)
         // With 2 bits, levels are 0 or 1, so magnitudes are 0.5 or 1.5
-        for (float val : result.centeredCodes()[0]) {
+        for (float val : result.centeredCodes()) {
             float absMag = Math.abs(val);
             assertTrue("Expected magnitude 0.5 or 1.5 but got " + absMag, absMag == 0.5f || absMag == 1.5f);
         }

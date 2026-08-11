@@ -24,6 +24,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.TestCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
@@ -93,7 +94,15 @@ public class HttpClientTests extends ESTestCase {
         String paramValue = randomAlphaOfLength(3);
         var httpPost = createHttpPost(webServer.getPort(), paramKey, paramValue);
 
-        try (var httpClient = HttpClient.create(emptyHttpSettings(), threadPool, createConnectionManager(), mockThrottlerManager())) {
+        try (
+            var httpClient = HttpClient.create(
+                emptyHttpSettings(),
+                threadPool,
+                createConnectionManager(),
+                mockThrottlerManager(),
+                new TestCircuitBreaker()
+            )
+        ) {
             httpClient.start();
 
             PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
@@ -111,7 +120,15 @@ public class HttpClientTests extends ESTestCase {
     }
 
     public void testSend_ThrowsErrorIfCalledBeforeStart() throws Exception {
-        try (var httpClient = HttpClient.create(emptyHttpSettings(), threadPool, createConnectionManager(), mockThrottlerManager())) {
+        try (
+            var httpClient = HttpClient.create(
+                emptyHttpSettings(),
+                threadPool,
+                createConnectionManager(),
+                mockThrottlerManager(),
+                new TestCircuitBreaker()
+            )
+        ) {
             var listener = new TestPlainActionFuture<HttpResult>();
             var httpPost = createHttpPost(webServer.getPort(), "key", "value");
             httpClient.send(httpPost, HttpClientContext.create(), listener);
@@ -132,7 +149,7 @@ public class HttpClientTests extends ESTestCase {
 
         var httpPost = createHttpPost(webServer.getPort(), "a", "b");
 
-        try (var client = new HttpClient(emptyHttpSettings(), asyncClient, threadPool, mockThrottlerManager())) {
+        try (var client = new HttpClient(emptyHttpSettings(), asyncClient, threadPool, mockThrottlerManager(), new TestCircuitBreaker())) {
             client.start();
 
             PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
@@ -154,7 +171,7 @@ public class HttpClientTests extends ESTestCase {
 
         var httpPost = createHttpPost(webServer.getPort(), "a", "b");
 
-        try (var client = new HttpClient(emptyHttpSettings(), asyncClient, threadPool, mockThrottlerManager())) {
+        try (var client = new HttpClient(emptyHttpSettings(), asyncClient, threadPool, mockThrottlerManager(), new TestCircuitBreaker())) {
             client.start();
 
             PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
@@ -179,7 +196,7 @@ public class HttpClientTests extends ESTestCase {
 
         var httpPost = createHttpPost(webServer.getPort(), "a", "b");
 
-        try (var client = new HttpClient(emptyHttpSettings(), asyncClient, threadPool, mockThrottlerManager())) {
+        try (var client = new HttpClient(emptyHttpSettings(), asyncClient, threadPool, mockThrottlerManager(), new TestCircuitBreaker())) {
             client.start();
 
             PlainActionFuture<StreamingHttpResult> listener = new PlainActionFuture<>();
@@ -201,7 +218,7 @@ public class HttpClientTests extends ESTestCase {
 
         var httpPost = createHttpPost(webServer.getPort(), "a", "b");
 
-        try (var client = new HttpClient(emptyHttpSettings(), asyncClient, threadPool, mockThrottlerManager())) {
+        try (var client = new HttpClient(emptyHttpSettings(), asyncClient, threadPool, mockThrottlerManager(), new TestCircuitBreaker())) {
             client.start();
 
             PlainActionFuture<StreamingHttpResult> listener = new PlainActionFuture<>();
@@ -222,7 +239,7 @@ public class HttpClientTests extends ESTestCase {
 
         var httpPost = createHttpPost(webServer.getPort(), "a", "b");
 
-        try (var client = new HttpClient(emptyHttpSettings(), asyncClient, threadPool, mockThrottlerManager())) {
+        try (var client = new HttpClient(emptyHttpSettings(), asyncClient, threadPool, mockThrottlerManager(), new TestCircuitBreaker())) {
             client.start();
 
             PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
@@ -281,7 +298,15 @@ public class HttpClientTests extends ESTestCase {
                 Settings.builder().put(HttpSettings.MAX_HTTP_RESPONSE_SIZE.getKey(), ByteSizeValue.ONE).build()
             );
             var connectionManager = createConnectionManager();
-            try (var httpClient = HttpClient.create(httpSettings, threadPool, connectionManager, mockThrottlerManager())) {
+            try (
+                var httpClient = HttpClient.create(
+                    httpSettings,
+                    threadPool,
+                    connectionManager,
+                    mockThrottlerManager(),
+                    new TestCircuitBreaker()
+                )
+            ) {
                 httpClient.start();
 
                 URI uri = new URIBuilder().setScheme("http")
@@ -378,7 +403,15 @@ public class HttpClientTests extends ESTestCase {
         Settings settings = Settings.builder().put(HttpSettings.MAX_HTTP_RESPONSE_SIZE.getKey(), ByteSizeValue.ONE).build();
         var httpSettings = createHttpSettings(settings);
 
-        try (var httpClient = HttpClient.create(httpSettings, threadPool, createConnectionManager(), mockThrottlerManager())) {
+        try (
+            var httpClient = HttpClient.create(
+                httpSettings,
+                threadPool,
+                createConnectionManager(),
+                mockThrottlerManager(),
+                new TestCircuitBreaker()
+            )
+        ) {
             httpClient.start();
 
             PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();

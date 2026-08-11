@@ -72,6 +72,7 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -1478,7 +1479,8 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
                 .statementError(
                     setUnmappedLoadAll("FROM test " + commandAndLabel.v1()),
                     containsString(
-                        "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT and LIMIT commands; ["
+                        "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT "
+                            + "and INLINE STATS commands; ["
                             + commandAndLabel.v2()
                             + "] is not supported yet"
                     )
@@ -1498,6 +1500,15 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             | LIMIT 10
             """));
         assertThat(Expressions.names(plan.output()), equalTo(List.of("name", "x", UnmappedFieldsAttribute.ATTRIBUTE_NAME)));
+    }
+
+    public void testLoadAllModeAllowsInlineStats() {
+        LogicalPlan plan = test().statement(setUnmappedLoadAll("""
+            FROM test
+            | INLINE STATS c = COUNT(*) BY languages
+            """));
+        assertThat(Expressions.names(plan.output()), hasItem(UnmappedFieldsAttribute.ATTRIBUTE_NAME));
+        assertThat(Expressions.names(plan.output()), hasItems("languages", "c", UnmappedFieldsAttribute.ATTRIBUTE_NAME));
     }
 
     /**

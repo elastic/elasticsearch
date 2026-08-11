@@ -191,6 +191,12 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         assertNotKept(pattern, "unmapped_extra");
     }
 
+    public void testInlineStatsExcludesAggregateAlias() {
+        UnmappedFieldsPattern pattern = patternFor("FROM test | INLINE STATS c = COUNT(*) BY languages");
+        assertNotKept(pattern, excl("c"));
+        assertKept(pattern, "unmapped_extra", "first_name_suffix");
+    }
+
     public void testRenameThenEval() {
         UnmappedFieldsPattern pattern = patternFor("FROM test | RENAME last_name AS x | EVAL y = 2");
         assertKept(pattern, "unmapped_extra");

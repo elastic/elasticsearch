@@ -71,6 +71,7 @@ import java.util.BitSet;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Set;
 import java.util.function.BiConsumer;
@@ -527,18 +528,21 @@ public class Verifier {
     }
 
     /**
-     * Temporary MVP guardrail for {@code unmapped_fields="LOAD_ALL"}: only FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT and LIMIT
-     * are supported. Any other command (STATS, JOIN, FORK, ENRICH, views, ...) is rejected until its interaction with the
-     * expanded {@code _unmapped_fields} column is designed and implemented.
+     * Temporary MVP guardrail for {@code unmapped_fields="LOAD_ALL"}: only FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT
+     * and INLINE STATS are supported. Any other command (STATS, JOIN, FORK, ENRICH, views, ...) is rejected until its
+     * interaction with the expanded {@code _unmapped_fields} column is designed and implemented.
      */
     private static void checkLoadAllModeSupportedCommands(LogicalPlan plan, Failures failures) {
+        // Identity set: only the Aggregate that is InlineStats.aggregate() is allowed, not a structurally equal STATS.
+        Set<LogicalPlan> inlineStatsAggregates = Collections.newSetFromMap(new IdentityHashMap<>());
+        plan.forEachDown(InlineStats.class, inlineStats -> inlineStatsAggregates.add(inlineStats.aggregate()));
         plan.forEachDown(p -> {
-            if (supportedInLoadAllMode(p) == false) {
+            if (supportedInLoadAllMode(p, inlineStatsAggregates) == false) {
                 failures.add(
                     fail(
                         p,
-                        "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT and LIMIT "
-                            + "commands; [{}] is not supported yet",
+                        "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT "
+                            + "and INLINE STATS commands; [{}] is not supported yet",
                         p instanceof TelemetryAware telemetryAware ? telemetryAware.telemetryLabel() : p.nodeName()
                     )
                 );
@@ -546,8 +550,9 @@ public class Verifier {
         });
     }
 
-    private static boolean supportedInLoadAllMode(LogicalPlan plan) {
+    private static boolean supportedInLoadAllMode(LogicalPlan plan, Set<LogicalPlan> inlineStatsAggregates) {
         // Keep/Drop/Rename may still be present, or already resolved to Project, by the time verification runs.
+        // Aggregate is allowed only when it is the inner aggregate of an InlineStats (not a bare STATS).
         return plan instanceof EsRelation
             || plan instanceof Project
             || plan instanceof Keep
@@ -556,7 +561,9 @@ public class Verifier {
             || plan instanceof Eval
             || plan instanceof Filter
             || plan instanceof OrderBy
-            || plan instanceof Limit;
+            || plan instanceof Limit
+            || plan instanceof InlineStats
+            || inlineStatsAggregates.contains(plan);
     }
 
     /**

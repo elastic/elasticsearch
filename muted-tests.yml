@@ -681,3 +681,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecFieldExtractIT
   method: test {csv-spec:field_extract.multiValuedSubkeyDoesNotMatchScalarInequality}
   issue: https://github.com/elastic/elasticsearch/issues/156441
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecFloatsIT
+  method: test {csv-spec:floats.scalbWithHugeScaleFactor}
+  issue: https://github.com/elastic/elasticsearch/issues/156444
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecStatsIT
+  method: test {csv-spec:stats.weightedAvgFieldMvWarning}
+  issue: https://github.com/elastic/elasticsearch/issues/156446
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIpIT
+  method: test {csv-spec:ip.cidrMatchEqualsInsOrsIPs}
+  issue: https://github.com/elastic/elasticsearch/issues/156448

@@ -67,7 +67,7 @@ public final class ColumnarNumericBinaryDocValues extends BinaryDocValues {
     @Override
     public BytesRef binaryValue() throws IOException {
         final int rank = iterator.index();
-        final int first = reader.firstOrdinal(rank);
+        final long first = reader.firstOrdinal(rank);
         final int count = reader.valueCount(rank);
         if (values.length < count) {
             values = new long[ArrayUtil.oversize(count, Long.BYTES)];
@@ -114,7 +114,7 @@ public final class ColumnarNumericBinaryDocValues extends BinaryDocValues {
      */
     public NumericColumnValues directValues() {
         return new NumericColumnValues() {
-            private int first;
+            private long first;
             private int count;
             private int upto;
 

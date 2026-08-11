@@ -696,3 +696,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecFieldExtractIT
   method: test {csv-spec:field_extract.multiValuedSubkeyDoesNotMatchScalarEquality}
   issue: https://github.com/elastic/elasticsearch/issues/156459
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecFloatsIT
+  method: test {csv-spec:floats.scalbWithHugeconstantFirstArgument}
+  issue: https://github.com/elastic/elasticsearch/issues/156460

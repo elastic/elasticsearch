@@ -720,3 +720,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIpIT
   method: test {csv-spec:ip.cdirMatchMultipleArgs}
   issue: https://github.com/elastic/elasticsearch/issues/156472
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecStringIT
+  method: test {csv-spec:string.mvStringNotEqualsLong}
+  issue: https://github.com/elastic/elasticsearch/issues/156473

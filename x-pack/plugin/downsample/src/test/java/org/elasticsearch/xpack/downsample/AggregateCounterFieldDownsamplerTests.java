@@ -251,7 +251,7 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
         ResetDataPoints resetDataPoints = new ResetDataPoints();
         NumericMetricFieldDownsampler.AggregateCounter producer = new NumericMetricFieldDownsampler.AggregateCounter("my-counter", null);
         IntArrayList docIdBuffer = IntArrayList.from(0, 1, 2);
-        LongArrayList timeValues = LongArrayList.from(40, 30, 20);
+        long[] timeValues = new long[] { 40, 30, 20 };
         SortedNumericDoubleValues counterValues = getIterator(docIdBuffer, 5.0, 10.0, 15.0);
         producer.collect(counterValues, timeValues, docIdBuffer, randomFrom(Temporality.DEFAULT, Temporality.CUMULATIVE));
         producer.updateResetDataPoints(resetDataPoints);

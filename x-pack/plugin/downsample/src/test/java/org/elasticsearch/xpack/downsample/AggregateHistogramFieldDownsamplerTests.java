@@ -334,7 +334,7 @@ public class AggregateHistogramFieldDownsamplerTests extends ESTestCase {
         ExponentialHistogram h20 = ExponentialHistogram.create(320, ExponentialHistogramCircuitBreaker.noop(), 5.0);
 
         IntArrayList docIdBuffer = IntArrayList.from(2, 1, 0);
-        LongArrayList timeValues = LongArrayList.from(40, 30, 20);
+        long[] timeValues = new long[] { 40, 30, 20 };
         ExponentialHistogramValuesReader values = createHistogramValues(docIdBuffer, h40, h30, h20);
         producer.collect(values, timeValues, docIdBuffer, Temporality.CUMULATIVE);
 

@@ -69,15 +69,19 @@ public abstract class AbstractMixedClusterEsqlOldCoordinatorSpecIT extends EsqlS
     }
 
     /**
-     * Routes all queries through old node 0, making it the deterministic coordinator. This works because
+     * Routes every query to one of the two old-version nodes, so the coordinator is always the old version
+     * while both old nodes still take a turn coordinating. This works because
      * {@code TransportEsqlQueryAction} is a {@link org.elasticsearch.action.support.HandledTransportAction},
-     * so the node that receives {@code POST /_query} plans and coordinates it. Returning more than one
-     * address here would hand coordination back to round-robin rotation and silently make this suite a duplicate
-     * of {@link AbstractMixedClusterEsqlSpecIT}.
+     * so the node that receives {@code POST /_query} plans and coordinates it; {@code RestClient} rotates
+     * between the two addresses, and either choice is old.
+     * <p>
+     * Nodes 0 and 2 are the old ones only because {@link Clusters#mixedVersionCluster} declares its nodes as
+     * old, current, old, current. Including a current-version address here would let a new node coordinate and
+     * silently make this suite overlap {@link AbstractMixedClusterEsqlSpecIT}.
      */
     @Override
     protected String getTestRestCluster() {
-        return cluster.getHttpAddress(0);
+        return cluster.getHttpAddress(0) + "," + cluster.getHttpAddress(2);
     }
 
     // Slice indexing is unreleased and renamed its request parameter (_slice -> slice), so the

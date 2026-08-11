@@ -51,18 +51,19 @@ public abstract class AbstractMixedClusterEsqlSpecIT extends EsqlSpecTestCase {
     }
 
     /**
-     * Pins the coordinator to node 1, which runs the current version, so this suite deterministically
-     * exercises a new coordinator; {@link AbstractMixedClusterEsqlOldCoordinatorSpecIT} pins node 0 for
-     * the old side. Between them both coordinator versions are covered on every run. Returning all four
-     * addresses instead would leave each side to {@code RestClient}'s round-robin rotation, so for a given
-     * seed a test could hit the same coordinator version every time and never exercise the other.
+     * Routes every query to one of the two current-version nodes, so the coordinator is always the current
+     * version while both new nodes still take a turn coordinating.
+     * {@link AbstractMixedClusterEsqlOldCoordinatorSpecIT} does the same for the two old nodes, so between
+     * them both coordinator versions are exercised on every run. Returning all four addresses instead would
+     * leave each side to {@code RestClient}'s round-robin rotation across versions, so for a given seed a
+     * test could hit the same coordinator version every time and never exercise the other.
      * <p>
-     * Node 1 is a current-version node only because {@link Clusters#mixedVersionCluster} declares its nodes
-     * as old, current, old, current.
+     * Nodes 1 and 3 are the current-version ones only because {@link Clusters#mixedVersionCluster} declares
+     * its nodes as old, current, old, current.
      */
     @Override
     protected String getTestRestCluster() {
-        return cluster.getHttpAddress(1);
+        return cluster.getHttpAddress(1) + "," + cluster.getHttpAddress(3);
     }
 
     static final Version bwcVersion = Version.fromString(

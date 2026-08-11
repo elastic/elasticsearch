@@ -103,6 +103,14 @@ public abstract class AbstractMixedClusterEsqlOldCoordinatorSpecIT extends EsqlS
             slicesSupportedOnBwcNode()
                 || testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.METADATA_SLICE.capabilityName()) == false
         );
+        // Mirrors the same gate in AbstractMixedClusterEsqlSpecIT, so both suites skip the same tests. It is stricter
+        // than the checkCapabilities call in super.shouldSkipTest, which falls back to testFeatureService when the
+        // capability is not reported. adminClient() is used rather than a client pinned to the old node because
+        // _capabilities fans out to every node and ANDs the result, so the answer does not depend on the target.
+        CsvTestUtils.assumeTrueLogging(
+            "Old mixed-cluster node does not support required capabilities for " + testName,
+            testCase.requiredCapabilities.isEmpty() || hasCapabilities(adminClient(), testCase.requiredCapabilities)
+        );
         // missing_capability_coordinator is deliberately not evaluated here, even though pinning the coordinator would
         // allow it: such a test only runs while a wired BWC version falls between the two capabilities it names, so the
         // coverage is narrow and lapses without any signal once that version rotates out.

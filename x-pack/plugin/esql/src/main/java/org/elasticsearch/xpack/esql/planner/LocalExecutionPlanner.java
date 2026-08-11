@@ -2122,7 +2122,19 @@ public class LocalExecutionPlanner {
 
             int scoreBlock = filterOperation.layout.get(scoreAttribute.id()).channel();
             filterOperation = filterOperation.with(
-                new ScoreOperator.ScoreOperatorFactory(ScoreMapper.toScorer(filter.condition(), context.shardContexts), scoreBlock),
+                new ScoreOperator.ScoreOperatorFactory(
+                    ScoreMapper.toScorer(
+                        filter.condition(),
+                        context.shardContexts,
+                        EvalMapper.toEvaluatorContext(
+                            context.foldCtx(),
+                            filterOperation.layout,
+                            context.shardContexts,
+                            context.analysisRegistry()
+                        )
+                    ),
+                    scoreBlock
+                ),
                 filterOperation.layout
             );
         }

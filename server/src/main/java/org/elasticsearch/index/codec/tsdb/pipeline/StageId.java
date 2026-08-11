@@ -31,6 +31,8 @@ public enum StageId {
     GCD_STAGE((byte) 0x03, "gcd"),
     /** Split delta encoding transform stage for piecewise-monotonic sequences. */
     SPLIT_DELTA_STAGE((byte) 0x04, "splitDelta"),
+    /** ALP (Adaptive Lossless floating-Point) double-to-integer transform stage. */
+    ALP_DOUBLE_STAGE((byte) 0x05, "alpDouble"),
 
     /** Bit-packing terminal payload stage. */
     BITPACK_PAYLOAD((byte) 0xA1, "bitPack");
@@ -63,6 +65,7 @@ public enum StageId {
             case (byte) 0x02 -> OFFSET_STAGE;
             case (byte) 0x03 -> GCD_STAGE;
             case (byte) 0x04 -> SPLIT_DELTA_STAGE;
+            case (byte) 0x05 -> ALP_DOUBLE_STAGE;
             case (byte) 0xA1 -> BITPACK_PAYLOAD;
             default -> throw new IllegalArgumentException("Unknown stage ID: 0x" + Integer.toHexString(id & 0xFF));
         };

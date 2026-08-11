@@ -93,8 +93,10 @@ import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.search.crossproject.ProjectRoutingRequestInfo;
 import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.search.crossproject.SearchPlanningPhaseResolutionResult;
+import org.elasticsearch.search.crossproject.TargetProjects;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
@@ -561,6 +563,25 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 searchResponseActionListener = delegate;
             }
 
+            // CPS project routing telemetry — queries counts all searches while the project has links;
+            // queries_project_routing and sub-counters only increment for requests that carry a project_routing expression.
+            // PIT opens (collectSearchTelemetry=false) are excluded — they are resource allocation, not queries.
+            if (collectSearchTelemetry) {
+                TargetProjects targetProjects = rewritten.getResolvedTargetProjects();
+                boolean hasLinkedProjects = targetProjects != null && targetProjects.hasLinkedProjects();
+                if (hasLinkedProjects) {
+                    // Non-null routingInfo signals to the holder that this request carried a project_routing expression,
+                    // triggering queries_project_routing and its sub-counters in addition to queries.
+                    String projectRouting = rewritten.getProjectRouting();
+                    ProjectRoutingRequestInfo routingInfo = Strings.isNullOrEmpty(projectRouting) == false
+                        ? (targetProjects.projectRoutingRequestInfo() != null
+                            ? targetProjects.projectRoutingRequestInfo()
+                            : ProjectRoutingRequestInfo.NONE)
+                        : null;
+                    usageService.getProjectRoutingUsageHolder().recordSearch(routingInfo, hasLinkedProjects);
+                }
+            }
+
             if (resolvedIndices.getRemoteClusterIndices().isEmpty()) {
                 if (resolvesCrossProject && rewritten.getResolvedIndexExpressions() != null) {
                     ElasticsearchException ex = CrossProjectIndexResolutionValidator.validate(
@@ -703,6 +724,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             searchShardsResponses.forEach(
                                 (clusterName, response) -> numSkippedShards.put(clusterName, response.getNumSkippedShards())
                             );
+                            // reconcileProjects may have excluded clusters that had no matching shards (empty groups).
+                            // Remove those clusters from numSkippedShards so that skippedByClusterAlias passed to
+                            // the search phase only covers clusters that are actually in participatingProjects.
+                            // Without this, CCSSingleCoordinatorSearchProgressListener.onListShards would encounter
+                            // cluster aliases absent from the Clusters map, causing a NullPointerException that
+                            // silently aborts the loop and leaves all clusters stuck in RUNNING state.
+                            numSkippedShards.keySet().retainAll(participatingProjects.getClusterAliases());
                             if (searchContext != null) {
                                 remoteAliasFilters = searchContext.aliasFilter();
                                 remoteShardIterators = getRemoteShardsIteratorFromPointInTime(
@@ -949,28 +977,28 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     ccsClusterInfoUpdate(searchResponse, clusters, clusterAlias, shouldSkipOnFailure);
                     SearchProfileResults profile = getSearchProfileResults(searchResponse, searchCoordinatorContext);
 
-                    ActionListener.respondAndRelease(
-                        listener,
-                        new SearchResponse(
-                            searchResponse.getHits(),
-                            searchResponse.getAggregations(),
-                            searchResponse.getSuggest(),
-                            searchResponse.isTimedOut(),
-                            searchResponse.isTerminatedEarly(),
-                            profile,
-                            searchResponse.getNumReducePhases(),
-                            searchResponse.getScrollId(),
-                            searchResponse.getTotalShards(),
-                            searchResponse.getSuccessfulShards(),
-                            searchResponse.getSkippedShards(),
-                            timeProvider.buildTookInMillis(),
-                            searchResponse.getShardFailures(),
-                            clusters,
-                            searchResponse.pointInTimeId(),
-                            null,
-                            null
-                        )
+                    SearchResponse mergedResponse = new SearchResponse(
+                        searchResponse.getHits(),
+                        searchResponse.getAggregations(),
+                        searchResponse.getSuggest(),
+                        searchResponse.isTimedOut(),
+                        searchResponse.isTerminatedEarly(),
+                        profile,
+                        searchResponse.getNumReducePhases(),
+                        searchResponse.getScrollId(),
+                        searchResponse.getTotalShards(),
+                        searchResponse.getSuccessfulShards(),
+                        searchResponse.getSkippedShards(),
+                        timeProvider.buildTookInMillis(),
+                        searchResponse.getShardFailures(),
+                        clusters,
+                        searchResponse.pointInTimeId(),
+                        null,
+                        null
                     );
+                    // propagate the directory metrics reported by the remote cluster so the header reflects the remote's bytes read
+                    mergedResponse.setDirectoryMetrics(searchResponse.getDirectoryMetrics());
+                    ActionListener.respondAndRelease(listener, mergedResponse);
                 }
 
                 @Override

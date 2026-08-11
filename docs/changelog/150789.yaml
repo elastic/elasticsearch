@@ -1,6 +1,0 @@
-area: Inference
-issues:
- - 150742
-pr: 150789
-summary: "[Inference API] Fix Streaming publisher shutdown race condition"
-type: bug

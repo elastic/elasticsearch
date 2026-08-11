@@ -5,6 +5,10 @@ stack: preview 9.4.0
 serverless: preview
 ```
 
+
+:::{include} ../briefSummary/mv_difference.md
+:::
+
 ## Syntax
 
 :::{image} /reference/query-languages/esql/images/generated/x-pack-esql/functions/mv_difference.svg

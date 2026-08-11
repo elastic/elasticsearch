@@ -40,6 +40,7 @@ import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.ShuffleDocsOperator;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TestDriverRunner;
@@ -291,7 +292,9 @@ public abstract class LuceneQueryEvaluatorTests<T extends Block, U extends Block
             randomPageSize(),
             LuceneOperator.NO_LIMIT,
             scoring,
-            () -> 0L
+            () -> 0L,
+            LuceneSliceQueue.MIN_DOCS_PER_SLICE,
+            QueryWarnings.EMIT
         );
     }
 

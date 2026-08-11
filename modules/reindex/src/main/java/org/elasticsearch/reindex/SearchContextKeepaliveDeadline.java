@@ -39,7 +39,7 @@ public final class SearchContextKeepaliveDeadline {
     }
 
     /**
-     * Updates the deadline after a successful scroll or PIT search response using the effective keep-alive duration for that request.
+     * Updates the deadline after a successful paginated search response using the effective keep-alive duration for that request.
      */
     public void recordSuccessfulExtension(TimeValue effectiveKeepAlive) {
         long extensionMillis = Math.max(0L, effectiveKeepAlive.millis());
@@ -58,7 +58,7 @@ public final class SearchContextKeepaliveDeadline {
     }
 
     /**
-     * Whether to increment {@link BulkByScrollSearchContextMetrics}. This is true when the search context has returned a
+     * Whether to increment {@link BulkByPaginatedSearchSearchContextMetrics}. This is true when the search context has returned a
      * {@link SearchContextMissingException} <i>and</i> the keep alive has expired. If the keep alive has not expired,
      * then the search context terminated under different conditions from which we had no control, such as relocation.
      */

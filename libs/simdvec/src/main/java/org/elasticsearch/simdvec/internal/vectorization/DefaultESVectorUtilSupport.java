@@ -61,6 +61,37 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
+    public float dotProduct(float[] a, float[] b, int offset, int length) {
+        if (offset == 0 && length == a.length) {
+            return dotProduct(a, b);
+        }
+        float sum = 0f;
+        int end = offset + length;
+        for (int i = offset; i < end; i++) {
+            sum = fma(a[i], b[i], sum);
+        }
+        return sum;
+    }
+
+    @Override
+    public float l2Normalize(float[] v, int offset, int length) {
+        double normSq = 0;
+        int end = offset + length;
+        for (int j = offset; j < end; j++) {
+            double t = v[j];
+            normSq += t * t;
+        }
+        if (normSq == 0) {
+            return 0;
+        }
+        double invNorm = 1.0 / Math.sqrt(normSq);
+        for (int j = offset; j < end; j++) {
+            v[j] = (float) (v[j] * invNorm);
+        }
+        return (float) normSq;
+    }
+
+    @Override
     public float squareDistance(float[] a, float[] b) {
         return VectorUtil.squareDistance(a, b);
     }
@@ -84,6 +115,61 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     @Override
     public float dotProduct(byte[] a, byte[] b) {
         return VectorUtil.dotProduct(a, b);
+    }
+
+    @Override
+    public float dotProduct(byte[] a, byte[] b, int offset, int length) {
+        if (offset == 0 && length == a.length) {
+            return dotProduct(a, b);
+        }
+        int sum = 0;
+        int end = offset + length;
+        for (int i = offset; i < end; i++) {
+            sum += a[i] * b[i];
+        }
+        return sum;
+    }
+
+    @Override
+    public void l2Normalize(byte[] v, int offset, int length) {
+        double normSq = 0;
+        int end = offset + length;
+        for (int j = offset; j < end; j++) {
+            double t = v[j];
+            normSq += t * t;
+        }
+        if (normSq == 0) {
+            return;
+        }
+        double invNorm = 1.0 / Math.sqrt(normSq);
+        for (int j = offset; j < end; j++) {
+            v[j] = (byte) (v[j] * invNorm);
+        }
+    }
+
+    @Override
+    public float squareDistance(byte[] a, byte[] b) {
+        return VectorUtil.squareDistance(a, b);
+    }
+
+    @Override
+    public float squareDistance(byte[] a, byte[] b, int offset, int length) {
+        int sum = 0;
+        for (int i = offset; i < offset + length; i++) {
+            int diff = a[i] - b[i];
+            sum += diff * diff;
+        }
+        return sum;
+    }
+
+    @Override
+    public float squareDistance(byte[] a, float[] b) {
+        float dist = 0;
+        for (int i = 0; i < a.length; i++) {
+            float diff = a[i] - b[i];
+            dist += diff * diff;
+        }
+        return dist;
     }
 
     static float maxSimDotProductImpl(MultiFloatVectorsSource source, float[][] query, float[] scoresScratch) {
@@ -138,11 +224,6 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     @Override
     public float maxSimDotProduct(MultiByteVectorsSource source, byte[][] query, float[] scoresScratch) {
         return maxSimDotProductImpl(source, query, scoresScratch);
-    }
-
-    @Override
-    public float squareDistance(byte[] a, byte[] b) {
-        return VectorUtil.squareDistance(a, b);
     }
 
     @Override
@@ -397,7 +478,7 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
      * of the array are the initial bits of each of the {@code n} vector dimensions; the next {@code n}
      * bits are the second bits of each of the {@code n} vector dimensions, and so on
      * (this algorithm is only valid for vectors with dimensions a multiple of 8).
-     * The striping is usually done by {@code ESVectorUtil.transposeHalfByte}.
+     * The striping is usually done by {@code ESVectorUtil.stride4BitValues}.
      * <p>
      * The data vector should be single-bit quantized.
      *
@@ -410,7 +491,7 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
      * <h4>The algorithm</h4>
      *
      * The transposition already applied to the query vector ensures there's a 1-to-1 correspondence
-     * between the data vector bits and query vector bits (see {@code ESVectorUtil.transposeHalfByte)};
+     * between the data vector bits and query vector bits (see {@code ESVectorUtil.stride4BitValues)};
      * this means we can use a bitwise {@code &} to keep only the bits of the vector elements we want to sum.
      * Essentially, the data vector is used as a selector for each of the striped bits of each vector dimension
      * as stored, concatenated together, in {@code q}.
@@ -421,7 +502,7 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
      * the result of each stripe of {@code n} bits can be added together by shifting the value {@code s} bits to the left,
      * where {@code s} is the stripe number (0-3), then adding to the overall result. Any carry is handled by the add operation.
      *
-     * @param q query vector, {@link #B_QUERY}-bit quantized and striped (see {@code ESVectorUtil.transposeHalfByte})
+     * @param q query vector, {@link #B_QUERY}-bit quantized and striped (see {@code ESVectorUtil.stride4BitValues})
      * @param d data vector, 1-bit quantized
      * @return  inner product result
      */
@@ -469,65 +550,77 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
-    public void squareDistanceBulk(float[] query, float[] v0, float[] v1, float[] v2, float[] v3, int distancesOffset, float[] distances) {
-        distances[distancesOffset] = VectorUtil.squareDistance(query, v0);
-        distances[distancesOffset + 1] = VectorUtil.squareDistance(query, v1);
-        distances[distancesOffset + 2] = VectorUtil.squareDistance(query, v2);
-        distances[distancesOffset + 3] = VectorUtil.squareDistance(query, v3);
+    public void dotProductBulk(float[] query, float[] v0, float[] v1, float[] v2, float[] v3, int distancesOffset, float[] distances) {
+        distances[distancesOffset] = VectorUtil.dotProduct(query, v0);
+        distances[distancesOffset + 1] = VectorUtil.dotProduct(query, v1);
+        distances[distancesOffset + 2] = VectorUtil.dotProduct(query, v2);
+        distances[distancesOffset + 3] = VectorUtil.dotProduct(query, v3);
     }
 
     @Override
     public void squareDistanceBulk(
         float[] query,
-        int queryOffset,
-        int length,
+        int vectorOffset,
         float[] v0,
         float[] v1,
         float[] v2,
         float[] v3,
         int distancesOffset,
-        float[] distances
+        float[] distances,
+        int length
     ) {
-        distances[distancesOffset] = squareDistance(query, v0, queryOffset, length);
-        distances[distancesOffset + 1] = squareDistance(query, v1, queryOffset, length);
-        distances[distancesOffset + 2] = squareDistance(query, v2, queryOffset, length);
-        distances[distancesOffset + 3] = squareDistance(query, v3, queryOffset, length);
-    }
-
-    @Override
-    public float squareDistance(byte[] a, byte[] b, int offset, int length) {
-        int sum = 0;
-        for (int i = offset; i < offset + length; i++) {
-            int diff = a[i] - b[i];
-            sum += diff * diff;
+        if (vectorOffset == 0 && length == query.length) {
+            distances[distancesOffset] = VectorUtil.squareDistance(query, v0);
+            distances[distancesOffset + 1] = VectorUtil.squareDistance(query, v1);
+            distances[distancesOffset + 2] = VectorUtil.squareDistance(query, v2);
+            distances[distancesOffset + 3] = VectorUtil.squareDistance(query, v3);
+        } else {
+            distances[distancesOffset] = squareDistance(query, v0, vectorOffset, length);
+            distances[distancesOffset + 1] = squareDistance(query, v1, vectorOffset, length);
+            distances[distancesOffset + 2] = squareDistance(query, v2, vectorOffset, length);
+            distances[distancesOffset + 3] = squareDistance(query, v3, vectorOffset, length);
         }
-        return sum;
     }
 
     @Override
-    public void squareDistanceBulk(byte[] query, byte[] v0, byte[] v1, byte[] v2, byte[] v3, int distancesOffset, float[] distances) {
-        distances[distancesOffset] = VectorUtil.squareDistance(query, v0);
-        distances[distancesOffset + 1] = VectorUtil.squareDistance(query, v1);
-        distances[distancesOffset + 2] = VectorUtil.squareDistance(query, v2);
-        distances[distancesOffset + 3] = VectorUtil.squareDistance(query, v3);
+    public void dotProductBulk(byte[] query, byte[] v0, byte[] v1, byte[] v2, byte[] v3, int distancesOffset, float[] distances) {
+        distances[distancesOffset] = VectorUtil.dotProduct(query, v0);
+        distances[distancesOffset + 1] = VectorUtil.dotProduct(query, v1);
+        distances[distancesOffset + 2] = VectorUtil.dotProduct(query, v2);
+        distances[distancesOffset + 3] = VectorUtil.dotProduct(query, v3);
+    }
+
+    @Override
+    public void cosineBulk(byte[] query, byte[] v0, byte[] v1, byte[] v2, byte[] v3, int distancesOffset, float[] distances) {
+        distances[distancesOffset] = VectorUtil.cosine(query, v0);
+        distances[distancesOffset + 1] = VectorUtil.cosine(query, v1);
+        distances[distancesOffset + 2] = VectorUtil.cosine(query, v2);
+        distances[distancesOffset + 3] = VectorUtil.cosine(query, v3);
     }
 
     @Override
     public void squareDistanceBulk(
         byte[] query,
-        int queryOffset,
-        int length,
+        int vectorOffset,
         byte[] v0,
         byte[] v1,
         byte[] v2,
         byte[] v3,
         int distancesOffset,
-        float[] distances
+        float[] distances,
+        int length
     ) {
-        distances[distancesOffset] = squareDistance(query, v0, queryOffset, length);
-        distances[distancesOffset + 1] = squareDistance(query, v1, queryOffset, length);
-        distances[distancesOffset + 2] = squareDistance(query, v2, queryOffset, length);
-        distances[distancesOffset + 3] = squareDistance(query, v3, queryOffset, length);
+        if (vectorOffset == 0 && length == query.length) {
+            distances[distancesOffset] = VectorUtil.squareDistance(query, v0);
+            distances[distancesOffset + 1] = VectorUtil.squareDistance(query, v1);
+            distances[distancesOffset + 2] = VectorUtil.squareDistance(query, v2);
+            distances[distancesOffset + 3] = VectorUtil.squareDistance(query, v3);
+        } else {
+            distances[distancesOffset] = squareDistance(query, v0, vectorOffset, length);
+            distances[distancesOffset + 1] = squareDistance(query, v1, vectorOffset, length);
+            distances[distancesOffset + 2] = squareDistance(query, v2, vectorOffset, length);
+            distances[distancesOffset + 3] = squareDistance(query, v3, vectorOffset, length);
+        }
     }
 
     @Override
@@ -585,28 +678,11 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
-    public void packDibit(int[] vector, byte[] packed) {
-        packDibitImpl(vector, packed);
+    public void stride2BitValues(int[] vector, byte[] packed) {
+        stride2BitValuesImpl(vector, packed);
     }
 
-    @Override
-    public void packDibitQuad(int[] vector, byte[] packed) {
-        packDibitQuadImpl(vector, packed);
-    }
-
-    @Override
-    public void packAsBinary(int[] vector, byte[] packed) {
-        packAsBinaryImpl(vector, packed);
-    }
-
-    /**
-     * Packs two bit vector (values 0-3) into a byte array with lower bits first.
-     * The striding is similar to transposeHalfByte
-     *
-     * @param vector the input vector with values 0-3
-     * @param packed the output packed byte array
-     */
-    public static void packDibitImpl(int[] vector, byte[] packed) {
+    public static void stride2BitValuesImpl(int[] vector, byte[] packed) {
         int limit = vector.length - 7;
         int i = 0;
         int index = 0;
@@ -641,7 +717,12 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         packed[index + packed.length / 2] = (byte) upperByte;
     }
 
-    public static void packDibitQuadImpl(int[] vector, byte[] packed) {
+    @Override
+    public void pack2BitValues(int[] vector, byte[] packed) {
+        pack2BitValuesImpl(vector, packed);
+    }
+
+    public static void pack2BitValuesImpl(int[] vector, byte[] packed) {
         int limit = vector.length - 3;
         int i = 0;
         int index = 0;
@@ -664,7 +745,12 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         packed[index] = (byte) packedByte;
     }
 
-    public static void packAsBinaryImpl(int[] vector, byte[] packed) {
+    @Override
+    public void pack1BitValues(int[] vector, byte[] packed) {
+        pack1BitValuesImpl(vector, packed);
+    }
+
+    public static void pack1BitValuesImpl(int[] vector, byte[] packed) {
         int limit = vector.length - 7;
         int i = 0;
         int index = 0;
@@ -693,11 +779,11 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
-    public void transposeHalfByte(int[] q, byte[] quantQueryByte) {
-        transposeHalfByteImpl(q, quantQueryByte);
+    public void stride4BitValues(int[] vector, byte[] packed) {
+        stride4BitValuesImpl(vector, packed);
     }
 
-    public static void transposeHalfByteImpl(int[] q, byte[] quantQueryByte) {
+    public static void stride4BitValuesImpl(int[] q, byte[] quantQueryByte) {
         int limit = q.length - 7;
         int i = 0;
         int index = 0;
@@ -786,6 +872,13 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     public void linearCombination(float scaleOther, byte[] other, float scaleDest, float[] dest) {
         for (int d = 0; d < dest.length; d++) {
             dest[d] = fma(scaleOther, other[d], scaleDest * dest[d]);
+        }
+    }
+
+    @Override
+    public void linearCombination(float scaleOther, byte[] other, float[] dest) {
+        for (int d = 0; d < dest.length; d++) {
+            dest[d] = fma(scaleOther, other[d], dest[d]);
         }
     }
 

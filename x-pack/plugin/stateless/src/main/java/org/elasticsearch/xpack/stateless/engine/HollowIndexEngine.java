@@ -15,6 +15,7 @@ import org.apache.lucene.store.Directory;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
@@ -143,10 +144,11 @@ public class HollowIndexEngine extends Engine {
      * This is used by internal functions of the Engine that are not supported by the hollow engine, e.g., getReferenceManager, to
      * return an exception that qualifies for the
      * {@link org.elasticsearch.action.support.TransportActions#isShardNotAvailableException(java.lang.Throwable)} function.
-     *
+     * <p>
      * Some operations that may unhollow (e.g., force merge, pre-update) via
-     * {@link HollowShardsService#onMutableOperation(IndexShard, boolean, ActionListener)} ultimately can still race with hollowing
-     * as they do not prevent a shard from being relocated. So they may end up calling these unsupported functions on a hollow engine,
+     * {@link HollowShardsService#beforeMutableOperation(IndexShard, boolean, java.util.concurrent.Executor, ActionListener)}
+     * ultimately can still race with hollowing as they do not prevent a shard from being relocated. So they may end up calling
+     * these unsupported functions on a hollow engine,
      * similarly to how they may end up calling the functions on a closed/relocated shard. They handle such eventualities by handling
      * qualifying exceptions specially, e.g., by ignoring them (in the case of force merge) or retrying (in the case of pre-update).
      */
@@ -338,9 +340,11 @@ public class HollowIndexEngine extends Engine {
 
     @Override
     protected void flushHoldingLock(boolean force, boolean waitIfOngoing, FlushResultListener listener) throws EngineException {
-        // This returns a flush result which is not skipped due to collision, but does not actually flush anything. Mostly to appease
-        // flushOnIdle so it does not retry endlessly unnecessarily.
-        listener.onResponse(new FlushResult(false, segmentInfos.getGeneration()));
+        // This returns a flush result which is not skipped due to collision. Mostly to appease flushOnIdle so it does not retry
+        // endlessly unnecessarily. Itself does not actually flush anything but does ensure flush of the current generation
+        // (the hollow commit) is completed before invoking the listener.
+        final long generation = segmentInfos.getGeneration();
+        statelessCommitService.addListenerForUploadedGeneration(shardId, generation, listener.map(v -> new FlushResult(false, generation)));
     }
 
     @Override
@@ -398,6 +402,14 @@ public class HollowIndexEngine extends Engine {
 
     @Override
     public IndexCommitRef acquireLastIndexCommit(boolean flushFirst) throws EngineException {
+        if (flushFirst) {
+            final PlainActionFuture<FlushResult> future = new PlainActionFuture<>();
+            /// Ensure the hollow commit has completed its flush so that it can be read from the object store by snapshot.
+            /// Values for the `force` and `waitIfOngoing` arguments make no difference as they are just placeholders to
+            /// satisfy the method signature. See also [#flushHoldingLock]
+            flush(false, true, future);
+            future.actionGet();
+        }
         return acquireIndexCommitRef(false);
     }
 

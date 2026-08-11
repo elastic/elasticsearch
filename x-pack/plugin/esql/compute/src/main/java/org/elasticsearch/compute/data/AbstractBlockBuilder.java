@@ -88,6 +88,29 @@ public abstract class AbstractBlockBuilder implements Block.Builder {
         return this;
     }
 
+    /**
+     * Cancels the current position entry, discarding all values appended since the last
+     * {@link #beginPositionEntry()} call. After this call the builder is in the same state
+     * as before {@code beginPositionEntry} was called: the caller must immediately either
+     * start a new position entry or append a null or a scalar value for the current position.
+     *
+     * <p>Subclasses that maintain auxiliary storage beyond the base {@code valueCount} and
+     * values array (e.g., {@code BytesRefBlockBuilder} with its {@code BytesRefArray}) must
+     * override this to also roll back that auxiliary storage to the point recorded by
+     * {@link #beginPositionEntry()}.
+     */
+    public AbstractBlockBuilder cancelPositionEntry() {
+        assert positionEntryIsOpen : "cancelPositionEntry called without a matching beginPositionEntry";
+        valueCount = firstValueIndexes[positionCount];
+        positionEntryIsOpen = false;
+        // If rolling back brings valueCount to zero there are no previously committed non-null values:
+        // reset hasNonNullValue so build() does not take the constant-vector fast path while nullsMask is set.
+        if (valueCount == 0) {
+            hasNonNullValue = false;
+        }
+        return this;
+    }
+
     protected final boolean isDense() {
         return nullsMask == null;
     }

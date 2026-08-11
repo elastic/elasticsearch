@@ -11,8 +11,8 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.ResolvedIndexExpressions;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -31,7 +31,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public final class OpenPointInTimeRequest extends LegacyActionRequest implements IndicesRequest.Replaceable {
+public final class OpenPointInTimeRequest extends UntypedActionRequest implements IndicesRequest.Replaceable {
 
     private String[] indices;
     private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;

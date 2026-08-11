@@ -10,11 +10,17 @@
 //   - LIST<STRUCT> (arrays of structs)
 //   - MAP types
 //   - CSV / NDJSON dotted-name pruning (NDJSON already flattens but does not prune)
+//
+// Authored as FROM <dataset>: each test declares its source via a `dataset:` directive. OrcFormatSpecIT
+// registers the dataset on every storage backend and runs the FROM query verbatim. The fixture template has
+// no index twin, so the dataset keeps the bare name nested_events.
 
 nestedKeepSingleSubfield
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_source_nested_struct_projection
-EXTERNAL "{{nested_events}}"
+dataset: nested_events: "{{nested_events}}"
+
+FROM nested_events
 | KEEP id, event.action
 | SORT id
 | LIMIT 10;
@@ -29,9 +35,11 @@ id:integer | event.action:keyword
 ;
 
 nestedKeepTwoSubfieldsSameParent
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_source_nested_struct_projection
-EXTERNAL "{{nested_events}}"
+dataset: nested_events: "{{nested_events}}"
+
+FROM nested_events
 | KEEP id, event.action, event.outcome
 | SORT id
 | LIMIT 10;
@@ -46,9 +54,11 @@ id:integer | event.action:keyword | event.outcome:keyword
 ;
 
 nestedKeepMixedTopLevelAndNested
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_source_nested_struct_projection
-EXTERNAL "{{nested_events}}"
+dataset: nested_events: "{{nested_events}}"
+
+FROM nested_events
 | KEEP id, event.action
 | SORT id
 | LIMIT 3;
@@ -60,9 +70,11 @@ id:integer | event.action:keyword
 ;
 
 nestedStatsByNested
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_source_nested_struct_projection
-EXTERNAL "{{nested_events}}"
+dataset: nested_events: "{{nested_events}}"
+
+FROM nested_events
 | STATS c = COUNT(*) BY event.action
 | SORT event.action;
 
@@ -74,9 +86,11 @@ c:long | event.action:keyword
 ;
 
 nestedNullPropagation
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_source_nested_struct_projection
-EXTERNAL "{{nested_events}}"
+dataset: nested_events: "{{nested_events}}"
+
+FROM nested_events
 | KEEP id, event.action
 | WHERE event.action IS NULL
 | SORT id;
@@ -91,9 +105,11 @@ id:integer | event.action:keyword
 // stripes whose statistics rule out the value (see ParquetPushedExpressions /
 // OrcPushedExpressions). FilterExec re-applies the conjunct to catch any leakage.
 nestedWhereEquals
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_source_nested_struct_projection
-EXTERNAL "{{nested_events}}"
+dataset: nested_events: "{{nested_events}}"
+
+FROM nested_events
 | WHERE event.action == "login"
 | KEEP id, event.action
 | SORT id;
@@ -106,9 +122,11 @@ id:integer | event.action:keyword
 // IS NULL pushdown on a nested leaf. The reader stats expose the per-leaf null count, so
 // a fully-non-null row group / stripe can be pruned; rows that survive are re-checked.
 nestedWhereIsNull
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_source_nested_struct_projection
-EXTERNAL "{{nested_events}}"
+dataset: nested_events: "{{nested_events}}"
+
+FROM nested_events
 | WHERE event.outcome IS NULL
 | KEEP id, event.outcome
 | SORT id;
@@ -123,9 +141,11 @@ id:integer | event.outcome:keyword
 // grouping by event.action is evaluated post-read. Exercises both the nested-stats
 // publication path (T2 / T3) and grouping over a nested key.
 nestedStatsMinMax
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_source_nested_struct_projection
-EXTERNAL "{{nested_events}}"
+dataset: nested_events: "{{nested_events}}"
+
+FROM nested_events
 | STATS min_id = MIN(id), max_id = MAX(id) BY event.action
 | SORT event.action;
 
@@ -141,9 +161,11 @@ min_id:integer | max_id:integer | event.action:keyword
 // alongside top-level pushdown, and verifies that nested columns referenced only by the
 // projection still appear (no over-pruning when a sibling leaf is filtered).
 nestedFilterAndProjectMixed
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_source_nested_struct_projection
-EXTERNAL "{{nested_events}}"
+dataset: nested_events: "{{nested_events}}"
+
+FROM nested_events
 | WHERE event.action == "login" AND id > 2
 | KEEP id, event.outcome
 | SORT id;

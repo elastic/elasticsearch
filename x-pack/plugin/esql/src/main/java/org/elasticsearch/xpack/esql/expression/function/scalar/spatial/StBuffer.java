@@ -20,6 +20,7 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.EntryExpression;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -63,7 +64,7 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
 import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isSpatial;
 
-public class StBuffer extends SpatialDocValuesFunction implements OptionalArgument {
+public class StBuffer extends SpatialDocValuesFunction implements OptionalArgument, AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "StBuffer", StBuffer::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(StBuffer.class).ternary(StBuffer::new).name("st_buffer");
 
@@ -120,6 +121,7 @@ public class StBuffer extends SpatialDocValuesFunction implements OptionalArgume
 
     @FunctionInfo(
         returnType = { "geo_shape", "cartesian_shape" },
+        briefSummary = "Computes a buffer area around the input geometry at the specified distance.",
         description = "Computes a buffer area around the input geometry at the specified distance. "
             + "The distance is in the units of the input spatial reference system. "
             + "Positive distances expand the geometry, negative distances shrink it. "
@@ -148,6 +150,7 @@ public class StBuffer extends SpatialDocValuesFunction implements OptionalArgume
         @Param(
             name = "distance",
             type = { "double", "float", "long", "integer" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             description = "Buffer distance in the units of the input spatial reference system"
         ) Expression distance,
         @MapParam(

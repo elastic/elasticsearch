@@ -11,6 +11,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.datasources.DeclaredReadSpec;
 import org.elasticsearch.xpack.esql.datasources.ExternalSliceQueue;
 import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
 
@@ -61,7 +62,10 @@ public record SourceOperatorContext(
     int parsingParallelism,
     int maxConcurrentOpenSegments,
     int maxRecordBytes,
-    int parallelism
+    int parallelism,
+    @Nullable String datasetName,
+    boolean deferredExtraction,
+    DeclaredReadSpec declaredReadSpec
 ) {
     /**
      * Single source of truth for the {@code max_concurrent_open_segments} default. Lives in this SPI (leaf)
@@ -82,6 +86,7 @@ public record SourceOperatorContext(
         partitionColumnNames = partitionColumnNames != null && partitionColumnNames.isEmpty() == false
             ? Collections.unmodifiableSet(new LinkedHashSet<>(partitionColumnNames))
             : Set.of();
+        declaredReadSpec = declaredReadSpec != null ? declaredReadSpec : DeclaredReadSpec.NONE;
 
         if (batchSize <= 0) {
             throw new IllegalArgumentException("batchSize must be positive, got: " + batchSize);
@@ -136,7 +141,10 @@ public record SourceOperatorContext(
             1,
             DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
-            1
+            1,
+            null,
+            false,
+            DeclaredReadSpec.NONE
         );
     }
 
@@ -175,7 +183,10 @@ public record SourceOperatorContext(
             1,
             DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
-            1
+            1,
+            null,
+            false,
+            DeclaredReadSpec.NONE
         );
     }
 
@@ -213,7 +224,10 @@ public record SourceOperatorContext(
             1,
             DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
-            1
+            1,
+            null,
+            false,
+            DeclaredReadSpec.NONE
         );
     }
 
@@ -249,7 +263,10 @@ public record SourceOperatorContext(
             1,
             DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
-            1
+            1,
+            null,
+            false,
+            DeclaredReadSpec.NONE
         );
     }
 
@@ -283,6 +300,10 @@ public record SourceOperatorContext(
         // overrides it from the max_record_size query pragma.
         private int maxRecordBytes = SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES;
         private int parallelism = 1;
+        @Nullable
+        private String datasetName;
+        private boolean deferredExtraction;
+        private DeclaredReadSpec declaredReadSpec = DeclaredReadSpec.NONE;
 
         public Builder sourceType(String sourceType) {
             this.sourceType = sourceType;
@@ -405,6 +426,37 @@ public record SourceOperatorContext(
             return this;
         }
 
+        /**
+         * Registered dataset identifier (from {@code FROM <dataset>}), or {@code null} for inline
+         * {@code EXTERNAL}. Consumed by the operator factory's per-file {@code _index} synthesizer
+         * so the column carries the user-facing dataset name rather than the resource path.
+         */
+        public Builder datasetName(@Nullable String datasetName) {
+            this.datasetName = datasetName;
+            return this;
+        }
+
+        /**
+         * Whether the plan pairs this source with an {@code ExternalFieldExtractExec} consuming
+         * deferred-encoded columns. The operator factory keys deferred extraction off this flag,
+         * not off {@code _rowPosition} presence in the projection — the latter is also produced
+         * for plain {@code _id} composition with no extract operator downstream.
+         */
+        public Builder deferredExtraction(boolean deferredExtraction) {
+            this.deferredExtraction = deferredExtraction;
+            return this;
+        }
+
+        /**
+         * The declared mapping's read-instructions (renames, {@code _id.path}), or {@link DeclaredReadSpec#NONE}.
+         * Consumed by {@code FileSourceFactory}: renames physicalize reader-facing names, {@code _id.path} stamps
+         * {@code _id} from that column.
+         */
+        public Builder declaredReadSpec(DeclaredReadSpec declaredReadSpec) {
+            this.declaredReadSpec = declaredReadSpec;
+            return this;
+        }
+
         public SourceOperatorContext build() {
             return new SourceOperatorContext(
                 sourceType,
@@ -428,7 +480,10 @@ public record SourceOperatorContext(
                 parsingParallelism,
                 maxConcurrentOpenSegments,
                 maxRecordBytes,
-                parallelism
+                parallelism,
+                datasetName,
+                deferredExtraction,
+                declaredReadSpec
             );
         }
     }

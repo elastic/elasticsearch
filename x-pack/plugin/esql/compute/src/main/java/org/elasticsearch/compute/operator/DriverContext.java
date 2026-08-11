@@ -16,14 +16,19 @@ import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 
 import java.util.Collections;
 import java.util.IdentityHashMap;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
 
 /**
  * A driver-local context that is shared across operators.
@@ -48,6 +53,8 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public class DriverContext {
 
+    private static final Logger logger = LogManager.getLogger(DriverContext.class);
+
     // Working set. Only the thread executing the driver will update this set.
     Set<Releasable> workingSet = Collections.newSetFromMap(new IdentityHashMap<>());
 
@@ -66,6 +73,17 @@ public class DriverContext {
     private final LocalCircuitBreaker.SizeSettings localBreakerSettings;
 
     private Runnable earlyTerminationChecker = () -> {};
+
+    /**
+     * Hooks fired when the controlling task asks this driver to wind down cleanly while keeping
+     * already-buffered work. Each hook should return {@code true} only when it actually
+     * transitioned a source operator from "still accepting input" to "drain and stop" — that signal
+     * propagates back through {@link Driver#runStopHooks()} and ultimately gates {@code is_partial}
+     * on the response, so hooks that are no-ops at call time (e.g. already-finished buffers) must
+     * report {@code false}. {@link CopyOnWriteArrayList} keeps registration cheap during operator
+     * construction and tolerates late additions interleaved with concurrent {@link #runStopHooks()}.
+     */
+    private final List<BooleanSupplier> stopHooks = new CopyOnWriteArrayList<>();
 
     public DriverContext(BigArrays bigArrays, BlockFactory blockFactory, @Nullable LocalCircuitBreaker.SizeSettings localBreakerSettings) {
         this(bigArrays, blockFactory, localBreakerSettings, null, WarningsMode.COLLECT);
@@ -113,6 +131,22 @@ public class DriverContext {
 
     public BlockFactory blockFactory() {
         return blockFactory;
+    }
+
+    public BlockFactory createChildBlockFactory() {
+        BlockFactory parent = blockFactory.parent();
+        final var childBreaker = new LocalCircuitBreaker(
+            parent.breaker(),
+            localBreakerSettings.overReservedBytes(),
+            localBreakerSettings.maxOverReservedBytes()
+        );
+        return parent.newChildFactory(childBreaker);
+    }
+
+    public void releaseChildBlockFactory(BlockFactory childFactory) {
+        if (childFactory.breaker() instanceof LocalCircuitBreaker local) {
+            local.close();
+        }
     }
 
     /** See {@link Driver#shortDescription}. */
@@ -224,11 +258,70 @@ public class DriverContext {
     }
 
     /**
+     * Registers a stop hook to be fired when the controlling task requests a clean wind-down of
+     * this driver (e.g. async STOP). Used by source operators that hold a buffer between the
+     * producer thread and the driver loop — registering a hook that closes the buffer's input side
+     * lets STOP cut off the producer without discarding pages already accepted into the buffer.
+     * Idempotent: the same hook may be registered multiple times and {@link #runStopHooks()} will
+     * fire each registration.
+     */
+    public void addStopHook(BooleanSupplier hook) {
+        stopHooks.add(hook);
+    }
+
+    /**
+     * Fires all registered stop hooks. Returns {@code true} if at least one hook reported that it
+     * cut a still-running unit of work. See {@link #addStopHook(BooleanSupplier)} for the contract
+     * each hook must honor.
+     */
+    public boolean runStopHooks() {
+        boolean anyCut = false;
+        for (BooleanSupplier hook : stopHooks) {
+            try {
+                anyCut |= hook.getAsBoolean();
+            } catch (Exception e) {
+                // Hooks are best-effort signals; a faulty hook must not break the STOP response path
+                // or stop the rest of the chain from firing. The only consequence of swallowing here
+                // is a slightly weaker partial-marking signal — never lost results. Log at debug so a
+                // misbehaving hook is diagnosable in a support bundle rather than silently invisible.
+                logger.debug("stop hook threw during runStopHooks; skipping hook", e);
+            }
+        }
+        return anyCut;
+    }
+
+    /**
      * Evaluators should use this function to decide their warning behavior.
      * @return an appropriate {@link WarningsMode}
      */
     public WarningsMode warningsMode() {
         return warningsMode;
+    }
+
+    /**
+     * Create a new {@link Warnings} collector using this context's {@link #warningsMode()}.
+     * @see Warnings#createWarnings(WarningsMode, WarningSourceLocation)
+     */
+    public Warnings createWarnings(WarningSourceLocation source) {
+        return Warnings.createWarnings(warningsMode, source);
+    }
+
+    /**
+     * Create a new {@link Warnings} collector, using this context's {@link #warningsMode()}, that warns
+     * that it treats the result as {@code false}.
+     * @see Warnings#createWarningsTreatedAsFalse(WarningsMode, WarningSourceLocation)
+     */
+    public Warnings createWarningsTreatedAsFalse(WarningSourceLocation source) {
+        return Warnings.createWarningsTreatedAsFalse(warningsMode, source);
+    }
+
+    /**
+     * Create a new {@link Warnings} collector, using this context's {@link #warningsMode()}, that warns
+     * that evaluation resulted in warnings.
+     * @see Warnings#createOnlyWarnings(WarningsMode, WarningSourceLocation)
+     */
+    public Warnings createOnlyWarnings(WarningSourceLocation source) {
+        return Warnings.createOnlyWarnings(warningsMode, source);
     }
 
     /**

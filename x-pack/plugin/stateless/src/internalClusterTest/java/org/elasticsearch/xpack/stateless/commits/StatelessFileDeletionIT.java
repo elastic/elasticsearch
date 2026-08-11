@@ -58,7 +58,6 @@ import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryClusterStateDelayListeners;
-import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -168,18 +167,6 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
 
         public TestStatelessPlugin(Settings settings) {
             super(settings);
-        }
-
-        @Override
-        public Collection<Object> createComponents(PluginServices services) {
-            final Collection<Object> components = super.createComponents(services);
-            components.add(
-                new PluginComponentBinding<>(
-                    StatelessCommitService.class,
-                    components.stream().filter(c -> c instanceof StatelessCommitService).findFirst().orElseThrow()
-                )
-            );
-            return components;
         }
 
         @Override
@@ -924,8 +911,13 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
             var blobsAfterReleasingScroll = listBlobsWithAbsolutePath(shardCommitsContainer);
             assertThat(Sets.intersection(blobsUsedForScroll, blobsAfterReleasingScroll), empty());
         });
-        // responses from newCommitNotification must be received
-        assertThat(countNewCommitNotifications.get(), greaterThan(newCommitNotificationsBeforeReleasingScroll));
+
+        // For most cases we expect at least one additional newCommitNotification response after releasing the scroll.
+        // Except for the close/open case, where notifications induced by the forced flush (in
+        // TransportVerifyShardBeforeCloseAction.executeShardOperation) may race with the search shard closing and may not be counted.
+        if (testCase != TestSearchScrollCase.COMMITS_OF_SCROLL_DELETED_AFTER_INDEX_CLOSED_AND_OPENED) {
+            assertThat(countNewCommitNotifications.get(), greaterThan(newCommitNotificationsBeforeReleasingScroll));
+        }
 
         if (testCase == TestSearchScrollCase.COMMITS_DROPPED_AFTER_SCROLL_CLOSES_AND_INDEXING_INACTIVITY) {
             // The last notification response should no longer contain blobs used for scroll

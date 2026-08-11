@@ -160,4 +160,13 @@ public interface PainlessScript {
     default long getAllocBytes() {
         return 0L;
     }
+
+    /**
+     * Charges {@code bytes} against this instance's running allocation total and throws a {@link PainlessError} (uncatchable
+     * from script source) if the total exceeds the script's per-context limit. Mirrors {@link #_pollCancellation()}:
+     * tracking-enabled generated classes override it (baking in their limit), and it lives on the interface so the compiler
+     * emits it at allocation sites and {@code @script_aware} augmentations handed the script instance can charge the same
+     * counter. The default is a no-op for non-opted-in scripts.
+     */
+    default void $checkAllocBytes(long bytes) {}
 }

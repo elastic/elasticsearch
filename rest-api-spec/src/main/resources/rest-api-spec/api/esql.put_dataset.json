@@ -31,7 +31,7 @@
       ]
     },
     "body": {
-      "description": "Dataset definition: parent data_source name, resource path, optional description, and type-specific settings.",
+      "description": "Dataset definition: parent data_source name, resource path, optional description, type-specific settings, and an optional mappings block (column types, path renames, format, _id).",
       "required": true
     }
   }

@@ -41,7 +41,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest;
 import org.elasticsearch.xpack.core.inference.action.UpdateInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
@@ -54,6 +53,7 @@ import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalModel;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalServiceSettings;
+import org.elasticsearch.xpack.inference.services.validation.ModelValidationResult;
 import org.elasticsearch.xpack.inference.services.validation.ModelValidatorBuilder;
 
 import java.util.List;
@@ -61,6 +61,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.resolveTimeoutForTaskType;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.resolveTaskType;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalServiceSettings.NUM_ALLOCATIONS;
@@ -117,6 +118,8 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
         var resolvedTaskType = resolveTaskType(request.getTaskType(), bodyTaskType != null ? bodyTaskType.toString() : null);
 
         AtomicReference<InferenceService> service = new AtomicReference<>();
+        AtomicReference<Model> existingParsedModelRef = new AtomicReference<>();
+        AtomicReference<Model> mergedParsedModelRef = new AtomicReference<>();
 
         var inferenceEntityId = request.getInferenceEntityId();
 
@@ -175,20 +178,39 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
                     return;
                 }
 
+                existingParsedModelRef.set(existingParsedModel);
+                mergedParsedModelRef.set(mergedParsedModel);
+
                 if (isInClusterService(serviceName)) {
                     updateInClusterEndpoint(request, mergedParsedModel, existingParsedModel, listener);
                 } else {
-                    ActionListener<Model> updateModelListener = listener.delegateFailureAndWrap(
-                        (delegate, verifiedModel) -> modelRegistry.updateModelTransaction(verifiedModel, existingParsedModel, delegate)
+                    ActionListener<ModelValidationResult> updateModelListener = listener.delegateFailureAndWrap(
+                        (delegate, validationResult) -> modelRegistry.updateModelTransaction(
+                            validationResult.model(),
+                            existingParsedModel,
+                            delegate
+                        )
                     );
                     var taskType = mergedParsedModel.getTaskType();
                     ModelValidatorBuilder.buildModelValidator(taskType, service.get())
                         .validate(
                             service.get(),
                             mergedParsedModel,
-                            BaseInferenceActionRequest.getDefaultTimeoutForTaskType(taskType),
+                            resolveTimeoutForTaskType(resolvedTaskType, request.getTimeout()),
                             updateModelListener
                         );
+                }
+            })
+            .<Boolean>andThen((listener, didUpdate) -> {
+                if (didUpdate && existingParsedModelRef.get() != null && mergedParsedModelRef.get() != null) {
+                    service.get()
+                        .onModelUpdated(
+                            existingParsedModelRef.get(),
+                            mergedParsedModelRef.get(),
+                            listener.delegateFailureAndWrap((delegate, v) -> delegate.onResponse(true))
+                        );
+                } else {
+                    listener.onResponse(didUpdate);
                 }
             })
             .<ModelConfigurations>andThen((listener, didUpdate) -> {

@@ -5,6 +5,10 @@ stack: preview 9.2.0
 serverless: preview
 ```
 
+
+:::{include} ../briefSummary/to_dense_vector.md
+:::
+
 ## Syntax
 
 :::{image} /reference/query-languages/esql/images/generated/x-pack-esql/functions/to_dense_vector.svg

@@ -78,12 +78,6 @@ public class BooleanFieldMapper extends FieldMapper {
         return (BooleanFieldMapper) in;
     }
 
-    private static DocValuesParameter.Values defaultDocValuesParameters(IndexSettings indexSettings) {
-        boolean multiValue = DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled() == false
-            || FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.get(indexSettings.getSettings());
-        return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.LOW, multiValue);
-    }
-
     public static final class Builder extends FieldMapper.DimensionBuilder {
 
         private final DocValuesParameter docValuesParameters;
@@ -119,8 +113,13 @@ public class BooleanFieldMapper extends FieldMapper {
             this.scriptCompiler = Objects.requireNonNull(scriptCompiler);
             this.indexSettings = Objects.requireNonNull(indexSettings);
             this.docValuesParameters = DocValuesParameter.of(
-                defaultDocValuesParameters(indexSettings),
-                m -> toType(m).docValuesParameters()
+                DocValuesParameter.defaultValues(
+                    indexSettings,
+                    DocValuesParameter.Values.ENABLED_LOW_CARDINALITY,
+                    DocValuesParameter.Values.Cardinality.LOW
+                ),
+                m -> toType(m).docValuesParameters(),
+                indexSettings.getMode().isStrictColumnar()
             );
             this.ignoreMalformed = Parameter.explicitBoolParam(
                 "ignore_malformed",
@@ -568,7 +567,7 @@ public class BooleanFieldMapper extends FieldMapper {
         this.docValuesParameters = builder.docValuesParameters.getValue();
         this.dvFactory = new DocValuesFieldFactory(
             docValuesParameters.multiValue(),
-            fieldType().indexType.hasDocValuesSkipper(),
+            ((BooleanFieldType) mappedFieldType).indexType.hasDocValuesSkipper(),
             builder.indexSettings.getIndexVersionCreated()
         );
         this.script = builder.script.get();
@@ -595,6 +594,16 @@ public class BooleanFieldMapper extends FieldMapper {
     @Override
     protected boolean isSingleValueEnforced() {
         return docValuesParameters.multiValue() == false;
+    }
+
+    @Override
+    protected DocValuesParameter.Values.OnFailure onFailureBehavior() {
+        return docValuesParameters.onFailure();
+    }
+
+    @Override
+    public boolean isNullable() {
+        return docValuesParameters.nullability() || nullValue != null;
     }
 
     @Override

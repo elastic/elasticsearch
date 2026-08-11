@@ -33,6 +33,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -52,17 +54,15 @@ public class PrefetchedRowGroupBuilderParityTests extends ESTestCase {
     private BlockFactory blockFactory;
     private PlainCompressionCodecFactory codecFactory;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initBlockFactoryAndCodec() throws Exception {
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
         codecFactory = new PlainCompressionCodecFactory();
     }
 
-    @Override
-    public void tearDown() throws Exception {
+    @After
+    public void releaseCodecFactory() throws Exception {
         codecFactory.release();
-        super.tearDown();
     }
 
     public void testV1Uncompressed() throws IOException {

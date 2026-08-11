@@ -12,6 +12,7 @@ import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
@@ -48,12 +49,12 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.ml.job.retention.AbstractExpiredJobDataRemoverTests.TestListener;
-import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
@@ -154,11 +155,16 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
         assertThat(capturedDeleteModelSnapshotRequests.size(), equalTo(1));
         DeleteByQueryRequest deleteSnapshotRequest = capturedDeleteModelSnapshotRequests.get(0);
         assertThat(
-            deleteSnapshotRequest.indices(),
-            arrayContainingInAnyOrder(
-                AnomalyDetectorsIndex.jobResultsAliasedName("job-1"),
-                AnomalyDetectorsIndex.jobStateIndexPattern(),
-                AnnotationIndex.READ_ALIAS_NAME
+            Set.copyOf(Arrays.asList(deleteSnapshotRequest.indices())),
+            equalTo(
+                Set.copyOf(
+                    Arrays.asList(
+                        Strings.concatStringArrays(
+                            new String[] { AnomalyDetectorsIndex.jobResultsAliasedName("job-1"), AnnotationIndex.READ_ALIAS_NAME },
+                            AnomalyDetectorsIndex.jobStateIndexPatterns()
+                        )
+                    )
+                )
             )
         );
         assertThat(deleteSnapshotRequest.getSearchRequest().source().query() instanceof IdsQueryBuilder, is(true));
@@ -250,11 +256,16 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
         assertThat(capturedDeleteModelSnapshotRequests.size(), equalTo(1));
         DeleteByQueryRequest deleteSnapshotRequest = capturedDeleteModelSnapshotRequests.get(0);
         assertThat(
-            deleteSnapshotRequest.indices(),
-            arrayContainingInAnyOrder(
-                AnomalyDetectorsIndex.jobResultsAliasedName("snapshots-1"),
-                AnomalyDetectorsIndex.jobStateIndexPattern(),
-                AnnotationIndex.READ_ALIAS_NAME
+            Set.copyOf(Arrays.asList(deleteSnapshotRequest.indices())),
+            equalTo(
+                Set.copyOf(
+                    Arrays.asList(
+                        Strings.concatStringArrays(
+                            new String[] { AnomalyDetectorsIndex.jobResultsAliasedName("snapshots-1"), AnnotationIndex.READ_ALIAS_NAME },
+                            AnomalyDetectorsIndex.jobStateIndexPatterns()
+                        )
+                    )
+                )
             )
         );
         assertThat(deleteSnapshotRequest.getSearchRequest().source().query() instanceof IdsQueryBuilder, is(true));

@@ -1,7 +1,6 @@
 plugins {
   id 'java'
   id 'groovy'
-  id 'elasticsearch.eclipse'
   id 'elasticsearch.versions'
   id 'elasticsearch.formatting'
 }

@@ -15,6 +15,7 @@ import io.opentelemetry.proto.metrics.v1.Metric;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.oteldata.otlp.docbuilder.MappingHints;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -56,7 +57,7 @@ public class HistogramToTDigestConverterTests extends ESTestCase {
                 )
                 .build()
         );
-        assertThat(histogram.isValid(new HashSet<>()), equalTo(valid));
+        assertThat(histogram.isValid(new HashSet<>(), MappingHints.DEFAULT_TDIGEST), equalTo(valid));
         if (valid == false) {
             return;
         }
@@ -135,6 +136,18 @@ public class HistogramToTDigestConverterTests extends ESTestCase {
                 HistogramDataPoint.newBuilder().addBucketCounts(10L).setCount(10L).setSum(100.0).build(),
                 List.of(10L),
                 List.of(10.0),
+                true },
+            new Object[] {
+                "no explicit bounds with single bucket count without sum",
+                HistogramDataPoint.newBuilder().addBucketCounts(5L).setCount(5L).build(),
+                List.of(5L),
+                List.of(0.0),
+                true },
+            new Object[] {
+                "no explicit bounds with single zero bucket count",
+                HistogramDataPoint.newBuilder().addBucketCounts(0L).setCount(0L).build(),
+                List.of(),
+                List.of(),
                 true },
             new Object[] {
                 "no explicit bounds with zero count",

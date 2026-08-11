@@ -14,23 +14,27 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.junit.ClassRule;
 import org.junit.rules.TestRule;
 
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class OTelMetricsBufferSurvivesRestartIT extends AbstractTelemetryIT {
+
+    // A pre-existing buffer file is sealed on shutdown (or recovered on startup), so it is drainable right after restart.
+    private static final int BUFFER_DRAIN_TIMEOUT = 3;
 
     public static RecordingApmServer recordingApmServer = new RecordingApmServer();
 
     public static ElasticsearchCluster cluster = AbstractMetricsIT.baseClusterBuilder()
         .systemProperty("telemetry.otel.metrics.enabled", "true")
-        .setting("telemetry.otel.metrics.endpoint", () -> "http://" + recordingApmServer.getHttpAddress() + "/v1/metrics")
-        .setting("telemetry.otel.metrics.interval", "1s")
-        .setting("telemetry.otel.metrics.disk_buffer_size", "10mb")
-        .setting("telemetry.otel.metrics.buffer_ttl", "5m")
-        .setting("telemetry.otel.otlp.send_timeout", "1s")
-        // Tight write/read windows so pre-existing buffered files become drainable within the test budget.
-        .setting("telemetry.otel.metrics.disk_buffer_write_window", "100ms")
-        .setting("telemetry.otel.metrics.disk_buffer_read_min_age", "200ms")
+        .setting("telemetry.export.endpoint", () -> recordingApmServer.getGrpcEndpoint())
+        .setting("telemetry.metrics.buffer.disk_size", "10mb")
+        .setting("telemetry.metrics.buffer.ttl", "5m")
+        // Seal buffer files quickly (production default is 30s) so the pre-existing file is drainable right after restart.
+        .systemProperty("telemetry.metrics.buffer.write_window", "200ms")
+        // interval > send_timeout > initial_backoff so a failing export fully fails within an interval and the
+        // PeriodicMetricReader does not skip a cycle.
+        .setting("telemetry.export.interval", "1000ms")
+        .setting("telemetry.export.send_timeout", "200ms")
         .build();
 
     @ClassRule
@@ -49,7 +53,7 @@ public class OTelMetricsBufferSurvivesRestartIT extends AbstractTelemetryIT {
     public void testPreExistingBufferFilesDrainAfterRestart() throws Exception {
         recordingApmServer.setResponseCode(503);
         client().performRequest(new Request("GET", "/_use_apm_metrics"));
-        Thread.sleep(3000);
+        Thread.sleep(1000);
 
         cluster.restart(false);
         closeClients();
@@ -57,16 +61,20 @@ public class OTelMetricsBufferSurvivesRestartIT extends AbstractTelemetryIT {
         recordingApmServer.reset();
         recordingApmServer.clearResponseCode();
 
-        CountDownLatch replayed = new CountDownLatch(1);
+        AtomicBoolean replayed = new AtomicBoolean();
         recordingApmServer.addMessageConsumer(msg -> {
             if (msg instanceof ReceivedTelemetry.ReceivedMetricSet m
                 && "elasticsearch".equals(m.instrumentationScopeName())
                 && positiveLongSample(m, "es.apm.metrics.disk_buffer.replays")) {
-                replayed.countDown();
+                replayed.set(true);
             }
         });
         client().performRequest(new Request("GET", "/_flush_telemetry"));
 
-        assertTrue("expected pre-existing buffer files to be replayed after restart", replayed.await(TELEMETRY_TIMEOUT, TimeUnit.SECONDS));
+        assertBusy(
+            () -> assertTrue("expected pre-existing buffer files to be replayed after restart", replayed.get()),
+            BUFFER_DRAIN_TIMEOUT,
+            TimeUnit.SECONDS
+        );
     }
 }

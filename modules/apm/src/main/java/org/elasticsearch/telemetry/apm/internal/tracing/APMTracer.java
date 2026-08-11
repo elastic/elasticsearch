@@ -16,11 +16,13 @@ import io.opentelemetry.api.metrics.MeterProvider;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.SpanBuilder;
 import io.opentelemetry.api.trace.SpanKind;
+import io.opentelemetry.api.trace.StatusCode;
 import io.opentelemetry.api.trace.Tracer;
 import io.opentelemetry.context.Context;
 import io.opentelemetry.context.ContextKey;
 import io.opentelemetry.context.Scope;
 import io.opentelemetry.context.propagation.TextMapGetter;
+import io.opentelemetry.instrumentation.api.instrumenter.SpanStatusBuilder;
 import io.opentelemetry.sdk.common.CompletableResultCode;
 
 import org.apache.logging.log4j.LogManager;
@@ -66,7 +68,7 @@ import static org.elasticsearch.telemetry.TelemetryProvider.OTEL_TRACES_ENABLED_
  *   <li>{@link AgentExportTracerSupplier} returns {@code GlobalOpenTelemetry.get()}, which the Elasticsearch
  *       APM Java agent intercepts to ship spans to Elastic APM.</li>
  *   <li>{@link OtelSdkExportTracerSupplier} returns an {@link io.opentelemetry.sdk.OpenTelemetrySdk} owned by
- *       this module that exports spans over OTLP HTTP. Activated by the
+ *       this module that exports spans over OTLP. Activated by the
  *       {@code telemetry.otel.traces.enabled=true} JVM system property and bypasses
  *       {@code GlobalOpenTelemetry} entirely.</li>
  * </ul>
@@ -75,14 +77,13 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
 
     private static final Logger logger = LogManager.getLogger(APMTracer.class);
 
-    /** Tracks per-span local depth in Context to enforce {@link OtelSdkSettings#TELEMETRY_OTEL_TRACES_MAX_TRACE_DEPTH}. */
+    /** Tracks per-span local depth in Context to enforce {@link OtelSdkSettings#TELEMETRY_TRACING_MAX_DEPTH}. */
     private static final ContextKey<Integer> SPAN_LOCAL_DEPTH_KEY = ContextKey.named("es.apm.span.local_depth");
 
     /** Holds in-flight span information. */
     private final Map<String, Context> spans = ConcurrentCollections.newConcurrentMap();
 
     private final TraceSupplier traceSupplier;
-    private final long flushTimeoutMillis;
 
     private volatile boolean enabled;
     private volatile APMServices services;
@@ -101,11 +102,11 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
      */
     private final boolean useOtelSdkTracesExport;
 
-    /** Maximum local span depth on the OTel SDK path; see {@link OtelSdkSettings#TELEMETRY_OTEL_TRACES_MAX_TRACE_DEPTH}. */
+    /** Maximum local span depth on the OTel SDK path; see {@link OtelSdkSettings#TELEMETRY_TRACING_MAX_DEPTH}. */
     private volatile int maxTraceDepth;
 
     /** Whether to attach exception stack traces on the OTel SDK path;
-     *  see {@link OtelSdkSettings#TELEMETRY_OTEL_TRACES_RECORD_EXCEPTION_STACKS}. */
+     *  see {@link OtelSdkSettings#TELEMETRY_TRACING_RECORD_EXCEPTION_STACKS}. */
     private volatile boolean recordExceptionStacks;
 
     public void setClusterName(String clusterName) {
@@ -140,7 +141,6 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         boolean recordExceptionStacks
     ) {
         this.traceSupplier = traceSupplier;
-        this.flushTimeoutMillis = OtelSdkSettings.TELEMETRY_OTEL_FLUSH_TIMEOUT.get(settings).millis();
         this.includeNames = APMAgentSettings.TELEMETRY_TRACING_NAMES_INCLUDE_SETTING.get(settings);
         this.excludeNames = APMAgentSettings.TELEMETRY_TRACING_NAMES_EXCLUDE_SETTING.get(settings);
         this.labelFilters = APMAgentSettings.TELEMETRY_TRACING_SANITIZE_FIELD_NAMES.get(settings);
@@ -163,11 +163,11 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     }
 
     private static int initialMaxTraceDepth(Settings settings) {
-        return otelTracesEnabled() ? OtelSdkSettings.TELEMETRY_OTEL_TRACES_MAX_TRACE_DEPTH.get(settings) : 0;
+        return otelTracesEnabled() ? OtelSdkSettings.TELEMETRY_TRACING_MAX_DEPTH.get(settings) : 0;
     }
 
     private static boolean initialRecordExceptionStacks(Settings settings) {
-        return otelTracesEnabled() && OtelSdkSettings.TELEMETRY_OTEL_TRACES_RECORD_EXCEPTION_STACKS.get(settings);
+        return otelTracesEnabled() && OtelSdkSettings.TELEMETRY_TRACING_RECORD_EXCEPTION_STACKS.get(settings);
     }
 
     public CompletableResultCode attemptFlushTraces() {
@@ -223,13 +223,20 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
 
     @Override
     protected void doStop() {
+        // Best-effort flush of buffered spans, but keep the SDK alive: node shutdown stops all lifecycle components
+        // before closing any of them, so leaving the tracer running until doClose() lets spans emitted during the rest
+        // of the shutdown sequence (e.g. shard relocations draining in IndicesService) still be recorded and exported.
         if (enabled) {
             try {
-                traceSupplier.attemptFlushTraces().join(flushTimeoutMillis, TimeUnit.MILLISECONDS);
+                traceSupplier.attemptFlushTraces().join(OtelSdkSettings.OTEL_EXPORT_FLUSH_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
             } catch (Exception e) {
                 logger.warn("Exception flushing trace supplier", e);
             }
         }
+    }
+
+    @Override
+    protected void doClose() {
         try {
             traceSupplier.close();
         } catch (Exception e) {
@@ -237,9 +244,6 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         }
         destroyApmServices();
     }
-
-    @Override
-    protected void doClose() {}
 
     // package-private for tests
     APMServices createApmServices() {
@@ -509,6 +513,44 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         final var span = Span.fromContextOrNull(spans.get(traceable.getSpanId()));
         if (span != null) {
             span.setAttribute(key, value);
+        }
+    }
+
+    public void setAttributes(Traceable traceable, Attributes attributes) {
+        final var span = Span.fromContextOrNull(spans.get(traceable.getSpanId()));
+        if (span != null) {
+            span.setAllAttributes(attributes);
+        }
+    }
+
+    @Override
+    public void setStatusToError(Traceable traceable, String description) {
+        final var span = Span.fromContextOrNull(spans.get(traceable.getSpanId()));
+        if (span != null) {
+            span.setStatus(StatusCode.ERROR, description);
+        }
+    }
+
+    public SpanStatusBuilder spanStatusBuilder(Traceable traceable) {
+        final var span = Span.fromContextOrNull(spans.get(traceable.getSpanId()));
+        return span == null ? NoopSpanStatusBuilder.INSTANCE : new APMSpanStatusBuilder(span);
+    }
+
+    private record APMSpanStatusBuilder(Span span) implements SpanStatusBuilder {
+
+        @Override
+        public SpanStatusBuilder setStatus(StatusCode statusCode, String description) {
+            span.setStatus(statusCode, description);
+            return this;
+        }
+    }
+
+    private enum NoopSpanStatusBuilder implements SpanStatusBuilder {
+        INSTANCE {
+            @Override
+            public SpanStatusBuilder setStatus(StatusCode statusCode, String description) {
+                return this;
+            }
         }
     }
 

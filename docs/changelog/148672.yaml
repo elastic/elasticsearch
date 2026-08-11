@@ -1,6 +1,0 @@
-area: Vector Search
-issues:
- - 148636
-pr: 148672
-summary: Added Optional `num_candidates` to `KnnRetriever` to Mirror Knn Behavior
-type: bug

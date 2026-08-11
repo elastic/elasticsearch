@@ -15,6 +15,8 @@ import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.containsString;
+
 public class AzureDataSourceValidatorTests extends AbstractDataSourceValidatorTests {
 
     private final DataSourceValidator validator = new FileDataSourceValidator(
@@ -87,19 +89,87 @@ public class AzureDataSourceValidatorTests extends AbstractDataSourceValidatorTe
     public void testValidateDatasourceAnonymousConflictConnectionString() {
         expectThrows(
             org.elasticsearch.common.ValidationException.class,
-            () -> validator.validateDatasource(Map.of("auth", "none", "connection_string", "DefaultEndpointsProtocol=https"))
+            () -> validator.validateDatasource(Map.of("auth", "anonymous", "connection_string", "DefaultEndpointsProtocol=https"))
         );
     }
 
     public void testValidateDatasourceAnonymousConflictSasToken() {
         expectThrows(
             org.elasticsearch.common.ValidationException.class,
-            () -> validator.validateDatasource(Map.of("auth", "none", "sas_token", "?sv=2020-01-01"))
+            () -> validator.validateDatasource(Map.of("auth", "anonymous", "sas_token", "?sv=2020-01-01"))
         );
     }
 
+    public void testValidateDatasourceRejectsWorkloadIdentityWhenDisabled() {
+        // default validator has workload identity disabled
+        var e = expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> validator.validateDatasource(Map.of("auth", "managed_identity"))
+        );
+        assertThat(e.getMessage(), containsString("esql.datasource.managed_identity.enabled"));
+    }
+
+    public void testValidateDatasourceAcceptsWorkloadIdentityWhenEnabled() {
+        var workloadIdentityValidator = new FileDataSourceValidator("azure", AzureConfiguration::fromMap, Set.of("wasbs", "wasb"))
+            .withManagedIdentityEnabled(() -> true);
+        var result = workloadIdentityValidator.validateDatasource(Map.of("auth", "managed_identity", "account", "myaccount"));
+        assertEquals("managed_identity", result.get("auth").nonSecretValue());
+        assertFalse(result.get("auth").secret());
+    }
+
+    public void testValidateDatasourceWorkloadIdentityConflictWithCredentials() {
+        var workloadIdentityValidator = new FileDataSourceValidator("azure", AzureConfiguration::fromMap, Set.of("wasbs", "wasb"))
+            .withManagedIdentityEnabled(() -> true);
+        expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> workloadIdentityValidator.validateDatasource(Map.of("auth", "managed_identity", "account", "myaccount", "key", "mykey"))
+        );
+    }
+
+    public void testValidateDatasourceRejectsExplicitFederatedWhenDisabled() {
+        // default validator has federated authentication disabled
+        var e = expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> validator.validateDatasource(
+                Map.of(
+                    "auth",
+                    "federated_identity",
+                    "tenant_id",
+                    "tenant",
+                    "client_id",
+                    "client",
+                    "jwt_audience",
+                    "api://AzureADTokenExchange"
+                )
+            )
+        );
+        assertThat(e.getMessage(), containsString("esql.datasource.federated_identity.enabled"));
+    }
+
+    public void testValidateDatasourceRejectsImplicitFederatedWhenDisabled() {
+        // default validator has federated authentication disabled
+        var e = expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> validator.validateDatasource(
+                Map.of("tenant_id", "tenant", "client_id", "client", "jwt_audience", "api://AzureADTokenExchange")
+            )
+        );
+        assertThat(e.getMessage(), containsString("esql.datasource.federated_identity.enabled"));
+    }
+
+    public void testValidateDatasourceAcceptsFederatedWhenEnabled() {
+        var federatedValidator = new FileDataSourceValidator("azure", AzureConfiguration::fromMap, Set.of("wasbs", "wasb"))
+            .withFederatedIdentityEnabled(() -> true);
+        var result = federatedValidator.validateDatasource(
+            Map.of("auth", "federated_identity", "tenant_id", "tenant", "client_id", "client", "jwt_audience", "api://AzureADTokenExchange")
+        );
+        assertEquals("tenant", result.get("tenant_id").nonSecretValue());
+        assertFalse(result.get("tenant_id").secret());
+    }
+
     public void testValidateDatasourceWithSasToken() {
-        assertTrue(validator.validateDatasource(Map.of("sas_token", "?sv=2020")).get("sas_token").secret());
+        // account + sas_token is the complete SAS form (sas_token alone is rejected as incomplete).
+        assertTrue(validator.validateDatasource(Map.of("account", "acc", "sas_token", "?sv=2020")).get("sas_token").secret());
     }
 
     public void testValidateDatasourceWithConnectionString() {
@@ -140,8 +210,49 @@ public class AzureDataSourceValidatorTests extends AbstractDataSourceValidatorTe
         );
     }
 
+    public void testValidateDatasetSchemaResolution() {
+        assertEquals(
+            "union_by_name",
+            validator.validateDataset(Map.of(), "wasbs://c@a.blob.core.windows.net/p", Map.of("schema_resolution", "union_by_name"))
+                .get("schema_resolution")
+        );
+        expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "wasbs://c@a.blob.core.windows.net/p", Map.of("schema_resolution", "banana"))
+        );
+    }
+
+    public void testValidateDatasetErrorBudget() {
+        assertEquals(
+            "100",
+            validator.validateDataset(Map.of(), "wasbs://c@a.blob.core.windows.net/p", Map.of("max_errors", "100")).get("max_errors")
+        );
+        expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> validator.validateDataset(
+                Map.of(),
+                "wasbs://c@a.blob.core.windows.net/p",
+                Map.of("error_mode", "fail_fast", "max_errors", "10")
+            )
+        );
+    }
+
+    public void testValidateDatasetTargetSplitSize() {
+        assertEquals(
+            "64mb",
+            validator.validateDataset(Map.of(), "wasbs://c@a.blob.core.windows.net/p", Map.of("target_split_size", "64mb"))
+                .get("target_split_size")
+        );
+        expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "wasbs://c@a.blob.core.windows.net/p", Map.of("target_split_size", "abc"))
+        );
+    }
+
     public void testValidateDatasourceSkipsNullValues() {
         var settings = new java.util.HashMap<String, Object>();
+        // auth=anonymous makes the credential-less config resolvable; the null-skipping behavior is what's under test.
+        settings.put("auth", "anonymous");
         settings.put("account", "myaccount");
         settings.put("endpoint", null);
         var result = validator.validateDatasource(settings);

@@ -96,7 +96,10 @@ final class IpinfoIpDataLookups {
             return null;
         }
 
-        if (cleanedType.contains("asn")) {
+        // Note that 'plus' must be checked first because plus database types can include other type names, like `bundle_location_plus`.
+        if (cleanedType.contains("plus")) {
+            return Database.IpinfoPlus;
+        } else if (cleanedType.contains("asn")) {
             return Database.AsnV2;
         } else if (cleanedType.contains("country")) {
             return Database.CountryV2;
@@ -118,6 +121,7 @@ final class IpinfoIpDataLookups {
             case CountryV2 -> IpinfoIpDataLookups.Country::new;
             case CityV2 -> IpinfoIpDataLookups.Geolocation::new;
             case PrivacyDetection -> IpinfoIpDataLookups.PrivacyDetection::new;
+            case IpinfoPlus -> IpinfoIpDataLookups.Plus::new;
             default -> null;
         };
     }
@@ -238,6 +242,116 @@ final class IpinfoIpDataLookups {
             @MaxMindDbParameter(name = "timezone") String timezone
         ) {
             this(city, country, parseLocationDouble(lat), parseLocationDouble(lng), postalCode, region, timezone);
+        }
+    }
+
+    public record PlusResult(
+        Long asn,
+        String asName,
+        String asDomain,
+        String asType,
+        String carrierName,
+        String mcc,
+        String mnc,
+        String asChanged,
+        String geoChanged,
+        String city,
+        String region,
+        String regionCode,
+        String country,
+        String countryCode,
+        String continent,
+        String continentCode,
+        Double latitude,
+        Double longitude,
+        String timezone,
+        String postalCode,
+        String dmaCode,
+        String geonameId,
+        Integer radius,
+        Boolean isAnonymous,
+        Boolean isAnycast,
+        Boolean isHosting,
+        Boolean isMobile,
+        Boolean isSatellite,
+        Boolean isProxy,
+        Boolean isRelay,
+        Boolean isTor,
+        Boolean isVpn,
+        String privacyName
+    ) {
+        @SuppressWarnings("checkstyle:RedundantModifier")
+        @MaxMindDbConstructor
+        public PlusResult(
+            @MaxMindDbParameter(name = "asn") String asn,
+            @MaxMindDbParameter(name = "as_name") String asName,
+            @MaxMindDbParameter(name = "as_domain") String asDomain,
+            @MaxMindDbParameter(name = "as_type") String asType,
+            @MaxMindDbParameter(name = "carrier_name") String carrierName,
+            @MaxMindDbParameter(name = "mcc") String mcc,
+            @MaxMindDbParameter(name = "mnc") String mnc,
+            @MaxMindDbParameter(name = "as_changed") String asChanged,
+            @MaxMindDbParameter(name = "geo_changed") String geoChanged,
+            @MaxMindDbParameter(name = "city") String city,
+            @MaxMindDbParameter(name = "region") String region,
+            @MaxMindDbParameter(name = "region_code") String regionCode,
+            @MaxMindDbParameter(name = "country") String country,
+            @MaxMindDbParameter(name = "country_code") String countryCode,
+            @MaxMindDbParameter(name = "continent") String continent,
+            @MaxMindDbParameter(name = "continent_code") String continentCode,
+            @MaxMindDbParameter(name = "latitude") Double latitude,
+            @MaxMindDbParameter(name = "longitude") Double longitude,
+            @MaxMindDbParameter(name = "timezone") String timezone,
+            @MaxMindDbParameter(name = "postal_code") String postalCode,
+            @MaxMindDbParameter(name = "dma_code") String dmaCode,
+            @MaxMindDbParameter(name = "geoname_id") String geonameId,
+            @MaxMindDbParameter(name = "radius") Integer radius,
+            @MaxMindDbParameter(name = "is_anonymous") Boolean isAnonymous,
+            @MaxMindDbParameter(name = "is_anycast") Boolean isAnycast,
+            @MaxMindDbParameter(name = "is_hosting") Boolean isHosting,
+            @MaxMindDbParameter(name = "is_mobile") Boolean isMobile,
+            @MaxMindDbParameter(name = "is_satellite") Boolean isSatellite,
+            @MaxMindDbParameter(name = "is_proxy") Boolean isProxy,
+            @MaxMindDbParameter(name = "is_relay") Boolean isRelay,
+            @MaxMindDbParameter(name = "is_tor") Boolean isTor,
+            @MaxMindDbParameter(name = "is_vpn") Boolean isVpn,
+            @MaxMindDbParameter(name = "privacy_name") String privacyName
+        ) {
+            this(
+                parseAsn(asn),
+                asName,
+                asDomain,
+                asType,
+                carrierName,
+                mcc,
+                mnc,
+                asChanged,
+                geoChanged,
+                city,
+                region,
+                regionCode,
+                country,
+                countryCode,
+                continent,
+                continentCode,
+                latitude,
+                longitude,
+                timezone,
+                postalCode,
+                dmaCode,
+                geonameId,
+                radius,
+                isAnonymous,
+                isAnycast,
+                isHosting,
+                isMobile,
+                isSatellite,
+                isProxy,
+                isRelay,
+                isTor,
+                isVpn,
+                privacyName
+            );
         }
     }
 
@@ -387,6 +501,124 @@ final class IpinfoIpDataLookups {
                     }
                     case SERVICE -> {
                         if (Strings.hasText(response.service)) collector.service(response.service);
+                    }
+                }
+            }
+        }
+    }
+
+    static class Plus extends AbstractBase<PlusResult> {
+        Plus(Set<DatabaseProperty> properties) {
+            super(properties, PlusResult.class);
+        }
+
+        @Override
+        protected void transform(final Result<PlusResult> result, final IpLocationInfoCollector collector) {
+            PlusResult response = result.result();
+
+            for (DatabaseProperty property : this.properties) {
+                switch (property) {
+                    case IP -> collector.ip(result.ip());
+                    case NETWORK -> {
+                        if (result.network() != null) collector.network(result.network());
+                    }
+                    case CITY_NAME -> {
+                        if (Strings.hasText(response.city)) collector.cityName(response.city);
+                    }
+                    case REGION_NAME -> {
+                        if (Strings.hasText(response.region)) collector.regionName(response.region);
+                    }
+                    case REGION_ISO_CODE -> {
+                        if (Strings.hasText(response.regionCode)) collector.regionIsoCode(response.regionCode);
+                    }
+                    case COUNTRY_NAME -> {
+                        if (Strings.hasText(response.country)) collector.countryName(response.country);
+                    }
+                    case COUNTRY_ISO_CODE -> {
+                        if (Strings.hasText(response.countryCode)) collector.countryIsoCode(response.countryCode);
+                    }
+                    case CONTINENT_NAME -> {
+                        if (Strings.hasText(response.continent)) collector.continentName(response.continent);
+                    }
+                    case CONTINENT_CODE -> {
+                        if (Strings.hasText(response.continentCode)) collector.continentCode(response.continentCode);
+                    }
+                    case LOCATION -> {
+                        if (response.latitude != null && response.longitude != null) {
+                            collector.location(response.latitude, response.longitude);
+                        }
+                    }
+                    case TIMEZONE -> {
+                        if (Strings.hasText(response.timezone)) collector.timezone(response.timezone);
+                    }
+                    case POSTAL_CODE -> {
+                        if (Strings.hasText(response.postalCode)) collector.postalCode(response.postalCode);
+                    }
+                    case DMA_CODE -> {
+                        if (Strings.hasText(response.dmaCode)) collector.dmaCode(response.dmaCode);
+                    }
+                    case GEONAME_ID -> {
+                        if (Strings.hasText(response.geonameId)) collector.geonameId(response.geonameId);
+                    }
+                    case ACCURACY_RADIUS -> {
+                        if (response.radius != null) collector.accuracyRadius(response.radius);
+                    }
+                    case ASN -> {
+                        if (response.asn != null) collector.asn(response.asn);
+                    }
+                    case ORGANIZATION_NAME -> {
+                        if (Strings.hasText(response.asName)) collector.organizationName(response.asName);
+                    }
+                    case DOMAIN -> {
+                        if (Strings.hasText(response.asDomain)) collector.domain(response.asDomain);
+                    }
+                    case TYPE -> {
+                        if (Strings.hasText(response.asType)) collector.type(response.asType);
+                    }
+                    case ISP -> {
+                        if (Strings.hasText(response.carrierName)) collector.isp(response.carrierName);
+                    }
+                    case MOBILE_COUNTRY_CODE -> {
+                        if (Strings.hasText(response.mcc)) collector.mobileCountryCode(response.mcc);
+                    }
+                    case MOBILE_NETWORK_CODE -> {
+                        if (Strings.hasText(response.mnc)) collector.mobileNetworkCode(response.mnc);
+                    }
+                    case ASN_CHANGED_DATE -> {
+                        if (Strings.hasText(response.asChanged)) collector.asnChangedDate(response.asChanged);
+                    }
+                    case GEO_CHANGED_DATE -> {
+                        if (Strings.hasText(response.geoChanged)) collector.geoChangedDate(response.geoChanged);
+                    }
+                    case ANONYMOUS -> {
+                        if (response.isAnonymous != null) collector.anonymous(response.isAnonymous);
+                    }
+                    case ANYCAST -> {
+                        if (response.isAnycast != null) collector.anycast(response.isAnycast);
+                    }
+                    case HOSTING -> {
+                        if (response.isHosting != null) collector.hosting(response.isHosting);
+                    }
+                    case MOBILE -> {
+                        if (response.isMobile != null) collector.mobile(response.isMobile);
+                    }
+                    case SATELLITE -> {
+                        if (response.isSatellite != null) collector.satellite(response.isSatellite);
+                    }
+                    case PROXY -> {
+                        if (response.isProxy != null) collector.proxy(response.isProxy);
+                    }
+                    case RELAY -> {
+                        if (response.isRelay != null) collector.relay(response.isRelay);
+                    }
+                    case TOR -> {
+                        if (response.isTor != null) collector.tor(response.isTor);
+                    }
+                    case VPN -> {
+                        if (response.isVpn != null) collector.vpn(response.isVpn);
+                    }
+                    case SERVICE -> {
+                        if (Strings.hasText(response.privacyName)) collector.service(response.privacyName);
                     }
                 }
             }

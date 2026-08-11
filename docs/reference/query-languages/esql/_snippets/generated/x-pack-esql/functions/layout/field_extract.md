@@ -5,6 +5,10 @@ stack: preview 9.5.0
 serverless: preview
 ```
 
+
+:::{include} ../briefSummary/field_extract.md
+:::
+
 ## Syntax
 
 :::{image} /reference/query-languages/esql/images/generated/x-pack-esql/functions/field_extract.svg
@@ -17,6 +21,9 @@ serverless: preview
 :::
 
 :::{include} ../description/field_extract.md
+:::
+
+:::{include} ../types/field_extract.md
 :::
 
 :::{include} ../examples/field_extract.md

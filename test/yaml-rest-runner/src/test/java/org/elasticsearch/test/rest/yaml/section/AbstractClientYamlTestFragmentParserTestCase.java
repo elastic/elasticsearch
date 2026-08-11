@@ -22,10 +22,8 @@ import static org.hamcrest.Matchers.nullValue;
 public abstract class AbstractClientYamlTestFragmentParserTestCase extends ESTestCase {
     protected XContentParser parser;
 
-    @Override
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void verifyParserClosed() throws Exception {
         // test may be skipped so we did not create a parser instance
         if (parser != null) {
             // next token can be null even in the middle of the document (e.g. with "---"), but not too many consecutive times
@@ -34,6 +32,10 @@ public abstract class AbstractClientYamlTestFragmentParserTestCase extends ESTes
             assertThat(parser.nextToken(), nullValue());
             parser.close();
         }
+    }
+
+    public final void tearDown() throws Exception {
+        super.tearDown();
     }
 
     @Override

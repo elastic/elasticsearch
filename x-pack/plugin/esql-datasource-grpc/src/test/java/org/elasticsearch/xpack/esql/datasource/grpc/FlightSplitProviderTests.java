@@ -11,6 +11,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryContext;
+import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryResult;
 
 import java.io.IOException;
 import java.util.List;
@@ -25,8 +26,11 @@ public class FlightSplitProviderTests extends ESTestCase {
             Map<String, Object> config = Map.of("endpoint", endpoint, "target", "employees");
             SplitDiscoveryContext context = new SplitDiscoveryContext(null, FileList.UNRESOLVED, config, null, null);
 
-            List<ExternalSplit> splits = provider.discoverSplits(context);
+            SplitDiscoveryResult result = provider.discoverSplits(context);
+            List<ExternalSplit> splits = result.splits();
             assertEquals(1, splits.size());
+            // Flight is not file-based, so it never contributes to files_scanned.
+            assertEquals(0, result.filesScanned());
 
             FlightSplit split = (FlightSplit) splits.get(0);
             assertEquals("flight", split.sourceType());
@@ -44,7 +48,7 @@ public class FlightSplitProviderTests extends ESTestCase {
             Map<String, Object> config = Map.of("endpoint", endpoint, "target", "employees");
             SplitDiscoveryContext context = new SplitDiscoveryContext(null, FileList.UNRESOLVED, config, null, null);
 
-            List<ExternalSplit> splits = provider.discoverSplits(context);
+            List<ExternalSplit> splits = provider.discoverSplits(context).splits();
             assertEquals(numEndpoints, splits.size());
 
             long totalEstimated = 0;
@@ -66,7 +70,7 @@ public class FlightSplitProviderTests extends ESTestCase {
         Map<String, Object> config = Map.of("target", "employees");
         SplitDiscoveryContext context = new SplitDiscoveryContext(null, FileList.UNRESOLVED, config, null, null);
 
-        List<ExternalSplit> splits = provider.discoverSplits(context);
+        List<ExternalSplit> splits = provider.discoverSplits(context).splits();
         assertEquals(0, splits.size());
     }
 
@@ -75,7 +79,7 @@ public class FlightSplitProviderTests extends ESTestCase {
         Map<String, Object> config = Map.of("endpoint", "flight://localhost:12345");
         SplitDiscoveryContext context = new SplitDiscoveryContext(null, FileList.UNRESOLVED, config, null, null);
 
-        List<ExternalSplit> splits = provider.discoverSplits(context);
+        List<ExternalSplit> splits = provider.discoverSplits(context).splits();
         assertEquals(0, splits.size());
     }
 }

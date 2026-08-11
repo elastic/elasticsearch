@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.fieldcaps;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -42,15 +43,19 @@ import static org.elasticsearch.index.mapper.TimeSeriesParams.TIME_SERIES_METRIC
  */
 public class FieldCapabilities implements Writeable, ToXContentObject {
 
+    static final TransportVersion FIELD_CAPS_INFERENCE_FIELD = TransportVersion.fromName("field_caps_inference_field");
+
     public static final ParseField TYPE_FIELD = new ParseField("type");
     public static final ParseField IS_METADATA_FIELD = new ParseField("metadata_field");
     public static final ParseField SEARCHABLE_FIELD = new ParseField("searchable");
     public static final ParseField AGGREGATABLE_FIELD = new ParseField("aggregatable");
+    public static final ParseField INFERENCE_FIELD = new ParseField("inference");
     public static final ParseField TIME_SERIES_DIMENSION_FIELD = new ParseField(TIME_SERIES_DIMENSION_PARAM);
     public static final ParseField TIME_SERIES_METRIC_FIELD = new ParseField(TIME_SERIES_METRIC_PARAM);
     public static final ParseField INDICES_FIELD = new ParseField("indices");
     public static final ParseField NON_SEARCHABLE_INDICES_FIELD = new ParseField("non_searchable_indices");
     public static final ParseField NON_AGGREGATABLE_INDICES_FIELD = new ParseField("non_aggregatable_indices");
+    public static final ParseField NON_INFERENCE_INDICES_FIELD = new ParseField("non_inference_indices");
     public static final ParseField NON_DIMENSION_INDICES_FIELD = new ParseField("non_dimension_indices");
     public static final ParseField METRIC_CONFLICTS_INDICES_FIELD = new ParseField("metric_conflicts_indices");
 
@@ -59,12 +64,14 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
     private final boolean isMetadataField;
     private final boolean isSearchable;
     private final boolean isAggregatable;
+    private final Boolean isInference;
     private final boolean isDimension;
     private final TimeSeriesParams.MetricType metricType;
 
     private final String[] indices;
     private final String[] nonSearchableIndices;
     private final String[] nonAggregatableIndices;
+    private final String[] nonInferenceIndices;
     private final String[] nonDimensionIndices;
     private final String[] metricConflictsIndices;
 
@@ -77,6 +84,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
      * @param isMetadataField Whether this field is a metadata field.
      * @param isSearchable Whether this field is indexed for search.
      * @param isAggregatable Whether this field can be aggregated on.
+     * @param isInference Whether this field is an inference field.
      * @param isDimension Whether this field can be used as dimension
      * @param metricType If this field is a metric field, returns the metric's type or null for non-metrics fields
      * @param indices The list of indices where this field name is defined as {@code type}.
@@ -90,6 +98,8 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
      *                             or null if the field is searchable in all indices.
      * @param nonAggregatableIndices The list of indices where this field is not aggregatable,
      *                               or null if the field is aggregatable in all indices.
+     * @param nonInferenceIndices The list of indices where this field is not an inference field,
+     *                            or null if the field is an inference field in all indices.
      * @param nonDimensionIndices The list of indices where this field is not a dimension
      * @param metricConflictsIndices The list of indices where this field is has different metric types or not mark as a metric
      * @param meta Merged metadata across indices.
@@ -100,11 +110,13 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         boolean isMetadataField,
         boolean isSearchable,
         boolean isAggregatable,
+        Boolean isInference,
         boolean isDimension,
         TimeSeriesParams.MetricType metricType,
         String[] indices,
         String[] nonSearchableIndices,
         String[] nonAggregatableIndices,
+        String[] nonInferenceIndices,
         String[] nonDimensionIndices,
         String[] metricConflictsIndices,
         Map<String, Set<String>> meta
@@ -114,11 +126,13 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         this.isMetadataField = isMetadataField;
         this.isSearchable = isSearchable;
         this.isAggregatable = isAggregatable;
+        this.isInference = isInference;
         this.isDimension = isDimension;
         this.metricType = metricType;
         this.indices = indices;
         this.nonSearchableIndices = nonSearchableIndices;
         this.nonAggregatableIndices = nonAggregatableIndices;
+        this.nonInferenceIndices = nonInferenceIndices;
         this.nonDimensionIndices = nonDimensionIndices;
         this.metricConflictsIndices = metricConflictsIndices;
         this.meta = Objects.requireNonNull(meta);
@@ -132,12 +146,15 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
      * @param isMetadataField Whether this field is a metadata field.
      * @param isSearchable Whether this field is indexed for search.
      * @param isAggregatable Whether this field can be aggregated on.
+     * @param isInference Whether this field is an inference field.
      * @param indices The list of indices where this field name is defined as {@code type},
      *                or null if all indices have the same {@code type} for the field.
      * @param nonSearchableIndices The list of indices where this field is not searchable,
      *                             or null if the field is searchable in all indices.
      * @param nonAggregatableIndices The list of indices where this field is not aggregatable,
      *                               or null if the field is aggregatable in all indices.
+     * @param nonInferenceIndices The list of indices where this field is not an inference field,
+     *                            or null if the field is an inference field in all indices.
      * @param meta Merged metadata across indices.
      */
     public FieldCapabilities(
@@ -146,9 +163,11 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         boolean isMetadataField,
         boolean isSearchable,
         boolean isAggregatable,
+        boolean isInference,
         String[] indices,
         String[] nonSearchableIndices,
         String[] nonAggregatableIndices,
+        String[] nonInferenceIndices,
         Map<String, Set<String>> meta
     ) {
         this(
@@ -157,11 +176,13 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             isMetadataField,
             isSearchable,
             isAggregatable,
+            isInference,
             false,
             null,
             indices,
             nonSearchableIndices,
             nonAggregatableIndices,
+            nonInferenceIndices,
             null,
             null,
             meta
@@ -176,6 +197,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
      * @param isMetadataField Whether this field is a metadata field.
      * @param isSearchable Whether this field is indexed for search.
      * @param isAggregatable Whether this field can be aggregated on.
+     * @param isInference Whether this field is an inference field.
      * @param isDimension Whether this field can be used as dimension
      * @param metricType If this field is a metric field, returns the metric's type or null for non-metrics fields
      * @param indices The list of indices where this field name is defined as {@code type},
@@ -184,6 +206,8 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
      *                             or null if the field is searchable in all indices.
      * @param nonAggregatableIndices The list of indices where this field is not aggregatable,
      *                               or null if the field is aggregatable in all indices.
+     * @param nonInferenceIndices The list of indices where this field is not an inference field,
+     *                            or null if the field is an inference field in all indices.
      * @param nonDimensionIndices The list of indices where this field is not a dimension
      * @param metricConflictsIndices The list of indices where this field is has different metric types or not mark as a metric
      * @param meta Merged metadata across indices.
@@ -196,11 +220,13 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         Boolean isMetadataField,
         boolean isSearchable,
         boolean isAggregatable,
+        Boolean isInference,
         Boolean isDimension,
         String metricType,
         List<String> indices,
         List<String> nonSearchableIndices,
         List<String> nonAggregatableIndices,
+        List<String> nonInferenceIndices,
         List<String> nonDimensionIndices,
         List<String> metricConflictsIndices,
         Map<String, Set<String>> meta
@@ -211,11 +237,13 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             isMetadataField == null ? false : isMetadataField,
             isSearchable,
             isAggregatable,
+            isInference,
             isDimension == null ? false : isDimension,
             metricType != null ? TimeSeriesParams.MetricType.fromString(metricType) : null,
             indices != null ? indices.toArray(new String[0]) : null,
             nonSearchableIndices != null ? nonSearchableIndices.toArray(new String[0]) : null,
             nonAggregatableIndices != null ? nonAggregatableIndices.toArray(new String[0]) : null,
+            nonInferenceIndices != null ? nonInferenceIndices.toArray(new String[0]) : null,
             nonDimensionIndices != null ? nonDimensionIndices.toArray(new String[0]) : null,
             metricConflictsIndices != null ? metricConflictsIndices.toArray(new String[0]) : null,
             meta != null ? meta : Collections.emptyMap()
@@ -236,6 +264,13 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         this.nonDimensionIndices = in.readOptionalStringArray();
         this.metricConflictsIndices = in.readOptionalStringArray();
         meta = in.readMap(i -> i.readCollectionAsSet(StreamInput::readString));
+        if (in.getTransportVersion().supports(FIELD_CAPS_INFERENCE_FIELD)) {
+            this.isInference = in.readOptionalBoolean();
+            this.nonInferenceIndices = in.readOptionalStringArray();
+        } else {
+            this.isInference = null;
+            this.nonInferenceIndices = null;
+        }
     }
 
     @Override
@@ -253,6 +288,10 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         out.writeOptionalStringArray(nonDimensionIndices);
         out.writeOptionalStringArray(metricConflictsIndices);
         out.writeMap(meta, StreamOutput::writeStringCollection);
+        if (out.getTransportVersion().supports(FIELD_CAPS_INFERENCE_FIELD)) {
+            out.writeOptionalBoolean(isInference);
+            out.writeOptionalStringArray(nonInferenceIndices);
+        }
     }
 
     @Override
@@ -262,6 +301,9 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         builder.field(IS_METADATA_FIELD.getPreferredName(), isMetadataField);
         builder.field(SEARCHABLE_FIELD.getPreferredName(), isSearchable);
         builder.field(AGGREGATABLE_FIELD.getPreferredName(), isAggregatable);
+        if (isInference != null) {
+            builder.field(INFERENCE_FIELD.getPreferredName(), isInference);
+        }
         if (isDimension) {
             builder.field(TIME_SERIES_DIMENSION_FIELD.getPreferredName(), true);
         }
@@ -276,6 +318,9 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         }
         if (nonAggregatableIndices != null) {
             builder.array(NON_AGGREGATABLE_INDICES_FIELD.getPreferredName(), nonAggregatableIndices);
+        }
+        if (nonInferenceIndices != null) {
+            builder.array(NON_INFERENCE_INDICES_FIELD.getPreferredName(), nonInferenceIndices);
         }
         if (nonDimensionIndices != null) {
             builder.array(NON_DIMENSION_INDICES_FIELD.getPreferredName(), nonDimensionIndices);
@@ -317,6 +362,14 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
      */
     public boolean isAggregatable() {
         return isAggregatable;
+    }
+
+    /**
+     * Whether this field is an inference field in all indices, or null if the minimum
+     * transport version is too old to reliably report inference field status.
+     */
+    public Boolean isInference() {
+        return isInference;
     }
 
     /**
@@ -372,6 +425,14 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
     }
 
     /**
+     * The list of indices where this field is not an inference field,
+     * or null if the field's inference status is uniform across all indices.
+     */
+    public String[] nonInferenceIndices() {
+        return nonInferenceIndices;
+    }
+
+    /**
      * The list of indices where this field has different dimension or metric flag
      */
     public String[] nonDimensionIndices() {
@@ -400,6 +461,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         return isMetadataField == that.isMetadataField
             && isSearchable == that.isSearchable
             && isAggregatable == that.isAggregatable
+            && Objects.equals(isInference, that.isInference)
             && isDimension == that.isDimension
             && Objects.equals(metricType, that.metricType)
             && Objects.equals(name, that.name)
@@ -407,6 +469,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             && Arrays.equals(indices, that.indices)
             && Arrays.equals(nonSearchableIndices, that.nonSearchableIndices)
             && Arrays.equals(nonAggregatableIndices, that.nonAggregatableIndices)
+            && Arrays.equals(nonInferenceIndices, that.nonInferenceIndices)
             && Arrays.equals(nonDimensionIndices, that.nonDimensionIndices)
             && Arrays.equals(metricConflictsIndices, that.metricConflictsIndices)
             && Objects.equals(meta, that.meta);
@@ -414,10 +477,11 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(name, type, isMetadataField, isSearchable, isAggregatable, isDimension, metricType, meta);
+        int result = Objects.hash(name, type, isMetadataField, isSearchable, isAggregatable, isInference, isDimension, metricType, meta);
         result = 31 * result + Arrays.hashCode(indices);
         result = 31 * result + Arrays.hashCode(nonSearchableIndices);
         result = 31 * result + Arrays.hashCode(nonAggregatableIndices);
+        result = 31 * result + Arrays.hashCode(nonInferenceIndices);
         result = 31 * result + Arrays.hashCode(nonDimensionIndices);
         result = 31 * result + Arrays.hashCode(metricConflictsIndices);
         return result;
@@ -434,12 +498,14 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         private boolean isMetadataField;
         private int searchableIndices = 0;
         private int aggregatableIndices = 0;
+        private int inferenceIndices = 0;
         private int dimensionIndices = 0;
         private TimeSeriesParams.MetricType metricType;
         private boolean hasConflictMetricType;
         private final List<IndexCaps> indicesList;
         private final Map<String, Set<String>> meta;
         private int totalIndices;
+        private TransportVersion minTransportVersion;
 
         Builder(String name, String type) {
             this.name = name;
@@ -448,6 +514,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             this.hasConflictMetricType = false;
             this.indicesList = new ArrayList<>();
             this.meta = new HashMap<>();
+            this.minTransportVersion = TransportVersion.current();
         }
 
         private boolean assertIndicesSorted(String[] indices) {
@@ -463,6 +530,10 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             return true;
         }
 
+        void setMinTransportVersion(TransportVersion minTransportVersion) {
+            this.minTransportVersion = minTransportVersion;
+        }
+
         /**
          * Collect the field capabilities for an index.
          */
@@ -471,6 +542,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             boolean isMetadataField,
             boolean search,
             boolean agg,
+            boolean isInference,
             boolean isDimension,
             TimeSeriesParams.MetricType metricType,
             Map<String, String> meta
@@ -482,6 +554,9 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             }
             if (agg) {
                 aggregatableIndices += indices.length;
+            }
+            if (isInference) {
+                inferenceIndices += indices.length;
             }
             if (isDimension) {
                 dimensionIndices += indices.length;
@@ -495,7 +570,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
                 hasConflictMetricType = true;
                 this.metricType = null;
             }
-            indicesList.add(new IndexCaps(indices, search, agg, isDimension, metricType));
+            indicesList.add(new IndexCaps(indices, search, agg, isInference, isDimension, metricType));
             for (Map.Entry<String, String> entry : meta.entrySet()) {
                 this.meta.computeIfAbsent(entry.getKey(), key -> new HashSet<>()).add(entry.getValue());
             }
@@ -546,6 +621,21 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
                 nonAggregatableIndices = filterIndices(totalIndices - aggregatableIndices, ic -> ic.isAggregatable == false);
             }
 
+            // Iff the min transport version supports inference field reporting, compute
+            // the inference flag and non-inference indices list. Otherwise, suppress both so that a
+            // mixed-version cluster does not emit misleading inference: false output.
+            final Boolean isInference;
+            final String[] nonInferenceIndices;
+            if (minTransportVersion != null && minTransportVersion.supports(FIELD_CAPS_INFERENCE_FIELD)) {
+                isInference = inferenceIndices == totalIndices;
+                nonInferenceIndices = (isInference || inferenceIndices == 0)
+                    ? null
+                    : filterIndices(totalIndices - inferenceIndices, ic -> ic.isInference == false);
+            } else {
+                isInference = null;
+                nonInferenceIndices = null;
+            }
+
             // Collect all indices that have dimension == false if this field is marked as a dimension in at least one index
             final boolean isDimension = dimensionIndices == totalIndices;
             final String[] nonDimensionIndices;
@@ -575,11 +665,13 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
                 isMetadataField,
                 isSearchable,
                 isAggregatable,
+                isInference,
                 isDimension,
                 metricType,
                 indices,
                 nonSearchableIndices,
                 nonAggregatableIndices,
+                nonInferenceIndices,
                 nonDimensionIndices,
                 metricConflictsIndices,
                 immutableMeta
@@ -591,6 +683,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         String[] indices,
         boolean isSearchable,
         boolean isAggregatable,
+        boolean isInference,
         boolean isDimension,
         TimeSeriesParams.MetricType metricType
     ) {}

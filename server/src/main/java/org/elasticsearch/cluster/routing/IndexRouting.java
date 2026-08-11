@@ -30,6 +30,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
@@ -84,7 +85,7 @@ public abstract class IndexRouting {
         RoutingFunction routingFunction,
         IndexReshardingMetadata reshardingMetadata
     ) {
-        if (metadata.getIndexMode() == IndexMode.TIME_SERIES
+        if (IndexMode.isTsdb(metadata.getIndexMode())
             && metadata.getTimeSeriesDimensions().isEmpty() == false
             && metadata.getCreationVersion().onOrAfter(IndexVersions.TSID_CREATED_DURING_ROUTING)) {
             return new ExtractFromSource.ForIndexDimensions(metadata, routingFunction, reshardingMetadata);
@@ -236,7 +237,7 @@ public abstract class IndexRouting {
             this.routingRequired = mapping == null ? false : mapping.routingRequired();
             this.indexMode = metadata.getIndexMode();
             this.sliceEnabled = IndexSettings.SLICE_ENABLED.get(metadata.getSettings());
-            this.requiredRoutingParameterName = sliceEnabled ? "_slice" : "routing";
+            this.requiredRoutingParameterName = sliceEnabled ? SliceIndexing.PARAM_NAME : "routing";
         }
 
         protected abstract int shardId(String id, @Nullable String routing);
@@ -411,7 +412,7 @@ public abstract class IndexRouting {
             }
             indexMode = metadata.getIndexMode();
             assert indexMode != null : "Index mode must be set for ExtractFromSource routing";
-            this.trackTimeSeriesRoutingHash = indexMode == IndexMode.TIME_SERIES
+            this.trackTimeSeriesRoutingHash = indexMode.isTsdb()
                 && metadata.getCreationVersion().onOrAfter(IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID);
             this.useTimeSeriesSyntheticId = metadata.useTimeSeriesSyntheticId();
             addIdWithRoutingHash = (indexMode == IndexMode.LOGSDB
@@ -629,7 +630,7 @@ public abstract class IndexRouting {
 
             ForIndexDimensions(IndexMetadata metadata, RoutingFunction routingFunction, IndexReshardingMetadata reshardingMetadata) {
                 super(metadata, routingFunction, reshardingMetadata, metadata.getTimeSeriesDimensions());
-                assert metadata.getIndexMode() == IndexMode.TIME_SERIES : "Index mode must be time_series for ForIndexDimensions routing";
+                assert IndexMode.isTsdb(metadata.getIndexMode()) : "Index mode must be time_series for ForIndexDimensions routing";
                 assert metadata.getCreationVersion().onOrAfter(IndexVersions.TSID_CREATED_DURING_ROUTING)
                     : "Index version must be at least "
                         + IndexVersions.TSID_CREATED_DURING_ROUTING

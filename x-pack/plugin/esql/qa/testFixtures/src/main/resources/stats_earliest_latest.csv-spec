@@ -421,3 +421,150 @@ FROM tdigest_standard_index
 first_td:tdigest
 "{""centroids"":[], ""counts"":[]}"
 ;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test earliest aggregation on flattened type
+required_capability: earliest_latest_aggs
+required_capability: flattened_datatype
+required_capability: first_agg_extended_types_3
+
+FROM flattened_otel_logs
+| STATS earliest_attrs = EARLIEST(resource.attributes)
+;
+
+earliest_attrs:flattened
+"{""host.name"":""equal-host""}"
+;
+
+Test latest aggregation on extended scalar types
+required_capability: earliest_latest_aggs
+required_capability: last_agg_extended_types
+
+ROW rows = [
+"2025-01-01T00:00:01.000Z | 1.0.0 | 100",
+"2025-01-01T00:00:02.000Z | 2.0.0 | 200",
+"2025-01-01T00:00:03.000Z | 3.0.0 | 300"
+]
+| MV_EXPAND rows
+| DISSECT rows """%{@timestamp} | %{ver} | %{n}"""
+| EVAL @timestamp = TO_DATETIME(@timestamp), v = TO_VERSION(ver), ul =
+TO_UNSIGNED_LONG(n)
+| STATS last_v = LATEST(v), last_ul = LATEST(ul)
+;
+
+last_v:version | last_ul:unsigned_long
+3.0.0          | 300
+;
+
+Test latest aggregation on spatial types
+required_capability: earliest_latest_aggs
+required_capability: last_agg_extended_types
+
+FROM k8s
+| STATS
+  last_geo_pt   = LATEST(event_city),
+  last_cart_pt  = LATEST(event_location),
+  last_cart_shp = LATEST(event_shape)
+;   
+
+last_geo_pt:geo_point | last_cart_pt:cartesian_point | last_cart_shp:cartesian_shape
+POINT (35.932799968868494 31.949699968099594) | POINT (9202465.000000 7363726.500000) | POLYGON ((0.0 2.0, 1.0 2.0, 1.0 3.0, 0.0 3.0, 0.0 2.0), (0.4 2.4, 0.6 2.4, 0.6 2.6, 0.4 2.6, 0.4 2.4))
+;
+
+Test latest aggregation on geo_shape type
+required_capability: earliest_latest_aggs
+required_capability: last_agg_extended_types
+
+ROW rows = [
+"2025-01-01T00:00:01.000Z | POLYGON((2.6674 39.6334, 2.687 39.5836, 2.7976 39.614, 2.7504 39.6587, 2.6674 39.6334))",
+"2025-01-01T00:00:02.000Z | POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))"
+]
+| MV_EXPAND rows
+| DISSECT rows """%{@timestamp} | %{shape}"""
+| EVAL @timestamp = TO_DATETIME(@timestamp), gs = TO_GEOSHAPE(shape)
+| STATS last_shape = LATEST(gs)
+; 
+
+last_shape:geo_shape
+POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))
+;
+
+Test latest aggregation on spatial grid types
+required_capability: earliest_latest_aggs
+required_capability: last_agg_extended_types
+required_capability: spatial_grid_types
+
+ROW rows = [
+"2025-01-01T00:00:01.000Z | u3bu | 4/8/5 | 841f059ffffffff",
+"2025-01-01T00:00:03.000Z | dr5r | 3/4/2 | 812bbffffffffff",
+"2025-01-01T00:00:02.000Z | 9q8y | 2/2/1 | 81397ffffffffff"
+]
+| MV_EXPAND rows
+| DISSECT rows """%{@timestamp} | %{hash} | %{tile} | %{hex}"""
+| EVAL @timestamp = TO_DATETIME(@timestamp), gh = TO_GEOHASH(hash), gt = TO_GEOTILE(tile), ghex = TO_GEOHEX(hex)
+| STATS
+last_gh   = LATEST(gh),
+last_gt   = LATEST(gt),
+last_ghex = LATEST(ghex)
+; 
+
+last_gh:geohash | last_gt:geotile | last_ghex:geohex
+dr5r            | 3/4/2           | 812bbffffffffff
+;
+
+Test latest aggregation on dense_vector type
+required_capability: earliest_latest_aggs
+required_capability: last_agg_extended_types
+
+FROM colors
+| WHERE id < 5
+| EVAL @timestamp = id
+| STATS last_rgb = LATEST(rgb_vector)
+;
+
+last_rgb:dense_vector
+[255.0, 0.0, 0.0]
+;
+
+Test latest aggregation on exponential_histogram type
+required_capability: earliest_latest_aggs
+required_capability: last_agg_extended_types
+
+FROM exp_histo_sample
+| WHERE instance == "dummy-empty"
+| STATS last_hist = LATEST(responseTime)
+;
+
+last_hist:exponential_histogram
+"{""scale"":0}"
+;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test latest aggregation on tdigest type
+required_capability: earliest_latest_aggs
+required_capability: last_agg_extended_types
+required_capability: tdigest_time_series_metric
+
+FROM tdigest_standard_index
+| WHERE instance == "hand-rolled-empty"
+| STATS last_td = LATEST(responseTime)
+;
+
+last_td:tdigest
+"{""centroids"":[], ""counts"":[]}"
+;
+
+Test latest aggregation on flattened type
+required_capability: earliest_latest_aggs
+required_capability: flattened_datatype
+required_capability: last_agg_extended_types
+
+FROM flattened_otel_logs
+| STATS latest_attrs = LATEST(resource.attributes)
+; 
+
+latest_attrs:flattened
+"{""agent.id"":""5e7a960a-4653-4973-a000-450130a32a37"",""agent.type"":""filebeat"",""host.name"":""infra-filebeat-cpcmv""}"
+;

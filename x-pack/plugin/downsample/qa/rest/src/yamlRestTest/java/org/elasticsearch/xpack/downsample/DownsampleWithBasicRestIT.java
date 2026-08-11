@@ -19,6 +19,7 @@ public class DownsampleWithBasicRestIT extends ESClientYamlSuiteTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("x-pack-downsample")
+        .module("x-pack-esql")
         .module("x-pack-ilm")
         .module("lang-painless")
         .module("aggregations")         // for auto_date_histogram

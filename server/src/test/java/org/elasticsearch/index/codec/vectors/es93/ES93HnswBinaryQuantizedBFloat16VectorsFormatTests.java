@@ -68,20 +68,22 @@ public class ES93HnswBinaryQuantizedBFloat16VectorsFormatTests extends BaseQuant
             Locale.ROOT,
             expected,
             "ES93BinaryQuantizedVectorsFormat(name=ES93BinaryQuantizedVectorsFormat, rawVectorFormat=%s,"
-                + " scorer=ES818BinaryFlatVectorsScorer(nonQuantizedDelegate=ES93GenericFlatVectorScorer(delegate={}())))"
+                + " scorer=ES818BinaryFlatVectorsScorer(nonQuantizedDelegate=ES93GenericFlatVectorScorer(delegate={})))"
         );
         expected = format(Locale.ROOT, expected, "ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format=%s)");
         expected = format(
             Locale.ROOT,
             expected,
             "ES93BFloat16FlatVectorsFormat(name=ES93BFloat16FlatVectorsFormat,"
-                + " flatVectorScorer=ES93GenericFlatVectorScorer(delegate={}()))"
+                + " flatVectorScorer=ES93GenericFlatVectorScorer(delegate={}))"
         );
-        String defaultScorer = expected.replaceAll("\\{}", "DefaultFlatVectorScorer");
-        String memSegScorer = expected.replaceAll("\\{}", "Lucene99MemorySegmentFlatVectorsScorer");
+
+        String defaultScorer = expected.replaceAll("\\{}", "ESDefaultFlatVectorScorer(delegate=DefaultFlatVectorScorer())");
+        String memSegScorer = expected.replaceAll("\\{}", "ESDefaultFlatVectorScorer(delegate=Lucene99MemorySegmentFlatVectorsScorer())");
+        String nativeScorer = expected.replaceAll("\\{}", "PanamaFlatVectorScorer()");
 
         KnnVectorsFormat format = createFormat(10, 20, 1, null);
-        assertThat(format, hasToString(oneOf(defaultScorer, memSegScorer)));
+        assertThat(format, hasToString(oneOf(defaultScorer, memSegScorer, nativeScorer)));
     }
 
     public void testSimpleOffHeapSize() throws IOException {

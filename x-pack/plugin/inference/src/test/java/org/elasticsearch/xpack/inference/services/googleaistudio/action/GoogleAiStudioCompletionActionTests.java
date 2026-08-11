@@ -12,6 +12,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.breaker.TestCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -25,11 +26,13 @@ import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SingleInputSenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
+import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
-import org.elasticsearch.xpack.inference.services.googleaistudio.GoogleAiStudioCompletionRequestManager;
+import org.elasticsearch.xpack.inference.services.googleaistudio.GoogleAiStudioService;
 import org.elasticsearch.xpack.inference.services.googleaistudio.completion.GoogleAiStudioCompletionModelTests;
+import org.elasticsearch.xpack.inference.services.googleaistudio.request.GoogleAiStudioCompletionRequest;
 import org.junit.After;
 import org.junit.Before;
 
@@ -63,7 +66,13 @@ public class GoogleAiStudioCompletionActionTests extends ESTestCase {
     public void init() throws Exception {
         webServer.start();
         threadPool = createThreadPool(inferenceUtilityExecutors());
-        clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
+        clientManager = HttpClientManager.create(
+            Settings.EMPTY,
+            threadPool,
+            mockClusterServiceEmpty(),
+            mock(ThrottlerManager.class),
+            new TestCircuitBreaker()
+        );
     }
 
     @After
@@ -258,13 +267,20 @@ public class GoogleAiStudioCompletionActionTests extends ESTestCase {
 
     private ExecutableAction createAction(String url, String apiKey, String modelName, Sender sender) {
         var model = GoogleAiStudioCompletionModelTests.createModel(modelName, url, apiKey);
-        var requestManager = new GoogleAiStudioCompletionRequestManager(model, threadPool);
-        var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage("Google AI Studio completion");
+        var requestManager = new GenericRequestManager<>(
+            threadPool,
+            model,
+            GoogleAiStudioService.COMPLETION_HANDLER,
+            (chatCompletionInput) -> new GoogleAiStudioCompletionRequest(chatCompletionInput, model),
+            ChatCompletionInput.class
+        );
+
+        var serviceErrorString = "Google AI Studio completion";
         return new SingleInputSenderExecutableAction(
             sender,
             requestManager,
-            failedToSendRequestErrorMessage,
-            "Google AI Studio completion"
+            constructFailedToSendRequestMessage(serviceErrorString),
+            serviceErrorString
         );
     }
 

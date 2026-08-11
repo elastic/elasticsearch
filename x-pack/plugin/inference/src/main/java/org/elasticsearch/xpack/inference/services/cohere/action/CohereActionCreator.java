@@ -73,7 +73,7 @@ public class CohereActionCreator implements CohereActionVisitor {
 
     @Override
     public ExecutableAction create(CohereEmbeddingsModel model, Map<String, Object> taskSettings) {
-        var overriddenModel = CohereEmbeddingsModel.of(model, taskSettings);
+        var overriddenModel = CohereEmbeddingsModel.createWithOverriddenTaskSettings(model, taskSettings);
 
         Function<EmbeddingsInput, OutboundRequest> requestCreator = inferenceInputs -> {
             var requestInputType = InputType.isSpecified(inferenceInputs.getInputType())
@@ -99,7 +99,7 @@ public class CohereActionCreator implements CohereActionVisitor {
 
     @Override
     public ExecutableAction create(CohereRerankModel model, Map<String, Object> taskSettings) {
-        var overriddenModel = CohereRerankModel.of(model, taskSettings);
+        var overriddenModel = CohereRerankModel.createWithOverriddenTaskSettings(model, taskSettings);
 
         Function<QueryAndDocsInputs, OutboundRequest> requestCreator = inferenceInputs -> switch (overriddenModel.getServiceSettings()
             .apiVersion()) {

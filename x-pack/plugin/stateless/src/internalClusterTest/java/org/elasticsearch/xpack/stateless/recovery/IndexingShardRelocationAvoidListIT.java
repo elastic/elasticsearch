@@ -23,7 +23,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.IndexShardNotRecoveringException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -440,7 +439,7 @@ public class IndexingShardRelocationAvoidListIT extends AbstractStatelessPluginI
 
         safeAwait(enteredLatch, TimeValue.timeValueSeconds(30));
 
-        final long preMergeMaxFlushGen = sourceCommitService.getMaxGenerationToUploadForFlush(sourceShard.shardId());
+        final long preMergeMaxFlushGen = sourceCommitService.getMaxPendingOrUploadedGeneration(sourceShard.shardId());
 
         // Fire force merge asynchronously. The merge itself plus onCommitCreation (which adds the
         // phantom BlobReference to primaryTermAndGenToBlobReference) will complete, but the
@@ -453,10 +452,10 @@ public class IndexingShardRelocationAvoidListIT extends AbstractStatelessPluginI
         // entry to primaryTermAndGenToBlobReference) but before waitForCommitDurability (which blocks
         // because pauseUpload prevents the upload of generations > maxGenerationToUpload).
         assertBusy(() -> {
-            assertThat(sourceCommitService.getMaxGenerationToUploadForFlush(sourceShard.shardId()), greaterThan(preMergeMaxFlushGen));
+            assertThat(sourceCommitService.getMaxPendingOrUploadedGeneration(sourceShard.shardId()), greaterThan(preMergeMaxFlushGen));
         });
 
-        final long phantomGeneration = sourceCommitService.getMaxGenerationToUploadForFlush(sourceShard.shardId());
+        final long phantomGeneration = sourceCommitService.getMaxPendingOrUploadedGeneration(sourceShard.shardId());
 
         blockerLatch.countDown();
 
@@ -485,18 +484,6 @@ public class IndexingShardRelocationAvoidListIT extends AbstractStatelessPluginI
 
         public AvoidListTestStatelessPlugin(Settings settings) {
             super(settings);
-        }
-
-        @Override
-        public Collection<Object> createComponents(PluginServices services) {
-            final Collection<Object> components = super.createComponents(services);
-            components.add(
-                new PluginComponentBinding<>(
-                    StatelessCommitService.class,
-                    components.stream().filter(c -> c instanceof StatelessCommitService).findFirst().orElseThrow()
-                )
-            );
-            return components;
         }
 
         @Override

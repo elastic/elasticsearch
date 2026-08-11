@@ -10,15 +10,27 @@ package org.elasticsearch.xpack.spatial.datageneration;
 import org.elasticsearch.datageneration.datasource.DataSourceHandler;
 import org.elasticsearch.datageneration.datasource.DataSourceRequest;
 import org.elasticsearch.datageneration.datasource.DataSourceResponse;
+import org.elasticsearch.datageneration.datasource.DefaultMappingParametersHandler;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.ShapeType;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.spatial.util.GeoTestUtils;
 
 import java.util.HashMap;
 
 public class GeoShapeDataSourceHandler implements DataSourceHandler {
+    private final IndexMode indexMode;
+
+    public GeoShapeDataSourceHandler() {
+        this(IndexMode.STANDARD);
+    }
+
+    public GeoShapeDataSourceHandler(IndexMode indexMode) {
+        this.indexMode = indexMode;
+    }
+
     @Override
     public DataSourceResponse.GeoShapeGenerator handle(DataSourceRequest.GeoShapeGenerator request) {
         return new DataSourceResponse.GeoShapeGenerator(this::generateValidGeoShape);
@@ -32,9 +44,9 @@ public class GeoShapeDataSourceHandler implements DataSourceHandler {
 
         return new DataSourceResponse.LeafMappingParametersGenerator(() -> {
             var map = new HashMap<String, Object>();
-            map.put("store", ESTestCase.randomBoolean());
+            map.put("store", DefaultMappingParametersHandler.storeParam(indexMode));
             map.put("index", ESTestCase.randomBoolean());
-            map.put("doc_values", ESTestCase.randomBoolean());
+            map.put("doc_values", DefaultMappingParametersHandler.docValuesParam(indexMode));
 
             if (ESTestCase.randomBoolean()) {
                 map.put("ignore_malformed", ESTestCase.randomBoolean());

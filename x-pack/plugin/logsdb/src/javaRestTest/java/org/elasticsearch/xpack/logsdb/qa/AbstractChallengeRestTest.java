@@ -19,7 +19,6 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -55,8 +54,6 @@ public abstract class AbstractChallengeRestTest extends ESRestTestCase {
         .distribution(DistributionType.DEFAULT)
         .module("data-streams")
         .module("x-pack-stack")
-        .feature(FeatureFlag.EXTENDED_DOC_VALUES_PARAMS)
-        .feature(FeatureFlag.COLUMNAR_INDEX_MODE_FEATURE_FLAG)
         .user(USER, PASS)
         .setting("xpack.security.autoconfiguration.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")

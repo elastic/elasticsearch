@@ -43,17 +43,17 @@ public class MeterRegistryConcurrencyTests extends ESTestCase {
 
         @Override
         public LongUpDownCounterBuilder upDownCounterBuilder(String name) {
-            return null;
+            return noopMeter.upDownCounterBuilder(name);
         }
 
         @Override
         public DoubleHistogramBuilder histogramBuilder(String name) {
-            return null;
+            return noopMeter.histogramBuilder(name);
         }
 
         @Override
         public DoubleGaugeBuilder gaugeBuilder(String name) {
-            return null;
+            return noopMeter.gaugeBuilder(name);
         }
     };
 

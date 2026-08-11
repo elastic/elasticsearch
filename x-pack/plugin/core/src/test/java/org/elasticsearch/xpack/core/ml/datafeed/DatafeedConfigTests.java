@@ -58,6 +58,8 @@ import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig.Mode;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
+import org.elasticsearch.xpack.core.security.cloud.CloudCredentialsExtension;
 import org.elasticsearch.xpack.core.security.cloud.PersistedCloudCredential;
 
 import java.io.IOException;
@@ -73,6 +75,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfigBuilderTests.createRandomizedDatafeedConfigBuilder;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_AGGREGATIONS_INTERVAL_MUST_BE_GREATER_THAN_ZERO;
 import static org.elasticsearch.xpack.core.ml.utils.QueryProviderTests.createTestQueryProvider;
+import static org.elasticsearch.xpack.core.security.cloud.CloudCredentialTestUtils.randomPersistedCloudCredential;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -81,6 +84,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -960,7 +964,7 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
     @Override
     protected DatafeedConfig mutateInstance(DatafeedConfig instance) {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder(instance);
-        switch (between(0, 14)) {
+        switch (between(0, CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled() ? 14 : 12)) {
             case 0:
                 builder.setId(instance.getId() + randomValidDatafeedId());
                 break;
@@ -1060,19 +1064,17 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
                 }
                 break;
             case 13:
-                if (instance.getProjectRouting() == null && DatafeedConfig.DATAFEED_CROSS_PROJECT.isEnabled()) {
-                    builder.setProjectRouting("_alias:" + randomAlphaOfLengthBetween(1, 10) + "-*");
+                if (instance.getCloudInternalCredential() == null) {
+                    builder.setCloudInternalCredential(randomPersistedCloudCredential());
                 } else {
-                    builder.setProjectRouting(null);
+                    builder.setCloudInternalCredential(null);
                 }
                 break;
             case 14:
-                if (instance.getCloudInternalCredential() == null) {
-                    builder.setCloudInternalCredential(
-                        new PersistedCloudCredential(randomAlphaOfLength(10), new SecureString(randomAlphaOfLength(20).toCharArray()))
-                    );
+                if (instance.getProjectRouting() == null) {
+                    builder.setProjectRouting("_alias:" + randomAlphaOfLengthBetween(1, 10) + "-*");
                 } else {
-                    builder.setCloudInternalCredential(null);
+                    builder.setProjectRouting(null);
                 }
                 break;
             default:
@@ -1099,7 +1101,7 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
      * disabled) is validated at runtime and in integration tests.
      */
     public void testProjectRoutingRespectsFeatureFlag() {
-        assumeTrue("CPS feature flag must be enabled", DatafeedConfig.DATAFEED_CROSS_PROJECT.isEnabled());
+        assumeTrue("CPS feature flag must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("test-datafeed", "test-job");
         builder.setIndices(List.of("logs-*"));
         builder.setProjectRouting("_alias:prod-*");
@@ -1110,7 +1112,7 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
 
     public void testProjectRoutingParsing() throws IOException {
         // Skip test if feature flag is disabled
-        assumeTrue("CPS feature flag must be enabled", DatafeedConfig.DATAFEED_CROSS_PROJECT.isEnabled());
+        assumeTrue("CPS feature flag must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
 
         String json = """
             {
@@ -1177,7 +1179,7 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
 
     public void testProjectRoutingRoundTripXContent() throws IOException {
         // Skip test if feature flag is disabled
-        assumeTrue("CPS feature flag must be enabled", DatafeedConfig.DATAFEED_CROSS_PROJECT.isEnabled());
+        assumeTrue("CPS feature flag must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
 
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("test-datafeed", "test-job");
         builder.setIndices(List.of("logs-*"));
@@ -1287,7 +1289,7 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
     }
 
     public void testWithCrossProjectModeIfEnabled_GivenCrossProjectEnabledAndNotAlreadySet() {
-        assumeTrue("CPS feature flag must be enabled", DatafeedConfig.DATAFEED_CROSS_PROJECT.isEnabled());
+        assumeTrue("CPS feature flag must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
         builder.setIndices(List.of("index1"));
         // Explicitly set IndicesOptions without CPS enabled
@@ -1307,7 +1309,7 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
     }
 
     public void testWithCrossProjectModeIfEnabled_GivenCrossProjectEnabledAndAlreadySet() {
-        assumeTrue("CPS feature flag must be enabled", DatafeedConfig.DATAFEED_CROSS_PROJECT.isEnabled());
+        assumeTrue("CPS feature flag must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
         builder.setIndices(List.of("index1"));
         // Set IndicesOptions with CPS already enabled
@@ -1348,7 +1350,7 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
     }
 
     public void testWithCrossProjectModeIfEnabled_GivenFeatureFlagEnabled_AndClusterCpsEnabled_Flips() {
-        assumeTrue("CPS feature flag must be enabled", DatafeedConfig.DATAFEED_CROSS_PROJECT.isEnabled());
+        assumeTrue("CPS feature flag must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
         builder.setIndices(List.of("index1"));
         builder.setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN);
@@ -1382,7 +1384,7 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
     }
 
     public void testWithCrossProjectModeIfEnabled_GivenCrossProjectModeDeciderThrowsException() {
-        assumeTrue("CPS feature flag must be enabled", DatafeedConfig.DATAFEED_CROSS_PROJECT.isEnabled());
+        assumeTrue("CPS feature flag must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
         DatafeedConfig datafeed = createTestInstance();
         org.elasticsearch.search.crossproject.CrossProjectModeDecider decider =
             new org.elasticsearch.search.crossproject.CrossProjectModeDecider(Settings.EMPTY) {
@@ -1397,7 +1399,7 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
     }
 
     public void testWithCrossProjectModeIfEnabled_PreservesAllDatafeedProperties() {
-        assumeTrue("CPS feature flag must be enabled", DatafeedConfig.DATAFEED_CROSS_PROJECT.isEnabled());
+        assumeTrue("CPS feature flag must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
         // Create a datafeed with various properties set
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
         builder.setIndices(List.of("index1", "index2"));
@@ -1426,7 +1428,7 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
     }
 
     public void testWithCrossProjectModeIfEnabled_WithProjectQualifiedIndices() {
-        assumeTrue("CPS feature flag must be enabled", DatafeedConfig.DATAFEED_CROSS_PROJECT.isEnabled());
+        assumeTrue("CPS feature flag must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
         // Test with project-qualified index patterns (e.g., "project:index")
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
         // Mix of regular and project-qualified indices
@@ -1448,7 +1450,7 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
     }
 
     public void testWithCrossProjectModeIfEnabled_WithWildcardIndices() {
-        assumeTrue("CPS feature flag must be enabled", DatafeedConfig.DATAFEED_CROSS_PROJECT.isEnabled());
+        assumeTrue("CPS feature flag must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
         // Test with wildcard patterns
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
         builder.setIndices(List.of("logs-*", "metrics-*", "*-archive"));
@@ -1508,7 +1510,7 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
     }
 
     public void testCloudInternalApiKeyPersistedForInternalStorage() throws IOException {
-        PersistedCloudCredential cred = new PersistedCloudCredential("key-id", new SecureString("secret-value".toCharArray()));
+        PersistedCloudCredential cred = randomPersistedCloudCredential();
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("test-datafeed", "test-job");
         builder.setIndices(List.of("logs-*"));
         builder.setCloudInternalCredential(cred);
@@ -1537,8 +1539,62 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
         assertThat(config.getCloudInternalCredential(), nullValue());
     }
 
+    public void testCloudApiKeyIdVisibleOnPublicGet() throws IOException {
+        PersistedCloudCredential cred = randomPersistedCloudCredential("key-id");
+        DatafeedConfig uiamConfig = new DatafeedConfig.Builder("uiam-datafeed", "test-job").setIndices(List.of("logs-*"))
+            .setCloudInternalCredential(cred)
+            .build();
+        Map<String, Object> uiamSerialized = XContentHelper.convertToMap(
+            XContentHelper.toXContent(uiamConfig, XContentType.JSON, ToXContent.EMPTY_PARAMS, false),
+            false,
+            XContentType.JSON
+        ).v2();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> authorization = (Map<String, Object>) uiamSerialized.get("authorization");
+        assertThat(authorization, notNullValue());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> cloudApiKey = (Map<String, Object>) authorization.get("cloud_api_key");
+        assertThat(cloudApiKey, notNullValue());
+        assertThat(cloudApiKey.get("id"), equalTo("key-id"));
+
+        PersistedCloudCredential mintedCred = randomPersistedCloudCredential("minted-id");
+        Map<String, String> callerHeaders = Map.of(AuthenticationField.AUTHENTICATION_KEY, "encoded-auth");
+        DatafeedConfig mintedWithCallerHeaders = new DatafeedConfig.Builder("minted-datafeed", "test-job").setIndices(List.of("logs-*"))
+            .setHeaders(callerHeaders)
+            .setCloudInternalCredential(mintedCred)
+            .build();
+        BytesReference mintedXContent = XContentHelper.toXContent(
+            mintedWithCallerHeaders,
+            XContentType.JSON,
+            ToXContent.EMPTY_PARAMS,
+            false
+        );
+        String mintedJson = mintedXContent.utf8ToString();
+        int authorizationFieldIndex = mintedJson.indexOf("\"authorization\"");
+        assertThat(authorizationFieldIndex, greaterThanOrEqualTo(0));
+        assertThat(mintedJson.lastIndexOf("\"authorization\""), equalTo(authorizationFieldIndex));
+        Map<String, Object> mintedSerialized = XContentHelper.convertToMap(
+            XContentHelper.toXContent(mintedWithCallerHeaders, XContentType.JSON, ToXContent.EMPTY_PARAMS, false),
+            false,
+            XContentType.JSON
+        ).v2();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> mintedAuthorization = (Map<String, Object>) mintedSerialized.get("authorization");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> mintedCloudApiKey = (Map<String, Object>) mintedAuthorization.get("cloud_api_key");
+        assertThat(mintedCloudApiKey.get("id"), equalTo("minted-id"));
+
+        DatafeedConfig neitherConfig = new DatafeedConfig.Builder("neither-datafeed", "test-job").setIndices(List.of("logs-*")).build();
+        Map<String, Object> neitherSerialized = XContentHelper.convertToMap(
+            XContentHelper.toXContent(neitherConfig, XContentType.JSON, ToXContent.EMPTY_PARAMS, false),
+            false,
+            XContentType.JSON
+        ).v2();
+        assertThat(neitherSerialized.containsKey("authorization"), is(false));
+    }
+
     public void testCloudInternalApiKeyCopyConstructor() {
-        PersistedCloudCredential cred = new PersistedCloudCredential("key-id", new SecureString("api-key-value".toCharArray()));
+        PersistedCloudCredential cred = randomPersistedCloudCredential();
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("test-datafeed", "test-job");
         builder.setIndices(List.of("logs-*"));
         builder.setCloudInternalCredential(cred);
@@ -1550,7 +1606,7 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
     }
 
     public void testCloudInternalApiKeySerialization() throws IOException {
-        PersistedCloudCredential cred = new PersistedCloudCredential("key-id", new SecureString("test-api-key-encoded".toCharArray()));
+        PersistedCloudCredential cred = randomPersistedCloudCredential();
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("test-datafeed", "test-job");
         builder.setIndices(List.of("logs-*"));
         builder.setCloudInternalCredential(cred);
@@ -1570,14 +1626,14 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
     }
 
     public void testCloseReleasesCloudInternalCredentialAndIsIdempotent() {
-        PersistedCloudCredential cred = new PersistedCloudCredential("key-id", new SecureString("secret".toCharArray()));
+        PersistedCloudCredential cred = PersistedCloudCredential.plaintext("key-id", new SecureString("secret".toCharArray()));
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("test-datafeed", "test-job");
         builder.setIndices(List.of("logs-*"));
         builder.setCloudInternalCredential(cred);
         DatafeedConfig config = builder.build();
 
         config.close();
-        expectThrows(IllegalStateException.class, () -> cred.internalApiKey().length());
+        expectThrows(IllegalStateException.class, "SecureString has already been closed", () -> cred.internalApiKey().length());
         config.close();
     }
 

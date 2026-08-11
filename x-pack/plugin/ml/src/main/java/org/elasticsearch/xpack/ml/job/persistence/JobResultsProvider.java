@@ -197,14 +197,14 @@ public class JobResultsProvider {
      */
     public void checkForLeftOverDocuments(Job job, ActionListener<Boolean> listener) {
 
-        SearchRequestBuilder stateDocSearch = client.prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern())
+        SearchRequestBuilder stateDocSearch = client.prepareSearch(AnomalyDetectorsIndex.jobStateIndexPatterns())
             .setQuery(
                 QueryBuilders.idsQuery().addIds(CategorizerState.documentId(job.getId(), 1), CategorizerState.v54DocumentId(job.getId(), 1))
             )
             .setTrackTotalHits(false)
             .setIndicesOptions(IndicesOptions.strictExpand());
 
-        SearchRequestBuilder quantilesDocSearch = client.prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern())
+        SearchRequestBuilder quantilesDocSearch = client.prepareSearch(AnomalyDetectorsIndex.jobStateIndexPatterns())
             .setQuery(QueryBuilders.idsQuery().addIds(Quantiles.documentId(job.getId()), Quantiles.v54DocumentId(job.getId())))
             .setTrackTotalHits(false)
             .setIndicesOptions(IndicesOptions.strictExpand());
@@ -737,8 +737,6 @@ public class JobResultsProvider {
 
         AutodetectParams.Builder paramsBuilder = new AutodetectParams.Builder(job.getId());
         String resultsIndex = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
-        String stateIndex = AnomalyDetectorsIndex.jobStateIndexPattern();
-
         MultiSearchRequestBuilder msearch = client.prepareMultiSearch()
             .add(createLatestDataCountsSearch(resultsIndex, jobId))
             .add(createLatestModelSizeStatsSearch(resultsIndex))
@@ -746,7 +744,7 @@ public class JobResultsProvider {
 
         if (snapshotId != null) {
             msearch.add(createDocIdSearch(resultsIndex, ModelSnapshot.documentId(jobId, snapshotId)));
-            msearch.add(createDocIdSearch(stateIndex, Quantiles.documentId(jobId)));
+            msearch.add(createDocIdSearch(AnomalyDetectorsIndex.jobStateIndexPatterns(), Quantiles.documentId(jobId)));
         }
 
         for (String filterId : job.getAnalysisConfig().extractReferencedFilters()) {
@@ -812,7 +810,11 @@ public class JobResultsProvider {
     }
 
     private SearchRequestBuilder createDocIdSearch(String index, String id) {
-        return client.prepareSearch(index)
+        return createDocIdSearch(new String[] { index }, id);
+    }
+
+    private SearchRequestBuilder createDocIdSearch(String[] indices, String id) {
+        return client.prepareSearch(indices)
             .setSize(1)
             .setIndicesOptions(IndicesOptions.lenientExpandOpen())
             .setQuery(QueryBuilders.idsQuery().addIds(id))

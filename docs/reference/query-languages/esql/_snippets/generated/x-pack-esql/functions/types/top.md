@@ -9,31 +9,51 @@
 | date | integer | keyword | date | date |
 | date | integer | keyword | double | double |
 | date | integer | keyword | integer | integer |
+| date | integer | keyword | keyword | keyword |
 | date | integer | keyword | long | long |
+| date | integer | keyword | text | keyword |
 | date | integer | keyword | | date |
 | date | integer | | | date |
 | double | integer | keyword | date | date |
 | double | integer | keyword | double | double |
 | double | integer | keyword | integer | integer |
+| double | integer | keyword | keyword | keyword |
 | double | integer | keyword | long | long |
+| double | integer | keyword | text | keyword |
 | double | integer | keyword | | double |
 | double | integer | | | double |
 | integer | integer | keyword | date | date |
 | integer | integer | keyword | double | double |
 | integer | integer | keyword | integer | integer |
+| integer | integer | keyword | keyword | keyword |
 | integer | integer | keyword | long | long |
+| integer | integer | keyword | text | keyword |
 | integer | integer | keyword | | integer |
 | integer | integer | | | integer |
 | ip | integer | keyword | | ip |
 | ip | integer | | | ip |
+| keyword | integer | keyword | date | date |
+| keyword | integer | keyword | double | double |
+| keyword | integer | keyword | integer | integer |
+| keyword | integer | keyword | keyword | keyword |
+| keyword | integer | keyword | long | long |
+| keyword | integer | keyword | text | keyword |
 | keyword | integer | keyword | | keyword |
 | keyword | integer | | | keyword |
 | long | integer | keyword | date | date |
 | long | integer | keyword | double | double |
 | long | integer | keyword | integer | integer |
+| long | integer | keyword | keyword | keyword |
 | long | integer | keyword | long | long |
+| long | integer | keyword | text | keyword |
 | long | integer | keyword | | long |
 | long | integer | | | long |
+| text | integer | keyword | date | date |
+| text | integer | keyword | double | double |
+| text | integer | keyword | integer | integer |
+| text | integer | keyword | keyword | keyword |
+| text | integer | keyword | long | long |
+| text | integer | keyword | text | keyword |
 | text | integer | keyword | | keyword |
 | text | integer | | | keyword |
 

@@ -12,6 +12,7 @@ import org.elasticsearch.common.logging.activity.ActivityLogProducer;
 import org.elasticsearch.common.logging.activity.QueryLogging;
 import org.elasticsearch.index.ActionLoggingFields;
 
+import java.util.Map;
 import java.util.Optional;
 
 public class SqlLogProducer implements ActivityLogProducer<SqlLogContext> {
@@ -20,6 +21,10 @@ public class SqlLogProducer implements ActivityLogProducer<SqlLogContext> {
     public Optional<ESLogMessage> produce(SqlLogContext context, ActionLoggingFields additionalFields) {
         ESLogMessage msg = produceCommon(context, QueryLogging.ES_QUERY_FIELDS_PREFIX, additionalFields);
         context.getFilter().ifPresent(filter -> msg.field(QueryLogging.QUERY_FIELD_FILTER, filter));
+        var params = context.params();
+        if (params.isEmpty() == false) {
+            msg.field(QueryLogging.QUERY_FIELD_PARAMS, Map.of(QueryLogging.QUERY_FIELD_PARAM_POSITIONAL, params));
+        }
         return Optional.of(
             msg.field(QueryLogging.QUERY_FIELD_QUERY, context.getQuery())
                 .field(QueryLogging.QUERY_FIELD_RESULT_COUNT, context.getResultCount())

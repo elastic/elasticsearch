@@ -20,6 +20,7 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
+/** A REST action that crashes the JVM by freeing invalid memory via {@code sun.misc.Unsafe}. */
 public class RestJvmCrashAction implements RestHandler {
 
     // Turns out, it's actually quite hard to get the JVM to crash...

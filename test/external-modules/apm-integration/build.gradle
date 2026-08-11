@@ -11,6 +11,7 @@ import org.elasticsearch.gradle.util.GradleUtils
 
 apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-test-artifact'
 
 esplugin {
   description = 'Apm integration plugin'
@@ -43,15 +44,18 @@ dependencies {
   testRuntimeOnly "io.grpc:grpc-core:1.78.0"
   testRuntimeOnly "io.grpc:grpc-protobuf:1.78.0"
   testRuntimeOnly "io.netty:netty-codec-http2:${versions.netty}"
+  testRuntimeOnly "io.netty:netty-handler-proxy:${versions.netty}"
   testRuntimeOnly "com.google.guava:guava:33.4.0-jre"
   testRuntimeOnly "com.google.guava:failureaccess:1.0.2"
   // gRPC server-side deps for RecordingApmServer (version aligned with :x-pack:plugin:esql-datasource-grpc)
   javaRestTestImplementation "io.grpc:grpc-api:1.78.0"
   javaRestTestImplementation "io.grpc:grpc-protobuf:1.78.0"
   javaRestTestImplementation "io.grpc:grpc-stub:1.78.0"
-  javaRestTestRuntimeOnly "io.grpc:grpc-netty:1.78.0"
+  javaRestTestImplementation "io.grpc:grpc-netty:1.78.0"
+  javaRestTestImplementation project(':test:fixtures:tls-utils')
   javaRestTestRuntimeOnly "io.grpc:grpc-core:1.78.0"
   javaRestTestRuntimeOnly "io.netty:netty-codec-http2:${versions.netty}"
+  javaRestTestRuntimeOnly "io.netty:netty-handler-proxy:${versions.netty}"
   javaRestTestRuntimeOnly "com.google.guava:guava:33.4.0-jre" // required by grpc-java (unrelated to the okhttp sender used on the ES side)
   javaRestTestRuntimeOnly "com.google.guava:failureaccess:1.0.2"
 }

@@ -58,6 +58,7 @@ public class TextEmbedding extends InferenceFunction<TextEmbedding> implements O
 
     @FunctionInfo(
         returnType = "dense_vector",
+        briefSummary = "Generates dense vector embeddings from text input using an inference endpoint.",
         description = "Generates dense vector embeddings from text input using a specified "
             + "[inference endpoint](docs-content://explore-analyze/elastic-inference/inference-api.md). "
             + "Use this function to generate query vectors for KNN searches against your vectorized data "

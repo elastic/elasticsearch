@@ -1,0 +1,4 @@
+SET unmapped_fields="nullify"; FROM partial_mapping_sample_data
+| FORK (DROP unmapped_message)
+       (WHERE true)
+| SORT @timestamp, _fork

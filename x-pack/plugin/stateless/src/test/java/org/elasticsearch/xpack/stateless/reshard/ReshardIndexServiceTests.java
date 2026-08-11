@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.SimpleBatchedExecutor;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingState;
@@ -23,10 +24,13 @@ import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
@@ -35,13 +39,16 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESTestCase;
 import org.mockito.ArgumentCaptor;
 
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_UUID_NA_VALUE;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
@@ -249,6 +256,41 @@ public class ReshardIndexServiceTests extends ESTestCase {
         var indexMetadata = IndexMetadata.builder(projectMetadata.index(shardId.getIndex())).reshardingMetadata(reshardingMetadata).build();
         var updatedProject = ProjectMetadata.builder(projectMetadata).put(indexMetadata, true).build();
         return ClusterState.builder(clusterState).putProjectMetadata(updatedProject).build();
+    }
+
+    public void testValidateIndexSupportsReshardableIndexModes() {
+        var projectId = randomProjectIdOrDefault();
+        var index = new Index("test-index", INDEX_UUID_NA_VALUE);
+
+        for (IndexMode indexMode : List.of(IndexMode.STANDARD, IndexMode.VECTORDB_DOCUMENT)) {
+            var indexMetadata = indexMetadataWithMode(projectId, index, indexMode);
+            IndexAbstraction indexAbstraction = projectMetadataWithIndex(projectId, indexMetadata).getIndicesLookup().get(index.getName());
+            assertThat(ReshardIndexService.validateIndex(indexAbstraction, indexMetadata), nullValue());
+        }
+    }
+
+    public void testValidateIndexRejectsNonReshardableIndexMode() {
+        var projectId = randomProjectIdOrDefault();
+        var index = new Index("lookup-index", INDEX_UUID_NA_VALUE);
+        var indexMetadata = indexMetadataWithMode(projectId, index, IndexMode.LOOKUP);
+        IndexAbstraction indexAbstraction = projectMetadataWithIndex(projectId, indexMetadata).getIndicesLookup().get(index.getName());
+
+        assertThat(
+            ReshardIndexService.validateIndex(indexAbstraction, indexMetadata),
+            equalTo(ReshardIndexService.ValidationError.INVALID_INDEX_MODE)
+        );
+    }
+
+    private static IndexMetadata indexMetadataWithMode(ProjectId projectId, Index index, IndexMode indexMode) {
+        Settings.Builder settings = indexSettings(IndexVersion.current(), 1, 0);
+        if (indexMode != IndexMode.STANDARD) {
+            settings.put(IndexSettings.MODE.getKey(), indexMode.getName());
+        }
+        return IndexMetadata.builder(index.getName()).settings(settings.build()).build();
+    }
+
+    private static ProjectMetadata projectMetadataWithIndex(ProjectId projectId, IndexMetadata indexMetadata) {
+        return ProjectMetadata.builder(projectId).put(indexMetadata, true).build();
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })

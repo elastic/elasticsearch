@@ -14,6 +14,7 @@ import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.UnicodeUtil;
+import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.simdvec.internal.vectorization.ESVectorUtilSupport;
 
 import java.io.IOException;
@@ -92,7 +93,71 @@ public class ESVectorUtil {
         return IMPL.dotProduct(a, b);
     }
 
+    /**
+     * Dot product of the first {@code length} components of {@code a} and {@code b}.
+     */
+    public static float dotProduct(float[] a, float[] b, int length) {
+        if (a.length != b.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible: " + a.length + "!= " + b.length);
+        }
+        Objects.checkFromIndexSize(0, length, a.length);
+        return IMPL.dotProduct(a, b, 0, length);
+    }
+
+    /**
+     * Dot product over {@code [offset, offset + length)}.
+     */
+    public static float dotProduct(float[] a, float[] b, int offset, int length) {
+        if (a.length != b.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible: " + a.length + "!= " + b.length);
+        }
+        Objects.checkFromIndexSize(offset, length, a.length);
+        return IMPL.dotProduct(a, b, offset, length);
+    }
+
+    /**
+     * L2-normalizes the prefix {@code v[0..length)} in place. Elements at indices {@code length} and
+     * beyond are left unchanged. A zero prefix is a no-op; unlike {@link VectorUtil#l2normalize(float[])},
+     * this method does not throw on a zero vector.
+     * @return the squared normalization factor
+     */
+    public static float l2Normalize(float[] v, int length) {
+        return l2Normalize(v, 0, length);
+    }
+
+    /**
+     * L2-normalizes {@code v[offset:offset + length)} in place. Elements outside the range are left
+     * unchanged. A zero range is a no-op.
+     * @return the squared normalization factor
+     */
+    public static float l2Normalize(float[] v, int offset, int length) {
+        if (length <= 0) {
+            return 0;
+        }
+        Objects.checkFromIndexSize(offset, length, v.length);
+        return IMPL.l2Normalize(v, offset, length);
+    }
+
+    /**
+     * L2-normalizes all components of {@code v} in place.
+     * @return the squared normalization factor
+     */
+    public static float l2Normalize(float[] v) {
+        return l2Normalize(v, 0, v.length);
+    }
+
     public static float squareDistance(float[] a, float[] b) {
+        if (a.length != b.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible: " + a.length + "!= " + b.length);
+        }
+        return IMPL.squareDistance(a, b);
+    }
+
+    /**
+     * Computes the squared Euclidean distance between a byte vector and a float vector.
+     * Each byte element is implicitly widened to float for the computation.
+     */
+    public static float squareDistance(byte[] a, float[] b) {
         if (a.length != b.length) {
             throw new IllegalArgumentException("vector dimensions incompatible: " + a.length + "!= " + b.length);
         }
@@ -119,6 +184,54 @@ public class ESVectorUtil {
             throw new IllegalArgumentException("vector dimensions incompatible: " + a.length + "!= " + b.length);
         }
         return IMPL.dotProduct(a, b);
+    }
+
+    /**
+     * Dot product of the first {@code length} components of {@code a} and {@code b}.
+     */
+    public static float dotProduct(byte[] a, byte[] b, int length) {
+        if (a.length != b.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible: " + a.length + "!= " + b.length);
+        }
+        Objects.checkFromIndexSize(0, length, a.length);
+        return IMPL.dotProduct(a, b, 0, length);
+    }
+
+    /**
+     * Dot product over {@code [offset, offset + length)}.
+     */
+    public static float dotProduct(byte[] a, byte[] b, int offset, int length) {
+        if (a.length != b.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible: " + a.length + "!= " + b.length);
+        }
+        Objects.checkFromIndexSize(offset, length, a.length);
+        return IMPL.dotProduct(a, b, offset, length);
+    }
+
+    /**
+     * L2-normalizes the prefix {@code v[0..length)} in place using signed byte values as real
+     * components. Elements at indices {@code length} and beyond are left unchanged. A zero prefix
+     * is a no-op.
+     */
+    public static void l2Normalize(byte[] v, int length) {
+        l2Normalize(v, 0, length);
+    }
+
+    /**
+     * L2-normalizes {@code v[offset:offset + length)} in place using signed byte values as real
+     * components. Elements outside the range are left unchanged. A zero range is a no-op.
+     */
+    public static void l2Normalize(byte[] v, int offset, int length) {
+        if (length <= 0) {
+            return;
+        }
+        Objects.checkFromIndexSize(offset, length, v.length);
+        IMPL.l2Normalize(v, offset, length);
+    }
+
+    /** L2-normalizes all components of {@code v} in place. */
+    public static void l2Normalize(byte[] v) {
+        l2Normalize(v, 0, v.length);
     }
 
     /**
@@ -180,13 +293,13 @@ public class ESVectorUtil {
         if (q.length != v0.length || q.length != v1.length || q.length != v2.length || q.length != v3.length) {
             throw new IllegalArgumentException("vector dimensions incompatible");
         }
-        if (distancesOffset < 0 || distancesOffset > distances.length - 4) {
-            throw new IllegalArgumentException("distancesOffset must be between 0 and distances.length - 4");
-        }
         if (distances.length < 4) {
             throw new IllegalArgumentException("distances array must have length >= 4, but was: " + distances.length);
         }
-        IMPL.squareDistanceBulk(q, v0, v1, v2, v3, distancesOffset, distances);
+        if (distancesOffset < 0 || distancesOffset > distances.length - 4) {
+            throw new IllegalArgumentException("distancesOffset must be between 0 and distances.length - 4");
+        }
+        IMPL.squareDistanceBulk(q, 0, v0, v1, v2, v3, distancesOffset, distances, q.length);
     }
 
     /**
@@ -209,7 +322,39 @@ public class ESVectorUtil {
             throw new IllegalArgumentException("distances array must have length 4, but was: " + distances.length);
         }
         Objects.checkFromIndexSize(qOffset, length, q.length);
-        IMPL.squareDistanceBulk(q, qOffset, length, v0, v1, v2, v3, 0, distances);
+        IMPL.squareDistanceBulk(q, qOffset, v0, v1, v2, v3, 0, distances, length);
+    }
+
+    /**
+     * Bulk computation of dot product from a byte query vector to four byte candidate vectors.
+     */
+    public static void dotProductBulk(byte[] q, byte[] v0, byte[] v1, byte[] v2, byte[] v3, int distancesOffset, float[] distances) {
+        if (q.length != v0.length || q.length != v1.length || q.length != v2.length || q.length != v3.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible");
+        }
+        if (distances.length < 4) {
+            throw new IllegalArgumentException("distances array must have length >= 4, but was: " + distances.length);
+        }
+        if (distancesOffset < 0 || distancesOffset > distances.length - 4) {
+            throw new IllegalArgumentException("distancesOffset must be between 0 and distances.length - 4");
+        }
+        IMPL.dotProductBulk(q, v0, v1, v2, v3, distancesOffset, distances);
+    }
+
+    /**
+     * Bulk computation of cosine similarity from a byte query vector to four byte candidate vectors.
+     */
+    public static void cosineBulk(byte[] q, byte[] v0, byte[] v1, byte[] v2, byte[] v3, int distancesOffset, float[] distances) {
+        if (q.length != v0.length || q.length != v1.length || q.length != v2.length || q.length != v3.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible");
+        }
+        if (distances.length < 4) {
+            throw new IllegalArgumentException("distances array must have length >= 4, but was: " + distances.length);
+        }
+        if (distancesOffset < 0 || distancesOffset > distances.length - 4) {
+            throw new IllegalArgumentException("distancesOffset must be between 0 and distances.length - 4");
+        }
+        IMPL.cosineBulk(q, v0, v1, v2, v3, distancesOffset, distances);
     }
 
     public static long ipByteBinByte(byte[] q, byte[] d) {
@@ -286,6 +431,14 @@ public class ESVectorUtil {
                 throw new RuntimeException(e);
             }
         }
+    }
+
+    /**
+     * Hamming similarity between two equal-length bit vectors, matching Lucene's
+     * {@code FlatBitVectorsScorer}: {@code (numBits - xorBitCount) / numBits}.
+     */
+    public static float hammingScore(byte[] a, byte[] b) {
+        return ((a.length * Byte.SIZE) - VectorUtil.xorBitCount(a, b)) / (float) (a.length * Byte.SIZE);
     }
 
     /** AND bit count striding over 4 bytes at a time. */
@@ -557,25 +710,43 @@ public class ESVectorUtil {
         int distancesOffset,
         float[] distances
     ) {
-        if (q.length != v0.length) {
-            throw new IllegalArgumentException("vector dimensions incompatible: " + q.length + "!=" + v0.length);
-        }
-        if (q.length != v1.length) {
-            throw new IllegalArgumentException("vector dimensions incompatible: " + q.length + "!=" + v1.length);
-        }
-        if (q.length != v2.length) {
-            throw new IllegalArgumentException("vector dimensions incompatible: " + q.length + "!=" + v2.length);
-        }
-        if (q.length != v3.length) {
-            throw new IllegalArgumentException("vector dimensions incompatible: " + q.length + "!=" + v3.length);
-        }
-        if (distancesOffset < 0 || distancesOffset > distances.length - 4) {
-            throw new IllegalArgumentException("distancesOffset must be between have length 0 and distances.length - 4");
+        if (q.length != v0.length || q.length != v1.length || q.length != v2.length || q.length != v3.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible");
         }
         if (distances.length < 4) {
             throw new IllegalArgumentException("distances array must have length >= 4, but was: " + distances.length);
         }
-        IMPL.squareDistanceBulk(q, v0, v1, v2, v3, distancesOffset, distances);
+        if (distancesOffset < 0 || distancesOffset > distances.length - 4) {
+            throw new IllegalArgumentException("distancesOffset must be between have length 0 and distances.length - 4");
+        }
+        IMPL.squareDistanceBulk(q, 0, v0, v1, v2, v3, distancesOffset, distances, q.length);
+    }
+
+    /**
+     * Bulk computation of square distances between a query vector and four vectors.Result is stored in the provided distances array.
+     *
+     * @param q the query vector
+     * @param v0 the first vector
+     * @param v1 the second vector
+     * @param v2 the third vector
+     * @param v3 the fourth vector
+     * @param distancesOffset offset to the location in the distances array where we want to store the 4 results,
+     *                        we require distancesOffset to be between 0 and distances.length - 4
+     * @param distances an array to store the computed square distances, must have length >= 4
+     *
+     * @throws IllegalArgumentException if the dimensions of the vectors do not match or if the distances array does not have length 4
+     */
+    public static void dotProductBulk(float[] q, float[] v0, float[] v1, float[] v2, float[] v3, int distancesOffset, float[] distances) {
+        if (q.length != v0.length || q.length != v1.length || q.length != v2.length || q.length != v3.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible");
+        }
+        if (distances.length < 4) {
+            throw new IllegalArgumentException("distances array must have length >= 4, but was: " + distances.length);
+        }
+        if (distancesOffset < 0 || distancesOffset > distances.length - 4) {
+            throw new IllegalArgumentException("distancesOffset must be between have length 0 and distances.length - 4");
+        }
+        IMPL.dotProductBulk(q, v0, v1, v2, v3, distancesOffset, distances);
     }
 
     public static void squareDistanceBulk(
@@ -588,23 +759,14 @@ public class ESVectorUtil {
         float[] v3,
         float[] distances
     ) {
-        if (q.length != v0.length) {
-            throw new IllegalArgumentException("vector dimensions incompatible: " + q.length + "!=" + v0.length);
-        }
-        if (q.length != v1.length) {
-            throw new IllegalArgumentException("vector dimensions incompatible: " + q.length + "!=" + v1.length);
-        }
-        if (q.length != v2.length) {
-            throw new IllegalArgumentException("vector dimensions incompatible: " + q.length + "!=" + v2.length);
-        }
-        if (q.length != v3.length) {
-            throw new IllegalArgumentException("vector dimensions incompatible: " + q.length + "!=" + v3.length);
+        if (q.length != v0.length || q.length != v1.length || q.length != v2.length || q.length != v3.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible");
         }
         if (distances.length != 4) {
             throw new IllegalArgumentException("distances array must have length 4, but was: " + distances.length);
         }
         Objects.checkFromIndexSize(qOffset, length, q.length);
-        IMPL.squareDistanceBulk(q, qOffset, length, v0, v1, v2, v3, 0, distances);
+        IMPL.squareDistanceBulk(q, qOffset, v0, v1, v2, v3, 0, distances, length);
     }
 
     /**
@@ -698,48 +860,67 @@ public class ESVectorUtil {
     }
 
     /**
+     * Narrows each of the first {@code len} ints to a byte by truncating to the low 8 bits,
+     * writing into {@code dst[0..len)}. No bounds check is performed; the caller must ensure
+     * {@code dst.length >= len}.
+     *
+     * @param src int array of quantized values
+     * @param dst byte array to receive the narrowed values
+     * @param len number of elements to convert
+     */
+    public static void packAsBytes(int[] src, byte[] dst, int len) {
+        for (int i = 0; i < len; i++) {
+            dst[i] = (byte) src[i];
+        }
+    }
+
+    /**
      * Packs the provided int array populated with "0" and "1" values into a byte array.
      *
      * @param vector the int array to pack, must contain only "0" and "1" values.
      * @param packed the byte array to store the packed result, must be large enough to hold the packed data.
      */
-    public static void packAsBinary(int[] vector, byte[] packed) {
+    public static void pack1BitValues(int[] vector, byte[] packed) {
         if (packed.length * Byte.SIZE < vector.length) {
             throw new IllegalArgumentException("packed array is too small: " + packed.length * Byte.SIZE + " < " + vector.length);
         }
-        IMPL.packAsBinary(vector, packed);
-    }
-
-    public static void packDibit(int[] vector, byte[] packed) {
-        if (packed.length * Byte.SIZE / 2 < vector.length) {
-            throw new IllegalArgumentException("packed array is too small: " + packed.length * Byte.SIZE / 2 + " < " + vector.length);
-        }
-        IMPL.packDibit(vector, packed);
-    }
-
-    public static void packDibitQuad(int[] vector, byte[] packed) {
-        if (packed.length * Byte.SIZE / 2 < vector.length) {
-            throw new IllegalArgumentException("packed array is too small: " + packed.length * Byte.SIZE / 2 + " < " + vector.length);
-        }
-        IMPL.packDibitQuad(vector, packed);
+        IMPL.pack1BitValues(vector, packed);
     }
 
     /**
-     * The idea here is to organize the query vector bits such that the first bit
-     * of every dimension is in the first set dimensions bits, or (dimensions/8) bytes. The second,
-     * third, and fourth bits are in the second, third, and fourth set of dimensions bits,
-     * respectively. This allows for direct bitwise comparisons with the stored index vectors through
-     * summing the bitwise results with the relative required bit shifts.
-     *
-     * @param q the query vector, assumed to be half-byte quantized with values between 0 and 15
-     * @param quantQueryByte the byte array to store the transposed query vector.
-     *
-     **/
-    public static void transposeHalfByte(int[] q, byte[] quantQueryByte) {
-        if (quantQueryByte.length * Byte.SIZE < 4 * q.length) {
-            throw new IllegalArgumentException("packed array is too small: " + quantQueryByte.length * Byte.SIZE + " < " + 4 * q.length);
+     * Stride 2-bit values into a byte array
+     * @param vector    The input vector, each value should be 0-3
+     * @param packed    The output bytes - the first MSB of all values first, followed by the second MSB
+     */
+    public static void stride2BitValues(int[] vector, byte[] packed) {
+        if (packed.length * Byte.SIZE / 2 < vector.length) {
+            throw new IllegalArgumentException("packed array is too small: " + packed.length * Byte.SIZE / 2 + " < " + vector.length);
         }
-        IMPL.transposeHalfByte(q, quantQueryByte);
+        IMPL.stride2BitValues(vector, packed);
+    }
+
+    /**
+     * Pack 2-bit values into a byte array
+     * @param vector    The input vector, each value should be 0-3
+     * @param packed    The output packed bytes, each byte containing 4 values concatenated together
+     */
+    public static void pack2BitValues(int[] vector, byte[] packed) {
+        if (packed.length * Byte.SIZE / 2 < vector.length) {
+            throw new IllegalArgumentException("packed array is too small: " + packed.length * Byte.SIZE / 2 + " < " + vector.length);
+        }
+        IMPL.pack2BitValues(vector, packed);
+    }
+
+    /**
+     * Stride 4-bit values into a byte array
+     * @param vector    The input vector, each value should be 0-15
+     * @param packed    The output bytes - the first MSB of all values first, followed by the second MSB, then the third, and the fourth
+     */
+    public static void stride4BitValues(int[] vector, byte[] packed) {
+        if (packed.length * Byte.SIZE < 4 * vector.length) {
+            throw new IllegalArgumentException("packed array is too small: " + packed.length * Byte.SIZE + " < " + 4 * vector.length);
+        }
+        IMPL.stride4BitValues(vector, packed);
     }
 
     /**
@@ -846,6 +1027,20 @@ public class ESVectorUtil {
     }
 
     /**
+     * Computes dest = scale * other + dest, widening byte src to float.
+     *
+     * @param scaleOther a multiplicative factor for src
+     * @param other the byte source vector (widened to float for computation)
+     * @param dest the destination float vector (modified in place)
+     */
+    public static void linearCombination(float scaleOther, byte[] other, float[] dest) {
+        if (other.length != dest.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + other.length + "!=" + dest.length);
+        }
+        IMPL.linearCombination(scaleOther, other, dest);
+    }
+
+    /**
      * Calculates an approximation of the LogSumExp of the input array in base 2.
      * The formula used is: log2(sum_i(pow(2, x[i]))).
      * This implementation uses the log-sum-exp trick for numerical stability and Not-Quite-Trascendental functions for speed.
@@ -895,5 +1090,26 @@ public class ESVectorUtil {
      */
     public static void inRangeBitmask(long[] values, long lowerValue, long upperValue, long[] matches) {
         IMPL.inRangeBitmask(values, lowerValue, upperValue, matches);
+    }
+
+    /**
+     * Transposes a matrix from (rows x cols) to (cols x rows).
+     */
+    public static float[][] transposeMatrix(float[][] m) {
+        assert m.length > 0;
+        return transposeMatrix(m, m.length, m[0].length);
+    }
+
+    /**
+     * Transposes a matrix from (rows x cols) to (cols x rows).
+     */
+    public static float[][] transposeMatrix(float[][] m, int rows, int cols) {
+        float[][] t = new float[cols][rows];
+        for (int i = 0; i < rows; i++) {
+            for (int j = 0; j < cols; j++) {
+                t[j][i] = m[i][j];
+            }
+        }
+        return t;
     }
 }

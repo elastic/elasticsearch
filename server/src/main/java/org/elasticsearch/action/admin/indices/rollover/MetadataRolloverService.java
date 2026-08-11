@@ -476,7 +476,7 @@ public class MetadataRolloverService {
             var index = projectBuilder.getSafe(indexName);
             final Settings originalSettings = index.getSettings();
             if (index.getCreationVersion().before(IndexVersions.FIRST_DETACHED_INDEX_VERSION)
-                && index.getIndexMode() == IndexMode.TIME_SERIES
+                && IndexMode.isTsdb(index.getIndexMode())
                 && originalSettings.keySet().contains(IndexSettings.TIME_SERIES_START_TIME.getKey()) == false
                 && originalSettings.keySet().contains(IndexSettings.TIME_SERIES_END_TIME.getKey()) == false) {
                 final Settings.Builder settingsBuilder = Settings.builder()

@@ -9,8 +9,10 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
 
@@ -104,24 +106,32 @@ public interface ColumnExtractor extends Releasable {
      * <p>
      * Returned blocks are owned by the caller; on partial failure, the implementation must
      * release any blocks it already built before propagating the exception.
+     * <p>
+     * {@code targetTypes} carries the planner/declared type per column so extraction honors the
+     * same declared-type coercion the eager decode paths run ({@code DeclaredTypeCoercions}): a
+     * column whose file type differs from its target coerces value-by-value (per-value failures
+     * null the cell and emit a response Warning header, bulk-API style). {@code null} — the whole
+     * array or an entry — means "emit the file's own type" (no coercion).
      *
      * @param columnNames   logical columns to load, in output order; must not contain
      *                      {@link #ROW_POSITION_COLUMN}
+     * @param targetTypes   planner/declared type per column, aligned with {@code columnNames};
+     *                      {@code null} (array or entry) disables coercion for that column
      * @param positions     row identities; every element is read
      * @param blockFactory  factory for breaker-aware allocation
      * @return one block per requested column, each with exactly {@code positions.length} values
      *         in caller order
      * @throws IOException if the format reader fails while satisfying the request
      */
-    Block[] extract(String[] columnNames, long[] positions, BlockFactory blockFactory) throws IOException;
+    Block[] extract(String[] columnNames, @Nullable DataType[] targetTypes, long[] positions, BlockFactory blockFactory) throws IOException;
 
     /**
      * Convenience overload for the common single-column case. Delegates to
-     * {@link #extract(String[], long[], BlockFactory)} so implementations only need to provide one
-     * code path.
+     * {@link #extract(String[], DataType[], long[], BlockFactory)} so implementations only need to
+     * provide one code path.
      */
     default Block extract(String columnName, long[] positions, BlockFactory blockFactory) throws IOException {
-        Block[] blocks = extract(new String[] { columnName }, positions, blockFactory);
+        Block[] blocks = extract(new String[] { columnName }, null, positions, blockFactory);
         if (blocks.length != 1) {
             Releasables.closeExpectNoException(blocks);
             throw new IllegalStateException("extract returned " + blocks.length + " blocks for one requested column");

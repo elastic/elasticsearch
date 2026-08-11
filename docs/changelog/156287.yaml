@@ -1,0 +1,6 @@
+area: Downsampling
+issues:
+ - 156276
+pr: 156287
+summary: "Downsample: fix duplicate field in cumulative histogram reset doc"
+type: bug

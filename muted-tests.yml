@@ -397,9 +397,6 @@ tests:
 - class: org.elasticsearch.xpack.transform.integration.continuous.TransformContinuousIT
   method: testContinuousEvents
   issue: https://github.com/elastic/elasticsearch/issues/153782
-- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardingPitSearchIT
-  method: testPitRelocationDuringReshard
-  issue: https://github.com/elastic/elasticsearch/issues/155284
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecChangePointIT
   method: test {csv-spec:change_point.values int column with all nulls}
   issue: https://github.com/elastic/elasticsearch/issues/155124
@@ -448,6 +445,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.RestEsqlIT
   method: testAutoPartitioning {SYNC}
   issue: https://github.com/elastic/elasticsearch/issues/156243
-- class: org.elasticsearch.search.profile.dfs.DfsProfilerIT
-  method: testProfileDfs
-  issue: https://github.com/elastic/elasticsearch/issues/156247
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecStatsIT
+  method: test {csv-spec:stats.sumWithOverflowRow}
+  issue: https://github.com/elastic/elasticsearch/issues/156388

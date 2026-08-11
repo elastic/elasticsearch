@@ -2078,6 +2078,12 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertThat(kibanaRole.indices().allowedIndicesMatcher(CreateDataStreamAction.NAME).test(indexAbstraction), is(true));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportBulkAction.NAME).test(indexAbstraction), is(true));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(indexAbstraction), is(true));
+            // manage is required for ensureMetadataDataStreamMappings() putMapping / rollover
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportPutMappingAction.TYPE.name()).test(indexAbstraction), is(true));
+            assertThat(
+                kibanaRole.indices().allowedIndicesMatcher(TransportAutoPutMappingAction.TYPE.name()).test(indexAbstraction),
+                is(true)
+            );
             assertViewIndexMetadata(kibanaRole, indexName);
         });
 

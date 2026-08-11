@@ -9,26 +9,33 @@ package org.elasticsearch.xpack.esql.score;
 
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.ScoreOperator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
 
 /**
- * Maps an expression tree into ExpressionScorer.Factory, so scores can be evaluated for an expression tree.
+ * Maps an expression tree into an {@link ExpressionEvaluator.Factory} that evaluates its scores.
  */
 public class ScoreMapper {
 
-    public static ScoreOperator.ExpressionScorer.Factory toScorer(
+    public static ExpressionEvaluator.Factory toScorer(
         Expression expression,
-        IndexedByShardId<? extends ShardContext> shardContexts
+        IndexedByShardId<? extends ShardContext> shardContexts,
+        EvaluatorMapper.ToEvaluator toEvaluator
     ) {
         if (expression instanceof ExpressionScoreMapper mapper && mapper.contributesToScore()) {
             return mapper.toScorer(new ExpressionScoreMapper.ToScorer() {
                 @Override
-                public ScoreOperator.ExpressionScorer.Factory toScorer(Expression expression) {
-                    return ScoreMapper.toScorer(expression, shardContexts);
+                public ExpressionEvaluator.Factory toScorer(Expression expression) {
+                    return ScoreMapper.toScorer(expression, shardContexts, toEvaluator);
+                }
+
+                @Override
+                public EvaluatorMapper.ToEvaluator toEvaluator() {
+                    return toEvaluator;
                 }
 
                 @Override
@@ -38,16 +45,21 @@ public class ScoreMapper {
             });
         }
 
-        return page -> new DefaultScoreMapper().get(page);
+        return new DefaultScoreMapper();
     }
 
-    public static class DefaultScoreMapper implements ScoreOperator.ExpressionScorer.Factory {
+    public static class DefaultScoreMapper implements ExpressionEvaluator.Factory {
         @Override
-        public ScoreOperator.ExpressionScorer get(DriverContext driverContext) {
-            return new ScoreOperator.ExpressionScorer() {
+        public ExpressionEvaluator get(DriverContext driverContext) {
+            return new ExpressionEvaluator() {
                 @Override
-                public DoubleBlock score(Page page) {
+                public DoubleBlock eval(Page page) {
                     return driverContext.blockFactory().newConstantDoubleBlockWith(0.0, page.getPositionCount());
+                }
+
+                @Override
+                public long baseRamBytesUsed() {
+                    return 0;
                 }
 
                 @Override

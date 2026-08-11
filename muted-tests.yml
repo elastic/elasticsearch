@@ -759,3 +759,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecStringIT
   method: test {csv-spec:string.mvStringNotEquals}
   issue: https://github.com/elastic/elasticsearch/issues/156498
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecStringIT
+  method: test {csv-spec:string.mvStringEqualsMultiValueConstant}
+  issue: https://github.com/elastic/elasticsearch/issues/156499

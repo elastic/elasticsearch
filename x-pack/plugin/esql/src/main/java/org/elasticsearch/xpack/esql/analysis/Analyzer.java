@@ -1140,9 +1140,17 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             boolean changed = newGroupings != aggregate.groupings() || newAggregates != aggregate.aggregates();
             LogicalPlan maybeNewAggregate = changed ? aggregate.with(aggregate.child(), newGroupings, newAggregates) : aggregate;
 
-            return maybeNewAggregate instanceof TimeSeriesAggregate ts && ts.timestamp() instanceof UnresolvedAttribute unresolvedTimestamp
-                ? ts.withTimestamp(maybeResolveAttribute(unresolvedTimestamp, childrenOutput))
-                : maybeNewAggregate;
+            if (maybeNewAggregate instanceof TimeSeriesAggregate ts && ts.timestamp() instanceof UnresolvedAttribute unresolvedTimestamp) {
+                Attribute resolved = maybeResolveAttribute(unresolvedTimestamp, childrenOutput);
+                // Only substitute the timestamp when resolution succeeded; a plain UnresolvedAttribute in childrenOutput
+                // (e.g. from an ENRICH WITH alias that maps to a non-existent policy field) must not silently replace
+                // the UnresolvedTimestamp — doing so loses the user-friendly error message and can cause a crash in
+                // postAnalysisVerification which calls dataType() on the result.
+                if (resolved.resolved()) {
+                    return ts.withTimestamp(resolved);
+                }
+            }
+            return maybeNewAggregate;
         }
 
         private List<Expression> maybeResolveGroupings(Aggregate aggregate, List<Attribute> childrenOutput) {
@@ -2506,7 +2514,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Set<String> names = new HashSet<>(attrList.size());
             for (var a : attrList) {
                 String nameCandidate = a.name();
-                if (DataType.isPrimitive(a.dataType())) {
+                if (a.resolved() && DataType.isPrimitive(a.dataType())) {
                     names.add(nameCandidate);
                 }
             }

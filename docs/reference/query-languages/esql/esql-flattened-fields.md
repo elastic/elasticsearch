@@ -26,16 +26,8 @@ make it nicer.
 Use `FIELD_EXTRACT` to pull a single sub-field out of a flattened root as a `keyword` column.
 The function takes the flattened field and the path as its arguments:
 
-```esql
-FROM flattened_otel_logs
-| WHERE @timestamp == "2020-01-01T00:02:48.461Z"
-| EVAL host.name = field_extract(resource.attributes, "host.name")
-| KEEP @timestamp, host.name
-```
-
-| @timestamp | host.name |
-|---|---|
-| 2020-01-01T00:02:48.461Z | infra-filebeat-6vjxr |
+:::{include} _snippets/generated/x-pack-esql/commands/examples/field_extract.csv-spec/field_extract_basic.md
+:::
 
 The second argument is the dotted path within the flattened field.
 
@@ -64,7 +56,7 @@ Numbers and booleans come back as their string representation — `"184896"`, `"
 Use casts to get different values:
 
 ```console
-PUT /flattened-demo
+PUT /flattened-cast-demo
 {
   "mappings": {
     "properties": {
@@ -72,14 +64,14 @@ PUT /flattened-demo
     }
   }
 }
-POST /flattened-demo/_doc?refresh
+POST /flattened-cast-demo/_doc?refresh
 {
   "attrs": { "b": false, "d": 1.2, "l": 123 }
 }
 POST /_query
 {
   "query": """
-FROM flattened-demo
+FROM flattened-cast-demo
 | EVAL b = FIELD_EXTRACT(attrs, "b")::BOOLEAN,
        d = FIELD_EXTRACT(attrs, "d")::DOUBLE,
        l = FIELD_EXTRACT(attrs, "l")::LONG
@@ -107,7 +99,7 @@ When you index a `flattened` field {{es}} "flattens" it. `{"a": {"b": "v"}}` bec
 `{"a.b": "v"}`. When you load the `flattened` with {{esql}} you get the flattened result:
 
 ```console
-PUT /flattened-demo
+PUT /flattened-keys-demo
 {
   "mappings": {
     "properties": {
@@ -117,12 +109,12 @@ PUT /flattened-demo
   }
 }
 
-POST /flattened-demo/_doc?refresh
+POST /flattened-keys-demo/_doc?refresh
 { "name": "nested", "attrs": { "a": { "b": "something" } } }
 
 POST /_query
 {
-  "query": "FROM flattened-demo"
+  "query": "FROM flattened-keys-demo"
 }
 ```
 
@@ -142,13 +134,13 @@ The `path` parameter of `FIELD_EXTRACT` operates on *exactly* that normalized pa
 So `{ "a.b": "something" }` is the same as `{ "a": { "b": "something" } }`:
 
 ```console
-POST /flattened-demo/_doc?refresh
+POST /flattened-keys-demo/_doc?refresh
 { "name": "pre-dotted","attrs": { "a.b": "something" } }
 
 POST /_query
 {
   "query": """
-    FROM flattened-demo
+    FROM flattened-keys-demo
     | EVAL ab = FIELD_EXTRACT(attrs, "a.b")
     | SORT name ASC
   """
@@ -171,27 +163,26 @@ POST /_query
 
 ## `FIELD_EXTRACT`ing an object returns `null`
 
-`FIELD_EXTRACT` can only extract *leaf* fields. If you point it an object, it'll return `null`.
+`FIELD_EXTRACT` can only extract *leaf* fields. If you point it at an object, it'll return `null`.
 Address the leaf directly — for example, `"http.request.body.size"` rather than `"http.request"`.
 
 ```console
-PUT /flattened-demo
+PUT /flattened-object-demo
 {
   "mappings": {
     "properties": {
-      "name":  { "type": "keyword" },
       "attrs": { "type": "flattened" }
     }
   }
 }
 
-POST /flattened-demo/_doc?refresh
+POST /flattened-object-demo/_doc?refresh
 { "attrs": { "a": { "b": "something" } } }
 
 POST /_query
 {
   "query": """
-FROM flattened-demo
+FROM flattened-object-demo
 | EVAL a = FIELD_EXTRACT(attrs, "a")
 """
 }

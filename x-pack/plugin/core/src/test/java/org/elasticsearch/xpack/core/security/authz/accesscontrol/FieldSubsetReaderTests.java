@@ -1059,7 +1059,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
                     wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
                     filter,
                     format,
-                    (fieldName) -> true
+                    (fieldName) -> mapper.mappers().getFieldType(fieldName) != null
                 )
             ) {
                 assertEquals("{\"keep\":[3,1,2]}", syntheticSource(mapper, indexReader, doc.docs().size() - 1));

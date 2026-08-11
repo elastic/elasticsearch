@@ -194,6 +194,22 @@ Deletion is reference-guarded, following the same Elasticsearch convention as co
 
 Same name = same logical account. There are no hidden generation IDs; auditability and revocation flow from the name, the roles, and the token set. After a default (guarded) delete, recreation starts credential-less; after a forced delete, it restores the surviving token set.
 
+### Short-lived credentials (API keys)
+
+Service account bearer tokens have no expiration. For workloads that need a bounded credential lifetime, a managed account can mint Elasticsearch API keys through the existing API key endpoints; no new API is required. This is opt-in: the account must be assigned a role that grants the relevant cluster privilege.
+
+#### Self-mint
+
+An account whose assigned roles include `manage_own_api_key` can call `POST /_security/api_key` authenticated with its bearer token. The request may set `expiration`. The key is owned by the service account principal in the `_service_account` realm and carries `_managed_service_account` metadata. Privileges are resolved from the account's assigned roles at creation time and stored as `limited_by` descriptors on the key; unlike bearer-token authentication, an API key does not live-resolve role names on each request, so later role edits do not affect existing keys.
+
+#### Grant on behalf
+
+A principal (including a managed service account) with `grant_api_key` can call `POST /_security/api_key/grant` to mint a key for another identity. The grant body uses `grant_type: access_token` with that identity's bearer token; service account bearer tokens are accepted alongside OAuth2 access tokens. This is the path a third party (e.g. Kibana with `grant_api_key`) uses to issue short-lived keys for a workload without holding the workload's long-lived service token. `manage_own_api_key` does not authorize grant-api-key; the separate `grant_api_key` privilege is required for the caller.
+
+#### Operational notes
+
+API keys and bearer tokens are separate credential systems with different management APIs, audit events, and invalidation paths. Operators need `manage_api_key` (not merely `manage_own_api_key`) to list or invalidate keys on behalf of a service account. OAuth2 access-token creation (`POST /_security/oauth2/token`) remains unsupported for service accounts.
+
 ## 7. Observability and audit
 
 All managed-lifecycle mutations emit `security_config_change` audit events, symmetrical with existing security config auditing:

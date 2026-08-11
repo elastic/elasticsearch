@@ -696,3 +696,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecFloatsIT
   method: test {csv-spec:floats.scalbWithHugeconstantFirstArgument}
   issue: https://github.com/elastic/elasticsearch/issues/156460
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecFloatsIT
+  method: test {csv-spec:floats.equalToMultivalue}
+  issue: https://github.com/elastic/elasticsearch/issues/156461

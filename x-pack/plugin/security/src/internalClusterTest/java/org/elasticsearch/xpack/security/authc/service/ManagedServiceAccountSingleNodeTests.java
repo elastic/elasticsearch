@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.security.action.service.DeleteManagedService
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountAction;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountRequest;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountResponse;
+import org.elasticsearch.xpack.core.security.action.service.ServiceAccountManagedBy;
 import org.elasticsearch.xpack.core.security.action.service.PutManagedServiceAccountAction;
 import org.elasticsearch.xpack.core.security.action.service.PutManagedServiceAccountRequest;
 import org.elasticsearch.xpack.core.security.action.service.PutManagedServiceAccountResponse;
@@ -38,6 +39,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.junit.Before;
 
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.Map;
 import java.util.Optional;
 
@@ -130,7 +132,7 @@ public class ManagedServiceAccountSingleNodeTests extends SecuritySingleNodeTest
 
         final GetServiceAccountResponse getResponse = securityAdminClient().execute(
             GetServiceAccountAction.INSTANCE,
-            new GetServiceAccountRequest(NAMESPACE, serviceName)
+            new GetServiceAccountRequest(NAMESPACE, serviceName, EnumSet.of(ServiceAccountManagedBy.USER))
         ).actionGet();
         final Optional<ServiceAccountInfo> managedInfo = Arrays.stream(getResponse.getServiceAccountInfos())
             .filter(ServiceAccountInfo::isManaged)

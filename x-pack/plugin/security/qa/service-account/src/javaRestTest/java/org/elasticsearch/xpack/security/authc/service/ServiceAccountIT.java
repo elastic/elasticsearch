@@ -26,6 +26,7 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.security.action.service.ServiceAccountManagedBy;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.user.KibanaSystemUser;
 import org.junit.BeforeClass;
@@ -922,7 +923,12 @@ public class ServiceAccountIT extends ESRestTestCase {
             responseMap,
             hasEntry(
                 serviceAccountPrincipal,
-                Map.of("role_descriptor", XContentHelper.convertToMap(new BytesArray(roleDescriptorString), false, XContentType.JSON).v2())
+                Map.of(
+                    "managed_by",
+                    ServiceAccountManagedBy.ELASTIC.value(),
+                    "role_descriptor",
+                    XContentHelper.convertToMap(new BytesArray(roleDescriptorString), false, XContentType.JSON).v2()
+                )
             )
         );
     }

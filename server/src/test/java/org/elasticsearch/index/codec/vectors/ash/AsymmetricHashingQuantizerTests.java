@@ -52,13 +52,43 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         assertEquals(0.0f, result.s()[2], 1e-4f);
     }
 
-    public void testSvdWideMatrix() {
-        // m < n branch: A is (2 x 3), verify A = U S Vt reconstructs correctly
-        int m = 2, n = 3;
-        float[] a = { 1, 2, 3, 4, 5, 6 };
+    public void testSvdMatrixReconstruction() {
+        int m = 5, n = 3;
+        float[] a = new float[m * n];
+        Random rng = random();
+        for (int i = 0; i < a.length; i++) {
+            a[i] = (float) rng.nextGaussian();
+        }
         SvdUtil.SvdResult result = SvdUtil.thinSvd(a, m, n);
 
-        // U is (m x m) = (2 x 2), S has m entries, Vt is (m x n) = (2 x 3)
+        assertEquals(m * n, result.u().length);
+        assertEquals(n, result.s().length);
+        assertEquals(n * n, result.vt().length);
+
+        // Reconstruct: A_rec = U @ diag(S) @ Vt
+        float[] rec = new float[m * n];
+        for (int i = 0; i < m; i++) {
+            for (int k = 0; k < n; k++) {
+                float us = result.u()[i * n + k] * result.s()[k];
+                for (int j = 0; j < n; j++) {
+                    rec[i * n + j] += us * result.vt()[k * n + j];
+                }
+            }
+        }
+        for (int i = 0; i < m * n; i++) {
+            assertEquals("index " + i, a[i], rec[i], 1e-4f);
+        }
+    }
+
+    public void testSvdWideMatrixReconstruction() {
+        int m = 3, n = 5;
+        float[] a = new float[m * n];
+        Random rng = random();
+        for (int i = 0; i < a.length; i++) {
+            a[i] = (float) rng.nextGaussian();
+        }
+        SvdUtil.SvdResult result = SvdUtil.thinSvd(a, m, n);
+
         assertEquals(m * m, result.u().length);
         assertEquals(m, result.s().length);
         assertEquals(m * n, result.vt().length);
@@ -80,7 +110,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
 
     public void testProcrustesOrthogonal() {
         // Procrustes of a random matrix should return orthogonal matrix (R^T R = I)
-        Random rng = new Random(42);
+        Random rng = random();
         int k = 5;
         float[] m = new float[k * k];
         for (int i = 0; i < k * k; i++) {
@@ -119,7 +149,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         int dim = 16;
         float projectedDimsFraction = 0.25f; // 16 * 0.25 = 4 projected dims
         int bitsPerDim = 2;
-        Random rng = new Random(123);
+        Random rng = random();
 
         float[][] vectors = new float[nVectors][dim];
         for (int i = 0; i < nVectors; i++) {
@@ -171,7 +201,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         int dim = 32;
         float projectedDimsFraction = 0.25f; // 32 * 0.25 = 8 projected dims
         int bitsPerDim = 2;
-        Random rng = new Random(456);
+        Random rng = random();
 
         float[][] vectors = new float[nVectors][dim];
         for (int i = 0; i < nVectors; i++) {
@@ -263,7 +293,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         // flaky.
         int dim = 128;
         int nVectors = 200;
-        Random rng = new Random(2026);
+        Random rng = random();
 
         for (var config : new Object[][] { { 4, 0.35 }, { 8, 0.05 } }) {
             int bitsPerDim = (int) config[0];
@@ -400,7 +430,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
     }
 
     public void testProjectionMatrixSerializationRoundtrip() throws Exception {
-        Random rng = new Random(77);
+        Random rng = random();
         int originalDim = 8;
         int nDims = 3;
 
@@ -463,7 +493,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         double recallThreshold = 0.2;
         int k = 10;
 
-        Random rng = new Random(seed);
+        Random rng = random();
 
         // Use non-unit vectors with meaningful magnitude to stress the offset formula.
         // Unit vectors make centroids near-zero which can mask offset bugs.

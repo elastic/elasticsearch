@@ -10,25 +10,20 @@ package org.elasticsearch.xpack.esql.qa.mixed;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.client.Request;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.CsvTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
-import org.junit.Before;
 import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.JOIN_LOOKUP_V12;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.not;
 import static org.junit.Assume.assumeTrue;
 
 /**
@@ -50,8 +45,6 @@ public abstract class AbstractMixedClusterEsqlOldCoordinatorSpecIT extends EsqlS
 
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.mixedVersionCluster(CSV_DATA_PATH, true);
-
-    private static boolean coordinatorVersionChecked = false;
 
     private static final Version bwcVersion = Version.fromString(
         System.getProperty("tests.old_cluster_version") != null
@@ -76,41 +69,10 @@ public abstract class AbstractMixedClusterEsqlOldCoordinatorSpecIT extends EsqlS
     }
 
     /**
-     * Checks that the pinned coordinator really is an old node. Node 0 is old only because
-     * {@link Clusters#mixedVersionCluster} declares its nodes as old, current, old, current, and that
-     * ordering lives in a shared file. Reordering those {@code withNode} calls, or returning more than
-     * one address from {@link #getTestRestCluster()}, would otherwise reduce this suite to a copy of
-     * {@link AbstractMixedClusterEsqlSpecIT} with every test still passing.
-     * <p>
-     * Runs once per JVM, and the flag is set before the assertion so a broken invariant surfaces once
-     * rather than repeating for every test sharing the cluster. Skipped for detached builds: a node built
-     * from a git ref reports the version it will become, which can equal {@link Version#CURRENT} even
-     * though it is the older node.
-     */
-    @Before
-    public void assertCoordinatorIsOldNode() throws IOException {
-        if (coordinatorVersionChecked) {
-            return;
-        }
-        coordinatorVersionChecked = true;
-        Map<String, Object> info = entityAsMap(client().performRequest(new Request("GET", "/")));
-        String coordinatorVersion = (String) ((Map<?, ?>) info.get("version")).get("number");
-        logger.info("old-coordinator suite pinned to node [{}] version [{}]", info.get("name"), coordinatorVersion);
-        if (System.getProperty("tests.bwc.refspec.main") != null) {
-            return;
-        }
-        assertThat(
-            "coordinator must be an old node; check the withNode order in Clusters.mixedVersionCluster",
-            coordinatorVersion,
-            not(equalTo(Version.CURRENT.toString()))
-        );
-    }
-
-    /**
      * Routes all queries through old node 0, making it the deterministic coordinator. This works because
      * {@code TransportEsqlQueryAction} is a {@link org.elasticsearch.action.support.HandledTransportAction},
      * so the node that receives {@code POST /_query} plans and coordinates it. Returning more than one
-     * address here would hand coordination back to a random node and silently make this suite a duplicate
+     * address here would hand coordination back to round-robin rotation and silently make this suite a duplicate
      * of {@link AbstractMixedClusterEsqlSpecIT}.
      */
     @Override

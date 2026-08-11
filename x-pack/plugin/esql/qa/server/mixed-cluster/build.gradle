@@ -76,7 +76,7 @@ buildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseN
     testClassesDirs = sourceSets.csvSpecTest.output.classesDirs
     classpath = sourceSets.csvSpecTest.runtimeClasspath
     dependsOn generateEsqlSpecTests
-    // Restrict to the random-coordinator variant; the old-coordinator classes run under csvSpecTestsOldCoordinator.
+    // Restrict to the current-coordinator variant; the old-coordinator classes run under csvSpecTestsOldCoordinator.
     include '**/MixedClusterEsqlSpec*IT.class'
   }
 

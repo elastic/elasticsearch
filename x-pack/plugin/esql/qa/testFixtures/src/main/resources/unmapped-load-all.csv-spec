@@ -331,6 +331,141 @@ b1          | a1          | cross_mapping_a
 b2          | a2          | cross_mapping_b
 ;
 
+netZeroProjectionThenEval
+required_capability: optional_fields_load_all
+required_capability: optional_fields_load_all_net_zero_projection
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| KEEP message
+| DROP message
+| EVAL n = 1
+;
+
+n:integer
+1
+1
+1
+1
+1
+1
+1
+;
+
+netZeroProjectionAfterWhereThenEval
+required_capability: optional_fields_load_all
+required_capability: optional_fields_load_all_net_zero_projection
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| WHERE message == "Connection error?"
+| KEEP message
+| DROP message
+| EVAL n = 1
+;
+
+n:integer
+1
+1
+1
+;
+
+netZeroProjectionWithSortAndLimitThenEval
+required_capability: optional_fields_load_all
+required_capability: optional_fields_load_all_net_zero_projection
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| SORT @timestamp
+| KEEP message
+| DROP message
+| EVAL n = 1
+| LIMIT 2
+;
+
+n:integer
+1
+1
+;
+
+netZeroProjectionAfterRenameThenEval
+required_capability: optional_fields_load_all
+required_capability: optional_fields_load_all_net_zero_projection
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| RENAME message AS m
+| KEEP m
+| DROP m
+| EVAL n = 1
+;
+
+n:integer
+1
+1
+1
+1
+1
+1
+1
+;
+
+netZeroProjectionMultiIndexThenEval
+required_capability: optional_fields_load_all
+required_capability: optional_fields_load_all_net_zero_projection
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM cross_mapping_a, cross_mapping_b
+| KEEP foo
+| DROP foo
+| EVAL n = 1
+;
+
+n:integer
+1
+1
+;
+
+dropAllMappedColumnsKeepsUnmappedExpansion
+required_capability: optional_fields_load_all
+required_capability: optional_fields_load_all_net_zero_projection
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| SORT @timestamp
+| DROP @timestamp, client_ip, event_duration, message, language_code
+;
+
+unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
+g                       | 3450234                         | Disconnected from 10.1.0.3
+f                       | 2764890                         | Disconnected from 10.1.0.2
+e                       | 1232383                         | 43
+d                       | 725449                          | Disconnection error
+c                       | 8268154                         | Disconnection error
+b                       | 5033756                         | Disconnection error
+a                       | 1756468                         | Disconnected from 10.1.0.1
+;
+
+netZeroProjectionDropAllUnmappedThenEval
+required_capability: optional_fields_load_all
+required_capability: optional_fields_load_all_net_zero_projection
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| DROP @timestamp, client_ip, event_duration, message, language_code, unmapped*
+| EVAL n = 1
+;
+
+n:integer
+1
+1
+1
+1
+1
+1
+1
+;
+
 ####################################################################
 # Gap coverage: known-failing tests documenting intended behaviour #
 ####################################################################

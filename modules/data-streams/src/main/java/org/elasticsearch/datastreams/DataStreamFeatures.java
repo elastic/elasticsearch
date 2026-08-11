@@ -38,6 +38,11 @@ public class DataStreamFeatures implements FeatureSpecification {
 
     public static final NodeFeature DATA_STREAMS_MODIFY_DELETE_INDEX = new NodeFeature("data_stream.modify.delete_index", true);
 
+    /**
+     * Feature flag indicating that the {@code lookup} index mode is no longer allowed in data streams.
+     */
+    public static final NodeFeature LOOKUP_MODE_NOT_ALLOWED_IN_DATA_STREAMS = new NodeFeature("data_stream.lookup_mode_not_allowed");
+
     @Override
     public Set<NodeFeature> getFeatures() {
         return Set.of(
@@ -55,7 +60,8 @@ public class DataStreamFeatures implements FeatureSpecification {
             LOGS_STREAM_FEATURE,
             FAILURE_STORE_IN_LOG_DATA_STREAMS,
             DOWNSAMPLE_MULTI_VALUE_DIMENSIONS,
-            DATA_STREAMS_MAPPINGS_API
+            DATA_STREAMS_MAPPINGS_API,
+            LOOKUP_MODE_NOT_ALLOWED_IN_DATA_STREAMS
         );
     }
 }

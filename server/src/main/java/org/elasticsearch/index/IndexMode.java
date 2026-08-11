@@ -457,6 +457,13 @@ public enum IndexMode {
         public SourceFieldMapper.Mode defaultSourceMode() {
             return SourceFieldMapper.Mode.STORED;
         }
+
+        @Override
+        public boolean supportsDataStreams() {
+            // Lookup mode is single-shard, cannot roll over, and is not auto-sharded.
+            // It is only supported for standalone indices, not data streams.
+            return false;
+        }
     },
     COLUMNAR("columnar") {
         @Override
@@ -985,6 +992,29 @@ public enum IndexMode {
      */
     public static boolean isTsdbName(@Nullable String name) {
         return name != null && TIME_SERIES.getName().equalsIgnoreCase(name);
+    }
+
+    /**
+     * Whether indices in this mode may be part of a data stream. Data streams are append-only, rolled over, and
+     * auto-sharded. Modes that return {@code false} are only supported for standalone indices.
+     */
+    public boolean supportsDataStreams() {
+        return true;
+    }
+
+    /**
+     * Validates that {@code mode} supports data streams and throws {@link IllegalArgumentException} if it does not.
+     * {@code subject} describes the entity being validated and is included in the error message,
+     * e.g. {@code "index template [my-template]"} or {@code "data stream [my-ds]"}.
+     * A {@code null} mode means {@code index.mode} was not set explicitly, which defaults to {@link #STANDARD}
+     * and is always allowed.
+     */
+    public static void validateSupportsDataStreams(@Nullable IndexMode mode, String subject) {
+        if (mode != null && mode.supportsDataStreams() == false) {
+            throw new IllegalArgumentException(
+                subject + " specifies [" + IndexSettings.MODE.getKey() + "=" + mode.getName() + "], which is not supported for data streams"
+            );
+        }
     }
 
     /**

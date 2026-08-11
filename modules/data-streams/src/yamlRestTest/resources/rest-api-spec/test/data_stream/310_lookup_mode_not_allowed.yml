@@ -1,0 +1,84 @@
+---
+setup:
+  - requires:
+      cluster_features: [ "data_stream.lookup_mode_not_allowed" ]
+      reason: "lookup index mode is not allowed in data streams"
+
+---
+"lookup mode in index template directly is rejected":
+  - do:
+      catch: '/specifies \[index\.mode=lookup\], which is not supported for data streams/'
+      indices.put_index_template:
+        name: lookup-ds-template
+        body:
+          index_patterns: [ lookup-ds-* ]
+          data_stream: {}
+          template:
+            settings:
+              index:
+                mode: lookup
+
+---
+"lookup mode via composed_of component template is rejected":
+  - do:
+      cluster.put_component_template:
+        name: lookup-mode-settings
+        body:
+          template:
+            settings:
+              index:
+                mode: lookup
+  - is_true: acknowledged
+
+  - do:
+      catch: '/specifies \[index\.mode=lookup\], which is not supported for data streams/'
+      indices.put_index_template:
+        name: lookup-ds-composed-template
+        body:
+          index_patterns: [ lookup-ds-composed-* ]
+          data_stream: {}
+          composed_of: [ lookup-mode-settings ]
+
+---
+"standalone lookup index is still allowed":
+  - do:
+      indices.create:
+        index: standalone-lookup-index
+        body:
+          settings:
+            index:
+              mode: lookup
+  - is_true: acknowledged
+
+---
+"lookup index cannot be added as a backing index via modify_data_stream":
+  - do:
+      indices.put_index_template:
+        name: modify-ds-template
+        body:
+          index_patterns: [ modify-ds-* ]
+          data_stream: {}
+  - is_true: acknowledged
+
+  - do:
+      indices.create_data_stream:
+        name: modify-ds-1
+  - is_true: acknowledged
+
+  - do:
+      indices.create:
+        index: standalone-lookup-for-modify
+        body:
+          settings:
+            index:
+              mode: lookup
+  - is_true: acknowledged
+
+  - do:
+      catch: '/specifies \[index\.mode=lookup\], which is not supported for data streams/'
+      indices.modify_data_stream:
+        body:
+          actions:
+            - add_backing_index:
+                data_stream: modify-ds-1
+                index: standalone-lookup-for-modify

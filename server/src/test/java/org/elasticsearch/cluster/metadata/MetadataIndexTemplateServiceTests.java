@@ -1459,6 +1459,60 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         );
     }
 
+    public void testInvalidDataStreamTemplateWithLookupIndexMode() throws Exception {
+        MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
+        ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of("my-ds-*"))
+            .template(Template.builder().settings(Settings.builder().put("index.mode", "lookup").build()).build())
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+            .build();
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+        Exception exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> metadataIndexTemplateService.validateIndexTemplateV2(project, "my-template", template)
+        );
+        assertThat(
+            exception.getMessage(),
+            containsString("index template [my-template] specifies [index.mode=lookup], which is not supported for data streams")
+        );
+    }
+
+    public void testInvalidDataStreamTemplateWithLookupIndexModeViaComponentTemplate() throws Exception {
+        // index.mode=lookup set in a component template must also be rejected when the composable template is a data stream template
+        MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
+        ComponentTemplate ct = new ComponentTemplate(
+            Template.builder().settings(Settings.builder().put("index.mode", "lookup").build()).build(),
+            1L,
+            new HashMap<>()
+        );
+        ComposableIndexTemplate composable = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of("my-ds-composed-*"))
+            .componentTemplates(List.of("ct-lookup"))
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+            .build();
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).componentTemplates(Map.of("ct-lookup", ct)).build();
+        Exception exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> metadataIndexTemplateService.validateIndexTemplateV2(project, "my-composed-template", composable)
+        );
+        assertThat(
+            exception.getMessage(),
+            containsString("index template [my-composed-template] specifies [index.mode=lookup], which is not supported for data streams")
+        );
+    }
+
+    public void testNonDataStreamTemplateWithLookupIndexModeIsAllowed() throws Exception {
+        // A non-data-stream template with index.mode=lookup must not be rejected
+        MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
+        ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of("my-lookup-*"))
+            .template(Template.builder().settings(Settings.builder().put("index.mode", "lookup").build()).build())
+            .build(); // no dataStreamTemplate
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+        // Must not throw
+        metadataIndexTemplateService.validateIndexTemplateV2(project, "my-lookup-template", template);
+    }
+
     public void testSystemDataStreamsIgnoredByValidateIndexTemplateV2() throws Exception {
         /*
          * This test makes sure that system data streams (which do not have named templates) do not appear in the list of data streams

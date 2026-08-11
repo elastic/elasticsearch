@@ -113,9 +113,8 @@ Verified in `ManagedServiceAccountPrivilegeTests` (action-name coverage) and the
 
 ## Cross-cluster search
 
-- **RCS 2.0**: the querying cluster authorizes remote access via `remote_indices` in the assigned role definitions on the querying cluster (standard model). Tested in `RemoteClusterSecuritySpecialUserIT`.
-- **RCS 1.0**: the querying cluster authenticates the service token locally and forwards the `Authentication` object; the fulfilling cluster resolves the assigned role *names* against its own role store — the same semantics as native users, unlike built-in accounts (fixed descriptor, identical on both sides). The fulfilling cluster needs a matching role definition but no managed account document. Tested in `RemoteClusterSecurityManagedServiceAccountRCS1IT`.
-- **Pre-feature fulfilling clusters (either model)**: fails closed, pinned by `testManagedServiceAccountCcsFailsClosedAgainstOlderFulfillingCluster` in `AbstractRemoteClusterSecurityBWCRestIT` (runs under both BWC subclasses; verified against 9.2.0 and 8.19.15 fulfilling clusters). RCS 2.0: the remote's `CrossClusterAccessSubjectInfo#cleanAndValidate` calls `checkConsistency` explicitly, deterministically rejecting with `must have no role`. RCS 1.0: with assertions enabled (as in test clusters), `Authentication` header deserialization trips `checkNoRole` and surfaces as `failed to verify signed authentication information`; without assertions (production), deserialization succeeds and role resolution fails with `cannot load role for service account [...]`. There is no sending-side guard in `Authentication#maybeRewriteForOlderVersion` (unlike cross-cluster-access and cloud API key subjects); adding one would make the failure clearly attributed on the querying side for both models.
+- **RCS 2.0**: the querying cluster resolves `remote_indices` from the assigned role into inline role descriptors and forwards them in `CrossClusterAccessSubjectInfo`; the fulfilling cluster authorizes from those descriptors via `CrossClusterAccessRoleReference` and does not need managed service account support. Same-version behavior is tested in `RemoteClusterSecuritySpecialUserIT`; BWC against pre-feature fulfilling clusters is tested in `testManagedServiceAccountCcsAgainstOlderFulfillingCluster` in `AbstractRemoteClusterSecurityBWCRestIT` (RCS 2.0 subclass only).
+- **RCS 1.0**: the querying cluster authenticates the service token locally and forwards the `Authentication` object; the fulfilling cluster resolves the assigned role *names* against its own role store — the same semantics as native users, unlike built-in accounts (fixed descriptor, identical on both sides). The fulfilling cluster needs a matching role definition but no managed account document. Same-version behavior is tested in `RemoteClusterSecurityManagedServiceAccountRCS1IT`. Against pre-feature fulfilling clusters the request fails closed, pinned by `testManagedServiceAccountCcsFailsClosedAgainstOlderFulfillingCluster` in `AbstractRemoteClusterSecurityBWCRestIT` (RCS 1.0 subclass only; verified against 9.2.0 and 8.19.15 fulfilling clusters).
 
 ## API compatibility
 
@@ -139,7 +138,7 @@ Verified in `ManagedServiceAccountPrivilegeTests` (action-name coverage) and the
 | `./gradlew :x-pack:plugin:security:qa:multi-project:javaRestTest --tests '...ManagedServiceAccountMultiProjectIT'` | PASS |
 | `./gradlew :x-pack:plugin:security:qa:multi-cluster:javaRestTest --tests '...RemoteClusterSecurityManagedServiceAccountRCS1IT'` | PASS (x2 seeds) |
 | `./gradlew :x-pack:plugin:security:qa:multi-cluster:javaRestTest --tests '...RemoteClusterSecuritySpecialUserIT'` (RCS 2.0) | PASS (x2 seeds, after fixing an order-dependent data collision with the sibling test — the managed test now uses a dedicated `shared-managed` index) |
-| `./gradlew ':x-pack:plugin:security:qa:multi-cluster:v9.2.0#bwcTest' --tests '*testManagedServiceAccountCcsFailsClosedAgainstOlderFulfillingCluster'` (both RCS models, old fulfilling cluster) | PASS (also against v8.19.15) |
+| `./gradlew ':x-pack:plugin:security:qa:multi-cluster:v9.2.0#bwcTest' --tests '*testManagedServiceAccountCcs*AgainstOlder*'` (RCS 1 fail-closed + RCS 2 success, old fulfilling cluster) | PASS (also against v8.19.15) |
 | `./gradlew :x-pack:plugin:core:spotlessJavaCheck :x-pack:plugin:security:spotlessJavaCheck` | PASS |
 
 **Not run:** rolling-upgrade IT, full `:x-pack:plugin:security:test` sweep, packaging/QA.
@@ -171,7 +170,7 @@ Verified in `ManagedServiceAccountPrivilegeTests` (action-name coverage) and the
 - Single transport version `managed_service_accounts` for all new wire paths
 - Rolling-upgrade IT omitted
 - `ServiceAccountInfo` old nodes cannot deserialize managed entries (expected; gated)
-- No sending-side guard when a managed-account `Authentication` is serialized to a pre-feature node (see Cross-cluster search); fails closed on the receiver with a non-obvious error
+- No sending-side guard when a managed-account `Authentication` is serialized to a pre-feature node under RCS 1.0; fails closed on the receiver with a non-obvious error
 - GET `/_security/service/{namespace}` with a name failing the new grammar now returns 400 where it previously returned an empty 200 (deliberate; needs a changelog entry)
 
 ### Operability

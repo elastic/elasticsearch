@@ -20,6 +20,7 @@ import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.junit.Assume;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -195,26 +196,105 @@ public abstract class AbstractRemoteClusterSecurityBWCRestIT extends AbstractRem
     }
 
     /**
-     * Managed service accounts carry role names in the authentication object, which fulfilling
-     * clusters older than the feature cannot represent: under RCS 2.0 the subject-info validation
-     * rejects the forwarded authentication outright, and under RCS 1.0 the remote fails to resolve
-     * a role for the unknown service account. Either way the request fails closed. This test pins
-     * that behavior for both models. Note: it relies on every wire-compatible BWC version predating
-     * managed service accounts; once the feature ships in a release, runs against versions at or
-     * after it must assert success instead.
+     * Under RCS 1.0 the querying cluster forwards the service-account {@code Authentication} object
+     * and the fulfilling cluster resolves assigned role names locally. A pre-feature fulfilling cluster
+     * cannot resolve roles for an unknown managed service account, so the request fails closed.
      */
     public void testManagedServiceAccountCcsFailsClosedAgainstOlderFulfillingCluster() throws Exception {
-        // Fulfilling cluster (older version): index a document to target
+        Assume.assumeFalse(
+            "RCS 2.0 forwards resolved role descriptors and does not require managed service account support on the fulfilling cluster",
+            isRCS2()
+        );
+
+        try (var ignored = setupManagedServiceAccountCcsOnQueryCluster(false)) {
+            final ManagedServiceAccountCcsContext context = ignored.context();
+            final Request searchRequest = new Request(
+                "GET",
+                "/my_remote_cluster:remote_index_managed/_search?ccs_minimize_roundtrips=" + randomBoolean()
+            );
+            searchRequest.setOptions(context.bearerAuth());
+            final ResponseException exception = expectThrows(ResponseException.class, () -> client().performRequest(searchRequest));
+            assertThat(exception.getResponse().getStatusLine().getStatusCode(), greaterThanOrEqualTo(400));
+            // with assertions enabled (as in these test clusters) the fulfilling cluster trips the
+            // consistency check while deserializing the authentication header, which surfaces as a
+            // wrapped header-verification error; without assertions (production) deserialization
+            // succeeds and the failure surfaces at role resolution instead
+            assertThat(
+                exception.getMessage(),
+                anyOf(
+                    containsString("failed to verify signed authentication information"),
+                    containsString("cannot load role for service account"),
+                    containsString("must have no role"),
+                    containsString("unauthorized for service account [" + context.principal() + "]")
+                )
+            );
+        }
+    }
+
+    /**
+     * Under RCS 2.0 the querying cluster resolves {@code remote_indices} from the assigned role and
+     * forwards inline role descriptors in {@code CrossClusterAccessSubjectInfo}. A pre-feature fulfilling
+     * cluster can authorize the search from those descriptors without managed service account support.
+     */
+    public void testManagedServiceAccountCcsAgainstOlderFulfillingCluster() throws Exception {
+        Assume.assumeTrue(
+            "RCS 1.0 forwards the raw authentication object and fails closed against pre-feature fulfilling clusters",
+            isRCS2()
+        );
+
+        try (var ignored = setupManagedServiceAccountCcsOnQueryCluster(true)) {
+            final ManagedServiceAccountCcsContext context = ignored.context();
+            final Request allowedSearchRequest = new Request(
+                "GET",
+                "/my_remote_cluster:remote_index_managed/_search?ccs_minimize_roundtrips=" + randomBoolean()
+            );
+            allowedSearchRequest.setOptions(context.bearerAuth());
+            final Response allowedSearchResponse = client().performRequest(allowedSearchRequest);
+            assertOK(allowedSearchResponse);
+            final SearchResponse allowedSearch = SearchResponseUtils.parseSearchResponse(responseAsParser(allowedSearchResponse));
+            try {
+                assertThat(
+                    Arrays.stream(allowedSearch.getHits().getHits()).map(SearchHit::getIndex).collect(Collectors.toList()),
+                    containsInAnyOrder("remote_index_managed")
+                );
+            } finally {
+                allowedSearch.decRef();
+            }
+
+            final Request deniedSearchRequest = new Request(
+                "GET",
+                "/my_remote_cluster:remote_index_denied/_search?ccs_minimize_roundtrips=" + randomBoolean()
+            );
+            deniedSearchRequest.setOptions(context.bearerAuth());
+            final ResponseException deniedSearch = expectThrows(
+                ResponseException.class,
+                () -> client().performRequest(deniedSearchRequest)
+            );
+            assertThat(deniedSearch.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+            assertThat(
+                deniedSearch.getMessage(),
+                containsString("unauthorized for service account [" + context.principal() + "]")
+            );
+            assertThat(deniedSearch.getMessage(), containsString("on indices [remote_index_denied]"));
+        }
+    }
+
+    private ManagedServiceAccountCcsSetup setupManagedServiceAccountCcsOnQueryCluster(boolean indexDeniedTargetOnFulfillingCluster)
+        throws Exception {
         {
             final Request bulkRequest = new Request("POST", "/_bulk?refresh=true");
-            bulkRequest.setJsonEntity("""
+            bulkRequest.setJsonEntity(indexDeniedTargetOnFulfillingCluster ? """
+                { "index": { "_index": "remote_index_managed" } }
+                { "foo": "bar" }
+                { "index": { "_index": "remote_index_denied" } }
+                { "bar": "foo" }
+                """ : """
                 { "index": { "_index": "remote_index_managed" } }
                 { "foo": "bar" }
                 """);
             assertOK(performRequestAgainstFulfillingCluster(bulkRequest));
         }
 
-        // Querying cluster (current version): a managed service account with remote privileges
         final String roleName = "managed_bwc_role";
         final var putRoleRequest = new Request("PUT", "/_security/role/" + roleName);
         putRoleRequest.setJsonEntity("""
@@ -238,44 +318,34 @@ public abstract class AbstractRemoteClusterSecurityBWCRestIT extends AbstractRem
         final String serviceToken = ObjectPath.createFromResponse(adminClient().performRequest(createTokenRequest)).evaluate("token.value");
         final RequestOptions bearerAuth = RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Bearer " + serviceToken).build();
 
-        try {
-            // sanity check: the managed account authenticates locally on the querying cluster
-            final Request authenticateRequest = new Request("GET", "/_security/_authenticate");
-            authenticateRequest.setOptions(bearerAuth);
-            assertOK(client().performRequest(authenticateRequest));
+        final Request authenticateRequest = new Request("GET", "/_security/_authenticate");
+        authenticateRequest.setOptions(bearerAuth);
+        assertOK(client().performRequest(authenticateRequest));
 
-            // CCS against the pre-feature fulfilling cluster must fail closed
-            final Request searchRequest = new Request(
-                "GET",
-                "/my_remote_cluster:remote_index_managed/_search?ccs_minimize_roundtrips=" + randomBoolean()
-            );
-            searchRequest.setOptions(bearerAuth);
-            final ResponseException exception = expectThrows(ResponseException.class, () -> client().performRequest(searchRequest));
-            assertThat(exception.getResponse().getStatusLine().getStatusCode(), greaterThanOrEqualTo(400));
-            if (isRCS2()) {
-                // the fulfilling cluster rejects the forwarded authentication during subject-info validation
-                assertThat(exception.getMessage(), containsString("must have no role"));
-            } else {
-                // with assertions enabled (as in these test clusters) the fulfilling cluster trips the
-                // consistency check while deserializing the authentication header, which surfaces as a
-                // wrapped header-verification error; without assertions (production) deserialization
-                // succeeds and the failure surfaces at role resolution instead
-                assertThat(
-                    exception.getMessage(),
-                    anyOf(
-                        containsString("failed to verify signed authentication information"),
-                        containsString("cannot load role for service account"),
-                        containsString("must have no role")
-                    )
-                );
-            }
-        } finally {
+        return new ManagedServiceAccountCcsSetup(new ManagedServiceAccountCcsContext(roleName, bearerAuth), () -> {
             final Request deleteTokenRequest = new Request("DELETE", "/_security/service/bwc_poc/worker/credential/token/t1");
             assertOK(adminClient().performRequest(deleteTokenRequest));
             final Request deleteAccountRequest = new Request("DELETE", "/_security/service/bwc_poc/worker");
             assertOK(adminClient().performRequest(deleteAccountRequest));
             final Request deleteRoleRequest = new Request("DELETE", "/_security/role/" + roleName);
             assertOK(adminClient().performRequest(deleteRoleRequest));
+        });
+    }
+
+    private record ManagedServiceAccountCcsContext(String roleName, RequestOptions bearerAuth) {
+
+        private static final String PRINCIPAL = "bwc_poc/worker";
+
+        String principal() {
+            return PRINCIPAL;
+        }
+    }
+
+    private record ManagedServiceAccountCcsSetup(ManagedServiceAccountCcsContext context, AutoCloseable cleanup) implements AutoCloseable {
+
+        @Override
+        public void close() throws Exception {
+            cleanup.close();
         }
     }
 

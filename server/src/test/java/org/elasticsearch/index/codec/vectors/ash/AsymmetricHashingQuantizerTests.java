@@ -51,9 +51,57 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         assertEquals(0.0f, result.s()[2], 1e-4f);
     }
 
+    public void testSvdMatrixReconstruction() {
+        int m = 5, n = 3;
+        float[][] a = new float[m][n];
+        Random rng = random();
+        for (int i = 0; i < m; i++) {
+            for (int j = 0; j < n; j++) {
+                a[i][j] = (float) rng.nextGaussian();
+            }
+        }
+        SvdUtil.SvdResult result = SvdUtil.thinSvd(a, m, n);
+        // Reconstruct A = U * diag(S) * Vt and compare element-wise
+        // U is (m x n), S is (n), Vt is (n x n)
+        for (int i = 0; i < m; i++) {
+            for (int j = 0; j < n; j++) {
+                double reconstructed = 0;
+                for (int k = 0; k < n; k++) {
+                    reconstructed += result.u()[i][k] * (double) result.s()[k] * result.vt()[k][j];
+                }
+                assertEquals("a[" + i + "][" + j + "]", a[i][j], (float) reconstructed, 1e-4f);
+            }
+        }
+    }
+
+    public void testSvdWideMatrixReconstruction() {
+        // Wide matrix (m < n): exercises the transpose-and-swap branch
+        int m = 3, n = 5;
+        float[][] a = new float[m][n];
+        Random rng = random();
+        for (int i = 0; i < m; i++) {
+            for (int j = 0; j < n; j++) {
+                a[i][j] = (float) rng.nextGaussian();
+            }
+        }
+        SvdUtil.SvdResult result = SvdUtil.thinSvd(a, m, n);
+        // Reconstruct A = U * diag(S) * Vt and compare element-wise
+        // wide matrices swap their dimension outputs
+        // U is (m x m), S is (m), Vt is (m x n)
+        for (int i = 0; i < m; i++) {
+            for (int j = 0; j < n; j++) {
+                double reconstructed = 0;
+                for (int k = 0; k < m; k++) {
+                    reconstructed += result.u()[i][k] * (double) result.s()[k] * result.vt()[k][j];
+                }
+                assertEquals("a[" + i + "][" + j + "]", a[i][j], (float) reconstructed, 1e-4f);
+            }
+        }
+    }
+
     public void testProcrustesOrthogonal() {
         // Procrustes of a random matrix should return orthogonal matrix (R^T R = I)
-        Random rng = new Random(42);
+        Random rng = random();
         int k = 5;
         float[][] m = new float[k][k];
         for (int i = 0; i < k; i++) {
@@ -94,7 +142,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         int dim = 16;
         float projectedDimsFraction = 0.25f; // 16 * 0.25 = 4 projected dims
         int bitsPerDim = 2;
-        Random rng = new Random(123);
+        Random rng = random();
 
         float[][] vectors = new float[nVectors][dim];
         for (int i = 0; i < nVectors; i++) {
@@ -148,7 +196,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         int dim = 32;
         float projectedDimsFraction = 0.25f; // 32 * 0.25 = 8 projected dims
         int bitsPerDim = 2;
-        Random rng = new Random(456);
+        Random rng = random();
 
         float[][] vectors = new float[nVectors][dim];
         for (int i = 0; i < nVectors; i++) {
@@ -240,7 +288,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         // flaky.
         int dim = 128;
         int nVectors = 200;
-        Random rng = new Random(2026);
+        Random rng = random();
 
         for (var config : new Object[][] { { 4, 0.35 }, { 8, 0.05 } }) {
             int bitsPerDim = (int) config[0];
@@ -376,7 +424,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
     }
 
     public void testProjectionMatrixSerializationRoundtrip() throws Exception {
-        Random rng = new Random(77);
+        Random rng = random();
         int originalDim = 8;
         int nDims = 3;
 
@@ -444,7 +492,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         double recallThreshold = 0.2;
         int k = 10;
 
-        Random rng = new Random(seed);
+        Random rng = random();
 
         // Use non-unit vectors with meaningful magnitude to stress the offset formula.
         // Unit vectors make centroids near-zero which can mask offset bugs.

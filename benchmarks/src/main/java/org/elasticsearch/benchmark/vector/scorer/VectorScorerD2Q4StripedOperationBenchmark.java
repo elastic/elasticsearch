@@ -12,7 +12,7 @@ import org.apache.lucene.store.Directory;
 import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.nativeaccess.BBQTestUtils;
 import org.elasticsearch.nativeaccess.NativeAccess;
-import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
+import org.elasticsearch.nativeaccess.SimdVecLibrary;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -36,7 +36,7 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Kernel-direct benchmark for the 2-bit-doc / 4-bit-query striped (bit-plane) BBQ
- * dot product, dispatching straight to {@code vec_dotd2q4} via {@link VectorSimilarityFunctions}
+ * dot product, dispatching straight to {@code vec_dotd2q4} via {@link SimdVecLibrary}
  * and bypassing all Lucene/scorer infrastructure. Three modes are exercised on the same dataset:
  * <ul>
  *   <li>{@code scoreSingle} — single-pair calls in a sequential walk (control)</li>
@@ -76,7 +76,7 @@ public class VectorScorerD2Q4StripedOperationBenchmark {
 
     // dataset: numVectors * docBytes laid out contiguously in native memory
     private MemorySegment dataset;
-    // query: queryBytes (4 bit-planes back-to-back, produced by transposeHalfByte-style packing)
+    // query: queryBytes (4 bit-planes back-to-back, produced by strided bit packing)
     private MemorySegment query;
     // shuffled ordinals for the random-access offsets path
     private int[] ordinals;
@@ -152,7 +152,7 @@ public class VectorScorerD2Q4StripedOperationBenchmark {
         while (v < numVectorsToScore) {
             for (int i = 0; i < bulkSize && v < numVectorsToScore; i++, v++) {
                 MemorySegment vec = dataset.asSlice((long) v * docBytes, docBytes);
-                scores[i] = vectorSimilarityFunctions.dotProductD2Q4(vec, query, docBytes);
+                scores[i] = VEC_LIBRARY.dotProductD2Q4(vec, query, docBytes);
             }
         }
         return scores;
@@ -164,7 +164,7 @@ public class VectorScorerD2Q4StripedOperationBenchmark {
         for (int i = 0; i < numVectorsToScore; i += bulkSize) {
             int count = Math.min(bulkSize, numVectorsToScore - i);
             MemorySegment slice = dataset.asSlice((long) i * docBytes, (long) count * docBytes);
-            vectorSimilarityFunctions.dotProductD2Q4Bulk(slice, query, docBytes, count, resultsSeg);
+            VEC_LIBRARY.dotProductD2Q4Bulk(slice, query, docBytes, count, resultsSeg);
         }
         MemorySegment.copy(resultsSeg, ValueLayout.JAVA_FLOAT, 0L, scores, 0, scores.length);
         return scores;
@@ -176,7 +176,7 @@ public class VectorScorerD2Q4StripedOperationBenchmark {
         for (int i = 0; i < numVectorsToScore; i += bulkSize) {
             int count = Math.min(bulkSize, numVectorsToScore - i);
             MemorySegment.copy(ordinals, i, ordinalsSeg, ValueLayout.JAVA_INT, 0L, count);
-            vectorSimilarityFunctions.dotProductD2Q4BulkWithOffsets(dataset, query, docBytes, docBytes, ordinalsSeg, count, resultsSeg);
+            VEC_LIBRARY.dotProductD2Q4BulkWithOffsets(dataset, query, docBytes, docBytes, ordinalsSeg, count, resultsSeg);
         }
         MemorySegment.copy(resultsSeg, ValueLayout.JAVA_FLOAT, 0L, scores, 0, scores.length);
         return scores;
@@ -191,7 +191,7 @@ public class VectorScorerD2Q4StripedOperationBenchmark {
         while (v < numVectorsToScore) {
             for (int i = 0; i < bulkSize && v < numVectorsToScore; i++, v++) {
                 MemorySegment vec = dataset.asSlice((long) ordinals[v] * docBytes, docBytes);
-                scores[i] = vectorSimilarityFunctions.dotProductD2Q4(vec, query, docBytes);
+                scores[i] = VEC_LIBRARY.dotProductD2Q4(vec, query, docBytes);
             }
         }
         return scores;
@@ -203,7 +203,5 @@ public class VectorScorerD2Q4StripedOperationBenchmark {
         }
     }
 
-    private static final VectorSimilarityFunctions vectorSimilarityFunctions = NativeAccess.instance()
-        .getVectorSimilarityFunctions()
-        .orElseThrow();
+    private static final SimdVecLibrary VEC_LIBRARY = NativeAccess.instance().getVectorSimilarityFunctions().orElseThrow();
 }

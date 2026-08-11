@@ -14,6 +14,7 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
+import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.core.Nullable;
@@ -1737,10 +1738,23 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         return List.of(new TypedDataSupplier("<random date range>", TestCaseSupplier::randomDateRange, DataType.DATE_RANGE));
     }
 
+    public static List<TypedDataSupplier> doubleRangeCases() {
+        return List.of(new TypedDataSupplier("<random double range>", TestCaseSupplier::randomDoubleRange, DataType.DOUBLE_RANGE));
+    }
+
     public static LongRangeBlockBuilder.LongRange randomDateRange() {
         var from = randomMillisUpToYear9999();
         var to = randomLongBetween(from + 1, MAX_MILLIS_BEFORE_9999);
         return new LongRangeBlockBuilder.LongRange(from, to);
+    }
+
+    public static DoubleRangeBlockBuilder.DoubleRange randomDoubleRange() {
+        double first = randomDouble();
+        double second;
+        do {
+            second = randomDouble();
+        } while (first == second);
+        return new DoubleRangeBlockBuilder.DoubleRange(Math.min(first, second), Math.max(first, second));
     }
 
     /**

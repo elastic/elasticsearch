@@ -17,14 +17,21 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.hamcrest.Matcher;
+import org.junit.ClassRule;
+import org.junit.rules.RuleChain;
+import org.junit.rules.TemporaryFolder;
+import org.junit.rules.TestRule;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.hamcrest.Matchers.equalTo;
@@ -33,8 +40,27 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class SearchableSnapshotsRollingUpgradeIT extends AbstractXpackRollingUpgradeTestCase {
 
+    private static final TemporaryFolder repoDirectory = new TemporaryFolder();
+
+    private static final ElasticsearchCluster cluster = buildCluster(b -> b.setting("path.repo", new Supplier<>() {
+        @Override
+        @SuppressForbidden(reason = "TemporaryFolder only has io.File methods, not nio.File")
+        public String get() {
+            return repoDirectory.getRoot().getPath();
+        }
+    }).setting("xpack.searchable.snapshot.shared_cache.size", "16MB").setting("xpack.searchable.snapshot.shared_cache.region_size", "256KB")
+    );
+
+    @ClassRule
+    public static TestRule ruleChain = RuleChain.outerRule(repoDirectory).around(cluster);
+
     public SearchableSnapshotsRollingUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
+    }
+
+    @Override
+    protected ElasticsearchCluster getUpgradeCluster() {
+        return cluster;
     }
 
     public enum Storage {
@@ -149,7 +175,7 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractXpackRollingUpg
         }
 
         if (isMixedCluster()) {
-            final List<NodeInfo> nodeInfos = getNodeInfos();
+            final List<NodeInfo> nodeInfos = NodeInfo.getAll(client());
 
             final List<String> oldVersionNodeIds = nodeInfos.stream()
                 .filter(n -> isOldClusterVersion(n.version(), n.buildHash()))
@@ -327,21 +353,7 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractXpackRollingUpg
         assertThat(((Number) extractValue("_shards.failed", responseAsMap)).intValue(), equalTo(0));
     }
 
-    @SuppressWarnings("unchecked")
-    private static List<NodeInfo> getNodeInfos() throws IOException {
-        final Response response = client().performRequest(new Request(HttpGet.METHOD_NAME, "_nodes/_all"));
-        assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
-        final Map<String, Object> nodes = (Map<String, Object>) extractValue(responseAsMap(response), "nodes");
-        assertNotNull("Nodes info is null", nodes);
-        return nodes.entrySet().stream().map(e -> {
-            final Map<?, ?> info = (Map<?, ?>) e.getValue();
-            return new NodeInfo(e.getKey(), (String) extractValue(info, "version"), (String) extractValue(info, "build_hash"));
-        }).toList();
-    }
-
     private static Settings repositorySettings(String repository) {
         return Settings.builder().put("location", "./" + repository).build();
     }
-
-    private record NodeInfo(String nodeId, String version, String buildHash) {}
 }

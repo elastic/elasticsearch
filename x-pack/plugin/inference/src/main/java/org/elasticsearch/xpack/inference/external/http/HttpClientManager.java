@@ -22,6 +22,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
@@ -103,9 +104,10 @@ public class HttpClientManager implements Closeable {
         Settings settings,
         ThreadPool threadPool,
         ClusterService clusterService,
-        ThrottlerManager throttlerManager
+        ThrottlerManager throttlerManager,
+        CircuitBreaker circuitBreaker
     ) {
-        return create(settings, threadPool, clusterService, throttlerManager, null);
+        return create(settings, threadPool, clusterService, throttlerManager, null, circuitBreaker);
     }
 
     public static HttpClientManager create(
@@ -113,10 +115,11 @@ public class HttpClientManager implements Closeable {
         ThreadPool threadPool,
         ClusterService clusterService,
         ThrottlerManager throttlerManager,
-        @Nullable TimeValue connectionTtl
+        @Nullable TimeValue connectionTtl,
+        CircuitBreaker circuitBreaker
     ) {
         PoolingNHttpClientConnectionManager connectionManager = createConnectionManager(connectionTtl);
-        return new HttpClientManager(settings, connectionManager, threadPool, clusterService, throttlerManager);
+        return new HttpClientManager(settings, connectionManager, threadPool, clusterService, throttlerManager, circuitBreaker);
     }
 
     public static HttpClientManager create(
@@ -125,13 +128,14 @@ public class HttpClientManager implements Closeable {
         ClusterService clusterService,
         ThrottlerManager throttlerManager,
         SSLService sslService,
-        TimeValue connectionTtl
+        TimeValue connectionTtl,
+        CircuitBreaker circuitBreaker
     ) {
         // Set the sslStrategy to ensure an encrypted connection, as Elastic Inference Service requires it.
         final SSLIOSessionStrategy sslioSessionStrategy = sslService.profile(ELASTIC_INFERENCE_SERVICE_SSL_CONFIGURATION_PREFIX)
             .ioSessionStrategy();
         PoolingNHttpClientConnectionManager connectionManager = createConnectionManager(sslioSessionStrategy, connectionTtl);
-        return new HttpClientManager(settings, connectionManager, threadPool, clusterService, throttlerManager);
+        return new HttpClientManager(settings, connectionManager, threadPool, clusterService, throttlerManager, circuitBreaker);
     }
 
     // Default for testing
@@ -140,7 +144,8 @@ public class HttpClientManager implements Closeable {
         PoolingNHttpClientConnectionManager connectionManager,
         ThreadPool threadPool,
         ClusterService clusterService,
-        ThrottlerManager throttlerManager
+        ThrottlerManager throttlerManager,
+        CircuitBreaker circuitBreaker
     ) {
         this.threadPool = threadPool;
 
@@ -148,7 +153,13 @@ public class HttpClientManager implements Closeable {
         setMaxConnections(MAX_TOTAL_CONNECTIONS.get(settings));
         setMaxRouteConnections(MAX_ROUTE_CONNECTIONS.get(settings));
 
-        this.httpClient = HttpClient.create(new HttpSettings(settings, clusterService), threadPool, connectionManager, throttlerManager);
+        this.httpClient = HttpClient.create(
+            new HttpSettings(settings, clusterService),
+            threadPool,
+            connectionManager,
+            throttlerManager,
+            circuitBreaker
+        );
 
         this.evictionInterval = CONNECTION_EVICTION_THREAD_INTERVAL_SETTING.get(settings);
         this.connectionMaxIdle = CONNECTION_MAX_IDLE_TIME_SETTING.get(settings);

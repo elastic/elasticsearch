@@ -94,7 +94,7 @@ public class ManagedServiceAccountMultiProjectIT extends ESRestTestCase {
         assertBadRequest(tokenRequest, "service account [" + namespace + "/" + service + "] does not exist");
 
         final Request getRequest = new Request("GET", "/_security/service");
-        getRequest.addParameter("include_managed", "true");
+        getRequest.addParameter("managed_by", "elastic,user");
         setProjectHeader(getRequest, project);
         final Map<String, Object> accounts = entityAsMap(client().performRequest(getRequest));
         assertThat(accounts, hasKey("elastic/kibana"));

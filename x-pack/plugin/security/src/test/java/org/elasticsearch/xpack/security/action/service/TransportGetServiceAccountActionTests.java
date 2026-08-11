@@ -18,11 +18,13 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountRequest;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountResponse;
 import org.elasticsearch.xpack.core.security.action.service.ServiceAccountInfo;
+import org.elasticsearch.xpack.core.security.action.service.ServiceAccountManagedBy;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -119,7 +121,7 @@ public class TransportGetServiceAccountActionTests extends ESTestCase {
         );
 
         final PlainActionFuture<GetServiceAccountResponse> future = new PlainActionFuture<>();
-        action.doExecute(mock(Task.class), new GetServiceAccountRequest(null, null, true), future);
+        action.doExecute(mock(Task.class), new GetServiceAccountRequest(null, null, EnumSet.allOf(ServiceAccountManagedBy.class)), future);
         expectThrows(ElasticsearchException.class, future::actionGet);
         verify(failingServiceAccountService).getManagedAccountInfos(eq(null), eq(null), any());
     }

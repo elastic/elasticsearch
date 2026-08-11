@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountAct
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountRequest;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountResponse;
 import org.elasticsearch.xpack.core.security.action.service.ServiceAccountInfo;
+import org.elasticsearch.xpack.core.security.action.service.ServiceAccountManagedBy;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount;
 import org.elasticsearch.xpack.core.security.support.ManagedServiceAccountIdValidator;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
@@ -50,21 +51,26 @@ public class TransportGetServiceAccountAction extends HandledTransportAction<Get
 
     @Override
     protected void doExecute(Task task, GetServiceAccountRequest request, ActionListener<GetServiceAccountResponse> listener) {
-        Predicate<ServiceAccount> builtInFilter = Predicates.always();
-        if (request.getNamespace() != null) {
-            builtInFilter = builtInFilter.and(v -> v.id().namespace().equals(request.getNamespace()));
+        final List<ServiceAccountInfo> builtInInfos;
+        if (request.getManagedBy().contains(ServiceAccountManagedBy.ELASTIC)) {
+            Predicate<ServiceAccount> builtInFilter = Predicates.always();
+            if (request.getNamespace() != null) {
+                builtInFilter = builtInFilter.and(v -> v.id().namespace().equals(request.getNamespace()));
+            }
+            if (request.getServiceName() != null) {
+                builtInFilter = builtInFilter.and(v -> v.id().serviceName().equals(request.getServiceName()));
+            }
+            builtInInfos = ServiceAccountService.getBuiltInServiceAccounts()
+                .values()
+                .stream()
+                .filter(builtInFilter)
+                .map(v -> ServiceAccountInfo.builtIn(v.id().asPrincipal(), v.roleDescriptor()))
+                .toList();
+        } else {
+            builtInInfos = List.of();
         }
-        if (request.getServiceName() != null) {
-            builtInFilter = builtInFilter.and(v -> v.id().serviceName().equals(request.getServiceName()));
-        }
-        final List<ServiceAccountInfo> builtInInfos = ServiceAccountService.getBuiltInServiceAccounts()
-            .values()
-            .stream()
-            .filter(builtInFilter)
-            .map(v -> ServiceAccountInfo.builtIn(v.id().asPrincipal(), v.roleDescriptor()))
-            .toList();
 
-        if (requestsBuiltInAccountsOnly(request) || shouldSkipManagedLookup(request)) {
+        if (request.getManagedBy().contains(ServiceAccountManagedBy.USER) == false || requestsBuiltInAccountsOnly(request)) {
             listener.onResponse(new GetServiceAccountResponse(builtInInfos.toArray(ServiceAccountInfo[]::new)));
             return;
         }
@@ -80,9 +86,5 @@ public class TransportGetServiceAccountAction extends HandledTransportAction<Get
 
     private static boolean requestsBuiltInAccountsOnly(GetServiceAccountRequest request) {
         return ManagedServiceAccountIdValidator.BUILTIN_NAMESPACE.equals(request.getNamespace());
-    }
-
-    private static boolean shouldSkipManagedLookup(GetServiceAccountRequest request) {
-        return request.getNamespace() == null && request.isIncludeManaged() == false;
     }
 }

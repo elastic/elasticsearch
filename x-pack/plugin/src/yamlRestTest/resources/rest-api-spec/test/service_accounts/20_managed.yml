@@ -84,8 +84,16 @@ teardown:
 
   - do:
       security.get_service_accounts:
-        include_managed: true
+        managed_by: "elastic,user"
   - length: { '': 5 }
+  - is_true: "yaml_poc/worker_1"
+  - match: { "elastic/kibana.managed_by": "elastic" }
+
+  # managed_by=user filters the listing to API-managed accounts only
+  - do:
+      security.get_service_accounts:
+        managed_by: "user"
+  - length: { '': 1 }
   - is_true: "yaml_poc/worker_1"
 
   - do:
@@ -95,12 +103,12 @@ teardown:
   - length: { '': 1 }
   - match:
       "yaml_poc/worker_1":
-        managed: true
+        managed_by: user
         roles: ["managed_yaml_monitor"]
         enabled: true
 
-  # namespace-scoped requests include managed accounts without include_managed;
-  # the parameter only affects the un-scoped listing
+  # requests scoped to a namespace default to managed_by=elastic,user;
+  # the un-scoped listing defaults to managed_by=elastic
   - do:
       security.get_service_accounts:
         namespace: yaml_poc

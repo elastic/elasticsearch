@@ -113,10 +113,11 @@ public class ServiceAccountInfo implements Writeable, ToXContent {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(principal);
         if (managed) {
-            builder.field("managed", true);
+            builder.field("managed_by", ServiceAccountManagedBy.USER.value());
             builder.stringListField("roles", roles);
             builder.field("enabled", enabled);
         } else {
+            builder.field("managed_by", ServiceAccountManagedBy.ELASTIC.value());
             builder.field("role_descriptor");
             roleDescriptor.toXContent(builder, params);
         }

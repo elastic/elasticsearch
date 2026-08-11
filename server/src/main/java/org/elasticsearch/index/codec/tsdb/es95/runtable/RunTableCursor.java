@@ -95,6 +95,11 @@ final class RunTableCursor implements Cursor {
         currentRun = lo;
     }
 
+    @Override
+    public long cost() {
+        return numRuns;
+    }
+
     private long nextRunStart(int run) {
         return run + 1 < numRuns ? startDocs.get(run + 1) : maxDoc;
     }

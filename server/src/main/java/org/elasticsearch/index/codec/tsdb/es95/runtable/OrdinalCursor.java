@@ -58,4 +58,9 @@ final class OrdinalCursor implements Cursor {
         assert target >= 0 && target < maxDoc : "target " + target + " out of range [0, " + maxDoc + ")";
         currentRun = target;
     }
+
+    @Override
+    public long cost() {
+        return maxDoc;
+    }
 }

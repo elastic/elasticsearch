@@ -777,3 +777,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecJsonExtractIT
   method: test {csv-spec:json_extract.jsonExtractFromIndexBracketNotation}
   issue: https://github.com/elastic/elasticsearch/issues/156506
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecStatsIT
+  method: test {csv-spec:stats.weightedAvgWeightMvWarning}
+  issue: https://github.com/elastic/elasticsearch/issues/156508

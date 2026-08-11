@@ -9,6 +9,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
@@ -20,6 +21,7 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -61,6 +63,8 @@ import static org.elasticsearch.index.IndexSettings.DEFAULT_FIELD_SETTING;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SNAPSHOT_PARTIAL_SETTING;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
@@ -942,4 +946,151 @@ public class IndexMetadataTests extends ESTestCase {
             .build();
         assertThat(metadata.sequenceNumbersDisabled(), is(disabled));
     }
+
+    public void testRamBytesUsedIncreasesWithMapping() throws IOException {
+        Settings settings = indexSettings(1, 0).put("index.version.created", IndexVersion.current().id()).build();
+        IndexMetadata withoutMapping = IndexMetadata.builder("test").settings(settings).build();
+        long withoutMappingBytes = withoutMapping.ramBytesUsed();
+
+        String mappingJson = """
+            {
+              "_doc": {
+                "properties": {
+                  "field": { "type": "keyword" }
+                }
+              }
+            }
+            """;
+        IndexMetadata withMapping = IndexMetadata.builder("test")
+            .settings(settings)
+            .putMapping(new MappingMetadata(CompressedXContent.fromJSON(mappingJson)))
+            .build();
+        long withMappingBytes = withMapping.ramBytesUsed();
+
+        assertThat(withMappingBytes, greaterThan(withoutMappingBytes));
+        assertThat(
+            withMappingBytes - withoutMappingBytes,
+            greaterThanOrEqualTo((long) withMapping.mapping().source().compressedReference().length())
+        );
+    }
+
+    public void testRamBytesUsedScalesWithShardCount() {
+        Settings settings = indexSettings(1, 0).put("index.version.created", IndexVersion.current().id()).build();
+        IndexMetadata oneShard = IndexMetadata.builder("test").settings(settings).build();
+        Settings manyShardSettings = indexSettings(32, 0).put("index.version.created", IndexVersion.current().id()).build();
+        IndexMetadata manyShards = IndexMetadata.builder("test").settings(manyShardSettings).build();
+
+        assertThat(manyShards.ramBytesUsed(), greaterThan(oneShard.ramBytesUsed()));
+        assertThat(manyShards.ramBytesUsed() - oneShard.ramBytesUsed(), greaterThanOrEqualTo(31L * RamUsageEstimator.NUM_BYTES_OBJECT_REF));
+    }
+
+    @SuppressForbidden(reason = "reflectively inspects the private memoization field to verify caching")
+    public void testRamBytesUsedIsMemoized() throws Exception {
+        Settings settings = indexSettings(1, 0).put("index.version.created", IndexVersion.current().id()).build();
+        IndexMetadata metadata = IndexMetadata.builder("test")
+            .settings(settings)
+            .putMapping(new MappingMetadata(CompressedXContent.fromJSON("""
+                { "_doc": { "properties": { "field": { "type": "keyword" } } } }
+                """)))
+            .build();
+
+        var memoField = IndexMetadata.class.getDeclaredField("ramBytesUsed");
+        memoField.setAccessible(true);
+        assertThat(memoField.getLong(metadata), equalTo(-1L));
+
+        long computed = metadata.ramBytesUsed();
+        assertThat(computed, greaterThan(0L));
+        assertThat(memoField.getLong(metadata), equalTo(computed));
+
+        assertThat(metadata.ramBytesUsed(), equalTo(computed));
+        assertThat(memoField.getLong(metadata), equalTo(computed));
+    }
+
+    public void testRamBytesUsedIncludesRoutingPaths() {
+        Settings base = indexSettings(1, 0).put("index.version.created", IndexVersion.current().id()).build();
+        IndexMetadata withoutPaths = IndexMetadata.builder("test").settings(base).build();
+        Settings withPathSettings = Settings.builder().put(base).putList("index.routing_path", "dim1", "dim2", "dim3").build();
+        IndexMetadata withPaths = IndexMetadata.builder("test").settings(withPathSettings).build();
+
+        assertThat(withPaths.ramBytesUsed(), greaterThan(withoutPaths.ramBytesUsed()));
+    }
+
+    public void testRamBytesUsedIncludesAliasMetadata() {
+        Settings settings = indexSettings(1, 0).put("index.version.created", IndexVersion.current().id()).build();
+        IndexMetadata withoutAlias = IndexMetadata.builder("test").settings(settings).build();
+        IndexMetadata withAlias = IndexMetadata.builder("test")
+            .settings(settings)
+            .putAlias(
+                AliasMetadata.builder("alias")
+                    .filter("{\"term\":{\"field\":\"value\"}}")
+                    .indexRouting("routing")
+                    .searchRouting("sr1,sr2")
+                    .writeIndex(true)
+                    .build()
+            )
+            .build();
+
+        assertThat(withAlias.ramBytesUsed(), greaterThan(withoutAlias.ramBytesUsed()));
+    }
+
+    public void testRamBytesUsedIncludesRolloverMetConditions() {
+        Settings settings = indexSettings(1, 0).put("index.version.created", IndexVersion.current().id()).build();
+        IndexMetadata withoutRollover = IndexMetadata.builder("test").settings(settings).build();
+        IndexMetadata withRollover = IndexMetadata.builder("test")
+            .settings(settings)
+            .putRolloverInfo(
+                new RolloverInfo(
+                    "alias",
+                    List.of(
+                        new MaxDocsCondition(1_000L),
+                        new MaxAgeCondition(TimeValue.timeValueDays(1)),
+                        new MaxSizeCondition(ByteSizeValue.ofMb(1))
+                    ),
+                    System.currentTimeMillis()
+                )
+            )
+            .build();
+
+        assertThat(withRollover.ramBytesUsed(), greaterThan(withoutRollover.ramBytesUsed()));
+    }
+
+    public void testRamBytesUsedIncludesDiscoveryNodeFilters() {
+        Settings base = indexSettings(1, 0).put("index.version.created", IndexVersion.current().id()).build();
+        IndexMetadata withoutFilters = IndexMetadata.builder("test").settings(base).build();
+        Settings withFilterSettings = Settings.builder()
+            .put(base)
+            .put("index.routing.allocation.require._id", "node-1,node-2")
+            .put("index.routing.allocation.require.rack", "r1")
+            .build();
+        IndexMetadata withFilters = IndexMetadata.builder("test").settings(withFilterSettings).build();
+
+        assertThat(withFilters.ramBytesUsed(), greaterThan(withoutFilters.ramBytesUsed()));
+    }
+
+    /**
+     * Non-tautology check for a fixed minimal {@link IndexMetadata}: the estimate must exceed an independent lower bound derived from
+     * literal string lengths, {@link Settings#estimatedRamBytesUsed()}, and primary-term array length — without replicating
+     * {@link IndexMetadata#computeRamBytesUsed()}. A settings-key delta verifies that index-level accounting tracks settings growth.
+     */
+    public void testRamBytesUsedMinimalIndexMetadataHandComputed() {
+        Settings settings = indexSettings(1, 0).put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current().id())
+            .put(IndexMetadata.SETTING_INDEX_UUID, "00000000-0000-0000-0000-000000000001")
+            .build();
+        IndexMetadata metadata = IndexMetadata.builder("idx").settings(settings).build();
+        long actual = metadata.ramBytesUsed();
+
+        long settingsBytes = settings.estimatedRamBytesUsed();
+        long independentLowerBound = RamUsageEstimator.shallowSizeOfInstance(IndexMetadata.class) + RamUsageEstimator.shallowSizeOfInstance(
+            org.elasticsearch.index.Index.class
+        ) + RamUsageEstimator.sizeOf("idx") + RamUsageEstimator.sizeOf("00000000-0000-0000-0000-000000000001") + settingsBytes
+            + RamUsageEstimator.sizeOf(new long[1]);
+        assertThat(actual, greaterThanOrEqualTo(independentLowerBound));
+
+        Settings withExtraSetting = Settings.builder().put(settings).put("index.refresh_interval", "1s").build();
+        IndexMetadata metadataWithExtraSetting = IndexMetadata.builder("idx").settings(withExtraSetting).build();
+        long settingsDelta = withExtraSetting.estimatedRamBytesUsed() - settingsBytes;
+        assertThat(settingsDelta, greaterThan(0L));
+        assertThat(metadataWithExtraSetting.ramBytesUsed() - actual, equalTo(settingsDelta));
+    }
+
 }

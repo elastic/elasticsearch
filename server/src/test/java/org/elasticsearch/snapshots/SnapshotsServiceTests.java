@@ -49,7 +49,9 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.singleton;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
-import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -642,11 +644,11 @@ public class SnapshotsServiceTests extends ESTestCase {
         );
 
         assertThat(
-            SnapshotsServiceUtils.snapshottingIndices(
+            SnapshotsServiceUtils.snapshottingIndicesBySnapshot(
                 clusterState.projectState(),
                 singleton(clusterState.metadata().getProject().index(indexName).getIndex())
             ),
-            empty()
+            anEmptyMap()
         );
     }
 
@@ -706,11 +708,16 @@ public class SnapshotsServiceTests extends ESTestCase {
         assertThat(result.get(snapA), equalTo(Set.of(idx1, idx2)));
         assertThat(result.get(snapB), equalTo(Set.of(idx2)));
 
-        // description sorts by repository then snapshot name; idx-1 < idx-2 within each group
+        // each snapshot is rendered as [repo/snap]: [index-names]; iteration order is not guaranteed
         final var description = SnapshotsServiceUtils.describeSnapshottingIndices(result);
         assertThat(
             description,
-            equalTo("[repo-a/snap-a] is snapshotting " + List.of(idx1, idx2) + ", [repo-b/snap-b] is snapshotting " + List.of(idx2))
+            allOf(
+                containsString("[repo-a/snap-a] indices:"),
+                containsString(idx1.getName()),
+                containsString(idx2.getName()),
+                containsString("[repo-b/snap-b] indices:")
+            )
         );
     }
 

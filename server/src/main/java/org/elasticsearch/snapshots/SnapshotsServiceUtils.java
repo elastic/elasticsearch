@@ -57,7 +57,7 @@ import org.elasticsearch.repositories.ShardGenerations;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
+
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -1083,7 +1083,6 @@ public class SnapshotsServiceUtils {
      * user should render the whole map so the user knows which snapshots to take action on.
      *
      * @see #describeSnapshottingIndices(Map)
-     * @see #snapshottingIndices(ProjectState, Set)
      */
     public static Map<Snapshot, Set<Index>> snapshottingIndicesBySnapshot(
         final ProjectState projectState,
@@ -1108,33 +1107,21 @@ public class SnapshotsServiceUtils {
 
     /**
      * Renders the result of {@link #snapshottingIndicesBySnapshot} for use in a user-facing error message. Each snapshot is identified
-     * as {@code repository/snapshotName} (the form a user needs for the snapshots API). Output is sorted deterministically by repository
-     * then snapshot name, with indices within each snapshot sorted by name.
+     * as {@code repository/snapshotName} (the form a user needs for the snapshots API). Output is capped at 5 KB; any snapshots beyond
+     * that limit are omitted with a count of how many were dropped.
      */
     public static String describeSnapshottingIndices(Map<Snapshot, Set<Index>> indicesBySnapshot) {
-        return indicesBySnapshot.entrySet()
-            .stream()
-            .sorted(
-                Comparator.<Map.Entry<Snapshot, Set<Index>>, String>comparing(e -> e.getKey().getRepository())
-                    .thenComparing(e -> e.getKey().getSnapshotId().getName())
-            )
-            .map(e -> {
-                List<Index> sortedIndices = e.getValue().stream().sorted(Comparator.comparing(Index::getName)).toList();
-                return "[" + e.getKey().getRepository() + "/" + e.getKey().getSnapshotId().getName() + "] is snapshotting " + sortedIndices;
-            })
-            .collect(Collectors.joining(", "));
-    }
-
-    /**
-     * Returns the indices that are currently being snapshotted by a non-partial, non-clone snapshot and that are contained in the
-     * indices-to-check set. This is a convenience wrapper around {@link #snapshottingIndicesBySnapshot} for callers that only need the
-     * blocked index set and do not need to name the blocking snapshots.
-     */
-    public static Set<Index> snapshottingIndices(final ProjectState projectState, final Set<Index> indicesToCheck) {
-        return snapshottingIndicesBySnapshot(projectState, indicesToCheck).values()
-            .stream()
-            .flatMap(Set::stream)
-            .collect(Collectors.toSet());
+        StringBuilder sb = new StringBuilder();
+        var collector = new Strings.BoundedDelimitedStringCollector(sb, ", ", 5 * 1024);
+        for (Map.Entry<Snapshot, Set<Index>> entry : indicesBySnapshot.entrySet()) {
+            Snapshot snapshot = entry.getKey();
+            collector.appendItem(
+                "[" + snapshot.getRepository() + "/" + snapshot.getSnapshotId().getName() + "] indices:"
+                    + entry.getValue().stream().map(i -> i.getName() + "/" + i.getUUID()).toList()
+            );
+        }
+        collector.finish();
+        return sb.toString();
     }
 
     /**

@@ -43,6 +43,7 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
 import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -109,8 +110,8 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         );
         assertEquals(
             "Cannot delete indices that are being snapshotted: "
-                + "[doesn't matter/snapshot name] is snapshotting "
-                + List.of(index)
+                + "[doesn't matter/snapshot name]: "
+                + List.of(index.getName())
                 + ". Try again after these snapshots finish, or cancel them.",
             e.getMessage()
         );
@@ -123,15 +124,19 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         // and sort indices within each group by name — verifying the fix for the case where
         // multiple concurrent snapshots (e.g. from ILM/SLM) are in flight simultaneously.
         final ProjectId projectId = randomProjectIdOrDefault();
-        String alphaName = "alpha";
-        String betaName = "beta";
+        String alphaName = randomIndexName();
+        String betaName = randomIndexName();
         String alphaUuid = randomUUID();
         String betaUuid = randomUUID();
         final Index alphaIndex = new Index(alphaName, alphaUuid);
         final Index betaIndex = new Index(betaName, betaUuid);
 
-        Snapshot snapA = new Snapshot(projectId, "repo-a", new SnapshotId("snap-a", randomUUID()));
-        Snapshot snapB = new Snapshot(projectId, "repo-b", new SnapshotId("snap-b", randomUUID()));
+        String repoNameA = randomRepoName();
+        String snapNameA = randomSnapshotName();
+        Snapshot snapA = new Snapshot(projectId, repoNameA, new SnapshotId(snapNameA, randomUUID()));
+        String repoNameB = randomRepoName();
+        String snapNameB = randomSnapshotName();
+        Snapshot snapB = new Snapshot(projectId, repoNameB, new SnapshotId(snapNameB, randomUUID()));
 
         SnapshotsInProgress snaps = SnapshotsInProgress.EMPTY.withAddedEntry(
             SnapshotsInProgress.Entry.snapshot(
@@ -188,15 +193,17 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
             SnapshotInProgressException.class,
             () -> MetadataDeleteIndexService.deleteIndices(state, Set.of(alphaIndex, betaIndex), Settings.EMPTY)
         );
-        // repo-a/snap-a covers both indices (alpha < beta, sorted by name); repo-b/snap-b covers only beta
-        assertEquals(
-            "Cannot delete indices that are being snapshotted: "
-                + "[repo-a/snap-a] is snapshotting "
-                + List.of(alphaIndex, betaIndex)
-                + ", [repo-b/snap-b] is snapshotting "
-                + List.of(betaIndex)
-                + ". Try again after these snapshots finish, or cancel them.",
-            e.getMessage()
+        // each snapshot is rendered as [repo/snap]: [index-names]; iteration order is not guaranteed
+        assertThat(
+            e.getMessage(),
+            allOf(
+                containsString("Cannot delete indices that are being snapshotted:"),
+                containsString("[" + repoNameA + "/" + snapNameA + "] indices:"),
+                containsString(alphaName),
+                containsString("[" + repoNameB + "/" + snapNameB + "] indices:"),
+                containsString(betaName),
+                containsString(". Try again after these snapshots finish, or cancel them.")
+            )
         );
     }
 

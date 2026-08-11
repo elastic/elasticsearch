@@ -934,18 +934,27 @@ public class MetadataIndexStateService {
                 }
 
                 // Check if index closing conflicts with any running snapshots
-                Set<Index> snapshottingIndices = SnapshotsServiceUtils.snapshottingIndices(currentProjectState, Set.of(index));
+                Map<Snapshot, Set<Index>> snapshottingIndices = SnapshotsServiceUtils.snapshottingIndicesBySnapshot(currentProjectState, Set.of(index));
                 if (snapshottingIndices.isEmpty() == false) {
                     closingResults.put(
                         result.getKey(),
                         new IndexResult(
                             result.getKey(),
                             new IllegalStateException(
-                                "verification of shards before closing " + index + " succeeded but index is being snapshot in the meantime"
+                                "verification of shards before closing "
+                                    + index
+                                    + " succeeded but index is being snapshotted: "
+                                    + SnapshotsServiceUtils.describeSnapshottingIndices(snapshottingIndices)
                             )
                         )
                     );
-                    logger.debug("verification of shards before closing {} succeeded but index is being snapshot in the meantime", index);
+                    logger.debug(
+                        () -> Strings.format(
+                            "verification of shards before closing %s succeeded but index is being snapshotted: %s",
+                            index,
+                            SnapshotsServiceUtils.describeSnapshottingIndices(snapshottingIndices)
+                        )
+                    );
                     continue;
                 }
 

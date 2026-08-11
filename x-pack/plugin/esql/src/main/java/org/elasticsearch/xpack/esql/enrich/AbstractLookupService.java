@@ -92,6 +92,7 @@ import org.elasticsearch.xpack.esql.plugin.EsqlSearchExecutionContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -230,15 +231,27 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
 
     /**
      * Build the response.
+     *
+     * @param warnings warnings accumulated into the lookup {@link DriverContext}
      */
-    protected abstract LookupResponse createLookupResponse(List<Page> resultPages, BlockFactory blockFactory, long bytesRead);
+    protected abstract LookupResponse createLookupResponse(
+        List<Page> resultPages,
+        BlockFactory blockFactory,
+        long bytesRead,
+        Collection<String> warnings
+    );
 
     /**
      * Helper to create a LookupResponse from pages and send it to the listener.
      * The response is released after sending via {@link ActionListener#respondAndRelease}.
      */
-    protected final void respondWithPages(ActionListener<LookupResponse> listener, List<Page> pages, long bytesRead) {
-        ActionListener.respondAndRelease(listener, createLookupResponse(pages, blockFactory, bytesRead));
+    protected final void respondWithPages(
+        ActionListener<LookupResponse> listener,
+        List<Page> pages,
+        long bytesRead,
+        Collection<String> warnings
+    ) {
+        ActionListener.respondAndRelease(listener, createLookupResponse(pages, blockFactory, bytesRead, warnings));
     }
 
     /**
@@ -349,7 +362,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                 List<Page> nullResponse = mergePages
                     ? List.of(createNullResponse(request.inputPage.getPositionCount(), request.extractFields))
                     : List.of();
-                respondWithPages(listener, nullResponse, 0L);
+                respondWithPages(listener, nullResponse, 0L, List.of());
                 return;
             }
         }
@@ -486,12 +499,12 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
             Driver.start(threadContext, executor, driver, Driver.DEFAULT_MAX_ITERATIONS, new ActionListener<Void>() {
                 @Override
                 public void onResponse(Void unused) {
-                    long driverBytesRead = DriverCompletionInfo.excludingProfiles(List.of(driver), 0L).bytesRead();
+                    DriverCompletionInfo completionInfo = DriverCompletionInfo.excludingProfiles(List.of(driver), 0L);
                     List<Page> out = collectedPages;
                     if (mergePages && out.isEmpty()) {
                         out = List.of(createNullResponse(request.inputPage.getPositionCount(), request.extractFields));
                     }
-                    respondWithPages(listener, out, driverBytesRead);
+                    respondWithPages(listener, out, completionInfo.bytesRead(), completionInfo.warnings());
                 }
 
                 @Override
@@ -785,6 +798,12 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         protected abstract List<Page> takePages();
 
         public abstract long bytesRead();
+
+        /**
+         * Warnings accumulated by the lookup {@link DriverContext} to be replayed
+         * into the requesting {@link DriverContext}. Never {@code null}.
+         */
+        public abstract List<String> warnings();
 
         /**
          * Returns the plan string for profile output, or null if not available.

@@ -487,7 +487,11 @@ public final class ExchangeService extends AbstractLifecycleComponent {
             BATCH_EXCHANGE_STATUS_ACTION_NAME,
             new BatchExchangeStatusRequest(exchangeId),
             TransportRequestOptions.EMPTY,
-            new ActionListenerResponseHandler<>(listener, BatchExchangeStatusResponse::new, responseExecutor)
+            new ActionListenerResponseHandler<>(
+                listener,
+                in -> new BatchExchangeStatusResponse(in, transportService.getThreadPool().getThreadContext()),
+                responseExecutor
+            )
         );
     }
 

@@ -27,6 +27,7 @@ import org.elasticsearch.compute.test.TestWarningsSource;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RateDoubleGroupingAggregatorFunctionTests extends ComputeTestCase {
@@ -128,8 +129,9 @@ public class RateDoubleGroupingAggregatorFunctionTests extends ComputeTestCase {
         Page page = new Page(groupIds, values, timestamps, temporalities, sliceIndices, futureMaxTimestamps);
 
         var source = new TestWarningsSource("rate(field)");
+        DriverContext driverContext = driverContext();
         var aggregator = new RateDoubleGroupingAggregatorFunction.FunctionSupplier(false, false, source).groupingAggregator(
-            driverContext(),
+            driverContext,
             List.of(1, 2, 3, 4, 5)
         );
         try {
@@ -143,10 +145,14 @@ public class RateDoubleGroupingAggregatorFunctionTests extends ComputeTestCase {
             page.releaseBlocks();
         }
 
-        assertWarnings(
-            "Line 1:1: evaluation of [rate(field)] failed, treating result as null. Only first 20 failures recorded.",
-            "Line 1:1: org.elasticsearch.compute.aggregation.InvalidTemporalityException: "
-                + "Invalid temporality value: [invalid_temporality], expected [cumulative] or [delta]"
+        driverContext.finish();
+        assertThat(
+            driverContext.warnings(),
+            containsInAnyOrder(
+                "Line 1:1: evaluation of [rate(field)] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: org.elasticsearch.compute.aggregation.InvalidTemporalityException: "
+                    + "Invalid temporality value: [invalid_temporality], expected [cumulative] or [delta]"
+            )
         );
     }
 }

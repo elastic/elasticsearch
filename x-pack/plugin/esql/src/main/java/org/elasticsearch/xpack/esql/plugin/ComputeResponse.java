@@ -18,6 +18,7 @@ import org.elasticsearch.transport.TransportResponse;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 /**
  * The compute result of {@link DataNodeRequest} or {@link ClusterComputeRequest}
@@ -76,7 +77,8 @@ final class ComputeResponse extends TransportResponse {
                     in.readCollectionAsImmutableList(DriverProfile::readFrom),
                     List.of(),
                     java.util.Map.of(),
-                    false
+                    false,
+                    Set.of()
                 );
             } else {
                 completionInfo = DriverCompletionInfo.EMPTY;

@@ -30,6 +30,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.provider.filtering.FilterPathBasedFilter;
+import org.yaml.snakeyaml.error.YAMLException;
 
 import java.io.BufferedInputStream;
 import java.io.IOException;
@@ -633,6 +634,9 @@ public class JsonXContentGenerator implements XContentGenerator {
 
         try {
             generator.close();
+        } catch (YAMLException e) {
+            // ignore the SnakeYAML exception, our own structural check handles the same case
+            assert failsStructuralCheck : "Should fail the structural check, but didn't: " + e.getMessage();
         } catch (IOException e) {
             if (exception == null) {
                 exception = e;

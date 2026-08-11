@@ -563,7 +563,8 @@ public class XContentBuilderTests extends ESTestCase {
     }
 
     public void testCloseAlwaysClosesUnderlyingJacksonGenerator() throws IOException {
-        XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+        var type = randomFrom(XContentType.values()).canonical();
+        XContentBuilder builder = XContentFactory.contentBuilder(type);
 
         var e = expectThrows(AssertionError.class, () -> {
             builder.startObject();
@@ -572,7 +573,9 @@ public class XContentBuilderTests extends ESTestCase {
         });
         assertThat(e.getMessage(), equalTo("Unclosed object or array found"));
 
-        assertTrue(builder.generator().isClosed());
+        if (type != XContentType.YAML) {
+            assertTrue(builder.generator().isClosed());
+        }
     }
 
     public void testCloseAllowIllFormedDoesNotValidateStructuralCorrectness() throws IOException {

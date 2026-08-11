@@ -22,11 +22,11 @@ import org.elasticsearch.xpack.core.security.action.service.DeleteManagedService
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountAction;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountRequest;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountResponse;
-import org.elasticsearch.xpack.core.security.action.service.ServiceAccountManagedBy;
 import org.elasticsearch.xpack.core.security.action.service.PutManagedServiceAccountAction;
 import org.elasticsearch.xpack.core.security.action.service.PutManagedServiceAccountRequest;
 import org.elasticsearch.xpack.core.security.action.service.PutManagedServiceAccountResponse;
 import org.elasticsearch.xpack.core.security.action.service.ServiceAccountInfo;
+import org.elasticsearch.xpack.core.security.action.service.ServiceAccountManagedBy;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateResponse;

@@ -225,6 +225,11 @@ public class AzureStorageService {
         azureClientProvider.dropConnectionProviders(keys);
     }
 
+    // visible for testing
+    Map<AzureClientProvider.ConnectionProviderKey, AzureConnectionProviderReference> getConnectionProvidersCache() {
+        return azureClientProvider.getConnectionProvidersCache();
+    }
+
     /**
      * For Azure repositories, we report the different kinds of credentials in use in the telemetry.
      */

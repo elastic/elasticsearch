@@ -167,6 +167,11 @@ class AzureClientProvider extends AbstractLifecycleComponent {
     // to prevent future reloadable `SecureSetting`s from breaking anything.
     private volatile Map<ConnectionProviderKey, AzureConnectionProviderReference> connectionProvidersCache = Collections.emptyMap();
 
+    // visible for testing
+    Map<ConnectionProviderKey, AzureConnectionProviderReference> getConnectionProvidersCache() {
+        return connectionProvidersCache;
+    }
+
     // The following listeners are used together in order to dispose all connection providers when we stop the provider (see `doStop`).
     private final PlainActionFuture<Void> allConnectionProvidersDisposed = new PlainActionFuture<>();
     private final RefCountingListener connectionProviderDisposals = new RefCountingListener(allConnectionProvidersDisposed);
@@ -198,6 +203,15 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         IOUtils.closeWhileHandlingException(refs);
     }
 
+    ConnectionProvider buildConnectionProvider(ConnectionProviderKey key) {
+        return ConnectionProvider.builder("azure-sdk-connection-pool")
+            .maxConnections(key.settings().getMaxConnections())
+            .pendingAcquireMaxCount(PENDING_CONNECTION_QUEUE_SIZE) // This determines the max outstanding queued requests
+            .pendingAcquireTimeout(Duration.ofMillis(openConnectionTimeout.millis()))
+            .maxIdleTime(Duration.ofMillis(maxIdleTime.millis()))
+            .build();
+    }
+
     private AzureConnectionProviderReference acquireConnectionProvider(ConnectionProviderKey key) {
         if (closed) {
             throw new AlreadyClosedException("AzureClientProvider is already closed");
@@ -218,14 +232,10 @@ class AzureClientProvider extends AbstractLifecycleComponent {
                 return existing;
             }
 
-            ConnectionProvider provider = ConnectionProvider.builder("azure-sdk-connection-pool")
-                .maxConnections(key.settings().getMaxConnections())
-                .pendingAcquireMaxCount(PENDING_CONNECTION_QUEUE_SIZE) // This determines the max outstanding queued requests
-                .pendingAcquireTimeout(Duration.ofMillis(openConnectionTimeout.millis()))
-                .maxIdleTime(Duration.ofMillis(maxIdleTime.millis()))
-                .build();
-
-            final var newConnectionProviderRef = new AzureConnectionProviderReference(provider, connectionProviderDisposals.acquire());
+            final var newConnectionProviderRef = new AzureConnectionProviderReference(
+                buildConnectionProvider(key),
+                connectionProviderDisposals.acquire()
+            );
             // `newConnectionProviderRef` starts with a reference count of 1 which corresponds to it being in the cache and is potentially
             // dropped during `dropConnectionProviders`. The second reference introduced below is for the client we're about to build, which
             // is dropped when we `close` the client.
@@ -272,7 +282,7 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         ConnectionProviderKey key = new ConnectionProviderKey(projectId, clientName, settings);
         AzureConnectionProviderReference connectionProviderReference = acquireConnectionProvider(key);
         // We release the reference if constructing the client fails, so that we don't leak the connection provider.
-        Releasable toRelease = connectionProviderReference::close;
+        Releasable toRelease = connectionProviderReference;
 
         try {
             reactor.netty.http.client.HttpClient nettyHttpClient = reactor.netty.http.client.HttpClient.create(

@@ -17,7 +17,6 @@ import org.elasticsearch.core.Releasable;
 
 /// Handles the disposal of the wrapped [ConnectionProvider] using reference counting.
 class AzureConnectionProviderReference extends AbstractRefCounted implements Releasable {
-
     private final ConnectionProvider connectionProvider;
     private final ActionListener<Void> disposalListener;
 

@@ -293,6 +293,7 @@ final class AzureStorageSettings {
         sb.append(", timeout=").append(timeout);
         sb.append(", readTimeout=").append(readTimeout);
         sb.append(", endpointSuffix='").append(endpointSuffix).append('\'');
+        sb.append(", maxConnections=").append(maxConnections);
         sb.append(", maxRetries=").append(maxRetries);
         sb.append(", proxy=").append(proxy);
         sb.append('}');

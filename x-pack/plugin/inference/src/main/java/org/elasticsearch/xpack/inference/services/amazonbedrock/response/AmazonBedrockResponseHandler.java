@@ -26,4 +26,15 @@ public abstract class AmazonBedrockResponseHandler implements ResponseHandler {
         throws RetryException {
         // do nothing as the AWS SDK will take care of validation for us
     }
+
+    /**
+     * Bedrock responses are validated by the AWS SDK before they reach this handler, and Bedrock requests never flow through
+     * {@link org.elasticsearch.xpack.inference.external.http.retry.RetryingHttpSender}, so there is no failure status code to
+     * translate here.
+     */
+    @Override
+    public final RetryException buildFailureStatusCodeException(OutboundRequest outboundRequest, HttpResult result) {
+        assert false : "Amazon Bedrock responses are validated by the AWS SDK";
+        throw new UnsupportedOperationException("Amazon Bedrock responses are validated by the AWS SDK");
+    }
 }

@@ -25,6 +25,8 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -168,6 +170,69 @@ public class BlobStoreIncrementalityIT extends AbstractSnapshotIntegTestCase {
         clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repo, snapshot2).setIndices(indexName).setWaitForCompletion(true).get();
 
         logger.info("--> asserting that the two snapshots refer to different files in the repository");
+        final SnapshotStats secondSnapshotShardStatus = getStats(repo, snapshot2).getIndices().get(indexName).getShards().get(0).getStats();
+        assertThat(secondSnapshotShardStatus.getIncrementalFileCount(), greaterThan(0));
+    }
+
+    public void testForceMergeWithOnlyExpungeDeletesCausesFullSnapshot() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNode();
+        final String indexName = "test-index";
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                // disable automatic refresh so that all 15 docs below end up in a single segment
+                .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "-1")
+                // retention leases protect recent deletes from being merged away; sync them
+                // frequently so the expunge merge below can reclaim the deletes promptly
+                .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "200ms")
+                .build()
+        );
+        ensureGreen(indexName);
+
+        logger.info("--> indexing 15 docs and flushing them into a persisted segment");
+        for (int i = 0; i < 15; i++) {
+            indexDoc(indexName, Integer.toString(i), "field", "value-" + i);
+        }
+        flushAndRefresh(indexName);
+
+        // Delete 2 of the 15 docs (above index.merge.policy.expunge_deletes_allowed's default
+        // of 10%) so the expunge merge below rewrites the segment once retention releases the
+        // deletes. The deletes must happen BEFORE the first snapshot: deletes are operations
+        // and advance max_seq_no, and the bug (https://github.com/elastic/elasticsearch/issues/102395)
+        // only manifests when both snapshots see identical seq_no history around a merge that changed the files.
+        logger.info("--> deleting 2 docs before the first snapshot");
+        client().prepareDelete(indexName, "0").get();
+        client().prepareDelete(indexName, "1").get();
+        flushAndRefresh(indexName);
+
+        // guard: the setup really produced tombstones for the expunge merge to reclaim
+        final IndexStats indexStats = indicesAdmin().prepareStats(indexName).get().getIndex(indexName);
+        assertThat(indexStats.getIndexShards().get(0).getPrimary().getDocs().getDeleted(), greaterThan(0L));
+
+        final String repo = "test-repo";
+        createRepository(repo, "fs");
+        createSnapshot(repo, "snap-1", Collections.singletonList(indexName));
+
+        // Retention leases advance on the sync interval; retry until the expunge merge
+        // has actually reclaimed the deleted docs (a no-op merge writes no new commit,
+        // which would make this test pass or fail for the wrong reasons).
+        logger.info("--> force merging with only_expunge_deletes until the deleted docs are reclaimed");
+        assertBusy(() -> {
+            assertThat(
+                indicesAdmin().prepareForceMerge(indexName).setOnlyExpungeDeletes(true).setFlush(true).get().getFailedShards(),
+                is(0)
+            );
+            final IndexStats stats = indicesAdmin().prepareStats(indexName).get().getIndex(indexName);
+            assertThat(stats.getIndexShards().get(0).getPrimary().getDocs().getDeleted(), is(0L));
+        }, 30, TimeUnit.SECONDS);
+
+        final String snapshot2 = "snap-2";
+        createSnapshot(repo, snapshot2, Collections.singletonList(indexName));
+
+        // snapshot must upload something rather than reuse snap-1's file list
         final SnapshotStats secondSnapshotShardStatus = getStats(repo, snapshot2).getIndices().get(indexName).getShards().get(0).getStats();
         assertThat(secondSnapshotShardStatus.getIncrementalFileCount(), greaterThan(0));
     }

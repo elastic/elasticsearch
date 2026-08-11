@@ -738,3 +738,6 @@ tests:
 - class: org.elasticsearch.action.RejectionActionIT
   method: testSimulatedSearchRejectionLoad
   issue: https://github.com/elastic/elasticsearch/issues/156484
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecUnmappedTypeConflictsIT
+  method: test {csv-spec:unmapped-type-conflicts.typeConflictLongDateUnmappedCastToDouble}
+  issue: https://github.com/elastic/elasticsearch/issues/156485

@@ -167,7 +167,7 @@ public class ModelRegistryTests extends ESSingleNodeTestCase {
     }
 
     public static void assertMinimalServiceSettings(ModelRegistry registry, Model model) {
-        var settings = registry.getMinimalServiceSettings(model.getInferenceEntityId());
+        var settings = registry.getEndpointClusterState(model.getInferenceEntityId());
         assertNotNull(settings);
         assertThat(settings.taskType(), Matchers.equalTo(model.getTaskType()));
         assertThat(settings.dimensions(), Matchers.equalTo(model.getServiceSettings().dimensions()));

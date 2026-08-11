@@ -682,14 +682,14 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
             assertStoreModel(modelRegistry, model);
         }
 
-        Map<String, EndpointClusterState> minimalServiceSettings = modelRegistry.getMinimalServiceSettings(
+        Map<String, EndpointClusterState> endpointClusterState = modelRegistry.getEndpointClusterState(
             createdModels.stream().map(Model::getInferenceEntityId).collect(Collectors.toSet()),
             randomBoolean()
         );
 
         for (var model : createdModels) {
-            assertThat(minimalServiceSettings.containsKey(model.getInferenceEntityId()), is(true));
-            var thisModelSettings = minimalServiceSettings.get(model.getInferenceEntityId());
+            assertThat(endpointClusterState.containsKey(model.getInferenceEntityId()), is(true));
+            var thisModelSettings = endpointClusterState.get(model.getInferenceEntityId());
             assertThat(thisModelSettings, equalTo(new EndpointClusterState(model)));
         }
     }
@@ -707,7 +707,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
 
         ResourceNotFoundException e = expectThrows(
             ResourceNotFoundException.class,
-            () -> modelRegistry.getMinimalServiceSettings(
+            () -> modelRegistry.getEndpointClusterState(
                 Set.of(endpointIdCreator.apply(randomIntBetween(0, createdModels.size() - 1)), "non_matching_id"),
                 true
             )
@@ -727,15 +727,15 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         }
 
         String matchingId = "model_id_" + randomIntBetween(0, createdModels.size() - 1);
-        Map<String, EndpointClusterState> minimalServiceSettings = modelRegistry.getMinimalServiceSettings(
+        Map<String, EndpointClusterState> endpointClusterState = modelRegistry.getEndpointClusterState(
             Set.of(matchingId, "non_matching_id"),
             false
         );
 
-        assertThat(minimalServiceSettings.size(), Matchers.is(1));
-        assertThat(minimalServiceSettings.containsKey(matchingId), is(true));
+        assertThat(endpointClusterState.size(), Matchers.is(1));
+        assertThat(endpointClusterState.containsKey(matchingId), is(true));
         assertThat(
-            minimalServiceSettings.get(matchingId),
+            endpointClusterState.get(matchingId),
             equalTo(
                 new EndpointClusterState(createdModels.stream().filter(m -> m.getInferenceEntityId().equals(matchingId)).findFirst().get())
             )

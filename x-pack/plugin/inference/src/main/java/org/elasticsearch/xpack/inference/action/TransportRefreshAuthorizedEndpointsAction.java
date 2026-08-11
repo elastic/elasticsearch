@@ -147,7 +147,7 @@ public class TransportRefreshAuthorizedEndpointsAction extends HandledTransportA
 
         // We get all existing endpoints from the registry in a single call to ensure all decisions
         // of a single authorization request are based on a single cluster state.
-        Map<String, EndpointClusterState> existingById = modelRegistry.getMinimalServiceSettings(
+        Map<String, EndpointClusterState> existingById = modelRegistry.getEndpointClusterState(
             endpoints.stream().map(Model::getInferenceEntityId).collect(Collectors.toSet()),
             false
         );

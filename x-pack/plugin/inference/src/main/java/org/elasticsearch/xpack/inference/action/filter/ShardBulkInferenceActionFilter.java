@@ -704,7 +704,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     }
 
                     if (serviceSettings == null) {
-                        var serviceSettingsMap = modelRegistry.getMinimalServiceSettings(Set.of(inferenceId), false);
+                        var serviceSettingsMap = modelRegistry.getEndpointClusterState(Set.of(inferenceId), false);
                         if (serviceSettingsMap.isEmpty()) {
                             setInferenceResponseFailure(
                                 itemIndex,

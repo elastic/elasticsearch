@@ -259,10 +259,10 @@ public class ModelRegistry implements ClusterStateListener {
      * @param inferenceEntityIds the unique identifiers for the inference entities.
      * @param throwIfAnyNotFound whether to throw a {@link ResourceNotFoundException} if any of the ids is guaranteed to not exist
      *                          in the cluster.
-     * @return a {@link Map<String,  EndpointClusterState >} with the associated settings by inference entity ID.
+     * @return a {@link Map<String, EndpointClusterState>} with the associated settings by inference entity ID.
      * @throws ResourceNotFoundException if any of the ids is guaranteed to not exist in the cluster and {@code throwIfAnyNotFound} is true.
      */
-    public Map<String, EndpointClusterState> getMinimalServiceSettings(Set<String> inferenceEntityIds, boolean throwIfAnyNotFound)
+    public Map<String, EndpointClusterState> getEndpointClusterState(Set<String> inferenceEntityIds, boolean throwIfAnyNotFound)
         throws ResourceNotFoundException {
         if (lastMetadata.get() == null) {
             throw new IllegalStateException("initial cluster state not set yet");
@@ -302,8 +302,8 @@ public class ModelRegistry implements ClusterStateListener {
      * @return the {@link EndpointClusterState} associated with the provided ID, or {@code null} if unavailable locally.
      * @throws ResourceNotFoundException if the specified id is guaranteed to not exist in the cluster.
      */
-    public EndpointClusterState getMinimalServiceSettings(String inferenceEntityId) throws ResourceNotFoundException {
-        return getMinimalServiceSettings(Set.of(inferenceEntityId), true).get(inferenceEntityId);
+    public EndpointClusterState getEndpointClusterState(String inferenceEntityId) throws ResourceNotFoundException {
+        return getEndpointClusterState(Set.of(inferenceEntityId), true).get(inferenceEntityId);
     }
 
     public Set<String> getInferenceIds() {

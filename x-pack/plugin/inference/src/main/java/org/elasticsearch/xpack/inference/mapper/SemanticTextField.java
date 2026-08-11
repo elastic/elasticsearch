@@ -246,11 +246,7 @@ public record SemanticTextField(
         }
         builder.startObject(INFERENCE_FIELD);
         builder.field(INFERENCE_ID_FIELD, inference.inferenceId);
-        builder.field(
-            MODEL_SETTINGS_FIELD,
-            inference.modelSettings != null ? inference.modelSettings : null,
-            EndpointClusterState.withoutEndpointMetadata(params)
-        );
+        builder.field(MODEL_SETTINGS_FIELD, inference.modelSettings, EndpointClusterState.withoutEndpointMetadata(params));
         if (inference.chunkingSettings != null) {
             builder.field(CHUNKING_SETTINGS_FIELD, inference.chunkingSettings);
         }

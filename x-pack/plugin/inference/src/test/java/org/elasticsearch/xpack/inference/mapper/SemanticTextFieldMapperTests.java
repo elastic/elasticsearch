@@ -863,7 +863,7 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
     public void testSparseVectorMappingUpdate() throws IOException {
         for (int i = 0; i < 5; i++) {
             Model model = TestModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
-            when(globalModelRegistry.getMinimalServiceSettings(anyString())).thenAnswer(
+            when(globalModelRegistry.getEndpointClusterState(anyString())).thenAnswer(
                 invocation -> { return new EndpointClusterState(model); }
             );
 
@@ -999,7 +999,7 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
             Model model1 = TestModel.createRandomInstance(taskType);
             Model model2 = TestModel.createRandomInstance(taskType);
 
-            when(globalModelRegistry.getMinimalServiceSettings(anyString())).thenAnswer(invocation -> {
+            when(globalModelRegistry.getEndpointClusterState(anyString())).thenAnswer(invocation -> {
                 var modelId = (String) invocation.getArguments()[0];
                 if (modelId.equals(model1.getInferenceEntityId())) {
                     return new EndpointClusterState(model1);
@@ -1306,7 +1306,7 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
 
     public void testSettingAndUpdatingChunkingSettings() throws IOException {
         Model model = TestModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
-        when(globalModelRegistry.getMinimalServiceSettings(anyString())).thenAnswer(
+        when(globalModelRegistry.getEndpointClusterState(anyString())).thenAnswer(
             invocation -> { return new EndpointClusterState(model); }
         );
 
@@ -1329,7 +1329,7 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
         TaskType taskType = TaskType.SPARSE_EMBEDDING;
         Model model = TestModel.createRandomInstance(taskType);
 
-        when(globalModelRegistry.getMinimalServiceSettings(anyString())).thenAnswer(
+        when(globalModelRegistry.getEndpointClusterState(anyString())).thenAnswer(
             invocation -> { return new EndpointClusterState(model); }
         );
 

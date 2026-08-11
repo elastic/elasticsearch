@@ -750,7 +750,7 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
     }
 
     protected void givenModelSettings(String inferenceId, EndpointClusterState modelSettings) {
-        when(globalModelRegistry.getMinimalServiceSettings(inferenceId)).thenReturn(modelSettings);
+        when(globalModelRegistry.getEndpointClusterState(inferenceId)).thenReturn(modelSettings);
     }
 
     /**

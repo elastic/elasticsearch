@@ -761,7 +761,7 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
                 throw new ResourceNotFoundException(inferenceId + " does not exist");
             }
             return settings;
-        }).when(modelRegistry).getMinimalServiceSettings(anyString());
+        }).when(modelRegistry).getEndpointClusterState(anyString());
 
         return modelRegistry;
     }

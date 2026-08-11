@@ -370,7 +370,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
             }
 
             try {
-                return modelRegistry.getMinimalServiceSettings(inferenceId.get());
+                return modelRegistry.getEndpointClusterState(inferenceId.get());
             } catch (ResourceNotFoundException exc) {
                 if (logWarning) {
                     logger().warn(
@@ -439,7 +439,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
                 // As the mapper previously had explicit model settings, we need to apply to the new merged mapper
                 // the resolved model settings if not explicitly set.
                 if (semanticIncoming.modelSettings.get() == null) {
-                    semanticIncoming.setModelSettings(modelRegistry.getMinimalServiceSettings(semanticIncoming.inferenceId.get()));
+                    semanticIncoming.setModelSettings(modelRegistry.getEndpointClusterState(semanticIncoming.inferenceId.get()));
                 }
             } else if (semanticIncoming.modelSettings.get() == null && modelSettings.get() != null) {
                 semanticIncoming.setModelSettings(modelSettings.get());
@@ -458,7 +458,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
 
         private void validateModelsAreCompatibleWhenInferenceIdIsUpdated(String newInferenceId, Conflicts conflicts) {
             EndpointClusterState currentModelSettings = modelSettings.get();
-            EndpointClusterState updatedModelSettings = modelRegistry.getMinimalServiceSettings(newInferenceId);
+            EndpointClusterState updatedModelSettings = modelRegistry.getEndpointClusterState(newInferenceId);
             if (currentModelSettings != null && updatedModelSettings == null) {
                 throw new IllegalArgumentException(
                     "Cannot update ["

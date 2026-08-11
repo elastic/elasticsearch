@@ -1398,7 +1398,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
             return new EndpointClusterState(model);
         };
-        doAnswer(singleMinimalServiceSettingsAnswer).when(modelRegistry).getMinimalServiceSettings(any());
+        doAnswer(singleMinimalServiceSettingsAnswer).when(modelRegistry).getEndpointClusterState(any());
 
         Answer<Map<String, EndpointClusterState>> multipleMinimalServiceSettingsAnswer = invocationOnMock -> {
             Set<String> inferenceIds = (Set<String>) invocationOnMock.getArguments()[0];
@@ -1415,7 +1415,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             }
             return minimalServiceSettingsMap;
         };
-        doAnswer(multipleMinimalServiceSettingsAnswer).when(modelRegistry).getMinimalServiceSettings(any(), anyBoolean());
+        doAnswer(multipleMinimalServiceSettingsAnswer).when(modelRegistry).getEndpointClusterState(any(), anyBoolean());
 
         InferenceService inferenceService = mock(InferenceService.class);
         Answer<?> chunkedInferAnswer = invocationOnMock -> {

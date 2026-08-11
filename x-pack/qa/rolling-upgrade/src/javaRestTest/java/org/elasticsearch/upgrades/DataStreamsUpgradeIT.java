@@ -6,9 +6,10 @@
  */
 package org.elasticsearch.upgrades;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Build;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Node;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -16,14 +17,15 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.Booleans;
-import org.elasticsearch.core.Strings;
+import org.elasticsearch.features.InfrastructureFeatures;
+import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.hamcrest.Matchers;
 
@@ -37,13 +39,16 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.upgrades.IndexingIT.assertCount;
 import static org.hamcrest.Matchers.equalTo;
 
-public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
+public class DataStreamsUpgradeIT extends AbstractXpackRollingUpgradeWithSecurityTestCase {
+
+    public DataStreamsUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
+        super(upgradedNodes);
+    }
 
     public void testDataStreams() throws IOException {
-        if (CLUSTER_TYPE == ClusterType.OLD) {
+        if (isOldCluster()) {
             String requestBody = """
                 {
                   "index_patterns": [ "logs-*" ],
@@ -76,7 +81,7 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
             bulk.setJsonEntity(b.toString());
             Response response = client().performRequest(bulk);
             assertEquals("{\"errors\":false}", EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8));
-        } else if (CLUSTER_TYPE == ClusterType.MIXED) {
+        } else if (isMixedCluster()) {
             long nowMillis = System.currentTimeMillis();
             Request rolloverRequest = new Request("POST", "/logs-foobar/_rollover");
             client().performRequest(rolloverRequest);
@@ -84,7 +89,7 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
             Request index = new Request("POST", "/logs-foobar/_doc");
             index.addParameter("refresh", "true");
             index.addParameter("filter_path", "_index");
-            if (Booleans.parseBoolean(System.getProperty("tests.first_round"))) {
+            if (isFirstMixedCluster()) {
                 // include legacy name and date-named indices with today +/-1 in case of clock skew
                 var expectedIndices = List.of(
                     "{\"_index\":\"" + DataStreamTestHelper.getLegacyDefaultBackingIndexName("logs-foobar", 2) + "\"}",
@@ -110,15 +115,15 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
         }
 
         final int expectedCount;
-        if (CLUSTER_TYPE.equals(ClusterType.OLD)) {
+        if (isOldCluster()) {
             expectedCount = 1000;
-        } else if (CLUSTER_TYPE.equals(ClusterType.MIXED)) {
-            if (Booleans.parseBoolean(System.getProperty("tests.first_round"))) {
+        } else if (isMixedCluster()) {
+            if (isFirstMixedCluster()) {
                 expectedCount = 1001;
             } else {
                 expectedCount = 1002;
             }
-        } else if (CLUSTER_TYPE.equals(ClusterType.UPGRADED)) {
+        } else if (isUpgradedCluster()) {
             expectedCount = 1002;
         } else {
             throw new AssertionError("unexpected cluster type");
@@ -127,7 +132,7 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     public void testDataStreamValidationDoesNotBreakUpgrade() throws Exception {
-        if (CLUSTER_TYPE == ClusterType.OLD) {
+        if (isOldCluster()) {
             String requestBody = """
                 {
                   "index_patterns": [ "logs-*" ],
@@ -164,13 +169,13 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
             Request rolloverRequest = new Request("POST", "/logs-barbaz-2021.01.13/_rollover");
             client().performRequest(rolloverRequest);
         } else {
-            if (CLUSTER_TYPE == ClusterType.MIXED) {
+            if (isMixedCluster()) {
                 ensureHealth((request -> {
                     request.addParameter("timeout", "70s");
                     request.addParameter("wait_for_nodes", "3");
                     request.addParameter("wait_for_status", "yellow");
                 }));
-            } else if (CLUSTER_TYPE == ClusterType.UPGRADED) {
+            } else if (isUpgradedCluster()) {
                 // Wait for the cluster to recover to yellow at least before checking index status
                 ensureHealth((request -> {
                     request.addParameter("timeout", "30s");
@@ -205,10 +210,10 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
             stopILM();
         }
 
-        if (CLUSTER_TYPE == ClusterType.OLD) {
+        if (isOldCluster()) {
             createAndRolloverDataStream(dataStreamName, numRollovers, hasILMPolicy, ilmEnabled);
             createDataStreamFromNonDataStreamIndices(dataStreamFromNonDataStreamIndices);
-        } else if (CLUSTER_TYPE == ClusterType.UPGRADED) {
+        } else if (isUpgradedCluster()) {
             Map<String, Map<String, Object>> oldIndicesMetadata = getIndicesMetadata(dataStreamName);
             String oldWriteIndex = getDataStreamBackingIndexNames(dataStreamName).getLast();
             upgradeDataStream(dataStreamName, numRollovers, numRollovers + 1, 0, ilmEnabled);
@@ -238,10 +243,10 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
         int numRollovers = randomIntBetween(0, 5);
         boolean hasILMPolicy = randomBoolean();
         boolean ilmEnabled = hasILMPolicy && randomBoolean();
-        if (CLUSTER_TYPE == ClusterType.OLD) {
+        if (isOldCluster()) {
             createAndRolloverDataStream(dataStreamName, numRollovers, hasILMPolicy, ilmEnabled);
             upgradeDataStream(dataStreamName, numRollovers, numRollovers + 1, 0, ilmEnabled);
-        } else if (CLUSTER_TYPE == ClusterType.UPGRADED) {
+        } else if (isUpgradedCluster()) {
             makeSureNoUpgrade(dataStreamName);
             cancelReindexTask(dataStreamName);
             // Delete the data streams to avoid ILM continuously running cluster state tasks, see
@@ -358,7 +363,7 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     private void compareMappings(Map<?, ?> oldMappings, Map<?, ?> upgradedMappings) {
-        boolean ignoreSource = Version.fromString(UPGRADE_FROM_VERSION).before(Version.V_9_0_0);
+        boolean ignoreSource = clusterHasFeature(InfrastructureFeatures.CURRENT_VERSION) == false;
         if (ignoreSource) {
             Map<?, ?> doc = (Map<?, ?>) oldMappings.get("_doc");
             if (doc != null) {
@@ -669,7 +674,7 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
                 assertOK(statusResponse);
                 assertThat(statusResponseString, statusResponseMap.get("complete"), equalTo(true));
                 final int originalWriteIndex = 1;
-                if (isOriginalClusterSameMajorVersionAsCurrent() || CLUSTER_TYPE == ClusterType.OLD) {
+                if (isOriginalClusterSameMajorVersionAsCurrent() || isOldCluster()) {
                     assertThat(
                         statusResponseString,
                         statusResponseMap.get("total_indices_in_data_stream"),
@@ -753,11 +758,7 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
      * for 8.6 and 8.17, but false for 7.17 and 8.18.
      */
     private boolean isOriginalClusterSameMajorVersionAsCurrent() {
-        /*
-         * Since data stream reindex is specifically about upgrading a data stream from one major version to the next, it's ok to use the
-         * deprecated Version.fromString here
-         */
-        return Version.fromString(UPGRADE_FROM_VERSION).major == Version.fromString(Build.current().version()).major;
+        return Version.fromString(getOldClusterVersion()).getMajor() == Version.fromString(Build.current().version()).getMajor();
     }
 
     private static void bulkLoadData(String dataStreamName) throws IOException {
@@ -839,5 +840,15 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
         configureClient(builder, Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build());
         builder.setStrictDeprecationMode(true);
         return builder.build();
+    }
+
+    private static void assertCount(String index, int count) throws IOException {
+        Request searchTestIndexRequest = new Request("POST", "/" + index + "/_search");
+        searchTestIndexRequest.addParameter("rest_total_hits_as_int", "true");
+        searchTestIndexRequest.addParameter("filter_path", "hits.total");
+        Response searchTestIndexResponse = client().performRequest(searchTestIndexRequest);
+        assertEquals(Strings.format("""
+            {"hits":{"total":%s}}\
+            """, count), EntityUtils.toString(searchTestIndexResponse.getEntity(), StandardCharsets.UTF_8));
     }
 }

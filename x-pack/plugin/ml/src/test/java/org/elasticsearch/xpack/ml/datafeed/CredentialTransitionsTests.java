@@ -29,10 +29,8 @@ import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
-import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
-import org.elasticsearch.xpack.core.security.authc.support.SecondaryAuthentication;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredential;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredentialManager;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredentialsExtension;
@@ -45,7 +43,6 @@ import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -503,31 +500,59 @@ public class CredentialTransitionsTests extends ESTestCase {
         verify(apiKeyService, never()).grantCloudAuthentication(any(), anyString(), any());
     }
 
-    public void testReplaceSecurityHeadersStoresMintedAuthenticationAndPreservesNonSecurity() throws Exception {
-        Authentication minted = AuthenticationTestHelper.builder().build();
-        Map<String, String> base = new HashMap<>();
-        base.put(AuthenticationField.AUTHENTICATION_KEY, "caller-auth");
-        base.put(AuthenticationServiceField.RUN_AS_USER_HEADER, "run-as-user");
-        base.put(SecondaryAuthentication.THREAD_CTX_KEY, "secondary-auth");
-        base.put("X-Opaque-Id", "trace-1");
+    @SuppressWarnings("unchecked")
+    public void testExecutePutRewritesAuthenticationForOlderMinTransportVersion() throws Exception {
+        assumeTrue("CPS feature flag must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
 
-        Map<String, String> replaced = CredentialTransitions.replaceSecurityHeaders(minted, base, TransportVersion.current());
+        CloudCredentialManager credentialManager = mock(CloudCredentialManager.class);
+        InternalCloudApiKeyService apiKeyService = mock(InternalCloudApiKeyService.class);
+        Client client = mock(Client.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        when(threadPool.getThreadContext()).thenReturn(threadContext);
+        when(client.threadPool()).thenReturn(threadPool);
 
-        assertThat(replaced.get(AuthenticationField.AUTHENTICATION_KEY), equalTo(minted.encode()));
-        assertThat(replaced.containsKey(AuthenticationServiceField.RUN_AS_USER_HEADER), equalTo(false));
-        assertThat(replaced.containsKey(SecondaryAuthentication.THREAD_CTX_KEY), equalTo(false));
-        assertThat(replaced.get("X-Opaque-Id"), equalTo("trace-1"));
-    }
+        CloudCredential callerCredential = new CloudCredential(new SecureString("caller".toCharArray()));
+        when(credentialManager.hasCloudManagedCredential(same(threadContext))).thenReturn(true);
+        when(credentialManager.extractCloudManagedCredential(same(threadContext))).thenReturn(callerCredential);
+        when(credentialManager.wrapClient(same(client), eq(callerCredential))).thenReturn(client);
 
-    public void testReplaceSecurityHeadersRewritesAuthenticationForOlderMinTransportVersion() throws Exception {
-        Authentication minted = AuthenticationTestHelper.builder().build();
-        TransportVersion subjectVersion = minted.getEffectiveSubject().getTransportVersion();
+        mockSearchProbeSucceeds(client);
+        PersistedCloudCredential persisted = new PersistedCloudCredential("minted-id", randomCloudCredentialEncryptedData());
+        Authentication mintedAuth = AuthenticationTestHelper.builder().build();
+        TransportVersion subjectVersion = mintedAuth.getEffectiveSubject().getTransportVersion();
         TransportVersion olderMinVersion = TransportVersion.fromId(subjectVersion.id() - 1);
         assertFalse("test pre-condition: olderMinVersion must not support subjectVersion", olderMinVersion.supports(subjectVersion));
 
-        Map<String, String> replaced = CredentialTransitions.replaceSecurityHeaders(minted, Map.of(), olderMinVersion);
+        doAnswer(invocation -> {
+            ActionListener<InternalCloudApiKeyService.CloudGrantApiKeyResult> listener = invocation.getArgument(2);
+            listener.onResponse(new InternalCloudApiKeyService.CloudGrantApiKeyResult(persisted, mintedAuth));
+            return null;
+        }).when(apiKeyService).grantCloudAuthentication(nullable(CloudCredential.class), anyString(), any());
 
-        Authentication decoded = AuthenticationContextSerializer.decode(replaced.get(AuthenticationField.AUTHENTICATION_KEY));
+        CredentialTransitions transitions = new CredentialTransitions(
+            mock(AnomalyDetectionAuditor.class),
+            () -> apiKeyService,
+            () -> credentialManager,
+            client,
+            xContentRegistry(),
+            mock(DatafeedConfigProvider.class),
+            new CrossProjectModeDecider(Settings.EMPTY)
+        );
+
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("df", "job");
+        builder.setIndices(List.of("logs-*"));
+        PutDatafeedAction.Request request = new PutDatafeedAction.Request(builder.build());
+        ClusterState clusterState = mock(ClusterState.class);
+        when(clusterState.getMinTransportVersion()).thenReturn(olderMinVersion);
+
+        AtomicReference<Map<String, String>> capturedHeaders = new AtomicReference<>();
+        transitions.executePut(Intent.REPLACE, request, clusterState, threadPool, null, (req, headers, state, listener) -> {
+            capturedHeaders.set(headers);
+            listener.onResponse(new PutDatafeedAction.Response(req.getDatafeed()));
+        }, ActionListener.wrap(ignored -> {}, e -> fail("unexpected failure: " + e)));
+
+        Authentication decoded = AuthenticationContextSerializer.decode(capturedHeaders.get().get(AuthenticationField.AUTHENTICATION_KEY));
         assertThat(decoded.getEffectiveSubject().getTransportVersion(), equalTo(olderMinVersion));
     }
 

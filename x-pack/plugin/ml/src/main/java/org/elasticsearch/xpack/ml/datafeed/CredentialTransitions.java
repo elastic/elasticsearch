@@ -11,7 +11,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.TransportSearchAction;
@@ -43,9 +42,6 @@ import org.elasticsearch.xpack.core.security.cloud.PersistedCloudCredential;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -185,30 +181,24 @@ public final class CredentialTransitions {
             Map<String, String> headers = threadPool.getThreadContext().getHeaders();
             CloudCredential carriedCredential = request.getCloudCredential();
             validateSearchBeforeMint(request.getDatafeed(), headers, carriedCredential, listener.delegateFailureAndWrap((l, ignored) -> {
-                mintCpsKeyForDatafeed(
-                    datafeedId,
-                    threadPool,
-                    securityContext,
-                    carriedCredential,
-                    request.getDatafeed().getHeaders(),
-                    clusterState.getMinTransportVersion(),
-                    l,
-                    minted -> {
-                        DatafeedConfig.Builder builder = new DatafeedConfig.Builder(request.getDatafeed());
-                        builder.setCloudInternalCredential(minted.credential());
-                        PutDatafeedAction.Request updatedRequest = new PutDatafeedAction.Request(builder.build());
-                        updatedRequest.masterNodeTimeout(request.masterNodeTimeout());
-                        persistFn.put(
-                            updatedRequest,
-                            minted.headers(),
-                            clusterState,
-                            revokeKeyOnFailure(minted.credential(), jobId, ActionListener.wrap(response -> {
-                                auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_CPS_KEY_MINTED));
-                                l.onResponse(response);
-                            }, l::onFailure))
-                        );
-                    }
-                );
+                mintCpsKeyForDatafeed(datafeedId, jobId, threadPool, securityContext, carriedCredential, clusterState, l, minted -> {
+                    DatafeedConfig.Builder builder = new DatafeedConfig.Builder(request.getDatafeed());
+                    builder.setCloudInternalCredential(minted.credential());
+                    PutDatafeedAction.Request updatedRequest = new PutDatafeedAction.Request(builder.build());
+                    updatedRequest.masterNodeTimeout(request.masterNodeTimeout());
+                    // putDatafeedConfig re-runs getPersistableSafeSecurityHeaders on these headers; that is
+                    // idempotent here. The update path has no such downstream pass, so the mint-side call is
+                    // load-bearing and must not be removed as "duplicate".
+                    persistFn.put(
+                        updatedRequest,
+                        minted.headers(),
+                        clusterState,
+                        revokeKeyOnFailure(minted.credential(), jobId, ActionListener.wrap(response -> {
+                            auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_CPS_KEY_MINTED));
+                            l.onResponse(response);
+                        }, l::onFailure))
+                    );
+                });
             }));
         } else {
             persistFn.put(request, threadPool.getThreadContext().getHeaders(), clusterState, listener);
@@ -334,11 +324,11 @@ public final class CredentialTransitions {
                 mintedListener.delegateFailureAndWrap(
                     (cl, ignored) -> mintCpsKeyForDatafeed(
                         datafeedId,
+                        jobId,
                         threadPool,
                         securityContext,
                         request.getCloudCredential(),
-                        applied.getHeaders(),
-                        clusterState.getMinTransportVersion(),
+                        clusterState,
                         cl,
                         minted -> {
                             mintedCredRef.set(minted.credential());
@@ -484,11 +474,11 @@ public final class CredentialTransitions {
 
     private void mintCpsKeyForDatafeed(
         String datafeedId,
+        String jobId,
         ThreadPool threadPool,
         @Nullable SecurityContext securityContext,
         @Nullable CloudCredential carriedCredential,
-        Map<String, String> baseHeaders,
-        TransportVersion minTransportVersion,
+        ClusterState clusterState,
         ActionListener<?> failurePropagator,
         Consumer<MintedCredential> onSuccess
     ) {
@@ -504,9 +494,12 @@ public final class CredentialTransitions {
                         try {
                             // Rewrite before any persist: if encode() throws, only the UIAM grant
                             // needs undoing (no config doc has been written yet).
-                            mintedHeaders = replaceSecurityHeaders(result.authentication(), baseHeaders, minTransportVersion);
+                            mintedHeaders = ClientHelper.getPersistableSafeSecurityHeaders(
+                                Map.of(AuthenticationField.AUTHENTICATION_KEY, result.authentication().encode()),
+                                clusterState
+                            );
                         } catch (Exception encodeFailure) {
-                            revokeMintedOnEncodeFailure(datafeedId, result.persistedCredential(), failurePropagator, encodeFailure);
+                            revokeKeyOnFailure(result.persistedCredential(), jobId, failurePropagator).onFailure(encodeFailure);
                             return;
                         }
                         onSuccess.accept(new MintedCredential(result.persistedCredential(), mintedHeaders));
@@ -516,60 +509,6 @@ public final class CredentialTransitions {
                     })
                 );
         });
-    }
-
-    private void revokeMintedOnEncodeFailure(
-        String datafeedId,
-        PersistedCloudCredential minted,
-        ActionListener<?> failurePropagator,
-        Exception encodeFailure
-    ) {
-        apiKeyServiceSupplier.get().revokeCloudAuthentication(minted, ActionListener.wrap(ignored -> {
-            minted.close();
-            failurePropagator.onFailure(encodeFailure);
-        }, revokeFailure -> {
-            logger.warn(
-                () -> "[" + datafeedId + "] Failed to revoke cloud API key [" + minted.id() + "] after authentication encode failure",
-                revokeFailure
-            );
-            minted.close();
-            encodeFailure.addSuppressed(revokeFailure);
-            failurePropagator.onFailure(encodeFailure);
-        }));
-    }
-
-    /**
-     * Returns {@code headers} with all {@link ClientHelper#SECURITY_HEADER_FILTERS security
-     * headers} removed and {@link AuthenticationField#AUTHENTICATION_KEY} set to the encoded
-     * identity of the minted cloud API key. Non-security headers (e.g. future trace headers)
-     * are carried through untouched.
-     *
-     * <p>The authentication is rewritten down to the cluster's minimum transport version before
-     * encoding. {@link Authentication#encode()} stamps the effective subject's version into the
-     * blob, and the minted key is built locally so it carries this node's current version. During
-     * a rolling upgrade some nodes are older, and this config is persisted and later read by
-     * whichever node runs the datafeed — an older node cannot decode a newer-stamped blob.
-     * Mirrors {@code ClientHelper#maybeRewriteSingleAuthenticationHeaderForVersion}. Note that
-     * {@link Authentication#maybeRewriteForOlderVersion} does not itself check that the target
-     * version is older, so the {@code supports} guard is required.
-     */
-    // package-private for tests
-    static Map<String, String> replaceSecurityHeaders(
-        Authentication authentication,
-        Map<String, String> headers,
-        TransportVersion minTransportVersion
-    ) {
-        var updated = new HashMap<>(headers);
-        updated.keySet().removeAll(ClientHelper.SECURITY_HEADER_FILTERS);
-        var safe = minTransportVersion.supports(authentication.getEffectiveSubject().getTransportVersion())
-            ? authentication
-            : authentication.maybeRewriteForOlderVersion(minTransportVersion);
-        try {
-            updated.put(AuthenticationField.AUTHENTICATION_KEY, safe.encode());
-        } catch (IOException e) {
-            throw new UncheckedIOException("failed to encode minted authentication for datafeed", e);
-        }
-        return Map.copyOf(updated);
     }
 
     @Nullable

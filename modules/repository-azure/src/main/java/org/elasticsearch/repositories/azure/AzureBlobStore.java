@@ -79,6 +79,8 @@ import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.repositories.RepositoriesMetrics;
@@ -431,27 +433,36 @@ public class AzureBlobStore implements BlobStore {
     ) {
         logger.trace(() -> format("reading container [%s], blob [%s]", container, blob));
         final AzureBlobServiceClient azureBlobServiceClient = getAzureBlobServiceClientClient(purpose);
-        final BlobServiceClient syncClient = azureBlobServiceClient.getSyncClient();
-        final BlobServiceAsyncClient asyncClient = azureBlobServiceClient.getAsyncClient();
+        // we release the reference if we fail to create the AzureInputStream, so that we don't leak the connection provider
+        Releasable toRelease = azureBlobServiceClient;
 
-        final BlobContainerClient blobContainerClient = syncClient.getBlobContainerClient(container);
-        final BlobClient blobClient = blobContainerClient.getBlobClient(blob);
-        final long totalSize;
-        if (length == null) {
-            totalSize = blobClient.getProperties().getBlobSize();
-        } else {
-            totalSize = position + length;
+        try {
+            final BlobServiceClient syncClient = azureBlobServiceClient.getSyncClient();
+            final BlobServiceAsyncClient asyncClient = azureBlobServiceClient.getAsyncClient();
+
+            final BlobContainerClient blobContainerClient = syncClient.getBlobContainerClient(container);
+            final BlobClient blobClient = blobContainerClient.getBlobClient(blob);
+            final long totalSize;
+            if (length == null) {
+                totalSize = blobClient.getProperties().getBlobSize();
+            } else {
+                totalSize = position + length;
+            }
+            BlobAsyncClient blobAsyncClient = asyncClient.getBlobContainerAsyncClient(container).getBlobAsyncClient(blob);
+            var stream = new AzureInputStream(
+                blobAsyncClient,
+                position,
+                length == null ? totalSize : length,
+                totalSize,
+                azureBlobServiceClient.getAllocator(),
+                eTag,
+                azureBlobServiceClient
+            );
+            toRelease = null;
+            return stream;
+        } finally {
+            Releasables.close(toRelease);
         }
-        BlobAsyncClient blobAsyncClient = asyncClient.getBlobContainerAsyncClient(container).getBlobAsyncClient(blob);
-        return new AzureInputStream(
-            blobAsyncClient,
-            position,
-            length == null ? totalSize : length,
-            totalSize,
-            azureBlobServiceClient.getAllocator(),
-            eTag,
-            azureBlobServiceClient
-        );
 
     }
 

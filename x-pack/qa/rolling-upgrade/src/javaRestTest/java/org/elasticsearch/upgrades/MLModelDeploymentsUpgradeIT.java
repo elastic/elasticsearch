@@ -7,16 +7,21 @@
 
 package org.elasticsearch.upgrades;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xcontent.XContentType;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -29,14 +34,11 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.client.WarningsHandler.PERMISSIVE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.oneOf;
 
-public class MlAssignmentPlannerUpgradeIT extends AbstractUpgradeTestCase {
+public class MLModelDeploymentsUpgradeIT extends AbstractXpackRollingUpgradeTestCase {
 
-    private static final boolean IS_SINGLE_PROCESSOR_TEST = Booleans.parseBoolean(
-        System.getProperty("tests.configure_test_clusters_with_one_processor", "false")
-    );
-
-    private Logger logger = LogManager.getLogger(MlAssignmentPlannerUpgradeIT.class);
+    private static final boolean SKIP_ML_TESTS = Booleans.parseBoolean(System.getProperty("tests.ml.skip", "false"));
 
     // See PyTorchModelIT for how this model was created
     static final String BASE_64_ENCODED_MODEL =
@@ -67,44 +69,100 @@ public class MlAssignmentPlannerUpgradeIT extends AbstractUpgradeTestCase {
         RAW_MODEL_SIZE = Base64.getDecoder().decode(BASE_64_ENCODED_MODEL).length;
     }
 
-    public void testMlAssignmentPlannerUpgrade() throws Exception {
-        assumeFalse("This test deploys multiple models which cannot be accommodated on a single processor", IS_SINGLE_PROCESSOR_TEST);
+    @ClassRule
+    public static ElasticsearchCluster cluster = buildCluster();
 
-        logger.info("Starting testMlAssignmentPlannerUpgrade, model size {}", RAW_MODEL_SIZE);
+    public MLModelDeploymentsUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
+        super(upgradedNodes);
+    }
 
-        switch (CLUSTER_TYPE) {
-            case OLD -> {
-                // setup deployments using old and new memory format
-                setupDeployments();
+    @Override
+    protected ElasticsearchCluster getUpgradeCluster() {
+        return cluster;
+    }
 
-                waitForDeploymentStarted("old_memory_format");
-                waitForDeploymentStarted("new_memory_format");
+    @BeforeClass
+    public static void maybeSkip() {
+        assumeFalse("Skip ML tests on unsupported glibc versions", SKIP_ML_TESTS);
+    }
 
-                // assert correct memory format is used
-                assertOldMemoryFormat("old_memory_format");
-                assertNewMemoryFormat("new_memory_format");
+    @Before
+    public void setUpLogging() throws IOException {
+        Request request = new Request("PUT", "/_cluster/settings");
+        request.setJsonEntity("""
+            {
+              "persistent": {
+                "logger.org.elasticsearch.xpack.ml.inference": "DEBUG",
+                "logger.org.elasticsearch.xpack.ml.inference.assignments": "DEBUG",
+                "logger.org.elasticsearch.xpack.ml.process": "DEBUG",
+                "logger.org.elasticsearch.xpack.ml.action": "DEBUG"
+              }
             }
-            case MIXED -> {
-                ensureYellowAndNoInitializingShards(".ml-inference-*,.ml-config*", "120s");
-                waitForDeploymentStarted("old_memory_format");
-                waitForDeploymentStarted("new_memory_format");
+            """);
+        client().performRequest(request);
+    }
 
-                // assert correct memory format is used
-                assertOldMemoryFormat("old_memory_format");
-                assertNewMemoryFormat("new_memory_format");
+    @After
+    public void removeLogging() throws IOException {
+        Request request = new Request("PUT", "/_cluster/settings");
+        request.setJsonEntity("""
+            {
+              "persistent": {
+                "logger.org.elasticsearch.xpack.ml.inference": "INFO",
+                "logger.org.elasticsearch.xpack.ml.process": "INFO",
+                "logger.org.elasticsearch.xpack.ml.action": "INFO"
+              }
             }
-            case UPGRADED -> {
-                ensureYellowAndNoInitializingShards(".ml-inference-*,.ml-config*", "120s");
-                waitForDeploymentStarted("old_memory_format");
-                waitForDeploymentStarted("new_memory_format");
+            """);
+        client().performRequest(request);
+    }
 
-                // assert correct memory format is used
-                assertOldMemoryFormat("old_memory_format");
-                assertNewMemoryFormat("new_memory_format");
+    public void testTrainedModelDeployment() throws Exception {
+        final String modelId = "upgrade-deployment-test";
 
-                cleanupDeployments();
+        if (isOldCluster()) {
+            setupDeployment(modelId);
+            assertInfer(modelId);
+        }
+        if (isMixedCluster()) {
+            ensureYellowAndNoInitializingShards(".ml-inference-*,.ml-config*", "120s");
+            waitForDeploymentStarted(modelId);
+            // attempt inference on new and old nodes multiple times
+            for (int i = 0; i < 10; i++) {
+                assertInfer(modelId);
             }
         }
+        if (isUpgradedCluster()) {
+            ensureYellowAndNoInitializingShards(".ml-inference-*,.ml-config*", "120s");
+
+            waitForDeploymentStarted(modelId);
+            assertInfer(modelId);
+            stopDeployment(modelId);
+        }
+    }
+
+    public void testTrainedModelDeploymentStopOnMixedCluster() throws Exception {
+        final String modelId = "upgrade-deployment-test-stop-mixed-cluster";
+
+        if (isOldCluster()) {
+            setupDeployment(modelId);
+            assertInfer(modelId);
+        }
+        if (isMixedCluster()) {
+            ensureYellowAndNoInitializingShards(".ml-inference-*,.ml-config*", "120s");
+            stopDeployment(modelId);
+        }
+        if (isUpgradedCluster()) {
+            ensureYellowAndNoInitializingShards(".ml-inference-*,.ml-config*", "120s");
+            assertThatTrainedModelAssignmentMetadataIsEmpty(modelId);
+        }
+    }
+
+    private void setupDeployment(String modelId) throws IOException {
+        createTrainedModel(modelId);
+        putModelDefinition(modelId);
+        putVocabulary(List.of("these", "are", "my", "words"), modelId);
+        startDeployment(modelId);
     }
 
     @SuppressWarnings("unchecked")
@@ -119,40 +177,9 @@ public class MlAssignmentPlannerUpgradeIT extends AbstractUpgradeTestCase {
         }, 30, TimeUnit.SECONDS);
     }
 
-    @SuppressWarnings("unchecked")
-    private void assertOldMemoryFormat(String modelId) throws Exception {
-        var response = getTrainedModelStats(modelId);
-        Map<String, Object> map = entityAsMap(response);
-        List<Map<String, Object>> stats = (List<Map<String, Object>>) map.get("trained_model_stats");
-        assertThat(stats, hasSize(1));
-        var stat = stats.get(0);
-        Long expectedMemoryUsage = ByteSizeValue.ofMb(240).getBytes() + RAW_MODEL_SIZE * 2;
-        Integer actualMemoryUsage = (Integer) XContentMapValues.extractValue("model_size_stats.required_native_memory_bytes", stat);
-        assertThat(
-            Strings.format("Memory usage mismatch for the model %s in cluster state %s", modelId, CLUSTER_TYPE.toString()),
-            actualMemoryUsage,
-            equalTo(expectedMemoryUsage.intValue())
-        );
-    }
-
-    @SuppressWarnings("unchecked")
-    private void assertNewMemoryFormat(String modelId) throws Exception {
-        var response = getTrainedModelStats(modelId);
-        Map<String, Object> map = entityAsMap(response);
-        List<Map<String, Object>> stats = (List<Map<String, Object>>) map.get("trained_model_stats");
-        assertThat(stats, hasSize(1));
-        var stat = stats.get(0);
-        Long expectedMemoryUsage = ByteSizeValue.ofMb(300).getBytes() + RAW_MODEL_SIZE + ByteSizeValue.ofMb(10).getBytes();
-        Integer actualMemoryUsage = (Integer) XContentMapValues.extractValue("model_size_stats.required_native_memory_bytes", stat);
-        assertThat(stat.toString(), actualMemoryUsage.toString(), equalTo(expectedMemoryUsage.toString()));
-    }
-
-    private Response getTrainedModelStats(String modelId) throws IOException {
-        Request request = new Request("GET", "/_ml/trained_models/" + modelId + "/_stats");
-        request.setOptions(request.getOptions().toBuilder().setWarningsHandler(PERMISSIVE).build());
-        var response = client().performRequest(request);
-        assertOK(response);
-        return response;
+    private void assertInfer(String modelId) throws IOException {
+        Response inference = infer("my words", modelId);
+        assertThat(EntityUtils.toString(inference.getEntity()), equalTo("{\"inference_results\":[{\"predicted_value\":[[1.0,1.0]]}]}"));
     }
 
     private void putModelDefinition(String modelId) throws IOException {
@@ -176,83 +203,34 @@ public class MlAssignmentPlannerUpgradeIT extends AbstractUpgradeTestCase {
         client().performRequest(request);
     }
 
-    private void setupDeployments() throws Exception {
-        createTrainedModel("old_memory_format", 0, 0);
-        putModelDefinition("old_memory_format");
-        putVocabulary(List.of("these", "are", "my", "words"), "old_memory_format");
-        startDeployment("old_memory_format", "started", "low");
-
-        createTrainedModel("new_memory_format", ByteSizeValue.ofMb(300).getBytes(), ByteSizeValue.ofMb(10).getBytes());
-        putModelDefinition("new_memory_format");
-        putVocabulary(List.of("these", "are", "my", "words"), "new_memory_format");
-        startDeployment("new_memory_format", "started", "low");
-    }
-
-    private void cleanupDeployments() throws IOException {
-        stopDeployment("old_memory_format");
-        deleteTrainedModel("old_memory_format");
-        stopDeployment("new_memory_format");
-        deleteTrainedModel("new_memory_format");
-    }
-
-    private void createTrainedModel(String modelId, long perDeploymentMemoryBytes, long perAllocationMemoryBytes) throws IOException {
+    private void createTrainedModel(String modelId) throws IOException {
         Request request = new Request("PUT", "/_ml/trained_models/" + modelId);
-        if (perAllocationMemoryBytes > 0 && perDeploymentMemoryBytes > 0) {
-            request.setJsonEntity(Strings.format("""
-                {
-                   "description": "simple model for testing",
-                   "model_type": "pytorch",
-                   "inference_config": {
-                     "pass_through": {
-                       "tokenization": {
-                         "bert": {
-                           "with_special_tokens": false
-                         }
-                       }
-                     }
-                   },
-                   "metadata": {
-                     "per_deployment_memory_bytes": %s,
-                     "per_allocation_memory_bytes": %s
-                   }
-                 }""", perDeploymentMemoryBytes, perAllocationMemoryBytes));
-        } else {
-            request.setJsonEntity("""
-                {
-                   "description": "simple model for testing",
-                   "model_type": "pytorch",
-                   "inference_config": {
-                     "pass_through": {
-                       "tokenization": {
-                         "bert": {
-                           "with_special_tokens": false
-                         }
-                       }
+        request.setJsonEntity("""
+            {
+               "description": "simple model for testing",
+               "model_type": "pytorch",
+               "inference_config": {
+                 "pass_through": {
+                   "tokenization": {
+                     "bert": {
+                       "with_special_tokens": false
                      }
                    }
-                 }""");
-        }
-        client().performRequest(request);
-    }
-
-    private void deleteTrainedModel(String modelId) throws IOException {
-        Request request = new Request("DELETE", "_ml/trained_models/" + modelId);
+                 }
+               }
+             }""");
         client().performRequest(request);
     }
 
     private Response startDeployment(String modelId) throws IOException {
-        return startDeployment(modelId, "started", "normal");
+        return startDeployment(modelId, "started");
     }
 
     private Response startDeployment(String modelId, String waitForState) throws IOException {
-        return startDeployment(modelId, waitForState, "normal");
-    }
-
-    private Response startDeployment(String modelId, String waitForState, String priority) throws IOException {
         String inferenceThreadParamName = "threads_per_allocation";
         String modelThreadParamName = "number_of_allocations";
         String compatibleHeader = null;
-        if (CLUSTER_TYPE.equals(ClusterType.OLD) || CLUSTER_TYPE.equals(ClusterType.MIXED)) {
+        if (isOldCluster() || isMixedCluster()) {
             compatibleHeader = compatibleMediaType(XContentType.VND_JSON, RestApiVersion.V_8);
             inferenceThreadParamName = "inference_threads";
             modelThreadParamName = "model_threads";
@@ -268,8 +246,7 @@ public class MlAssignmentPlannerUpgradeIT extends AbstractUpgradeTestCase {
                 + inferenceThreadParamName
                 + "=1&"
                 + modelThreadParamName
-                + "=1&priority="
-                + priority
+                + "=1"
         );
         if (compatibleHeader != null) {
             request.setOptions(request.getOptions().toBuilder().addHeader("Accept", compatibleHeader).build());
@@ -284,5 +261,42 @@ public class MlAssignmentPlannerUpgradeIT extends AbstractUpgradeTestCase {
         String endpoint = "/_ml/trained_models/" + modelId + "/deployment/_stop";
         Request request = new Request("POST", endpoint);
         client().performRequest(request);
+    }
+
+    private void assertThatTrainedModelAssignmentMetadataIsEmpty(String modelId) throws IOException {
+        Request getTrainedModelAssignmentMetadataRequest = new Request(
+            "GET",
+            "_cluster/state?filter_path=metadata.trained_model_assignment." + modelId
+        );
+        Response getTrainedModelAssignmentMetadataResponse = client().performRequest(getTrainedModelAssignmentMetadataRequest);
+        String responseBody = EntityUtils.toString(getTrainedModelAssignmentMetadataResponse.getEntity());
+        assertThat(responseBody, oneOf("{}", "{\"metadata\":{\"trained_model_assignment\":{}}}"));
+
+        // trained_model_allocation was renamed to trained_model_assignment
+        // in v8.3. The renaming happens automatically and the old
+        // metadata should be removed once all nodes are upgraded.
+        // However, sometimes there aren't enough cluster state change
+        // events in the upgraded cluster test for this to happen
+        getTrainedModelAssignmentMetadataRequest = new Request("GET", "_cluster/state?filter_path=metadata.trained_model_allocation");
+        getTrainedModelAssignmentMetadataResponse = client().performRequest(getTrainedModelAssignmentMetadataRequest);
+        responseBody = EntityUtils.toString(getTrainedModelAssignmentMetadataResponse.getEntity());
+        assertThat(responseBody, oneOf("{}", "{\"metadata\":{\"trained_model_allocation\":{}}}"));
+    }
+
+    private Response getTrainedModelStats(String modelId) throws IOException {
+        Request request = new Request("GET", "/_ml/trained_models/" + modelId + "/_stats");
+        var response = client().performRequest(request);
+        assertOK(response);
+        return response;
+    }
+
+    private Response infer(String input, String modelId) throws IOException {
+        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer");
+        request.setJsonEntity(Strings.format("""
+            {  "docs": [{"input":"%s"}] }
+            """, input));
+        var response = client().performRequest(request);
+        assertOK(response);
+        return response;
     }
 }

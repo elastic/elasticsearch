@@ -10,7 +10,6 @@
 package org.elasticsearch.search;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.settings.Settings;
@@ -50,8 +49,7 @@ public class SearchWithRejectionsIT extends ESIntegTestCase {
         for (int i = 0; i < docs; i++) {
             prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value").get();
         }
-        IndicesStatsResponse indicesStats = indicesAdmin().prepareStats().get();
-        assertThat(indicesStats.getTotal().getSearch().getOpenContexts(), equalTo(0L));
+        assertThat(indicesAdmin().prepareStats("test").get().getTotal().getSearch().getOpenContexts(), equalTo(0L));
         refresh();
 
         int numSearches = 10;
@@ -67,14 +65,9 @@ public class SearchWithRejectionsIT extends ESIntegTestCase {
                 responses[i].get().decRef();
             } catch (Exception t) {}
         }
-        assertBusy(
-            () -> assertThat(indicesAdmin().prepareStats().get().getTotal().getSearch().getOpenContexts(), equalTo(0L)),
-            2,
-            TimeUnit.SECONDS
-        );
+        assertBusyOpenContexts("test", 0L);
     }
 
-    @SuppressWarnings("resource")
     public void testScrollContextSurvivesQueueRejection() throws Exception {
         createIndex("test-scroll", 1, 0);
         ensureGreen("test-scroll");
@@ -101,7 +94,8 @@ public class SearchWithRejectionsIT extends ESIntegTestCase {
             String primaryNodeName = clusterService().state().nodes().get(primaryNodeId).getName();
             ThreadPool primaryThreadPool = internalCluster().getInstance(ThreadPool.class, primaryNodeName);
 
-            try (Releasable ignored = blockSearchThreadPool(primaryThreadPool)) {
+            // Closing unblockSearchPool releases the blocked SEARCH threads so later scrolls can run.
+            try (Releasable unblockSearchPool = blockSearchThreadPool(primaryThreadPool)) {
                 // Bounded wait: if rejection fails to surface, do not deadlock the suite.
                 Exception e = expectThrows(Exception.class, () -> {
                     SearchResponse response = client().prepareSearchScroll(scrollId)
@@ -145,13 +139,15 @@ public class SearchWithRejectionsIT extends ESIntegTestCase {
 
     /**
      * Blocks all SEARCH threads and fills the queue on {@code threadPool} so the next submission is rejected.
-     * Caller must close the releasable to unblock.
+     * Caller must close the returned releasable to unblock those threads.
      */
     private Releasable blockSearchThreadPool(ThreadPool threadPool) {
         final CountDownLatch block = new CountDownLatch(1);
         final int threads = threadPool.info(ThreadPool.Names.SEARCH).getMax();
         final CountDownLatch started = new CountDownLatch(threads);
-        // Stoppable wrapper: try-with-resources must not shut down the node-owned SEARCH pool.
+        // Stoppable wrapper lets try-with-resources own the ExecutorService without shutting down the
+        // node-owned SEARCH pool (shutdown/close are no-ops). Tasks keep running on the real executor
+        // until the returned releasable counts down {@code block}.
         try (ExecutorService searchExecutor = new StoppableExecutorServiceWrapper(threadPool.executor(ThreadPool.Names.SEARCH))) {
             try {
                 for (int i = 0; i < threads; i++) {
@@ -161,13 +157,13 @@ public class SearchWithRejectionsIT extends ESIntegTestCase {
                     });
                 }
                 safeAwait(started);
-                // Fill the queue slot (queue_size=1) so further submissions are rejected.
+                // Fill the queue slot (queue_size=1). With all workers blocked, the next submit rejects.
                 try {
                     searchExecutor.execute(() -> awaitQuietly(block));
                 } catch (EsRejectedExecutionException e) {
                     // already full
                 }
-                assertBusy(() -> expectThrows(EsRejectedExecutionException.class, () -> searchExecutor.execute(() -> {})));
+                expectThrows(EsRejectedExecutionException.class, () -> searchExecutor.execute(() -> {}));
             } catch (Throwable t) {
                 // The cluster is shared by the whole suite, so never leave SEARCH threads blocked on a setup failure.
                 block.countDown();
@@ -181,7 +177,6 @@ public class SearchWithRejectionsIT extends ESIntegTestCase {
         }
     }
 
-    @SuppressWarnings("SameParameterValue")
     private void assertBusyOpenContexts(String index, long expected) throws Exception {
         assertBusy(
             () -> assertThat(indicesAdmin().prepareStats(index).get().getTotal().getSearch().getOpenContexts(), equalTo(expected)),

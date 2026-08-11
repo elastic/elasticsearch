@@ -295,7 +295,7 @@ public class IndexingShardRecoveryIT extends AbstractStatelessPluginIntegTestCas
             // term is incremented by 1
             afterSnapshot.lastUploadedBcc.primaryTerm() + 1L,
             // Lucene index is committed two or three times on snapshot recovery:
-            // 1st for StatelessIndexEventListener#afterFilesRestoredFromRepository if the commit is neither a hollow commit
+            // 1st for StatelessIndexNodeRecoveryListener#afterFilesRestoredFromRepository if the commit is neither a hollow commit
             // nor from an empty store, i.e. documents have been indexed before the snapshot
             // 2nd for bootstrapNewHistory
             // 3rd for associateIndexWithNewTranslog

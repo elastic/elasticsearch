@@ -46,10 +46,10 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class FastDateParserTests extends ESTestCase {
+public class FastDateTimeParserTests extends ESTestCase {
 
-    private static FastDateParser defaultParser() {
-        return new FastDateParser(Set.of(), true, null, BOTH, OPTIONAL, Map.of());
+    private static FastDateTimeParser defaultParser() {
+        return new FastDateTimeParser(Set.of(), true, null, BOTH, OPTIONAL);
     }
 
     private static Matcher<ParseResult> hasResult(DateTime dateTime) {
@@ -61,356 +61,284 @@ public class FastDateParserTests extends ESTestCase {
     }
 
     public void testStrangeParses() {
-        assertThat(defaultParser().tryParse("-9999-01-01", null), hasResult(new DateTime(-9999, 1, 1, null, null, null, null, null, null)));
-        assertThat(defaultParser().tryParse("1000", null), hasResult(new DateTime(1000, null, null, null, null, null, null, null, null)));
-        assertThat(defaultParser().tryParse("2023-02-02T", null), hasResult(new DateTime(2023, 2, 2, null, null, null, null, null, null)));
+        assertThat(defaultParser().tryParse("-9999-01-01"), hasResult(new DateTime(-9999, 1, 1, null, null, null, null, null, null)));
+        assertThat(defaultParser().tryParse("1000"), hasResult(new DateTime(1000, null, null, null, null, null, null, null, null)));
+        assertThat(defaultParser().tryParse("2023-02-02T"), hasResult(new DateTime(2023, 2, 2, null, null, null, null, null, null)));
 
         // these are accepted by the previous formatters, but are not valid ISO8601
-        assertThat(defaultParser().tryParse("2023-01-01T12:00:00.01,02", null), hasError(22));
-        assertThat(defaultParser().tryParse("2023-01-01T12:00:00Europe/Paris+0400", null), hasError(19));
+        assertThat(defaultParser().tryParse("2023-01-01T12:00:00.01,02"), hasError(22));
+        assertThat(defaultParser().tryParse("2023-01-01T12:00:00Europe/Paris+0400"), hasError(19));
     }
 
     public void testConfigurableDateTimeSeparator() {
         // A parser configured with a space separator parses 'yyyy-MM-dd HH:mm:ss' (the layout used by date fields)
-        FastDateParser spaceParser = new FastDateParser(
+        FastDateTimeParser spaceParser = new FastDateTimeParser(
             Set.of(YEAR, MONTH_OF_YEAR, DAY_OF_MONTH, HOUR_OF_DAY, MINUTE_OF_HOUR, SECOND_OF_MINUTE),
             false,
             SECOND_OF_MINUTE,
             BOTH,
             FORBIDDEN,
-            Map.of(),
             ' '
         );
-        assertThat(spaceParser.tryParse("2023-06-20 15:48:09", null), hasResult(new DateTime(2023, 6, 20, 15, 48, 9, 0, null, null)));
+        assertThat(spaceParser.tryParse("2023-06-20 15:48:09"), hasResult(new DateTime(2023, 6, 20, 15, 48, 9, 0, null, null)));
         // the standard 'T' separator is rejected at the date/time boundary when the parser expects a space
-        assertThat(spaceParser.tryParse("2023-06-20T15:48:09", null), hasError(10));
+        assertThat(spaceParser.tryParse("2023-06-20T15:48:09"), hasError(10));
 
         // and conversely, a 'T' parser rejects a space at the boundary
-        FastDateParser tParser = new FastDateParser(
+        FastDateTimeParser tParser = new FastDateTimeParser(
             Set.of(YEAR, MONTH_OF_YEAR, DAY_OF_MONTH, HOUR_OF_DAY, MINUTE_OF_HOUR, SECOND_OF_MINUTE),
             false,
             SECOND_OF_MINUTE,
             BOTH,
-            FORBIDDEN,
-            Map.of()
+            FORBIDDEN
         );
-        assertThat(tParser.tryParse("2023-06-20 15:48:09", null), hasError(10));
-        assertThat(tParser.tryParse("2023-06-20T15:48:09", null), hasResult(new DateTime(2023, 6, 20, 15, 48, 9, 0, null, null)));
+        assertThat(tParser.tryParse("2023-06-20 15:48:09"), hasError(10));
+        assertThat(tParser.tryParse("2023-06-20T15:48:09"), hasResult(new DateTime(2023, 6, 20, 15, 48, 9, 0, null, null)));
     }
 
     public void testOutOfRange() {
-        assertThat(defaultParser().tryParse("2023-13-12", null), hasError(5));
-        assertThat(defaultParser().tryParse("2023-12-32", null), hasError(8));
-        assertThat(defaultParser().tryParse("2023-12-31T24", null), hasError(11));
-        assertThat(defaultParser().tryParse("2023-12-31T23:60", null), hasError(14));
-        assertThat(defaultParser().tryParse("2023-12-31T23:59:60", null), hasError(17));
-        assertThat(defaultParser().tryParse("2023-12-31T23:59:59+18:30", null), hasError(19));
-        assertThat(defaultParser().tryParse("2023-12-31T23:59:59+24", null), hasError(19));
-        assertThat(defaultParser().tryParse("2023-12-31T23:59:59+1060", null), hasError(19));
-        assertThat(defaultParser().tryParse("2023-12-31T23:59:59+105960", null), hasError(19));
+        assertThat(defaultParser().tryParse("2023-13-12"), hasError(5));
+        assertThat(defaultParser().tryParse("2023-12-32"), hasError(8));
+        assertThat(defaultParser().tryParse("2023-12-31T24"), hasError(11));
+        assertThat(defaultParser().tryParse("2023-12-31T23:60"), hasError(14));
+        assertThat(defaultParser().tryParse("2023-12-31T23:59:60"), hasError(17));
+        assertThat(defaultParser().tryParse("2023-12-31T23:59:59+18:30"), hasError(19));
+        assertThat(defaultParser().tryParse("2023-12-31T23:59:59+24"), hasError(19));
+        assertThat(defaultParser().tryParse("2023-12-31T23:59:59+1060"), hasError(19));
+        assertThat(defaultParser().tryParse("2023-12-31T23:59:59+105960"), hasError(19));
     }
 
     public void testMandatoryFields() {
         assertThat(
-            new FastDateParser(Set.of(YEAR), true, null, BOTH, OPTIONAL, Map.of()).tryParse("2023", null),
+            new FastDateTimeParser(Set.of(YEAR), true, null, BOTH, OPTIONAL).tryParse("2023"),
             hasResult(new DateTime(2023, null, null, null, null, null, null, null, null))
         );
-        assertThat(
-            new FastDateParser(Set.of(YEAR, MONTH_OF_YEAR), true, null, BOTH, OPTIONAL, Map.of()).tryParse("2023", null),
-            hasError(4)
-        );
+        assertThat(new FastDateTimeParser(Set.of(YEAR, MONTH_OF_YEAR), true, null, BOTH, OPTIONAL).tryParse("2023"), hasError(4));
 
         assertThat(
-            new FastDateParser(Set.of(YEAR, MONTH_OF_YEAR), true, null, BOTH, OPTIONAL, Map.of()).tryParse("2023-06", null),
+            new FastDateTimeParser(Set.of(YEAR, MONTH_OF_YEAR), true, null, BOTH, OPTIONAL).tryParse("2023-06"),
             hasResult(new DateTime(2023, 6, null, null, null, null, null, null, null))
         );
         assertThat(
-            new FastDateParser(Set.of(YEAR, MONTH_OF_YEAR, DAY_OF_MONTH), true, null, BOTH, OPTIONAL, Map.of()).tryParse("2023-06", null),
+            new FastDateTimeParser(Set.of(YEAR, MONTH_OF_YEAR, DAY_OF_MONTH), true, null, BOTH, OPTIONAL).tryParse("2023-06"),
             hasError(7)
         );
 
         assertThat(
-            new FastDateParser(Set.of(YEAR, MONTH_OF_YEAR, DAY_OF_MONTH), true, null, BOTH, OPTIONAL, Map.of()).tryParse(
-                "2023-06-20",
-                null
-            ),
+            new FastDateTimeParser(Set.of(YEAR, MONTH_OF_YEAR, DAY_OF_MONTH), true, null, BOTH, OPTIONAL).tryParse("2023-06-20"),
             hasResult(new DateTime(2023, 6, 20, null, null, null, null, null, null))
         );
         assertThat(
-            new FastDateParser(Set.of(YEAR, MONTH_OF_YEAR, DAY_OF_MONTH, HOUR_OF_DAY), false, null, BOTH, OPTIONAL, Map.of()).tryParse(
-                "2023-06-20",
-                null
+            new FastDateTimeParser(Set.of(YEAR, MONTH_OF_YEAR, DAY_OF_MONTH, HOUR_OF_DAY), false, null, BOTH, OPTIONAL).tryParse(
+                "2023-06-20"
             ),
             hasError(10)
         );
 
         assertThat(
-            new FastDateParser(Set.of(YEAR, MONTH_OF_YEAR, DAY_OF_MONTH, HOUR_OF_DAY), false, null, BOTH, OPTIONAL, Map.of()).tryParse(
-                "2023-06-20T15",
-                null
+            new FastDateTimeParser(Set.of(YEAR, MONTH_OF_YEAR, DAY_OF_MONTH, HOUR_OF_DAY), false, null, BOTH, OPTIONAL).tryParse(
+                "2023-06-20T15"
             ),
             hasResult(new DateTime(2023, 6, 20, 15, 0, 0, 0, null, null))
         );
         assertThat(
-            new FastDateParser(
-                Set.of(YEAR, MONTH_OF_YEAR, DAY_OF_MONTH, HOUR_OF_DAY, MINUTE_OF_HOUR),
-                false,
-                null,
-                BOTH,
-                OPTIONAL,
-                Map.of()
-            ).tryParse("2023-06-20T15", null),
+            new FastDateTimeParser(Set.of(YEAR, MONTH_OF_YEAR, DAY_OF_MONTH, HOUR_OF_DAY, MINUTE_OF_HOUR), false, null, BOTH, OPTIONAL)
+                .tryParse("2023-06-20T15"),
             hasError(13)
         );
         assertThat(
-            new FastDateParser(
-                Set.of(YEAR, MONTH_OF_YEAR, DAY_OF_MONTH, HOUR_OF_DAY, MINUTE_OF_HOUR),
-                false,
-                null,
-                BOTH,
-                OPTIONAL,
-                Map.of()
-            ).tryParse("2023-06-20T15Z", null),
+            new FastDateTimeParser(Set.of(YEAR, MONTH_OF_YEAR, DAY_OF_MONTH, HOUR_OF_DAY, MINUTE_OF_HOUR), false, null, BOTH, OPTIONAL)
+                .tryParse("2023-06-20T15Z"),
             hasError(13)
         );
 
         assertThat(
-            new FastDateParser(
-                Set.of(YEAR, MONTH_OF_YEAR, DAY_OF_MONTH, HOUR_OF_DAY, MINUTE_OF_HOUR),
-                false,
-                null,
-                BOTH,
-                OPTIONAL,
-                Map.of()
-            ).tryParse("2023-06-20T15:48", null),
+            new FastDateTimeParser(Set.of(YEAR, MONTH_OF_YEAR, DAY_OF_MONTH, HOUR_OF_DAY, MINUTE_OF_HOUR), false, null, BOTH, OPTIONAL)
+                .tryParse("2023-06-20T15:48"),
             hasResult(new DateTime(2023, 6, 20, 15, 48, 0, 0, null, null))
         );
         assertThat(
-            new FastDateParser(
+            new FastDateTimeParser(
                 Set.of(YEAR, MONTH_OF_YEAR, DAY_OF_MONTH, HOUR_OF_DAY, MINUTE_OF_HOUR, SECOND_OF_MINUTE),
                 false,
                 null,
                 BOTH,
-                OPTIONAL,
-                Map.of()
-            ).tryParse("2023-06-20T15:48", null),
+                OPTIONAL
+            ).tryParse("2023-06-20T15:48"),
             hasError(16)
         );
         assertThat(
-            new FastDateParser(
+            new FastDateTimeParser(
                 Set.of(YEAR, MONTH_OF_YEAR, DAY_OF_MONTH, HOUR_OF_DAY, MINUTE_OF_HOUR, SECOND_OF_MINUTE),
                 false,
                 null,
                 BOTH,
-                OPTIONAL,
-                Map.of()
-            ).tryParse("2023-06-20T15:48Z", null),
+                OPTIONAL
+            ).tryParse("2023-06-20T15:48Z"),
             hasError(16)
         );
 
         assertThat(
-            new FastDateParser(
+            new FastDateTimeParser(
                 Set.of(YEAR, MONTH_OF_YEAR, DAY_OF_MONTH, HOUR_OF_DAY, MINUTE_OF_HOUR, SECOND_OF_MINUTE),
                 false,
                 null,
                 BOTH,
-                OPTIONAL,
-                Map.of()
-            ).tryParse("2023-06-20T15:48:09", null),
+                OPTIONAL
+            ).tryParse("2023-06-20T15:48:09"),
             hasResult(new DateTime(2023, 6, 20, 15, 48, 9, 0, null, null))
         );
 
         assertThat(
-            new FastDateParser(
+            new FastDateTimeParser(
                 Set.of(YEAR, MONTH_OF_YEAR, DAY_OF_MONTH, HOUR_OF_DAY, MINUTE_OF_HOUR, SECOND_OF_MINUTE, NANO_OF_SECOND),
                 false,
                 null,
                 BOTH,
-                OPTIONAL,
-                Map.of()
-            ).tryParse("2023-06-20T15:48:09", null),
+                OPTIONAL
+            ).tryParse("2023-06-20T15:48:09"),
             hasError(19)
         );
         assertThat(
-            new FastDateParser(
+            new FastDateTimeParser(
                 Set.of(YEAR, MONTH_OF_YEAR, DAY_OF_MONTH, HOUR_OF_DAY, MINUTE_OF_HOUR, SECOND_OF_MINUTE, NANO_OF_SECOND),
                 false,
                 null,
                 BOTH,
-                OPTIONAL,
-                Map.of()
-            ).tryParse("2023-06-20T15:48:09.5", null),
+                OPTIONAL
+            ).tryParse("2023-06-20T15:48:09.5"),
             hasResult(new DateTime(2023, 6, 20, 15, 48, 9, 500_000_000, null, null))
         );
     }
 
     public void testMaxAllowedField() {
         assertThat(
-            new FastDateParser(Set.of(), false, YEAR, BOTH, FORBIDDEN, Map.of()).tryParse("2023", null),
+            new FastDateTimeParser(Set.of(), false, YEAR, BOTH, FORBIDDEN).tryParse("2023"),
             hasResult(new DateTime(2023, null, null, null, null, null, null, null, null))
         );
-        assertThat(new FastDateParser(Set.of(), false, YEAR, BOTH, FORBIDDEN, Map.of()).tryParse("2023-01", null), hasError(4));
+        assertThat(new FastDateTimeParser(Set.of(), false, YEAR, BOTH, FORBIDDEN).tryParse("2023-01"), hasError(4));
 
         assertThat(
-            new FastDateParser(Set.of(), false, MONTH_OF_YEAR, BOTH, FORBIDDEN, Map.of()).tryParse("2023-01", null),
+            new FastDateTimeParser(Set.of(), false, MONTH_OF_YEAR, BOTH, FORBIDDEN).tryParse("2023-01"),
             hasResult(new DateTime(2023, 1, null, null, null, null, null, null, null))
         );
-        assertThat(new FastDateParser(Set.of(), false, MONTH_OF_YEAR, BOTH, FORBIDDEN, Map.of()).tryParse("2023-01-01", null), hasError(7));
+        assertThat(new FastDateTimeParser(Set.of(), false, MONTH_OF_YEAR, BOTH, FORBIDDEN).tryParse("2023-01-01"), hasError(7));
 
         assertThat(
-            new FastDateParser(Set.of(), false, DAY_OF_MONTH, BOTH, FORBIDDEN, Map.of()).tryParse("2023-01-01", null),
+            new FastDateTimeParser(Set.of(), false, DAY_OF_MONTH, BOTH, FORBIDDEN).tryParse("2023-01-01"),
             hasResult(new DateTime(2023, 1, 1, null, null, null, null, null, null))
         );
-        assertThat(
-            new FastDateParser(Set.of(), false, DAY_OF_MONTH, BOTH, FORBIDDEN, Map.of()).tryParse("2023-01-01T", null),
-            hasError(10)
-        );
-        assertThat(
-            new FastDateParser(Set.of(), false, DAY_OF_MONTH, BOTH, FORBIDDEN, Map.of()).tryParse("2023-01-01T12", null),
-            hasError(10)
-        );
+        assertThat(new FastDateTimeParser(Set.of(), false, DAY_OF_MONTH, BOTH, FORBIDDEN).tryParse("2023-01-01T"), hasError(10));
+        assertThat(new FastDateTimeParser(Set.of(), false, DAY_OF_MONTH, BOTH, FORBIDDEN).tryParse("2023-01-01T12"), hasError(10));
 
         assertThat(
-            new FastDateParser(Set.of(), false, HOUR_OF_DAY, BOTH, FORBIDDEN, Map.of()).tryParse("2023-01-01T12", null),
+            new FastDateTimeParser(Set.of(), false, HOUR_OF_DAY, BOTH, FORBIDDEN).tryParse("2023-01-01T12"),
+            hasResult(new DateTime(2023, 1, 1, 12, 0, 0, 0, null, null))
+        );
+        assertThat(new FastDateTimeParser(Set.of(), false, HOUR_OF_DAY, BOTH, FORBIDDEN).tryParse("2023-01-01T12:00"), hasError(13));
+
+        assertThat(
+            new FastDateTimeParser(Set.of(), false, MINUTE_OF_HOUR, BOTH, FORBIDDEN).tryParse("2023-01-01T12:00"),
+            hasResult(new DateTime(2023, 1, 1, 12, 0, 0, 0, null, null))
+        );
+        assertThat(new FastDateTimeParser(Set.of(), false, MINUTE_OF_HOUR, BOTH, FORBIDDEN).tryParse("2023-01-01T12:00:00"), hasError(16));
+
+        assertThat(
+            new FastDateTimeParser(Set.of(), false, SECOND_OF_MINUTE, BOTH, FORBIDDEN).tryParse("2023-01-01T12:00:00"),
             hasResult(new DateTime(2023, 1, 1, 12, 0, 0, 0, null, null))
         );
         assertThat(
-            new FastDateParser(Set.of(), false, HOUR_OF_DAY, BOTH, FORBIDDEN, Map.of()).tryParse("2023-01-01T12:00", null),
-            hasError(13)
-        );
-
-        assertThat(
-            new FastDateParser(Set.of(), false, MINUTE_OF_HOUR, BOTH, FORBIDDEN, Map.of()).tryParse("2023-01-01T12:00", null),
-            hasResult(new DateTime(2023, 1, 1, 12, 0, 0, 0, null, null))
-        );
-        assertThat(
-            new FastDateParser(Set.of(), false, MINUTE_OF_HOUR, BOTH, FORBIDDEN, Map.of()).tryParse("2023-01-01T12:00:00", null),
-            hasError(16)
-        );
-
-        assertThat(
-            new FastDateParser(Set.of(), false, SECOND_OF_MINUTE, BOTH, FORBIDDEN, Map.of()).tryParse("2023-01-01T12:00:00", null),
-            hasResult(new DateTime(2023, 1, 1, 12, 0, 0, 0, null, null))
-        );
-        assertThat(
-            new FastDateParser(Set.of(), false, SECOND_OF_MINUTE, BOTH, FORBIDDEN, Map.of()).tryParse("2023-01-01T12:00:00.5", null),
+            new FastDateTimeParser(Set.of(), false, SECOND_OF_MINUTE, BOTH, FORBIDDEN).tryParse("2023-01-01T12:00:00.5"),
             hasError(19)
         );
     }
 
     public void testTimezoneForbidden() {
-        assertThat(new FastDateParser(Set.of(), false, null, BOTH, FORBIDDEN, Map.of()).tryParse("2023-01-01T12Z", null), hasError(13));
-        assertThat(new FastDateParser(Set.of(), false, null, BOTH, FORBIDDEN, Map.of()).tryParse("2023-01-01T12:00Z", null), hasError(16));
-        assertThat(
-            new FastDateParser(Set.of(), false, null, BOTH, FORBIDDEN, Map.of()).tryParse("2023-01-01T12:00:00Z", null),
-            hasError(19)
-        );
+        assertThat(new FastDateTimeParser(Set.of(), false, null, BOTH, FORBIDDEN).tryParse("2023-01-01T12Z"), hasError(13));
+        assertThat(new FastDateTimeParser(Set.of(), false, null, BOTH, FORBIDDEN).tryParse("2023-01-01T12:00Z"), hasError(16));
+        assertThat(new FastDateTimeParser(Set.of(), false, null, BOTH, FORBIDDEN).tryParse("2023-01-01T12:00:00Z"), hasError(19));
 
         // a default timezone should still make it through
         ZoneOffset zoneId = ZoneOffset.ofHours(2);
         assertThat(
-            new FastDateParser(Set.of(), false, null, BOTH, FORBIDDEN, Map.of()).tryParse("2023-01-01T12:00:00", zoneId),
+            new FastDateTimeParser(Set.of(), false, null, BOTH, FORBIDDEN).withZone(zoneId).tryParse("2023-01-01T12:00:00"),
             hasResult(new DateTime(2023, 1, 1, 12, 0, 0, 0, zoneId, zoneId))
         );
     }
 
     public void testTimezoneMandatory() {
-        assertThat(new FastDateParser(Set.of(), false, null, BOTH, MANDATORY, Map.of()).tryParse("2023-01-01T12", null), hasError(13));
-        assertThat(new FastDateParser(Set.of(), false, null, BOTH, MANDATORY, Map.of()).tryParse("2023-01-01T12:00", null), hasError(16));
-        assertThat(
-            new FastDateParser(Set.of(), false, null, BOTH, MANDATORY, Map.of()).tryParse("2023-01-01T12:00:00", null),
-            hasError(19)
-        );
+        assertThat(new FastDateTimeParser(Set.of(), false, null, BOTH, MANDATORY).tryParse("2023-01-01T12"), hasError(13));
+        assertThat(new FastDateTimeParser(Set.of(), false, null, BOTH, MANDATORY).tryParse("2023-01-01T12:00"), hasError(16));
+        assertThat(new FastDateTimeParser(Set.of(), false, null, BOTH, MANDATORY).tryParse("2023-01-01T12:00:00"), hasError(19));
 
         assertThat(
-            new FastDateParser(Set.of(), false, null, BOTH, MANDATORY, Map.of()).tryParse("2023-01-01T12:00:00Z", null),
+            new FastDateTimeParser(Set.of(), false, null, BOTH, MANDATORY).tryParse("2023-01-01T12:00:00Z"),
             hasResult(new DateTime(2023, 1, 1, 12, 0, 0, 0, ZoneOffset.UTC, ZoneOffset.UTC))
         );
     }
 
     public void testParseNanos() {
         assertThat(
-            defaultParser().tryParse("2023-01-01T12:00:00.5", null),
+            defaultParser().tryParse("2023-01-01T12:00:00.5"),
             hasResult(new DateTime(2023, 1, 1, 12, 0, 0, 500_000_000, null, null))
         );
         assertThat(
-            defaultParser().tryParse("2023-01-01T12:00:00,5", null),
+            defaultParser().tryParse("2023-01-01T12:00:00,5"),
             hasResult(new DateTime(2023, 1, 1, 12, 0, 0, 500_000_000, null, null))
         );
 
         assertThat(
-            defaultParser().tryParse("2023-01-01T12:00:00.05", null),
+            defaultParser().tryParse("2023-01-01T12:00:00.05"),
             hasResult(new DateTime(2023, 1, 1, 12, 0, 0, 50_000_000, null, null))
         );
         assertThat(
-            defaultParser().tryParse("2023-01-01T12:00:00,005", null),
+            defaultParser().tryParse("2023-01-01T12:00:00,005"),
             hasResult(new DateTime(2023, 1, 1, 12, 0, 0, 5_000_000, null, null))
         );
         assertThat(
-            defaultParser().tryParse("2023-01-01T12:00:00.0005", null),
+            defaultParser().tryParse("2023-01-01T12:00:00.0005"),
             hasResult(new DateTime(2023, 1, 1, 12, 0, 0, 500_000, null, null))
         );
         assertThat(
-            defaultParser().tryParse("2023-01-01T12:00:00,00005", null),
+            defaultParser().tryParse("2023-01-01T12:00:00,00005"),
             hasResult(new DateTime(2023, 1, 1, 12, 0, 0, 50_000, null, null))
         );
         assertThat(
-            defaultParser().tryParse("2023-01-01T12:00:00.000005", null),
+            defaultParser().tryParse("2023-01-01T12:00:00.000005"),
             hasResult(new DateTime(2023, 1, 1, 12, 0, 0, 5_000, null, null))
         );
-        assertThat(
-            defaultParser().tryParse("2023-01-01T12:00:00,0000005", null),
-            hasResult(new DateTime(2023, 1, 1, 12, 0, 0, 500, null, null))
-        );
-        assertThat(
-            defaultParser().tryParse("2023-01-01T12:00:00.00000005", null),
-            hasResult(new DateTime(2023, 1, 1, 12, 0, 0, 50, null, null))
-        );
-        assertThat(
-            defaultParser().tryParse("2023-01-01T12:00:00,000000005", null),
-            hasResult(new DateTime(2023, 1, 1, 12, 0, 0, 5, null, null))
-        );
+        assertThat(defaultParser().tryParse("2023-01-01T12:00:00,0000005"), hasResult(new DateTime(2023, 1, 1, 12, 0, 0, 500, null, null)));
+        assertThat(defaultParser().tryParse("2023-01-01T12:00:00.00000005"), hasResult(new DateTime(2023, 1, 1, 12, 0, 0, 50, null, null)));
+        assertThat(defaultParser().tryParse("2023-01-01T12:00:00,000000005"), hasResult(new DateTime(2023, 1, 1, 12, 0, 0, 5, null, null)));
 
         // too many nanos
-        assertThat(defaultParser().tryParse("2023-01-01T12:00:00.0000000005", null), hasError(29));
+        assertThat(defaultParser().tryParse("2023-01-01T12:00:00.0000000005"), hasError(29));
     }
 
     public void testParseDecimalSeparator() {
         assertThat(
-            new FastDateParser(Set.of(), false, null, BOTH, OPTIONAL, Map.of()).tryParse("2023-01-01T12:00:00.0", null),
+            new FastDateTimeParser(Set.of(), false, null, BOTH, OPTIONAL).tryParse("2023-01-01T12:00:00.0"),
             hasResult(new DateTime(2023, 1, 1, 12, 0, 0, 0, null, null))
         );
         assertThat(
-            new FastDateParser(Set.of(), false, null, BOTH, OPTIONAL, Map.of()).tryParse("2023-01-01T12:00:00,0", null),
-            hasResult(new DateTime(2023, 1, 1, 12, 0, 0, 0, null, null))
-        );
-
-        assertThat(
-            new FastDateParser(Set.of(), false, null, DOT, OPTIONAL, Map.of()).tryParse("2023-01-01T12:00:00.0", null),
-            hasResult(new DateTime(2023, 1, 1, 12, 0, 0, 0, null, null))
-        );
-        assertThat(
-            new FastDateParser(Set.of(), false, null, DOT, OPTIONAL, Map.of()).tryParse("2023-01-01T12:00:00,0", null),
-            hasError(19)
-        );
-
-        assertThat(
-            new FastDateParser(Set.of(), false, null, COMMA, OPTIONAL, Map.of()).tryParse("2023-01-01T12:00:00.0", null),
-            hasError(19)
-        );
-        assertThat(
-            new FastDateParser(Set.of(), false, null, COMMA, OPTIONAL, Map.of()).tryParse("2023-01-01T12:00:00,0", null),
+            new FastDateTimeParser(Set.of(), false, null, BOTH, OPTIONAL).tryParse("2023-01-01T12:00:00,0"),
             hasResult(new DateTime(2023, 1, 1, 12, 0, 0, 0, null, null))
         );
 
         assertThat(
-            new FastDateParser(Set.of(), false, null, BOTH, OPTIONAL, Map.of()).tryParse("2023-01-01T12:00:00+0", null),
-            hasError(19)
+            new FastDateTimeParser(Set.of(), false, null, DOT, OPTIONAL).tryParse("2023-01-01T12:00:00.0"),
+            hasResult(new DateTime(2023, 1, 1, 12, 0, 0, 0, null, null))
         );
+        assertThat(new FastDateTimeParser(Set.of(), false, null, DOT, OPTIONAL).tryParse("2023-01-01T12:00:00,0"), hasError(19));
+
+        assertThat(new FastDateTimeParser(Set.of(), false, null, COMMA, OPTIONAL).tryParse("2023-01-01T12:00:00.0"), hasError(19));
         assertThat(
-            new FastDateParser(Set.of(), false, null, BOTH, OPTIONAL, Map.of()).tryParse("2023-01-01T12:00:00+0", null),
-            hasError(19)
+            new FastDateTimeParser(Set.of(), false, null, COMMA, OPTIONAL).tryParse("2023-01-01T12:00:00,0"),
+            hasResult(new DateTime(2023, 1, 1, 12, 0, 0, 0, null, null))
         );
+
+        assertThat(new FastDateTimeParser(Set.of(), false, null, BOTH, OPTIONAL).tryParse("2023-01-01T12:00:00+0"), hasError(19));
+        assertThat(new FastDateTimeParser(Set.of(), false, null, BOTH, OPTIONAL).tryParse("2023-01-01T12:00:00+0"), hasError(19));
     }
 
     private static Matcher<ParseResult> hasTimezone(ZoneId offset) {
@@ -419,51 +347,42 @@ public class FastDateParserTests extends ESTestCase {
 
     public void testParseTimezones() {
         // using defaults
-        assertThat(defaultParser().tryParse("2023-01-01T12:00:00", null), hasTimezone(null));
-        assertThat(defaultParser().tryParse("2023-01-01T12:00:00", ZoneOffset.UTC), hasTimezone(ZoneOffset.UTC));
-        assertThat(defaultParser().tryParse("2023-01-01T12:00:00", ZoneOffset.ofHours(-3)), hasTimezone(ZoneOffset.ofHours(-3)));
+        assertThat(defaultParser().tryParse("2023-01-01T12:00:00"), hasTimezone(null));
+        assertThat(defaultParser().withZone(ZoneOffset.UTC).tryParse("2023-01-01T12:00:00"), hasTimezone(ZoneOffset.UTC));
+        assertThat(defaultParser().withZone(ZoneOffset.ofHours(-3)).tryParse("2023-01-01T12:00:00"), hasTimezone(ZoneOffset.ofHours(-3)));
 
         // timezone specified
-        assertThat(defaultParser().tryParse("2023-01-01T12:00:00Z", null), hasTimezone(ZoneOffset.UTC));
+        assertThat(defaultParser().tryParse("2023-01-01T12:00:00Z"), hasTimezone(ZoneOffset.UTC));
 
-        assertThat(defaultParser().tryParse("2023-01-01T12:00:00-05", null), hasTimezone(ZoneOffset.ofHours(-5)));
-        assertThat(defaultParser().tryParse("2023-01-01T12:00:00+11", null), hasTimezone(ZoneOffset.ofHours(11)));
-        assertThat(defaultParser().tryParse("2023-01-01T12:00:00+0830", null), hasTimezone(ZoneOffset.ofHoursMinutes(8, 30)));
-        assertThat(defaultParser().tryParse("2023-01-01T12:00:00-0415", null), hasTimezone(ZoneOffset.ofHoursMinutes(-4, -15)));
-        assertThat(defaultParser().tryParse("2023-01-01T12:00:00+08:30", null), hasTimezone(ZoneOffset.ofHoursMinutes(8, 30)));
-        assertThat(defaultParser().tryParse("2023-01-01T12:00:00-04:15", null), hasTimezone(ZoneOffset.ofHoursMinutes(-4, -15)));
-        assertThat(defaultParser().tryParse("2023-01-01T12:00:00+011030", null), hasTimezone(ZoneOffset.ofHoursMinutesSeconds(1, 10, 30)));
-        assertThat(
-            defaultParser().tryParse("2023-01-01T12:00:00-074520", null),
-            hasTimezone(ZoneOffset.ofHoursMinutesSeconds(-7, -45, -20))
-        );
-        assertThat(
-            defaultParser().tryParse("2023-01-01T12:00:00+01:10:30", null),
-            hasTimezone(ZoneOffset.ofHoursMinutesSeconds(1, 10, 30))
-        );
-        assertThat(
-            defaultParser().tryParse("2023-01-01T12:00:00-07:45:20", null),
-            hasTimezone(ZoneOffset.ofHoursMinutesSeconds(-7, -45, -20))
-        );
+        assertThat(defaultParser().tryParse("2023-01-01T12:00:00-05"), hasTimezone(ZoneOffset.ofHours(-5)));
+        assertThat(defaultParser().tryParse("2023-01-01T12:00:00+11"), hasTimezone(ZoneOffset.ofHours(11)));
+        assertThat(defaultParser().tryParse("2023-01-01T12:00:00+0830"), hasTimezone(ZoneOffset.ofHoursMinutes(8, 30)));
+        assertThat(defaultParser().tryParse("2023-01-01T12:00:00-0415"), hasTimezone(ZoneOffset.ofHoursMinutes(-4, -15)));
+        assertThat(defaultParser().tryParse("2023-01-01T12:00:00+08:30"), hasTimezone(ZoneOffset.ofHoursMinutes(8, 30)));
+        assertThat(defaultParser().tryParse("2023-01-01T12:00:00-04:15"), hasTimezone(ZoneOffset.ofHoursMinutes(-4, -15)));
+        assertThat(defaultParser().tryParse("2023-01-01T12:00:00+011030"), hasTimezone(ZoneOffset.ofHoursMinutesSeconds(1, 10, 30)));
+        assertThat(defaultParser().tryParse("2023-01-01T12:00:00-074520"), hasTimezone(ZoneOffset.ofHoursMinutesSeconds(-7, -45, -20)));
+        assertThat(defaultParser().tryParse("2023-01-01T12:00:00+01:10:30"), hasTimezone(ZoneOffset.ofHoursMinutesSeconds(1, 10, 30)));
+        assertThat(defaultParser().tryParse("2023-01-01T12:00:00-07:45:20"), hasTimezone(ZoneOffset.ofHoursMinutesSeconds(-7, -45, -20)));
 
-        assertThat(defaultParser().tryParse("2023-01-01T12:00:00GMT", null), hasTimezone(ZoneId.of("GMT")));
-        assertThat(defaultParser().tryParse("2023-01-01T12:00:00UTC", null), hasTimezone(ZoneId.of("UTC")));
-        assertThat(defaultParser().tryParse("2023-01-01T12:00:00UT", null), hasTimezone(ZoneId.of("UT")));
-        assertThat(defaultParser().tryParse("2023-01-01T12:00:00GMT+3", null), hasTimezone(ZoneId.of("GMT+3")));
-        assertThat(defaultParser().tryParse("2023-01-01T12:00:00UTC-4", null), hasTimezone(ZoneId.of("UTC-4")));
-        assertThat(defaultParser().tryParse("2023-01-01T12:00:00UT+6", null), hasTimezone(ZoneId.of("UT+6")));
-        assertThat(defaultParser().tryParse("2023-01-01T12:00:00Europe/Paris", null), hasTimezone(ZoneId.of("Europe/Paris")));
+        assertThat(defaultParser().tryParse("2023-01-01T12:00:00GMT"), hasTimezone(ZoneId.of("GMT")));
+        assertThat(defaultParser().tryParse("2023-01-01T12:00:00UTC"), hasTimezone(ZoneId.of("UTC")));
+        assertThat(defaultParser().tryParse("2023-01-01T12:00:00UT"), hasTimezone(ZoneId.of("UT")));
+        assertThat(defaultParser().tryParse("2023-01-01T12:00:00GMT+3"), hasTimezone(ZoneId.of("GMT+3")));
+        assertThat(defaultParser().tryParse("2023-01-01T12:00:00UTC-4"), hasTimezone(ZoneId.of("UTC-4")));
+        assertThat(defaultParser().tryParse("2023-01-01T12:00:00UT+6"), hasTimezone(ZoneId.of("UT+6")));
+        assertThat(defaultParser().tryParse("2023-01-01T12:00:00Europe/Paris"), hasTimezone(ZoneId.of("Europe/Paris")));
 
         // we could be more specific in the error index for invalid timezones,
         // but that would require keeping track & propagating Result objects within date-time parsing just for the ZoneId
-        assertThat(defaultParser().tryParse("2023-01-01T12:00:00+04:0030", null), hasError(19));
-        assertThat(defaultParser().tryParse("2023-01-01T12:00:00+0400:30", null), hasError(19));
-        assertThat(defaultParser().tryParse("2023-01-01T12:00:00Invalid", null), hasError(19));
+        assertThat(defaultParser().tryParse("2023-01-01T12:00:00+04:0030"), hasError(19));
+        assertThat(defaultParser().tryParse("2023-01-01T12:00:00+0400:30"), hasError(19));
+        assertThat(defaultParser().tryParse("2023-01-01T12:00:00Invalid"), hasError(19));
     }
 
     private static void assertEquivalent(String text, DateTimeFormatter formatter) {
         TemporalAccessor expected = formatter.parse(text);
-        TemporalAccessor actual = defaultParser().tryParse(text, null).result();
+        TemporalAccessor actual = defaultParser().tryParse(text).result();
         assertThat(actual, is(notNullValue()));
 
         assertThat(actual.query(TemporalQueries.localDate()), equalTo(expected.query(TemporalQueries.localDate())));
@@ -473,14 +392,14 @@ public class FastDateParserTests extends ESTestCase {
 
     private static void assertEquivalentFailure(String text, DateTimeFormatter formatter) {
         DateTimeParseException expected = expectThrows(DateTimeParseException.class, () -> formatter.parse(text));
-        int error = defaultParser().tryParse(text, null).errorIndex();
+        int error = defaultParser().tryParse(text).errorIndex();
         assertThat(error, greaterThanOrEqualTo(0));
 
         assertThat(error, equalTo(expected.getErrorIndex()));
     }
 
     public void testEquivalence() {
-        // test that FastDateParser produces the same output as DateTimeFormatter
+        // test that FastDateTimeParser produces the same output as DateTimeFormatter
         DateTimeFormatter mandatoryFormatter = new DateTimeFormatterBuilder().append(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
             .optionalStart()
             .appendZoneOrOffsetId()
@@ -576,7 +495,7 @@ public class FastDateParserTests extends ESTestCase {
         );
 
         assertThat(
-            new FastDateParser(Set.of(), true, null, BOTH, OPTIONAL, defaults).tryParse("2023", null),
+            new FastDateTimeParser(Set.of(), true, null, BOTH, OPTIONAL).withDefaults(defaults).tryParse("2023"),
             hasResult(
                 new DateTime(
                     2023,
@@ -592,7 +511,7 @@ public class FastDateParserTests extends ESTestCase {
             )
         );
         assertThat(
-            new FastDateParser(Set.of(), true, null, BOTH, OPTIONAL, defaults).tryParse("2023-01", null),
+            new FastDateTimeParser(Set.of(), true, null, BOTH, OPTIONAL).withDefaults(defaults).tryParse("2023-01"),
             hasResult(
                 new DateTime(
                     2023,
@@ -608,7 +527,7 @@ public class FastDateParserTests extends ESTestCase {
             )
         );
         assertThat(
-            new FastDateParser(Set.of(), true, null, BOTH, OPTIONAL, defaults).tryParse("2023-01-01", null),
+            new FastDateTimeParser(Set.of(), true, null, BOTH, OPTIONAL).withDefaults(defaults).tryParse("2023-01-01"),
             hasResult(
                 new DateTime(
                     2023,
@@ -624,7 +543,7 @@ public class FastDateParserTests extends ESTestCase {
             )
         );
         assertThat(
-            new FastDateParser(Set.of(), true, null, BOTH, OPTIONAL, defaults).tryParse("2023-01-01T00", null),
+            new FastDateTimeParser(Set.of(), true, null, BOTH, OPTIONAL).withDefaults(defaults).tryParse("2023-01-01T00"),
             hasResult(
                 new DateTime(
                     2023,
@@ -640,15 +559,15 @@ public class FastDateParserTests extends ESTestCase {
             )
         );
         assertThat(
-            new FastDateParser(Set.of(), true, null, BOTH, OPTIONAL, defaults).tryParse("2023-01-01T00:00", null),
+            new FastDateTimeParser(Set.of(), true, null, BOTH, OPTIONAL).withDefaults(defaults).tryParse("2023-01-01T00:00"),
             hasResult(new DateTime(2023, 1, 1, 0, 0, defaults.get(SECOND_OF_MINUTE), defaults.get(NANO_OF_SECOND), null, null))
         );
         assertThat(
-            new FastDateParser(Set.of(), true, null, BOTH, OPTIONAL, defaults).tryParse("2023-01-01T00:00:00", null),
+            new FastDateTimeParser(Set.of(), true, null, BOTH, OPTIONAL).withDefaults(defaults).tryParse("2023-01-01T00:00:00"),
             hasResult(new DateTime(2023, 1, 1, 0, 0, 0, defaults.get(NANO_OF_SECOND), null, null))
         );
         assertThat(
-            new FastDateParser(Set.of(), true, null, BOTH, OPTIONAL, defaults).tryParse("2023-01-01T00:00:00.0", null),
+            new FastDateTimeParser(Set.of(), true, null, BOTH, OPTIONAL).withDefaults(defaults).tryParse("2023-01-01T00:00:00.0"),
             hasResult(new DateTime(2023, 1, 1, 0, 0, 0, 0, null, null))
         );
     }

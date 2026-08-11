@@ -1,0 +1,5 @@
+area: "Performance, Vector Search"
+issues: []
+pr: 156398
+summary: Enable MADV_RANDOM on search tier by default
+type: enhancement

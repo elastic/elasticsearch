@@ -113,8 +113,8 @@ Verified in `ManagedServiceAccountPrivilegeTests` (action-name coverage) and the
 
 ## Cross-cluster search
 
-- **RCS 2.0**: the querying cluster resolves `remote_indices` from the assigned role into inline role descriptors and forwards them in `CrossClusterAccessSubjectInfo`; the fulfilling cluster authorizes from those descriptors via `CrossClusterAccessRoleReference` and does not need managed service account support. Same-version behavior is tested in `RemoteClusterSecuritySpecialUserIT`; BWC against pre-feature fulfilling clusters is tested in `testManagedServiceAccountCcsAgainstOlderFulfillingCluster` in `AbstractRemoteClusterSecurityBWCRestIT` (RCS 2.0 subclass only).
-- **RCS 1.0**: the querying cluster authenticates the service token locally and forwards the `Authentication` object; the fulfilling cluster resolves the assigned role *names* against its own role store — the same semantics as native users, unlike built-in accounts (fixed descriptor, identical on both sides). The fulfilling cluster needs a matching role definition but no managed account document. Same-version behavior is tested in `RemoteClusterSecurityManagedServiceAccountRCS1IT`. Against pre-feature fulfilling clusters the request fails closed, pinned by `testManagedServiceAccountCcsFailsClosedAgainstOlderFulfillingCluster` in `AbstractRemoteClusterSecurityBWCRestIT` (RCS 1.0 subclass only; verified against 9.2.0 and 8.19.15 fulfilling clusters).
+- **RCS 2.0**: the querying cluster resolves `remote_indices` from the assigned role into inline role descriptors and forwards them in `CrossClusterAccessSubjectInfo`. Same-version behavior is tested in `RemoteClusterSecuritySpecialUserIT`. BWC is tested in `testManagedServiceAccountCcsAgainstOlderFulfillingCluster` (RCS 2.0 subclass only): fulfilling clusters before 9.6.0 fail closed with `must have no role`; 9.6.0+ fulfilling clusters authorize from the forwarded descriptors.
+- **RCS 1.0**: the querying cluster authenticates the service token locally and forwards the `Authentication` object; the fulfilling cluster resolves the assigned role *names* against its own role store — the same semantics as native users, unlike built-in accounts (fixed descriptor, identical on both sides). The fulfilling cluster needs a matching role definition but no managed account document. Same-version behavior is tested in `RemoteClusterSecurityManagedServiceAccountRCS1IT`. BWC fail-closed behavior for pre-feature FCs is pinned by `testManagedServiceAccountCcsFailsClosedAgainstOlderFulfillingCluster` (RCS 1.0 subclass only).
 
 ## API compatibility
 
@@ -138,7 +138,8 @@ Verified in `ManagedServiceAccountPrivilegeTests` (action-name coverage) and the
 | `./gradlew :x-pack:plugin:security:qa:multi-project:javaRestTest --tests '...ManagedServiceAccountMultiProjectIT'` | PASS |
 | `./gradlew :x-pack:plugin:security:qa:multi-cluster:javaRestTest --tests '...RemoteClusterSecurityManagedServiceAccountRCS1IT'` | PASS (x2 seeds) |
 | `./gradlew :x-pack:plugin:security:qa:multi-cluster:javaRestTest --tests '...RemoteClusterSecuritySpecialUserIT'` (RCS 2.0) | PASS (x2 seeds, after fixing an order-dependent data collision with the sibling test — the managed test now uses a dedicated `shared-managed` index) |
-| `./gradlew ':x-pack:plugin:security:qa:multi-cluster:v9.2.0#bwcTest' --tests '*testManagedServiceAccountCcs*AgainstOlder*'` (RCS 1 fail-closed + RCS 2 success, old fulfilling cluster) | PASS (also against v8.19.15) |
+| `./gradlew ':x-pack:plugin:security:qa:multi-cluster:v9.5.1#bwcTest' --tests '*testManagedServiceAccountCcs*AgainstOlder*'` (RCS 1 fail-closed + RCS 2 fail-closed, old FC) | PASS |
+| `./gradlew ':x-pack:plugin:security:qa:multi-cluster:v9.6.0#bwcTest' --tests '*testManagedServiceAccountCcsAgainstOlder*'` (RCS 2 success, current FC) | PASS |
 | `./gradlew :x-pack:plugin:core:spotlessJavaCheck :x-pack:plugin:security:spotlessJavaCheck` | PASS |
 
 **Not run:** rolling-upgrade IT, full `:x-pack:plugin:security:test` sweep, packaging/QA.

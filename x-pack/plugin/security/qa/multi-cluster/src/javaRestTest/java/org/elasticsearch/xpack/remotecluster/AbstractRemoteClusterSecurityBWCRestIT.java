@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchResponseUtils;
+import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -43,6 +44,8 @@ import static org.hamcrest.Matchers.nullValue;
  * A set of BWC tests that can be executed with either RCS 1 or RCS 2 against an older fulfilling cluster.
  */
 public abstract class AbstractRemoteClusterSecurityBWCRestIT extends AbstractRemoteClusterSecurityTestCase {
+
+    private static final Version MANAGED_SERVICE_ACCOUNTS_VERSION = Version.fromString("9.6.0");
 
     protected abstract boolean isRCS2();
 
@@ -205,36 +208,21 @@ public abstract class AbstractRemoteClusterSecurityBWCRestIT extends AbstractRem
             "RCS 2.0 forwards resolved role descriptors and does not require managed service account support on the fulfilling cluster",
             isRCS2()
         );
+        Assume.assumeFalse(
+            "managed service account CCS against a fulfilling cluster with the feature is covered by RemoteClusterSecurityManagedServiceAccountRCS1IT",
+            fulfillingClusterSupportsManagedServiceAccounts()
+        );
 
         try (var ignored = setupManagedServiceAccountCcsOnQueryCluster(false)) {
-            final ManagedServiceAccountCcsContext context = ignored.context();
-            final Request searchRequest = new Request(
-                "GET",
-                "/my_remote_cluster:remote_index_managed/_search?ccs_minimize_roundtrips=" + randomBoolean()
-            );
-            searchRequest.setOptions(context.bearerAuth());
-            final ResponseException exception = expectThrows(ResponseException.class, () -> client().performRequest(searchRequest));
-            assertThat(exception.getResponse().getStatusLine().getStatusCode(), greaterThanOrEqualTo(400));
-            // with assertions enabled (as in these test clusters) the fulfilling cluster trips the
-            // consistency check while deserializing the authentication header, which surfaces as a
-            // wrapped header-verification error; without assertions (production) deserialization
-            // succeeds and the failure surfaces at role resolution instead
-            assertThat(
-                exception.getMessage(),
-                anyOf(
-                    containsString("failed to verify signed authentication information"),
-                    containsString("cannot load role for service account"),
-                    containsString("must have no role"),
-                    containsString("unauthorized for service account [" + context.principal() + "]")
-                )
-            );
+            assertManagedServiceAccountCcsFailsClosed(ignored.context());
         }
     }
 
     /**
-     * Under RCS 2.0 the querying cluster resolves {@code remote_indices} from the assigned role and
-     * forwards inline role descriptors in {@code CrossClusterAccessSubjectInfo}. A pre-feature fulfilling
-     * cluster can authorize the search from those descriptors without managed service account support.
+     * Under RCS 2.0 the querying cluster resolves {@code remote_indices} from the assigned role and forwards
+     * inline role descriptors in {@code CrossClusterAccessSubjectInfo}. Fulfilling clusters before 9.6.0
+     * reject the forwarded service-account authentication; 9.6.0+ fulfilling clusters authorize from the
+     * forwarded descriptors.
      */
     public void testManagedServiceAccountCcsAgainstOlderFulfillingCluster() throws Exception {
         Assume.assumeTrue(
@@ -242,38 +230,72 @@ public abstract class AbstractRemoteClusterSecurityBWCRestIT extends AbstractRem
             isRCS2()
         );
 
-        try (var ignored = setupManagedServiceAccountCcsOnQueryCluster(true)) {
+        final boolean fulfillingClusterSupportsManagedServiceAccounts = fulfillingClusterSupportsManagedServiceAccounts();
+        try (var ignored = setupManagedServiceAccountCcsOnQueryCluster(fulfillingClusterSupportsManagedServiceAccounts)) {
             final ManagedServiceAccountCcsContext context = ignored.context();
-            final Request allowedSearchRequest = new Request(
-                "GET",
-                "/my_remote_cluster:remote_index_managed/_search?ccs_minimize_roundtrips=" + randomBoolean()
-            );
-            allowedSearchRequest.setOptions(context.bearerAuth());
-            final Response allowedSearchResponse = client().performRequest(allowedSearchRequest);
-            assertOK(allowedSearchResponse);
-            final SearchResponse allowedSearch = SearchResponseUtils.parseSearchResponse(responseAsParser(allowedSearchResponse));
-            try {
-                assertThat(
-                    Arrays.stream(allowedSearch.getHits().getHits()).map(SearchHit::getIndex).collect(Collectors.toList()),
-                    containsInAnyOrder("remote_index_managed")
-                );
-            } finally {
-                allowedSearch.decRef();
+            if (fulfillingClusterSupportsManagedServiceAccounts) {
+                assertManagedServiceAccountCcsSucceeds(context);
+            } else {
+                assertManagedServiceAccountCcsFailsClosed(context);
             }
-
-            final Request deniedSearchRequest = new Request(
-                "GET",
-                "/my_remote_cluster:remote_index_denied/_search?ccs_minimize_roundtrips=" + randomBoolean()
-            );
-            deniedSearchRequest.setOptions(context.bearerAuth());
-            final ResponseException deniedSearch = expectThrows(
-                ResponseException.class,
-                () -> client().performRequest(deniedSearchRequest)
-            );
-            assertThat(deniedSearch.getResponse().getStatusLine().getStatusCode(), equalTo(403));
-            assertThat(deniedSearch.getMessage(), containsString("unauthorized for service account [" + context.principal() + "]"));
-            assertThat(deniedSearch.getMessage(), containsString("on indices [remote_index_denied]"));
         }
+    }
+
+    private static boolean fulfillingClusterSupportsManagedServiceAccounts() {
+        if (isOldClusterDetachedVersion()) {
+            return false;
+        }
+        final String oldClusterVersion = System.getProperty("tests.old_cluster_version");
+        return oldClusterVersion != null
+            && Version.fromString(oldClusterVersion).onOrAfter(MANAGED_SERVICE_ACCOUNTS_VERSION);
+    }
+
+    private void assertManagedServiceAccountCcsFailsClosed(ManagedServiceAccountCcsContext context) throws Exception {
+        final Request searchRequest = new Request(
+            "GET",
+            "/my_remote_cluster:remote_index_managed/_search?ccs_minimize_roundtrips=" + randomBoolean()
+        );
+        searchRequest.setOptions(context.bearerAuth());
+        final ResponseException exception = expectThrows(ResponseException.class, () -> client().performRequest(searchRequest));
+        assertThat(exception.getResponse().getStatusLine().getStatusCode(), greaterThanOrEqualTo(400));
+        assertThat(
+            exception.getMessage(),
+            anyOf(
+                containsString("failed to verify signed authentication information"),
+                containsString("cannot load role for service account"),
+                containsString("must have no role"),
+                containsString("unauthorized for service account [" + context.principal() + "]")
+            )
+        );
+    }
+
+    private void assertManagedServiceAccountCcsSucceeds(ManagedServiceAccountCcsContext context) throws Exception {
+        final Request allowedSearchRequest = new Request(
+            "GET",
+            "/my_remote_cluster:remote_index_managed/_search?ccs_minimize_roundtrips=" + randomBoolean()
+        );
+        allowedSearchRequest.setOptions(context.bearerAuth());
+        final Response allowedSearchResponse = client().performRequest(allowedSearchRequest);
+        assertOK(allowedSearchResponse);
+        final SearchResponse allowedSearch = SearchResponseUtils.parseSearchResponse(responseAsParser(allowedSearchResponse));
+        try {
+            assertThat(
+                Arrays.stream(allowedSearch.getHits().getHits()).map(SearchHit::getIndex).collect(Collectors.toList()),
+                containsInAnyOrder("remote_index_managed")
+            );
+        } finally {
+            allowedSearch.decRef();
+        }
+
+        final Request deniedSearchRequest = new Request(
+            "GET",
+            "/my_remote_cluster:remote_index_denied/_search?ccs_minimize_roundtrips=" + randomBoolean()
+        );
+        deniedSearchRequest.setOptions(context.bearerAuth());
+        final ResponseException deniedSearch = expectThrows(ResponseException.class, () -> client().performRequest(deniedSearchRequest));
+        assertThat(deniedSearch.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+        assertThat(deniedSearch.getMessage(), containsString("unauthorized for service account [" + context.principal() + "]"));
+        assertThat(deniedSearch.getMessage(), containsString("on indices [remote_index_denied]"));
     }
 
     private ManagedServiceAccountCcsSetup setupManagedServiceAccountCcsOnQueryCluster(boolean indexDeniedTargetOnFulfillingCluster)

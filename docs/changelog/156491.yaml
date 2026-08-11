@@ -1,0 +1,5 @@
+area: Infra/Scripting
+issues: []
+pr: 156491
+summary: Add a Painless allocation warning threshold
+type: enhancement

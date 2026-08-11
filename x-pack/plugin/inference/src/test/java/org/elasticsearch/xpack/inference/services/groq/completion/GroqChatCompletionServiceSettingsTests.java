@@ -198,7 +198,7 @@ public class GroqChatCompletionServiceSettingsTests extends AbstractWireSerializ
         expectThrows(XContentParseException.class, () -> originalServiceSettings.updateServiceSettings(updateMap));
     }
 
-    public void testUpdateServiceSettings_ImmutableField_OrganizationId_Rejected() {
+    public void testUpdateServiceSettings_OrganizationId_IsUpdated() {
         var originalServiceSettings = new GroqChatCompletionServiceSettings(
             INITIAL_TEST_MODEL_ID,
             INITIAL_TEST_URI,
@@ -208,6 +208,69 @@ public class GroqChatCompletionServiceSettingsTests extends AbstractWireSerializ
 
         var updateMap = new HashMap<String, Object>();
         updateMap.put(ORGANIZATION, TEST_ORGANIZATION_ID);
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(updateMap);
+
+        assertThat(
+            updatedServiceSettings,
+            is(
+                new GroqChatCompletionServiceSettings(
+                    INITIAL_TEST_MODEL_ID,
+                    INITIAL_TEST_URI,
+                    TEST_ORGANIZATION_ID,
+                    new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+                )
+            )
+        );
+    }
+
+    public void testUpdateServiceSettings_OrganizationIdNull_ClearsExisting() {
+        var originalServiceSettings = new GroqChatCompletionServiceSettings(
+            INITIAL_TEST_MODEL_ID,
+            INITIAL_TEST_URI,
+            INITIAL_TEST_ORGANIZATION_ID,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+        );
+
+        var updateMap = new HashMap<String, Object>();
+        updateMap.put(ORGANIZATION, null);
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(updateMap);
+
+        assertThat(
+            updatedServiceSettings,
+            is(
+                new GroqChatCompletionServiceSettings(
+                    INITIAL_TEST_MODEL_ID,
+                    INITIAL_TEST_URI,
+                    null,
+                    new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+                )
+            )
+        );
+    }
+
+    public void testUpdateServiceSettings_OrganizationIdAbsent_KeepsExisting() {
+        var originalServiceSettings = new GroqChatCompletionServiceSettings(
+            INITIAL_TEST_MODEL_ID,
+            INITIAL_TEST_URI,
+            INITIAL_TEST_ORGANIZATION_ID,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+        );
+
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(new HashMap<>());
+
+        assertThat(updatedServiceSettings.organizationId(), is(INITIAL_TEST_ORGANIZATION_ID));
+    }
+
+    public void testUpdateServiceSettings_OrganizationIdEmptyString_Rejected() {
+        var originalServiceSettings = new GroqChatCompletionServiceSettings(
+            INITIAL_TEST_MODEL_ID,
+            INITIAL_TEST_URI,
+            INITIAL_TEST_ORGANIZATION_ID,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+        );
+
+        var updateMap = new HashMap<String, Object>();
+        updateMap.put(ORGANIZATION, "");
 
         expectThrows(XContentParseException.class, () -> originalServiceSettings.updateServiceSettings(updateMap));
     }

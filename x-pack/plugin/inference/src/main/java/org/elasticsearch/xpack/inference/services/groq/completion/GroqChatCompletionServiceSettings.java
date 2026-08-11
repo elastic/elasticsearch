@@ -245,20 +245,26 @@ public class GroqChatCompletionServiceSettings extends FilteredXContentObject im
     }
 
     /**
-     * Parses an update request, which may only contain the mutable {@code rate_limit} field. Including any immutable field (such as
-     * {@code model_id}, {@code url}, or {@code organization_id}) causes the strict parser to reject the request.
+     * Parses an update request, which may only contain the mutable {@code organization_id} and {@code rate_limit} fields. Including
+     * any immutable field causes the strict parser to reject the request.
      */
     private static class Update {
 
         private static final ObjectParser<Update, Void> PARSER = new ObjectParser<>(ModelConfigurations.SERVICE_SETTINGS, Update::new);
 
         static {
+            StatefulValue.declareNullable(PARSER, (update, value) -> update.organizationId = value, p -> {
+                var value = p.text();
+                validateStringIsNotNullOrEmpty(value, OpenAiServiceFields.ORGANIZATION);
+                return value;
+            }, new ParseField(OpenAiServiceFields.ORGANIZATION), ObjectParser.ValueType.STRING_OR_NULL);
             RateLimitSettings.declareUpdatableRateLimitSettings(PARSER, Update::setRateLimitSettings);
             // api_key appears in the same JSON block as service settings in update requests; DefaultSecretSettings extracts it separately.
             // Declare it here as a no-op so the strict parser does not reject it as an unknown field.
             PARSER.declareString((u, v) -> {}, new ParseField(DefaultSecretSettings.API_KEY));
         }
 
+        private StatefulValue<String> organizationId = StatefulValue.undefined();
         private StatefulValue<RateLimitSettings> rateLimitSettings = StatefulValue.undefined();
 
         private void setRateLimitSettings(StatefulValue<RateLimitSettings> rateLimitSettings) {
@@ -269,7 +275,7 @@ public class GroqChatCompletionServiceSettings extends FilteredXContentObject im
             return new GroqChatCompletionServiceSettings(
                 existing.modelId,
                 existing.uri,
-                existing.organizationId,
+                applyUpdate(organizationId, existing.organizationId),
                 applyUpdate(rateLimitSettings, existing.rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS)
             );
         }

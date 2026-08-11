@@ -637,3 +637,35 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecChangePointIT
   method: test {csv-spec:change_point.null keys}
   issue: https://github.com/elastic/elasticsearch/issues/156397
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeRandomMappingIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/156415
+- class: org.elasticsearch.upgrades.MlAssignmentPlannerUpgradeIT
+  method: testMlAssignmentPlannerUpgrade {upgradedNodes=0}
+  issue: https://github.com/elastic/elasticsearch/issues/156418
+- class: org.elasticsearch.upgrades.MlAssignmentPlannerUpgradeIT
+  method: testMlAssignmentPlannerUpgrade {upgradedNodes=1}
+  issue: https://github.com/elastic/elasticsearch/issues/156419
+- class: org.elasticsearch.upgrades.MlAssignmentPlannerUpgradeIT
+  method: testMlAssignmentPlannerUpgrade {upgradedNodes=2}
+  issue: https://github.com/elastic/elasticsearch/issues/156420
+- class: org.elasticsearch.upgrades.MlAssignmentPlannerUpgradeIT
+  method: testMlAssignmentPlannerUpgrade {upgradedNodes=3}
+  issue: https://github.com/elastic/elasticsearch/issues/156421
+- class: org.elasticsearch.xpack.inference.external.http.HttpClientTests
+  method: testStream_CancelAfterPauseReleasesConnection
+  issue: https://github.com/elastic/elasticsearch/issues/156431
+- class: org.elasticsearch.index.codec.vectors.ash.AsymmetricHashingQuantizerTests
+  method: testFullPipelineLearnedMethod
+  issue: https://github.com/elastic/elasticsearch/issues/156432
+- class: org.elasticsearch.xpack.search.AsyncSearchErrorTraceIT
+  method: testAsyncSearchFailingQueryErrorTraceFalseOnSubmitAndTrueOnGet
+  issue: https://github.com/elastic/elasticsearch/issues/156435
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecStatsIT
+  method: test {csv-spec:stats.weightedAvgWeightConstantMvWarning}
+  issue: https://github.com/elastic/elasticsearch/issues/156439
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecLookupJoinExpressionIT
+  issue: https://github.com/elastic/elasticsearch/issues/156440
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecFieldExtractIT
+  method: test {csv-spec:field_extract.multiValuedSubkeyDoesNotMatchScalarInequality}
+  issue: https://github.com/elastic/elasticsearch/issues/156441

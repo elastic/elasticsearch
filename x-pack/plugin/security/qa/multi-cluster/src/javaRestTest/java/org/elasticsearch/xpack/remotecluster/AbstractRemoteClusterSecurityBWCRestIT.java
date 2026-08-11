@@ -271,10 +271,7 @@ public abstract class AbstractRemoteClusterSecurityBWCRestIT extends AbstractRem
                 () -> client().performRequest(deniedSearchRequest)
             );
             assertThat(deniedSearch.getResponse().getStatusLine().getStatusCode(), equalTo(403));
-            assertThat(
-                deniedSearch.getMessage(),
-                containsString("unauthorized for service account [" + context.principal() + "]")
-            );
+            assertThat(deniedSearch.getMessage(), containsString("unauthorized for service account [" + context.principal() + "]"));
             assertThat(deniedSearch.getMessage(), containsString("on indices [remote_index_denied]"));
         }
     }

@@ -180,34 +180,23 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         );
     }
 
-    // -- negative: IN subquery in EVAL (rejected shapes) --
+    // -- negative: IN subquery in EVAL --
 
-    /**
-     * Verifies that an IN subquery with a complex (non-attribute, non-foldable) LHS inside EVAL is rejected.
-     */
     public void testRejectsComplexLHSInSubqueryInEval() {
         errorInSubquery(
             """
                 FROM employees
                 | EVAL x = ABS(emp_no) IN (FROM employees | KEEP emp_no)
                 """,
-            containsString(
-                "Complicated IN subquery is not yet supported in " + "Eval [EVAL x = ABS(emp_no) IN (FROM employees | KEEP emp_no)]"
-            )
+            containsString("Complicated IN subquery is not yet supported in Eval [EVAL x = ABS(emp_no) IN (FROM employees | KEEP emp_no)]")
         );
     }
 
-    /**
-     * Verifies that an IN subquery wrapped inside a non-allowlisted function in EVAL is rejected.
-     */
     public void testRejectsInSubqueryInsideNonAllowlistedFunctionInEval() {
-        errorInSubquery(
-            """
-                FROM employees
-                | EVAL x = TO_STRING(emp_no IN (FROM employees | KEEP emp_no))
-                """,
-            containsString("IN subquery is not supported within expression " + "[TO_STRING(emp_no IN (FROM employees | KEEP emp_no))]")
-        );
+        errorInSubquery("""
+            FROM employees
+            | EVAL x = TO_STRING(emp_no IN (FROM employees | KEEP emp_no))
+            """, containsString("IN subquery is not supported within expression [TO_STRING(emp_no IN (FROM employees | KEEP emp_no))]"));
     }
 
     // -- approximation incompatibility tests --

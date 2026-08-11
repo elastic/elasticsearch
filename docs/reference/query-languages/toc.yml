@@ -432,6 +432,7 @@ toc:
           - file: esql/esql-implicit-casting.md
           - file: esql/esql-time-spans.md
           - file: esql/esql-metadata-fields.md
+          - file: esql/esql-null-values.md
           - file: esql/esql-multivalued-fields.md
           - file: esql/esql-unmapped-fields.md
       - file: esql/esql-examples.md

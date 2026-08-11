@@ -12,6 +12,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.search.SearchHit;
@@ -27,9 +28,11 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -188,6 +191,91 @@ public abstract class AbstractRemoteClusterSecurityBWCRestIT extends AbstractRem
                 assertSearchResponse(SearchResponseUtils.parseSearchResponse(parser), alsoSearchLocally);
             }
             assertEsqlResponse(performRequestWithApiKey(esqlRequest(esqlCommand), apiKeyEncoded));
+        }
+    }
+
+    /**
+     * Managed service accounts carry role names in the authentication object, which fulfilling
+     * clusters older than the feature cannot represent: under RCS 2.0 the subject-info validation
+     * rejects the forwarded authentication outright, and under RCS 1.0 the remote fails to resolve
+     * a role for the unknown service account. Either way the request fails closed. This test pins
+     * that behavior for both models. Note: it relies on every wire-compatible BWC version predating
+     * managed service accounts; once the feature ships in a release, runs against versions at or
+     * after it must assert success instead.
+     */
+    public void testManagedServiceAccountCcsFailsClosedAgainstOlderFulfillingCluster() throws Exception {
+        // Fulfilling cluster (older version): index a document to target
+        {
+            final Request bulkRequest = new Request("POST", "/_bulk?refresh=true");
+            bulkRequest.setJsonEntity("""
+                { "index": { "_index": "remote_index_managed" } }
+                { "foo": "bar" }
+                """);
+            assertOK(performRequestAgainstFulfillingCluster(bulkRequest));
+        }
+
+        // Querying cluster (current version): a managed service account with remote privileges
+        final String roleName = "managed_bwc_role";
+        final var putRoleRequest = new Request("PUT", "/_security/role/" + roleName);
+        putRoleRequest.setJsonEntity("""
+            {
+              "remote_indices": [
+                {
+                  "names": ["remote_index_managed"],
+                  "privileges": ["read", "read_cross_cluster"],
+                  "clusters": ["my_remote_cluster"]
+                }
+              ]
+            }""");
+        assertOK(adminClient().performRequest(putRoleRequest));
+
+        final var putManagedAccountRequest = new Request("PUT", "/_security/service/bwc_poc/worker");
+        putManagedAccountRequest.setJsonEntity(Strings.format("""
+            { "roles": ["%s"], "enabled": true }""", roleName));
+        assertOK(adminClient().performRequest(putManagedAccountRequest));
+
+        final var createTokenRequest = new Request("PUT", "/_security/service/bwc_poc/worker/credential/token/t1");
+        final String serviceToken = ObjectPath.createFromResponse(adminClient().performRequest(createTokenRequest)).evaluate("token.value");
+        final RequestOptions bearerAuth = RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Bearer " + serviceToken).build();
+
+        try {
+            // sanity check: the managed account authenticates locally on the querying cluster
+            final Request authenticateRequest = new Request("GET", "/_security/_authenticate");
+            authenticateRequest.setOptions(bearerAuth);
+            assertOK(client().performRequest(authenticateRequest));
+
+            // CCS against the pre-feature fulfilling cluster must fail closed
+            final Request searchRequest = new Request(
+                "GET",
+                "/my_remote_cluster:remote_index_managed/_search?ccs_minimize_roundtrips=" + randomBoolean()
+            );
+            searchRequest.setOptions(bearerAuth);
+            final ResponseException exception = expectThrows(ResponseException.class, () -> client().performRequest(searchRequest));
+            assertThat(exception.getResponse().getStatusLine().getStatusCode(), greaterThanOrEqualTo(400));
+            if (isRCS2()) {
+                // the fulfilling cluster rejects the forwarded authentication during subject-info validation
+                assertThat(exception.getMessage(), containsString("must have no role"));
+            } else {
+                // with assertions enabled (as in these test clusters) the fulfilling cluster trips the
+                // consistency check while deserializing the authentication header, which surfaces as a
+                // wrapped header-verification error; without assertions (production) deserialization
+                // succeeds and the failure surfaces at role resolution instead
+                assertThat(
+                    exception.getMessage(),
+                    anyOf(
+                        containsString("failed to verify signed authentication information"),
+                        containsString("cannot load role for service account"),
+                        containsString("must have no role")
+                    )
+                );
+            }
+        } finally {
+            final Request deleteTokenRequest = new Request("DELETE", "/_security/service/bwc_poc/worker/credential/token/t1");
+            assertOK(adminClient().performRequest(deleteTokenRequest));
+            final Request deleteAccountRequest = new Request("DELETE", "/_security/service/bwc_poc/worker");
+            assertOK(adminClient().performRequest(deleteAccountRequest));
+            final Request deleteRoleRequest = new Request("DELETE", "/_security/role/" + roleName);
+            assertOK(adminClient().performRequest(deleteRoleRequest));
         }
     }
 

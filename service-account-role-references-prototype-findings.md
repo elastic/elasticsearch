@@ -115,7 +115,7 @@ Verified in `ManagedServiceAccountPrivilegeTests` (action-name coverage) and the
 
 - **RCS 2.0**: the querying cluster authorizes remote access via `remote_indices` in the assigned role definitions on the querying cluster (standard model). Tested in `RemoteClusterSecuritySpecialUserIT`.
 - **RCS 1.0**: the querying cluster authenticates the service token locally and forwards the `Authentication` object; the fulfilling cluster resolves the assigned role *names* against its own role store — the same semantics as native users, unlike built-in accounts (fixed descriptor, identical on both sides). The fulfilling cluster needs a matching role definition but no managed account document. Tested in `RemoteClusterSecurityManagedServiceAccountRCS1IT`.
-- **RCS 1.0 to pre-feature remotes**: fails closed, with error shape depending on assertions. Production (asserts off): the old node ignores `User.roles()` and fails role resolution with `cannot load role for service account [...] - no such service account`. Asserts on: `Authentication` deserialization trips `checkNoRole`. There is no sending-side guard in `Authentication#maybeRewriteForOlderVersion` (unlike cross-cluster-access and cloud API key subjects); adding one, plus a managed case in `AbstractRemoteClusterSecurityBWCRestIT`, would make the failure deterministic and clearly attributed.
+- **Pre-feature fulfilling clusters (either model)**: fails closed, pinned by `testManagedServiceAccountCcsFailsClosedAgainstOlderFulfillingCluster` in `AbstractRemoteClusterSecurityBWCRestIT` (runs under both BWC subclasses; verified against 9.2.0 and 8.19.15 fulfilling clusters). RCS 2.0: the remote's `CrossClusterAccessSubjectInfo#cleanAndValidate` calls `checkConsistency` explicitly, deterministically rejecting with `must have no role`. RCS 1.0: with assertions enabled (as in test clusters), `Authentication` header deserialization trips `checkNoRole` and surfaces as `failed to verify signed authentication information`; without assertions (production), deserialization succeeds and role resolution fails with `cannot load role for service account [...]`. There is no sending-side guard in `Authentication#maybeRewriteForOlderVersion` (unlike cross-cluster-access and cloud API key subjects); adding one would make the failure clearly attributed on the querying side for both models.
 
 ## API compatibility
 
@@ -139,9 +139,10 @@ Verified in `ManagedServiceAccountPrivilegeTests` (action-name coverage) and the
 | `./gradlew :x-pack:plugin:security:qa:multi-project:javaRestTest --tests '...ManagedServiceAccountMultiProjectIT'` | PASS |
 | `./gradlew :x-pack:plugin:security:qa:multi-cluster:javaRestTest --tests '...RemoteClusterSecurityManagedServiceAccountRCS1IT'` | PASS (x2 seeds) |
 | `./gradlew :x-pack:plugin:security:qa:multi-cluster:javaRestTest --tests '...RemoteClusterSecuritySpecialUserIT'` (RCS 2.0) | PASS (x2 seeds, after fixing an order-dependent data collision with the sibling test — the managed test now uses a dedicated `shared-managed` index) |
+| `./gradlew ':x-pack:plugin:security:qa:multi-cluster:v9.2.0#bwcTest' --tests '*testManagedServiceAccountCcsFailsClosedAgainstOlderFulfillingCluster'` (both RCS models, old fulfilling cluster) | PASS (also against v8.19.15) |
 | `./gradlew :x-pack:plugin:core:spotlessJavaCheck :x-pack:plugin:security:spotlessJavaCheck` | PASS |
 
-**Not run:** rolling-upgrade IT, BWC RCS 1.0 (old fulfilling cluster), full `:x-pack:plugin:security:test` sweep, packaging/QA.
+**Not run:** rolling-upgrade IT, full `:x-pack:plugin:security:test` sweep, packaging/QA.
 
 ## Prototype questions answered
 
@@ -193,5 +194,5 @@ Verified in `ManagedServiceAccountPrivilegeTests` (action-name coverage) and the
 
 Evidence supports the core hypothesis: managed accounts can authorize through `NamedRoleReference` without weakening built-ins. Stable principal identity with cache invalidation on DELETE provides revocation without generation IDs. Multi-project is explicitly out of scope (enforced in code); the privilege boundary is uniform (`manage_security` for the whole managed lifecycle). Before production:
 
-1. Add rolling-upgrade and BWC RCS 1.0 (old fulfilling cluster) integration tests; consider a sending-side version guard in `Authentication#maybeRewriteForOlderVersion`.
+1. Add a rolling-upgrade integration test; consider a sending-side version guard in `Authentication#maybeRewriteForOlderVersion`.
 2. Expose REST API specs publicly and decide the delegated-admin privilege model.

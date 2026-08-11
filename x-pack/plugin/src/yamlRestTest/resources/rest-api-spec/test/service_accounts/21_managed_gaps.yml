@@ -279,6 +279,15 @@ teardown:
   - match: { error.type: action_request_validation_exception }
 
 ---
+"Test reserved elastic namespace for managed account DELETE":
+  - do:
+      catch: bad_request
+      security.delete_managed_service_account:
+        namespace: elastic
+        service: kibana
+  - match: { error.type: action_request_validation_exception }
+
+---
 "Test disabled managed account":
   - do:
       security.put_managed_service_account:

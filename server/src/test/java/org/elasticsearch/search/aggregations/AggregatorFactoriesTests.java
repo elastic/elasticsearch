@@ -329,16 +329,18 @@ public class AggregatorFactoriesTests extends ESTestCase {
     }
 
     public void testValidationOfVeryDeepTreeDoesNotOverflowTheStack() {
+        int maxDepth = defaultMaxNestedDepth();
         ActionRequestValidationException e = veryDeeplyNestedTermsBuilder().validate(null);
         assertNotNull(e);
-        assertThat(e.getMessage(), containsString("exceeds the maximum nested depth for aggregations of ["));
+        assertThat(e.getMessage(), containsString("exceeds the maximum nested depth for aggregations of [" + maxDepth + "]"));
     }
 
     public void testValidationOfVeryDeepTreeInSearchRequestDoesNotOverflowTheStack() {
+        int maxDepth = defaultMaxNestedDepth();
         SearchRequest request = new SearchRequest().source(new SearchSourceBuilder().aggregationsBuilder(veryDeeplyNestedTermsBuilder()));
         ActionRequestValidationException e = request.validate();
         assertNotNull(e);
-        assertThat(e.getMessage(), containsString("exceeds the maximum nested depth for aggregations of ["));
+        assertThat(e.getMessage(), containsString("exceeds the maximum nested depth for aggregations of [" + maxDepth + "]"));
     }
 
     public void testMaxNestedDepthEnforcedAtValidationTimeRegardlessOfAllowPartialSearchResults() {

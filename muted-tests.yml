@@ -763,6 +763,3 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.RestEsqlIT
   method: testAutoPartitioning {SYNC}
   issue: https://github.com/elastic/elasticsearch/issues/156243
-- class: org.elasticsearch.search.profile.dfs.DfsProfilerIT
-  method: testProfileDfs
-  issue: https://github.com/elastic/elasticsearch/issues/156247

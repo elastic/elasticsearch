@@ -153,24 +153,25 @@ public class SearchWithRejectionsIT extends ESIntegTestCase {
         final CountDownLatch started = new CountDownLatch(threads);
         // Stoppable wrapper: try-with-resources must not shut down the node-owned SEARCH pool.
         try (ExecutorService searchExecutor = new StoppableExecutorServiceWrapper(threadPool.executor(ThreadPool.Names.SEARCH))) {
-            for (int i = 0; i < threads; i++) {
-                searchExecutor.execute(() -> {
-                    started.countDown();
-                    awaitQuietly(block);
-                });
-            }
-            safeAwait(started);
-            // Fill the queue slot (queue_size=1) so further submissions are rejected.
             try {
-                searchExecutor.execute(() -> awaitQuietly(block));
-            } catch (EsRejectedExecutionException e) {
-                // already full
-            }
-            try {
+                for (int i = 0; i < threads; i++) {
+                    searchExecutor.execute(() -> {
+                        started.countDown();
+                        awaitQuietly(block);
+                    });
+                }
+                safeAwait(started);
+                // Fill the queue slot (queue_size=1) so further submissions are rejected.
+                try {
+                    searchExecutor.execute(() -> awaitQuietly(block));
+                } catch (EsRejectedExecutionException e) {
+                    // already full
+                }
                 assertBusy(() -> expectThrows(EsRejectedExecutionException.class, () -> searchExecutor.execute(() -> {})));
-            } catch (Exception e) {
+            } catch (Throwable t) {
+                // The cluster is shared by the whole suite, so never leave SEARCH threads blocked on a setup failure.
                 block.countDown();
-                throw new AssertionError("failed to saturate SEARCH pool", e);
+                throw new AssertionError("failed to saturate SEARCH pool", t);
             }
             return () -> {
                 if (block.getCount() > 0) {

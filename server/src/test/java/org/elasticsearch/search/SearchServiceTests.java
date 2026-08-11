@@ -91,7 +91,7 @@ import java.util.function.Predicate;
 import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.DIRECT_EXECUTOR_SERVICE;
 import static org.elasticsearch.search.SearchService.isExecutorQueuedBeyondPrewarmingFactor;
-import static org.elasticsearch.search.SearchService.shouldRetainContextOnTransientRejection;
+import static org.elasticsearch.search.SearchService.isTransientRejection;
 import static org.elasticsearch.search.SearchService.wrapFailureListener;
 import static org.elasticsearch.search.SearchService.wrapListenerForErrorHandling;
 import static org.hamcrest.CoreMatchers.is;
@@ -410,19 +410,18 @@ public class SearchServiceTests extends IndexShardTestCase {
         assertSame("listener.onFailure must be called even when cleanup throws", cause, failure.get());
     }
 
-    public void testShouldRetainContextOnTransientRejection() {
-        assertFalse(shouldRetainContextOnTransientRejection(false, new EsRejectedExecutionException("rejected", false)));
-        assertTrue(shouldRetainContextOnTransientRejection(true, new EsRejectedExecutionException("rejected", false)));
-        assertFalse(shouldRetainContextOnTransientRejection(true, new EsRejectedExecutionException("shutdown", true)));
-        assertFalse(shouldRetainContextOnTransientRejection(true, new RuntimeException("other")));
+    public void testIsTransientRejection() {
+        assertTrue(isTransientRejection(new EsRejectedExecutionException("rejected", false)));
+        assertFalse(isTransientRejection(new EsRejectedExecutionException("shutdown", true)));
+        assertFalse(isTransientRejection(new RuntimeException("other")));
 
         Exception wrapped = new RuntimeException(new EsRejectedExecutionException("rejected", false));
-        assertTrue(shouldRetainContextOnTransientRejection(true, wrapped));
+        assertTrue(isTransientRejection(wrapped));
 
         // suppressed-only rejection must not retain (cause-chain unwrap only)
         RuntimeException primary = new RuntimeException("primary");
         primary.addSuppressed(new EsRejectedExecutionException("rejected", false));
-        assertFalse(shouldRetainContextOnTransientRejection(true, primary));
+        assertFalse(isTransientRejection(primary));
     }
 
     public void testIsExecutorQueuedBeyondPrewarmingFactor() throws InterruptedException {

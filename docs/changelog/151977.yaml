@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 151977
-summary: "Allow heterogeneous `FROM idx, ds` and pushdown optimizations"
-type: enhancement

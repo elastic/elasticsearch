@@ -8,12 +8,15 @@
 package org.elasticsearch.compute.data;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.unit.ByteSizeValue;
 
 import java.util.ArrayList;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class DoubleRangeBlockTests extends BlockTestCase<DoubleRangeBlock, DoubleRangeBlock.Builder, DoubleRangeBlockBuilder.DoubleRange> {
 
@@ -64,7 +67,14 @@ public class DoubleRangeBlockTests extends BlockTestCase<DoubleRangeBlock, Doubl
 
     @Override
     protected DoubleRangeBlockBuilder.DoubleRange randomValue() {
-        return new DoubleRangeBlockBuilder.DoubleRange(randomDouble(), randomDouble());
+        double from = randomDouble();
+        double to = randomValueOtherThan(from, () -> randomDouble());
+        return new DoubleRangeBlockBuilder.DoubleRange(Math.min(from, to), Math.max(from, to));
+    }
+
+    @Override
+    protected boolean positionHasValue(DoubleRangeBlock block, int position, DoubleRangeBlockBuilder.DoubleRange value) {
+        return block.hasValue(position, value, new DoubleRangeBlockBuilder.DoubleRange());
     }
 
     @Override
@@ -134,35 +144,45 @@ public class DoubleRangeBlockTests extends BlockTestCase<DoubleRangeBlock, Doubl
 
     public void testGetDoubleRangeMutatesScratchAcrossValueIndices() {
         try (DoubleRangeBlockBuilder builder = blockFactory().newDoubleRangeBlockBuilder(3)) {
+            // Position 0: single-valued [10, 20)
             builder.appendDoubleRange(10.0, 20.0);
-            builder.beginPositionEntry();
-            builder.appendDoubleRange(30.0, 40.0);
-            builder.appendDoubleRange(50.0, 60.0);
-            builder.appendDoubleRange(70.0, 80.0);
-            builder.endPositionEntry();
+            // Position 1: multi-valued [30, 40), [50, 60), [70, 80)
+            builder.from().beginPositionEntry();
+            builder.from().appendDouble(30.0);
+            builder.from().appendDouble(50.0);
+            builder.from().appendDouble(70.0);
+            builder.from().endPositionEntry();
+            builder.to().beginPositionEntry();
+            builder.to().appendDouble(40.0);
+            builder.to().appendDouble(60.0);
+            builder.to().appendDouble(80.0);
+            builder.to().endPositionEntry();
+            // Position 2: single-valued [100, 200)
             builder.appendDoubleRange(100.0, 200.0);
 
             try (DoubleRangeBlock block = builder.build()) {
                 DoubleRangeBlockBuilder.DoubleRange scratch = new DoubleRangeBlockBuilder.DoubleRange();
 
-                block.getDoubleRange(block.getFirstValueIndex(0), scratch);
-                assertThat(scratch.from(), equalTo(10.0));
-                assertThat(scratch.to(), equalTo(20.0));
+                DoubleRangeBlockBuilder.DoubleRange got = block.getDoubleRange(block.getFirstValueIndex(0), scratch);
+                assertThat("accessor must reuse the supplied scratch", got, sameInstance(scratch));
+                assertThat(got.from(), equalTo(10.0));
+                assertThat(got.to(), equalTo(20.0));
 
+                // Multi-valued position: read each value-index in turn and check the scratch is overwritten.
                 int firstMv = block.getFirstValueIndex(1);
-                block.getDoubleRange(firstMv, scratch);
-                assertThat(scratch.from(), equalTo(30.0));
-                assertThat(scratch.to(), equalTo(40.0));
-                block.getDoubleRange(firstMv + 1, scratch);
-                assertThat(scratch.from(), equalTo(50.0));
-                assertThat(scratch.to(), equalTo(60.0));
-                block.getDoubleRange(firstMv + 2, scratch);
-                assertThat(scratch.from(), equalTo(70.0));
-                assertThat(scratch.to(), equalTo(80.0));
+                got = block.getDoubleRange(firstMv, scratch);
+                assertThat(got.from(), equalTo(30.0));
+                assertThat(got.to(), equalTo(40.0));
+                got = block.getDoubleRange(firstMv + 1, scratch);
+                assertThat(got.from(), equalTo(50.0));
+                assertThat(got.to(), equalTo(60.0));
+                got = block.getDoubleRange(firstMv + 2, scratch);
+                assertThat(got.from(), equalTo(70.0));
+                assertThat(got.to(), equalTo(80.0));
 
-                block.getDoubleRange(block.getFirstValueIndex(2), scratch);
-                assertThat(scratch.from(), equalTo(100.0));
-                assertThat(scratch.to(), equalTo(200.0));
+                got = block.getDoubleRange(block.getFirstValueIndex(2), scratch);
+                assertThat(got.from(), equalTo(100.0));
+                assertThat(got.to(), equalTo(200.0));
             }
         }
     }
@@ -174,13 +194,30 @@ public class DoubleRangeBlockTests extends BlockTestCase<DoubleRangeBlock, Doubl
 
         assertThat(a, equalTo(b));
         assertThat(a.hashCode(), equalTo(b.hashCode()));
-        assertNotEquals(a, c);
+        assertThat(a, not(equalTo(c)));
         assertThat(a.toString(), equalTo("DoubleRange[from=1.5, to=2.5]"));
 
         var ret = a.reset(7.0, 9.0);
-        assertSame(ret, a);
+        assertThat(ret, sameInstance(a));
         assertThat(a.from(), equalTo(7.0));
         assertThat(a.to(), equalTo(9.0));
-        assertNotEquals(a, b);
+        assertThat(a, not(equalTo(b)));
+    }
+
+    public void testLookupUnsupported() {
+        try (DoubleRangeBlock block = buildBlock(blockFactory(), List.of(List.of(randomValue()))); IntBlock positions = positions()) {
+            UnsupportedOperationException e = expectThrows(
+                UnsupportedOperationException.class,
+                () -> block.lookup(positions, ByteSizeValue.ofKb(100))
+            );
+            assertThat(e.getMessage(), equalTo("can't lookup values from DoubleRangeBlock"));
+        }
+    }
+
+    private IntBlock positions() {
+        try (IntBlock.Builder builder = blockFactory().newIntBlockBuilder(1)) {
+            builder.appendInt(0);
+            return builder.build();
+        }
     }
 }

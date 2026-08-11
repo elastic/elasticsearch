@@ -62,7 +62,6 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Assertions;
@@ -393,7 +392,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.internalIndexingStats = new InternalIndexingStats(
             relativeTimeInNanosSupplier,
             indexingStatsSettings,
-            ((EsThreadPoolExecutor) threadPool.executor(WRITE)).getMaximumPoolSize()
+            threadPool.info(WRITE).getMax()
         );
         var indexingFailuresDebugListener = new IndexingFailuresDebugListener(this);
         this.indexingOperationListeners = new IndexingOperationListener.CompositeListener(

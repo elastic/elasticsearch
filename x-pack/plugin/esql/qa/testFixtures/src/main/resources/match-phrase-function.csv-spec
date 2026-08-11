@@ -1082,3 +1082,58 @@ FROM books
 book_no:keyword | new_title:text
 2675            | TITLE: The Lord of the Rings - Boxed Set
 ;
+
+matchPhraseOnRuntimeTextWithScore
+required_capability: match_phrase_function
+required_capability: metadata_score
+required_capability: fn_match_phrase_runtime_score
+
+// a runtime match_phrase scores the boost (1.0 by default) on match, not BM25: expressions have no index statistics
+FROM books METADATA _score
+| EVAL content = to_text(concat(title, " ", description))
+| WHERE match_phrase(content, "Lord of the Rings")
+| SORT book_no
+| LIMIT 3
+| KEEP book_no, _score
+;
+
+book_no:keyword | _score:double
+1463            | 1.0
+2675            | 1.0
+2714            | 1.0
+;
+
+matchPhraseOnRuntimeTextWithBoostAndScore
+required_capability: match_phrase_function
+required_capability: metadata_score
+required_capability: fn_match_phrase_runtime_score
+
+FROM books METADATA _score
+| EVAL content = to_text(concat(title, " ", description))
+| WHERE match_phrase(content, "Lord of the Rings", {"boost": 2.5})
+| SORT book_no
+| LIMIT 3
+| KEEP book_no, _score
+;
+
+book_no:keyword | _score:double
+1463            | 2.5
+2675            | 2.5
+2714            | 2.5
+;
+
+matchPhraseOnRuntimeKeywordWithScore
+required_capability: match_phrase_function
+required_capability: metadata_score
+required_capability: fn_match_phrase_runtime_score
+
+// keyword expressions match by exact value equality and score 1.0
+FROM employees METADATA _score
+| EVAL full_name = CONCAT(first_name, " ", last_name)
+| WHERE match_phrase(full_name, "Anneke Preusig")
+| KEEP emp_no, _score
+;
+
+emp_no:integer | _score:double
+10006          | 1.0
+;

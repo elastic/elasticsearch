@@ -9,6 +9,8 @@
 
 package org.elasticsearch.cluster.node;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.regex.Regex;
@@ -21,7 +23,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-public class DiscoveryNodeFilters {
+public class DiscoveryNodeFilters implements Accountable {
+
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DiscoveryNodeFilters.class);
 
     public static final Set<String> SINGLE_NODE_NAMES = Set.of("_id", "_name", "name");
     static final Set<String> NON_ATTRIBUTE_NAMES = Set.of("_ip", "_host_ip", "_publish_ip", "host", "_id", "_name", "name");
@@ -252,6 +256,17 @@ public class DiscoveryNodeFilters {
 
     public boolean hasFilters() {
         return filters.isEmpty() == false;
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        // opType is a shared enum singleton; counting it here over-counts those few bytes when many filters are summed.
+        long size = BASE_RAM_BYTES_USED + RamUsageEstimator.shallowSizeOf(opType) + RamUsageEstimator.sizeOfMap(filters);
+        // withoutTierPreferences may alias this instance.
+        if (withoutTierPreferences != null && withoutTierPreferences != this) {
+            size += withoutTierPreferences.ramBytesUsed();
+        }
+        return size;
     }
 
     /**

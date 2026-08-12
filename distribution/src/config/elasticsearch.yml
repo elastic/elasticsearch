@@ -77,7 +77,7 @@
 #
 #--------------------------- ES|QL QUERY PROCESSING ------------------------------
 #
-# Pilot: optimized TopN over Lucene when sorting by @timestamp (Path B). Defaults:
+# Specialized optimized TopN over Lucene when sorting by @timestamp. Defaults:
 #
 #esql.min_competitive.global_merge.enabled: true
 #esql.min_competitive.global_merge.batch_pages: 1

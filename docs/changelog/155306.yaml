@@ -1,0 +1,5 @@
+area: Infra/Scripting
+issues: []
+pr: 155306
+summary: Track Painless def-receiver bound method-reference allocations
+type: enhancement

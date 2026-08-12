@@ -80,8 +80,6 @@ public class TencentCloudRerankServiceSettings extends TencentCloudCommonService
         super.writeTo(out);
     }
 
-    // ---- ObjectParser Builder ----
-
     public static class Builder extends TencentCloudCommonServiceSettings.Builder<TencentCloudRerankServiceSettings> {
         @Override
         protected TencentCloudRerankServiceSettings build() {

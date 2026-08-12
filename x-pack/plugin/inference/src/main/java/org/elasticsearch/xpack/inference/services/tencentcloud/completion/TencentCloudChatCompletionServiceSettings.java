@@ -82,8 +82,6 @@ public class TencentCloudChatCompletionServiceSettings extends TencentCloudCommo
         super.writeTo(out);
     }
 
-    // ---- ObjectParser Builder ----
-
     public static class Builder extends TencentCloudCommonServiceSettings.Builder<TencentCloudChatCompletionServiceSettings> {
         @Override
         protected TencentCloudChatCompletionServiceSettings build() {

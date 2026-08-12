@@ -191,8 +191,6 @@ public class TencentCloudEmbeddingsServiceSettings extends TencentCloudCommonSer
         return Objects.hash(super.hashCode(), similarity, dimensions, maxInputTokens);
     }
 
-    // ---- ObjectParser Builder ----
-
     public static class Builder extends TencentCloudCommonServiceSettings.Builder<TencentCloudEmbeddingsServiceSettings> {
         private SimilarityMeasure similarity;
         private Integer dimensions;

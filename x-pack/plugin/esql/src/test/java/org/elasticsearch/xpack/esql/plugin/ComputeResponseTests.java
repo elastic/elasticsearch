@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
-import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.HeaderWarning;
@@ -29,12 +28,14 @@ import static org.hamcrest.Matchers.empty;
 public class ComputeResponseTests extends ESTestCase {
 
     /**
-     * Reproduces the BWC warning loss in {@link ComputeResponse} after PR #155976.
+     * Verifies that warnings are recovered from {@link ThreadContext} response headers when
+     * deserializing a {@link ComputeResponse} from an old remote cluster node that does not
+     * support the {@code esql_driver_warnings} wire field.
      * <p>
-     * When a new coordinator deserializes a {@code ComputeResponse} from an old remote cluster
-     * node that does not support the {@code esql_driver_warnings} wire field, warnings that the
-     * old node sent as transport response headers are silently discarded. This is the CCS
-     * counterpart of the same gap in {@code DataNodeComputeResponse}.
+     * Old nodes send warnings as transport response headers; the transport layer deposits them
+     * into the current thread's context before the response constructor is called. The
+     * {@link ThreadContext}-aware constructor recovers them, matching the pattern used by
+     * {@code BatchExchangeStatusResponse}.
      */
     public void testWarningsRecoveredFromThreadContextWhenOldVersion() throws IOException {
         var warningTexts = List.of(
@@ -73,17 +74,17 @@ public class ComputeResponseTests extends ESTestCase {
 
         StreamInput in = out.bytes().streamInput();
         in.setTransportVersion(oldVersion);
-        var deserialized = new ComputeResponse(in);
+        var deserialized = new ComputeResponse(in, threadContext);
 
-        // The deserialized response should have recovered the warnings from the ThreadContext.
         assertThat(deserialized.getCompletionInfo().warnings(), containsInAnyOrder(warningTexts.toArray()));
     }
 
     /**
-     * Confirms that the current code drops warnings from an old node: the round-trip produces an
-     * empty warnings set even though the warnings are present in the ThreadContext.
+     * Verifies that warnings are empty when deserializing from an old node without a
+     * {@link ThreadContext} (i.e. using the single-arg constructor). This is the expected
+     * behavior: without ThreadContext, there is no way to recover the response headers.
      */
-    public void testWarningsLostFromOldVersion() throws IOException {
+    public void testWarningsEmptyWithoutThreadContext() throws IOException {
         var warningTexts = List.of(
             "Line 1:9: evaluation of [x] failed, treating result as null. Only first 20 failures recorded.",
             "Line 1:9: java.lang.IllegalArgumentException: single-value function encountered multi-value"
@@ -113,7 +114,6 @@ public class ComputeResponseTests extends ESTestCase {
         in.setTransportVersion(oldVersion);
         var deserialized = new ComputeResponse(in);
 
-        // Confirms the current broken behavior: warnings are empty.
         assertThat(deserialized.getCompletionInfo().warnings(), empty());
     }
 }

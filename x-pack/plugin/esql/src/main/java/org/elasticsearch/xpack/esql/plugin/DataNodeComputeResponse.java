@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.plugin;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.index.shard.ShardId;
@@ -38,13 +39,16 @@ final class DataNodeComputeResponse extends TransportResponse {
     }
 
     DataNodeComputeResponse(StreamInput in) throws IOException {
+        this(in, null);
+    }
+
+    DataNodeComputeResponse(StreamInput in, ThreadContext threadContext) throws IOException {
+        DriverCompletionInfo info;
         if (supportsCompletionInfo(in.getTransportVersion())) {
-            this.completionInfo = DriverCompletionInfo.readFrom(in);
+            info = DriverCompletionInfo.readFrom(in);
             this.shardLevelFailures = in.readMap(ShardId::new, StreamInput::readException);
-            return;
-        }
-        if (DataNodeComputeHandler.supportShardLevelRetryFailure(in.getTransportVersion())) {
-            this.completionInfo = new DriverCompletionInfo(
+        } else if (DataNodeComputeHandler.supportShardLevelRetryFailure(in.getTransportVersion())) {
+            info = new DriverCompletionInfo(
                 0,
                 0,
                 0,
@@ -58,10 +62,14 @@ final class DataNodeComputeResponse extends TransportResponse {
                 Set.of()
             );
             this.shardLevelFailures = in.readMap(ShardId::new, StreamInput::readException);
-            return;
+        } else {
+            info = new ComputeResponse(in, threadContext).getCompletionInfo();
+            this.shardLevelFailures = Map.of();
         }
-        this.completionInfo = new ComputeResponse(in).getCompletionInfo();
-        this.shardLevelFailures = Map.of();
+        if (in.getTransportVersion().supports(DriverCompletionInfo.ESQL_DRIVER_WARNINGS) == false && threadContext != null) {
+            info = ComputeResponse.recoverWarningsFromThreadContext(info, threadContext);
+        }
+        this.completionInfo = info;
     }
 
     @Override

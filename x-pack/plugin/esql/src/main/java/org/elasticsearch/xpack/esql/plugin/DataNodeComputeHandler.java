@@ -229,7 +229,10 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                 new ActionListenerResponseHandler<>(computeListener.acquireCompute().map(r -> {
                                     nodeResponseRef.set(r);
                                     return r.completionInfo();
-                                }), DataNodeComputeResponse::new, searchExecutor)
+                                }),
+                                    in -> new DataNodeComputeResponse(in, transportService.getThreadPool().getThreadContext()),
+                                    searchExecutor
+                                )
                             );
                             final var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, connection);
                             exchangeSource.addRemoteSink(
@@ -397,7 +400,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                             TransportRequestOptions.EMPTY,
                             new ActionListenerResponseHandler<>(
                                 computeListener.acquireCompute().map(DataNodeComputeResponse::completionInfo),
-                                DataNodeComputeResponse::new,
+                                in -> new DataNodeComputeResponse(in, transportService.getThreadPool().getThreadContext()),
                                 searchExecutor
                             )
                         );

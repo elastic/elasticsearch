@@ -11,12 +11,15 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.transport.TransportResponse;
 
 import java.io.IOException;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -63,11 +66,16 @@ final class ComputeResponse extends TransportResponse {
     }
 
     ComputeResponse(StreamInput in) throws IOException {
+        this(in, null);
+    }
+
+    ComputeResponse(StreamInput in, ThreadContext threadContext) throws IOException {
+        DriverCompletionInfo info;
         if (supportsCompletionInfo(in.getTransportVersion())) {
-            completionInfo = DriverCompletionInfo.readFrom(in);
+            info = DriverCompletionInfo.readFrom(in);
         } else {
             if (in.readBoolean()) {
-                completionInfo = new DriverCompletionInfo(
+                info = new DriverCompletionInfo(
                     0,
                     0,
                     0,
@@ -81,9 +89,13 @@ final class ComputeResponse extends TransportResponse {
                     Set.of()
                 );
             } else {
-                completionInfo = DriverCompletionInfo.EMPTY;
+                info = DriverCompletionInfo.EMPTY;
             }
         }
+        if (in.getTransportVersion().supports(DriverCompletionInfo.ESQL_DRIVER_WARNINGS) == false && threadContext != null) {
+            info = recoverWarningsFromThreadContext(info, threadContext);
+        }
+        this.completionInfo = info;
         this.took = in.readOptionalTimeValue();
         this.totalShards = in.readVInt();
         this.successfulShards = in.readVInt();
@@ -144,5 +156,35 @@ final class ComputeResponse extends TransportResponse {
 
     public List<ShardSearchFailure> getFailures() {
         return failures;
+    }
+
+    /**
+     * Recovers warnings from ThreadContext response headers when deserializing from an old node
+     * that doesn't support the {@code esql_driver_warnings} wire field. Old nodes send warnings
+     * as transport response headers; the transport layer deposits them into the current thread's
+     * context before the response constructor is called.
+     */
+    static DriverCompletionInfo recoverWarningsFromThreadContext(DriverCompletionInfo info, ThreadContext threadContext) {
+        Set<String> recoveredWarnings = threadContext.getResponseHeaders()
+            .getOrDefault("Warning", List.of())
+            .stream()
+            .map(s -> HeaderWarning.extractWarningValueFromWarningHeader(s, false))
+            .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+        if (recoveredWarnings.isEmpty()) {
+            return info;
+        }
+        return new DriverCompletionInfo(
+            info.documentsFound(),
+            info.valuesLoaded(),
+            info.rowsEmitted(),
+            info.bytesRead(),
+            info.readNanos(),
+            info.cpuNanos(),
+            info.driverProfiles(),
+            info.planProfiles(),
+            info.capturedSourceMetadata(),
+            info.partial(),
+            recoveredWarnings
+        );
     }
 }

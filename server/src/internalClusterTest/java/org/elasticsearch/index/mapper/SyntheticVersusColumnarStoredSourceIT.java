@@ -26,6 +26,7 @@ import org.elasticsearch.datageneration.datasource.DefaultObjectGenerationHandle
 import org.elasticsearch.datageneration.datasource.MultifieldAddonHandler;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -36,6 +37,7 @@ import java.util.Map;
 import java.util.Random;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 
 /**
  * Verifies that a {@code columnar_stored} source index and an equivalent {@code synthetic} source index
@@ -239,6 +241,33 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
         assertEqualSource(mappingXContent, document, randomBoolean(), expectedSource);
         for (String index : List.of("test_synthetic", "test_columnar_stored")) {
             assertIgnoredContains(index, "kw");
+        }
+    }
+
+    public void testNumberFieldMultiValueViolationRestoredIdenticallyAcrossSourceModes() throws Exception {
+        assumeTrue("doc_values on_failure feature flag must be enabled", FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled());
+        var mappingXContent = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("num")
+            .field("type", "long")
+            .startObject("doc_values")
+            .field("multi_value", false)
+            .field("on_failure", "ignore")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        int val1 = randomIntBetween(1, 100);
+        int val2 = randomValueOtherThan(val1, () -> randomIntBetween(1, 100));
+        var document = Map.of("num", List.of(val1, val2));
+        assertEqualSource(mappingXContent, document, randomBoolean(), document);
+        for (String index : List.of("test_synthetic", "test_columnar_stored")) {
+            assertIgnoredContains(index, "num");
+            // val1 was indexed as a normal doc value and must be term-query searchable.
+            assertHitCount(prepareSearch(index).setQuery(QueryBuilders.termQuery("num", val1)), 1);
+            // val2 was redirected to ._on_failure and must not appear in the regular doc values inverted index.
+            assertHitCount(prepareSearch(index).setQuery(QueryBuilders.termQuery("num", val2)), 0);
         }
     }
 

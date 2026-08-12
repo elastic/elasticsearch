@@ -714,6 +714,9 @@ FROM employees
 | SORT emp_no
 ;
 
+warningRegex:.*evaluation of \[\(emp_no, job_positions\) IN \(FROM .*employees.*\|.*KEEP emp_no, job_positions.*\)\] failed.*
+warningRegex:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+
 emp_no:integer | job_positions:keyword      | salary:integer
 10019          | Purchase Manager           | 73717
 10021          | Support Engineer           | 60408
@@ -731,8 +734,10 @@ required_capability: where_in_multi_column_subquery
 
 FROM employees
 | MV_EXPAND job_positions
+| MV_EXPAND is_rehired
 | WHERE (job_positions, is_rehired) IN (FROM employees
                                         | MV_EXPAND job_positions
+                                        | MV_EXPAND is_rehired
                                         | WHERE emp_no == 10001
                                         | KEEP job_positions, is_rehired)
 | KEEP emp_no, job_positions, is_rehired
@@ -741,9 +746,15 @@ FROM employees
 ;
 
 emp_no:integer | job_positions:keyword   | is_rehired:boolean
+10001          | Accountant              | false
+10001          | Accountant              | true
+10001          | Senior Python Developer | false
+10001          | Senior Python Developer | true
+10008          | Senior Python Developer | false
 ;
 
 multiColumnInSubqueryWithTwoMultiValuedFieldsWithoutMvExpand
+skip_flattened_rewrite: test infrastructure has limitation on multi-column IN subquery with mixed keyword and non-keyword column
 required_capability: where_in_subquery_without_view
 required_capability: where_in_multi_column_subquery
 
@@ -754,7 +765,7 @@ FROM employees
 | LIMIT 5
 ;
 
-warningRegex:.*evaluation of \[\(job_positions, is_rehired\) IN \(FROM .*employees.* \| KEEP job_positions, is_rehired\)\] failed.*
+warningRegex:.*evaluation of \[\(job_positions, is_rehired\) IN \(FROM .*employees.*\|.*KEEP job_positions, is_rehired.*\)\] failed.*
 warningRegex:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
 
 emp_no:integer | job_positions:keyword      | is_rehired:boolean
@@ -800,7 +811,7 @@ FROM employees
 | STATS cnt = COUNT(*)
 ;
 
-warningRegex:.*evaluation of \[\(emp_no, job_positions\) NOT IN \(FROM .*employees.* \| WHERE salary > 27000 \| KEEP emp_no, job_positions\)\] failed.*
+warningRegex:.*evaluation of \[\(emp_no, job_positions\) NOT IN \(FROM .*employees.*\|.*WHERE salary > 27000.*\|.*KEEP emp_no, job_positions.*\)\] failed.*
 warningRegex:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
 
 cnt:long

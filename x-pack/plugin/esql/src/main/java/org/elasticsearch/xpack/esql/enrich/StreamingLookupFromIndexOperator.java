@@ -289,7 +289,7 @@ public class StreamingLookupFromIndexOperator implements Operator {
     }
 
     private void handleBatchExchangeFailure(Exception e) {
-        BidirectionalBatchExchangeBase.logExchangeFailure(logger, Level.ERROR, e, "Batch exchange failed", e);
+        BidirectionalBatchExchangeBase.logExchangeFailure(logger, Level.ERROR, true, e, "Batch exchange failed", e);
         failure.set(e);
         driverContext.removeAsyncAction();
     }

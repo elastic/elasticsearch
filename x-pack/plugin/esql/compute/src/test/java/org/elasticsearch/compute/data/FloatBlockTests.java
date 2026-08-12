@@ -285,12 +285,7 @@ public class FloatBlockTests extends BlockTestCase<FloatBlock, FloatBlock.Builde
                 assertSerializationAtSupportedVersions(filtered, List.of());
             }
         }
-        try (
-            FloatVector toFilter = blockFactory().newFloatVectorBuilder(1)
-                .appendFloat(randomFloat())
-                .appendFloat(randomFloat())
-                .build()
-        ) {
+        try (FloatVector toFilter = blockFactory().newFloatVectorBuilder(1).appendFloat(randomFloat()).appendFloat(randomFloat()).build()) {
             float expected = toFilter.getFloat(0);
             try (FloatBlock filtered = toFilter.filter(false, 0).asBlock()) {
                 assertSerializationAtSupportedVersions(filtered, List.of(List.of(expected)));

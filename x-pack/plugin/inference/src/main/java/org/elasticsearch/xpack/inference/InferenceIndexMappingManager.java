@@ -224,6 +224,10 @@ public class InferenceIndexMappingManager {
         // is an older node during a rolling upgrade). Cluster-generated requests are explicitly
         // permitted to differ so that rolling upgrade scenarios work; see also
         // ElasticsearchMappings.addDocMappingIfMissing which uses the same mechanism for ML indices.
+        // Because this deliberately skips the minimum-mappings-version downgrade, older nodes will
+        // receive the latest mappings via cluster state: every mappings bump must stay parseable by
+        // all node versions a rolling upgrade can pair us with — see the compatibility constraint on
+        // InferenceIndex and InferenceIndexMappingsCompatibilityTests which enforces it.
         PutMappingRequest request = new PutMappingRequest(primaryIndex).source(descriptor.getMappings(), XContentType.JSON)
             .origin(ClientHelper.INFERENCE_ORIGIN);
 

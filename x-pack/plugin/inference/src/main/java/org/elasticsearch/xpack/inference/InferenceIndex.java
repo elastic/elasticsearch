@@ -10,6 +10,20 @@ package org.elasticsearch.xpack.inference;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 
+/**
+ * Defines the settings and the versioned mappings of the {@code .inference} system index.
+ *
+ * <p><b>Compatibility constraint on every mappings bump:</b> {@link InferenceIndexMappingManager}
+ * force-installs this node's latest mappings on the write path via an origin-carrying put-mapping
+ * request, bypassing the minimum-mappings-version downgrade the server applies elsewhere. In a
+ * mixed-version cluster the result is published in cluster state to older nodes, which must be able
+ * to parse it. Therefore every {@code mappingsVN()} must be <em>additive</em> and stick to field
+ * types and mapping parameters that all node versions a rolling upgrade can pair this node with
+ * already understand. A mapping that needs a newer construct must not rely on the force-install and
+ * needs an explicit compatibility strategy instead. This invariant is enforced by
+ * {@code InferenceIndexMappingsCompatibilityTests}, which parses each mappings version with the
+ * oldest supported index version.
+ */
 public class InferenceIndex {
 
     private InferenceIndex() {}

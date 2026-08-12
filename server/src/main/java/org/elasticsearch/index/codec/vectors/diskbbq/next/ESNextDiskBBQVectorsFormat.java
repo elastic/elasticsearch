@@ -21,7 +21,6 @@ import org.elasticsearch.index.codec.vectors.diskbbq.CentroidIndexFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfFlushConfigSource;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfMergeConfigResolver;
 import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
-import org.elasticsearch.index.codec.vectors.diskbbq.QuantizationType;
 import org.elasticsearch.index.codec.vectors.es93.DirectIOCapableLucene99FlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93BFloat16FlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93GenericFlatVectorScorer;
@@ -115,7 +114,6 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
     private final String sliceField;
     private final IvfFlushConfigSource ivfFlushConfigSource;
     private final IvfMergeConfigResolver ivfMergeConfigResolver;
-    private final QuantizationType quantizationType;
 
     public ESNextDiskBBQVectorsFormat(int vectorPerCluster, int centroidsPerParentCluster, String sliceField) {
         this(QuantEncoding.ONE_BIT_4BIT_QUERY, vectorPerCluster, centroidsPerParentCluster, sliceField);
@@ -135,8 +133,7 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
             defaultFlatThreshold(vectorPerCluster),
             sliceField,
             IvfFlushConfigSource.empty(),
-            IvfMergeConfigResolver.useCodecDefault(),
-            QuantizationType.BBQ
+            IvfMergeConfigResolver.useCodecDefault()
         );
     }
 
@@ -165,8 +162,7 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
             defaultFlatThreshold(vectorPerCluster),
             sliceField,
             IvfFlushConfigSource.empty(),
-            IvfMergeConfigResolver.useCodecDefault(),
-            QuantizationType.BBQ
+            IvfMergeConfigResolver.useCodecDefault()
         );
     }
 
@@ -196,15 +192,13 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
             flatVectorThreshold,
             sliceField,
             IvfFlushConfigSource.empty(),
-            IvfMergeConfigResolver.useCodecDefault(),
-            QuantizationType.BBQ
+            IvfMergeConfigResolver.useCodecDefault()
         );
     }
 
     /**
      * @param ivfFlushConfigSource optional per-field config on flush ({@code null} uses writer default)
      * @param ivfMergeConfigResolver optional merged config on merge ({@code null} uses writer default)
-     * @param quantizationType the quantization pipeline to use (BBQ or ASH)
      */
     public ESNextDiskBBQVectorsFormat(
         QuantEncoding quantEncoding,
@@ -219,8 +213,7 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
         int flatVectorThreshold,
         String sliceField,
         IvfFlushConfigSource ivfFlushConfigSource,
-        IvfMergeConfigResolver ivfMergeConfigResolver,
-        QuantizationType quantizationType
+        IvfMergeConfigResolver ivfMergeConfigResolver
     ) {
         super(NAME);
         if (vectorPerCluster < MIN_VECTORS_PER_CLUSTER || vectorPerCluster > MAX_VECTORS_PER_CLUSTER) {
@@ -277,7 +270,6 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
         this.sliceField = sliceField;
         this.ivfFlushConfigSource = ivfFlushConfigSource;
         this.ivfMergeConfigResolver = ivfMergeConfigResolver;
-        this.quantizationType = quantizationType;
     }
 
     /** Constructs a format using the given graph construction parameters and scalar quantization. */
@@ -303,8 +295,7 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
             flatVectorThreshold,
             sliceField,
             ivfFlushConfigSource,
-            ivfMergeConfigResolver,
-            quantizationType
+            ivfMergeConfigResolver
         );
     }
 

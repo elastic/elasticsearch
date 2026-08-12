@@ -38,8 +38,6 @@ import org.apache.lucene.util.packed.PackedLongValues;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.WelfordVariance;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
-import org.elasticsearch.index.codec.vectors.ash.AshPostingsListWriter;
-import org.elasticsearch.index.codec.vectors.ash.AshProjectionMatrix;
 import org.elasticsearch.index.codec.vectors.cluster.CentroidOps;
 import org.elasticsearch.index.codec.vectors.cluster.ClusteringByteVectorValues;
 import org.elasticsearch.index.codec.vectors.cluster.ClusteringByteVectorValuesSlice;
@@ -108,10 +106,6 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
     private final String sliceField;
     private final IvfFlushConfigSource flushConfigSource;
     private final IvfMergeConfigResolver mergeConfigResolver;
-    private final QuantizationType quantizationType;
-
-    // Temporary storage for ASH projection matrix between buildAndWritePostingsLists and writePreconditioner
-    private AshProjectionMatrix pendingAshMatrix;
 
     @Override
     protected boolean supportsByteNative() {
@@ -134,8 +128,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
         int flatVectorThreshold,
         String sliceField,
         IvfFlushConfigSource flushConfigSource,
-        IvfMergeConfigResolver mergeConfigResolver,
-        QuantizationType quantizationType
+        IvfMergeConfigResolver mergeConfigResolver
     ) throws IOException {
         super(
             state,
@@ -161,7 +154,6 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
         this.sliceField = sliceField;
         this.flushConfigSource = flushConfigSource != null ? flushConfigSource : IvfFlushConfigSource.empty();
         this.mergeConfigResolver = mergeConfigResolver != null ? mergeConfigResolver : IvfMergeConfigResolver.useCodecDefault();
-        this.quantizationType = quantizationType;
         if (sliceField != null) {
             Sort sort = state.segmentInfo.getIndexSort();
             if (sort == null || sort.getSort().length == 0) {
@@ -179,18 +171,12 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
 
     @Override
     protected IvfSegmentConfig beginIvfFieldFlush(FieldInfo fieldInfo) throws IOException {
-        if (quantizationType == QuantizationType.ASH) {
-            return IvfSegmentConfig.fromCodecDefaultsWithAsh(centroidIndexFormat, quantEncoding);
-        }
         IvfSegmentConfig codec = IvfSegmentConfig.fromCodecDefaults(centroidIndexFormat, quantEncoding, doPrecondition);
         return flushConfigSource.load(segmentWriteState, fieldInfo).orElse(codec);
     }
 
     @Override
     protected IvfSegmentConfig resolveMergeConfig(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
-        if (quantizationType == QuantizationType.ASH) {
-            return IvfSegmentConfig.fromCodecDefaultsWithAsh(centroidIndexFormat, quantEncoding);
-        }
         return mergeConfigResolver.resolve(
             fieldInfo,
             mergeState,
@@ -205,10 +191,6 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
     @Override
     protected Preconditioner inheritPreconditioner(FieldInfo fieldInfo, MergeState mergeState, IvfSegmentConfig fieldWritingContext)
         throws IOException {
-        if (requireSegmentConfig(fieldWritingContext).ash() != null) {
-            // ASH trains a new W matrix on each merge; no inheritance needed
-            return null;
-        }
         if (requireSegmentConfig(fieldWritingContext).usePrecondition()) {
             for (KnnVectorsReader reader : mergeState.knnVectorsReaders) {
                 if (reader instanceof VectorPreconditioner vp) {
@@ -226,10 +208,6 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
 
     @Override
     protected Preconditioner createPreconditioner(int dimension, IvfSegmentConfig ivfSegmentConfig) {
-        if (requireSegmentConfig(ivfSegmentConfig).ash() != null) {
-            // ASH writes its own projection matrix; no standard preconditioner needed
-            return null;
-        }
         if (requireSegmentConfig(ivfSegmentConfig).usePrecondition()) {
             return Preconditioner.createPreconditioner(dimension, blockDimension);
         } else {
@@ -239,41 +217,9 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
 
     @Override
     protected void writePreconditioner(Preconditioner preconditioner, IndexOutput out) throws IOException {
-        if (pendingAshMatrix != null) {
-            pendingAshMatrix.write(out);
-            pendingAshMatrix = null;
-        } else if (preconditioner != null) {
+        if (preconditioner != null) {
             preconditioner.write(out);
         }
-    }
-
-    private CentroidOffsetAndLength buildAndWriteAshPostingsLists(
-        FieldInfo fieldInfo,
-        CentroidSupplier centroidSupplier,
-        ClusteringVectorValues<?> vectorValues,
-        IndexOutput postingsOutput,
-        long fileOffset,
-        int[] assignments,
-        OverspillAssignments overspillAssignments,
-        IvfSegmentConfig segmentConfig
-    ) throws IOException {
-        if (vectorValues instanceof FloatVectorValues == false) {
-            throw new IllegalStateException("ASH requires float vectors, got: " + vectorValues.getClass().getSimpleName());
-        }
-        var ashWriter = new AshPostingsListWriter();
-        var result = ashWriter.buildAndWrite(
-            fieldInfo,
-            centroidSupplier,
-            (FloatVectorValues) vectorValues,
-            postingsOutput,
-            fileOffset,
-            assignments,
-            overspillAssignments,
-            segmentConfig.ash(),
-            fieldInfo.getVectorSimilarityFunction()
-        );
-        pendingAshMatrix = ashWriter.getAshProjectionMatrix();
-        return new CentroidOffsetAndLength(result.offsets(), result.lengths());
     }
 
     @Override
@@ -288,20 +234,6 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
         IvfSegmentConfig fieldWritingContext
     ) throws IOException {
         final IvfSegmentConfig segmentConfig = requireSegmentConfig(fieldWritingContext);
-
-        // ASH path: delegate to AshPostingsListWriter for flush
-        if (segmentConfig.ash() != null) {
-            return buildAndWriteAshPostingsLists(
-                fieldInfo,
-                centroidSupplier,
-                vectorValues,
-                postingsOutput,
-                fileOffset,
-                assignments,
-                overspillAssignments,
-                segmentConfig
-            );
-        }
 
         final QuantEncoding effectiveQuantEncoding = segmentConfig.quantEncoding();
         FlatCentroidClusters centroidClusters = (FlatCentroidClusters) centroidSupplier.centroidIndex();
@@ -414,20 +346,6 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
         IvfSegmentConfig fieldWritingContext
     ) throws IOException {
         final IvfSegmentConfig segmentConfig = requireSegmentConfig(fieldWritingContext);
-
-        // ASH path: delegate to AshPostingsListWriter for merge
-        if (segmentConfig.ash() != null) {
-            return buildAndWriteAshPostingsLists(
-                fieldInfo,
-                centroidSupplier,
-                vectorValues,
-                postingsOutput,
-                fileOffset,
-                assignments,
-                overspillAssignments,
-                segmentConfig
-            );
-        }
 
         final QuantEncoding effectiveQuantEncoding = segmentConfig.quantEncoding();
         // first, quantize all the vectors into a temporary file
@@ -809,12 +727,8 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
         // ESNext format extension: byte centroid flag — indicates whether raw centroids
         // are stored as 1 byte/dim (byte fields) or 4 bytes/dim (float fields).
         metaOutput.writeByte(byteCentroids ? (byte) 1 : (byte) 0);
-        // Quantization type
-        QuantizationType qt = segmentConfig.ash() != null ? QuantizationType.ASH : QuantizationType.BBQ;
-        metaOutput.writeByte((byte) qt.id());
-        if (qt == QuantizationType.ASH) {
-            metaOutput.writeVInt(segmentConfig.ash().bitsPerDim());
-        }
+        // Quantization type (always BBQ for this format)
+        metaOutput.writeByte((byte) QuantizationType.BBQ.id());
     }
 
     @Override

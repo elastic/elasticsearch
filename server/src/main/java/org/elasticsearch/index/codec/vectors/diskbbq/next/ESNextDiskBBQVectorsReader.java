@@ -24,8 +24,6 @@ import org.apache.lucene.util.packed.DirectReader;
 import org.apache.lucene.util.packed.DirectWriter;
 import org.elasticsearch.index.codec.vectors.GenericFlatVectorReaders;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
-import org.elasticsearch.index.codec.vectors.ash.AshPostingsVisitor;
-import org.elasticsearch.index.codec.vectors.ash.AshProjectionMatrix;
 import org.elasticsearch.index.codec.vectors.cluster.ClusteringVectorValues;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansByteVectorValues;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues;
@@ -41,7 +39,6 @@ import org.elasticsearch.index.codec.vectors.diskbbq.PostingMetadata;
 import org.elasticsearch.index.codec.vectors.diskbbq.Preconditioner;
 import org.elasticsearch.index.codec.vectors.diskbbq.PrefetchingCentroidIterator;
 import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
-import org.elasticsearch.index.codec.vectors.diskbbq.QuantizationType;
 import org.elasticsearch.index.codec.vectors.diskbbq.VectorPreconditioner;
 import org.elasticsearch.search.vectors.BulkKnnCollector;
 import org.elasticsearch.search.vectors.ESAcceptDocs;
@@ -49,12 +46,9 @@ import org.elasticsearch.simdvec.ES940OSQVectorsScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.IntFunction;
 
 import static org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer.DEFAULT_LAMBDA;
 import static org.elasticsearch.index.codec.vectors.diskbbq.PostingMetadata.NO_ORDINAL;
@@ -68,11 +62,6 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
     implements
         VectorPreconditioner,
         CalibrationAwareReader {
-
-    private final ConcurrentHashMap<String, AshProjectionMatrix> ashMatrixCache;
-
-    /** Default query quantization bits for ASH integer scoring (D2Q4). Set to 0 to use the float path. */
-    private static final int DEFAULT_ASH_QUERY_BITS_PER_DIM = 4;
 
     public ESNextDiskBBQVectorsReader(SegmentReadState state, GenericFlatVectorReaders.LoadFlatVectorsReader getFormatReader)
         throws IOException {
@@ -88,12 +77,10 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
             ESNextDiskBBQVectorsFormat.VERSION_DIRECT_IO,
             ESNextDiskBBQVectorsFormat.DYNAMIC_VISIT_RATIO
         );
-        this.ashMatrixCache = new ConcurrentHashMap<>();
     }
 
     private ESNextDiskBBQVectorsReader(ESNextDiskBBQVectorsReader other, GenericFlatVectorReaders genericReaders) {
         super(other, genericReaders);
-        this.ashMatrixCache = other.ashMatrixCache;
     }
 
     @Override
@@ -227,9 +214,8 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         float rescoreOversample = Float.intBitsToFloat(input.readInt());
         // ESNext format extension: byte centroid flag
         boolean byteCentroids = input.readByte() == 1;
-        // Quantization type and ASH config
-        QuantizationType quantizationType = QuantizationType.fromId(input.readByte());
-        int ashBitsPerDim = quantizationType == QuantizationType.ASH ? input.readVInt() : 0;
+        // Read and discard quantization type byte (always BBQ for this reader; ASH has its own reader)
+        input.readByte();
         return new NextFieldEntry(
             rawVectorFormat,
             useDirectIOReads,
@@ -250,9 +236,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
             numSlices,
             maxSliceSize,
             rescoreOversample,
-            byteCentroids,
-            quantizationType,
-            ashBitsPerDim
+            byteCentroids
         );
     }
 
@@ -261,10 +245,6 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         final NextFieldEntry fieldEntry = fields.get(fieldInfo.number);
         // only seems possible in tests
         if (fieldEntry == null) {
-            return null;
-        }
-        // ASH stores its projection matrix in the preconditioner slot, not a standard Preconditioner
-        if (fieldEntry.quantizationType() == QuantizationType.ASH) {
             return null;
         }
         long preconditionerOffset = fieldEntry.preconditionerOffset();
@@ -277,27 +257,6 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
             }
         }
         return null;
-    }
-
-    private AshProjectionMatrix getAshProjectionMatrix(FieldInfo fieldInfo) {
-        return ashMatrixCache.computeIfAbsent(fieldInfo.name, name -> {
-            try {
-                final NextFieldEntry fieldEntry = fields.get(fieldInfo.number);
-                long preconditionerOffset = fieldEntry.preconditionerOffset;
-                long preconditionerLength = fieldEntry.preconditionerLength;
-                if (preconditionerLength <= 0) {
-                    throw new IllegalStateException("ASH segment missing projection matrix for field: " + fieldInfo.name);
-                }
-                IndexInput slice = ivfCentroids.slice("ash-preconditioner", preconditionerOffset, preconditionerLength);
-                slice.seek(0);
-                var matrix = AshProjectionMatrix.read(slice);
-                // Eagerly compute wT so it's ready for concurrent search threads
-                matrix.wT();
-                return matrix;
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-        });
     }
 
     @Override
@@ -399,8 +358,6 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         final int maxSliceSize;
         private final float rescoreOversample;
         private final boolean byteCentroids;
-        private final QuantizationType quantizationType;
-        private final int ashBitsPerDim;
 
         NextFieldEntry(
             String rawVectorFormat,
@@ -422,9 +379,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
             int numSlices,
             int maxSliceSize,
             float rescoreOversample,
-            boolean byteCentroids,
-            QuantizationType quantizationType,
-            int ashBitsPerDim
+            boolean byteCentroids
         ) {
             super(
                 rawVectorFormat,
@@ -448,8 +403,6 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
             this.maxSliceSize = maxSliceSize;
             this.rescoreOversample = rescoreOversample;
             this.byteCentroids = byteCentroids;
-            this.quantizationType = quantizationType;
-            this.ashBitsPerDim = ashBitsPerDim;
         }
 
         public CentroidIndexFormat centroidIndexFormat() {
@@ -474,14 +427,6 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
 
         public boolean byteCentroids() {
             return byteCentroids;
-        }
-
-        public QuantizationType quantizationType() {
-            return quantizationType;
-        }
-
-        public int ashBitsPerDim() {
-            return ashBitsPerDim;
         }
 
         @Override
@@ -519,39 +464,6 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
                 yield widened;
             }
         };
-
-        // ASH path: use AshPostingsVisitor with precomputed W matrix
-        if (entry.quantizationType() == QuantizationType.ASH) {
-            var ashMatrix = getAshProjectionMatrix(fieldInfo);
-            // Build centroid-reading function: reads raw float centroids from the tail of the centroid file.
-            // Raw centroids are stored contiguously at the end of the centroid slice as:
-            // centroidSlice.length() - numCentroids * dimension * Float.BYTES
-            int dimension = fieldInfo.getVectorDimension();
-            int numCentroids = entry.numCentroids();
-            long rawCentroidsOffset = centroidSlice.length() - (long) numCentroids * dimension * Float.BYTES;
-            IndexInput centroidInput = centroidSlice.clone();
-            float[] centroidBuf = new float[dimension];
-            IntFunction<float[]> centroidReader = (int ord) -> {
-                try {
-                    centroidInput.seek(rawCentroidsOffset + (long) ord * dimension * Float.BYTES);
-                    centroidInput.readFloats(centroidBuf, 0, dimension);
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-                return centroidBuf;
-            };
-            return new AshPostingsVisitor(
-                ashMatrix.wT(),
-                dimension,
-                target,
-                fieldInfo.getVectorSimilarityFunction(),
-                indexInput,
-                needsScoring,
-                entry.ashBitsPerDim(),
-                DEFAULT_ASH_QUERY_BITS_PER_DIM,
-                centroidReader
-            );
-        }
 
         if (entry.numSlices > 0) {
             final int bitsRequired = DirectWriter.bitsRequired(entry.maxSliceSize);

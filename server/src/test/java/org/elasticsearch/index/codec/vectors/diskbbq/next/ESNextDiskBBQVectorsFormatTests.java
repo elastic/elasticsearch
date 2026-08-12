@@ -87,6 +87,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.oneOf;
 
 public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
@@ -798,7 +799,11 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
                         assertThat(topDocs.scoreDocs, arrayWithSize(Math.min(leafReader.maxDoc(), 10)));
                         // Verify scores are in descending order
                         for (int i = 0; i < topDocs.scoreDocs.length - 1; i++) {
-                            assertTrue("Scores should be descending", topDocs.scoreDocs[i].score >= topDocs.scoreDocs[i + 1].score);
+                            assertThat(
+                                "Scores should be descending",
+                                topDocs.scoreDocs[i].score,
+                                greaterThanOrEqualTo(topDocs.scoreDocs[i + 1].score)
+                            );
                         }
                     }
                 }
@@ -893,13 +898,14 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
                             exactScores[i] = 1f / (1f + sqDist);
                         }
 
-                        // Verify each ASH result score is within 25% relative error of exact score
+                        // Verify each ASH result score is within relative error tolerance of exact score
                         for (ScoreDoc sd : topDocs.scoreDocs) {
                             float exact = exactScores[sd.doc];
                             float relError = Math.abs(sd.score - exact) / Math.max(exact, 1e-6f);
-                            assertTrue(
-                                "EUCLIDEAN score for doc " + sd.doc + ": ASH=" + sd.score + " exact=" + exact + " relError=" + relError,
-                                relError < 0.35f
+                            assertThat(
+                                "EUCLIDEAN score for doc " + sd.doc + ": ASH=" + sd.score + " exact=" + exact,
+                                (double) relError,
+                                lessThan(0.35)
                             );
                         }
 
@@ -908,15 +914,10 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
                         float[] sortedExact = exactScores.clone();
                         java.util.Arrays.sort(sortedExact);
                         float threshold = sortedExact[numDocs - 50]; // 50th best exact score
-                        assertTrue(
-                            "ASH top-1 doc "
-                                + ashTop1Doc
-                                + " exact score "
-                                + exactScores[ashTop1Doc]
-                                + " not in true top-50 (threshold="
-                                + threshold
-                                + ")",
-                            exactScores[ashTop1Doc] >= threshold
+                        assertThat(
+                            "ASH top-1 doc " + ashTop1Doc + " should be in true top-50",
+                            exactScores[ashTop1Doc],
+                            greaterThanOrEqualTo(threshold)
                         );
                     }
                 }

@@ -11,6 +11,8 @@ package org.elasticsearch.simdvec;
 
 import org.elasticsearch.test.ESTestCase;
 
+import static org.hamcrest.Matchers.greaterThan;
+
 /**
  * Tests for {@link AsymmetricHashingScorer}.
  */
@@ -301,7 +303,7 @@ public class AsymmetricHashingScorerTests extends ESTestCase {
             double pearson = covFI / Math.sqrt(varF * varI);
 
             double threshold = queryBits >= 8 ? 0.99 : 0.85;
-            assertTrue("queryBits=" + queryBits + " Pearson correlation " + pearson + " below " + threshold, pearson > threshold);
+            assertThat("queryBits=" + queryBits + " Pearson correlation", pearson, greaterThan(threshold));
         }
     }
 

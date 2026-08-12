@@ -573,7 +573,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             allowedFailureRules = Stream.concat(
                 Arrays.stream(ALLOWED_FAILURE_RULES),
                 additionalAllowedErrors().stream()
-                    .map(s -> Pattern.compile(".*" + s + ".*", Pattern.DOTALL))
+                    .map(s -> Pattern.compile(".*" + Pattern.quote(s) + ".*", Pattern.DOTALL))
                     .<AllowedFailureRule>map(p -> ctx -> p.matcher(ctx.normalizedErrorMessage).matches())
             ).toList();
         }

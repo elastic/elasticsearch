@@ -7,12 +7,14 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
@@ -48,7 +50,7 @@ public class MappingUpdateRaceIT extends AbstractEsqlIntegTestCase {
     /** The original reproducer: resolved as {@code long}, raced in as {@code integer}. */
     public void testIntegerMappingAddedBetweenFieldCapsAndExecution() throws Exception {
         setupIndices("long", "integer");
-        IllegalStateException cause = expectMappingRaceFailure("FROM idx_* | STATS s = SUM(features.topic_id)", "idx_dyn");
+        ElasticsearchStatusException cause = expectMappingRaceFailure("FROM idx_* | STATS s = SUM(features.topic_id)", "idx_dyn");
         assertThat(cause.getMessage(), containsString("field [features.topic_id] was resolved as type [long]"));
         assertThat(cause.getMessage(), containsString("mapped as incompatible type [integer] in index [idx_dyn]"));
     }
@@ -56,7 +58,7 @@ public class MappingUpdateRaceIT extends AbstractEsqlIntegTestCase {
     /** Non-numeric raced-in type: resolved as {@code long}, raced in as {@code keyword}. */
     public void testKeywordMappingAddedBetweenFieldCapsAndExecution() throws Exception {
         setupIndices("long", "keyword");
-        IllegalStateException cause = expectMappingRaceFailure("FROM idx_* | STATS s = SUM(features.topic_id)", "idx_dyn");
+        ElasticsearchStatusException cause = expectMappingRaceFailure("FROM idx_* | STATS s = SUM(features.topic_id)", "idx_dyn");
         assertThat(cause.getMessage(), containsString("field [features.topic_id] was resolved as type [long]"));
         assertThat(cause.getMessage(), containsString("mapped as incompatible type [keyword] in index [idx_dyn]"));
     }
@@ -110,7 +112,7 @@ public class MappingUpdateRaceIT extends AbstractEsqlIntegTestCase {
         indexRandom(true, reqs);
         ensureGreen("idx_dyn");
 
-        IllegalStateException cause = expectMappingRaceFailure(
+        ElasticsearchStatusException cause = expectMappingRaceFailure(
             "SET unmapped_fields = \"load\"; FROM idx_dyn | KEEP features.topic_id",
             "idx_dyn"
         );
@@ -205,10 +207,11 @@ public class MappingUpdateRaceIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    private IllegalStateException expectMappingRaceFailure(String query, String racingIndex) {
+    private ElasticsearchStatusException expectMappingRaceFailure(String query, String racingIndex) {
         Exception failure = expectThrows(Exception.class, () -> runWithMappingRace(query, racingIndex).close());
-        IllegalStateException cause = (IllegalStateException) ExceptionsHelper.unwrap(failure, IllegalStateException.class);
+        var cause = (ElasticsearchStatusException) ExceptionsHelper.unwrap(failure, ElasticsearchStatusException.class);
         assertNotNull("expected the shard to report the mapping mismatch, got: " + failure, cause);
+        assertThat(cause.status(), equalTo(RestStatus.CONFLICT));
         return cause;
     }
 }

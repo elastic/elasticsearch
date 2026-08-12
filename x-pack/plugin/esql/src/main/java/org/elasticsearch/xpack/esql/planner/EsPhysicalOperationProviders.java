@@ -14,6 +14,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.lucene.Lucene;
@@ -70,6 +71,7 @@ import org.elasticsearch.index.search.NestedHelper;
 import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
@@ -347,16 +349,16 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                         // shard's type and trip the generic sanity check in ValuesSourceReaderOperator. Fail up front with an error
                         // that explains the mismatch instead. Deliberately narrow (same-family types and converted union types pass
                         // through), so genuine planner bugs still surface via the sanity check rather than being masked here.
-                        throw new IllegalStateException(
-                            "field ["
-                                + fieldName
-                                + "] was resolved as type ["
-                                + fa.dataType().typeName()
-                                + "] when the query started, but is mapped as incompatible type ["
-                                + shardType.typeName()
-                                + "] in index ["
-                                + shardContext.ctx.getFullyQualifiedIndex().getName()
-                                + "]; the field was probably mapped concurrently with this query; retrying the query may help"
+                        // 409 CONFLICT: the server did nothing wrong, the query raced against a concurrent mapping update
+                        // and retrying it resolves the conflict.
+                        throw new ElasticsearchStatusException(
+                            "field [{}] was resolved as type [{}] when the query started, but is mapped as incompatible type [{}] "
+                                + "in index [{}]; the field was probably mapped concurrently with this query; retrying the query may help",
+                            RestStatus.CONFLICT,
+                            fieldName,
+                            fa.dataType().typeName(),
+                            shardType.typeName(),
+                            shardContext.ctx.getFullyQualifiedIndex().getName()
                         );
                     }
                 }

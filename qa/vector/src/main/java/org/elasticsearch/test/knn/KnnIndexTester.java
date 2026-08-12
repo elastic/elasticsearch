@@ -48,6 +48,7 @@ import org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibration;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfFlushConfigSource;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfMergeConfigResolver;
 import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
+import org.elasticsearch.index.codec.vectors.diskbbq.QuantizationType;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93BinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93FlatVectorFormat;
@@ -269,7 +270,8 @@ public class KnnIndexTester {
                     flatVectorThreshold,
                     args.datasetConfig().isSliced() ? KnnIndexer.PARTITION_ID_FIELD : null,
                     IvfFlushConfigSource.empty(),
-                    mergeConfigResolver
+                    mergeConfigResolver,
+                    QuantizationType.BBQ
                 );
             }
             case GPU_HNSW -> {

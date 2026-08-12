@@ -3616,7 +3616,7 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
      * {@link ShardStateAction#SHARD_STARTED_ACTION_NAME} notification to master is blocked to keep routing
      * {@code !started()} while metadata is {@code HANDOFF}.
      */
-    public void testTargetRecoversAfterMasterRestartDuringHandoff() throws RuntimeException {
+    public void testTargetRecoversAfterMasterRestartDuringHandoff() throws Exception {
         String masterNode = startMasterNodeForRestartTest();
         String indexNode = startIndexNode();
         startSearchNodes(2);
@@ -3635,61 +3635,52 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         String targetIndexNode = startIndexNode();
         ensureStableCluster(5);
 
-        // Block the target's SHARD_STARTED notification so routing stays !started
-        // while resharding metadata is HANDOFF.
+        // Block the target's SHARD_STARTED notification so routing stays !started while resharding metadata is
+        // HANDOFF. This parks a transport thread until the master restart below completes, which spans the 30s
+        // awaitClusterState bound plus the restart itself, so the default 10s is far too short under CI load.
         CountDownLatch allowShardStarted = new CountDownLatch(1);
         MockTransportService targetTransport = MockTransportService.getInstance(targetIndexNode);
         targetTransport.addSendBehavior((connection, requestId, action, request, options) -> {
             if (ShardStateAction.SHARD_STARTED_ACTION_NAME.equals(action)) {
-                safeAwait(allowShardStarted);
+                safeAwait(allowShardStarted, TimeValue.timeValueSeconds(40));
             }
             connection.sendRequest(requestId, action, request, options);
         });
 
-        CountDownLatch masterRestartDone = new CountDownLatch(1);
-        Thread restartThread = new Thread(() -> {
-            try {
-                Index index = resolveIndex(indexName);
-                awaitClusterState(state -> {
-                    IndexMetadata im = indexMetadata(state, index);
-                    if (im.getReshardingMetadata() == null) {
-                        return false;
-                    }
-                    boolean handoff = im.getReshardingMetadata()
-                        .getSplit()
-                        .getTargetShardState(1) == IndexReshardingState.Split.TargetShardState.HANDOFF;
-                    ShardRouting primary = state.routingTable().index(index).shard(1).primaryShard();
-                    // Shard could not have been started because of the block on SHARD_STARTED_ACTION_NAME above
-                    return handoff && primary.started() == false;
-                });
-                logger.info("--> restarting master during handoff before target started");
-                internalCluster().restartNode(masterNode, new InternalTestCluster.RestartCallback() {
-                    @Override
-                    public boolean validateClusterForming() {
-                        return false;
-                    }
-                });
-                allowShardStarted.countDown();
-                assertBusy(() -> ensureStableCluster(5));
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            } finally {
-                allowShardStarted.countDown();
-                masterRestartDone.countDown();
-            }
-        }, "master-restart-during-handoff");
-        restartThread.start();
-
         try {
             client().execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName));
-            safeAwait(masterRestartDone);
+
+            Index index = resolveIndex(indexName);
+            awaitClusterState(state -> {
+                IndexMetadata im = indexMetadata(state, index);
+                if (im.getReshardingMetadata() == null) {
+                    return false;
+                }
+                boolean handoff = im.getReshardingMetadata()
+                    .getSplit()
+                    .getTargetShardState(1) == IndexReshardingState.Split.TargetShardState.HANDOFF;
+                ShardRouting primary = state.routingTable().index(index).shard(1).primaryShard();
+                // Shard could not have been started because of the block on SHARD_STARTED_ACTION_NAME above
+                return handoff && primary.started() == false;
+            });
+
+            logger.info("--> restarting master during handoff before target started");
+            internalCluster().restartNode(masterNode, new InternalTestCluster.RestartCallback() {
+                @Override
+                public boolean validateClusterForming() {
+                    return false;
+                }
+            });
+            allowShardStarted.countDown();
+            assertBusy(() -> ensureStableCluster(5));
+
             waitForReshardCompletion(indexName);
             ensureGreen(indexName);
             refresh(indexName);
             assertHitCount(prepareSearchAll(indexName), numDocs);
         } finally {
+            allowShardStarted.countDown();
             targetTransport.clearAllRules();
-            safeJoin(restartThread);
         }
     }
 

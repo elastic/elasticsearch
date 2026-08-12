@@ -12,6 +12,7 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStats;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequestBuilder;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -20,7 +21,6 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.settings.Settings;
@@ -136,45 +136,12 @@ public class BlobStoreIncrementalityIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testForceMergeCausesFullSnapshot() throws Exception {
-        internalCluster().startMasterOnlyNode();
-        internalCluster().ensureAtLeastNumDataNodes(2);
-        final String indexName = "test-index";
-        createIndex(indexName, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).build());
-        ensureGreen(indexName);
+        // Covers both merge flavors: a merge down to a single segment and an expunge-deletes
+        // merge must both leave a fresh force merge UUID in the commit so that the snapshot
+        // after the merge uploads the rewritten files (https://github.com/elastic/elasticsearch/issues/102395)
+        final boolean onlyExpungeDeletes = randomBoolean();
+        logger.info("--> testing force merge with only_expunge_deletes: [{}]", onlyExpungeDeletes);
 
-        logger.info("--> adding some documents to test index and flush in between to get at least two segments");
-        for (int j = 0; j < 2; j++) {
-            final BulkRequest bulkRequest = new BulkRequest();
-            for (int i = 0; i < scaledRandomIntBetween(1, 100); ++i) {
-                bulkRequest.add(new IndexRequest(indexName).source("foo" + j, "bar" + i));
-            }
-            client().bulk(bulkRequest).get();
-            flushAndRefresh(indexName);
-        }
-        final IndexStats indexStats = indicesAdmin().prepareStats(indexName).get().getIndex(indexName);
-        assertThat(indexStats.getIndexShards().get(0).getPrimary().getSegments().getCount(), greaterThan(1L));
-
-        final String snapshot1 = "snap-1";
-        final String repo = "test-repo";
-        createRepository(repo, "fs");
-
-        logger.info("--> creating snapshot 1");
-        clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repo, snapshot1).setIndices(indexName).setWaitForCompletion(true).get();
-
-        logger.info("--> force merging down to a single segment");
-        final BroadcastResponse forceMergeResponse = indicesAdmin().prepareForceMerge(indexName).setMaxNumSegments(1).setFlush(true).get();
-        assertThat(forceMergeResponse.getFailedShards(), is(0));
-
-        final String snapshot2 = "snap-2";
-        logger.info("--> creating snapshot 2");
-        clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repo, snapshot2).setIndices(indexName).setWaitForCompletion(true).get();
-
-        logger.info("--> asserting that the two snapshots refer to different files in the repository");
-        final SnapshotStats secondSnapshotShardStatus = getStats(repo, snapshot2).getIndices().get(indexName).getShards().get(0).getStats();
-        assertThat(secondSnapshotShardStatus.getIncrementalFileCount(), greaterThan(0));
-    }
-
-    public void testForceMergeWithOnlyExpungeDeletesCausesFullSnapshot() throws Exception {
         internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNode();
         final String indexName = "test-index";
@@ -183,48 +150,55 @@ public class BlobStoreIncrementalityIT extends AbstractSnapshotIntegTestCase {
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                // disable automatic refresh so that all 15 docs below end up in a single segment
+                // disable automatic refresh so the docs indexed below land in exactly two segments
                 .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "-1")
                 // retention leases protect recent deletes from being merged away; sync them
-                // frequently so the expunge merge below can reclaim the deletes promptly
+                // frequently so the merges below can reclaim the deletes promptly
                 .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "200ms")
                 .build()
         );
         ensureGreen(indexName);
 
-        logger.info("--> indexing 15 docs and flushing them into a persisted segment");
-        for (int i = 0; i < 15; i++) {
-            indexDoc(indexName, Integer.toString(i), "field", "value-" + i);
+        logger.info("--> indexing docs and flushing in between to get two segments");
+        for (int j = 0; j < 2; j++) {
+            for (int i = 0; i < 15; i++) {
+                indexDoc(indexName, j + "-" + i, "field", "value-" + i);
+            }
+            flushAndRefresh(indexName);
         }
-        flushAndRefresh(indexName);
-
-        // Delete 2 of the 15 docs (above index.merge.policy.expunge_deletes_allowed's default
-        // of 10%) so the expunge merge below rewrites the segment once retention releases the
-        // deletes. The deletes must happen BEFORE the first snapshot: deletes are operations
-        // and advance max_seq_no, and the bug (https://github.com/elastic/elasticsearch/issues/102395)
-        // only manifests when both snapshots see identical seq_no history around a merge that changed the files.
-        logger.info("--> deleting 2 docs before the first snapshot");
-        client().prepareDelete(indexName, "0").get();
-        client().prepareDelete(indexName, "1").get();
-        flushAndRefresh(indexName);
-
-        // guard: the setup really produced tombstones for the expunge merge to reclaim
         final IndexStats indexStats = indicesAdmin().prepareStats(indexName).get().getIndex(indexName);
-        assertThat(indexStats.getIndexShards().get(0).getPrimary().getDocs().getDeleted(), greaterThan(0L));
+        assertThat(indexStats.getIndexShards().get(0).getPrimary().getSegments().getCount(), greaterThan(1L));
+
+        // Delete 2 of the 15 docs in the first segment (above index.merge.policy.expunge_deletes_allowed's
+        // default of 10%) so an expunge merge rewrites that segment once retention releases the deletes.
+        // The deletes must happen BEFORE the first snapshot: deletes are operations and advance max_seq_no,
+        // and the bug only manifests when both snapshots see identical seq_no history around a merge that
+        // changed the files.
+        logger.info("--> deleting 2 docs before the first snapshot");
+        client().prepareDelete(indexName, "0-0").get();
+        client().prepareDelete(indexName, "0-1").get();
+        flushAndRefresh(indexName);
+
+        // guard: the setup really produced tombstones for the merge to reclaim
+        final IndexStats statsAfterDelete = indicesAdmin().prepareStats(indexName).get().getIndex(indexName);
+        assertThat(statsAfterDelete.getIndexShards().get(0).getPrimary().getDocs().getDeleted(), greaterThan(0L));
 
         final String repo = "test-repo";
         createRepository(repo, "fs");
         createSnapshot(repo, "snap-1", Collections.singletonList(indexName));
 
-        // Retention leases advance on the sync interval; retry until the expunge merge
-        // has actually reclaimed the deleted docs (a no-op merge writes no new commit,
-        // which would make this test pass or fail for the wrong reasons).
-        logger.info("--> force merging with only_expunge_deletes until the deleted docs are reclaimed");
+        // Retention leases advance on the sync interval; retry until the merge has actually
+        // reclaimed the deleted docs (a no-op merge writes no new commit, which would make
+        // this test pass or fail for the wrong reasons).
+        logger.info("--> force merging until the deleted docs are reclaimed");
         assertBusy(() -> {
-            assertThat(
-                indicesAdmin().prepareForceMerge(indexName).setOnlyExpungeDeletes(true).setFlush(true).get().getFailedShards(),
-                is(0)
-            );
+            final ForceMergeRequestBuilder forceMerge = indicesAdmin().prepareForceMerge(indexName).setFlush(true);
+            if (onlyExpungeDeletes) {
+                forceMerge.setOnlyExpungeDeletes(true);
+            } else {
+                forceMerge.setMaxNumSegments(1);
+            }
+            assertThat(forceMerge.get().getFailedShards(), is(0));
             final IndexStats stats = indicesAdmin().prepareStats(indexName).get().getIndex(indexName);
             assertThat(stats.getIndexShards().get(0).getPrimary().getDocs().getDeleted(), is(0L));
         }, 30, TimeUnit.SECONDS);

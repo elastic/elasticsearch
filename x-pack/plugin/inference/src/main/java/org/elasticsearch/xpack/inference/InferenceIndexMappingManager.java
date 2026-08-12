@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -98,7 +99,7 @@ public class InferenceIndexMappingManager {
         if (indexMetadata == null) {
             // Index does not exist yet – create it with the latest mappings.
             logger.debug("Index [{}] does not exist; creating it with up-to-date mappings", descriptor.getPrimaryIndex());
-            startUpdateIfNotInProgress(true, listener);
+            startUpdateIfNotInProgress(this::createIndex, listener);
             return;
         }
 
@@ -114,19 +115,19 @@ public class InferenceIndexMappingManager {
             descriptor.getPrimaryIndex(),
             descriptor.getMappingsVersion().version()
         );
-        startUpdateIfNotInProgress(false, listener);
+        startUpdateIfNotInProgress(this::putMapping, listener);
     }
 
     /**
      * Subscribes the listener to the in-flight update, creating it if there is none. If an update is
      * already in progress this method returns after subscribing; the listener is notified when the
-     * in-flight update completes. Otherwise, the appropriate index-level operation (create or
-     * put-mapping) is issued and its outcome is fanned out to all subscribers.
+     * in-flight update completes. Otherwise, {@code updateAction} is issued and its outcome is fanned
+     * out to all subscribers.
      *
-     * @param createIndex {@code true} to create the index, {@code false} to update mappings only
-     * @param listener    the caller to notify when the update is complete
+     * @param updateAction the index-level operation (create or put-mapping) to run if this caller starts the update
+     * @param listener     the caller to notify when the update is complete
      */
-    private void startUpdateIfNotInProgress(boolean createIndex, ActionListener<Void> listener) {
+    private void startUpdateIfNotInProgress(CheckedConsumer<ActionListener<Void>, Exception> updateAction, ActionListener<Void> listener) {
         final SubscribableListener<Void> updateListener;
         final boolean startUpdate;
         synchronized (this) {
@@ -156,11 +157,10 @@ public class InferenceIndexMappingManager {
                     inFlightUpdate = null;
                 }
             });
-            if (createIndex) {
-                createIndex(completionListener);
-            } else {
-                putMapping(completionListener);
-            }
+            // ActionListener.run routes an exception thrown synchronously by the update action to the
+            // completion listener; otherwise the in-flight guard would never be cleared and every
+            // subsequent caller would queue onto a listener that is never completed.
+            ActionListener.run(completionListener, updateAction);
         }
     }
 

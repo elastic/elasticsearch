@@ -1,0 +1,5 @@
+area: Network
+issues: []
+pr: 156527
+summary: Upgrade netty to 4.1.137.Final
+type: upgrade

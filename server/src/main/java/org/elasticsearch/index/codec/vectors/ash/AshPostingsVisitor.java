@@ -87,10 +87,11 @@ public class AshPostingsVisitor implements IVFVectorsReader.PostingVisitor {
     private final byte[] bulkCodeBuf;
     private final short[] bulkScalesF16 = new short[BULK_SIZE];
     private final short[] bulkOffsetsF16 = new short[BULK_SIZE];
-    private final short[] bulkDocSums = new short[BULK_SIZE];
+    private final int[] bulkDocSums = new int[BULK_SIZE];
+    private final boolean wideDocSum;
     // EUCLIDEAN-only bulk buffers
-    private final short[] bulkVecCentroidDots;
-    private final short[] bulkVecCentroidSqDists;
+    private final float[] bulkVecCentroidDots;
+    private final float[] bulkVecCentroidSqDists;
 
     // Per-posting-list state
     private int vectors;
@@ -131,10 +132,11 @@ public class AshPostingsVisitor implements IVFVectorsReader.PostingVisitor {
         this.queryBitsPerDim = queryBitsPerDim;
         this.query = query;
         this.centroidReader = centroidReader;
+        this.wideDocSum = bitsPerDim > 4;
 
         boolean isEuclidean = similarityFunction == VectorSimilarityFunction.EUCLIDEAN;
-        this.bulkVecCentroidDots = isEuclidean ? new short[BULK_SIZE] : null;
-        this.bulkVecCentroidSqDists = isEuclidean ? new short[BULK_SIZE] : null;
+        this.bulkVecCentroidDots = isEuclidean ? new float[BULK_SIZE] : null;
+        this.bulkVecCentroidSqDists = isEuclidean ? new float[BULK_SIZE] : null;
 
         // Precompute query projection: queryTransformed[j] = dot(query, wT[j])
         this.queryTransformed = new float[nDims];
@@ -142,11 +144,13 @@ public class AshPostingsVisitor implements IVFVectorsReader.PostingVisitor {
             queryTransformed[j] = ESVectorUtil.dotProduct(query, wT[j]);
         }
 
+        // Shared query/doc constants arrays used by both float and integer scoring paths
+        this.queryConstants = new float[AsymmetricHashingScorer.QC_LENGTH];
+        this.docConstants = new float[AsymmetricHashingScorer.DC_LENGTH];
+
         // Integer scoring setup: quantize projected query to queryBitsPerDim bits
         if (queryBitsPerDim > 0) {
             this.useIntegerScoring = true;
-            this.queryConstants = new float[AsymmetricHashingScorer.QC_LENGTH];
-            this.docConstants = new float[AsymmetricHashingScorer.DC_LENGTH];
             float qMin = Float.MAX_VALUE, qMax = -Float.MAX_VALUE;
             for (int j = 0; j < nDims; j++) {
                 qMin = Math.min(qMin, queryTransformed[j]);
@@ -182,8 +186,6 @@ public class AshPostingsVisitor implements IVFVectorsReader.PostingVisitor {
         } else {
             this.useIntegerScoring = false;
             this.queryQuantized = null;
-            this.queryConstants = null;
-            this.docConstants = null;
         }
 
         this.bulkCodeBuf = new byte[BULK_SIZE * packedCodeBytes];
@@ -192,8 +194,6 @@ public class AshPostingsVisitor implements IVFVectorsReader.PostingVisitor {
     @Override
     public int resetPostingsScorer(PostingMetadata metadata) throws IOException {
         indexInput.seek(metadata.offset());
-        // Skip centroidToParentSqDist (legacy header field, not used by ASH)
-        indexInput.readInt();
         vectors = indexInput.readVInt();
         int centroidOrd = indexInput.readVInt();
 
@@ -210,9 +210,7 @@ public class AshPostingsVisitor implements IVFVectorsReader.PostingVisitor {
         docEncoding = indexInput.readByte();
         docBase = 0;
 
-        if (queryConstants != null) {
-            queryConstants[AsymmetricHashingScorer.QC_QUERY_DOT_CENTROID] = currentQueryDotCentroid;
-        }
+        queryConstants[AsymmetricHashingScorer.QC_QUERY_DOT_CENTROID] = currentQueryDotCentroid;
 
         return vectors;
     }
@@ -243,9 +241,10 @@ public class AshPostingsVisitor implements IVFVectorsReader.PostingVisitor {
         boolean isEuclidean = similarityFunction == VectorSimilarityFunction.EUCLIDEAN;
         if (docsToScore == 0) {
             // Skip the entire block: codes + scales + offsets + docSums (+ EUCLIDEAN fields)
-            long bytesToSkip = (long) blockSize * packedCodeBytes + (long) blockSize * Short.BYTES * 3;
+            int docSumBytes = wideDocSum ? Integer.BYTES : Short.BYTES;
+            long bytesToSkip = (long) blockSize * packedCodeBytes + (long) blockSize * Short.BYTES * 2 + (long) blockSize * docSumBytes;
             if (isEuclidean) {
-                bytesToSkip += (long) blockSize * Short.BYTES * 2;
+                bytesToSkip += (long) blockSize * Float.BYTES * 2;
             }
             indexInput.skipBytes(bytesToSkip);
             return 0;
@@ -260,15 +259,15 @@ public class AshPostingsVisitor implements IVFVectorsReader.PostingVisitor {
             bulkOffsetsF16[j] = indexInput.readShort();
         }
         for (int j = 0; j < blockSize; j++) {
-            bulkDocSums[j] = indexInput.readShort();
+            bulkDocSums[j] = wideDocSum ? indexInput.readInt() : indexInput.readShort();
         }
-        // EUCLIDEAN: read ⟨μ*,x⟩ and ‖x-μ*‖² per vector
+        // EUCLIDEAN: read ⟨μ*,x⟩ and ‖x-μ*‖² per vector (float32)
         if (isEuclidean) {
             for (int j = 0; j < blockSize; j++) {
-                bulkVecCentroidDots[j] = indexInput.readShort();
+                bulkVecCentroidDots[j] = Float.intBitsToFloat(indexInput.readInt());
             }
             for (int j = 0; j < blockSize; j++) {
-                bulkVecCentroidSqDists[j] = indexInput.readShort();
+                bulkVecCentroidSqDists[j] = Float.intBitsToFloat(indexInput.readInt());
             }
         }
 
@@ -280,9 +279,9 @@ public class AshPostingsVisitor implements IVFVectorsReader.PostingVisitor {
                 float offset = Float.float16ToFloat(bulkOffsetsF16[j]);
                 // Compute approximate ⟨q,x⟩ via ASH (same for all similarity functions)
                 float approxDotProduct;
+                docConstants[AsymmetricHashingScorer.DC_SCALE] = scale;
+                docConstants[AsymmetricHashingScorer.DC_OFFSET] = offset;
                 if (useIntegerScoring) {
-                    docConstants[AsymmetricHashingScorer.DC_SCALE] = scale;
-                    docConstants[AsymmetricHashingScorer.DC_OFFSET] = offset;
                     docConstants[AsymmetricHashingScorer.DC_DOC_SUM] = bulkDocSums[j];
                     approxDotProduct = AsymmetricHashingScorer.scoreInteger(
                         queryQuantized,
@@ -297,21 +296,20 @@ public class AshPostingsVisitor implements IVFVectorsReader.PostingVisitor {
                 } else {
                     approxDotProduct = AsymmetricHashingScorer.score(
                         queryTransformed,
-                        currentQueryDotCentroid,
+                        queryConstants,
                         bulkCodeBuf,
                         j * packedCodeBytes,
                         nDims,
                         bitsPerDim,
-                        scale,
-                        offset
+                        docConstants
                     );
                 }
                 // Convert raw dot product to similarity score
                 if (isEuclidean) {
                     // Appendix A, Eq. A.2:
                     // ‖q-x‖² = ‖q-μ*‖² + ‖x-μ*‖² - 2·(⟨q,x⟩ - ⟨μ*,x⟩ - ⟨q,μ*⟩ + ‖μ*‖²)
-                    float vecCentroidDot = Float.float16ToFloat(bulkVecCentroidDots[j]);
-                    float vecCentroidSqDist = Float.float16ToFloat(bulkVecCentroidSqDists[j]);
+                    float vecCentroidDot = bulkVecCentroidDots[j];
+                    float vecCentroidSqDist = bulkVecCentroidSqDists[j];
                     float sqDist = currentQueryCentroidSqDist + vecCentroidSqDist - 2 * (approxDotProduct - vecCentroidDot
                         - currentQueryDotCentroid + currentCentroidNormSq);
                     // Clamp to non-negative (floating point rounding can produce small negatives)

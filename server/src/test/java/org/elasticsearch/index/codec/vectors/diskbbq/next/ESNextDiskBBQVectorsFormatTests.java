@@ -849,6 +849,81 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
         }
     }
 
+    public void testAshEuclideanScoreCorrectness() throws IOException {
+        int dimensions = 64;
+        int numDocs = 200;
+        int k = 10;
+        Codec ashCodec = TestUtil.alwaysKnnVectorsFormat(ashTestFormat());
+        try (Directory dir = newDirectory()) {
+            IndexWriterConfig iwc = newIndexWriterConfig();
+            iwc.setCodec(ashCodec);
+            // Store vectors alongside for brute-force comparison
+            float[][] storedVectors = new float[numDocs][];
+            try (IndexWriter w = new IndexWriter(dir, iwc)) {
+                for (int i = 0; i < numDocs; i++) {
+                    Document doc = new Document();
+                    float[] vec = randomVector(dimensions);
+                    storedVectors[i] = vec;
+                    doc.add(new KnnFloatVectorField("f", vec, VectorSimilarityFunction.EUCLIDEAN));
+                    doc.add(new StoredField("id", i));
+                    w.addDocument(doc);
+                }
+                w.forceMerge(1);
+                try (IndexReader reader = DirectoryReader.open(w)) {
+                    for (LeafReaderContext ctx : reader.leaves()) {
+                        LeafReader leafReader = ctx.reader();
+                        float[] query = randomVector(dimensions);
+                        TopDocs topDocs = leafReader.searchNearestVectors(
+                            "f",
+                            query,
+                            k,
+                            AcceptDocs.fromLiveDocs(leafReader.getLiveDocs(), leafReader.maxDoc()),
+                            Integer.MAX_VALUE
+                        );
+                        assertThat(topDocs.scoreDocs, arrayWithSize(Math.min(leafReader.maxDoc(), k)));
+
+                        // Compute brute-force exact EUCLIDEAN scores for all docs
+                        float[] exactScores = new float[numDocs];
+                        for (int i = 0; i < numDocs; i++) {
+                            float sqDist = 0;
+                            for (int d = 0; d < dimensions; d++) {
+                                float diff = query[d] - storedVectors[i][d];
+                                sqDist += diff * diff;
+                            }
+                            exactScores[i] = 1f / (1f + sqDist);
+                        }
+
+                        // Verify each ASH result score is within 25% relative error of exact score
+                        for (ScoreDoc sd : topDocs.scoreDocs) {
+                            float exact = exactScores[sd.doc];
+                            float relError = Math.abs(sd.score - exact) / Math.max(exact, 1e-6f);
+                            assertTrue(
+                                "EUCLIDEAN score for doc " + sd.doc + ": ASH=" + sd.score + " exact=" + exact + " relError=" + relError,
+                                relError < 0.25f
+                            );
+                        }
+
+                        // Verify the ASH top-1 is within the true top-20 (recall sanity check)
+                        int ashTop1Doc = topDocs.scoreDocs[0].doc;
+                        float[] sortedExact = exactScores.clone();
+                        java.util.Arrays.sort(sortedExact);
+                        float threshold = sortedExact[numDocs - 20]; // 20th best exact score
+                        assertTrue(
+                            "ASH top-1 doc "
+                                + ashTop1Doc
+                                + " exact score "
+                                + exactScores[ashTop1Doc]
+                                + " not in true top-20 (threshold="
+                                + threshold
+                                + ")",
+                            exactScores[ashTop1Doc] >= threshold
+                        );
+                    }
+                }
+            }
+        }
+    }
+
     private static ESNextDiskBBQVectorsFormat ashTestFormat() {
         return new ESNextDiskBBQVectorsFormat(
             QuantEncoding.TWO_BIT_4BIT_QUERY,

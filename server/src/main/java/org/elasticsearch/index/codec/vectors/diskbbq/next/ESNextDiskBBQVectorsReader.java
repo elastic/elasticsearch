@@ -530,15 +530,15 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
             int numCentroids = entry.numCentroids();
             long rawCentroidsOffset = centroidSlice.length() - (long) numCentroids * dimension * Float.BYTES;
             IndexInput centroidInput = centroidSlice.clone();
+            float[] centroidBuf = new float[dimension];
             IntFunction<float[]> centroidReader = (int ord) -> {
-                float[] centroid = new float[dimension];
                 try {
                     centroidInput.seek(rawCentroidsOffset + (long) ord * dimension * Float.BYTES);
-                    centroidInput.readFloats(centroid, 0, dimension);
+                    centroidInput.readFloats(centroidBuf, 0, dimension);
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }
-                return centroid;
+                return centroidBuf;
             };
             return new AshPostingsVisitor(
                 ashMatrix.wT(),

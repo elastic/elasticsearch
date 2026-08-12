@@ -261,7 +261,15 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         float[] scores = new float[nVectors];
         for (int i = 0; i < nVectors; i++) {
             byte[] packed = AsymmetricHashingScorer.pack(encodedVectors[i], bitsPerDim);
-            scores[i] = AsymmetricHashingScorer.score(qt, queryDotCentroid, packed, 0, nDims, bitsPerDim, scales[i], offsets[i]);
+            scores[i] = AsymmetricHashingScorer.score(
+                qt,
+                new float[] { queryDotCentroid },
+                packed,
+                0,
+                nDims,
+                bitsPerDim,
+                new float[] { scales[i], offsets[i] }
+            );
         }
         assertEquals(nVectors, scores.length);
 
@@ -335,13 +343,12 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
                 byte[] packed = AsymmetricHashingScorer.pack(enc.xEnc(), bitsPerDim);
                 float reconstructed = AsymmetricHashingScorer.score(
                     qt,
-                    queryDotCentroid,
+                    new float[] { queryDotCentroid },
                     packed,
                     0,
                     nDims,
                     bitsPerDim,
-                    enc.scale(),
-                    enc.offset()
+                    new float[] { enc.scale(), enc.offset() }
                 );
 
                 double err = reconstructed - trueDot;
@@ -368,7 +375,15 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         // dot = 1.0*0.5 + 0.5*(-0.5) = 0.25
         // result = 0.25 * 1.0 + 0.0 + 0.0 = 0.25
         byte[] packed = AsymmetricHashingScorer.pack(encodedVector, bitsPerDim);
-        float score = AsymmetricHashingScorer.score(new float[] { 1.0f, 0.5f }, 0.0f, packed, 0, nDims, bitsPerDim, scale, offset);
+        float score = AsymmetricHashingScorer.score(
+            new float[] { 1.0f, 0.5f },
+            new float[] { 0.0f },
+            packed,
+            0,
+            nDims,
+            bitsPerDim,
+            new float[] { scale, offset }
+        );
         assertEquals(0.25f, score, 1e-4f);
     }
 
@@ -410,7 +425,15 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
             dot += (double) qt[j] * codes[j];
         }
         float floatScore = (float) dot * scale + qdc + offset;
-        float multiBitScore = AsymmetricHashingScorer.score(qt, qdc, packed, 0, nDims, bitsPerDim, scale, offset);
+        float multiBitScore = AsymmetricHashingScorer.score(
+            qt,
+            new float[] { qdc },
+            packed,
+            0,
+            nDims,
+            bitsPerDim,
+            new float[] { scale, offset }
+        );
         assertEquals(floatScore, multiBitScore, 1e-4f);
     }
 
@@ -571,13 +594,12 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
 
                 float approxScore = AsymmetricHashingScorer.score(
                     qt[q],
-                    (float) qDotC,
+                    new float[] { (float) qDotC },
                     packed,
                     0,
                     nDims,
                     bitsPerDim,
-                    enc.scale(),
-                    enc.offset()
+                    new float[] { enc.scale(), enc.offset() }
                 );
 
                 exact[q][i] = exactDot;

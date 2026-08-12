@@ -99,25 +99,26 @@ public final class AsymmetricHashingScorer {
      *     = sum over planes of (2^p * sum_of_qt_where_bit_p_set) - centerOffset * sumAll
      *
      * @param queryTransformed precomputed query @ W (raw projection, not centered)
-     * @param queryDotCentroid precomputed query . centroid for this cluster
+     * @param queryConstants per-cluster query constants: [queryDotCentroid, ...]
      * @param packedCodes byte buffer containing packed codes (may contain multiple vectors)
      * @param codeOffset starting byte offset for this vector's codes within the buffer
      * @param nDims number of projected dimensions
      * @param bitsPerDim bits per dimension
-     * @param scale the scale factor for this vector
-     * @param offset the offset correction for this vector (includes cross-term per Eq. 19)
+     * @param docConstants per-vector constants: [scale, offset, ...]
      * @return approximate dot product
      */
     public static float score(
         float[] queryTransformed,
-        float queryDotCentroid,
+        float[] queryConstants,
         byte[] packedCodes,
         int codeOffset,
         int nDims,
         int bitsPerDim,
-        float scale,
-        float offset
+        float[] docConstants
     ) {
+        float scale = docConstants[DC_SCALE];
+        float offset = docConstants[DC_OFFSET];
+
         int planeBytes = (nDims + 7) >>> 3;
         int numLevels = 1 << bitsPerDim;
         double centerOffset = (numLevels - 1) / 2.0;
@@ -142,7 +143,7 @@ public final class AsymmetricHashingScorer {
         for (int p = 0; p < bitsPerDim; p++) {
             dot = Math.fma(1 << p, planeSums[p], dot);
         }
-        return (float) dot * scale + queryDotCentroid + offset;
+        return (float) dot * scale + queryConstants[QC_QUERY_DOT_CENTROID] + offset;
     }
 
     // --- queryConstants indices for scoreInteger ---

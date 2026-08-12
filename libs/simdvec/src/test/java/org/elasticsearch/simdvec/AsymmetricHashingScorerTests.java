@@ -22,7 +22,15 @@ public class AsymmetricHashingScorerTests extends ESTestCase {
         // result = -0.5 * 1.0 + 0.0 + 0.0 = -0.5
         float[] codes = { 0.5f, -0.5f };
         byte[] packed = AsymmetricHashingScorer.pack(codes, 2);
-        float score = AsymmetricHashingScorer.score(new float[] { 2.0f, 3.0f }, 0.0f, packed, 0, 2, 2, 1.0f, 0.0f);
+        float score = AsymmetricHashingScorer.score(
+            new float[] { 2.0f, 3.0f },
+            new float[] { 0.0f },
+            packed,
+            0,
+            2,
+            2,
+            new float[] { 1.0f, 0.0f }
+        );
         float expected = referenceScore(new float[] { 2.0f, 3.0f }, 0.0f, codes, 1.0f, 0.0f);
         assertEquals(expected, score, 1e-4f);
     }
@@ -33,7 +41,15 @@ public class AsymmetricHashingScorerTests extends ESTestCase {
         // result = 2.5 * 2.0 + 1.5 + 0.3 = 6.8
         float[] codes = { 0.5f, 0.5f };
         byte[] packed = AsymmetricHashingScorer.pack(codes, 2);
-        float score = AsymmetricHashingScorer.score(new float[] { 2.0f, 3.0f }, 1.5f, packed, 0, 2, 2, 2.0f, 0.3f);
+        float score = AsymmetricHashingScorer.score(
+            new float[] { 2.0f, 3.0f },
+            new float[] { 1.5f },
+            packed,
+            0,
+            2,
+            2,
+            new float[] { 2.0f, 0.3f }
+        );
         float expected = referenceScore(new float[] { 2.0f, 3.0f }, 1.5f, codes, 2.0f, 0.3f);
         assertEquals(expected, score, 1e-4f);
     }
@@ -62,7 +78,15 @@ public class AsymmetricHashingScorerTests extends ESTestCase {
                 float qdc = (float) random().nextGaussian();
 
                 float expected = referenceScore(qt, qdc, codes, scale, offset);
-                float actual = AsymmetricHashingScorer.score(qt, qdc, packed, 0, nDims, bitsPerDim, scale, offset);
+                float actual = AsymmetricHashingScorer.score(
+                    qt,
+                    new float[] { qdc },
+                    packed,
+                    0,
+                    nDims,
+                    bitsPerDim,
+                    new float[] { scale, offset }
+                );
                 assertEquals("Mismatch at bits=" + bitsPerDim + " iter=" + iter, expected, actual, 1e-3f);
             }
         }
@@ -111,7 +135,7 @@ public class AsymmetricHashingScorerTests extends ESTestCase {
     public void testZeroDimensionScoring() {
         // Edge case: 0-dim vectors; dot = 0, result = 0 * 2.0 + 1.5 + 0.3 = 1.8
         byte[] packed = AsymmetricHashingScorer.pack(new float[0], 2);
-        float score = AsymmetricHashingScorer.score(new float[0], 1.5f, packed, 0, 0, 2, 2.0f, 0.3f);
+        float score = AsymmetricHashingScorer.score(new float[0], new float[] { 1.5f }, packed, 0, 0, 2, new float[] { 2.0f, 0.3f });
         assertEquals(1.8f, score, 1e-6f);
     }
 
@@ -153,8 +177,24 @@ public class AsymmetricHashingScorerTests extends ESTestCase {
 
         // Score each vector from the bulk buffer at its offset and compare to standalone scoring
         for (int v = 0; v < nVectors; v++) {
-            float standaloneScore = AsymmetricHashingScorer.score(qt, qdc, individualPacked[v], 0, nDims, bitsPerDim, scale, offset);
-            float bulkScore = AsymmetricHashingScorer.score(qt, qdc, bulkBuffer, v * packedLen, nDims, bitsPerDim, scale, offset);
+            float standaloneScore = AsymmetricHashingScorer.score(
+                qt,
+                new float[] { qdc },
+                individualPacked[v],
+                0,
+                nDims,
+                bitsPerDim,
+                new float[] { scale, offset }
+            );
+            float bulkScore = AsymmetricHashingScorer.score(
+                qt,
+                new float[] { qdc },
+                bulkBuffer,
+                v * packedLen,
+                nDims,
+                bitsPerDim,
+                new float[] { scale, offset }
+            );
             assertEquals("Mismatch at vector " + v, standaloneScore, bulkScore, 0f);
         }
     }
@@ -222,7 +262,15 @@ public class AsymmetricHashingScorerTests extends ESTestCase {
                     docSum += Math.round(codes[j] + centerOff);
                 }
 
-                floatScores[v] = AsymmetricHashingScorer.score(qt, qdc, packed, 0, nDims, bitsPerDim, scale, offset);
+                floatScores[v] = AsymmetricHashingScorer.score(
+                    qt,
+                    new float[] { qdc },
+                    packed,
+                    0,
+                    nDims,
+                    bitsPerDim,
+                    new float[] { scale, offset }
+                );
                 float[] queryConstants = new float[] { qdc, invQScale, qMin, constantCorrection };
                 float[] docConstants = new float[] { scale, offset, (float) docSum };
                 intScores[v] = AsymmetricHashingScorer.scoreInteger(

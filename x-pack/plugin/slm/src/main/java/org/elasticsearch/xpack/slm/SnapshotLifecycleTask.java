@@ -526,14 +526,6 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
             SnapshotLifecycleStats newStats = snapMeta.getStats();
 
             final boolean snapshotIsRegistered = registeredSnapshots.contains(snapshotId);
-            if (snapshotIsRegistered == false) {
-                logger.warn(
-                    "Snapshot [{}] not found in registered set after snapshot completion. This means snapshot was"
-                        + " recorded as a failure by another snapshot's cleanup run.",
-                    snapshotId.getName()
-                );
-            }
-
             final Set<SnapshotId> runningSnapshots = currentlyRunningSnapshots(currentState);
             final List<PolicySnapshot> newRegistered = new ArrayList<>();
 
@@ -586,8 +578,17 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                 }
             }
 
-            // Add stats from the just completed snapshot execution
-            if (exception.isPresent()) {
+            // Add stats from the just completed snapshot execution, unless another cleanup already recorded it.
+            // Two snapshots completing close together can each discover the other as completed and fetch SnapshotInfo;
+            // the first WriteJobStatus then records both outcomes and removes both from the registered set, so the
+            // second must not increment stats / overwrite last success or failure again.
+            if (snapshotIsRegistered == false) {
+                logger.warn(
+                    "Snapshot [{}] not found in registered set after snapshot completion. This means snapshot was"
+                        + " already recorded by another snapshot's cleanup run.",
+                    snapshotId.getName()
+                );
+            } else if (exception.isPresent()) {
                 newStats = newStats.withFailedIncremented(policyName);
                 newPolicyMetadata.setLastFailure(
                     new SnapshotInvocationRecord(
@@ -597,11 +598,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                         exception.map(SnapshotLifecycleTask::exceptionToString).orElse(null)
                     )
                 );
-                // If the snapshot was not registered, it means it was already counted as a failure by another snapshot's cleanup run
-                // so we should not increment the invocationsSinceLastSuccess again.
-                if (snapshotIsRegistered) {
-                    newPolicyMetadata.incrementInvocationsSinceLastSuccess();
-                }
+                newPolicyMetadata.incrementInvocationsSinceLastSuccess();
             } else {
                 newStats = newStats.withTakenIncremented(policyName);
                 newPolicyMetadata.setLastSuccess(

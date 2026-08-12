@@ -144,7 +144,7 @@ public interface EvaluatorMapper {
             @Override
             public CircuitBreaker getBreaker(String name) {
                 if (name.equals(CircuitBreaker.REQUEST) == false) {
-                    throw new UnsupportedOperationException();
+                    return null;
                 }
                 return breaker;
             }

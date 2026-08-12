@@ -19,6 +19,8 @@ public class BlockFactoryBuilder {
     final BigArrays bigArrays;
     @Nullable
     CircuitBreaker breaker;
+    @Nullable
+    CircuitBreaker nativeMemoryBreaker;
     long maxPrimitiveArraySize = BlockFactory.DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE.getBytes();
     long bytesRefRamOverestimateThreshold = BlockFactory.DEFAULT_BYTES_REF_RAM_OVERESTIMATE_THRESHOLD.getBytes();
     double bytesRefRamOverestimateFactor = BlockFactory.DEFAULT_BYTES_REF_RAM_OVERESTIMATE_FACTOR;
@@ -33,6 +35,22 @@ public class BlockFactoryBuilder {
      */
     public BlockFactoryBuilder breaker(CircuitBreaker breaker) {
         this.breaker = breaker;
+        return this;
+    }
+
+    /**
+     * Override the breaker used for off-heap (Arrow / native) memory. This is distinct from {@link #breaker}, which accounts on-heap
+     * Block memory.
+     * <p>
+     * If not set, {@link BlockFactory} resolves the breaker from
+     * {@code bigArrays.breakerService().getBreaker(CircuitBreaker.NATIVE_MEMORY)}, falling back to a {@link
+     * org.elasticsearch.common.breaker.NoopCircuitBreaker} when the service is absent or does not have {@code NATIVE_MEMORY} registered.
+     * <p>
+     * Must be a node-level (non-thread-confined) breaker: Arrow calls {@code onRelease} on the final owning allocator's listener, so
+     * a thread-local {@link LocalCircuitBreaker} would drift if buffers are shared or transferred between threads.
+     */
+    public BlockFactoryBuilder nativeMemoryBreaker(CircuitBreaker nativeMemoryBreaker) {
+        this.nativeMemoryBreaker = nativeMemoryBreaker;
         return this;
     }
 

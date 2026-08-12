@@ -12,6 +12,7 @@ package org.elasticsearch.common.breaker;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
@@ -35,6 +36,8 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
     private final AtomicLong used;
     private final AtomicLong trippedCount;
     private final Logger logger;
+    /** {@code null} for breakers that are self-limiting (e.g. native memory) and must not consult the heap parent. */
+    @Nullable
     private final HierarchyCircuitBreakerService parent;
     private final String name;
     private final LongCounter trippedCountMeter;
@@ -95,20 +98,20 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
     );
 
     /**
-     * Create a circuit breaker that will break if the number of estimated
-     * bytes grows above the limit. All estimations will be multiplied by
-     * the given overheadConstant. Uses the given oldBreaker to initialize
-     * the starting offset.
+     * Create a circuit breaker that will break if the number of estimated bytes grows above the limit. All estimations will be multiplied
+     * by the given overheadConstant.
+     *
      * @param metrics the metrics container used to report trip count and held-bytes metrics
      * @param settings settings to configure this breaker
-     * @param parent parent circuit breaker service to delegate tripped breakers to
+     * @param parent  parent circuit breaker service to consult on each charge; {@code null} for self-limiting breakers (e.g. native
+     *                memory) that must not consult the heap parent
      * @param name the name of the breaker
      */
     public ChildMemoryCircuitBreaker(
         CircuitBreakerMetrics metrics,
         BreakerSettings settings,
         Logger logger,
-        HierarchyCircuitBreakerService parent,
+        @Nullable HierarchyCircuitBreakerService parent,
         String name
     ) {
         this.name = name;
@@ -208,15 +211,19 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
             newUsed = limit(bytes, label, overheadConstant, memoryBytesLimit);
         }
 
-        // Additionally, we need to check that we haven't exceeded the parent's limit
-        try {
-            parent.checkParentLimit((long) (bytes * overheadConstant), label);
-        } catch (CircuitBreakingException e) {
-            // If the parent breaker is tripped, this breaker has to be
-            // adjusted back down because the allocation is "blocked" but the
-            // breaker has already been incremented
-            this.adjustUsedBytes(-bytes);
-            throw e;
+        // Breakers with a non-null parent also enforce the heap parent limit. Native-memory breakers
+        // pass null as parent so they never consult the heap-denominated parent — mixing units would
+        // produce spurious parent trips.
+        if (parent != null) {
+            try {
+                parent.checkParentLimit((long) (bytes * overheadConstant), label);
+            } catch (CircuitBreakingException e) {
+                // If the parent breaker is tripped, this breaker has to be
+                // adjusted back down because the allocation is "blocked" but the
+                // breaker has already been incremented
+                this.adjustUsedBytes(-bytes);
+                throw e;
+            }
         }
         if (bytes > 0) {
             this.memoryHeldMeter.add(bytes, heldAttributes(label));

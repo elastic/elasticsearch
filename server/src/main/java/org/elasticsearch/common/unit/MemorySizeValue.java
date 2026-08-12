@@ -52,25 +52,54 @@ public enum MemorySizeValue {
     }
 
     private static ByteSizeValue parseHeapRatio(String sValue, String settingName, double minHeapPercent) {
+        return parseRatio(sValue, settingName, minHeapPercent, JvmInfo.jvmInfo().getMem().getHeapMax().getBytes(), "heap");
+    }
+
+    private static ByteSizeValue parseRatio(String sValue, String settingName, double minPercent, long total, String type) {
         final String percentAsString = sValue.substring(0, sValue.length() - 1);
         try {
             final double percent = Double.parseDouble(percentAsString);
             if (percent < 0 || percent > 100) {
                 throw new ElasticsearchParseException("percentage should be in [0-100], got [{}]", percentAsString);
-            } else if (percent < minHeapPercent) {
+            } else if (percent < minPercent) {
                 DeprecationLogger.getLogger(MemorySizeValue.class)
                     .warn(
                         DeprecationCategory.SETTINGS,
                         "memory_size_below_minimum",
-                        "[{}] setting of [{}] is below the recommended minimum of {}% of the heap",
+                        "[{}] setting of [{}] is below the recommended minimum of {}% of the {}",
                         settingName,
                         sValue,
-                        minHeapPercent
+                        minPercent,
+                        type
                     );
             }
-            return ByteSizeValue.ofBytes((long) ((percent / 100) * JvmInfo.jvmInfo().getMem().getHeapMax().getBytes()));
+            return ByteSizeValue.ofBytes((long) ((percent / 100) * total));
         } catch (NumberFormatException e) {
             throw new ElasticsearchParseException("failed to parse [{}] as a double", e, percentAsString);
+        }
+    }
+
+    /**
+     * The effective maximum direct memory: the value of {@code -XX:MaxDirectMemorySize} when set, otherwise the max heap size, which is
+     * the HotSpot JVM's own default for the direct-memory limit.
+     */
+    public static long maxDirectMemory() {
+        long direct = JvmInfo.jvmInfo().getMem().getDirectMemoryMax().getBytes();
+        return direct > 0 ? direct : JvmInfo.jvmInfo().getMem().getHeapMax().getBytes();
+    }
+
+    /**
+     * Parse the provided string as a memory size resolved against the native memory base. Accepts absolute values such as {@code 42} or
+     * {@code 2mb}, or percentages resolved against {@link NativeMemoryLimitCalculator#nativeMemoryBase()}: when running inside a Linux
+     * container with a finite memory limit, the base is {@code min(cgroupLimit, physicalMemory) - heapMax - directMax - OS overhead};
+     * otherwise it falls back to {@link #maxDirectMemory()}.
+     */
+    public static ByteSizeValue parseBytesSizeValueOrDirectMemoryRatio(String sValue, String settingName) {
+        settingName = Objects.requireNonNull(settingName);
+        if (sValue != null && sValue.endsWith("%")) {
+            return parseRatio(sValue, settingName, 0, NativeMemoryLimitCalculator.nativeMemoryBase(), "native memory");
+        } else {
+            return parseBytesSizeValue(sValue, settingName);
         }
     }
 

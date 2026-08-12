@@ -13,6 +13,7 @@ import org.apache.arrow.memory.rounding.RoundingPolicy;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
@@ -21,6 +22,7 @@ import org.elasticsearch.compute.data.arrow.CircuitBreakerAllocationListener;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
@@ -55,6 +57,11 @@ public class BlockFactory {
 
     private final CircuitBreaker breaker;
 
+    /**
+     * Breaker used for off-heap (Arrow / native) allocations. Distinct from {@link #breaker}, which accounts on-heap Block memory.
+     */
+    private final CircuitBreaker nativeMemoryBreaker;
+
     private final BigArrays bigArrays;
     private final long maxPrimitiveArrayBytes;
     private final BlockFactory parent;
@@ -73,6 +80,16 @@ public class BlockFactory {
     protected BlockFactory(BlockFactoryBuilder builder, BlockFactory parent) {
         this.bigArrays = builder.bigArrays;
         this.breaker = builder.breaker == null ? bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST) : builder.breaker;
+        if (builder.nativeMemoryBreaker != null) {
+            this.nativeMemoryBreaker = builder.nativeMemoryBreaker;
+        } else {
+            // Auto-resolve from the breaker service, mirroring how `breaker` resolves REQUEST above.
+            // Fall back to Noop when the service is absent (NON_RECYCLING_INSTANCE) or does not have
+            // NATIVE_MEMORY registered (minimal test circuit breaker services).
+            CircuitBreakerService bs = bigArrays.breakerService();
+            CircuitBreaker fromService = bs != null ? bs.getBreaker(CircuitBreaker.NATIVE_MEMORY) : null;
+            this.nativeMemoryBreaker = fromService != null ? fromService : new NoopCircuitBreaker(CircuitBreaker.NATIVE_MEMORY);
+        }
         this.maxPrimitiveArrayBytes = builder.maxPrimitiveArraySize;
         this.bytesRefRamOverestimateThreshold = builder.bytesRefRamOverestimateThreshold;
         this.bytesRefRamOverestimateFactor = builder.bytesRefRamOverestimateFactor;
@@ -80,6 +97,9 @@ public class BlockFactory {
         assert breaker instanceof LocalCircuitBreaker == false
             || (parent != null && ((LocalCircuitBreaker) builder.breaker).parentBreaker() == parent.breaker)
             : "use local breaker without parent block factory";
+        assert nativeMemoryBreaker instanceof LocalCircuitBreaker == false
+            : "nativeMemoryBreaker must be a node-level breaker, not a LocalCircuitBreaker — Arrow releases charge to the final "
+                + "owning allocator's listener, so a thread-confined LocalCircuitBreaker would drift when buffers are transferred";
     }
 
     public BlockFactory(CircuitBreaker breaker, BigArrays bigArrays) {
@@ -89,6 +109,11 @@ public class BlockFactory {
     // For testing
     public CircuitBreaker breaker() {
         return breaker;
+    }
+
+    /** The breaker used to account off-heap (Arrow / native) allocations for this factory. */
+    public CircuitBreaker nativeMemoryBreaker() {
+        return nativeMemoryBreaker;
     }
 
     public BufferAllocator arrowAllocator() {
@@ -101,7 +126,7 @@ public class BlockFactory {
                 if (arrowAllocator == null) {
                     if (this.parent == null) {
                         // Root block factory
-                        var listener = new CircuitBreakerAllocationListener(breaker);
+                        var listener = new CircuitBreakerAllocationListener(nativeMemoryBreaker);
                         var allocator = new RootAllocator(listener, Long.MAX_VALUE, EXACT_FIT_ROUNDING_POLICY);
                         cleaner.register(this, () -> {
                             try {
@@ -161,6 +186,7 @@ public class BlockFactory {
         return new BlockFactory(
             BlockFactory.builder(bigArrays)
                 .breaker(childBreaker)
+                .nativeMemoryBreaker(nativeMemoryBreaker)
                 .maxPrimitiveArraySize(maxPrimitiveArrayBytes)
                 .bytesRefRamOverestimateThreshold(bytesRefRamOverestimateThreshold)
                 .bytesRefRamOverestimateFactor(bytesRefRamOverestimateFactor),

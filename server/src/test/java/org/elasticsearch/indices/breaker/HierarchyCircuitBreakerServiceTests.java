@@ -968,12 +968,20 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
             }
         });
 
-        new HierarchyCircuitBreakerService(
+        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        final HierarchyCircuitBreakerService heapService = new HierarchyCircuitBreakerService(
             metrics,
             Settings.EMPTY,
             Collections.emptyList(),
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+            clusterSettings
         );
+        final NativeMemoryCircuitBreakerService nativeService = new NativeMemoryCircuitBreakerService(
+            metrics,
+            Settings.EMPTY,
+            clusterSettings
+        );
+        // Gauge registration is the composite's responsibility; neither individual service registers gauges.
+        new CompositeCircuitBreakerService(metrics, heapService, nativeService);
 
         meter.getRecorder().collect();
 
@@ -986,7 +994,8 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
             CircuitBreaker.PARENT,
             CircuitBreaker.FIELDDATA,
             CircuitBreaker.REQUEST,
-            CircuitBreaker.IN_FLIGHT_REQUESTS
+            CircuitBreaker.IN_FLIGHT_REQUESTS,
+            CircuitBreaker.NATIVE_MEMORY
         );
         final Set<String> limitTypes = limits.stream()
             .map(m -> (String) m.attributes().get(ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE))
@@ -1136,6 +1145,29 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
             .collect(Collectors.toSet());
 
         assertEquals(Set.of(ChildMemoryCircuitBreaker.CATEGORY_UNCATEGORIZED), categories);
+    }
+
+    // -------------------------------------------------------------------------
+    // native_memory breaker — parent exclusion regression tests
+    // -------------------------------------------------------------------------
+
+    /**
+     * Structural guarantee: the native_memory breaker lives in NativeMemoryCircuitBreakerService, not here.
+     * HierarchyCircuitBreakerService must never return it — that is what keeps native bytes out of the
+     * heap parent's total.
+     */
+    public void testNativeMemoryBreakerNotRegisteredInHeapService() {
+        final HierarchyCircuitBreakerService service = new HierarchyCircuitBreakerService(
+            CircuitBreakerMetrics.NOOP,
+            Settings.EMPTY,
+            Collections.emptyList(),
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+        assertNull(
+            "native_memory must not be in HierarchyCircuitBreakerService; it lives in NativeMemoryCircuitBreakerService",
+            service.getBreaker(CircuitBreaker.NATIVE_MEMORY)
+        );
+        assertNull(service.stats().getStats(CircuitBreaker.NATIVE_MEMORY));
     }
 
     public void testMemoryHeldNotUpdatedWhenParentTripsAdmission() {

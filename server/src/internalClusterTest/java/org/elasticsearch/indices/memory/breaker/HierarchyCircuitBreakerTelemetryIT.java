@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
+import org.elasticsearch.indices.breaker.NativeMemoryCircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.rest.RestStatus;
@@ -160,7 +161,9 @@ public class HierarchyCircuitBreakerTelemetryIT extends ESIntegTestCase {
             .putNull(IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING.getKey())
             .putNull(IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_OVERHEAD_SETTING.getKey())
             .putNull(TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey())
-            .putNull(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey());
+            .putNull(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey())
+            .putNull(NativeMemoryCircuitBreakerService.NATIVE_MEMORY_CIRCUIT_BREAKER_LIMIT_SETTING.getKey())
+            .putNull(NativeMemoryCircuitBreakerService.NATIVE_MEMORY_CIRCUIT_BREAKER_OVERHEAD_SETTING.getKey());
         updateClusterSettings(circuitBreakerSettings);
     }
 

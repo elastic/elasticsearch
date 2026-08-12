@@ -503,6 +503,15 @@ public class JvmInfo implements ReportingService.Info {
             return ByteSizeValue.ofBytes(heapMax);
         }
 
+        /**
+         * The value of {@code -XX:MaxDirectMemorySize}, or {@code 0} if the option was not set (in which case the JVM's effective
+         * direct-memory limit is {@code Runtime.maxMemory()}). Callers that want the effective value should use
+         * {@link org.elasticsearch.common.unit.MemorySizeValue#maxDirectMemory()}.
+         */
+        public ByteSizeValue getDirectMemoryMax() {
+            return ByteSizeValue.ofBytes(directMemoryMax);
+        }
+
         public ByteSizeValue getTotalMax() {
             return ByteSizeValue.ofBytes(heapMax + nonHeapMax + directMemoryMax);
         }

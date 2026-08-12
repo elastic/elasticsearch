@@ -89,6 +89,7 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
         for (String node : internalCluster().getNodeNames()) {
             CircuitBreakerService breakerService = internalCluster().getInstance(CircuitBreakerService.class, node);
             CircuitBreaker reqBreaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
+            CircuitBreaker nativeBreaker = breakerService.getBreaker(CircuitBreaker.NATIVE_MEMORY);
             try {
                 assertBusy(() -> {
                     logger.info(
@@ -107,6 +108,9 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
                             .toList()
                     );
                     assertThat("Request breaker not reset to 0 on node: " + node, reqBreaker.getUsed(), equalTo(0L));
+                    if (nativeBreaker != null) {
+                        assertThat("Native memory breaker not reset to 0 on node: " + node, nativeBreaker.getUsed(), equalTo(0L));
+                    }
                 });
             } catch (Exception e) {
                 throw new RuntimeException("failed waiting for breakers to clear", e);

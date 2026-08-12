@@ -266,11 +266,9 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         this.overLimitStrategyFactory = overLimitStrategyFactory;
         this.overLimitStrategy = overLimitStrategyFactory.apply(this.trackRealMemoryUsage);
         this.parentTripCountTotalMetric = metrics.getTripCount();
-
-        metrics.registerMemoryGauges(this::collectMemoryLimits, this::collectMemoryEstimates);
     }
 
-    private Collection<LongWithAttributes> collectMemoryLimits() {
+    Collection<LongWithAttributes> collectMemoryLimits() {
         List<LongWithAttributes> out = new ArrayList<>(this.breakers.size() + 1);
         for (CircuitBreaker breaker : this.breakers.values()) {
             out.add(
@@ -289,7 +287,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         return out;
     }
 
-    private Collection<LongWithAttributes> collectMemoryEstimates() {
+    Collection<LongWithAttributes> collectMemoryEstimates() {
         List<LongWithAttributes> out = new ArrayList<>(this.breakers.size() + 1);
         for (CircuitBreaker breaker : this.breakers.values()) {
             long estimated = (long) (breaker.getUsed() * breaker.getOverhead());

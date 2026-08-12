@@ -108,8 +108,12 @@ public class CircuitBreakerAllocationListenerTests extends ESTestCase {
         // This is what happens in FlightClient, that creates a child allocator. Closing the client also closes that allocator,
         // so vectors and their buffers that must have a longer lifetime (as blocks) must be transferred to the parent allocator.
 
-        var breaker = breaker(1024);
-        var blockFactory = new MockBlockFactory(BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker));
+        var heapBreaker = breaker(1024);
+        // use an explicit native breaker so Arrow pre/release accounting is visible and verifiable
+        var nativeBreaker = new LimitedBreaker(CircuitBreaker.NATIVE_MEMORY, ByteSizeValue.ofBytes(1024 * 1024));
+        var blockFactory = new MockBlockFactory(
+            BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(heapBreaker).nativeMemoryBreaker(nativeBreaker)
+        );
         var rootAllocator = blockFactory.arrowAllocator();
         var childAllocator = rootAllocator.newChildAllocator("child", 0, Long.MAX_VALUE);
 
@@ -140,7 +144,7 @@ public class CircuitBreakerAllocationListenerTests extends ESTestCase {
         assertEquals(42, block.getInt(0));
         block.close();
 
-        assertEquals(0, breaker.getUsed());
+        assertEquals(0, nativeBreaker.getUsed());
 
         blockFactory.ensureAllBlocksAreReleased();
     }

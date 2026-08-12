@@ -33,7 +33,6 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.LongVectorFixedBuilder;
 import org.elasticsearch.compute.data.Vector;
-import org.elasticsearch.compute.data.arrow.CircuitBreakerAllocationListener;
 
 import java.util.BitSet;
 import java.util.HashMap;
@@ -100,8 +99,11 @@ public class MockBlockFactory extends BlockFactory {
 
     @Override
     protected BufferAllocator childFactoryAllocator() {
-        var listener = new CircuitBreakerAllocationListener(this.breaker());
-        return super.arrowAllocator().newChildAllocator("mock-factory", listener, 0, Long.MAX_VALUE);
+        // Do NOT override the listener here. Arrow calls onRelease on the final *owning* allocator's listener, not the allocating one
+        // (AllocationManager#release). If a child had its own listener wrapping a LocalCircuitBreaker, any buffer transferred between
+        // allocators would onRelease against the wrong listener, permanently drifting the breaker. There must be exactly one listener,
+        // on the root allocator, holding a node-level (never thread-confined) breaker.
+        return super.arrowAllocator().newChildAllocator("mock-factory", 0, Long.MAX_VALUE);
     }
 
     @Override
@@ -109,7 +111,12 @@ public class MockBlockFactory extends BlockFactory {
         if (childBreaker.parentBreaker() != breaker()) {
             throw new IllegalStateException("Different parent breaker");
         }
-        return new MockBlockFactory(builder(bigArrays()).breaker(childBreaker).maxPrimitiveArraySize(maxPrimitiveArrayBytes()), this);
+        return new MockBlockFactory(
+            builder(bigArrays()).breaker(childBreaker)
+                .nativeMemoryBreaker(nativeMemoryBreaker())
+                .maxPrimitiveArraySize(maxPrimitiveArrayBytes()),
+            this
+        );
     }
 
     @Override

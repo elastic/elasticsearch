@@ -114,6 +114,8 @@ import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.analysis.HunspellService;
 import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
+import org.elasticsearch.indices.breaker.NativeMemoryCgroupBackstop;
+import org.elasticsearch.indices.breaker.NativeMemoryCircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoverySettings;
@@ -382,6 +384,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
         HierarchyCircuitBreakerService.IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_OVERHEAD_SETTING,
         HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING,
         HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_OVERHEAD_SETTING,
+        NativeMemoryCircuitBreakerService.NATIVE_MEMORY_CIRCUIT_BREAKER_LIMIT_SETTING,
+        NativeMemoryCircuitBreakerService.NATIVE_MEMORY_CIRCUIT_BREAKER_OVERHEAD_SETTING,
+        NativeMemoryCgroupBackstop.HIGH_WATERMARK_SETTING,
         IndexModule.NODE_STORE_ALLOW_MMAP,
         IndexSettings.NODE_DEFAULT_REFRESH_INTERVAL_SETTING,
         ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
@@ -419,6 +424,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
         NodeConnectionsService.CLUSTER_NODE_RECONNECT_INTERVAL_SETTING,
         HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_TYPE_SETTING,
         HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_TYPE_SETTING,
+        NativeMemoryCircuitBreakerService.NATIVE_MEMORY_CIRCUIT_BREAKER_TYPE_SETTING,
+        NativeMemoryCgroupBackstop.POLL_INTERVAL_SETTING,
         TransportReplicationAction.REPLICATION_INITIAL_RETRY_BACKOFF_BOUND,
         TransportReplicationAction.REPLICATION_RETRY_TIMEOUT,
         TransportSettings.HOST,

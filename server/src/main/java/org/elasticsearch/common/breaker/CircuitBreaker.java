@@ -43,6 +43,14 @@ public interface CircuitBreaker {
      * on the network layer.
      */
     String IN_FLIGHT_REQUESTS = "inflight_requests";
+    /**
+     * The native memory breaker tracks off-heap memory allocated by Elasticsearch outside the JVM heap — for example, Arrow vector
+     * buffers used by ES|QL. Unlike the other child breakers, the native memory breaker is <em>not</em> included in the
+     * {@link #PARENT} breaker's total: the parent limit is expressed in terms of JVM heap, and adding off-heap bytes to it would
+     * mix units and cause spurious parent trips. The native memory breaker is limited only by its own
+     * {@code indices.breaker.native_memory.limit} setting.
+     */
+    String NATIVE_MEMORY = "native_memory";
 
     enum Type {
         // A regular or ChildMemoryCircuitBreaker

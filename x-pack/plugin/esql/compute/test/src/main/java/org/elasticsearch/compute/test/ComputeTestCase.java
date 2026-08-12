@@ -11,6 +11,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -58,7 +59,10 @@ public abstract class ComputeTestCase extends ESTestCase {
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, limit).withCircuitBreaking();
         CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
         breakers.add(breaker);
-        BlockFactory factory = new MockBlockFactory(BlockFactory.builder(bigArrays).breaker(breaker));
+        // separate breaker for native (Arrow) memory — avoids mixing on-heap and off-heap bytes in the same counter
+        CircuitBreaker nativeBreaker = new LimitedBreaker(CircuitBreaker.NATIVE_MEMORY, ByteSizeValue.ofGb(1));
+        breakers.add(nativeBreaker);
+        BlockFactory factory = new MockBlockFactory(BlockFactory.builder(bigArrays).breaker(breaker).nativeMemoryBreaker(nativeBreaker));
         blockFactories.add(factory);
         return factory;
     }

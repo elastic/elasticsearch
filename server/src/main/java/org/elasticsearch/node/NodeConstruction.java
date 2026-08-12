@@ -153,7 +153,9 @@ import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.breaker.CompositeCircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
+import org.elasticsearch.indices.breaker.NativeMemoryCircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.recovery.CompositeRecoverySchedulingListener;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
@@ -802,7 +804,8 @@ class NodeConstruction {
         CircuitBreakerService circuitBreakerService = createCircuitBreakerService(
             new CircuitBreakerMetrics(telemetryProvider),
             settingsModule.getSettings(),
-            settingsModule.getClusterSettings()
+            settingsModule.getClusterSettings(),
+            threadPool
         );
         PageCacheRecycler pageCacheRecycler = serviceProvider.newPageCacheRecycler(pluginsService, settings);
         BigArrays bigArrays = serviceProvider.newBigArrays(pluginsService, pageCacheRecycler, circuitBreakerService);
@@ -1747,14 +1750,15 @@ class NodeConstruction {
     private CircuitBreakerService createCircuitBreakerService(
         CircuitBreakerMetrics metrics,
         Settings settings,
-        ClusterSettings clusterSettings
+        ClusterSettings clusterSettings,
+        ThreadPool threadPool
     ) {
         var pluginBreakers = pluginsService.filterPlugins(CircuitBreakerPlugin.class)
             .map(p -> Tuple.tuple(p, p.getCircuitBreaker(settings)))
             .toList();
 
         String type = Node.BREAKER_TYPE_KEY.get(settings);
-        CircuitBreakerService circuitBreakerService = switch (type) {
+        CircuitBreakerService heapService = switch (type) {
             case "hierarchy" -> new HierarchyCircuitBreakerService(
                 metrics,
                 settings,
@@ -1764,10 +1768,27 @@ class NodeConstruction {
             case "none" -> new NoneCircuitBreakerService();
             default -> throw new IllegalArgumentException("Unknown circuit breaker type [" + type + "]");
         };
+
+        // The native memory service is independent of the heap service: its breakers never
+        // consult the heap parent and are structurally excluded from its parent total.
+        // The thread pool is passed so the cgroup backstop can schedule its periodic checks.
+        NativeMemoryCircuitBreakerService nativeService = new NativeMemoryCircuitBreakerService(
+            metrics,
+            settings,
+            clusterSettings,
+            threadPool
+        );
+        resourcesToClose.add(nativeService);
+        modules.bindToInstance(NativeMemoryCircuitBreakerService.class, nativeService);
+
+        // The composite presents a unified view (getBreaker + stats) while keeping the two
+        // hierarchies independent. It is bound as the canonical CircuitBreakerService so that
+        // all callers — including BigArrays and NodeService — see every breaker.
+        CircuitBreakerService circuitBreakerService = new CompositeCircuitBreakerService(metrics, heapService, nativeService);
         modules.bindToInstance(CircuitBreakerService.class, circuitBreakerService);
 
         pluginBreakers.forEach(t -> {
-            final CircuitBreaker circuitBreaker = circuitBreakerService.getBreaker(t.v2().getName());
+            final CircuitBreaker circuitBreaker = heapService.getBreaker(t.v2().getName());
             t.v1().setCircuitBreaker(circuitBreaker);
         });
 

@@ -319,15 +319,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.SubTests
   method: testEvaluate {TestCase=<big negative double>, <big positive double>}
   issue: https://github.com/elastic/elasticsearch/issues/153598
-- class: org.elasticsearch.upgrades.DataStreamsUpgradeIT
-  method: testDataStreams
-  issue: https://github.com/elastic/elasticsearch/issues/153414
-- class: org.elasticsearch.upgrades.DataStreamsUpgradeIT
-  method: testMigrateDoesNotRestartOnUpgrade
-  issue: https://github.com/elastic/elasticsearch/issues/153415
-- class: org.elasticsearch.upgrades.DataStreamsUpgradeIT
-  method: testDataStreamValidationDoesNotBreakUpgrade
-  issue: https://github.com/elastic/elasticsearch/issues/153413
 - class: org.elasticsearch.xpack.searchablesnapshots.cache.blob.SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests
   method: testPeriodicMaintenance
   issue: https://github.com/elastic/elasticsearch/issues/153548
@@ -403,9 +394,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.ClassificationHousePricingIT
   method: testFeatureImportanceValues
   issue: https://github.com/elastic/elasticsearch/issues/155327
-- class: org.elasticsearch.index.reindex.BulkByPaginatedSearchResponseWireSerializingTests
-  method: testEqualsAndHashcode
-  issue: https://github.com/elastic/elasticsearch/issues/155457
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:ip.conditional}
   issue: https://github.com/elastic/elasticsearch/issues/155566

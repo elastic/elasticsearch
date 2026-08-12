@@ -93,7 +93,7 @@ Datasets are managed under the `/_query/dataset` endpoint. All dataset operation
 
 ### Create or update a dataset
 
-`PUT` creates a new dataset or replaces an existing one entirely.
+[`PUT /_query/dataset/{name}`](https://www.elastic.co/docs/api/doc/elasticsearch/v9/operation/operation-esql-put-dataset) creates a new dataset or replaces an existing one entirely.
 
 :::{important}
 A dataset cannot have the same name as an existing index, data stream, alias, or view, because dataset names share the same namespace. Dataset names must be lowercase and cannot begin with `-`, `_`, or `+`.
@@ -186,7 +186,7 @@ For self-describing columnar formats such as Parquet, names bind to the file sch
 
 ### Get a dataset
 
-Retrieves a dataset by name.
+[`GET /_query/dataset/{name}`](https://www.elastic.co/docs/api/doc/elasticsearch/v9/operation/operation-esql-get-dataset) retrieves a dataset by name.
 
 ::::{tab-set}
 :group: api-ref
@@ -210,7 +210,7 @@ curl -X GET "${ELASTICSEARCH_URL}/_query/dataset/access_logs" \
 
 ### List all datasets
 
-Returns all registered datasets.
+[`GET /_query/dataset`](https://www.elastic.co/docs/api/doc/elasticsearch/v9/operation/operation-esql-get-dataset) returns all registered datasets.
 
 ::::{tab-set}
 :group: api-ref
@@ -234,7 +234,7 @@ curl -X GET "${ELASTICSEARCH_URL}/_query/dataset" \
 
 ### Delete a dataset
 
-Deletes a dataset by name.
+[`DELETE /_query/dataset/{name}`](https://www.elastic.co/docs/api/doc/elasticsearch/v9/operation/operation-esql-delete-dataset) deletes a dataset by name.
 
 ::::{tab-set}
 :group: api-ref

@@ -69,11 +69,11 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         internalCluster().startNode();
         String indexName = randomIndexName();
 
-        // Index will fail in recovery on first attempt
         RetryRecoveryTestPlugin.armRandomFailure();
+
+        // Recover from empty store
         createIndex(indexName, indexSettings(1, 0).build());
 
-        // Recovery should succeed, and we should have retried once
         ensureGreen(indexName);
         assertThat(RetryRecoveryTestPlugin.retryCounter.get(), equalTo(1));
         assertThat(RetryRecoveryTestPlugin.recoveryCounter.get(), equalTo(2));
@@ -83,21 +83,18 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         internalCluster().startNode();
         final var indexName = randomIndexName();
 
-        // Create an existing store
         createIndex(indexName, indexSettings(1, 0).build());
         indexDoc(indexName, "1", "f", randomAlphaOfLength(10));
         flush(indexName);
         ensureGreen(indexName);
         assertAcked(indicesAdmin().prepareClose(indexName));
 
-        // Fail next recovery attempt
         RetryRecoveryTestPlugin.reset();
         RetryRecoveryTestPlugin.armRandomFailure();
 
         // Recover from existing store
         assertAcked(indicesAdmin().prepareOpen(indexName).execute());
 
-        // Recovery should succeed, and we should have retried once
         ensureGreen(indexName);
         assertThat(RetryRecoveryTestPlugin.retryCounter.get(), equalTo(1));
         assertThat(RetryRecoveryTestPlugin.recoveryCounter.get(), equalTo(2));
@@ -108,23 +105,20 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         final var sourceIndexName = randomIndexName();
         final var targetIndexName = randomIndexName();
 
-        // Create an existing store
         createIndex(sourceIndexName, indexSettings(1, 0).build());
         indexDoc(sourceIndexName, "1", "f", randomAlphaOfLength(10));
         flush(sourceIndexName);
         ensureGreen(sourceIndexName);
 
-        // Required for clone, make the source index read-only
+        // Required for clone
         updateIndexSettings(Settings.builder().put("index.blocks.write", true), sourceIndexName);
 
-        // Fail next recovery attempt
         RetryRecoveryTestPlugin.reset();
         RetryRecoveryTestPlugin.armRandomFailure();
 
         // Recover from local shard
         ResizeIndexTestUtils.executeResize(ResizeType.CLONE, sourceIndexName, targetIndexName, indexSettings(1, 0));
 
-        // Recovery should succeed, and we should have retried once
         ensureGreen(sourceIndexName);
         ensureGreen(targetIndexName);
         assertThat(RetryRecoveryTestPlugin.retryCounter.get(), equalTo(1));
@@ -136,13 +130,11 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         final var indexName = randomIndexName();
         final var repoName = "test-repo";
 
-        // Create index to snapshot
         createIndex(indexName, indexSettings(1, 0).build());
         indexDoc(indexName, "1", "f", randomAlphaOfLength(10));
         flush(indexName);
         ensureGreen(indexName);
 
-        // Snapshot the index
         assertAcked(
             clusterAdmin().preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName)
                 .setType("fs")
@@ -150,17 +142,14 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         );
         clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snap").setWaitForCompletion(true).get();
 
-        // Delete the index
         assertAcked(indicesAdmin().prepareDelete(indexName));
 
-        // Fail next recovery attempt
         RetryRecoveryTestPlugin.reset();
         RetryRecoveryTestPlugin.armRandomFailure();
 
         // Recover from snapshot
         clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snap").setWaitForCompletion(true).execute();
 
-        // Recovery should succeed, and we should have retried once
         ensureGreen(indexName);
         assertThat(RetryRecoveryTestPlugin.retryCounter.get(), equalTo(1));
         assertThat(RetryRecoveryTestPlugin.recoveryCounter.get(), equalTo(2));
@@ -170,21 +159,14 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         String source = internalCluster().startNode();
         final var indexName = randomIndexName();
 
-        // Create index on source
         createIndex(indexName, indexSettings(1, 0).put("index.routing.allocation.require._name", source).build());
         indexDoc(indexName, "1", "f", randomAlphaOfLength(10));
         flush(indexName);
         ensureGreen(indexName);
 
-        // Start target node
         String target = internalCluster().startNode();
 
-        // Fail next recovery attempt
-        // Target send error response back to source on data channel
-        // Source sends an error response back on the coordination channel (as response to start_recovery request)
-        // Target -> RecoveryResponseHandler -> failRecovery(..., RETRY) --> listener.onRecoveryFailure(..., RETRY)
         armRandomPeerRecoveryFailure(target);
-
         RetryRecoveryTestPlugin.reset();
 
         // Recover from peer
@@ -192,7 +174,6 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             .setSettings(Settings.builder().put("index.routing.allocation.require._name", target))
             .execute();
 
-        // Recovery should succeed, and we should have retried once
         ensureGreen(indexName);
         assertAllShardsOnNodes(indexName, target);
         assertThat(RetryRecoveryTestPlugin.retryCounter.get(), equalTo(1));
@@ -203,27 +184,18 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         internalCluster().startNode();
         String indexName = randomIndexName();
 
-        // Index creation will block at some point during creation/recovery and then fail when released
         RetryRecoveryTestPlugin.armRandomFailure();
         Gate gate = RetryRecoveryTestPlugin.randomGateBeforeTargetFailure();
         gate.block();
 
-        // Create index async
         prepareCreate(indexName, indexSettings(1, 0)).execute();
-
-        // Wait for index creation/recovery attempt
         gate.await();
-
-        // Delete index asynchronously
         indicesAdmin().prepareDelete(indexName).execute();
 
-        // Release will make recovery and retry race with index deletion
+        // Release will make recovery/retry race with index deletion
         gate.release();
 
-        // Let all tasks complete
         waitNoPendingTasksOnAll();
-
-        // Index should not exist
         assertThat(indexExists(indexName), equalTo(false));
     }
 
@@ -231,35 +203,25 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         internalCluster().startNode();
         String indexName = randomIndexName();
 
-        // Create an existing store
         createIndex(indexName, indexSettings(1, 0).build());
         indexDoc(indexName, "1", "f", randomAlphaOfLength(10));
         flush(indexName);
         ensureGreen(indexName);
         assertAcked(indicesAdmin().prepareClose(indexName));
 
-        // Open index will block at some point during creation/recovery and then fail when released
-        RetryRecoveryTestPlugin.reset();
         RetryRecoveryTestPlugin.armRandomFailure();
         Gate gate = RetryRecoveryTestPlugin.randomGateBeforeTargetFailure();
         gate.block();
 
-        // Recover from existing store async
+        // Recover from existing store
         indicesAdmin().prepareOpen(indexName).execute();
-
-        // Wait for index creation recovery attempt
         gate.await();
-
-        // Delete index asynchronously
         indicesAdmin().prepareDelete(indexName).execute();
 
-        // Release recovery will make retry mechanism race with index deletion
+        // Release recovery will make recovery/retry race with index deletion
         gate.release();
 
-        // Let all tasks complete
         waitNoPendingTasksOnAll();
-
-        // Index should not exist
         assertThat(indexExists(indexName), equalTo(false));
     }
 
@@ -268,36 +230,27 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         final var sourceIndexName = randomIndexName();
         final var targetIndexName = randomIndexName();
 
-        // Create an existing store
         createIndex(sourceIndexName, indexSettings(1, 0).build());
         indexDoc(sourceIndexName, "1", "f", randomAlphaOfLength(10));
         flush(sourceIndexName);
         ensureGreen(sourceIndexName);
 
-        // Required for clone, make the source index read-only
+        // Required for clone
         updateIndexSettings(Settings.builder().put("index.blocks.write", true), sourceIndexName);
 
-        // Cloning index will block at some point during creation/recovery and then fail when released
         RetryRecoveryTestPlugin.armRandomFailure();
         Gate gate = RetryRecoveryTestPlugin.randomGateBeforeTargetFailure();
         gate.block();
 
         // Recover from local shard async
         ResizeIndexTestUtils.executeResize(ResizeType.CLONE, sourceIndexName, targetIndexName, indexSettings(1, 0));
-
-        // Wait for index creation recovery attempt
         gate.await();
-
-        // Delete index asynchronously
         indicesAdmin().prepareDelete(targetIndexName).execute();
 
-        // Release recovery will make retry mechanism race with index deletion
+        // Release recovery will make recovery/retry race with index deletion
         gate.release();
 
-        // Let all tasks complete
         waitNoPendingTasksOnAll();
-
-        // Index should not exist
         assertThat(indexExists(targetIndexName), equalTo(false));
     }
 
@@ -306,24 +259,19 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         final var indexName = randomIndexName();
         final var repoName = "test-repo";
 
-        // Create index to snapshot
         createIndex(indexName, indexSettings(1, 0).build());
         indexDoc(indexName, "1", "f", randomAlphaOfLength(10));
         flush(indexName);
         ensureGreen(indexName);
 
-        // Snapshot the index
         assertAcked(
             clusterAdmin().preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName)
                 .setType("fs")
                 .setSettings(Settings.builder().put("location", randomRepoPath()))
         );
         clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snap").setWaitForCompletion(true).get();
-
-        // Delete the index
         assertAcked(indicesAdmin().prepareDelete(indexName));
 
-        // Index recovering from snapshot will block at some point during creation/recovery and then fail when released
         RetryRecoveryTestPlugin.reset();
         RetryRecoveryTestPlugin.armRandomFailure();
         Gate gate = RetryRecoveryTestPlugin.randomGateBeforeTargetFailure();
@@ -331,20 +279,13 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
         // Recover from snapshot async
         clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snap").setWaitForCompletion(false).execute();
-
-        // Wait for index creation recovery attempt
         gate.await();
-
-        // Delete index asynchronously
         indicesAdmin().prepareDelete(indexName).execute();
 
-        // Release recovery will make retry mechanism race with index deletion
+        // Release recovery will make recovery/retry race with index deletion
         gate.release();
 
-        // Let all tasks complete
         waitNoPendingTasksOnAll();
-
-        // Index should not exist
         assertThat(indexExists(indexName), equalTo(false));
     }
 
@@ -352,43 +293,27 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         String source = internalCluster().startNode();
         final var indexName = randomIndexName();
 
-        // Create index on source
         createIndex(indexName, indexSettings(1, 0).put("index.routing.allocation.require._name", source).build());
         indexDoc(indexName, "1", "f", randomAlphaOfLength(10));
         flush(indexName);
         ensureGreen(indexName);
 
-        // Start target node
         String target = internalCluster().startNode();
-
-        // Fail next recovery attempt
-        // Target send error response back to source on data channel
-        // Source sends an error response back on the coordination channel (as response to start_recovery request)
-        // Target -> RecoveryResponseHandler -> failRecovery(..., RETRY) --> listener.onRecoveryFailure(..., RETRY)
         armRandomPeerRecoveryFailure(target);
         Gate gate = randomFrom(RetryRecoveryTestPlugin.allGatesExcept(RetryRecoveryTestPlugin.stateChangePostRecoveryGate));
-
-        // Index recovering from peer will block at some point during creation/recovery and then fail when released
         gate.block();
 
         // Recover from peer async
         indicesAdmin().prepareUpdateSettings(indexName)
             .setSettings(Settings.builder().put("index.routing.allocation.require._name", target))
             .execute();
-
-        // Wait for peer recovery attempt
         gate.await();
-
-        // Delete index asynchronously
         indicesAdmin().prepareDelete(indexName).execute();
 
-        // Release recovery will make retry mechanism race with index deletion
+        // Release recovery will make recovery/retry race with index deletion
         gate.release();
 
-        // Let all tasks complete
         waitNoPendingTasksOnAll();
-
-        // Index should not exist
         assertThat(indexExists(indexName), equalTo(false));
     }
 
@@ -398,15 +323,12 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         String dataNode = internalCluster().startDataOnlyNode();
         String indexName = randomIndexName();
 
-        // Index creation will block at some point during creation/recovery and then fail when released
         RetryRecoveryTestPlugin.armRandomFailure();
         Gate gate = RetryRecoveryTestPlugin.randomGateBeforeTargetFailure();
         gate.block();
 
         // Create index async
         prepareCreate(indexName, indexSettings(1, 0)).execute();
-
-        // Wait for index creation/recovery attempt
         gate.await();
 
         // Isolating dataNode will cause shard to go unassigned
@@ -419,16 +341,11 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         String dataNodeId = internalCluster().clusterService(dataNode).localNode().getId();
         awaitClusterState(masterA, state -> state.nodes().nodeExists(dataNodeId) == false);
 
-        // Release will make recovery and retry race with index deletion
+        // Release recovery will make recovery/retry race with network disruption
         gate.release();
-
-        // Reconnecting dataNode will reassign shard to dataNode
         disruption.stopDisrupting();
 
-        // Let all tasks complete
         waitNoPendingTasksOnAll();
-
-        // Index should exist
         ensureGreen(indexName);
     }
 
@@ -438,22 +355,18 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         String dataNode = internalCluster().startDataOnlyNode();
         String indexName = randomIndexName();
 
-        // Create an existing store
         createIndex(indexName, indexSettings(1, 0).build());
         indexDoc(indexName, "1", "f", randomAlphaOfLength(10));
         flush(indexName);
         ensureGreen(indexName);
         assertAcked(indicesAdmin().prepareClose(indexName));
 
-        // Index creation will block at some point during creation/recovery and then fail when released
         RetryRecoveryTestPlugin.armRandomFailure();
         Gate gate = RetryRecoveryTestPlugin.randomGateBeforeTargetFailure();
         gate.block();
 
         // Recover from existing store async
         indicesAdmin().prepareOpen(indexName).execute();
-
-        // Wait for index creation/recovery attempt
         gate.await();
 
         // Isolating dataNode will cause shard to go unassigned
@@ -466,16 +379,11 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         String dataNodeId = internalCluster().clusterService(dataNode).localNode().getId();
         awaitClusterState(masterA, state -> state.nodes().nodeExists(dataNodeId) == false);
 
-        // Release will make recovery and retry race with index deletion
+        // Release recovery will make recovery/retry race with network disruption
         gate.release();
-
-        // Reconnecting dataNode will reassign shard to dataNode
         disruption.stopDisrupting();
 
-        // Let all tasks complete
         waitNoPendingTasksOnAll();
-
-        // Index should exist
         ensureGreen(indexName);
     }
 
@@ -486,24 +394,20 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         final var sourceIndexName = randomIndexName();
         final var targetIndexName = randomIndexName();
 
-        // Create an existing store
         createIndex(sourceIndexName, indexSettings(1, 0).build());
         indexDoc(sourceIndexName, "1", "f", randomAlphaOfLength(10));
         flush(sourceIndexName);
         ensureGreen(sourceIndexName);
 
-        // Required for clone, make the source index read-only
+        // Required for clone
         updateIndexSettings(Settings.builder().put("index.blocks.write", true), sourceIndexName);
 
-        // Index creation will block at some point during creation/recovery and then fail when released
         RetryRecoveryTestPlugin.armRandomFailure();
         Gate gate = RetryRecoveryTestPlugin.randomGateBeforeTargetFailure();
         gate.block();
 
         // Recover from local shard async
         ResizeIndexTestUtils.executeResize(ResizeType.CLONE, sourceIndexName, targetIndexName, indexSettings(1, 0));
-
-        // Wait for index creation/recovery attempt
         gate.await();
 
         // Isolating dataNode will cause shard to go unassigned
@@ -516,16 +420,11 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         String dataNodeId = internalCluster().clusterService(dataNode).localNode().getId();
         awaitClusterState(masterA, state -> state.nodes().nodeExists(dataNodeId) == false);
 
-        // Release will make recovery and retry race with index deletion
+        // Release recovery will make recovery/retry race with network disruption
         gate.release();
-
-        // Reconnecting dataNode will reassign shard to dataNode
         disruption.stopDisrupting();
 
-        // Let all tasks complete
         waitNoPendingTasksOnAll();
-
-        // Index should exist
         ensureGreen(sourceIndexName);
         ensureGreen(targetIndexName);
     }
@@ -537,32 +436,25 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         final var indexName = randomIndexName();
         final var repoName = "test-repo";
 
-        // Create index to snapshot
         createIndex(indexName, indexSettings(1, 0).build());
         indexDoc(indexName, "1", "f", randomAlphaOfLength(10));
         flush(indexName);
         ensureGreen(indexName);
 
-        // Snapshot the index
         assertAcked(
             clusterAdmin().preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName)
                 .setType("fs")
                 .setSettings(Settings.builder().put("location", randomRepoPath()))
         );
         clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snap").setWaitForCompletion(true).get();
-
-        // Delete the index
         assertAcked(indicesAdmin().prepareDelete(indexName));
 
-        // Index creation will block at some point during creation/recovery and then fail when released
         RetryRecoveryTestPlugin.armRandomFailure();
         Gate gate = RetryRecoveryTestPlugin.randomGateBeforeTargetFailure();
         gate.block();
 
         // Recover from snapshot async
         clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snap").setWaitForCompletion(false).execute();
-
-        // Wait for index creation/recovery attempt
         gate.await();
 
         // Isolating dataNode will cause shard to go unassigned
@@ -575,16 +467,11 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         String dataNodeId = internalCluster().clusterService(dataNode).localNode().getId();
         awaitClusterState(masterA, state -> state.nodes().nodeExists(dataNodeId) == false);
 
-        // Release will make recovery and retry race with index deletion
+        // Release recovery will make recovery/retry race with network disruption
         gate.release();
-
-        // Reconnecting dataNode will reassign shard to dataNode
         disruption.stopDisrupting();
 
-        // Let all tasks complete
         waitNoPendingTasksOnAll();
-
-        // Index should exist
         ensureGreen(indexName);
     }
 
@@ -593,19 +480,13 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         String source = internalCluster().startNode();
         final var indexName = randomIndexName();
 
-        // Create index on source
         createIndex(indexName, indexSettings(1, 0).put("index.routing.allocation.require._name", source).build());
         indexDoc(indexName, "1", "f", randomAlphaOfLength(10));
         flush(indexName);
         ensureGreen(indexName);
 
-        // Start target node
         String target = internalCluster().startNode();
 
-        // Fail next recovery attempt
-        // Target send error response back to source on data channel
-        // Source sends an error response back on the coordination channel (as response to start_recovery request)
-        // Target -> RecoveryResponseHandler -> failRecovery(..., RETRY) --> listener.onRecoveryFailure(..., RETRY)
         armRandomPeerRecoveryFailure(target);
         Gate gate = randomFrom(RetryRecoveryTestPlugin.allGatesExcept(RetryRecoveryTestPlugin.stateChangePostRecoveryGate));
         gate.block();
@@ -614,8 +495,6 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         indicesAdmin().prepareUpdateSettings(indexName)
             .setSettings(Settings.builder().put("index.routing.allocation.require._name", target))
             .execute();
-
-        // Wait for index creation/recovery attempt
         gate.await();
 
         // Disrupt connection between target and master (source can talk to both)
@@ -628,24 +507,23 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         String targetId = internalCluster().clusterService(target).localNode().getId();
         awaitClusterState(master, state -> state.nodes().nodeExists(targetId) == false);
 
-        // Release will make recovery and retry race with index deletion
         gate.release();
-
-        // Reconnecting dataNode will reassign shard to dataNode
         disruption.stopDisrupting();
 
-        // Let all tasks complete
         waitNoPendingTasksOnAll();
-
-        // Index should exist
         ensureGreen(indexName);
         assertAllShardsOnNodes(indexName, target);
     }
 
+    /// Arm target transport service to fail when receiving a random peer recovery request from source.
+    /// This will fail the next recovery attempt, resulting in the following source - target interaction:
+    /// Target: send error response back to source on data channel
+    /// Source: sends an error response back on the coordination channel (as response to start_recovery request)
+    /// Target: trigger retry through RecoveryResponseHandler -> failRecovery(..., RETRY) --> listener.onRecoveryFailure(..., RETRY)
     private void armRandomPeerRecoveryFailure(String target) {
         AtomicInteger targetCounter = new AtomicInteger(0);
         final var targetTransport = MockTransportService.getInstance(target);
-        String targetOperation = randomFrom(
+        String targetAction = randomFrom(
             PeerRecoveryTargetService.Actions.CLEAN_FILES,
             PeerRecoveryTargetService.Actions.FILE_CHUNK,
             PeerRecoveryTargetService.Actions.FILES_INFO,
@@ -655,7 +533,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             PeerRecoveryTargetService.Actions.HANDOFF_PRIMARY_CONTEXT
             // Excluding RESTORE_FILE_FROM_SNAPSHOT since we are not restoring from snapshot
         );
-        targetTransport.addRequestHandlingBehavior(targetOperation, (handler, request, channel, task) -> {
+        targetTransport.addRequestHandlingBehavior(targetAction, (handler, request, channel, task) -> {
             if (targetCounter.incrementAndGet() == 1) {
                 if (randomBoolean()) {
                     throw RETRY_CAUSE;
@@ -671,7 +549,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
     /// Think of a Gate as... well, a gate with a visitor and a guard.
     /// The visitor tries to [enter] the gate and when it leaves, [exit] the gate.
     /// The guard might prevent the visitor from entering by [block] the gate, then [await] for visitor to try to [enter],
-    /// and finally [release] to let the visitor out again.
+    /// and finally [release] to let the visitor in.
     /// Visitor/T1:
     /// ```
     /// gate.enter();
@@ -682,12 +560,13 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
     /// ```
     /// gate.block();
     /// gate.await();
-    /// // Do stuff while visitor is waiting
+    /// // Do stuff while visitor is waiting to enter
     /// gate.release();
     /// ```
     static class Gate {
         private final Semaphore gate = new Semaphore(1);
         private final Semaphore entered = new Semaphore(0);
+        /// Name is useful for logging while testing
         private final String name;
 
         Gate(String name) {
@@ -700,20 +579,20 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             entered.drainPermits();
         }
 
-        /// Block someone from entering
+        /// Block visitor from enter
         void block() {
             safeAcquire(gate);
         }
 
-        /// Release block from someone entering
-        public void release() {
-            gate.release();
-        }
-
-        /// Wait for someone to enter()
+        /// Wait for visitor to try and enter
         void await() {
             safeAcquire(entered);
             entered.release();
+        }
+
+        /// Allow visitor to enter
+        public void release() {
+            gate.release();
         }
 
         /// Try to enter through the gate
@@ -768,11 +647,16 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             allGates.forEach(Gate::reset);
         }
 
-        /// We will arm index event listener with a random
+        /// Arm index event listener with a random failure target
+        /// This will cause the next recovery to fail with a [RETRY_CAUSE]
+        /// exception when it reaches the [FailureTarget]
         public static void armRandomFailure() {
             failureTarget.set(randomFrom(FailureTarget.values()));
         }
 
+        /// Returns a [Gate] that sits at some random point before the currently armed [FailureTarget].
+        /// This is useful because we want to race recovery retry against some other concurrent event or operation
+        /// and in order to do that we want to make that the recovery has started but not yet failed.
         public static Gate randomGateBeforeTargetFailure() {
             assert failureTarget.get() != null;
             List<Gate> validGates = switch (failureTarget.get()) {
@@ -881,7 +765,8 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         }
     }
 
-    // In the order they are invoked
+    /// Failure target describe different possible failure points during recovery.
+    /// Typically on different calls to [IndexEventListener].
     enum FailureTarget {
         STATE_CHANGED_RECOVERING,
         BEFORE_INDEX_SHARD_RECOVERY,

@@ -59,11 +59,13 @@ public class StandardVersusLogsdbFieldLevelSecurityChallengeRestIT extends BulkC
         }
         indexDocuments(() -> documents, () -> documents);
 
-        // Deny one field so that, when it lands inside an _ignored_source capture on the logsdb side, FLS must drop that entry and hand
-        // back the survivors - the multi-value re-encode path the fix guards. Both indices filter identically, so the sources must match.
-        final String deniedField = randomDeniedField();
+        // Target one field so that, when it lands inside an _ignored_source capture on the logsdb side, FLS must drop entries and re-encode
+        // the survivors. Also, randomize the polarity: excluding the field exercises the exclude automaton, while granting only it
+        // exercises the include automaton. Both indices filter identically, so the sources must match either way.
+        final String targetField = randomDeniedField();
+        final boolean grantOnly = randomBoolean();
 
-        final String encoded = createFieldLevelSecurityApiKey(deniedField);
+        final String encoded = createFieldLevelSecurityApiKey(targetField, grantOnly);
 
         final SearchSourceBuilder search = new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()).size(numberOfDocuments);
 
@@ -73,7 +75,8 @@ public class StandardVersusLogsdbFieldLevelSecurityChallengeRestIT extends BulkC
             .expected(querySourcesAsApiKey(getBaselineDataStreamName(), search, encoded))
             .ignoringSort(true)
             .isEqualTo(querySourcesAsApiKey(getContenderDataStreamName(), search, encoded));
-        assertTrue("denied field [" + deniedField + "]: " + matchResult.getMessage(), matchResult.isMatch());
+        final String policy = grantOnly ? "grant-only" : "except";
+        assertTrue("target field [" + targetField + "] policy [" + policy + "]: " + matchResult.getMessage(), matchResult.isMatch());
     }
 
     /**
@@ -109,8 +112,13 @@ public class StandardVersusLogsdbFieldLevelSecurityChallengeRestIT extends BulkC
         return randomFrom(fields);
     }
 
-    private String createFieldLevelSecurityApiKey(final String deniedField) throws IOException {
-        final Request request = new Request("POST", "/_security/api_key");
+    private String createFieldLevelSecurityApiKey(final String targetField, final boolean grantOnly) throws IOException {
+        // grantOnly grants just @timestamp plus the target field (an include filter that drops everything else); otherwise grant all
+        // fields except the target (an exclude filter). @timestamp is always granted so the routing/sort field survives both polarities.
+        final String fieldSecurity = grantOnly
+            ? Strings.format("{ \"grant\": [ \"@timestamp\", \"%s\" ] }", targetField)
+            : Strings.format("{ \"grant\": [ \"*\" ], \"except\": [ \"%s\" ] }", targetField);
+
         // Build via XContentBuilder so randomized field/index names with control characters are correctly JSON-escaped.
         final XContentBuilder body = XContentBuilder.builder(XContentType.JSON.xContent())
             .startObject()
@@ -123,16 +131,19 @@ public class StandardVersusLogsdbFieldLevelSecurityChallengeRestIT extends BulkC
             .array("privileges", "read")
             .startObject("field_security")
             .array("grant", "*")
-            .array("except", deniedField)
+            .array("except", fieldSecurity)
             .endObject()
             .endObject()
             .endArray()
             .endObject()
             .endObject()
             .endObject();
+
+        final Request request = new Request("POST", "/_security/api_key");
         request.setJsonEntity(Strings.toString(body));
         final Response response = client.performRequest(request);
         assertOK(response);
+
         return (String) entityAsMap(response).get("encoded");
     }
 

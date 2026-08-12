@@ -45,18 +45,22 @@ public class FeatureFlag {
     private static final Function<String, String> GET_SYSTEM_PROPERTY = System::getProperty;
 
     public FeatureFlag(String name) {
-        this(name, "enabled", false, Build.current(), GET_SYSTEM_PROPERTY);
+        this(name, "enabled", Build.current(), GET_SYSTEM_PROPERTY);
     }
 
     /**
-     * Creates a feature flag that is enabled by default in all builds (snapshot and release),
-     * but can still be disabled via the system property {@code es.{name}_feature_flag_enabled=false}.
+     * Creates a feature flag that is permanently enabled, regardless of the build type or system properties.
      * <p>
-     * Use this for features that have been validated and are ready for general availability but
-     * where a quick rollback path (via system property) is still desirable.
+     * Use this when graduating a feature to "always on" while retaining a trivial revert path — changing
+     * back to {@code new FeatureFlag(name)} re-gates the feature to snapshot builds only.
      */
-    public static FeatureFlag enabledByDefault(String name) {
-        return new FeatureFlag(name, "enabled", true, Build.current(), GET_SYSTEM_PROPERTY);
+    public static FeatureFlag enabled(String name) {
+        return new FeatureFlag(name, true);
+    }
+
+    private FeatureFlag(String name, boolean permanentlyEnabled) {
+        this.name = name;
+        this.enabled = permanentlyEnabled;
     }
 
     /**
@@ -68,22 +72,19 @@ public class FeatureFlag {
      */
     @Deprecated
     public static FeatureFlag legacyRegisteredFlag(String name) {
-        return new FeatureFlag(name, "registered", false, Build.current(), GET_SYSTEM_PROPERTY);
+        return new FeatureFlag(name, "registered", Build.current(), GET_SYSTEM_PROPERTY);
     }
 
     /**
      * Accessible for testing only
      */
-    FeatureFlag(String name, String suffix, boolean enabledByDefault, Build build, Function<String, String> getSystemProperty) {
+    FeatureFlag(String name, String suffix, Build build, Function<String, String> getSystemProperty) {
         this.name = name;
         assert name.indexOf('.') == -1 : "Feature flag names may not contain a '.' character";
         assert name.contains("feature_flag") == false : "Feature flag names may not contain the string 'feature_flag'";
 
         final String propertyName = "es." + name + "_feature_flag_" + suffix;
-        if (enabledByDefault) {
-            enabled = parseSystemProperty(getSystemProperty, propertyName, true);
-            logger.info("Feature flag [{}] is enabled by default, currently {}", name, enabled ? "enabled" : "disabled");
-        } else if (build.isSnapshot()) {
+        if (build.isSnapshot()) {
             enabled = parseSystemProperty(getSystemProperty, propertyName, true);
             logger.info("The current build is a snapshot, feature flag [{}] is {}", name, enabled ? "enabled" : "disabled");
         } else {

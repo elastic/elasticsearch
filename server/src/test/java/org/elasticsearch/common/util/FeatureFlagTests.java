@@ -30,7 +30,7 @@ public class FeatureFlagTests extends ESTestCase {
     public void testSetFeatureFlagRegisteredInReleaseBuild() {
         final Properties properties = setProperty("es.test_feature_flag_registered", "true");
         final Build build = randomBuild(false);
-        final FeatureFlag flag = new FeatureFlag("test", "registered", false, build, properties::getProperty);
+        final FeatureFlag flag = new FeatureFlag("test", "registered", build, properties::getProperty);
         assertThat(flag.isEnabled(), is(true));
     }
 
@@ -64,31 +64,19 @@ public class FeatureFlagTests extends ESTestCase {
         assertThat(flag.isEnabled(), is(false));
     }
 
-    public void testEnabledByDefaultInReleaseBuild() {
-        final Properties properties = new Properties();
-        final FeatureFlag flag = newFeatureFlag(properties, false, true);
+    public void testPermanentlyEnabled() {
+        final FeatureFlag flag = FeatureFlag.enabled("test");
         assertThat(flag.isEnabled(), is(true));
     }
 
-    public void testEnabledByDefaultInSnapshotBuild() {
-        final Properties properties = new Properties();
-        final FeatureFlag flag = newFeatureFlag(properties, true, true);
-        assertThat(flag.isEnabled(), is(true));
-    }
-
-    public void testEnabledByDefaultCanBeDisabledViaSystemProperty() {
-        final Properties properties = setProperty("es.test_feature_flag_enabled", "false");
-        final FeatureFlag flag = newFeatureFlag(properties, randomBoolean(), true);
-        assertThat(flag.isEnabled(), is(false));
+    public void testPermanentlyEnabledToString() {
+        final FeatureFlag flag = FeatureFlag.enabled("test");
+        assertThat(flag.toString(), is("Feature-Flag(test=true)"));
     }
 
     private static FeatureFlag newFeatureFlag(Properties properties, boolean isSnapshot) {
-        return newFeatureFlag(properties, isSnapshot, false);
-    }
-
-    private static FeatureFlag newFeatureFlag(Properties properties, boolean isSnapshot, boolean enabledByDefault) {
         final Build build = randomBuild(isSnapshot);
-        return new FeatureFlag("test", "enabled", enabledByDefault, build, properties::getProperty);
+        return new FeatureFlag("test", "enabled", build, properties::getProperty);
     }
 
     private static Properties setProperty(String key, String value) {

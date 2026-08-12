@@ -62,6 +62,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.fulltext.FullTextPredic
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlBuiltinFunctionDefinitions;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -133,7 +134,7 @@ import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.index.EsIndexGenerator.randomEsIndex;
-import static org.elasticsearch.xpack.esql.index.EsIndexGenerator.randomIndexNameWithModes;
+import static org.elasticsearch.xpack.esql.index.EsIndexGenerator.randomIndexProperties;
 import static org.elasticsearch.xpack.esql.index.EsIndexGenerator.randomRemotesWithIndices;
 import static org.elasticsearch.xpack.esql.plan.AbstractNodeSerializationTests.randomFieldAttributes;
 import static org.elasticsearch.xpack.esql.plan.physical.LookupJoinExecSerializationTests.randomJoinOnExpression;
@@ -647,6 +648,10 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         if (argClass == EsIndex.class) {
             return randomEsIndex();
         }
+        if (argClass == IndexProperties.class) {
+            IndexMode mode = randomFrom(IndexMode.availableModes());
+            return new IndexProperties(mode, between(0, 10));
+        }
         if (argClass == JoinConfig.class) {
             return new JoinConfig(
                 // SemiJoin/AntiJoin/MarkJoin assert on their config type, so feed the matching one.
@@ -955,7 +960,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             randomFrom(IndexMode.availableModes()),
             randomRemotesWithIndices(),
             randomRemotesWithIndices(),
-            randomIndexNameWithModes(),
+            randomIndexProperties(),
             randomFieldAttributes(0, 10, false)
         );
     }

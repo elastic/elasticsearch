@@ -678,6 +678,11 @@ public class AuthorizationService {
         final TransportRequest request = requestInfo.getRequest();
         final Authentication authentication = requestInfo.getAuthentication();
 
+        // Only these two exceptions represent project-routing failures: the request carried a project_routing
+        // expression and routing itself failed. The failures counter is a subset of queries_project_routing,
+        // so only routing-caused failures belong here. InvalidIndexNameException, InvalidSelectorException, and
+        // UnsupportedSelectorException are about malformed index names or selectors and can occur on any request
+        // regardless of whether a project_routing expression was present — counting them here would be incorrect.
         if (ex instanceof InvalidProjectRoutingException || ex instanceof NoMatchingProjectException) {
             recordProjectRoutingFailure(action, request);
         }
@@ -728,6 +733,9 @@ public class AuthorizationService {
                 hasLinkedProjects = tp.hasLinkedProjects();
             }
         }
+        // TransportSearchAction.NAME covers _search, _count, _cat/count, _msearch sub-requests,
+        // _search/template, and _msearch/template — they all dispatch as plain SearchRequests.
+        // _async_search uses a distinct action name and is handled by the second condition.
         if (TransportSearchAction.NAME.equals(action) || SubmitAsyncSearchAction.NAME.equals(action)) {
             usageService.getProjectRoutingUsageHolder().recordSearchProjectRoutingFailure(hasLinkedProjects);
         } else if ("indices:data/read/esql".equals(action)) {

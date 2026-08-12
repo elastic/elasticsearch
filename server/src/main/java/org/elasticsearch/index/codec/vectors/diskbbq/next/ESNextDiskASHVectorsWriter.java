@@ -59,7 +59,6 @@ import org.elasticsearch.index.codec.vectors.diskbbq.IvfSegmentConfig;
 import org.elasticsearch.index.codec.vectors.diskbbq.OverspillAssignments;
 import org.elasticsearch.index.codec.vectors.diskbbq.Preconditioner;
 import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
-import org.elasticsearch.index.codec.vectors.diskbbq.QuantizationType;
 import org.elasticsearch.index.codec.vectors.diskbbq.TieredMergeStrategy;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -258,7 +257,6 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
     ) throws IOException {
         metaOutput.writeInt(ES940OSQVectorsScorer.BULK_SIZE);
         metaOutput.writeInt(CentroidIndexFormat.FLAT.id());
-        metaOutput.writeInt(ivfSegmentConfig.quantEncoding().id());
         metaOutput.writeLong(preconditionerLength);
         if (preconditionerLength > 0) {
             metaOutput.writeLong(preconditionerOffset);
@@ -272,11 +270,7 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
                 metaOutput.writeVInt(maxSliceSize);
             }
         }
-        metaOutput.writeInt(Float.floatToIntBits(Float.NaN));
-        // ESNext format extension: byte centroid flag
-        metaOutput.writeByte(byteCentroids ? (byte) 1 : (byte) 0);
-        // Quantization type: always ASH
-        metaOutput.writeByte((byte) QuantizationType.ASH.id());
+        // ASH-specific: bits per dimension
         metaOutput.writeVInt(
             ivfSegmentConfig.ash() != null ? ivfSegmentConfig.ash().bitsPerDim() : IvfSegmentConfig.AshConfig.DEFAULT_BITS_PER_DIM
         );

@@ -15,6 +15,7 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PackedLongValues;
+import org.elasticsearch.common.CheckedIntFunction;
 import org.elasticsearch.index.codec.vectors.diskbbq.CentroidSupplier;
 import org.elasticsearch.index.codec.vectors.diskbbq.DocIdsWriter;
 import org.elasticsearch.index.codec.vectors.diskbbq.IntSorter;
@@ -26,9 +27,7 @@ import org.elasticsearch.simdvec.AsymmetricHashingScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Arrays;
-import java.util.function.IntFunction;
 
 import static org.elasticsearch.simdvec.ES940OSQVectorsScorer.BULK_SIZE;
 
@@ -102,13 +101,7 @@ public class AshPostingsListWriter {
             42L
         );
 
-        IntFunction<float[]> centroidGetter = (i) -> {
-            try {
-                return centroidSupplier.centroid(assignments[i]);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-        };
+        CheckedIntFunction<float[], IOException> centroidGetter = i -> centroidSupplier.centroid(assignments[i]);
 
         // Train W using primary assignments only.
         float[] w = ashQuantizer.train(vectors, centroidGetter);

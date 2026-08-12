@@ -9,12 +9,13 @@
 
 package org.elasticsearch.index.codec.vectors.ash;
 
+import org.elasticsearch.common.CheckedIntFunction;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Random;
 import java.util.Set;
-import java.util.function.IntFunction;
 import java.util.function.IntUnaryOperator;
 
 /**
@@ -109,7 +110,7 @@ public final class AsymmetricHashingQuantizer {
      * @param centroids cluster centroids, fetched by vector ordinal
      * @return the learned projection matrix W in row-major order, shape (originalDim, nDims)
      */
-    public float[] train(float[][] vectors, IntFunction<float[]> centroids) {
+    public float[] train(float[][] vectors, CheckedIntFunction<float[], IOException> centroids) throws IOException {
         int originalDim = vectors[0].length;
         int nDims = nDims(originalDim);
 

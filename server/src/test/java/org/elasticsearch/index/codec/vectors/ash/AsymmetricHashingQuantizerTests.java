@@ -12,15 +12,16 @@ package org.elasticsearch.index.codec.vectors.ash;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.ByteBuffersIndexInput;
 import org.apache.lucene.store.ByteBuffersIndexOutput;
+import org.elasticsearch.common.CheckedIntFunction;
 import org.elasticsearch.simdvec.AsymmetricHashingScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Random;
 import java.util.Set;
-import java.util.function.IntFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -153,7 +154,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         assertThat(result.codeNorms()[0], greaterThan(0f));
     }
 
-    public void testFullPipelineRandomMethod() {
+    public void testFullPipelineRandomMethod() throws IOException {
         int nVectors = 100;
         int dim = 16;
         float projectedDimsFraction = 0.25f; // 16 * 0.25 = 4 projected dims
@@ -179,7 +180,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         }
         int[] assignments = new int[nVectors]; // all zero
 
-        IntFunction<float[]> centroidGetter = (i) -> centroids[assignments[i]];
+        CheckedIntFunction<float[], IOException> centroidGetter = (i) -> centroids[assignments[i]];
 
         AsymmetricHashingQuantizer quantizer = new AsymmetricHashingQuantizer(
             projectedDimsFraction,
@@ -205,7 +206,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         }
     }
 
-    public void testFullPipelineLearnedMethod() {
+    public void testFullPipelineLearnedMethod() throws IOException {
         int nVectors = 200;
         int dim = 32;
         float projectedDimsFraction = 0.25f; // 32 * 0.25 = 8 projected dims
@@ -230,7 +231,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         }
         int[] assignments = new int[nVectors];
 
-        IntFunction<float[]> centroidGetter = (i) -> centroids[assignments[i]];
+        CheckedIntFunction<float[], IOException> centroidGetter = (i) -> centroids[assignments[i]];
 
         AsymmetricHashingQuantizer quantizer = new AsymmetricHashingQuantizer(
             projectedDimsFraction,
@@ -295,7 +296,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         assertThat("Expected positive rank correlation", correlation, greaterThan(0.3));
     }
 
-    public void testReconstructedDotProductApproximatesTrueDotProduct() {
+    public void testReconstructedDotProductApproximatesTrueDotProduct() throws IOException {
         // With no dimensionality reduction (projectedDimsFraction=1.0, so nDims == originalDim and W
         // is a random orthogonal matrix -- a pure rotation, not a projection), the only source of
         // reconstruction error is the quantization of the residual (vector - centroid). This
@@ -401,7 +402,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         assertEquals(0.25f, score, 1e-4f);
     }
 
-    public void testFallbackToRandomWhenTooFewVectors() {
+    public void testFallbackToRandomWhenTooFewVectors() throws IOException {
         // With only 2 vectors and nDims=4, learned method should fall back to random
         int dim = 16;
         float[][] vectors = {
@@ -410,7 +411,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         float[][] centroids = { new float[dim] };
         int[] assignments = { 0, 0 };
 
-        IntFunction<float[]> centroidGetter = i -> centroids[assignments[i]];
+        CheckedIntFunction<float[], IOException> centroidGetter = i -> centroids[assignments[i]];
 
         AsymmetricHashingQuantizer quantizer = new AsymmetricHashingQuantizer(
             0.25f,
@@ -503,7 +504,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         assertThat(Math.abs(topK[1 * n + 1]), greaterThan(0.9f));
     }
 
-    public void testScoreReconstructsDotProduct() {
+    public void testScoreReconstructsDotProduct() throws IOException {
         int dim = 128;
         int nVectors = 1000;
         int nQueries = 100;
@@ -550,7 +551,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
                 centroids[c][d] /= Math.max(counts[c], 1);
             }
         }
-        IntFunction<float[]> centroidGetter = i -> centroids[assignments[i]];
+        CheckedIntFunction<float[], IOException> centroidGetter = i -> centroids[assignments[i]];
 
         // Train
         AsymmetricHashingQuantizer ash = new AsymmetricHashingQuantizer(

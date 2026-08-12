@@ -587,6 +587,18 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
     }
 
+    @Override
+    public final void setUp() throws Exception {
+        // use an @Before method for per-test setup
+        super.setUp();
+    }
+
+    @Override
+    public final void tearDown() throws Exception {
+        // use an @After method for per-test cleanup
+        super.tearDown();
+    }
+
     @Before
     public void setHeaderWarningAppender() {
         this.headerWarningAppender = HeaderWarningAppender.createAppender("header_warning", null);
@@ -739,6 +751,16 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     public void ensureNoWarnings() {
         assertThat("unexpected warning headers", filterOutExcludedWarnings(getActualWarningStrings(true)), empty());
+    }
+
+    /**
+     * Reads and clears the deprecation warnings currently recorded on the thread context, returning the raw warning
+     * messages. Like {@link #assertWarnings}, this consumes the warnings so a subsequent {@link #ensureNoWarnings()}
+     * passes; it exists for tests that must combine ThreadContext warnings with warnings captured through another
+     * channel before asserting on the union.
+     */
+    protected final List<String> takeResponseWarnings() {
+        return getActualWarningStrings(true);
     }
 
     @UpdateForV10(owner = UpdateForV10.Owner.CORE_INFRA) // remove

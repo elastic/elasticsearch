@@ -418,7 +418,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 plan.indexMode(),
                 esIndex.originalIndices(),
                 esIndex.concreteIndices(),
-                esIndex.indexNameWithModes(),
+                esIndex.indexProperties(),
                 attributes.isEmpty() ? NO_FIELDS : attributes
             );
         }
@@ -556,7 +556,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 IndexMode.STANDARD,
                 esIndex.originalIndices(),
                 esIndex.concreteIndices(),
-                esIndex.indexNameWithModes(),
+                esIndex.indexProperties(),
                 attributes.isEmpty() ? NO_FIELDS : attributes
             );
         }
@@ -615,7 +615,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 IndexMode.STANDARD,
                 esIndex.originalIndices(),
                 esIndex.concreteIndices(),
-                esIndex.indexNameWithModes(),
+                esIndex.indexProperties(),
                 attributes.isEmpty() ? NO_FIELDS : attributes
             );
         }

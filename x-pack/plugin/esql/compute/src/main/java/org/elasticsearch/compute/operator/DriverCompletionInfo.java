@@ -305,6 +305,17 @@ public record DriverCompletionInfo(
         Set<String> warnings;
         if (in.getTransportVersion().supports(ESQL_DRIVER_WARNINGS)) {
             warnings = Collections.unmodifiableSet(in.readCollection(LinkedHashSet::new, (stream, set) -> set.add(stream.readString())));
+        } else if (threadContext != null) {
+            List<String> headerWarnings = threadContext.getResponseHeaders().getOrDefault("Warning", List.of());
+            if (headerWarnings.isEmpty()) {
+                warnings = Set.of();
+            } else {
+                LinkedHashSet<String> parsed = new LinkedHashSet<>(headerWarnings.size());
+                for (String header : headerWarnings) {
+                    parsed.add(HeaderWarning.extractWarningValueFromWarningHeader(header, false));
+                }
+                warnings = parsed;
+            }
         } else {
             List<String> headerWarnings = threadContext.getResponseHeaders().getOrDefault("Warning", List.of());
             if (headerWarnings.isEmpty()) {

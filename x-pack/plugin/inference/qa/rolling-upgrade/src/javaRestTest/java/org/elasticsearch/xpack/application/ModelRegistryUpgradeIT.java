@@ -89,8 +89,8 @@ public class ModelRegistryUpgradeIT extends InferenceUpgradeTestCase {
                 }
             }
         } else if (isMixedCluster()) {
-            // The core scenario of the mapping-update-on-write path: creating a NEW endpoint on an
-            // upgraded node while old-version nodes (typically including the elected master) are
+            // The core scenario of the mapping-update-on-write path: a write to .inference executed by
+            // an upgraded node while old-version nodes (typically including the elected master) are
             // still in the cluster. The write must first upgrade the .inference mappings via the
             // origin-carrying put-mapping, which an old-version master is required to accept even
             // though the mappings are ahead of its own descriptor.
@@ -101,6 +101,22 @@ public class ModelRegistryUpgradeIT extends InferenceUpgradeTestCase {
                     new HttpHost[] { HttpHost.create("http://" + getUpgradeCluster().getHttpAddress(0)) }
                 )
             ) {
+                // The region policy PUT is the write path that deterministically runs on the receiving
+                // node: TransportPutRegionPolicyAction is a HandledTransportAction (not master-forwarded),
+                // so the upgraded node executes withUpToDateMappings locally and must force-install its
+                // latest mappings past the old-version master before storing the document.
+                var putPolicyRequest = new Request("PUT", "_inference/_region_policy");
+                putPolicyRequest.addParameter("force", "true");
+                putPolicyRequest.setJsonEntity("{\"region_policy\": {\"allowed_geos\": [\"us\"]}}");
+                assertOK(upgradedNodeClient.performRequest(putPolicyRequest));
+
+                assertInferenceIndexMappingsAreCurrent(upgradedNodeClient);
+                assertRegionPolicyDocHasDocType(upgradedNodeClient);
+
+                // Endpoint creation must keep working during the mixed phase. Note that PUT inference
+                // is a master-node action: whichever node receives the request, the elected master
+                // (possibly an old-version node) stores the endpoint, so the stored document may
+                // legitimately lack the doc_type field — the endpoint listing query must tolerate both.
                 String inferenceId = "test-inference-mixed-" + upgradedNodes;
                 try {
                     embeddingsServer.enqueue(new MockResponse().setResponseCode(200).setBody(embeddingResponse(randomIntBetween(2, 50))));
@@ -110,16 +126,6 @@ public class ModelRegistryUpgradeIT extends InferenceUpgradeTestCase {
                 } finally {
                     embeddingsServer.clearRequests();
                 }
-
-                assertInferenceIndexMappingsAreCurrent(upgradedNodeClient);
-                assertEndpointDocHasDocType(upgradedNodeClient, inferenceId);
-
-                // Store the other document type that shares the .inference index and verify that
-                // endpoint listings are not polluted by it.
-                var putPolicyRequest = new Request("PUT", "_inference/_region_policy");
-                putPolicyRequest.addParameter("force", "true");
-                putPolicyRequest.setJsonEntity("{\"allowed_geos\": [\"us\"]}");
-                assertOK(upgradedNodeClient.performRequest(putPolicyRequest));
 
                 assertEndpointListingsContainOnlyEndpoints(upgradedNodeClient, inferenceId);
             }
@@ -150,26 +156,25 @@ public class ModelRegistryUpgradeIT extends InferenceUpgradeTestCase {
         assertThat(((Number) version).intValue(), equalTo(latestMappingsVersion));
     }
 
-    /** Asserts the endpoint document stored during the mixed phase carries the {@code doc_type} field. */
+    /**
+     * Asserts the region policy document stored during the mixed phase carries the {@code doc_type}
+     * field. Unlike endpoint documents (stored by the elected master, which may run old code during
+     * the mixed phase), the region policy document is deterministically written by the upgraded node.
+     */
     @SuppressWarnings("unchecked")
-    private void assertEndpointDocHasDocType(RestClient upgradedNodeClient, String inferenceId) throws IOException {
-        var refreshRequest = new Request("POST", "/.inference/_refresh");
-        allowSystemIndexAccessWarnings(refreshRequest);
-        assertOK(upgradedNodeClient.performRequest(refreshRequest));
-
+    private void assertRegionPolicyDocHasDocType(RestClient upgradedNodeClient) throws IOException {
         var searchRequest = new Request("GET", "/.inference/_search");
         allowSystemIndexAccessWarnings(searchRequest);
-        // Endpoint config documents store their inference id in the index-only "model_id" field.
-        searchRequest.setJsonEntity(Strings.format("{\"query\":{\"term\":{\"model_id\":\"%s\"}}}", inferenceId));
+        searchRequest.setJsonEntity(
+            Strings.format(
+                "{\"query\":{\"term\":{\"%s\":\"%s\"}}}",
+                InferenceIndexDocTypeField.DOC_TYPE_FIELD,
+                InferenceIndexDocTypeField.REGION_POLICY_TYPE
+            )
+        );
         var response = entityAsMap(upgradedNodeClient.performRequest(searchRequest));
         var hits = (List<Map<String, Object>>) XContentMapValues.extractValue("hits.hits", response);
-        assertThat("Expected exactly one config document for [" + inferenceId + "]", hits, hasSize(1));
-        var source = (Map<String, Object>) hits.get(0).get("_source");
-        assertThat(
-            "Endpoint documents created after the mapping upgrade must be typed",
-            source.get(InferenceIndexDocTypeField.DOC_TYPE_FIELD),
-            equalTo(InferenceIndexDocTypeField.ENDPOINT_CONFIG_TYPE)
-        );
+        assertThat("Expected exactly one region policy document typed with doc_type", hits, hasSize(1));
     }
 
     /**

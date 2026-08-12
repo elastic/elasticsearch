@@ -38,6 +38,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
 import java.util.ArrayList;
@@ -62,10 +63,8 @@ public class InferenceIndexMappingManagerTests extends ESTestCase {
     private Client mockClient;
     private SystemIndexDescriptor descriptor;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-
+    @Before
+    public void setUpMocks() {
         mockClient = mock(Client.class);
         ThreadPool mockThreadPool = mock(ThreadPool.class);
         when(mockClient.threadPool()).thenReturn(mockThreadPool);

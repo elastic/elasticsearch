@@ -480,10 +480,16 @@ public class SchemaCompilerTests extends ESTestCase {
             }
             assertNull(info.multiTokenBitmaskPerDelimiterPartPosition);
         }
-        // A pure boundary character (not declared as a special subToken delimiter by any token type) has no delimiter position info.
+        // A pure boundary character (not declared as a special subToken delimiter by any token type) carries an all-zero per-position
+        // token bitmask - non-null so the parser can route an INTERIOR boundary through sub-token finalization, all-zero so it narrows the
+        // token bitmask to zero (no token format uses this boundary as an interior sub-token delimiter). Its subToken generator stays null
+        // and it is not a special subToken delimiter.
         CharSpecificParsingInfo boundaryInfo = charSpecificParsingInfos[';'];
         assertNotNull("CharSpecificParsingInfo should be defined for token boundary char: ';'", boundaryInfo);
-        assertNull(boundaryInfo.tokenBitmaskPerDelimiterPosition);
+        assertNotNull("pure boundary char should have an (all-zero) tokenBitmaskPerDelimiterPosition", boundaryInfo.tokenBitmaskPerDelimiterPosition);
+        for (int bitmask : boundaryInfo.tokenBitmaskPerDelimiterPosition) {
+            assertEquals("pure boundary char's per-position token bitmask must be all-zero", 0, bitmask);
+        }
         assertNull(boundaryInfo.bitmaskGeneratorPerPosition);
         assertFalse("';' should NOT be a special subToken delimiter", compiledSchema.isSpecialSubTokenDelimiter[';']);
 

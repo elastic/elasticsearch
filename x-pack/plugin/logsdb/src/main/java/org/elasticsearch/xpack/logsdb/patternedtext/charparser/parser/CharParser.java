@@ -28,8 +28,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.function.ToIntFunction;
 
+import static org.elasticsearch.xpack.logsdb.patternedtext.charparser.common.CharCodes.ALPHABETIC_CHAR_CODE;
 import static org.elasticsearch.xpack.logsdb.patternedtext.charparser.common.CharCodes.DIGIT_CHAR_CODE;
 import static org.elasticsearch.xpack.logsdb.patternedtext.charparser.common.CharCodes.LINE_END_CODE;
+import static org.elasticsearch.xpack.logsdb.patternedtext.charparser.common.CharCodes.OTHER_CHAR_CODE;
 import static org.elasticsearch.xpack.logsdb.patternedtext.charparser.common.CharCodes.SUBTOKEN_DELIMITER_CHAR_CODE;
 import static org.elasticsearch.xpack.logsdb.patternedtext.charparser.common.CharCodes.TOKEN_BOUNDARY_CHAR_CODE;
 import static org.elasticsearch.xpack.logsdb.patternedtext.charparser.common.CharCodes.TOKEN_DELIMITER_CHAR_CODE;
@@ -267,6 +269,26 @@ public final class CharParser implements Parser {
                 currentSubTokenStartIndex = indexWithinRawMessage;
             }
 
+            // A token-boundary character that occurs after content is only tentatively a trailing suffix: we cannot yet know (without
+            // looking ahead) whether it trails the sub-token or is interior to it. We therefore defer the decision - the boundary char just
+            // marks currentSubTokenSuffixStartIndex and parsing continues. The role is resolved retroactively here, from what came after:
+            // if a delimiter/line-end follows, the suffix was genuinely trailing (handled by the normal finalization below, unchanged); if
+            // CONTENT resumes instead, the boundary run was interior (e.g. the '[' in "sshd[24200]"). An interior boundary finalizes the
+            // current sub-token at the boundary and starts a fresh one at this content char, so the wrapped value (a process id and the
+            // like) is isolated and extracted. We must resolve this BEFORE the content char narrows the preceding sub-token's bitmask, so
+            // each split sub-token keeps a clean bitmask (this is what makes multi-group tokens like "ab[12]cd[34]" split correctly).
+            boolean interiorBoundarySplit = false;
+            if (currentSubTokenSuffixStartIndex >= 0
+                && (charType == DIGIT_CHAR_CODE || charType == ALPHABETIC_CHAR_CODE || charType == OTHER_CHAR_CODE)) {
+                // route the current sub-token through the single sub-token finalization site, treating the pending boundary run as its
+                // delimiter (the sub-token ends at currentSubTokenSuffixStartIndex). Whether this interior boundary invalidates the token
+                // or keeps it valid is decided by the SCHEMA in that finalization: the boundary char's tokenBitmaskPerDelimiterPosition is
+                // consulted (all-zero today, since no token format declares an interior boundary, so the token is narrowed to zero - which
+                // also correctly stops "2017[12[25" being read as a date; a future format like "[8744][33]" would populate real bits).
+                interiorBoundarySplit = true;
+                charType = SUBTOKEN_DELIMITER_CHAR_CODE;
+            }
+
             // The following check may break when dealing with non-ASCII characters, specifically for code points in the range
             // 0xD800 to 0xDFFF that are used for surrogate pairs (four bytes) in UTF-16. For now, we assume we only allow ASCII characters
             // in the schema settings.
@@ -280,7 +302,12 @@ public final class CharParser implements Parser {
             // and position that declares it, it must instead END the current sub-token WITHOUT being folded into its bitmask - this matters
             // for content-character delimiters such as ISO-8601 'T', whose (alphabetic) sub-token bitmask would otherwise clear the numeric
             // bits of the preceding sub-token before we even recognize it as a delimiter.
-            if (isSpecialSubTokenDelimiter[currentChar] == false
+            // When splitting on an interior boundary the current char belongs to the NEXT sub-token, not the one being finalized, so we must
+            // not fold it into the current (preceding) sub-token's bitmask here - it is applied to the fresh sub-token after finalization.
+            //noinspection StatementWithEmptyBody
+            if (interiorBoundarySplit) {
+                // no-op: preserve the preceding sub-token's bitmask untouched
+            } else if (isSpecialSubTokenDelimiter[currentChar] == false
                 || currentTokenBitmask == 0
                 || currentSubTokenStartIndex == indexWithinRawMessage) {
                 currentSubTokenBitmask &= charToSubTokenBitmask[currentChar];
@@ -360,7 +387,12 @@ public final class CharParser implements Parser {
                         // no need to evaluate specific subToken types, the generic type would be enough to create generic arguments
                         flushBufferedInfo = true;
                     } else {
-                        delimiterParsingInfo = charSpecificParsingInfos[currentChar];
+                        // on an interior-boundary split the delimiter is the boundary char at currentSubTokenSuffixStartIndex, NOT
+                        // currentChar (which is the first content char of the next sub-token) - attribute the finalization to it so the
+                        // schema decides whether the token survives the interior boundary
+                        delimiterParsingInfo = charSpecificParsingInfos[interiorBoundarySplit
+                            ? rawMessage.charAt(currentSubTokenSuffixStartIndex)
+                            : currentChar];
 
                         // update the current token bitmask to include only valid tokens with the current delimiter character in the
                         // current subToken position
@@ -732,6 +764,18 @@ public final class CharParser implements Parser {
                     }
                     break;
                 default:
+            }
+
+            if (interiorBoundarySplit) {
+                // the sub-token before the interior boundary has just been finalized (and sub-token state reset); the current content
+                // char is the first char of the fresh sub-token that follows the boundary. Apply its per-char contribution here, mirroring
+                // the normal narrowing/digit handling that the switch performed for the (now finalized) preceding sub-token.
+                currentSubTokenStartIndex = indexWithinRawMessage;
+                currentSubTokenBitmask &= charToSubTokenBitmask[currentChar];
+                if (charToCharType[currentChar] == DIGIT_CHAR_CODE) {
+                    isCurSubTokenContainsDigits = true;
+                    currentSubTokenIntValue = currentSubTokenIntValue * 10 + currentChar - '0';
+                }
             }
         }
         return templateArguments;

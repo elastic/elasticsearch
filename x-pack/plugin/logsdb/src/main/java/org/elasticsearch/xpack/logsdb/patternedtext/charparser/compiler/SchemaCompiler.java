@@ -453,7 +453,10 @@ public class SchemaCompiler {
                 );
                 // If this boundary character is also declared as a special subToken delimiter by some token type, build its per-position
                 // token bitmask and subToken generators too, so the parser can treat it as a subToken delimiter in exactly those contexts.
-                int[] specialTokenBitmaskPerSubTokenIndex = null;
+                // The default per-position token bitmask is all-zero (not null): when the parser routes an INTERIOR boundary through
+                // sub-token finalization it consults this array, so an all-zero default narrows the token bitmask to zero (no token format
+                // uses this boundary as an interior sub-token delimiter). A format that DOES (e.g. "[8744][33]") overrides it below.
+                int[] specialTokenBitmaskPerSubTokenIndex = new int[maxSubTokensPerToken];
                 ToIntFunction<SubstringView>[] specialSubTokenBitmaskGeneratorPerSubTokenIndices = null;
                 ArrayList<Integer> boundaryTokenBitmaskPerSubTokenIndexArray = delimiterCharToTokenBitmaskPerSubTokenIndex.get(
                     tokenBoundaryCharacter

@@ -28,6 +28,38 @@ public class ParserTests extends ESTestCase {
         patternedMessage = new StringBuilder();
     }
 
+    public void testQuoteAndParenWrappedInteriorNumber() throws ParseException {
+        // consecutive interior boundary chars of DIFFERENT kinds (paren + double-quote) wrapping a value
+        String message = "event(\"500\") ok";
+        List<Argument<?>> parsedArguments = parser.parse(message);
+        Parser.constructPattern(message, parsedArguments, patternedMessage, true);
+        assertEquals("event(\"%I\") ok", patternedMessage.toString());
+    }
+
+    public void testSingleQuoteAndParenWrappedInteriorNumber() throws ParseException {
+        String message = "event('500') ok";
+        List<Argument<?>> parsedArguments = parser.parse(message);
+        Parser.constructPattern(message, parsedArguments, patternedMessage, true);
+        assertEquals("event('%I') ok", patternedMessage.toString());
+    }
+
+    public void testEmptyInteriorBracketRunStaysLiteral() throws ParseException {
+        // an empty interior boundary run ("[]") with content after it splits on the run but extracts nothing from it;
+        // "sshd[]" (no content after the run) is a plain trailing suffix and is untouched
+        String message = "foo[]bar 9";
+        List<Argument<?>> parsedArguments = parser.parse(message);
+        Parser.constructPattern(message, parsedArguments, patternedMessage, true);
+        assertEquals("foo[]bar %I", patternedMessage.toString());
+    }
+
+    public void testMultipleInteriorGroupsEachExtracted() throws ParseException {
+        // several interior groups in one token each split and extract independently
+        String message = "req(1)id(2)seq(3)";
+        List<Argument<?>> parsedArguments = parser.parse(message);
+        Parser.constructPattern(message, parsedArguments, patternedMessage, true);
+        assertEquals("req(%I)id(%I)seq(%I)", patternedMessage.toString());
+    }
+
     public void testSimpleIpAndNumber() throws ParseException {
         String messageWithIpAndNumber = "Response from 127.0.0.1 took 2000 ms";
         List<Argument<?>> parsedArguments = parser.parse(messageWithIpAndNumber);
@@ -350,6 +382,91 @@ public class ParserTests extends ESTestCase {
         List<Argument<?>> parsedArguments = parser.parse(message);
         Parser.constructPattern(message, parsedArguments, patternedMessage, true);
         assertEquals("x|%I|y", patternedMessage.toString());
+    }
+
+    // ---- Grouping brackets () [] {} are sub-token delimiters: a value wrapped by brackets is extracted even
+    // when the bracket is INTERIOR (content before it), e.g. a process id. Empty sub-tokens (from a bracket at
+    // a token edge) are skipped, so bracket-wrapped typed values (IPv4, timestamps) are still recognized. ----
+
+    public void testInteriorBracketExtractsNumber() throws ParseException {
+        String message = "sshd[24200] authentication";
+        List<Argument<?>> parsedArguments = parser.parse(message);
+        Parser.constructPattern(message, parsedArguments, patternedMessage, true);
+        assertEquals("sshd[%I] authentication", patternedMessage.toString());
+    }
+
+    public void testInteriorParenAndBracketExtractNumber() throws ParseException {
+        String message = "sshd(pam_unix)[19939] failure";
+        List<Argument<?>> parsedArguments = parser.parse(message);
+        Parser.constructPattern(message, parsedArguments, patternedMessage, true);
+        assertEquals("sshd(pam_unix)[%I] failure", patternedMessage.toString());
+    }
+
+    public void testInteriorParenExtractsNumber() throws ParseException {
+        String message = "worker(4739) done";
+        List<Argument<?>> parsedArguments = parser.parse(message);
+        Parser.constructPattern(message, parsedArguments, patternedMessage, true);
+        assertEquals("worker(%I) done", patternedMessage.toString());
+    }
+
+    public void testBracketWrappedIpv4StillRecognized() throws ParseException {
+        // regression guard: a bracket at a token EDGE still strips (empty sub-token skipped) so the IPv4 matches
+        String message = "from [192.168.1.1] port 22";
+        List<Argument<?>> parsedArguments = parser.parse(message);
+        Parser.constructPattern(message, parsedArguments, patternedMessage, true);
+        assertEquals("from [%4] port %I", patternedMessage.toString());
+    }
+
+    public void testCommaStaysBoundaryNotDelimiter() throws ParseException {
+        // regression guard: ',' remains a boundary char (not reclassified), so its behavior is unchanged
+        String message = "close, 5 bytes";
+        List<Argument<?>> parsedArguments = parser.parse(message);
+        Parser.constructPattern(message, parsedArguments, patternedMessage, true);
+        assertEquals("close, %I bytes", patternedMessage.toString());
+    }
+
+    public void testConsecutiveInteriorBracketsWrapNumber() throws ParseException {
+        // corner case: a run of consecutive interior boundary chars before the value ("[(") - the whole run stays
+        // literal and only the wrapped number is extracted
+        String message = "sshd[(19939)] failure";
+        List<Argument<?>> parsedArguments = parser.parse(message);
+        Parser.constructPattern(message, parsedArguments, patternedMessage, true);
+        assertEquals("sshd[(%I)] failure", patternedMessage.toString());
+    }
+
+    public void testConsecutiveEdgeBracketsWrapIpv4() throws ParseException {
+        // regression guard: consecutive boundary chars at a token EDGE are all stripped as prefixes/suffix, so the
+        // wrapped IPv4 is still recognized as a single typed value
+        String message = "peer [(1.2.3.4)] up";
+        List<Argument<?>> parsedArguments = parser.parse(message);
+        Parser.constructPattern(message, parsedArguments, patternedMessage, true);
+        assertEquals("peer [(%4)] up", patternedMessage.toString());
+    }
+
+    // KNOWN LIMITATION (documented, not a defect): a typed multi-token value (IPv4, timestamp, ...) that DIRECTLY abuts
+    // an interior boundary with no delimiter in between loses its compound type. An interior boundary invalidates the
+    // in-progress typed token (the same rule that correctly stops "2017[12[25" being read as a date), so the value
+    // decomposes into its component sub-tokens. Crucially each component is still extracted, so the template stays
+    // STABLE across values (no per-value explosion) - it is just not recognized as %4/%T. Real logs avoid this by
+    // separating the value from the bracket (e.g. "ip:port", or "[ip] port" with a space), so it rarely bites. These
+    // tests pin the current behavior; if a future change makes such values keep their %4/%T type, update them.
+
+    public void testTypedValueAbuttingInteriorBracketLosesCompoundType() throws ParseException {
+        // IPv4 immediately followed by an interior bracket+digit: %4 decomposes to four %I, and the wrapped number is
+        // still extracted - stable template, just not %4
+        String message = "1.2.3.4[5] x";
+        List<Argument<?>> parsedArguments = parser.parse(message);
+        Parser.constructPattern(message, parsedArguments, patternedMessage, true);
+        assertEquals("%I.%I.%I.%I[%I] x", patternedMessage.toString());
+    }
+
+    public void testEdgeBracketedTypedValueAbuttingContentLosesCompoundType() throws ParseException {
+        // edge-bracketed IPv4 immediately followed by content (no delimiter after ']'): the ']' turns out to be interior
+        // (content resumes), so %4 decomposes to four %I
+        String message = "[1.2.3.4]x done";
+        List<Argument<?>> parsedArguments = parser.parse(message);
+        Parser.constructPattern(message, parsedArguments, patternedMessage, true);
+        assertEquals("[%I.%I.%I.%I]x done", patternedMessage.toString());
     }
 
     public void testNumberArgumentsWithSign() throws ParseException {

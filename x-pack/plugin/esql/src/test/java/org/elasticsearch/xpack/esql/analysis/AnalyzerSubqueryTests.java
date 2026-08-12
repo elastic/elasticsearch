@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.PackDimsAgg;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.index.EsIndex;
@@ -969,10 +970,13 @@ public class AnalyzerSubqueryTests extends ESTestCase {
      *             \_EsRelation[sample_data][@timestamp{f}#2349, client_ip{f}#2350, event_durati..]
      */
     public void testTSSubqueryWithConflictingTypesInUnionAll() {
-        LogicalPlan plan = analyzer().addK8sDownsampled().addSampleData().query("""
-            FROM (TS k8s | STATS m = max(rate(network.total_bytes_in)) BY cluster),
-              (FROM sample_data | EVAL m = "abc")
-            """);
+        LogicalPlan plan = analyzer().minimumTransportVersion(PackDimsAgg.PACK_DIMS_AGG_VERSION)
+            .addK8sDownsampled()
+            .addSampleData()
+            .query("""
+                FROM (TS k8s | STATS m = max(rate(network.total_bytes_in)) BY cluster),
+                  (FROM sample_data | EVAL m = "abc")
+                """);
 
         Limit limit = as(plan, Limit.class);
         UnionAll unionAll = as(limit.child(), UnionAll.class);

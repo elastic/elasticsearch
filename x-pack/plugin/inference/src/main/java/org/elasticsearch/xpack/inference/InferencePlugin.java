@@ -299,7 +299,6 @@ public class InferencePlugin extends Plugin
     private final SetOnce<ShardBulkInferenceActionFilter> shardBulkInferenceActionFilter = new SetOnce<>();
     private final SetOnce<ModelRegistry> modelRegistry = new SetOnce<>();
     private final SetOnce<CCMFeature> ccmFeature = new SetOnce<>();
-    private final SetOnce<SystemIndexDescriptor> inferenceIndexDescriptor = new SetOnce<>();
     private final SetOnce<InferenceIndexMappingManager> inferenceIndexManager = new SetOnce<>();
     private List<InferenceServiceExtension> inferenceServiceExtensions;
     private final SetOnce<AuthorizationTaskExecutor> authorizationTaskExecutorRef = new SetOnce<>();
@@ -386,8 +385,7 @@ public class InferencePlugin extends Plugin
         var amazonBedrockRequestSenderFactory = new AmazonBedrockRequestSender.Factory(serviceComponents.get(), services.clusterService());
         amazonBedrockFactory.set(amazonBedrockRequestSenderFactory);
 
-        inferenceIndexDescriptor.set(createInferenceIndexDescriptor(getIndexSettings()));
-        inferenceIndexManager.set(new InferenceIndexMappingManager(services.client(), inferenceIndexDescriptor.get()));
+        inferenceIndexManager.set(new InferenceIndexMappingManager(services.client(), createInferenceIndexDescriptor(getIndexSettings())));
 
         modelRegistry.set(new ModelRegistry(services.clusterService(), services.client(), inferenceIndexManager.get()));
         services.clusterService().addListener(modelRegistry.get());
@@ -732,14 +730,18 @@ public class InferencePlugin extends Plugin
 
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-        // Use the cached descriptor when createComponents() has already been called (production path);
-        // fall back to creating a new one for contexts where createComponents() is not invoked (e.g. tests).
-        SystemIndexDescriptor descriptor = inferenceIndexDescriptor.get() != null
-            ? inferenceIndexDescriptor.get()
-            : createInferenceIndexDescriptor(getIndexSettings());
-        return List.of(descriptor, createInferenceSecretsIndexDescriptor(), createCCMIndexDescriptor());
+        return List.of(
+            createInferenceIndexDescriptor(getIndexSettings()),
+            createInferenceSecretsIndexDescriptor(),
+            createCCMIndexDescriptor()
+        );
     }
 
+    /**
+     * Creates the descriptor for the inference system index
+     * @param indexSettings the index settings
+     * @return the descriptor
+     */
     public static SystemIndexDescriptor createInferenceIndexDescriptor(Settings indexSettings) {
         SystemIndexDescriptor.Builder builder = SystemIndexDescriptor.builder()
             .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)

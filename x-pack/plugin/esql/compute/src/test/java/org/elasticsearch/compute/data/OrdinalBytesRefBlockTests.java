@@ -216,10 +216,7 @@ public class OrdinalBytesRefBlockTests extends BlockTestCase<BytesRefBlock, Ordi
     public void testEqualsRegularBytesRefVector() throws Exception {
         int positions = randomIntBetween(1, 100);
         List<List<BytesRef>> expected = denseExpectedValues(positions);
-        try (
-            BytesRefBlock ordinal = buildBlock(blockFactory(), expected);
-            BytesRefBlock regular = buildRegularBlock(expected)
-        ) {
+        try (BytesRefBlock ordinal = buildBlock(blockFactory(), expected); BytesRefBlock regular = buildRegularBlock(expected)) {
             assertThat(ordinal, instanceOf(OrdinalBytesRefBlock.class));
             assertTrue(BytesRefBlock.equals(ordinal, regular));
             assertTrue(BytesRefVector.equals(ordinal.asVector(), regular.asVector()));
@@ -237,10 +234,7 @@ public class OrdinalBytesRefBlockTests extends BlockTestCase<BytesRefBlock, Ordi
 
     public void testEqualsRegularBytesRefBlock() throws Exception {
         List<List<BytesRef>> expected = mixedExpectedForEquals();
-        try (
-            BytesRefBlock ordinal = buildBlock(blockFactory(), expected);
-            BytesRefBlock regular = buildRegularBlock(expected)
-        ) {
+        try (BytesRefBlock ordinal = buildBlock(blockFactory(), expected); BytesRefBlock regular = buildRegularBlock(expected)) {
             assertThat(ordinal, instanceOf(OrdinalBytesRefBlock.class));
             assertTrue(BytesRefBlock.equals(ordinal, regular));
             assertSerializationAtSupportedVersions(ordinal, expected);

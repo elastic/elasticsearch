@@ -52,7 +52,7 @@ The output contains the following columns, all of type `keyword`:
     across backing indices).
 
 `field_type`
-:   The Elasticsearch field type, for example `long`, `double`, `histogram`, or
+:   The Elasticsearch field type, for example `long`, `double`, `histogram`, `tdigest`, or
     `exponential_histogram` (multi-valued when definitions differ across backing indices).
 
 `dimension_fields`

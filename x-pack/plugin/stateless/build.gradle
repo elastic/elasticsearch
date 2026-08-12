@@ -22,10 +22,12 @@ configurations {
 
 dependencies {
   compileOnly project(':server')
+  compileOnly project(':libs:lucene-store')
   compileOnly project(xpackModule('core'))
   compileOnly project(xpackModule('blob-cache'))
 
   testImplementation project(':test:framework')
+  testImplementation project(':libs:lucene-store')
   testImplementation testArtifact(project(xpackModule('blob-cache')))
   testImplementation testArtifact(project(xpackModule('searchable-snapshots')))
   testImplementation 'com.amazonaws:aws-java-sdk-core:1.12.684'

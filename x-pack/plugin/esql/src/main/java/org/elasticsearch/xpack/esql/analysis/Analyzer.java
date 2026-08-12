@@ -1140,15 +1140,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             boolean changed = newGroupings != aggregate.groupings() || newAggregates != aggregate.aggregates();
             LogicalPlan maybeNewAggregate = changed ? aggregate.with(aggregate.child(), newGroupings, newAggregates) : aggregate;
 
-            if (maybeNewAggregate instanceof TimeSeriesAggregate ts && ts.timestamp() instanceof UnresolvedAttribute unresolvedTimestamp) {
-                Attribute resolved = maybeResolveAttribute(unresolvedTimestamp, childrenOutput);
-                // e.g. ENRICH p WITH @timestamp = nonexistent -> resolved is UnresolvedAttribute(@timestamp),
-                // which would crash dataType() in postAnalysisVerification.
-                if (resolved.resolved()) {
-                    return ts.withTimestamp(resolved);
-                }
-            }
-            return maybeNewAggregate;
+            return maybeNewAggregate instanceof TimeSeriesAggregate ts && ts.timestamp() instanceof UnresolvedAttribute unresolvedTimestamp
+                ? ts.withTimestamp(maybeResolveAttribute(unresolvedTimestamp, childrenOutput))
+                : maybeNewAggregate;
         }
 
         private List<Expression> maybeResolveGroupings(Aggregate aggregate, List<Attribute> childrenOutput) {

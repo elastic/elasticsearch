@@ -17,7 +17,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.shared.SharedBytes;
-import org.elasticsearch.common.io.stream.CountingStreamOutput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.SlicedOutputStream;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
@@ -296,7 +295,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
             extraContentFiles,
             timestampFieldValueRange
         );
-        final int headerLength = Math.toIntExact(headerReader.computeSize());
+        final int headerLength = Math.toIntExact(headerReader.headerSize());
 
         final long sizeInBytes = headerLength + replicatedContentHeader.dataSizeInBytes() + internalFilesSize + extraContentSize;
         if (logger.isDebugEnabled()) {
@@ -1027,6 +1026,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         private final List<InternalFile> extraContentFiles;
         @Nullable
         private final TimestampFieldValueRange timestampFieldValueRange;
+        private final long headerSize;
 
         InternalHeaderReader(
             StatelessCommitRef reference,
@@ -1036,7 +1036,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
             boolean useInternalFilesReplicatedContent,
             List<InternalFile> extraContentFiles,
             @Nullable TimestampFieldValueRange timestampFieldValueRange
-        ) {
+        ) throws IOException {
             this.reference = reference;
             this.internalFiles = internalFiles;
             this.replicatedRanges = replicatedRanges;
@@ -1044,6 +1044,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
             this.useInternalFilesReplicatedContent = useInternalFilesReplicatedContent;
             this.extraContentFiles = extraContentFiles;
             this.timestampFieldValueRange = timestampFieldValueRange;
+            this.headerSize = writeHeader(OutputStream.nullOutputStream());
         }
 
         private long writeHeader(OutputStream out) throws IOException {
@@ -1064,20 +1065,20 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
             );
         }
 
-        long computeSize() throws IOException {
-            return writeHeader(new CountingStreamOutput());
+        long headerSize() {
+            return headerSize;
         }
 
         @Override
         public InputStream getInputStream(long offset, long length) throws IOException {
-            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            var out = new ByteArrayOutputStream(Math.toIntExact(Math.clamp(headerSize - offset, 0, length)));
             writeHeader(new SlicedOutputStream(out, offset, length));
             return new ByteArrayInputStream(out.toByteArray());
         }
 
         @Override
         public InputStream getInputStream() throws IOException {
-            return getInputStream(0, Long.MAX_VALUE);
+            return getInputStream(0, headerSize);
         }
     }
 

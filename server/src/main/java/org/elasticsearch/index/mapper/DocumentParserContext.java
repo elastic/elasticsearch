@@ -583,13 +583,9 @@ public abstract class DocumentParserContext {
     }
 
     /**
-     * Tentative pre-capture variant used by {@link FallbackPostMapper}.
-     * Clones the parser sub-context (capturing XContent) and registers the result in the pending list.
-     * The caller <strong>must always</strong> follow with {@link #commitPendingPreCapture}; discarding
-     * a pre-capture is not permitted because {@code _ignored_source} is all-or-nothing per field path
-     * on the read side (see {@link FallbackPostMapper#parseField} for the full invariant). The
-     * two-phase shape exists solely so that {@link #commitPendingPreCapture} can evict a copy_to void
-     * placeholder before adding the real entry.
+     * Clones the parser sub-context (capturing XContent) and registers it in the pending list.
+     * The caller must always follow with {@link #commitPendingPreCapture} — no discard path exists
+     * because {@code _ignored_source} is all-or-nothing per field path (see {@link FallbackPostMapper#parseField}).
      */
     final DocumentParserContext addPendingPreCapture(IgnoredSourceFieldMapper.NameValue ignoredFieldWithNoSource) throws IOException {
         assert ignoredFieldWithNoSource != null;

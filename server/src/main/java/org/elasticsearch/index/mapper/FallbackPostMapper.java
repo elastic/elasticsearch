@@ -176,23 +176,10 @@ public final class FallbackPostMapper {
     }
 
     /**
-     * The single entry point for parsing a mapped leaf field.
-     *
-     * <p>Pre-capture semantics: when {@link #resolvePrecaptureReason} returns non-null, this method
-     * captures the current XContent token to {@code _ignored_source} <em>before</em> delegating to
-     * {@link FieldMapper#parse}, and unconditionally commits that capture afterward.
-     *
-     * <p>The commit is unconditional by design. {@code _ignored_source} is an <em>all-or-nothing</em>
-     * structure per field path on the read side: as soon as any {@code _ignored_source} entry names a
-     * field, {@link ObjectMapper}'s synthetic-source field loader suppresses that field's entire
-     * native loader (see {@code prepare()}). A per-value commit/discard decision would leave a partial array
-     * in {@code _ignored_source}, causing values served by other storage (e.g. {@code ._ignore_malformed})
-     * to be silently lost.
-     *
-     * <p>{@link #resolvePrecaptureReason} is a pure function of {@code (mapper, context)} that never
-     * inspects the parsed value, so its result is uniform across every element of a multi-valued field.
-     * The commit therefore applies uniformly too. Multiple committed entries for the same path are merged
-     * in document order by {@code ObjectMapper.FieldWriter.IgnoredSource.mergeWith}.
+     * The single entry point for parsing a mapped leaf field. When {@link #resolvePrecaptureReason}
+     * returns non-null, captures the XContent token to {@code _ignored_source} before delegating to
+     * {@link FieldMapper#parse}, then commits unconditionally: any {@code _ignored_source} entry for a
+     * path suppresses the entire native loader for that field, so partial commits silently lose values.
      */
     public static void parseField(DocumentParserContext context, FieldMapper fieldMapper) throws IOException {
         String fieldPath = fieldMapper.fullPath();

@@ -29,7 +29,9 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -278,6 +280,151 @@ public class InferenceIndexMappingManagerTests extends ESTestCase {
             ((ElasticsearchStatusException) callerListener.failure).status(),
             equalTo(RestStatus.TOO_MANY_REQUESTS)
         );
+    }
+
+    public void testPutMappingIndexNotFound_fallsBackToCreateIndex() {
+        // The local cluster state says the index exists with stale mappings, but it is deleted
+        // (e.g. DELETE .inference or a feature-state reset) before the put-mapping is processed.
+        ClusterState clusterState = clusterStateWithIndex(InferenceIndex.INDEX_NAME, InferenceIndex.mappingsV3());
+        InferenceIndexMappingManager manager = new InferenceIndexMappingManager(mockClient, descriptor);
+
+        List<ActionListener<AcknowledgedResponse>> putMappingListeners = new ArrayList<>();
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<AcknowledgedResponse> listener = invocation.getArgument(2);
+            putMappingListeners.add(listener);
+            return null;
+        }).when(mockClient).execute(eq(TransportPutMappingAction.TYPE), any(), any());
+        List<ActionListener<CreateIndexResponse>> createListeners = new ArrayList<>();
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<CreateIndexResponse> listener = invocation.getArgument(2);
+            createListeners.add(listener);
+            return null;
+        }).when(mockClient).execute(eq(TransportCreateIndexAction.TYPE), any(), any());
+
+        TestActionListener callerListener = new TestActionListener();
+        manager.withUpToDateMappings(clusterState, callerListener);
+
+        assertThat("PutMapping should have been requested first", putMappingListeners, hasSize(1));
+        putMappingListeners.get(0).onFailure(new IndexNotFoundException(InferenceIndex.INDEX_NAME));
+
+        assertThat("CreateIndex must be issued when the index vanished under the put-mapping", createListeners, hasSize(1));
+        assertFalse("Caller listener should not be notified until the fallback completes", callerListener.completed);
+
+        createListeners.get(0).onResponse(new CreateIndexResponse(true, true, InferenceIndex.INDEX_NAME));
+
+        assertThat("A follow-up PutMapping should follow the successful create", putMappingListeners, hasSize(2));
+        putMappingListeners.get(1).onResponse(AcknowledgedResponse.of(true));
+
+        assertTrue("Caller listener must be notified after the create fallback completes", callerListener.completed);
+        assertNull("No failure should be reported", callerListener.failure);
+    }
+
+    public void testPutMappingIndexNotFoundAfterCreateFallback_failurePropagates() {
+        // Pathological ping-pong scenario: put-mapping fails with IndexNotFoundException, the create
+        // fallback reports the index already exists, and the second put-mapping fails with
+        // IndexNotFoundException again. The cycle must not loop: the failure is propagated.
+        ClusterState clusterState = clusterStateWithIndex(InferenceIndex.INDEX_NAME, InferenceIndex.mappingsV3());
+        InferenceIndexMappingManager manager = new InferenceIndexMappingManager(mockClient, descriptor);
+
+        List<ActionListener<AcknowledgedResponse>> putMappingListeners = new ArrayList<>();
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<AcknowledgedResponse> listener = invocation.getArgument(2);
+            putMappingListeners.add(listener);
+            return null;
+        }).when(mockClient).execute(eq(TransportPutMappingAction.TYPE), any(), any());
+        List<ActionListener<CreateIndexResponse>> createListeners = new ArrayList<>();
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<CreateIndexResponse> listener = invocation.getArgument(2);
+            createListeners.add(listener);
+            return null;
+        }).when(mockClient).execute(eq(TransportCreateIndexAction.TYPE), any(), any());
+
+        TestActionListener callerListener = new TestActionListener();
+        manager.withUpToDateMappings(clusterState, callerListener);
+
+        assertThat("PutMapping should have been requested first", putMappingListeners, hasSize(1));
+        putMappingListeners.get(0).onFailure(new IndexNotFoundException(InferenceIndex.INDEX_NAME));
+
+        assertThat("CreateIndex must be issued as the fallback", createListeners, hasSize(1));
+        createListeners.get(0).onFailure(new ResourceAlreadyExistsException(InferenceIndex.INDEX_NAME));
+
+        assertThat("The create fallback falls through to a second PutMapping", putMappingListeners, hasSize(2));
+        IndexNotFoundException secondFailure = new IndexNotFoundException(InferenceIndex.INDEX_NAME);
+        putMappingListeners.get(1).onFailure(secondFailure);
+
+        assertThat("No second CreateIndex may be issued — the fallback must not loop", createListeners, hasSize(1));
+        assertTrue("Caller listener must receive the failure", callerListener.completed);
+        assertSame("The put-mapping failure must be forwarded unchanged", secondFailure, callerListener.failure);
+    }
+
+    public void testCreateIndexRejectedAsExistingAlias_fallsThroughToPutMapping() {
+        // The local cluster state says the index is absent, but by the time the create reaches the
+        // master the name exists as an alias (post system-index-migration). For an existing alias the
+        // master rejects the create with InvalidIndexNameException, not ResourceAlreadyExistsException.
+        ClusterState clusterState = emptyClusterState();
+        InferenceIndexMappingManager manager = new InferenceIndexMappingManager(mockClient, descriptor);
+
+        List<ActionListener<AcknowledgedResponse>> putMappingListeners = new ArrayList<>();
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<CreateIndexResponse> listener = invocation.getArgument(2);
+            listener.onFailure(new InvalidIndexNameException(InferenceIndex.INDEX_NAME, "already exists as alias"));
+            return null;
+        }).when(mockClient).execute(eq(TransportCreateIndexAction.TYPE), any(), any());
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<AcknowledgedResponse> listener = invocation.getArgument(2);
+            putMappingListeners.add(listener);
+            return null;
+        }).when(mockClient).execute(eq(TransportPutMappingAction.TYPE), any(), any());
+
+        TestActionListener callerListener = new TestActionListener();
+        manager.withUpToDateMappings(clusterState, callerListener);
+
+        assertThat("PutMapping should be issued after InvalidIndexNameException", putMappingListeners, hasSize(1));
+        assertFalse("Caller listener should not be notified until the I/O completes", callerListener.completed);
+
+        putMappingListeners.get(0).onResponse(AcknowledgedResponse.of(true));
+
+        assertTrue("Caller listener must be notified after successful put-mapping", callerListener.completed);
+        assertNull("No failure should be reported", callerListener.failure);
+    }
+
+    public void testCreateIndexNotAcknowledged_fallsThroughToPutMapping() {
+        // An unacknowledged create means the master applied the cluster state update but not all nodes
+        // acked it within the timeout — the index exists, so the manager must proceed to put-mapping
+        // instead of failing what is a recoverable slow-cluster condition.
+        ClusterState clusterState = emptyClusterState();
+        InferenceIndexMappingManager manager = new InferenceIndexMappingManager(mockClient, descriptor);
+
+        List<ActionListener<AcknowledgedResponse>> putMappingListeners = new ArrayList<>();
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<CreateIndexResponse> listener = invocation.getArgument(2);
+            listener.onResponse(new CreateIndexResponse(false, false, InferenceIndex.INDEX_NAME));
+            return null;
+        }).when(mockClient).execute(eq(TransportCreateIndexAction.TYPE), any(), any());
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<AcknowledgedResponse> listener = invocation.getArgument(2);
+            putMappingListeners.add(listener);
+            return null;
+        }).when(mockClient).execute(eq(TransportPutMappingAction.TYPE), any(), any());
+
+        TestActionListener callerListener = new TestActionListener();
+        manager.withUpToDateMappings(clusterState, callerListener);
+
+        assertThat("PutMapping should be issued despite the unacknowledged create", putMappingListeners, hasSize(1));
+        assertFalse("Caller listener should not be notified until the I/O completes", callerListener.completed);
+
+        putMappingListeners.get(0).onResponse(AcknowledgedResponse.of(true));
+
+        assertTrue("Caller listener must be notified after successful put-mapping", callerListener.completed);
+        assertNull("No failure should be reported", callerListener.failure);
     }
 
     public void testAliasResolution_currentMappings_immediateCallback() {

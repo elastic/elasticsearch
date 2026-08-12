@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
@@ -25,6 +24,8 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndexMappingUpdateService;
 import org.elasticsearch.logging.LogManager;
@@ -109,7 +110,7 @@ public class InferenceIndexMappingManager {
             descriptor.getPrimaryIndex(),
             descriptor.getMappingsVersion().version()
         );
-        startUpdateIfNotInProgress(this::putMapping, listener);
+        startUpdateIfNotInProgress(l -> putMapping(true, l), listener);
     }
 
     /**
@@ -174,17 +175,26 @@ public class InferenceIndexMappingManager {
                 // across all nodes. In a mixed-version cluster that may be an older version, so we
                 // always follow up with a put-mapping to bring the index to the latest mappings.
                 logger.debug("Successfully created index [{}]; updating mappings to the latest version", primaryIndex);
-                putMapping(listener);
             } else {
-                logger.warn("Create index request for [{}] was not acknowledged", primaryIndex);
-                listener.onFailure(new ElasticsearchException("Create index request for [" + primaryIndex + "] was not acknowledged"));
+                // An unacknowledged create does not mean the index was not created: the master applied
+                // the cluster state update but not every node acked it within the timeout (e.g. a busy
+                // cluster). Proceed to the put-mapping, which the master resolves against its own,
+                // up-to-date state, rather than failing a recoverable slow-cluster condition.
+                logger.warn("Create index request for [{}] was not acknowledged; updating mappings anyway", primaryIndex);
             }
+            putMapping(false, listener);
         }, e -> {
-            if (ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException) {
-                // Another node created the index while we were waiting; update mappings in case
-                // it was created with an older version (e.g. by a node still running old code).
+            Throwable cause = ExceptionsHelper.unwrapCause(e);
+            if (cause instanceof ResourceAlreadyExistsException || cause instanceof InvalidIndexNameException) {
+                // ResourceAlreadyExistsException: another node created the index while we were waiting.
+                // InvalidIndexNameException: MetadataCreateIndexService.validateIndexName throws
+                // ResourceAlreadyExistsException only when the name is a concrete index; when it exists
+                // as an alias (the post-system-index-migration case) it throws
+                // InvalidIndexNameException("already exists as alias") instead. The primary index name
+                // is a fixed, always-valid name, so this exception cannot mean the name is malformed.
+                // Either way the index is there; update mappings in case it carries an older version.
                 logger.debug("Index [{}] already exists; updating mappings instead", primaryIndex);
-                putMapping(listener);
+                putMapping(false, listener);
             } else {
                 logger.warn("Failed to create index [{}]", primaryIndex, e);
                 listener.onFailure(e);
@@ -192,7 +202,20 @@ public class InferenceIndexMappingManager {
         }));
     }
 
-    private void putMapping(ActionListener<Void> listener) {
+    /**
+     * Issues a put-mapping for the primary index carrying the descriptor's latest mappings.
+     *
+     * @param fallBackToCreateOnMissingIndex whether an {@link IndexNotFoundException} should be handled
+     *                                       by creating the index. This is {@code true} only for the
+     *                                       top-level put-mapping path (the local cluster state said
+     *                                       the index existed, but it may have been deleted before the
+     *                                       request was processed); the put-mapping issued from
+     *                                       {@link #createIndex} passes {@code false}, bounding the
+     *                                       create/put-mapping fallback cycle to one round trip in
+     *                                       each direction.
+     * @param listener                       notified with the outcome
+     */
+    private void putMapping(boolean fallBackToCreateOnMissingIndex, ActionListener<Void> listener) {
         String primaryIndex = descriptor.getPrimaryIndex();
         logger.debug("Updating mappings for index [{}] to version [{}]", primaryIndex, descriptor.getMappingsVersion().version());
         // Setting the origin on the request itself exempts it from
@@ -219,8 +242,16 @@ public class InferenceIndexMappingManager {
                 );
             }
         }, e -> {
-            logger.warn("Put mapping request for [{}] failed", primaryIndex, e);
-            listener.onFailure(e);
+            if (fallBackToCreateOnMissingIndex && ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
+                // The local cluster state said the index existed, but it was deleted before the
+                // put-mapping was processed (e.g. DELETE .inference, a feature-state reset, or a
+                // system index migration in progress). Fall back to creating it.
+                logger.debug("Index [{}] was deleted before the mapping update was processed; creating it instead", primaryIndex);
+                createIndex(listener);
+            } else {
+                logger.warn("Put mapping request for [{}] failed", primaryIndex, e);
+                listener.onFailure(e);
+            }
         }));
     }
 }

@@ -1142,7 +1142,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             if (maybeNewAggregate instanceof TimeSeriesAggregate ts && ts.timestamp() instanceof UnresolvedAttribute unresolvedTimestamp) {
                 Attribute resolved = maybeResolveAttribute(unresolvedTimestamp, childrenOutput);
-                // e.g. ENRICH p WITH @timestamp = nonexistent → resolved is UnresolvedAttribute(@timestamp),
+                // e.g. ENRICH p WITH @timestamp = nonexistent -> resolved is UnresolvedAttribute(@timestamp),
                 // which would crash dataType() in postAnalysisVerification.
                 if (resolved.resolved()) {
                     return ts.withTimestamp(resolved);

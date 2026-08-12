@@ -87,10 +87,13 @@ import java.io.IOException;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 
@@ -578,9 +581,22 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         /*
          * Shift all of ESQL's carefully maintained Warnings onto the spooky ThreadLocal
          * for render.
+         *
+         * In mixed-cluster BWC scenarios, old data nodes send warnings as transport response headers
+         * which the transport layer deposits into ThreadContext. Those same warnings are also recovered
+         * into DriverCompletionInfo by the response constructors. To avoid duplicates, skip any warning
+         * whose plain text already appears in the current ThreadContext response headers.
          */
+        Set<String> existingWarnings = threadPool.getThreadContext()
+            .getResponseHeaders()
+            .getOrDefault("Warning", List.of())
+            .stream()
+            .map(s -> HeaderWarning.extractWarningValueFromWarningHeader(s, false))
+            .collect(Collectors.toCollection(HashSet::new));
         for (String warning : result.completionInfo().warnings()) {
-            HeaderWarning.addWarning(warning);
+            if (existingWarnings.contains(warning) == false) {
+                HeaderWarning.addWarning(warning);
+            }
         }
         List<ColumnInfoImpl> columns = result.schema().stream().map(c -> {
             List<String> originalTypes;

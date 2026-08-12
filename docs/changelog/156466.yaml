@@ -1,5 +1,6 @@
 area: Vector Search
 issues: []
 pr: 156466
-summary: Simplify field matching in exclude source vectors
+summary: Fix search failures on indices without vector fields when many field patterns
+  are requested
 type: bug

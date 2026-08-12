@@ -582,11 +582,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             return Tuple.tuple(fetchSourceContext, null);
         }
         // Quick check first whether the mapping contains a vector field at all, since there is otherwise nothing to exclude.
-        final List<MappedFieldType> vectorFields = mappingLookup.getFullNameToFieldType()
-            .values()
-            .stream()
-            .filter(MappedFieldType::isVectorEmbedding)
-            .toList();
+        final Set<String> vectorFields = mappingLookup.vectorEmbeddingFields();
         if (vectorFields.isEmpty()) {
             return Tuple.tuple(fetchSourceContext, null);
         }
@@ -608,17 +604,17 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         List<String> lateExcludes = new ArrayList<>();
         var excludes = vectorFields.stream().filter(f -> {
             // Keep the vector fields that are explicitly included and not explicitly excluded
-            if (filter != null && filter.isExplicitlyIncluded(f.name())) {
-                return filter.isPathFiltered(f.name(), false);
+            if (filter != null && filter.isExplicitlyIncluded(f)) {
+                return filter.isPathFiltered(f, false);
             }
             // Exclude the field specified by the `fields` option
-            if (Regex.simpleMatch(fetchFieldsPatterns, f.name())) {
-                lateExcludes.add(f.name());
+            if (Regex.simpleMatch(fetchFieldsPatterns, f)) {
+                lateExcludes.add(f);
                 return false;
             }
             // Exclude vectors from semantic text fields, as they are processed separately
-            return inferenceFieldsMatcher == null || inferenceFieldsMatcher.test(f.name()) == false;
-        }).map(MappedFieldType::name).toList();
+            return inferenceFieldsMatcher == null || inferenceFieldsMatcher.test(f) == false;
+        }).toList();
 
         var sourceFilter = excludes.isEmpty() ? null : new SourceFilter(new String[] {}, excludes.toArray(String[]::new));
         if (lateExcludes.size() > 0) {

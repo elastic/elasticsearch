@@ -9,6 +9,9 @@
 
 package org.elasticsearch.index.get;
 
+import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.search.fetch.subphase.FetchFieldsContext;
@@ -29,22 +32,32 @@ public class ExcludeVectorFieldsFromSourceTests extends MapperServiceTestCase {
     private static final String FILLER = "_filler_to_pad_the_name_";
 
     /**
-     * Builds more field patterns than {@code Regex#simpleMatchToAutomaton} can compile: this many currently throw
-     * {@code TooComplexToDeterminizeException} from it, which takes about 4000 of them to exceed its determinization work limit.
-     * Compiling the requested patterns is exactly what the code under test must not do.
+     * Builds a {@code fields} request that {@link Regex#simpleMatchToAutomaton} cannot compile, which is what a client sends when it asks
+     * for a long list of fields next to a `*`. Compiling the requested patterns is exactly what the code under test must not do.
      * <p>
-     * A string union is minimized, so shared prefixes and shared suffixes both collapse; each name therefore needs a unique head and a
-     * unique tail to contribute automaton states at all. The trailing wildcard is not a match-all so that it cannot be short circuited
-     * either.
+     * Concrete names alone never exceed the limit, at any count: {@code Automata#makeStringUnion} returns a minimal DFA and
+     * {@code Operations#determinize} short circuits on it. It is the match-all pattern that forces the subset construction, where every
+     * state of the union pairs with the always accepting state of the wildcard, which puts the ceiling at around 50000 states. Each name
+     * carries a unique head and a unique tail so that neither prefix nor suffix minimization collapses it, and is padded so that fewer
+     * of them are needed to reach that ceiling.
      */
     private static List<FieldAndFormat> fieldPatternsOverDeterminizeLimit() {
         List<FieldAndFormat> fields = new ArrayList<>();
-        for (int i = 0; i < 5000; i++) {
-            String index = String.format("%05d", i);
+        for (int i = 0; i < 2000; i++) {
+            String index = Strings.format("%05d", i);
             fields.add(new FieldAndFormat("f" + index + FILLER + new StringBuilder(index).reverse(), null));
         }
-        fields.add(new FieldAndFormat("f00000" + FILLER + "*", null));
+        fields.add(new FieldAndFormat("*", null));
         return fields;
+    }
+
+    /**
+     * Guards the fixture above: it only covers anything as long as the patterns it builds really are too many to compile. Without this the
+     * tests below keep passing if that limit ever moves, while no longer exercising the case they were written for.
+     */
+    public void testFieldPatternsCannotBeCompiledIntoAnAutomaton() {
+        String[] patterns = fieldPatternsOverDeterminizeLimit().stream().map(f -> f.field).toArray(String[]::new);
+        expectThrows(TooComplexToDeterminizeException.class, () -> Regex.simpleMatchToAutomaton(patterns));
     }
 
     private MapperService mapperServiceWithVectorField() throws IOException {
@@ -75,7 +88,8 @@ public class ExcludeVectorFieldsFromSourceTests extends MapperServiceTestCase {
 
     /**
      * The requested field patterns are matched against the vector fields one at a time, so a request carrying more patterns than can be
-     * compiled into a single automaton is still served. The vector field here matches none of them and is therefore excluded.
+     * compiled into a single automaton is still served. The match-all among them counts as asking for the vector field, which is
+     * therefore excluded late, exactly as it is when it is the only pattern.
      */
     public void testManyRequestedFieldsWithVectorFieldInMapping() throws IOException {
         MapperService mapperService = mapperServiceWithVectorField();
@@ -87,8 +101,9 @@ public class ExcludeVectorFieldsFromSourceTests extends MapperServiceTestCase {
             null,
             new FetchFieldsContext(fields)
         );
-        assertThat(result.v2(), notNullValue());
-        assertThat(result.v2().getExcludes(), arrayContaining("embedding"));
+        assertThat(result.v1(), notNullValue());
+        assertThat(result.v1().excludes(), arrayContaining("embedding"));
+        assertThat(result.v2(), nullValue());
     }
 
     /**

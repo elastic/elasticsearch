@@ -20,7 +20,9 @@ import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -76,6 +78,9 @@ public class ForceMergeIT extends ESIntegTestCase {
     }
 
     private void assertForceMergeUUIDConsistentOnAllCopies(String index, ShardCopies copies) throws IOException {
+        final String primaryForceMergeUUIDBeforeFlush = getForceMergeUUID(copies.primary());
+        final String replicaForceMergeUUIDBeforeFlush = getForceMergeUUID(copies.replica());
+
         // Force flush to force a new commit that contains the force merge UUID
         final BroadcastResponse flushResponse = indicesAdmin().prepareFlush(index).setForce(true).get();
         assertThat(flushResponse.getFailedShards(), is(0));
@@ -83,8 +88,10 @@ public class ForceMergeIT extends ESIntegTestCase {
 
         final String primaryForceMergeUUID = getForceMergeUUID(copies.primary());
         assertThat(primaryForceMergeUUID, notNullValue());
+        assertThat(primaryForceMergeUUID, not(equalTo(primaryForceMergeUUIDBeforeFlush)));
         final String replicaForceMergeUUID = getForceMergeUUID(copies.replica());
         assertThat(replicaForceMergeUUID, notNullValue());
+        assertThat(replicaForceMergeUUID, not(equalTo(replicaForceMergeUUIDBeforeFlush)));
         assertThat(primaryForceMergeUUID, is(replicaForceMergeUUID));
     }
 

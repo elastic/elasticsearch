@@ -1142,10 +1142,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             if (maybeNewAggregate instanceof TimeSeriesAggregate ts && ts.timestamp() instanceof UnresolvedAttribute unresolvedTimestamp) {
                 Attribute resolved = maybeResolveAttribute(unresolvedTimestamp, childrenOutput);
-                // Only substitute the timestamp when resolution succeeded; a plain UnresolvedAttribute in childrenOutput
-                // (e.g. from an ENRICH WITH alias that maps to a non-existent policy field) must not silently replace
-                // the UnresolvedTimestamp — doing so loses the user-friendly error message and can cause a crash in
-                // postAnalysisVerification which calls dataType() on the result.
+                // e.g. ENRICH p WITH @timestamp = nonexistent → resolved is UnresolvedAttribute(@timestamp),
+                // which would crash dataType() in postAnalysisVerification.
                 if (resolved.resolved()) {
                     return ts.withTimestamp(resolved);
                 }

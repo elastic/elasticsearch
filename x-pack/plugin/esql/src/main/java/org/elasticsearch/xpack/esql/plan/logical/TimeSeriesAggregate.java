@@ -359,9 +359,8 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
             if (timestamp instanceof UnresolvedTimestamp unresolvedTimestamp) {
                 failures.add(fail(unresolvedTimestamp, unresolvedTimestamp.unresolvedMessage()));
             } else if (timestamp instanceof UnresolvedAttribute unresolvedAttr) {
-                // A plain UnresolvedAttribute can appear here when resolution substituted it for the UnresolvedTimestamp
-                // (e.g. an ENRICH WITH clause aliased an unresolvable field to @timestamp). Use its error message so
-                // the caller gets a meaningful diagnostic rather than an internal UnresolvedException from dataType().
+                // e.g. ENRICH p WITH @timestamp = nonexistent → timestamp is UnresolvedAttribute(@timestamp);
+                // dataType() would throw UnresolvedException without this branch.
                 failures.add(fail(unresolvedAttr, unresolvedAttr.unresolvedMessage()));
             } else {
                 failures.add(

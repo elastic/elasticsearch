@@ -3907,9 +3907,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testTimeSeriesStatsUnresolvedChildColumnDoesNotCrash() {
-        // RENAME of a nonexistent field injects an UnresolvedAttribute into the Project output.
-        // A subsequent STATS lookup that also finds no match calls potentialCandidatesIfNoMatchesFound,
-        // which iterates child output and previously called dataType() on the unresolved attribute — crash.
         k8s().error(
             "TS k8s | RENAME nonexistent_src AS dummy | STATS avg(nonexistent_agg) BY tbucket = bucket(@timestamp, 1hour)",
             containsString("Unknown column [nonexistent_src]")
@@ -3917,11 +3914,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testTimeSeriesStatsEnrichWithMissingPolicyFieldDoesNotCrash() {
-        // ENRICH WITH mapping @timestamp to a non-existent policy field produces an unresolved
-        // Alias("@timestamp", UnresolvedAttribute("nonexistent_enrich_field")), whose toAttribute()
-        // yields UnresolvedAttribute("@timestamp") in the Enrich output. When STATS then looks up
-        // a nonexistent aggregate field and finds no match, potentialCandidatesIfNoMatchesFound
-        // iterated over that UnresolvedAttribute and previously called dataType() on it — crash.
         analyzer().addK8s()
             .addEnrichPolicy(EnrichPolicy.MATCH_TYPE, "my_policy", "language_code", "test_idx", "mapping-languages.json")
             .stripErrorPrefix(true)

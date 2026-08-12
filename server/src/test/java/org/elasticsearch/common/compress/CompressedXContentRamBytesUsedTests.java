@@ -30,16 +30,9 @@ public class CompressedXContentRamBytesUsedTests extends AbstractAccountableFiel
     }
 
     @Override
-    protected Set<String> fieldsExcludedFromRamBytesUsed() {
-        return Set.of();
-    }
-
-    @Override
-    protected Accountable createTestInstance() {
+    protected Accountable createRandomTestInstance() {
         try {
-            return CompressedXContent.fromJSON("""
-                { "_doc": { "properties": { "field": { "type": "keyword" } } } }
-                """);
+            return CompressedXContent.fromJSON(randomMappingJson(randomIntBetween(1, 32)));
         } catch (IOException e) {
             throw new AssertionError(e);
         }
@@ -50,21 +43,26 @@ public class CompressedXContentRamBytesUsedTests extends AbstractAccountableFiel
      * are derived independently of {@code ramBytesUsed()}'s own formula, so a systematically under-counting implementation would fail here.
      */
     public void testRamBytesUsedCoversRawPayload() {
-        CompressedXContent content = (CompressedXContent) createTestInstance();
+        CompressedXContent content = (CompressedXContent) createRandomTestInstance();
         long rawLowerBound = (long) content.compressed().length + content.getSha256().length();
         assertThat(content.ramBytesUsed(), greaterThan(rawLowerBound));
     }
 
     public void testRamBytesUsedGrowsWithPayload() throws IOException {
-        CompressedXContent small = CompressedXContent.fromJSON("""
-            { "_doc": { "properties": { "a": { "type": "keyword" } } } }
-            """);
-        StringBuilder manyFields = new StringBuilder("{ \"_doc\": { \"properties\": {");
-        for (int i = 0; i < 200; i++) {
-            manyFields.append(i == 0 ? "" : ",").append("\"field").append(i).append("\": { \"type\": \"keyword\" }");
-        }
-        manyFields.append("} } }");
-        CompressedXContent large = CompressedXContent.fromJSON(manyFields.toString());
+        CompressedXContent small = CompressedXContent.fromJSON(randomMappingJson(1));
+        CompressedXContent large = CompressedXContent.fromJSON(randomMappingJson(200));
         assertThat(large.ramBytesUsed(), greaterThan(small.ramBytesUsed()));
+    }
+
+    private static String randomMappingJson(int fieldCount) {
+        StringBuilder json = new StringBuilder("{ \"_doc\": { \"properties\": {");
+        for (int i = 0; i < fieldCount; i++) {
+            if (i > 0) {
+                json.append(',');
+            }
+            json.append("\"field").append(i).append("\": { \"type\": \"keyword\" }");
+        }
+        json.append("} } }");
+        return json.toString();
     }
 }

@@ -29,18 +29,30 @@ public class AliasMetadataRamBytesUsedTests extends AbstractAccountableFieldsTes
     }
 
     @Override
-    protected Set<String> fieldsExcludedFromRamBytesUsed() {
-        return Set.of();
+    protected boolean assertsAgainstRamUsageTester() {
+        // searchRoutingValues is a HashSet whose table/node graph RamUsageTester walks more completely than sizeOfCollection.
+        return false;
     }
 
     @Override
-    protected Accountable createTestInstance() {
-        return AliasMetadata.builder("alias")
-            .filter("{\"term\":{\"field\":\"value\"}}")
-            .indexRouting("routing")
-            .searchRouting("sr1,sr2")
-            .writeIndex(true)
-            .build();
+    protected Accountable createRandomTestInstance() {
+        AliasMetadata.Builder builder = AliasMetadata.builder(randomAlphaOfLengthBetween(1, 12));
+        if (randomBoolean()) {
+            builder.filter("{\"term\":{\"" + randomAlphaOfLength(5) + "\":\"" + randomAlphaOfLength(8) + "\"}}");
+        }
+        if (randomBoolean()) {
+            builder.indexRouting(randomAlphaOfLengthBetween(1, 8));
+        }
+        if (randomBoolean()) {
+            builder.searchRouting(randomAlphaOfLengthBetween(1, 8));
+        }
+        if (randomBoolean()) {
+            builder.writeIndex(randomBoolean());
+        }
+        if (randomBoolean()) {
+            builder.isHidden(randomBoolean());
+        }
+        return builder.build();
     }
 
     /**
@@ -48,6 +60,12 @@ public class AliasMetadataRamBytesUsedTests extends AbstractAccountableFieldsTes
      */
     public void testRamBytesUsedGrowsWithOptionalFields() {
         AliasMetadata bare = AliasMetadata.builder("alias").build();
-        assertThat(createTestInstance().ramBytesUsed(), greaterThan(bare.ramBytesUsed()));
+        AliasMetadata populated = AliasMetadata.builder("alias")
+            .filter("{\"term\":{\"field\":\"value\"}}")
+            .indexRouting("routing")
+            .searchRouting("sr1,sr2")
+            .writeIndex(true)
+            .build();
+        assertThat(populated.ramBytesUsed(), greaterThan(bare.ramBytesUsed()));
     }
 }

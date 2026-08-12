@@ -723,9 +723,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecFoldingIT
   method: test {csv-spec:folding.keyword_GreaterThan_MultiValueConstant}
   issue: https://github.com/elastic/elasticsearch/issues/156480
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecFoldingIT
-  method: test {csv-spec:folding.version_GreaterThan_MultiValueConstant}
-  issue: https://github.com/elastic/elasticsearch/issues/156480
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecStatsIT
   method: test {csv-spec:stats.sumExpressionWithConstantMultipleClausesWithMultiValuedField}
   issue: https://github.com/elastic/elasticsearch/issues/156483

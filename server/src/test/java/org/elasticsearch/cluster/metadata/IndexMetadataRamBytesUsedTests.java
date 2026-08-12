@@ -55,7 +55,6 @@ public class IndexMetadataRamBytesUsedTests extends AbstractAccountableFieldsTes
             "inferenceFields",
             "rolloverInfos",
             "transportVersion",
-            "state",
             "routingPaths",
             "timeSeriesDimensions",
             "requireFilters",
@@ -72,7 +71,6 @@ public class IndexMetadataRamBytesUsedTests extends AbstractAccountableFieldsTes
             "lifecyclePolicyName",
             "lifecycleExecutionState",
             "autoExpandReplicas",
-            "indexMode",
             "timeSeriesStart",
             "timeSeriesEnd",
             "stats",
@@ -84,10 +82,8 @@ public class IndexMetadataRamBytesUsedTests extends AbstractAccountableFieldsTes
 
     @Override
     protected Set<String> fieldsExcludedFromRamBytesUsed() {
-        // The only non-primitive field not contributing its own heap cost is the memoization cache, which is a primitive long and is
-        // therefore already ignored by the base class. All remaining unaccounted fields are primitives (shard counts, versions, flags),
-        // so there is nothing to exclude explicitly here.
-        return Set.of();
+        // Shared enum singletons; only the field references are counted in BASE_RAM_BYTES_USED.
+        return Set.of("state", "indexMode");
     }
 
     @Override
@@ -95,6 +91,14 @@ public class IndexMetadataRamBytesUsedTests extends AbstractAccountableFieldsTes
         // Settings.estimatedRamBytesUsed() deliberately omits interned keys/values; a full-graph RamUsageTester walk would count them
         // and fail estimate >= actual by design. Structural + behavioural checks below cover this class instead.
         return false;
+    }
+
+    @Override
+    protected Accountable createRandomTestInstance() {
+        int shards = randomIntBetween(1, 8);
+        return IndexMetadata.builder(randomAlphaOfLengthBetween(3, 12))
+            .settings(indexSettings(shards, 0).put("index.version.created", IndexVersion.current().id()))
+            .build();
     }
 
     public void testRamBytesUsedIncreasesWithMapping() throws IOException {

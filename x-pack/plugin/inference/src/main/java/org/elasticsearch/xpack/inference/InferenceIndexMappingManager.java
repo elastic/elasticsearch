@@ -20,7 +20,6 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.CheckedConsumer;
@@ -83,18 +82,13 @@ public class InferenceIndexMappingManager {
      * @param listener     called with {@code null} on success, or with the failure exception
      */
     public void withUpToDateMappings(ClusterState clusterState, ActionListener<Void> listener) {
-        var projectMetadata = clusterState.metadata().getProject();
-        IndexMetadata indexMetadata = projectMetadata.index(descriptor.getPrimaryIndex());
-        if (indexMetadata == null) {
-            // The primary index name may have become an alias after a system index migration
-            // (e.g. ".inference" → ".inference-reindexed-for-10"). ProjectMetadata.index() only
-            // resolves concrete names, so we must fall back to the indices lookup, mirroring the
-            // pattern used by SystemIndexMappingUpdateService.getSystemIndexMetadata().
-            IndexAbstraction indexAbstraction = projectMetadata.getIndicesLookup().get(descriptor.getPrimaryIndex());
-            if (indexAbstraction != null && indexAbstraction.getWriteIndex() != null) {
-                indexMetadata = projectMetadata.getIndexSafe(indexAbstraction.getWriteIndex());
-            }
-        }
+        // Resolving through SystemIndexMappingUpdateService also covers the case where the primary
+        // index name has become an alias after a system index migration
+        // (e.g. ".inference" → ".inference-reindexed-for-10").
+        IndexMetadata indexMetadata = SystemIndexMappingUpdateService.getSystemIndexMetadata(
+            clusterState.metadata().getProject(),
+            descriptor
+        );
 
         if (indexMetadata == null) {
             // Index does not exist yet – create it with the latest mappings.

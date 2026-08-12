@@ -260,8 +260,8 @@ public class DiscoveryNodeFilters implements Accountable {
 
     @Override
     public long ramBytesUsed() {
-        // opType is a shared enum singleton; counting it here over-counts those few bytes when many filters are summed.
-        long size = BASE_RAM_BYTES_USED + RamUsageEstimator.shallowSizeOf(opType) + RamUsageEstimator.sizeOfMap(filters);
+        // opType is a shared enum singleton; its cost is only the field reference already included in BASE_RAM_BYTES_USED.
+        long size = BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOfMap(filters);
         // withoutTierPreferences may alias this instance.
         if (withoutTierPreferences != null && withoutTierPreferences != this) {
             size += withoutTierPreferences.ramBytesUsed();

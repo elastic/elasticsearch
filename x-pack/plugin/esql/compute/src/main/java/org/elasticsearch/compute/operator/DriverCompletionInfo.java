@@ -11,6 +11,8 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -261,7 +263,13 @@ public record DriverCompletionInfo(
     private static final TransportVersion ESQL_EXTERNAL_PARTIAL_RESULTS = TransportVersion.fromName("esql_external_partial_results");
     public static final TransportVersion ESQL_DRIVER_WARNINGS = TransportVersion.fromName("esql_driver_warnings");
 
-    public static DriverCompletionInfo readFrom(StreamInput in) throws IOException {
+    /**
+     * Read from a stream, falling back to {@link ThreadContext} response headers when the
+     * remote node predates {@link #ESQL_DRIVER_WARNINGS}. Old nodes send warnings as
+     * RFC 7234 {@code Warning:} transport response headers; the transport layer deposits
+     * them into the current thread's context before this method is called.
+     */
+    public static DriverCompletionInfo readFrom(StreamInput in, ThreadContext threadContext) throws IOException {
         long documentsFound = in.readVLong();
         long valuesLoaded = in.readVLong();
         long rowsEmitted = 0;
@@ -304,7 +312,16 @@ public record DriverCompletionInfo(
         if (in.getTransportVersion().supports(ESQL_DRIVER_WARNINGS)) {
             warnings = Collections.unmodifiableSet(in.readCollection(LinkedHashSet::new, (stream, set) -> set.add(stream.readString())));
         } else {
-            warnings = Set.of();
+            List<String> headerWarnings = threadContext.getResponseHeaders().getOrDefault("Warning", List.of());
+            if (headerWarnings.isEmpty()) {
+                warnings = Set.of();
+            } else {
+                LinkedHashSet<String> parsed = new LinkedHashSet<>(headerWarnings.size());
+                for (String header : headerWarnings) {
+                    parsed.add(HeaderWarning.extractWarningValueFromWarningHeader(header, false));
+                }
+                warnings = parsed;
+            }
         }
         return new DriverCompletionInfo(
             documentsFound,

@@ -17,10 +17,12 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
@@ -88,7 +90,11 @@ public class LookupFromIndexServiceResponseTests extends AbstractWireSerializing
 
     @Override
     protected Writeable.Reader<LookupFromIndexService.LookupResponse> instanceReader() {
-        return in -> new LookupFromIndexService.LookupResponse(in, TestBlockFactory.getNonBreakingInstance());
+        return in -> new LookupFromIndexService.LookupResponse(
+            in,
+            TestBlockFactory.getNonBreakingInstance(),
+            new ThreadContext(Settings.EMPTY)
+        );
     }
 
     @Override
@@ -122,7 +128,7 @@ public class LookupFromIndexServiceResponseTests extends AbstractWireSerializing
                 orig,
                 getNamedWriteableRegistry(),
                 (out, v) -> v.writeTo(out),
-                in -> new LookupFromIndexService.LookupResponse(in, copyFactory),
+                in -> new LookupFromIndexService.LookupResponse(in, copyFactory, new ThreadContext(Settings.EMPTY)),
                 TransportVersion.current()
             );
             try {
@@ -157,7 +163,7 @@ public class LookupFromIndexServiceResponseTests extends AbstractWireSerializing
                 origWithPlan,
                 getNamedWriteableRegistry(),
                 (out, v) -> v.writeTo(out),
-                in -> new LookupFromIndexService.LookupResponse(in, copyFactory),
+                in -> new LookupFromIndexService.LookupResponse(in, copyFactory, new ThreadContext(Settings.EMPTY)),
                 TransportVersion.current()
             );
             try {
@@ -183,7 +189,7 @@ public class LookupFromIndexServiceResponseTests extends AbstractWireSerializing
                 origWithoutPlan,
                 getNamedWriteableRegistry(),
                 (out, v) -> v.writeTo(out),
-                in -> new LookupFromIndexService.LookupResponse(in, copyFactory),
+                in -> new LookupFromIndexService.LookupResponse(in, copyFactory, new ThreadContext(Settings.EMPTY)),
                 TransportVersion.current()
             );
             try {
@@ -263,7 +269,10 @@ public class LookupFromIndexServiceResponseTests extends AbstractWireSerializing
         BlockFactory receiverFactory = blockFactory(ByteSizeValue.ofBytes(pagesHeapBytes / 4));
         try (StreamInput in = new NamedWriteableAwareStreamInput(wireBytes.streamInput(), new NamedWriteableRegistry(List.of()))) {
             in.setTransportVersion(TransportVersion.current());
-            expectThrows(CircuitBreakingException.class, () -> new LookupFromIndexService.LookupResponse(in, receiverFactory));
+            expectThrows(
+                CircuitBreakingException.class,
+                () -> new LookupFromIndexService.LookupResponse(in, receiverFactory, new ThreadContext(Settings.EMPTY))
+            );
         }
     }
 
@@ -305,7 +314,10 @@ public class LookupFromIndexServiceResponseTests extends AbstractWireSerializing
         BytesReference truncated = wireBytes.slice(0, wireBytes.length() - 1);
         try (StreamInput in = new NamedWriteableAwareStreamInput(truncated.streamInput(), new NamedWriteableRegistry(List.of()))) {
             in.setTransportVersion(TransportVersion.current());
-            expectThrows(EOFException.class, () -> new LookupFromIndexService.LookupResponse(in, blockFactory()));
+            expectThrows(
+                EOFException.class,
+                () -> new LookupFromIndexService.LookupResponse(in, blockFactory(), new ThreadContext(Settings.EMPTY))
+            );
         }
     }
 

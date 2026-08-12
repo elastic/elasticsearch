@@ -47,6 +47,10 @@ public class OTLPMetricsTransportActionTests extends AbstractOTLPTransportAction
         ClusterService clusterService = mock(ClusterService.class);
         clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(OTelPlugin.HISTOGRAM_FIELD_TYPE_SETTING));
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+        // getSettings() is called by batchIndexingGatesOpen() to look up the BATCH_INDEXING setting.
+        // With Settings.EMPTY the setting defaults to false, so the ESCF path is skipped and the row
+        // path (via super.doExecute) is exercised — which is the correct behavior for these tests.
+        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
         ProjectMetadata projectMetadata = ProjectMetadata.builder(ProjectId.DEFAULT).build();
         ClusterState clusterState = ClusterState.builder(new ClusterName("test"))
             .metadata(Metadata.builder().projectMetadata(Map.of(ProjectId.DEFAULT, projectMetadata)).build())

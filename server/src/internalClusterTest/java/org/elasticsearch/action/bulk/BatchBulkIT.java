@@ -18,15 +18,20 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.sourcebatch.LeafSink;
+import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -1872,5 +1877,296 @@ public class BatchBulkIT extends ESIntegTestCase {
         var getResponse = client().get(new GetRequest(index).id("doc-1")).actionGet();
         assertTrue(getResponse.isExists());
         assertThat("first value must appear in source", getResponse.getSourceAsMap().get("field"), equalTo("val1"));
+    }
+
+    /**
+     * Verifies the pre-built-batch path end-to-end for a single-shard index. The test builds an {@link EscfEncoder}
+     * batch client-side (exactly as an OTel producer would), attaches it to the {@link BulkRequest} via
+     * {@link BulkRequest#setPreBuiltBatches}, sends sourceless {@link IndexRequest}s, and asserts that the batch
+     * path ran on the primary shard via the {@link ShardBatchIndexer} TRACE log.
+     */
+    public void testPreBuiltBatchSingleShard() throws IOException {
+        String index = "test-prebuilt-single-shard";
+
+        XContentBuilder mapping = JsonXContent.contentBuilder();
+        mapping.startObject();
+        {
+            mapping.startObject("_doc");
+            {
+                mapping.field("dynamic", "strict");
+                mapping.startObject("properties");
+                {
+                    mapping.startObject("host").field("type", "keyword").endObject();
+                    mapping.startObject("value").field("type", "long").endObject();
+                }
+                mapping.endObject();
+            }
+            mapping.endObject();
+        }
+        mapping.endObject();
+
+        assertAcked(
+            indicesAdmin().prepareCreate(index)
+                .setSettings(
+                    Settings.builder()
+                        .put("index.number_of_shards", 1)
+                        .put("index.number_of_replicas", 1)
+                        .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                        .put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), true)
+                )
+                .setMapping(mapping)
+        );
+        ensureGreen(index);
+
+        String coordinatingNode = findCoordinatingNode();
+        int numDocs = randomIntBetween(5, 20);
+
+        // Build the ESCF batch from JSON documents — this is what an OTel producer does for the whole request.
+        SourceBatch batch;
+        int[] rowIndices = new int[numDocs];
+        try (EscfEncoder encoder = new EscfEncoder()) {
+            for (int i = 0; i < numDocs; i++) {
+                XContentBuilder doc = JsonXContent.contentBuilder();
+                doc.startObject();
+                doc.field("host", "host-" + (i % 3));
+                doc.field("value", (long) i);
+                doc.endObject();
+                encoder.parseToScratch(BytesReference.bytes(doc), XContentType.JSON, LeafSink.NO_OP);
+                rowIndices[i] = encoder.commitScratchTo(0); // single shard → partition 0
+            }
+            batch = encoder.buildPartition(0);
+        }
+
+        // Build sourceless IndexRequests carrying row references into the pre-built batch.
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < numDocs; i++) {
+            IndexRequest ir = new IndexRequest(index).id("doc-" + i).opType(DocWriteRequest.OpType.INDEX);
+            ir.indexSource().setSourceRow(batch, rowIndices[i], XContentType.JSON);
+            bulkRequest.add(ir);
+        }
+        bulkRequest.setPreBuiltBatches(Map.of(index, new SourceBatch[] { batch }));
+
+        // Execute and assert the batch path actually ran on the primary.
+        final Logger batchLogger = LogManager.getLogger(ShardBatchIndexer.class);
+        final Level origLevel = batchLogger.getLevel();
+        Loggers.setLevel(batchLogger, Level.TRACE);
+        try (var mockLog = MockLog.capture(ShardBatchIndexer.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "batch indexed on primary",
+                    ShardBatchIndexer.class.getName(),
+                    Level.TRACE,
+                    "batch indexed * operations on primary shard *"
+                )
+            );
+            BulkResponse bulkResponse = client(coordinatingNode).bulk(bulkRequest).actionGet();
+            assertNoFailures(bulkResponse);
+            mockLog.assertAllExpectationsMatched();
+        } finally {
+            Loggers.setLevel(batchLogger, origLevel);
+        }
+
+        refresh(index);
+        assertResponse(prepareSearch(index).setTrackTotalHits(true), response -> {
+            assertNoFailures(response);
+            assertThat(response.getHits().getTotalHits().value(), equalTo((long) numDocs));
+        });
+        // Spot-check source reconstruction for one doc.
+        var getResponse = client().get(new GetRequest(index).id("doc-0")).actionGet();
+        assertTrue(getResponse.isExists());
+        assertThat(getResponse.getSourceAsMap().get("host"), equalTo("host-0"));
+        assertThat(getResponse.getSourceAsMap().get("value"), equalTo(0));
+    }
+
+    /**
+     * Verifies the pre-built-batch path for a multi-shard index. The test routes each document client-side (using
+     * {@link IndexRouting#indexShard}) to predict the correct shard, commits rows to the matching
+     * {@link EscfEncoder} partition, and builds sourceless {@link IndexRequest}s with the correct row indices.
+     * The MockLog assertion confirms the batch path ran on at least one primary shard.
+     */
+    public void testPreBuiltBatchMultiShard() throws IOException {
+        String index = "test-prebuilt-multi-shard";
+        int numShards = 3;
+
+        XContentBuilder mapping = JsonXContent.contentBuilder();
+        mapping.startObject();
+        {
+            mapping.startObject("_doc");
+            {
+                mapping.field("dynamic", "strict");
+                mapping.startObject("properties");
+                {
+                    mapping.startObject("host").field("type", "keyword").endObject();
+                    mapping.startObject("value").field("type", "long").endObject();
+                }
+                mapping.endObject();
+            }
+            mapping.endObject();
+        }
+        mapping.endObject();
+
+        assertAcked(
+            indicesAdmin().prepareCreate(index)
+                .setSettings(
+                    Settings.builder()
+                        .put("index.number_of_shards", numShards)
+                        .put("index.number_of_replicas", 1)
+                        .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                        .put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), true)
+                )
+                .setMapping(mapping)
+        );
+        ensureGreen(index);
+
+        // Use the cluster's IndexRouting to predict the shard for each doc, matching what the coordinator does.
+        var md = internalCluster().clusterService().state().projectState().metadata().index(index);
+        IndexRouting indexRouting = IndexRouting.fromIndexMetadata(md);
+
+        String coordinatingNode = findCoordinatingNode();
+        int numDocs = 30;
+
+        // Build per-shard EscfEncoder partitions in the same order docs will appear in each shard's item list
+        // (i.e. bulk order, filtered per shard). This ensures rowIndices[i] == the position of doc i within its shard.
+        int[] shardIds = new int[numDocs];
+        int[] rowIndices = new int[numDocs];
+        BytesReference[] sources = new BytesReference[numDocs];
+
+        try (EscfEncoder encoder = new EscfEncoder()) {
+            for (int i = 0; i < numDocs; i++) {
+                XContentBuilder doc = JsonXContent.contentBuilder();
+                doc.startObject();
+                doc.field("host", "host-" + (i % 5));
+                doc.field("value", (long) i);
+                doc.endObject();
+                sources[i] = BytesReference.bytes(doc);
+                // For Plain routing (non-TSDB), indexShard uses only the id (source is ignored).
+                shardIds[i] = indexRouting.indexShard(new IndexRequest(index).id("doc-" + i));
+                encoder.parseToScratch(sources[i], XContentType.JSON, LeafSink.NO_OP);
+                rowIndices[i] = encoder.commitScratchTo(shardIds[i]);
+            }
+
+            // Build per-shard batch array; null entry = no docs for that shard.
+            SourceBatch[] batches = new SourceBatch[numShards];
+            for (int s = 0; s < numShards; s++) {
+                if (encoder.hasPartition(s)) {
+                    batches[s] = encoder.buildPartition(s);
+                }
+            }
+
+            // Build sourceless IndexRequests in the same order as above so rowsAlignWithItems passes per shard.
+            BulkRequest bulkRequest = new BulkRequest();
+            for (int i = 0; i < numDocs; i++) {
+                IndexRequest ir = new IndexRequest(index).id("doc-" + i).opType(DocWriteRequest.OpType.INDEX);
+                ir.indexSource().setSourceRow(batches[shardIds[i]], rowIndices[i], XContentType.JSON);
+                bulkRequest.add(ir);
+            }
+            bulkRequest.setPreBuiltBatches(Map.of(index, batches));
+
+            final Logger batchLogger = LogManager.getLogger(ShardBatchIndexer.class);
+            final Level origLevel = batchLogger.getLevel();
+            Loggers.setLevel(batchLogger, Level.TRACE);
+            try (var mockLog = MockLog.capture(ShardBatchIndexer.class)) {
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
+                        "batch indexed on primary",
+                        ShardBatchIndexer.class.getName(),
+                        Level.TRACE,
+                        "batch indexed * operations on primary shard *"
+                    )
+                );
+                BulkResponse bulkResponse = client(coordinatingNode).bulk(bulkRequest).actionGet();
+                assertNoFailures(bulkResponse);
+                mockLog.assertAllExpectationsMatched();
+            } finally {
+                Loggers.setLevel(batchLogger, origLevel);
+            }
+        }
+
+        refresh(index);
+        assertResponse(prepareSearch(index).setTrackTotalHits(true), response -> {
+            assertNoFailures(response);
+            assertThat(response.getHits().getTotalHits().value(), equalTo((long) numDocs));
+        });
+    }
+
+    /**
+     * Verifies that when the batch gates are satisfied but the batch rows do not align with the shard's items
+     * (simulated by providing a batch with fewer rows than items), the coordinator falls back to re-materializing
+     * inline sources so all documents are still indexed correctly.
+     */
+    public void testPreBuiltBatchFallsBackOnMisalignment() throws IOException {
+        String index = "test-prebuilt-misalign";
+
+        XContentBuilder mapping = JsonXContent.contentBuilder();
+        mapping.startObject();
+        {
+            mapping.startObject("_doc");
+            {
+                mapping.field("dynamic", "strict");
+                mapping.startObject("properties");
+                {
+                    mapping.startObject("host").field("type", "keyword").endObject();
+                    mapping.startObject("value").field("type", "long").endObject();
+                }
+                mapping.endObject();
+            }
+            mapping.endObject();
+        }
+        mapping.endObject();
+
+        assertAcked(
+            indicesAdmin().prepareCreate(index)
+                .setSettings(
+                    Settings.builder()
+                        .put("index.number_of_shards", 1)
+                        .put("index.number_of_replicas", 0)
+                        .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                        .put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), true)
+                )
+                .setMapping(mapping)
+        );
+        ensureGreen(index);
+
+        String coordinatingNode = findCoordinatingNode();
+        int numDocs = 5;
+
+        // Build a batch with only numDocs-1 rows but send numDocs items — this creates an intentional misalignment.
+        SourceBatch shortBatch;
+        try (EscfEncoder encoder = new EscfEncoder()) {
+            for (int i = 0; i < numDocs - 1; i++) {
+                XContentBuilder doc = JsonXContent.contentBuilder();
+                doc.startObject();
+                doc.field("host", "host-" + i);
+                doc.field("value", (long) i);
+                doc.endObject();
+                encoder.parseToScratch(BytesReference.bytes(doc), XContentType.JSON, LeafSink.NO_OP);
+                encoder.commitScratchTo(0);
+            }
+            shortBatch = encoder.buildPartition(0);
+        }
+
+        // All items claim rowIndex 0 (wrong), and the batch has fewer rows — triggers re-materialization.
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < numDocs; i++) {
+            // Use inline source so ensureInlineSource() is a no-op (already has bytes); the alignment check
+            // will still fail because shortBatch.docCount() != numDocs.
+            bulkRequest.add(
+                new IndexRequest(index).id("doc-" + i)
+                    .opType(DocWriteRequest.OpType.INDEX)
+                    .source(XContentType.JSON, "host", "host-" + i, "value", i)
+            );
+        }
+        // Attach the misaligned batch — coordinator will detect the mismatch and skip batch attachment.
+        bulkRequest.setPreBuiltBatches(Map.of(index, new SourceBatch[] { shortBatch }));
+
+        // The docs should still index successfully via the inline-source (row) path.
+        BulkResponse bulkResponse = client(coordinatingNode).bulk(bulkRequest).actionGet();
+        assertNoFailures(bulkResponse);
+
+        refresh(index);
+        assertResponse(prepareSearch(index).setTrackTotalHits(true), response -> {
+            assertNoFailures(response);
+            assertThat(response.getHits().getTotalHits().value(), equalTo((long) numDocs));
+        });
     }
 }

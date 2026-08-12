@@ -18,6 +18,7 @@ import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.sourcebatch.SourceBatch;
 
 import java.io.IOException;
+import java.util.List;
 
 public class BulkShardBatch implements Writeable {
 
@@ -54,6 +55,24 @@ public class BulkShardBatch implements Writeable {
     @Override
     public int hashCode() {
         return batch.data().hashCode();
+    }
+
+    /**
+     * Returns true if {@code items} map 1:1 and in order onto {@code batch}'s rows. The wire format carries no explicit
+     * row number — {@link #attachBatchToItems} reconstructs it from item ordinal — so a batch may only be attached when
+     * this holds. A mismatch means the coordinator dropped or reordered items after the producer committed rows, and the
+     * caller should re-materialize inline sources instead of attaching the batch.
+     */
+    static boolean rowsAlignWithItems(SourceBatch batch, List<BulkItemRequest> items) {
+        if (items.size() != batch.docCount()) {
+            return false;
+        }
+        for (int i = 0; i < items.size(); i++) {
+            if (!(items.get(i).request() instanceof IndexRequest indexRequest) || indexRequest.indexSource().rowIndex() != i) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**

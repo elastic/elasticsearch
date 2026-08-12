@@ -100,8 +100,13 @@ public class MetricEscfConverterTests extends ESTestCase {
             expectedTemplateParams.add(dtp);
         });
 
-        // 2. Convert via MetricEscfConverter.
-        try (MetricEscfConverter.Result result = MetricEscfConverter.convert(request, hints, indexVersion, t -> 0)) {
+        // 2. Convert via MetricEscfConverter (all groups target a single shard on the same index version).
+        MetricEscfConverter.TargetIndexResolver resolver = indexName -> new MetricEscfConverter.TargetIndexResolver.Target(
+            indexVersion,
+            1,
+            t -> 0
+        );
+        try (MetricEscfConverter.Result result = MetricEscfConverter.convert(request, hints, resolver)) {
             List<MetricEscfConverter.GroupResult> groups = result.groups();
             assertThat(groups.size(), equalTo(expectedDocs.size()));
 
@@ -259,14 +264,12 @@ public class MetricEscfConverterTests extends ESTestCase {
         );
 
         AtomicInteger totalRows = new AtomicInteger(0);
-        try (
-            MetricEscfConverter.Result result = MetricEscfConverter.convert(
-                request,
-                MappingHints.DEFAULT_TDIGEST,
-                indexVersion,
-                tsid -> Math.floorMod(tsid.hashCode(), numShards)
-            )
-        ) {
+        MetricEscfConverter.TargetIndexResolver multiShardResolver = indexName -> new MetricEscfConverter.TargetIndexResolver.Target(
+            indexVersion,
+            numShards,
+            tsid -> Math.floorMod(tsid.hashCode(), numShards)
+        );
+        try (MetricEscfConverter.Result result = MetricEscfConverter.convert(request, MappingHints.DEFAULT_TDIGEST, multiShardResolver)) {
             for (MetricEscfConverter.GroupResult g : result.groups()) {
                 EscfBatch batch = result.batch(g.targetIndex(), g.shardId());
                 assertThat("batch for shard " + g.shardId(), batch, notNullValue());

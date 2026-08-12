@@ -19,12 +19,14 @@ import com.google.protobuf.ByteString;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.hash.BufferedMurmur3Hasher;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfBatchBuilder;
 import org.elasticsearch.escf.EscfRowBuffer;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.sourcebatch.SourceBatchEncodeHelper;
 import org.elasticsearch.sourcebatch.SourceValueType;
 import org.elasticsearch.xcontent.XContentString;
@@ -39,6 +41,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -68,15 +71,37 @@ import static org.elasticsearch.exponentialhistogram.ExponentialHistogramXConten
  * and {@link org.elasticsearch.xpack.oteldata.otlp.docbuilder.OTelDocumentBuilder} but drives
  * {@link EscfRowBuffer} (via {@link EscfBatchBuilder}) instead of an {@link org.elasticsearch.xcontent.XContentBuilder}.
  *
- * <p>This is a unit-test-only POC — it is not wired into
- * {@link org.elasticsearch.xpack.oteldata.otlp.OTLPMetricsTransportAction}.
- * The design is intentionally co-located in the {@code datapoint} package so it can access the
- * package-private {@link TDigestConverter} and {@link RawHistogramConverter}.
+ * <p>Co-located in the {@code datapoint} package to access the package-private
+ * {@link TDigestConverter} and {@link RawHistogramConverter}.
  *
- * <p>The {@link Result} carries per-group metadata (tsid, dynamic templates) alongside the finalized
- * {@link EscfBatch}es; close the result to release recycler-backed column buffers.
+ * <p>The {@link Result} carries per-group metadata (tsid, timestamp, dynamic templates) alongside
+ * the finalized {@link EscfBatch}es; close the result when done.
  */
 public final class MetricEscfConverter {
+
+    /**
+     * Resolves an OTLP target index name to the routing facts needed to build a shard-partitioned
+     * ESCF batch. Implementations are expected to memoize results per-request.
+     */
+    public interface TargetIndexResolver {
+        /**
+         * @return the routing facts for the given index name, or {@code null} if the target cannot
+         *         be batch-indexed (unknown data stream, non-TSDB write index, unsupported index
+         *         version, or missing shard count) — a {@code null} return from any group triggers
+         *         a whole-request fallback in {@link MetricEscfConverter#convert}.
+         */
+        @Nullable
+        Target resolve(String indexName);
+
+        /**
+         * Routing facts for a writable TSDB write index.
+         *
+         * @param indexVersion   creation version of the current write index
+         * @param numberOfShards total number of primary shards (used to size the per-shard array)
+         * @param tsidToShard    maps a tsid {@link BytesRef} to a zero-based shard id
+         */
+        record Target(IndexVersion indexVersion, int numberOfShards, ToIntFunction<BytesRef> tsidToShard) {}
+    }
 
     private MetricEscfConverter() {}
 
@@ -118,29 +143,38 @@ public final class MetricEscfConverter {
     }
 
     /**
-     * Per data point group: the tsid, dynamic template assignments, and position within the batch.
+     * Per data point group: the tsid, timestamp, dynamic template assignments, and position within
+     * the batch. {@code timestampNanos} is the raw nanosecond epoch timestamp from the proto, as
+     * returned by {@link DataPointGroupingContext.DataPointGroup#getTimestampUnixNano()}.
      */
     public record GroupResult(
         String targetIndex,
         int shardId,
         int rowIndex,
         BytesRef tsid,
+        long timestampNanos,
         Map<String, String> dynamicTemplates,
         Map<String, Map<String, String>> dynamicTemplateParams
     ) {}
 
     /**
      * Conversion output. Call {@link #batch(String, int)} to retrieve the {@link EscfBatch} for a
-     * given target index and shard; close the result when done to release column-buffer memory.
+     * given target index and shard; close the result when done.
      */
     public static final class Result implements Releasable {
 
         private final List<GroupResult> groups;
         private final Map<String, Map<Integer, EscfBatch>> batchesByIndex;
+        private final Map<String, Integer> shardCountByIndex;
 
-        private Result(List<GroupResult> groups, Map<String, Map<Integer, EscfBatch>> batchesByIndex) {
+        private Result(
+            List<GroupResult> groups,
+            Map<String, Map<Integer, EscfBatch>> batchesByIndex,
+            Map<String, Integer> shardCountByIndex
+        ) {
             this.groups = groups;
             this.batchesByIndex = batchesByIndex;
+            this.shardCountByIndex = shardCountByIndex;
         }
 
         /** Per-group results in the same order as {@link DataPointGroupingContext#consume} emits them. */
@@ -157,6 +191,26 @@ public final class MetricEscfConverter {
             return byShardId == null ? null : byShardId.get(shardId);
         }
 
+        /**
+         * Returns a map from index name to a shard-indexed {@link SourceBatch} array, suitable
+         * for passing directly to
+         * {@link org.elasticsearch.action.bulk.BulkRequest#setPreBuiltBatches}. Array slots with
+         * no rows for that shard are {@code null}.
+         */
+        public Map<String, SourceBatch[]> batchesByIndexName() {
+            Map<String, SourceBatch[]> result = new LinkedHashMap<>();
+            for (Map.Entry<String, Map<Integer, EscfBatch>> entry : batchesByIndex.entrySet()) {
+                String indexName = entry.getKey();
+                int shardCount = shardCountByIndex.get(indexName);
+                SourceBatch[] batches = new SourceBatch[shardCount];
+                for (Map.Entry<Integer, EscfBatch> shardEntry : entry.getValue().entrySet()) {
+                    batches[shardEntry.getKey()] = shardEntry.getValue();
+                }
+                result.put(indexName, batches);
+            }
+            return result;
+        }
+
         @Override
         public void close() {
             for (Map<Integer, EscfBatch> byShardId : batchesByIndex.values()) {
@@ -170,20 +224,19 @@ public final class MetricEscfConverter {
     /**
      * Converts {@code request} into ESCF batches.
      *
-     * <p>The {@code tsidToShard} function maps a tsid bytes-ref to a (zero-based) shard id for
-     * partition assignment. Pass {@code t -> 0} to put all rows in one partition.
+     * <p>Returns {@code null} when any target index resolves to {@code null} — the caller should
+     * fall back to a per-row (non-columnar) indexing path for the whole request.
      *
      * @param defaultMappingHints  effective mapping hints (e.g. {@link MappingHints#DEFAULT_TDIGEST})
-     * @param indexVersion         used to compute the tsid bytes
-     * @param tsidToShard          maps a tsid to a partition key
-     * @return the conversion result; caller is responsible for closing it
+     * @param resolver             resolves each target index name to the routing facts needed for
+     *                             shard assignment; returning {@code null} from
+     *                             {@link TargetIndexResolver#resolve} triggers a whole-request fallback
+     * @return the conversion result, or {@code null} if a whole-request fallback is required;
+     *         caller is responsible for closing a non-null result
      */
-    public static Result convert(
-        ExportMetricsServiceRequest request,
-        MappingHints defaultMappingHints,
-        IndexVersion indexVersion,
-        ToIntFunction<BytesRef> tsidToShard
-    ) throws IOException {
+    @Nullable
+    public static Result convert(ExportMetricsServiceRequest request, MappingHints defaultMappingHints, TargetIndexResolver resolver)
+        throws IOException {
         // Group data points (builds the per-group tsidBuilders via protobuf funnels).
         BufferedMurmur3Hasher hasher = new BufferedMurmur3Hasher(0);
         DataPointGroupingContext ctx = new DataPointGroupingContext(new BufferedByteStringAccessor(), defaultMappingHints);
@@ -193,10 +246,40 @@ public final class MetricEscfConverter {
         Map<String, EscfBatchBuilder> buildersByIndex = new LinkedHashMap<>();
         // Unique shard IDs per target in insertion order — avoids re-scanning groups at finalization.
         Map<String, Set<Integer>> shardsByIndex = new LinkedHashMap<>();
+        // Resolved shard count per target index (from the TargetIndexResolver.Target).
+        Map<String, Integer> shardCountByIndex = new LinkedHashMap<>();
+        // Memoize resolver results to avoid re-resolving the same index within a single request.
+        Map<String, TargetIndexResolver.Target> resolvedTargets = new HashMap<>();
+        Set<String> unresolvedTargets = new HashSet<>();
         List<GroupResult> groups = new ArrayList<>();
 
+        // Use a boolean array so the lambda can signal a whole-request fallback.
+        boolean[] fallback = { false };
+
         ctx.consume(group -> {
+            if (fallback[0]) {
+                return;
+            }
             String targetIndex = group.targetIndex().index();
+
+            // Resolve the target, using the memoized result if available.
+            TargetIndexResolver.Target target;
+            if (unresolvedTargets.contains(targetIndex)) {
+                fallback[0] = true;
+                return;
+            } else if (resolvedTargets.containsKey(targetIndex)) {
+                target = resolvedTargets.get(targetIndex);
+            } else {
+                target = resolver.resolve(targetIndex);
+                if (target == null) {
+                    unresolvedTargets.add(targetIndex);
+                    fallback[0] = true;
+                    return;
+                }
+                resolvedTargets.put(targetIndex, target);
+                shardCountByIndex.put(targetIndex, target.numberOfShards());
+            }
+
             EscfBatchBuilder batchBuilder = buildersByIndex.computeIfAbsent(targetIndex, k -> new EscfBatchBuilder());
             shardsByIndex.computeIfAbsent(targetIndex, k -> new LinkedHashSet<>());
 
@@ -206,16 +289,24 @@ public final class MetricEscfConverter {
             // Build the tsid — add _metric_names_hash dimension exactly as MetricDocumentBuilder does.
             String metricNamesHash = group.getMetricNamesHash(hasher);
             group.tsidBuilder().addStringDimension("_metric_names_hash", metricNamesHash);
-            BytesRef tsid = group.tsidBuilder().buildTsid(indexVersion);
-            int shardId = tsidToShard.applyAsInt(tsid);
+            BytesRef tsid = group.tsidBuilder().buildTsid(target.indexVersion());
+            int shardId = target.tsidToShard().applyAsInt(tsid);
             shardsByIndex.get(targetIndex).add(shardId);
 
             EscfRowBuffer row = batchBuilder.beginRow();
             buildRow(row, group, metricNamesHash, defaultMappingHints, dynamicTemplates, dynamicTemplateParams);
+            row.finishRow();
             int rowIndex = batchBuilder.commit(shardId);
 
-            groups.add(new GroupResult(targetIndex, shardId, rowIndex, tsid, dynamicTemplates, dynamicTemplateParams));
+            long timestampNanos = group.getTimestampUnixNano();
+            groups.add(new GroupResult(targetIndex, shardId, rowIndex, tsid, timestampNanos, dynamicTemplates, dynamicTemplateParams));
         });
+
+        if (fallback[0]) {
+            // Whole-request fallback — release any builders that were created before the miss.
+            Releasables.close(buildersByIndex.values());
+            return null;
+        }
 
         // Finalize — build one EscfBatch per (targetIndex, shardId) combination.
         // Builders are always closed in the finally block; batches are released on any exception.
@@ -239,7 +330,7 @@ public final class MetricEscfConverter {
             Releasables.close(buildersByIndex.values());
         }
 
-        return new Result(groups, batchesByIndex);
+        return new Result(groups, batchesByIndex, shardCountByIndex);
     }
 
     // ---- Row construction (mirrors MetricDocumentBuilder.buildMetricDocument) ----

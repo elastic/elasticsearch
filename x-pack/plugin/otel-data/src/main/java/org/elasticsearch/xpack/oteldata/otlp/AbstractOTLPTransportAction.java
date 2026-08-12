@@ -39,6 +39,11 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
     public static final int IGNORED_DATA_POINTS_MESSAGE_LIMIT = 10;
     private final Client client;
 
+    /** Returns the client for use by subclasses (e.g. to build bulk requests on the ESCF fast path). */
+    protected final Client client() {
+        return client;
+    }
+
     @Inject
     public AbstractOTLPTransportAction(
         String name,
@@ -139,7 +144,7 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
     protected abstract ProcessingContext prepareBulkRequest(OTLPActionRequest request, BulkRequestBuilder bulkRequestBuilder)
         throws IOException;
 
-    private void handlePartialSuccess(
+    protected void handlePartialSuccess(
         BulkResponse bulkItemResponses,
         ProcessingContext context,
         ActionListener<OTLPActionResponse> listener

@@ -671,6 +671,21 @@ public abstract class IndexRouting {
                 return rerouteWritesIfResharding(routingFunction.shardNum(h));
             }
 
+            /**
+             * Predicts the shard a document with this tsid will route to, without recording any routing state.
+             * Intended for producers that build per-shard batches before coordinator routing: the prediction is
+             * faithful so long as this instance was built from the same {@link IndexMetadata} used for routing
+             * and the tsid was built with the same {@link #creationVersionForTsid}.
+             * <p>
+             * This must <em>not</em> be used as a substitute for routing: it deliberately skips the
+             * {@link #setRecordedHash} side effect that {@link #postProcess(IndexRequest)} depends on.
+             * The coordinator still performs the authoritative {@link #indexShard} pass; any mismatch between
+             * the predicted and actual shard is caught by the alignment check and degrades to the row path.
+             */
+            public int shardIdForTsid(BytesRef tsid) {
+                return rerouteWritesIfResharding(routingFunction.shardNum(hash(tsid)));
+            }
+
             /** Used by {@link DimensionsExtractor} to evaluate the dimension-path predicate once per leaf column. */
             boolean matchesField(String fieldName) {
                 return isDimensionField.test(fieldName);

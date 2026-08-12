@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 156540
+summary: Fix warning loss from pre-9.6 data nodes
+type: feature

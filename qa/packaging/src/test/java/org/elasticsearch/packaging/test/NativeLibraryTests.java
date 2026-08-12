@@ -22,7 +22,9 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -230,7 +232,7 @@ public class NativeLibraryTests extends PackagingTestCase {
      * Extracts the test.parquet fixture from the test classpath to a temporary directory.
      */
     private Path extractParquetFixture() throws IOException {
-        Path tmpDir = Files.createTempDirectory("esql-parquet-packaging-test");
+        Path tmpDir = createTempDir("esql-parquet-packaging-test");
         Path target = tmpDir.resolve("test.parquet");
         try (InputStream is = getClass().getResourceAsStream("test.parquet")) {
             if (is == null) {
@@ -278,16 +280,29 @@ public class NativeLibraryTests extends PackagingTestCase {
             installation = runContainer(distribution(), dockerRun);
         } else {
             nodeVisibleDir = localDir.toAbsolutePath().toString();
-            settings.put("esql.datasource.local_allowed_paths", nodeVisibleDir);
-            settings.put("path.repo", nodeVisibleDir);
             for (var setting : settings.entrySet()) {
                 ServerUtils.addSettingToExistingConfiguration(installation.config, setting.getKey(), setting.getValue());
             }
             ServerUtils.removeSettingFromExistingConfiguration(installation.config, "cluster.initial_master_nodes");
+            appendListSettings(installation.config, nodeVisibleDir);
         }
 
         startElasticsearch();
         ServerUtils.waitForElasticsearch(installation);
         return nodeVisibleDir;
+    }
+
+    /**
+     * Appends list-valued settings to elasticsearch.yml. {@code addSettingToExistingConfiguration}
+     * uses {@code Settings.builder().put()} which doesn't handle list settings correctly —
+     * {@code path.repo} and {@code esql.datasource.local_allowed_paths} require YAML list syntax.
+     */
+    private void appendListSettings(Path confPath, String dirPath) throws IOException {
+        Path yml = confPath.resolve("elasticsearch.yml");
+        Files.write(
+            yml,
+            List.of("path.repo: [\"" + dirPath + "\"]", "esql.datasource.local_allowed_paths: [\"" + dirPath + "\"]"),
+            StandardOpenOption.APPEND
+        );
     }
 }

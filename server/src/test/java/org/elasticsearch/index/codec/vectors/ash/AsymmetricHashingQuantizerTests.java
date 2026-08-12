@@ -12,6 +12,7 @@ package org.elasticsearch.index.codec.vectors.ash;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.ByteBuffersIndexInput;
 import org.apache.lucene.store.ByteBuffersIndexOutput;
+import org.apache.lucene.util.BitUtil;
 import org.elasticsearch.common.CheckedIntFunction;
 import org.elasticsearch.simdvec.AsymmetricHashingScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
@@ -285,7 +286,8 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
                 0,
                 nDims,
                 bitsPerDim,
-                new float[] { scales[i], offsets[i] }
+                packCorrections(scales[i], offsets[i], 0),
+                0
             );
         }
         assertEquals(nVectors, scores.length);
@@ -366,7 +368,8 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
                     0,
                     nDims,
                     bitsPerDim,
-                    new float[] { enc.scale(), enc.offset() }
+                    packCorrections(enc.scale(), enc.offset(), 0),
+                    0
                 );
 
                 double err = reconstructed - trueDot;
@@ -397,7 +400,8 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
             0,
             nDims,
             bitsPerDim,
-            new float[] { scale, offset }
+            packCorrections(scale, offset, 0),
+            0
         );
         assertEquals(0.25f, score, 1e-4f);
     }
@@ -452,7 +456,8 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
             0,
             nDims,
             bitsPerDim,
-            new float[] { scale, offset }
+            packCorrections(scale, offset, 0),
+            0
         );
         assertEquals(floatScore, multiBitScore, 1e-4f);
     }
@@ -605,7 +610,8 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
                     0,
                     nDims,
                     bitsPerDim,
-                    new float[] { enc.scale(), enc.offset() }
+                    packCorrections(enc.scale(), enc.offset(), 0),
+                    0
                 );
 
                 exact[q][i] = exactDot;
@@ -693,5 +699,13 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
             ranks[indices[r]] = r;
         }
         return ranks;
+    }
+
+    private static byte[] packCorrections(float scale, float offset, int docSum) {
+        byte[] corr = new byte[AsymmetricHashingScorer.CORRECTION_BYTES];
+        BitUtil.VH_LE_INT.set(corr, AsymmetricHashingScorer.CORR_SCALE, Float.floatToIntBits(scale));
+        BitUtil.VH_LE_INT.set(corr, AsymmetricHashingScorer.CORR_OFFSET, Float.floatToIntBits(offset));
+        BitUtil.VH_LE_INT.set(corr, AsymmetricHashingScorer.CORR_DOC_SUM, docSum);
+        return corr;
     }
 }

@@ -160,13 +160,10 @@ public class AshPostingsListWriter {
         final int[] docIds = new int[maxPostingListSize];
         final int[] docDeltas = new int[maxPostingListSize];
         final int[] clusterOrds = new int[maxPostingListSize];
-        // Pre-allocated bulk block byte buffers for structure-of-arrays bulk writes.
-        // Each field is packed into a byte[] and written with a single writeBytes() call
-        // rather than per-element writeShort/writeInt loops.
+        // Pre-allocated bulk block byte buffers.
+        // Codes are written contiguously, then corrections in AoS layout (scale, offset, docSum per vector).
         final byte[] blockCodesBuf = new byte[BULK_SIZE * packedCodeBytes];
-        final byte[] blockScalesBuf = new byte[BULK_SIZE * Float.BYTES];
-        final byte[] blockOffsetsBuf = new byte[BULK_SIZE * Float.BYTES];
-        final byte[] blockDocSumsBuf = new byte[BULK_SIZE * Integer.BYTES];
+        final byte[] blockCorrectionsBuf = new byte[BULK_SIZE * AsymmetricHashingScorer.CORRECTION_BYTES];
         // EUCLIDEAN-only per-vector fields (Appendix A, Eq. A.2)
         final boolean isEuclidean = similarityFunction == VectorSimilarityFunction.EUCLIDEAN;
         final byte[] blockVecCentroidDotsBuf = isEuclidean ? new byte[BULK_SIZE * Float.BYTES] : null;
@@ -217,15 +214,24 @@ public class AshPostingsListWriter {
                     AsymmetricHashingQuantizer.EncodedVector enc = ashQuantizer.encode(vectors[vectorOrd], centroid, wT, precomputed);
                     byte[] vectorPacked = AsymmetricHashingScorer.pack(enc.xEnc(), bitsPerDim);
                     System.arraycopy(vectorPacked, 0, blockCodesBuf, j * packedCodeBytes, packedCodeBytes);
-                    BitUtil.VH_LE_INT.set(blockScalesBuf, j * Float.BYTES, Float.floatToIntBits(enc.scale()));
-                    BitUtil.VH_LE_INT.set(blockOffsetsBuf, j * Float.BYTES, Float.floatToIntBits(enc.offset()));
+                    int corrOff = j * AsymmetricHashingScorer.CORRECTION_BYTES;
+                    BitUtil.VH_LE_INT.set(
+                        blockCorrectionsBuf,
+                        corrOff + AsymmetricHashingScorer.CORR_SCALE,
+                        Float.floatToIntBits(enc.scale())
+                    );
+                    BitUtil.VH_LE_INT.set(
+                        blockCorrectionsBuf,
+                        corrOff + AsymmetricHashingScorer.CORR_OFFSET,
+                        Float.floatToIntBits(enc.offset())
+                    );
                     // Compute docSum: sum of unsigned code values directly from the centered float codes
                     int docSum = 0;
                     float[] xEnc = enc.xEnc();
                     for (int d = 0; d < nDims; d++) {
                         docSum += Math.round(xEnc[d] + centerOffset);
                     }
-                    BitUtil.VH_LE_INT.set(blockDocSumsBuf, j * Integer.BYTES, docSum);
+                    BitUtil.VH_LE_INT.set(blockCorrectionsBuf, corrOff + AsymmetricHashingScorer.CORR_DOC_SUM, docSum);
                     // EUCLIDEAN: compute ⟨μ*,x⟩ and ‖x-μ*‖² from the original float vectors
                     if (isEuclidean) {
                         float[] vec = vectors[vectorOrd];
@@ -243,12 +249,8 @@ public class AshPostingsListWriter {
                 }
                 // Write all packed codes contiguously
                 postingsOutput.writeBytes(blockCodesBuf, 0, blockSize * packedCodeBytes);
-                // Write all scales
-                postingsOutput.writeBytes(blockScalesBuf, 0, blockSize * Float.BYTES);
-                // Write all offsets
-                postingsOutput.writeBytes(blockOffsetsBuf, 0, blockSize * Float.BYTES);
-                // Write all docSums (sum of unsigned code values, for D2Q4 correction)
-                postingsOutput.writeBytes(blockDocSumsBuf, 0, blockSize * Integer.BYTES);
+                // Write all corrections in AoS layout (scale, offset, docSum per vector)
+                postingsOutput.writeBytes(blockCorrectionsBuf, 0, blockSize * AsymmetricHashingScorer.CORRECTION_BYTES);
                 // EUCLIDEAN: write ⟨μ*,x⟩ and ‖x-μ*‖² per vector (Appendix A, Eq. A.2)
                 if (isEuclidean) {
                     postingsOutput.writeBytes(blockVecCentroidDotsBuf, 0, blockSize * Float.BYTES);

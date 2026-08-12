@@ -9,6 +9,8 @@
 
 package org.elasticsearch.simdvec;
 
+import org.apache.lucene.util.BitUtil;
+
 /**
  * Scalar implementation of asymmetric hashing scoring.
  * <p>
@@ -104,7 +106,8 @@ public final class AsymmetricHashingScorer {
      * @param codeOffset starting byte offset for this vector's codes within the buffer
      * @param nDims number of projected dimensions
      * @param bitsPerDim bits per dimension
-     * @param docConstants per-vector constants: [scale, offset, ...]
+     * @param corrections per-vector corrections buffer (AoS layout: [scale, offset, docSum] per vector)
+     * @param correctionOffset byte offset into corrections for this vector
      * @return approximate dot product
      */
     public static float score(
@@ -114,10 +117,11 @@ public final class AsymmetricHashingScorer {
         int codeOffset,
         int nDims,
         int bitsPerDim,
-        float[] docConstants
+        byte[] corrections,
+        int correctionOffset
     ) {
-        float scale = docConstants[DC_SCALE];
-        float offset = docConstants[DC_OFFSET];
+        float scale = Float.intBitsToFloat((int) BitUtil.VH_LE_INT.get(corrections, correctionOffset + CORR_SCALE));
+        float offset = Float.intBitsToFloat((int) BitUtil.VH_LE_INT.get(corrections, correctionOffset + CORR_OFFSET));
 
         int planeBytes = (nDims + 7) >>> 3;
         int numLevels = 1 << bitsPerDim;
@@ -158,15 +162,15 @@ public final class AsymmetricHashingScorer {
     /** Length of the queryConstants array. */
     public static final int QC_LENGTH = 4;
 
-    // --- docConstants indices for scoreInteger ---
-    /** Index of scale in docConstants array. */
-    public static final int DC_SCALE = 0;
-    /** Index of offset in docConstants array. */
-    public static final int DC_OFFSET = 1;
-    /** Index of docSum in docConstants array. */
-    public static final int DC_DOC_SUM = 2;
-    /** Length of the docConstants array. */
-    public static final int DC_LENGTH = 3;
+    // --- Per-vector correction layout (AoS: scale, offset, docSum interleaved per vector) ---
+    /** Byte offset of scale (float32) within a correction entry. */
+    public static final int CORR_SCALE = 0;
+    /** Byte offset of offset (float32) within a correction entry. */
+    public static final int CORR_OFFSET = Float.BYTES;
+    /** Byte offset of docSum (int32) within a correction entry. */
+    public static final int CORR_DOC_SUM = 2 * Float.BYTES;
+    /** Total bytes per correction entry. */
+    public static final int CORRECTION_BYTES = 3 * Float.BYTES;
 
     /**
      * Scores a single database vector using integer arithmetic with a quantized query.
@@ -194,7 +198,8 @@ public final class AsymmetricHashingScorer {
      * @param codeOffset starting byte offset for this vector's codes within the buffer
      * @param bitsPerDim bits per dimension for document codes
      * @param planeBytes bytes per single bit-plane (ceil(nDims/8))
-     * @param docConstants per-vector constants: [scale, offset, docSum]
+     * @param corrections per-vector corrections buffer (AoS layout: [scale, offset, docSum] per vector)
+     * @param correctionOffset byte offset into corrections for this vector
      * @return approximate dot product
      */
     public static float scoreInteger(
@@ -205,14 +210,15 @@ public final class AsymmetricHashingScorer {
         int codeOffset,
         int bitsPerDim,
         int planeBytes,
-        float[] docConstants
+        byte[] corrections,
+        int correctionOffset
     ) {
         float invQScale = queryConstants[QC_INV_Q_SCALE];
         float qOffset = queryConstants[QC_Q_OFFSET];
         float constantCorrection = queryConstants[QC_CONSTANT_CORRECTION];
-        float scale = docConstants[DC_SCALE];
-        float offset = docConstants[DC_OFFSET];
-        float docSum = docConstants[DC_DOC_SUM];
+        float scale = Float.intBitsToFloat((int) BitUtil.VH_LE_INT.get(corrections, correctionOffset + CORR_SCALE));
+        float offset = Float.intBitsToFloat((int) BitUtil.VH_LE_INT.get(corrections, correctionOffset + CORR_OFFSET));
+        float docSum = (int) BitUtil.VH_LE_INT.get(corrections, correctionOffset + CORR_DOC_SUM);
 
         int rawDot = 0;
         for (int qp = 0; qp < queryBitsPerDim; qp++) {

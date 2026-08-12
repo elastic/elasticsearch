@@ -9,6 +9,7 @@
 
 package org.elasticsearch.simdvec;
 
+import org.apache.lucene.util.BitUtil;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.greaterThan;
@@ -31,7 +32,8 @@ public class AsymmetricHashingScorerTests extends ESTestCase {
             0,
             2,
             2,
-            new float[] { 1.0f, 0.0f }
+            packCorrections(1.0f, 0.0f, 0),
+            0
         );
         float expected = referenceScore(new float[] { 2.0f, 3.0f }, 0.0f, codes, 1.0f, 0.0f);
         assertEquals(expected, score, 1e-4f);
@@ -50,7 +52,8 @@ public class AsymmetricHashingScorerTests extends ESTestCase {
             0,
             2,
             2,
-            new float[] { 2.0f, 0.3f }
+            packCorrections(2.0f, 0.3f, 0),
+            0
         );
         float expected = referenceScore(new float[] { 2.0f, 3.0f }, 1.5f, codes, 2.0f, 0.3f);
         assertEquals(expected, score, 1e-4f);
@@ -87,7 +90,8 @@ public class AsymmetricHashingScorerTests extends ESTestCase {
                     0,
                     nDims,
                     bitsPerDim,
-                    new float[] { scale, offset }
+                    packCorrections(scale, offset, 0),
+                    0
                 );
                 assertEquals("Mismatch at bits=" + bitsPerDim + " iter=" + iter, expected, actual, 1e-3f);
             }
@@ -137,7 +141,7 @@ public class AsymmetricHashingScorerTests extends ESTestCase {
     public void testZeroDimensionScoring() {
         // Edge case: 0-dim vectors; dot = 0, result = 0 * 2.0 + 1.5 + 0.3 = 1.8
         byte[] packed = AsymmetricHashingScorer.pack(new float[0], 2);
-        float score = AsymmetricHashingScorer.score(new float[0], new float[] { 1.5f }, packed, 0, 0, 2, new float[] { 2.0f, 0.3f });
+        float score = AsymmetricHashingScorer.score(new float[0], new float[] { 1.5f }, packed, 0, 0, 2, packCorrections(2.0f, 0.3f, 0), 0);
         assertEquals(1.8f, score, 1e-6f);
     }
 
@@ -186,7 +190,8 @@ public class AsymmetricHashingScorerTests extends ESTestCase {
                 0,
                 nDims,
                 bitsPerDim,
-                new float[] { scale, offset }
+                packCorrections(scale, offset, 0),
+                0
             );
             float bulkScore = AsymmetricHashingScorer.score(
                 qt,
@@ -195,7 +200,8 @@ public class AsymmetricHashingScorerTests extends ESTestCase {
                 v * packedLen,
                 nDims,
                 bitsPerDim,
-                new float[] { scale, offset }
+                packCorrections(scale, offset, 0),
+                0
             );
             assertEquals("Mismatch at vector " + v, standaloneScore, bulkScore, 0f);
         }
@@ -271,10 +277,11 @@ public class AsymmetricHashingScorerTests extends ESTestCase {
                     0,
                     nDims,
                     bitsPerDim,
-                    new float[] { scale, offset }
+                    packCorrections(scale, offset, 0),
+                    0
                 );
                 float[] queryConstants = new float[] { qdc, invQScale, qMin, constantCorrection };
-                float[] docConstants = new float[] { scale, offset, (float) docSum };
+                byte[] corr = packCorrections(scale, offset, docSum);
                 intScores[v] = AsymmetricHashingScorer.scoreInteger(
                     queryQuantized,
                     queryBits,
@@ -283,7 +290,8 @@ public class AsymmetricHashingScorerTests extends ESTestCase {
                     0,
                     bitsPerDim,
                     planeBytes,
-                    docConstants
+                    corr,
+                    0
                 );
             }
 
@@ -310,5 +318,14 @@ public class AsymmetricHashingScorerTests extends ESTestCase {
     /** Reference scorer: computes dot(qt, codes) * scale + qdc + offset using plain float arithmetic. */
     private static float referenceScore(float[] qt, float qdc, float[] codes, float scale, float offset) {
         return ESVectorUtil.dotProduct(qt, codes) * scale + qdc + offset;
+    }
+
+    /** Packs scale, offset, docSum into a corrections byte[] in AoS format. */
+    private static byte[] packCorrections(float scale, float offset, int docSum) {
+        byte[] corr = new byte[AsymmetricHashingScorer.CORRECTION_BYTES];
+        BitUtil.VH_LE_INT.set(corr, AsymmetricHashingScorer.CORR_SCALE, Float.floatToIntBits(scale));
+        BitUtil.VH_LE_INT.set(corr, AsymmetricHashingScorer.CORR_OFFSET, Float.floatToIntBits(offset));
+        BitUtil.VH_LE_INT.set(corr, AsymmetricHashingScorer.CORR_DOC_SUM, docSum);
+        return corr;
     }
 }

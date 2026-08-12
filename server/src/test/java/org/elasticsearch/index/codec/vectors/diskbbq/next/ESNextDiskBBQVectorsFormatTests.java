@@ -52,10 +52,7 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader;
-import org.elasticsearch.index.codec.vectors.diskbbq.IvfFlushConfigSource;
-import org.elasticsearch.index.codec.vectors.diskbbq.IvfMergeConfigResolver;
 import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
-import org.elasticsearch.index.codec.vectors.diskbbq.QuantizationType;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.search.vectors.ESAcceptDocs;
 import org.elasticsearch.search.vectors.ESAcceptDocs.SliceAcceptDocs;
@@ -925,23 +922,8 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
         }
     }
 
-    private static ESNextDiskBBQVectorsFormat ashTestFormat() {
-        return new ESNextDiskBBQVectorsFormat(
-            QuantEncoding.TWO_BIT_4BIT_QUERY,
-            MIN_VECTORS_PER_CLUSTER,
-            MIN_CENTROIDS_PER_PARENT_CLUSTER,
-            DenseVectorFieldMapper.ElementType.FLOAT,
-            false,
-            null,
-            1,
-            false,
-            DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
-            0,
-            null,
-            IvfFlushConfigSource.empty(),
-            IvfMergeConfigResolver.useCodecDefault(),
-            QuantizationType.ASH
-        );
+    private static ESNextDiskASHVectorsFormat ashTestFormat() {
+        return new ESNextDiskASHVectorsFormat(MIN_VECTORS_PER_CLUSTER, MIN_CENTROIDS_PER_PARENT_CLUSTER, null);
     }
 
 }

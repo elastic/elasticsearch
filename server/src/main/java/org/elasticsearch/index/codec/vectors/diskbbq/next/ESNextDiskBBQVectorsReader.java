@@ -214,8 +214,6 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         float rescoreOversample = Float.intBitsToFloat(input.readInt());
         // ESNext format extension: byte centroid flag
         boolean byteCentroids = input.readByte() == 1;
-        // Read and discard quantization type byte (always BBQ for this reader; ASH has its own reader)
-        input.readByte();
         return new NextFieldEntry(
             rawVectorFormat,
             useDirectIOReads,

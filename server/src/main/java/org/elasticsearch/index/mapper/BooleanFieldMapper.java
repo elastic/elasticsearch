@@ -13,13 +13,19 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.StringField;
+import org.apache.lucene.document.column.LongColumn;
+import org.apache.lucene.document.column.ObjectTupleCursor;
+import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
+import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.lucene.Lucene;
@@ -27,6 +33,11 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.escf.EscfColumn;
+import org.elasticsearch.escf.EscfColumnBuilder;
+import org.elasticsearch.escf.EscfColumnData;
+import org.elasticsearch.escf.EscfColumnKind;
+import org.elasticsearch.escf.LuceneLongColumn;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -45,6 +56,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -73,6 +85,10 @@ public class BooleanFieldMapper extends FieldMapper {
         public static final BytesRef TRUE = new BytesRef("T");
         public static final BytesRef FALSE = new BytesRef("F");
     }
+
+    private static final IndexableFieldType SORTED_NUMERIC_DV_FIELD_TYPE = SortedNumericDocValuesField.TYPE;
+    private static final IndexableFieldType SORTED_NUMERIC_DV_INDEXED_FIELD_TYPE = SortedNumericDocValuesField.indexedField("_sentinel", 0L)
+        .fieldType();
 
     private static BooleanFieldMapper toType(FieldMapper in) {
         return (BooleanFieldMapper) in;
@@ -752,5 +768,78 @@ public class BooleanFieldMapper extends FieldMapper {
         }
 
         return super.syntheticSourceSupport();
+    }
+
+    @Override
+    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+        // doc_values.multi_value and ignore_malformed are not implemented by mapColumnBatch
+        // but are not rejected here — they fall back per document at parse time.
+        return indexSettings.getMode().isStrictColumnar()
+            && docValuesParameters.enabled()
+            && indexed == false
+            && stored == false
+            && hasScript() == false
+            && copyTo().copyToFields().isEmpty()
+            && multiFields().iterator().hasNext() == false
+            && fieldType().isDimension() == false
+            && indexSettings.getIndexVersionCreated().isLegacyIndexVersion() == false;
+    }
+
+    @Override
+    public void mapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
+        switch (source.kind()) {
+            case EscfColumnKind.BOOL, EscfColumnKind.STRING -> {
+            }
+            default -> throw new UnsupportedOperationException(
+                "mapColumnBatch: ESCF column kind ["
+                    + EscfColumnKind.name(source.kind())
+                    + "] is not yet supported for boolean field ["
+                    + fullPath()
+                    + "]"
+            );
+        }
+        EscfColumnData longData = booleansToLongs(source);
+        IndexableFieldType columnFieldType = fieldType().indexType().hasDocValuesSkipper()
+            ? SORTED_NUMERIC_DV_INDEXED_FIELD_TYPE
+            : SORTED_NUMERIC_DV_FIELD_TYPE;
+        ctx.addColumn(LuceneLongColumn.of(longData, fieldType().name(), columnFieldType, LongColumn.NumericKind.INT));
+    }
+
+    private EscfColumnData booleansToLongs(EscfColumn source) {
+        EscfColumnBuilder builder = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, BytesRefRecycler.NON_RECYCLING_INSTANCE);
+        builder.lockScalar(EscfColumnKind.LONG);
+        if (source.kind() == EscfColumnKind.BOOL) {
+            EscfColumnData colData = source.columnData();
+            FixedBitSet validity = colData.validity();
+            FixedBitSet boolValues = colData.values();
+            int docCount = colData.docCount();
+            if (validity == null) {
+                for (int doc = 0; doc < docCount; doc++) {
+                    builder.setLong(doc, (boolValues != null && boolValues.get(doc)) ? 1L : 0L);
+                }
+            } else {
+                BitSetIterator it = new BitSetIterator(validity, docCount);
+                for (int doc = it.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = it.nextDoc()) {
+                    builder.setLong(doc, (boolValues != null && boolValues.get(doc)) ? 1L : 0L);
+                }
+            }
+        } else {
+            final ObjectTupleCursor<BytesRef> cursor = source.bytesRefCursor(false);
+            for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
+                final BytesRef value = cursor.value();
+                if (value == null) {
+                    if (nullValue != null) {
+                        builder.setLong(doc, nullValue ? 1L : 0L);
+                    }
+                } else {
+                    builder.setLong(doc, parseBooleanString(value.utf8ToString()) ? 1L : 0L);
+                }
+            }
+        }
+        return builder.finish(source.docCount());
+    }
+
+    private static boolean parseBooleanString(String s) {
+        return Booleans.parseBoolean(s.toCharArray(), 0, s.length(), false);
     }
 }

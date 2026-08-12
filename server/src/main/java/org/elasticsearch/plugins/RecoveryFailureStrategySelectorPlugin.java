@@ -11,8 +11,7 @@ package org.elasticsearch.plugins;
 
 import org.elasticsearch.indices.recovery.FailureStrategySelector;
 
-/// Plugin that makes it possible to inject a
-/// {@link FailureStrategySelector}
+/// Plugin that makes it possible to inject a [FailureStrategySelector]
 /// into the recovery path. Will override the default behavior.
 public interface RecoveryFailureStrategySelectorPlugin {
     FailureStrategySelector createFailureStrategySelector();

@@ -198,12 +198,17 @@ public class SequentialRangeMissingHandler implements SharedBlobCacheService.Ran
         createInputStream(streamFactory, relativePos, len, completionListener.map(in -> {
             try (in) {
                 assert ThreadPool.assertCurrentThreadPool(expectedThreadPoolNames);
-                // bytesCopiedConsumer is invoked for each chunk BEFORE progressUpdater advances the
+                // copyToCacheFileAligned calls progressUpdater with the cumulative byte total after each
+                // chunk lands, not with the per-chunk delta. We track the previous cumulative total so we
+                // can compute the delta and feed it to bytesCopiedConsumer before advancing the
                 // SparseFileTracker. This guarantees that the byte count is visible to any reader thread
-                // that the SparseFileTracker may unblock, eliminating the race with recovery metrics collection.
-                final IntConsumer earlyCountingProgressUpdater = bytes -> {
-                    bytesCopiedConsumer.accept(bytes);
-                    progressUpdater.accept(bytes);
+                // that the SparseFileTracker may unblock, eliminating the race with recovery metrics
+                // collection.
+                final int[] prevCumulativeBytes = { 0 };
+                final IntConsumer earlyCountingProgressUpdater = cumulativeBytes -> {
+                    bytesCopiedConsumer.accept(cumulativeBytes - prevCumulativeBytes[0]);
+                    prevCumulativeBytes[0] = cumulativeBytes;
+                    progressUpdater.accept(cumulativeBytes);
                 };
                 final long copyStartNanos = System.nanoTime();
                 final int totalBytesCopied = SharedBytes.copyToCacheFileAligned(
@@ -213,9 +218,13 @@ public class SequentialRangeMissingHandler implements SharedBlobCacheService.Ran
                     earlyCountingProgressUpdater,
                     writeBufferSupplier.get()
                 );
-                // Report total bytes and elapsed copy time for throughput metrics. Called after all
-                // SparseFileTracker advances so it must not be used for byte-counter updates.
-                cacheBlobReader.onCopyCompleted(totalBytesCopied, System.nanoTime() - copyStartNanos);
+                // Report total bytes and elapsed copy time for throughput metrics. Only called when bytes
+                // were actually copied (i.e. a cache miss), since recordCachePopulationMetrics requires
+                // bytesCopied > 0. Called after all SparseFileTracker advances so it must not be used
+                // for byte-counter updates.
+                if (totalBytesCopied > 0) {
+                    cacheBlobReader.onCopyCompleted(totalBytesCopied, System.nanoTime() - copyStartNanos);
+                }
                 return null;
             }
         }));

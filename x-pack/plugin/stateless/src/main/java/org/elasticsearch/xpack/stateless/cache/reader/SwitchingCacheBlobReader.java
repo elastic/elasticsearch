@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.stateless.cache.reader.ObjectStoreUploadTracker.U
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 
 import java.io.InputStream;
+import java.util.function.IntConsumer;
 
 /**
  * Switches between two {@link CacheBlobReader} implementations based on whether the batched compound commit has been uploaded to the
@@ -95,6 +96,24 @@ public class SwitchingCacheBlobReader implements CacheBlobReader {
             return cacheBlobReaderForUploaded.executorName();
         } else {
             return cacheBlobReaderForNonUploaded.executorName();
+        }
+    }
+
+    @Override
+    public IntConsumer newBytesCopiedConsumer() {
+        if (latestUploadInfo.isUploaded()) {
+            return cacheBlobReaderForUploaded.newBytesCopiedConsumer();
+        } else {
+            return cacheBlobReaderForNonUploaded.newBytesCopiedConsumer();
+        }
+    }
+
+    @Override
+    public void onCopyCompleted(int totalBytesRead, long timeNanos) {
+        if (latestUploadInfo.isUploaded()) {
+            cacheBlobReaderForUploaded.onCopyCompleted(totalBytesRead, timeNanos);
+        } else {
+            cacheBlobReaderForNonUploaded.onCopyCompleted(totalBytesRead, timeNanos);
         }
     }
 }

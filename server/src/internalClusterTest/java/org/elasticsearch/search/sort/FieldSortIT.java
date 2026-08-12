@@ -1809,39 +1809,52 @@ public class FieldSortIT extends ESIntegTestCase {
                         "properties": {
                             "value": { "type": "integer" }
                         }
-                    }
+                    },
+                    "values": { "type": "integer" }
                 }
             }
             """));
         indexRandom(
             true,
-            prepareIndex("test").setSource(jsonBuilder().startObject().startObject("obj").field("value", 30).endObject().endObject()),
-            prepareIndex("test").setSource(jsonBuilder().startObject().startObject("obj").field("value", 10).endObject().endObject()),
-            prepareIndex("test").setSource(jsonBuilder().startObject().startObject("obj").field("value", 20).endObject().endObject())
+            prepareIndex("test").setSource(
+                jsonBuilder().startObject().startObject("obj").field("value", 30).endObject().array("values", 1, 100).endObject()
+            ),
+            prepareIndex("test").setSource(
+                jsonBuilder().startObject().startObject("obj").field("value", 10).endObject().array("values", 20, 30).endObject()
+            ),
+            prepareIndex("test").setSource(
+                jsonBuilder().startObject().startObject("obj").field("value", 20).endObject().array("values", 40, 50).endObject()
+            )
         );
 
         assertNoFailuresAndResponse(
             prepareSearch("test").setQuery(matchAllQuery())
                 .addSort(SortBuilders.fieldSort("obj.value").setNestedSort(new NestedSortBuilder("obj")).order(SortOrder.ASC)),
-            response -> {
-                SearchHit[] hits = response.getHits().getHits();
-                assertThat(hits.length, is(3));
-                assertThat(((Number) hits[0].getSortValues()[0]).longValue(), equalTo(10L));
-                assertThat(((Number) hits[1].getSortValues()[0]).longValue(), equalTo(20L));
-                assertThat(((Number) hits[2].getSortValues()[0]).longValue(), equalTo(30L));
-            }
+            response -> assertSortValues(response, 10L, 20L, 30L)
         );
         assertNoFailuresAndResponse(
             prepareSearch("test").setQuery(matchAllQuery())
                 .addSort(SortBuilders.fieldSort("obj.value").setNestedSort(new NestedSortBuilder("obj")).order(SortOrder.DESC)),
-            response -> {
-                SearchHit[] hits = response.getHits().getHits();
-                assertThat(hits.length, is(3));
-                assertThat(((Number) hits[0].getSortValues()[0]).longValue(), equalTo(30L));
-                assertThat(((Number) hits[1].getSortValues()[0]).longValue(), equalTo(20L));
-                assertThat(((Number) hits[2].getSortValues()[0]).longValue(), equalTo(10L));
-            }
+            response -> assertSortValues(response, 30L, 20L, 10L)
         );
+        assertNoFailuresAndResponse(
+            prepareSearch("test").setQuery(matchAllQuery())
+                .addSort(SortBuilders.fieldSort("values").sortMode(SortMode.MAX).order(SortOrder.DESC)),
+            response -> assertSortValues(response, 100L, 50L, 30L)
+        );
+        assertNoFailuresAndResponse(
+            prepareSearch("test").setQuery(matchAllQuery())
+                .addSort(SortBuilders.fieldSort("values").sortMode(SortMode.SUM).order(SortOrder.DESC)),
+            response -> assertSortValues(response, 101L, 90L, 50L)
+        );
+    }
+
+    private static void assertSortValues(SearchResponse response, long... expectedValues) {
+        SearchHit[] hits = response.getHits().getHits();
+        assertThat(hits.length, is(expectedValues.length));
+        for (int i = 0; i < expectedValues.length; i++) {
+            assertThat(((Number) hits[i].getSortValues()[0]).longValue(), equalTo(expectedValues[i]));
+        }
     }
 
     public void testSortDuelBetweenSingleShardAndMultiShardIndex() {

@@ -86,7 +86,6 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
      * match the field's <code>numericType</code>.
      */
     public final SortField sortField(
-        boolean indexSort,
         NumericType targetNumericType,
         Object missingValue,
         MultiValueMode sortMode,
@@ -103,15 +102,7 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
         boolean requiresCustomComparator = nested != null
             || (sortMode != MultiValueMode.MAX && sortMode != MultiValueMode.MIN)
             || targetNumericType != getNumericType();
-        return buildSortField(
-            targetNumericType,
-            missingValue,
-            sortMode,
-            nested,
-            reverse,
-            indexSort && requiresCustomComparator == false,
-            requiresCustomComparator == false
-        );
+        return buildSortField(targetNumericType, missingValue, sortMode, nested, reverse, false, requiresCustomComparator == false);
     }
 
     private SortField buildSortField(
@@ -160,7 +151,7 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
 
     @Override
     public final SortField sortField(Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse) {
-        return sortField(false, getNumericType(), missingValue, sortMode, nested, reverse);
+        return sortField(getNumericType(), missingValue, sortMode, nested, reverse);
     }
 
     @Override
@@ -179,14 +170,14 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
     ) {
         // Integer sorts used LONG before 8.19 and in 9.0. Use that historical type directly because an index sort's type is persisted
         // in the index writer configuration, and search sorts must use the same representation for compatibility.
-        boolean bwcIntegerSort = getNumericType().sortFieldType == SortField.Type.INT
+        boolean useBwcLongSort = getNumericType().sortFieldType == SortField.Type.INT
             // we introduced INT sort type in 8.19 and from 9.1
             && indexCreatedVersion.before(IndexVersions.INDEX_INT_SORT_INT_TYPE)
             && indexCreatedVersion.between(IndexVersions.INDEX_INT_SORT_INT_TYPE_8_19, UPGRADE_TO_LUCENE_10_0_0) == false;
 
-        NumericType targetNumericType = bwcIntegerSort ? NumericType.LONG : getNumericType();
+        NumericType targetNumericType = useBwcLongSort ? NumericType.LONG : getNumericType();
         boolean hasNativeSelector = nested == null && (sortMode == MultiValueMode.MIN || sortMode == MultiValueMode.MAX);
-        boolean useNativeSortField = hasNativeSelector && (indexSort || bwcIntegerSort);
+        boolean useNativeSortField = hasNativeSelector && (indexSort || useBwcLongSort);
         SortField sortField = buildSortField(
             targetNumericType,
             missingValue,
@@ -194,7 +185,7 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
             nested,
             reverse,
             useNativeSortField,
-            bwcIntegerSort == false && hasNativeSelector
+            useBwcLongSort == false && hasNativeSelector
         );
 
         if (getNumericType() == NumericType.DATE_NANOSECONDS

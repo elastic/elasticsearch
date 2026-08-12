@@ -301,6 +301,8 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
         assertEqualSource(mappingXContent, document, useTimeSeriesDocValuesFormat);
         var syntheticSource = client().prepareGet("test_synthetic", "1").get().getSourceAsMap();
         assertEquals("synthetic source must match expected content", expectedSource, syntheticSource);
+        var columnarStoredSource = client().prepareGet("test_columnar_stored", "1").get().getSourceAsMap();
+        assertEquals("columnar stored source must match expected content", expectedSource, columnarStoredSource);
     }
 
     private DataGeneratorSpecification buildSpec() {

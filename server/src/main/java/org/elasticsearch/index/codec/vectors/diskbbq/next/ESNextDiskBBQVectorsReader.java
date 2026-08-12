@@ -542,6 +542,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
             };
             return new AshPostingsVisitor(
                 ashMatrix.wT(),
+                dimension,
                 target,
                 fieldInfo.getVectorSimilarityFunction(),
                 indexInput,

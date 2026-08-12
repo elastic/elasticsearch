@@ -99,7 +99,8 @@ public class AshPostingsListWriter {
             ashConfig.bitsPerDim(),
             AsymmetricHashingQuantizer.Method.LEARNED,
             ashConfig.trainingIterations(),
-            ashConfig.trainingFactor()
+            ashConfig.trainingFactor(),
+            42L
         );
 
         IntFunction<float[]> centroidGetter = (i) -> {
@@ -111,13 +112,14 @@ public class AshPostingsListWriter {
         };
 
         // Train W using primary assignments only.
-        float[][] w = ashQuantizer.train(vectors, centroidGetter);
+        float[] w = ashQuantizer.train(vectors, centroidGetter);
 
         // Transpose W once for SIMD-friendly dot products during encoding
-        float[][] wT = ESVectorUtil.transposeMatrix(w);
+        int nDims = ashQuantizer.nDims(originalDim);
+        float[] wT = ESVectorUtil.transposeMatrix(w, originalDim, nDims);
 
         // Store the projection matrix for later serialization
-        this.ashProjectionMatrix = new AshProjectionMatrix(w);
+        this.ashProjectionMatrix = new AshProjectionMatrix(w, originalDim, nDims);
 
         // Build cluster-to-vector mappings, counting primary + SOAR overspill assignments
         int[] centroidVectorCount = new int[nClusters];
@@ -150,7 +152,6 @@ public class AshPostingsListWriter {
         final PackedLongValues.Builder offsets = PackedLongValues.monotonicBuilder(PackedInts.COMPACT);
         final PackedLongValues.Builder lengths = PackedLongValues.monotonicBuilder(PackedInts.COMPACT);
         final int bitsPerDim = ashConfig.bitsPerDim();
-        final int nDims = w[0].length;
         final int packedCodeBytes = AsymmetricHashingScorer.packedLength(nDims, bitsPerDim);
         final float centerOffset = ((1 << bitsPerDim) - 1) / 2.0f;
         final int[] docIds = new int[maxPostingListSize];

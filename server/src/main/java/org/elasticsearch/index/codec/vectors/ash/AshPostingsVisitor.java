@@ -103,7 +103,8 @@ public class AshPostingsVisitor implements IVFVectorsReader.PostingVisitor {
     private float currentCentroidNormSq;
 
     /**
-     * @param wT transposed projection matrix W^T, shape (nDims, originalDim)
+     * @param wT transposed projection matrix W^T in row-major order, shape (nDims, originalDim)
+     * @param originalDim original vector dimensionality (number of columns in wT)
      * @param query the raw query vector
      * @param similarityFunction the vector similarity function for score conversion
      * @param indexInput input for reading posting list data
@@ -113,7 +114,8 @@ public class AshPostingsVisitor implements IVFVectorsReader.PostingVisitor {
      * @param centroidReader function mapping centroid ordinal to float[] centroid vector
      */
     public AshPostingsVisitor(
-        float[][] wT,
+        float[] wT,
+        int originalDim,
         float[] query,
         VectorSimilarityFunction similarityFunction,
         IndexInput indexInput,
@@ -124,7 +126,7 @@ public class AshPostingsVisitor implements IVFVectorsReader.PostingVisitor {
     ) {
         this.indexInput = indexInput;
         this.acceptDocs = acceptDocs;
-        this.nDims = wT.length;
+        this.nDims = wT.length / originalDim;
         this.bitsPerDim = bitsPerDim;
         this.planeBytes = (nDims + 7) >>> 3;
         this.packedCodeBytes = bitsPerDim * planeBytes;
@@ -138,10 +140,10 @@ public class AshPostingsVisitor implements IVFVectorsReader.PostingVisitor {
         this.bulkVecCentroidDots = isEuclidean ? new float[BULK_SIZE] : null;
         this.bulkVecCentroidSqDists = isEuclidean ? new float[BULK_SIZE] : null;
 
-        // Precompute query projection: queryTransformed[j] = dot(query, wT[j])
+        // Precompute query projection: queryTransformed[j] = dot(query, wT[j*originalDim .. (j+1)*originalDim))
         this.queryTransformed = new float[nDims];
         for (int j = 0; j < nDims; j++) {
-            queryTransformed[j] = ESVectorUtil.dotProduct(query, wT[j]);
+            queryTransformed[j] = ESVectorUtil.dotProduct(query, 0, wT, j * originalDim, originalDim);
         }
 
         // Shared query/doc constants arrays used by both float and integer scoring paths

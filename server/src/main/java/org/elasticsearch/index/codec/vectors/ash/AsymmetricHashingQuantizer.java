@@ -33,6 +33,9 @@ import java.util.function.IntUnaryOperator;
  * <p>
  * At query time, the query is projected via W but NOT quantized (asymmetric scoring),
  * yielding higher recall than symmetric approaches.
+ * <p>
+ * All matrices (W, Wt, P, R, etc.) are represented as flat row-major {@code float[]} of
+ * length rows*cols.
  */
 public final class AsymmetricHashingQuantizer {
 
@@ -44,14 +47,12 @@ public final class AsymmetricHashingQuantizer {
         RANDOM
     }
 
-    private static final long SEED = 42L;
-
     private final float projectedDimsFraction;
     private final Method method;
     private final int nTrainingIterations;
     private final int trainingFactor;
+    private final long seed;
     private final AshSphericalScalarQuantizer quantizer;
-    private final Random rng;
 
     /** Supported values for bits per dimension. */
     public static final Set<Integer> SUPPORTED_BITS_PER_DIM = Set.of(1, 2, 3, 4, 8);
@@ -60,30 +61,32 @@ public final class AsymmetricHashingQuantizer {
      * Creates an ASH quantizer with the given configuration.
      *
      * @param projectedDimsFraction fraction of original dimensions to project to (e.g. 0.5 for half)
-     * @param bitsPerDim bits per projected dimension, must be in {@link #SUPPORTED_BITS_PER_DIM}
+     * @param bitsPerDim bits per projected dimension in the body
      * @param method training method for W
      * @param nTrainingIterations number of Procrustes iterations (for LEARNED)
      * @param trainingFactor multiplier on dimension for training sample size
+     * @param seed random seed
      */
     public AsymmetricHashingQuantizer(
         float projectedDimsFraction,
         int bitsPerDim,
         Method method,
         int nTrainingIterations,
-        int trainingFactor
+        int trainingFactor,
+        long seed
     ) {
         if (projectedDimsFraction <= 0 || projectedDimsFraction > 1.0f) {
             throw new IllegalArgumentException("projectedDimsFraction must be in (0, 1]");
         }
-        if (SUPPORTED_BITS_PER_DIM.contains(bitsPerDim) == false) {
+        if (bitsPerDim <= 0 || SUPPORTED_BITS_PER_DIM.contains(bitsPerDim) == false) {
             throw new IllegalArgumentException("bitsPerDim must be one of " + SUPPORTED_BITS_PER_DIM + ", got: " + bitsPerDim);
         }
         this.projectedDimsFraction = projectedDimsFraction;
         this.method = method;
         this.nTrainingIterations = nTrainingIterations;
         this.trainingFactor = trainingFactor;
+        this.seed = seed;
         this.quantizer = new AshSphericalScalarQuantizer(bitsPerDim);
-        this.rng = new Random(SEED);
     }
 
     /**
@@ -99,15 +102,14 @@ public final class AsymmetricHashingQuantizer {
     /**
      * Trains the projection matrix W on the given vectors and their cluster assignments.
      * <p>
-     * This method consumes draws from the instance-level RNG, so successive calls on the same
-     * instance will produce different results. Callers should construct a fresh quantizer per
-     * training run.
+     * This method consumes draws from a per-call RNG seeded with the instance's seed, so
+     * successive calls on the same instance will produce identical results.
      *
      * @param vectors all vectors in the segment, shape (nVectors, originalDim)
      * @param centroids cluster centroids, fetched by vector ordinal
-     * @return the learned projection matrix W, shape (originalDim, nDims)
+     * @return the learned projection matrix W in row-major order, shape (originalDim, nDims)
      */
-    public float[][] train(float[][] vectors, IntFunction<float[]> centroids) {
+    public float[] train(float[][] vectors, IntFunction<float[]> centroids) {
         int originalDim = vectors[0].length;
         int nDims = nDims(originalDim);
 
@@ -123,20 +125,21 @@ public final class AsymmetricHashingQuantizer {
         int trainingSize = Math.min(originalDim * trainingFactor, vectors.length);
         int[] sampleIndices = sampleIndices(vectors.length, trainingSize);
 
-        // Center and normalize the sampled vectors into a fresh array. We must not mutate
+        // Center and normalize the sampled vectors into a fresh flat array. We must not mutate
         // `vectors` in place -- the writer reuses it for per-posting-list encoding later.
-        float[][] xTraining = new float[trainingSize][originalDim];
+        float[] xTraining = new float[trainingSize * originalDim];
         for (int i = 0; i < trainingSize; i++) {
             int srcIdx = sampleIndices[i];
             float[] centroid = centroids.apply(srcIdx);
+            int base = i * originalDim;
             for (int d = 0; d < originalDim; d++) {
-                xTraining[i][d] = vectors[srcIdx][d] - centroid[d];
+                xTraining[base + d] = vectors[srcIdx][d] - centroid[d];
             }
-            ESVectorUtil.l2Normalize(xTraining[i]);
+            ESVectorUtil.l2Normalize(xTraining, base, originalDim);
         }
 
         // LEARNED: PCA init + Procrustes
-        return learnedTraining(xTraining, originalDim, nDims);
+        return learnedTraining(xTraining, trainingSize, originalDim, nDims);
     }
 
     /**
@@ -175,14 +178,15 @@ public final class AsymmetricHashingQuantizer {
      * then pass the result to {@link #encode} for each vector in that cluster.
      *
      * @param centroid the posting list centroid, length originalDim
-     * @param wT transposed projection matrix, shape (nDims, originalDim)
+     * @param wT transposed projection matrix in row-major order, shape (nDims, originalDim)
      * @return precomputed values for this centroid
      */
-    public static PrecomputedCentroid precomputeCentroid(float[] centroid, float[][] wT) {
-        int nDims = wT.length;
+    public static PrecomputedCentroid precomputeCentroid(float[] centroid, float[] wT) {
+        int originalDim = centroid.length;
+        int nDims = wT.length / originalDim;
         float[] centroidProjected = new float[nDims];
         for (int j = 0; j < nDims; j++) {
-            centroidProjected[j] = ESVectorUtil.dotProduct(centroid, wT[j]);
+            centroidProjected[j] = ESVectorUtil.dotProduct(centroid, 0, wT, j * originalDim, originalDim);
         }
         float centroidNormSq = ESVectorUtil.dotProduct(centroid, centroid);
         return new PrecomputedCentroid(centroidProjected, centroidNormSq);
@@ -194,20 +198,22 @@ public final class AsymmetricHashingQuantizer {
      *
      * @param vector the input vector, length originalDim
      * @param centroid the centroid (needed for centering), length originalDim
-     * @param wT transposed projection matrix, shape (nDims, originalDim)
+     * @param wT transposed projection matrix in row-major order, shape (nDims, originalDim)
      * @param precomputed precomputed centroid projection and norm
      * @return xEnc/scale/offset for this (vector, centroid) pair
      */
-    public EncodedVector encode(float[] vector, float[] centroid, float[][] wT, PrecomputedCentroid precomputed) {
-        int nDims = wT.length;
+    public EncodedVector encode(float[] vector, float[] centroid, float[] wT, PrecomputedCentroid precomputed) {
+        int originalDim = centroid.length;
+        int nDims = wT.length / originalDim;
 
         // Center and compute norm
         var centered = centralizeVector(vector, centroid);
 
         // Project using transposed W: xLatent[j] = dot(centered, wT[j])
+        float[] normalizedCentered = centered.normalized();
         float[] xLatent = new float[nDims];
         for (int j = 0; j < nDims; j++) {
-            xLatent[j] = ESVectorUtil.dotProduct(centered.normalized, wT[j]);
+            xLatent[j] = ESVectorUtil.dotProduct(normalizedCentered, 0, wT, j * originalDim, originalDim);
         }
 
         // Quantize
@@ -216,7 +222,7 @@ public final class AsymmetricHashingQuantizer {
         float codeNorm = qr.codeNorm();
 
         // Scale: norm / codeNorm
-        float scale = codeNorm > 0 ? (float) Math.sqrt(centered.normSq) / codeNorm : 0;
+        float scale = codeNorm > 0 ? (float) Math.sqrt(centered.normSq()) / codeNorm : 0;
 
         // Offset per ASH paper Equation 19: ⟨x, μ⟩ - scale * ⟨centroid@W, code⟩ - ‖μ‖²
         // The cross-term ⟨centroid@W, code⟩ accounts for using the raw projected query Wq (Eq. 18)
@@ -235,51 +241,44 @@ public final class AsymmetricHashingQuantizer {
         return new EncodedVector(xEnc, scale, offset);
     }
 
-    private float[][] learnedTraining(float[][] xTraining, int originalDim, int nDims) {
+    private float[] learnedTraining(float[] xTraining, int nTraining, int originalDim, int nDims) {
         // PCA initialization: extract top nDims right singular vectors via power iteration
         // This is much faster than full SVD when nDims << originalDim
-        float[][] topVectors = SvdUtil.topKRightSingularVectors(xTraining, xTraining.length, originalDim, nDims, SEED);
+        float[] topVectors = SvdUtil.topKRightSingularVectors(xTraining, nTraining, originalDim, nDims, seed);
         // P = top nDims right singular vectors transposed: rows of topVectors are the vectors
-        // P shape: (originalDim x nDims) where each column is a right singular vector
-        float[][] p = new float[originalDim][nDims];
-        for (int i = 0; i < originalDim; i++) {
-            for (int j = 0; j < nDims; j++) {
-                p[i][j] = topVectors[j][i];
-            }
-        }
+        // topVectors shape: (nDims x originalDim); P shape: (originalDim x nDims)
+        float[] p = ESVectorUtil.transposeMatrix(topVectors, nDims, originalDim);
 
         // Project training data: X_ld = xTraining @ P (nTraining x nDims)
-        int nTraining = xTraining.length;
-        float[][] xLd = matMul(xTraining, p, nTraining, originalDim, nDims);
+        float[] xLd = matMul(xTraining, p, nTraining, originalDim, nDims);
 
         // Initialize random M (nDims x nDims)
-
-        float[][] m = new float[nDims][nDims];
-        for (int i = 0; i < nDims; i++) {
-            for (int j = 0; j < nDims; j++) {
-                m[i][j] = (float) rng.nextGaussian();
-            }
+        Random rng = new Random(seed);
+        float[] m = new float[nDims * nDims];
+        for (int i = 0; i < nDims * nDims; i++) {
+            m[i] = (float) rng.nextGaussian();
         }
 
         // Iterative Procrustes
-        float[][] r = null;
+        float[] r = null;
         for (int epoch = 0; epoch <= nTrainingIterations; epoch++) {
             // R = procrustes(M)
             r = SvdUtil.procrustes(m, nDims);
 
             if (epoch < nTrainingIterations) {
-                // X_transformed = X_ld @ R
-                float[][] xTransformed = matMul(xLd, r, nTraining, nDims, nDims);
+                // X_transformed = X_ld @ R (nTraining x nDims)
+                float[] xTransformed = matMul(xLd, r, nTraining, nDims, nDims);
                 // Quantize
-                AshSphericalScalarQuantizer.QuantizeResult qr = quantizer.encode(xTransformed);
-                float[][] xEnc = qr.centeredCodes();
+                AshSphericalScalarQuantizer.QuantizeResult qr = quantizer.encode(xTransformed, nTraining, nDims);
+                float[] xEnc = qr.centeredCodes();
                 float[] codeNorms = qr.codeNorms();
                 // Normalize encoded: xEnc[i] /= codeNorms[i]
                 for (int i = 0; i < nTraining; i++) {
                     if (codeNorms[i] > 0) {
                         float inv = 1.0f / codeNorms[i];
+                        int base = i * nDims;
                         for (int j = 0; j < nDims; j++) {
-                            xEnc[i][j] *= inv;
+                            xEnc[base + j] *= inv;
                         }
                     }
                 }
@@ -292,14 +291,12 @@ public final class AsymmetricHashingQuantizer {
         return matMul(p, r, originalDim, nDims, nDims);
     }
 
-    private float[][] randomOrthogonal(int originalDim, int nDims) {
-
+    private float[] randomOrthogonal(int originalDim, int nDims) {
+        Random rng = new Random(seed);
         // Generate random matrix and orthogonalize columns via modified Gram-Schmidt
-        float[][] q = new float[originalDim][nDims];
-        for (int i = 0; i < originalDim; i++) {
-            for (int j = 0; j < nDims; j++) {
-                q[i][j] = (float) rng.nextGaussian();
-            }
+        float[] q = new float[originalDim * nDims];
+        for (int i = 0; i < originalDim * nDims; i++) {
+            q[i] = (float) rng.nextGaussian();
         }
         // Modified Gram-Schmidt: orthogonalize column by column
         for (int j = 0; j < nDims; j++) {
@@ -307,20 +304,20 @@ public final class AsymmetricHashingQuantizer {
             for (int prev = 0; prev < j; prev++) {
                 float dot = 0;
                 for (int i = 0; i < originalDim; i++) {
-                    dot = Math.fma(q[i][j], q[i][prev], dot);
+                    dot = Math.fma(q[i * nDims + j], q[i * nDims + prev], dot);
                 }
                 for (int i = 0; i < originalDim; i++) {
-                    q[i][j] = Math.fma(-dot, q[i][prev], q[i][j]);
+                    q[i * nDims + j] = Math.fma(-dot, q[i * nDims + prev], q[i * nDims + j]);
                 }
             }
-            // Normalize (note iterating across rows)
+            // Normalize column j
             double normSq = 0;
             for (int i = 0; i < originalDim; i++) {
-                normSq = Math.fma(q[i][j], q[i][j], normSq);
+                normSq = Math.fma(q[i * nDims + j], q[i * nDims + j], normSq);
             }
             float invNorm = (float) (1.0 / Math.sqrt(normSq));
             for (int i = 0; i < originalDim; i++) {
-                q[i][j] *= invNorm;
+                q[i * nDims + j] *= invNorm;
             }
         }
         return q;
@@ -332,14 +329,12 @@ public final class AsymmetricHashingQuantizer {
      * the returned array is just [0, n) in order.
      */
     private int[] sampleIndices(int n, int sampleSize) {
-        if (sampleSize >= n) {
-            int[] all = new int[n];
-            Arrays.setAll(all, IntUnaryOperator.identity());
-            return all;
-        }
-
         int[] indices = new int[n];
         Arrays.setAll(indices, IntUnaryOperator.identity());
+        if (sampleSize >= n) {
+            return indices;
+        }
+        Random rng = new Random(seed);
         for (int i = 0; i < sampleSize; i++) {
             int j = i + rng.nextInt(n - i);
             int tmp = indices[i];
@@ -351,38 +346,38 @@ public final class AsymmetricHashingQuantizer {
         return picked;
     }
 
-    /** C = A @ B where A is (m x k), B is (k x n).
+    /** C = A @ B where A is flat (m x k), B is flat (k x n).
      *  Uses row-broadcast accumulation for JIT auto-vectorization of the inner loop. */
-    private static float[][] matMul(float[][] a, float[][] b, int m, int k, int n) {
-        float[][] c = new float[m][n];
+    private static float[] matMul(float[] a, float[] b, int m, int k, int n) {
+        float[] c = new float[m * n];
         for (int i = 0; i < m; i++) {
-            float[] aRow = a[i];
-            float[] cRow = c[i];
+            int aBase = i * k;
+            int cBase = i * n;
             for (int l = 0; l < k; l++) {
-                float aVal = aRow[l];
-                float[] bRow = b[l];
+                float aVal = a[aBase + l];
+                int bBase = l * n;
                 for (int j = 0; j < n; j++) {
-                    cRow[j] = Math.fma(aVal, bRow[j], cRow[j]);
+                    c[cBase + j] = Math.fma(aVal, b[bBase + j], c[cBase + j]);
                 }
             }
         }
         return c;
     }
 
-    /** C = A.T @ B where A is (m x k), B is (m x n), result is (k x n).
+    /** C = A.T @ B where A is flat (m x k), B is flat (m x n), result is flat (k x n).
      *  Uses row-broadcast accumulation for cache-friendly access patterns. */
-    private static float[][] matMulTransposeA(float[][] a, float[][] b, int m, int k, int n) {
-        float[][] c = new float[k][n];
+    private static float[] matMulTransposeA(float[] a, float[] b, int m, int k, int n) {
+        float[] c = new float[k * n];
         // Accumulate by iterating over shared dimension (rows of A and B) in the outer loop.
-        // This gives sequential reads on both a[l] and b[l], and scattered writes to c[i].
+        // This gives sequential reads on a[l*k..] and b[l*n..], and scattered writes to c[i*n..].
         for (int l = 0; l < m; l++) {
-            float[] aRow = a[l];
-            float[] bRow = b[l];
+            int aBase = l * k;
+            int bBase = l * n;
             for (int i = 0; i < k; i++) {
-                float aVal = aRow[i];
-                float[] cRow = c[i];
+                float aVal = a[aBase + i];
+                int cBase = i * n;
                 for (int j = 0; j < n; j++) {
-                    cRow[j] = Math.fma(aVal, bRow[j], cRow[j]);
+                    c[cBase + j] = Math.fma(aVal, b[bBase + j], c[cBase + j]);
                 }
             }
         }

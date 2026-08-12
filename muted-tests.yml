@@ -532,9 +532,6 @@ tests:
 - class: org.elasticsearch.lucene.FullClusterRestartSystemIndexCompatibilityIT
   method: testAsyncSearchIndexMigration {p0=9.6.0}
   issue: https://github.com/elastic/elasticsearch/issues/155871
-- class: org.elasticsearch.xpack.stateless.HollowShardsServiceUnhollowRaceIT
-  method: testUnhollowFlushListenerDoesNotRaceWithRehollowingRelocation
-  issue: https://github.com/elastic/elasticsearch/issues/155887
 - class: org.elasticsearch.xpack.esql.ccq.FederationOutgoingDatasetGateRestIT
   method: testDisabledLocalResolvesRemoteDatasetAsMissingIndex
   issue: https://github.com/elastic/elasticsearch/issues/155916
@@ -795,3 +792,18 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecBooleanIT
   method: test {csv-spec:boolean.mvSliceWarnings}
   issue: https://github.com/elastic/elasticsearch/issues/156521
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecFoldingIT
+  method: test {csv-spec:folding.mvBoolean_Equals_MultiValueConstant}
+  issue: https://github.com/elastic/elasticsearch/issues/156530
+- class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
+  method: testRelocatingTaskIsNotCancelledOnShutdownTimeout
+  issue: https://github.com/elastic/elasticsearch/issues/155593
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecUnmappedTypeConflictsIT
+  method: test {csv-spec:unmapped-type-conflicts.typeConflictLongDateUnmappedNonExistentCastToDouble}
+  issue: https://github.com/elastic/elasticsearch/issues/156542
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecStringIT
+  method: test {csv-spec:string.mvString_IN_MultiValueConstant}
+  issue: https://github.com/elastic/elasticsearch/issues/156549
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecFoldingIT
+  method: test {csv-spec:folding.long_GreaterThan_MultiValueConstant}
+  issue: https://github.com/elastic/elasticsearch/issues/156551

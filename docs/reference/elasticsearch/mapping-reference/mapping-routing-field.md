@@ -24,7 +24,7 @@ routing_factor = num_routing_shards / num_primary_shards
 shard_num = (hash(_routing) % num_routing_shards) / routing_factor
 ```
 
-`num_routing_shards` is the value of the [`index.number_of_routing_shards`](/reference/elasticsearch/index-settings/index-modules.md#index-number-of-routing-shards) index setting. Recreating or reindexing an older index into a new index can change how documents are distributed across shards. See the [related breaking change](/release-notes/breaking-changes.md#elasticsearch-9.4.0-breaking-changes).
+`num_routing_shards` is the value of the [`index.number_of_routing_shards`](/reference/elasticsearch/index-settings/index-modules.md#index-number-of-routing-shards) index setting. Existing indices keep the legacy routing function based on their creation version. Recreating or reindexing into a new index can change how documents are distributed across shards compared to the source index. [#137062](https://github.com/elastic/elasticsearch/pull/137062).
 ::::
 
 The default `_routing` value is the document’s [`_id`](/reference/elasticsearch/mapping-reference/mapping-id-field.md). Custom routing patterns can be implemented by specifying a custom `routing` value per document. For instance:

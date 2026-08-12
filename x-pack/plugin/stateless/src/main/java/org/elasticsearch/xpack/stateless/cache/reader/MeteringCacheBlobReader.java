@@ -12,9 +12,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobcache.common.ByteRange;
 
-import java.io.FilterInputStream;
-import java.io.IOException;
 import java.io.InputStream;
+import java.util.function.IntConsumer;
 
 /**
  * Wrapper around {@link CacheBlobReader} which counts how many bytes were read through delegated {@link CacheBlobReader}
@@ -38,7 +37,7 @@ public class MeteringCacheBlobReader implements CacheBlobReader {
 
     @Override
     public void getRangeInputStream(long position, int length, ActionListener<InputStream> listener) {
-        delegate.getRangeInputStream(position, length, listener.map(MeteringInputStream::new));
+        delegate.getRangeInputStream(position, length, listener);
     }
 
     @Override
@@ -47,63 +46,35 @@ public class MeteringCacheBlobReader implements CacheBlobReader {
     }
 
     /**
-     * Notified when a {@link MeteringInputStream} is closed, providing information
-     * about its consumption.
+     * Returns a consumer that increments the byte counter as each chunk lands in the cache, before the
+     * {@link org.elasticsearch.blobcache.common.SparseFileTracker} unblocks any waiting reader threads.
+     * This replaces the previous close()-based accounting to eliminate the race between cache-fill completion
+     * and metric collection in {@link org.elasticsearch.xpack.stateless.recovery.metering.StatelessRecoveryMetricsCollector}.
+     * Exceptions thrown by the callback are caught and logged at DEBUG to prevent a metrics failure from
+     * aborting the cache-fill operation.
+     */
+    @Override
+    public IntConsumer newBytesCopiedConsumer() {
+        return bytes -> {
+            try {
+                readCompleteCallback.onReadCompleted(bytes, 0);
+            } catch (Exception e) {
+                logger.debug("Error calling readCompleteCallback", e);
+            }
+        };
+    }
+
+    /**
+     * Notified as bytes are copied into the shared blob cache, once per chunk, via
+     * {@link #newBytesCopiedConsumer()}.
      */
     public interface ReadCompleteCallback {
         /**
-         * Notify that a stream was consumed
+         * Notify that a chunk of bytes was copied into the cache.
          *
-         * @param bytesRead The number of bytes read
-         * @param timeToReadNanos The time between the first byte being read and the stream being closed (in nanoseconds)
+         * @param bytesRead The number of bytes in the chunk
+         * @param timeToReadNanos Reserved for future timing use; currently always 0
          */
         void onReadCompleted(int bytesRead, long timeToReadNanos);
-    }
-
-    private class MeteringInputStream extends FilterInputStream {
-
-        private final long streamCreatedTimeNs;
-        private int totalBytesRead;
-        private boolean closed;
-
-        private MeteringInputStream(InputStream delegateInputStream) {
-            super(delegateInputStream);
-            streamCreatedTimeNs = System.nanoTime();
-        }
-
-        @Override
-        public int read() throws IOException {
-            final int byteOfData = super.read();
-            if (byteOfData != -1) {
-                totalBytesRead += 1;
-            }
-            return byteOfData;
-        }
-
-        @Override
-        public int read(byte[] b, int off, int len) throws IOException {
-            final int bytesRead = super.read(b, off, len);
-            if (bytesRead != -1) {
-                totalBytesRead += bytesRead;
-            }
-            return bytesRead;
-        }
-
-        @Override
-        public void close() throws IOException {
-            if (closed == false) {
-                try {
-                    if (totalBytesRead > 0) {
-                        long readTimeNanos = System.nanoTime() - streamCreatedTimeNs;
-                        readCompleteCallback.onReadCompleted(totalBytesRead, readTimeNanos);
-                    }
-                } catch (Exception e) {
-                    logger.debug("Error calling call-back", e);
-                } finally {
-                    closed = true;
-                }
-            }
-            super.close();
-        }
     }
 }

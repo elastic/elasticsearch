@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.lucene.BlobCacheIndexInput;
 
 import java.io.InputStream;
+import java.util.function.IntConsumer;
 
 /**
  * Used by {@link BlobCacheIndexInput} to read data from the blob store or from the primary shard
@@ -62,5 +63,18 @@ public interface CacheBlobReader {
      */
     default String executorName() {
         return StatelessPlugin.SHARD_READ_THREAD_POOL;
+    }
+
+    /**
+     * Returns a consumer that is called with the number of bytes copied into the cache as each chunk lands,
+     * before the {@link org.elasticsearch.blobcache.common.SparseFileTracker} advances and potentially unblocks
+     * a waiting reader thread. This ensures that byte-counting metrics are always visible to the reader
+     * before it proceeds.
+     * <p>
+     * The consumer may be called multiple times (once per chunk). Implementations must be additive.
+     * The default implementation is a no-op.
+     */
+    default IntConsumer newBytesCopiedConsumer() {
+        return ignored -> {};
     }
 }

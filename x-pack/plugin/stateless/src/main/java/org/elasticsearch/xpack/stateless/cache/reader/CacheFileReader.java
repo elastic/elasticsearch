@@ -480,7 +480,7 @@ public class CacheFileReader {
                     rangeToWrite,
                     cacheBlobReader,
                     () -> writeBuffer.get().clear(),
-                    bytesCopied -> {},
+                    cacheBlobReader.newBytesCopiedConsumer(),
                     StatelessPlugin.SHARD_READ_THREAD_POOL,
                     StatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
                 );

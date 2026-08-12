@@ -198,8 +198,14 @@ public class SequentialRangeMissingHandler implements SharedBlobCacheService.Ran
         createInputStream(streamFactory, relativePos, len, completionListener.map(in -> {
             try (in) {
                 assert ThreadPool.assertCurrentThreadPool(expectedThreadPoolNames);
-                int bytesCopied = SharedBytes.copyToCacheFileAligned(channel, in, channelPos, progressUpdater, writeBufferSupplier.get());
-                bytesCopiedConsumer.accept(bytesCopied);
+                // bytesCopiedConsumer is invoked for each chunk BEFORE progressUpdater advances the
+                // SparseFileTracker. This guarantees that the byte count is visible to any reader thread
+                // that the SparseFileTracker may unblock
+                final IntConsumer earlyCountingProgressUpdater = bytes -> {
+                    bytesCopiedConsumer.accept(bytes);
+                    progressUpdater.accept(bytes);
+                };
+                SharedBytes.copyToCacheFileAligned(channel, in, channelPos, earlyCountingProgressUpdater, writeBufferSupplier.get());
                 return null;
             }
         }));

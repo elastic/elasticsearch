@@ -819,3 +819,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecK8sTimeseriesSumOverTimeIT
   method: test {csv-spec:k8s-timeseries-sum-over-time.sumOverTimeWithOverflow}
   issue: https://github.com/elastic/elasticsearch/issues/156567
+- class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
+  method: testStressWithRelocationOrObjectStoreFailures
+  issue: https://github.com/elastic/elasticsearch/issues/156569

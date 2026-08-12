@@ -10,8 +10,6 @@
 package org.elasticsearch.action.admin.indices.rollover;
 
 import org.apache.lucene.util.Accountable;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractAccountableFieldsTestCase;
 
 import java.util.Set;
@@ -27,26 +25,47 @@ public class ConditionRamBytesUsedTests extends AbstractAccountableFieldsTestCas
 
     @Override
     protected Set<String> fieldsAccountedForInRamBytesUsed() {
-        return Set.of("name", "value", "type");
+        return Set.of("name", "value");
     }
 
     @Override
     protected Set<String> fieldsExcludedFromRamBytesUsed() {
-        return Set.of();
+        // Shared enum singleton; only the field reference is counted in shallowSizeOf(this).
+        return Set.of("type");
     }
 
     @Override
-    protected Accountable createTestInstance() {
-        return new MaxDocsCondition(1L);
+    protected boolean assertsAgainstRamUsageTester() {
+        // RamUsageTester includes the Type enum instance; ramBytesUsed() does not, by design.
+        return false;
+    }
+
+    @Override
+    protected Accountable createRandomTestInstance() {
+        return switch (randomIntBetween(0, 10)) {
+            case 0 -> new MaxDocsCondition(randomNonNegativeLong());
+            case 1 -> new MinDocsCondition(randomNonNegativeLong());
+            case 2 -> new MaxPrimaryShardDocsCondition(randomNonNegativeLong());
+            case 3 -> new MinPrimaryShardDocsCondition(randomNonNegativeLong());
+            case 4 -> new MaxSizeCondition(randomByteSizeValue());
+            case 5 -> new MinSizeCondition(randomByteSizeValue());
+            case 6 -> new MaxPrimaryShardSizeCondition(randomByteSizeValue());
+            case 7 -> new MinPrimaryShardSizeCondition(randomByteSizeValue());
+            case 8 -> new MaxAgeCondition(randomTimeValue());
+            case 9 -> new MinAgeCondition(randomTimeValue());
+            case 10 -> new OptimalShardCountCondition(randomIntBetween(1, 100));
+            default -> throw new AssertionError("unexpected condition branch");
+        };
     }
 
     /**
-     * Non-tautology check: the different value types must each contribute a boxed/value cost on top of the shallow condition size.
+     * Non-tautology check: the condition value (Long, ByteSizeValue, TimeValue, or Integer) must contribute a cost on top of the shallow
+     * instance size.
      */
     public void testRamBytesUsedCountsConditionValue() {
-        long shallow = shallowSizeOf(new MaxDocsCondition(1L));
-        assertThat(createTestInstance().ramBytesUsed(), greaterThan(shallow));
-        assertThat(new MaxSizeCondition(ByteSizeValue.ofMb(1)).ramBytesUsed(), greaterThan(shallow));
-        assertThat(new MaxAgeCondition(TimeValue.timeValueDays(1)).ramBytesUsed(), greaterThan(shallow));
+        for (int i = 0; i < 10; i++) {
+            Condition<?> instance = (Condition<?>) createRandomTestInstance();
+            assertThat(instance.ramBytesUsed(), greaterThan(shallowSizeOf(instance)));
+        }
     }
 }

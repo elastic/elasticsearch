@@ -60,6 +60,44 @@ public class ParserTests extends ESTestCase {
         assertEquals("req(%I)id(%I)seq(%I)", patternedMessage.toString());
     }
 
+    // A token that CONTAINS digits but matches no specific type (its bitmask is zeroed by mixing digits with letters or with a character
+    // outside every sub-token charset) must fall back to a keyword placeholder (%A), never leak into the template as a literal.
+
+    public void testMixedAlphanumericTokenBecomesKeyword() throws ParseException {
+        // digits mixed with non-hex letters -> bitmask 0, but it contains digits, so it collapses to %A instead of staying literal
+        // (this is the real OpenSSH "Invalid user test9 from ..." case; note an all-hex token like "abc123" is legitimately typed %H)
+        String message = "user test9 in";
+        List<Argument<?>> parsedArguments = parser.parse(message);
+        Parser.constructPattern(message, parsedArguments, patternedMessage, true);
+        assertEquals("user %A in", patternedMessage.toString());
+    }
+
+    public void testHashSeparatedNumericBlobBecomesKeyword() throws ParseException {
+        // '#' is in no sub-token charset (zeroes the bitmask), but the blob contains digits -> one %A (this is the HealthApp
+        // "getTodayTotalDetailSteps = 1514038440000##7007##..." family that otherwise explodes to one template per value)
+        String message = "steps 100##200##300 end";
+        List<Argument<?>> parsedArguments = parser.parse(message);
+        Parser.constructPattern(message, parsedArguments, patternedMessage, true);
+        assertEquals("steps %A end", patternedMessage.toString());
+    }
+
+    public void testDigitBearingSubTokenBecomesKeywordEvenWhenNotLastInToken() throws ParseException {
+        // per-sub-token digit tracking: the digit-bearing sub-token is NOT the last one in its token, so a global
+        // isCurSubTokenContainsDigits flag (state of the LAST sub-token) would miss it. "xy12" (non-hex) -> %A, "zt" stays literal.
+        String message = "x xy12.zt y";
+        List<Argument<?>> parsedArguments = parser.parse(message);
+        Parser.constructPattern(message, parsedArguments, patternedMessage, true);
+        assertEquals("x %A.zt y", patternedMessage.toString());
+    }
+
+    public void testNonDigitUnknownTokenStaysLiteral() throws ParseException {
+        // guard: a token with an out-of-charset character but NO digits stays literal (we only promote digit-bearing tokens)
+        String message = "path a#b end";
+        List<Argument<?>> parsedArguments = parser.parse(message);
+        Parser.constructPattern(message, parsedArguments, patternedMessage, true);
+        assertEquals("path a#b end", patternedMessage.toString());
+    }
+
     public void testSimpleIpAndNumber() throws ParseException {
         String messageWithIpAndNumber = "Response from 127.0.0.1 took 2000 ms";
         List<Argument<?>> parsedArguments = parser.parse(messageWithIpAndNumber);
@@ -271,9 +309,9 @@ public class ParserTests extends ESTestCase {
         String message = "Jun 32 15:16:01 x";
         List<Argument<?>> parsedArguments = parser.parse(message);
         Parser.constructPattern(message, parsedArguments, patternedMessage, true);
-        // Not a timestamp (day 32). NB: "Jun" renders as %A here, not literal - a pre-existing quirk of the
-        // shared isCurSubTokenContainsDigits flag in the sub-token emit path, exposed by the multi-token's flush batching.
-        assertEquals("%A %I %I:%I:%I x", patternedMessage.toString());
+        // Not a timestamp (day 32). "Jun" has no digits so it stays literal (consistent with testSyslogBsdNoTimeIsNotTimestamp);
+        // previously it rendered %A due to the shared isCurSubTokenContainsDigits flag bleeding a sibling sub-token's digits onto it.
+        assertEquals("Jun %I %I:%I:%I x", patternedMessage.toString());
     }
 
     public void testSyslogBsdInvalidHourIsNotTimestamp() throws ParseException {

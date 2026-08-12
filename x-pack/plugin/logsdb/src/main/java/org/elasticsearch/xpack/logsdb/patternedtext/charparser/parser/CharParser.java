@@ -106,6 +106,7 @@ public final class CharParser implements Parser {
     private final Sign[] bufferedSubTokenSigns;
     private final int[] bufferedSubTokenStartIndexes;
     private final int[] bufferedSubTokenLengths;
+    private final boolean[] bufferedSubTokenContainsDigits;
 
     // token buffers
     private int bufferedTokensIndex;
@@ -145,6 +146,7 @@ public final class CharParser implements Parser {
         bufferedSubTokenSigns = new Sign[maxSubTokensPerMultiToken];
         bufferedSubTokenStartIndexes = new int[maxSubTokensPerMultiToken];
         bufferedSubTokenLengths = new int[maxSubTokensPerMultiToken];
+        bufferedSubTokenContainsDigits = new boolean[maxSubTokensPerMultiToken];
 
         bufferedTokens = new TokenType[maxTokensPerMultiToken];
         bufferedTokenStartIndexes = new int[maxTokensPerMultiToken];
@@ -455,14 +457,18 @@ public final class CharParser implements Parser {
                         );
                     }
 
-                    // buffer the current subToken info
-                    if (currentSubTokenBitmask != 0) {
+                    // buffer the current subToken info. We also buffer a subToken whose bitmask is zero when it contains digits: such a
+                    // token matched no specific type (its bitmask was cleared by mixing digits with letters or with a character outside
+                    // every subToken charset, e.g. '#'), but a token that contains digits must never leak into the template as a literal -
+                    // it falls back to a keyword placeholder in the emit loop below.
+                    if (currentSubTokenBitmask != 0 || isCurSubTokenContainsDigits) {
                         bufferedSubTokensIndex++;
                         bufferedSubTokenBitmasks[bufferedSubTokensIndex] = currentSubTokenBitmask;
                         bufferedSubTokenStartIndexes[bufferedSubTokensIndex] = currentSubTokenStartIndex;
                         bufferedSubTokenIntValues[bufferedSubTokensIndex] = currentSubTokenIntValue;
                         bufferedSubTokenLengths[bufferedSubTokensIndex] = currentSubTokenLength;
                         bufferedSubTokenSigns[bufferedSubTokensIndex] = currentSubTokenSignPrefix;
+                        bufferedSubTokenContainsDigits[bufferedSubTokensIndex] = isCurSubTokenContainsDigits;
                         if (bufferedSubTokensIndex == maxSubTokensPerMultiToken - 1) {
                             // we are at the maximum number of subTokens for any known multi-token so we must flush the buffered info
                             flushBufferedInfo = true;
@@ -740,7 +746,7 @@ public final class CharParser implements Parser {
                                     );
                                     default -> null;
                                 };
-                            } else if (isCurSubTokenContainsDigits) {
+                            } else if (bufferedSubTokenContainsDigits[i]) {
                                 argument = new KeywordArgument(rawMessage, bufferedSubTokenStartIndexes[i], bufferedSubTokenLengths[i]);
                             }
 

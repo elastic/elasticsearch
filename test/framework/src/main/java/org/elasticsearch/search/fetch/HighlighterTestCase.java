@@ -15,6 +15,9 @@ import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.StoredFields;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -64,11 +67,29 @@ public class HighlighterTestCase extends MapperServiceTestCase {
     protected final Map<String, HighlightField> highlight(MapperService mapperService, ParsedDocument doc, SearchSourceBuilder search)
         throws IOException {
         Map<String, HighlightField> highlights = new HashMap<>();
+        runHighlightProcessor(mapperService, doc, search, null, processorAndHit -> {
+            processorAndHit.process();
+            highlights.putAll(processorAndHit.hitContext().hit().getHighlightFields());
+            processorAndHit.processor().close();
+        });
+        return highlights;
+    }
+
+    protected final void runHighlightProcessor(
+        MapperService mapperService,
+        ParsedDocument doc,
+        SearchSourceBuilder search,
+        @Nullable CircuitBreaker circuitBreaker,
+        CheckedConsumer<HighlightProcessorAndHit, IOException> body
+    ) throws IOException {
         withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), ir -> {
             SearchExecutionContext context = createSearchExecutionContext(
                 mapperService,
                 newSearcher(new NoStoredFieldsFilterDirectoryReader(ir))
             );
+            if (circuitBreaker != null) {
+                context = new SearchExecutionContext(context, circuitBreaker);
+            }
             HighlightPhase highlightPhase = new HighlightPhase(getHighlighters());
             FetchSubPhaseProcessor processor = highlightPhase.getProcessor(fetchContext(context, search));
             Map<String, List<Object>> storedFields = storedFields(processor.storedFieldsSpec(), doc);
@@ -76,13 +97,17 @@ public class HighlighterTestCase extends MapperServiceTestCase {
             SearchHit hit = new SearchHit(0, "id");
             try {
                 FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext(hit, ir.leaves().get(0), 0, storedFields, source, null);
-                processor.process(hitContext);
-                highlights.putAll(hitContext.hit().getHighlightFields());
+                body.accept(new HighlightProcessorAndHit(processor, hitContext));
             } finally {
                 hit.decRef();
             }
         });
-        return highlights;
+    }
+
+    protected record HighlightProcessorAndHit(FetchSubPhaseProcessor processor, FetchSubPhase.HitContext hitContext) {
+        public void process() throws IOException {
+            processor.process(hitContext);
+        }
     }
 
     private static Map<String, List<Object>> storedFields(StoredFieldsSpec spec, ParsedDocument doc) {

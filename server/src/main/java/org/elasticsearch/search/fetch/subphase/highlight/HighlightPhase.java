@@ -11,6 +11,8 @@ package org.elasticsearch.search.fetch.subphase.highlight;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
@@ -26,6 +28,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 
 public class HighlightPhase implements FetchSubPhase {
@@ -76,6 +79,20 @@ public class HighlightPhase implements FetchSubPhase {
                     }
                 }
                 hitContext.hit().highlightFields(highlightFields);
+            }
+
+            @Override
+            public void close() {
+                Object holder = sharedCache.get(DefaultHighlighter.BREAKER_BYTES_CACHE_KEY);
+                if (holder instanceof AtomicLong breakerBytes) {
+                    long total = breakerBytes.getAndSet(0);
+                    if (total > 0) {
+                        CircuitBreaker breaker = context.getSearchExecutionContext().getCircuitBreaker();
+                        if (breaker != null) {
+                            breaker.addWithoutBreaking(-total, ChildMemoryCircuitBreaker.CATEGORY_HIGHLIGHT);
+                        }
+                    }
+                }
             }
         };
     }

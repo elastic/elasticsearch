@@ -29,6 +29,7 @@ public class ChildMemoryCircuitBreakerTests extends ESTestCase {
         assertEquals(ChildMemoryCircuitBreaker.CATEGORY_PREALLOCATE, ChildMemoryCircuitBreaker.categoryFor("preallocate"));
         assertEquals(ChildMemoryCircuitBreaker.CATEGORY_MSEARCH, ChildMemoryCircuitBreaker.categoryFor("msearch"));
         assertEquals(ChildMemoryCircuitBreaker.CATEGORY_FETCH, ChildMemoryCircuitBreaker.categoryFor("fetch"));
+        assertEquals(ChildMemoryCircuitBreaker.CATEGORY_HIGHLIGHT, ChildMemoryCircuitBreaker.categoryFor("highlight"));
     }
 
     public void testCategoryForCompositeLabelsBracket() {
@@ -39,6 +40,7 @@ public class ChildMemoryCircuitBreakerTests extends ESTestCase {
         assertEquals(ChildMemoryCircuitBreaker.CATEGORY_FETCH, ChildMemoryCircuitBreaker.categoryFor("fetch[source]"));
         assertEquals(ChildMemoryCircuitBreaker.CATEGORY_FETCH, ChildMemoryCircuitBreaker.categoryFor("fetch[script_field]"));
         assertEquals(ChildMemoryCircuitBreaker.CATEGORY_WILDCARD, ChildMemoryCircuitBreaker.categoryFor("wildcard[ci]:my_field"));
+        assertEquals(ChildMemoryCircuitBreaker.CATEGORY_HIGHLIGHT, ChildMemoryCircuitBreaker.categoryFor("highlight[field1]"));
     }
 
     public void testCategoryForCompositeLabelsColon() {

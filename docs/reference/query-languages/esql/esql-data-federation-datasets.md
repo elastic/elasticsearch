@@ -84,16 +84,12 @@ To customize the inferred schema, rename columns, or override field types, use t
 
 Datasets are managed under the `/_query/dataset` endpoint. All dataset operations require the index `manage` privilege on the dataset name, or a fine-grained dataset privilege. Refer to [manage credentials and privileges](esql-data-federation-security.md) for details.
 
-| Operation | Endpoint |
-|---|---|
-| [Create or update](#create-or-update-a-dataset) | `PUT /_query/dataset/{name}` |
-| [Get](#get-a-dataset) | `GET /_query/dataset/{name}` |
-| [List all](#list-all-datasets) | `GET /_query/dataset` |
-| [Delete](#delete-a-dataset) | `DELETE /_query/dataset/{name}` |
-
-<!-- # https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-put-dataset -->
-<!-- # https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-get-dataset -->
-<!-- # https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-delete-dataset -->
+| Operation | Endpoint | API reference |
+|---|---|---|
+| [Create or update](#create-or-update-a-dataset) | `PUT /_query/dataset/{name}` | [Create or update an ES\|QL dataset](https://www.elastic.co/docs/api/doc/elasticsearch/v9/operation/operation-esql-put-dataset) |
+| [Get](#get-a-dataset) | `GET /_query/dataset/{name}` | [Get ES\|QL datasets](https://www.elastic.co/docs/api/doc/elasticsearch/v9/operation/operation-esql-get-dataset) |
+| [List all](#list-all-datasets) | `GET /_query/dataset` | [Get ES\|QL datasets](https://www.elastic.co/docs/api/doc/elasticsearch/v9/operation/operation-esql-get-dataset) |
+| [Delete](#delete-a-dataset) | `DELETE /_query/dataset/{name}` | [Delete ES\|QL datasets](https://www.elastic.co/docs/api/doc/elasticsearch/v9/operation/operation-esql-delete-dataset) |
 
 ### Create or update a dataset
 

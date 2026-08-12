@@ -813,3 +813,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
   method: testTargetRecoversAfterMasterRestartDuringHandoff
   issue: https://github.com/elastic/elasticsearch/issues/156561
+- class: org.elasticsearch.common.xcontent.builder.XContentBuilderTests
+  method: testCloseAllowIllFormedDoesNotValidateStructuralCorrectness
+  issue: https://github.com/elastic/elasticsearch/issues/156563

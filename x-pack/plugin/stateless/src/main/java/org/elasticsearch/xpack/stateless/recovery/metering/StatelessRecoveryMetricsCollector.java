@@ -15,12 +15,10 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.DoubleHistogram;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
-import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
 import org.elasticsearch.xpack.stateless.recovery.RelocationSourceMetrics;
 
 import java.util.Map;
@@ -31,9 +29,7 @@ public class StatelessRecoveryMetricsCollector implements IndexEventListener {
 
     private static final Logger logger = LogManager.getLogger(StatelessRecoveryMetricsCollector.class);
 
-    public static final String RECOVERY_BYTES_READ_FROM_INDEXING_METRIC = "es.recovery.shard.indexing_node.bytes_read.total";
     public static final String RECOVERY_BYTES_READ_FROM_OBJECT_STORE_METRIC = "es.recovery.shard.object_store.bytes_read.total";
-    public static final String RECOVERY_BYTES_WARMED_FROM_INDEXING_METRIC = "es.recovery.shard.indexing_node.bytes_warmed.total";
     public static final String RECOVERY_BYTES_WARMED_FROM_OBJECT_STORE_METRIC = "es.recovery.shard.object_store.bytes_warmed.total";
 
     // The total relocation duration is already covered by es.recovery.shard.total.time (target-side recovery timer);
@@ -50,11 +46,9 @@ public class StatelessRecoveryMetricsCollector implements IndexEventListener {
     public static final String RELOCATION_TARGET_OPEN_ENGINE_TIME_METRIC_IN_SECONDS =
         "es.recovery.shard.primary.relocation.target.open_engine.time";
 
-    public static final StatelessRecoveryMetricsCollector NOOP = new StatelessRecoveryMetricsCollector(TelemetryProvider.NOOP);
+    public static final StatelessRecoveryMetricsCollector NOOP = new StatelessRecoveryMetricsCollector(MeterRegistry.NOOP);
 
-    private final LongCounter shardRecoveryTotalBytesReadFromIndexingMetric;
     private final LongCounter shardRecoveryTotalBytesReadFromObjectStoreMetric;
-    private final LongCounter shardRecoveryTotalBytesWarmedFromIndexingMetric;
     private final LongCounter shardRecoveryTotalBytesWarmedFromObjectStoreMetric;
     private final DoubleHistogram relocationInitialFlushDurationMetric;
     private final DoubleHistogram relocationAcquirePermitsDurationMetric;
@@ -64,21 +58,10 @@ public class StatelessRecoveryMetricsCollector implements IndexEventListener {
     private final DoubleHistogram relocationTargetReadIndexingShardStateDurationMetric;
     private final DoubleHistogram relocationTargetOpenEngineDurationMetric;
 
-    public StatelessRecoveryMetricsCollector(TelemetryProvider telemetryProvider) {
-        final MeterRegistry meterRegistry = telemetryProvider.getMeterRegistry();
-        shardRecoveryTotalBytesReadFromIndexingMetric = meterRegistry.registerLongCounter(
-            RECOVERY_BYTES_READ_FROM_INDEXING_METRIC,
-            "Bytes read from indexing node during the shard recovery",
-            "bytes"
-        );
+    public StatelessRecoveryMetricsCollector(MeterRegistry meterRegistry) {
         shardRecoveryTotalBytesReadFromObjectStoreMetric = meterRegistry.registerLongCounter(
             RECOVERY_BYTES_READ_FROM_OBJECT_STORE_METRIC,
             "Bytes read from object store during the shard recovery",
-            "bytes"
-        );
-        shardRecoveryTotalBytesWarmedFromIndexingMetric = meterRegistry.registerLongCounter(
-            RECOVERY_BYTES_WARMED_FROM_INDEXING_METRIC,
-            "Bytes warmed from indexing node during the shard recovery",
             "bytes"
         );
         shardRecoveryTotalBytesWarmedFromObjectStoreMetric = meterRegistry.registerLongCounter(
@@ -149,31 +132,8 @@ public class StatelessRecoveryMetricsCollector implements IndexEventListener {
                 final RecoveryState recoveryState = indexShard.recoveryState();
                 assert recoveryState != null;
                 if (recoveryState.getStage() == RecoveryState.Stage.DONE) {
-                    final Map<String, Object> metricLabels = recoveryMetricLabels(indexShard);
-
-                    final Store store = indexShard.store();
                     // TODO: ideally read/warmed metrics should be emitted right after corresponding operation is finished (ES-8709)
-                    if (indexShard.routingEntry().isPromotableToPrimary() == false) {
-                        final SearchDirectory searchDirectory = SearchDirectory.unwrapDirectory(store.directory());
-                        shardRecoveryTotalBytesReadFromIndexingMetric.incrementBy(
-                            searchDirectory.totalBytesReadFromIndexing(),
-                            metricLabels
-                        );
-                        shardRecoveryTotalBytesWarmedFromIndexingMetric.incrementBy(
-                            searchDirectory.totalBytesWarmedFromIndexing(),
-                            metricLabels
-                        );
-                    }
-                    var blobStoreCacheDirectory = BlobStoreCacheDirectory.unwrapDirectory(store.directory());
-                    shardRecoveryTotalBytesReadFromObjectStoreMetric.incrementBy(
-                        blobStoreCacheDirectory.totalBytesReadFromObjectStore(),
-                        metricLabels
-                    );
-                    shardRecoveryTotalBytesWarmedFromObjectStoreMetric.incrementBy(
-                        blobStoreCacheDirectory.totalBytesWarmedFromObjectStore(),
-                        metricLabels
-                    );
-
+                    updateMetrics(indexShard, indexShard.store(), recoveryMetricLabels(indexShard));
                 }
             }
         } catch (Exception e) {
@@ -181,6 +141,15 @@ public class StatelessRecoveryMetricsCollector implements IndexEventListener {
         } finally {
             listener.onResponse(null);
         }
+    }
+
+    protected void updateMetrics(final IndexShard indexShard, final Store store, final Map<String, Object> metricLabels) {
+        final var blobStoreCacheDirectory = BlobStoreCacheDirectory.unwrapDirectory(store.directory());
+        shardRecoveryTotalBytesReadFromObjectStoreMetric.incrementBy(blobStoreCacheDirectory.totalBytesReadFromObjectStore(), metricLabels);
+        shardRecoveryTotalBytesWarmedFromObjectStoreMetric.incrementBy(
+            blobStoreCacheDirectory.totalBytesWarmedFromObjectStore(),
+            metricLabels
+        );
     }
 
     private static Map<String, Object> recoveryMetricLabels(IndexShard indexShard) {

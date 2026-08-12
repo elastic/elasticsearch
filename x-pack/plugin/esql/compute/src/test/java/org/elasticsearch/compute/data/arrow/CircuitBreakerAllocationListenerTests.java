@@ -27,7 +27,7 @@ public class CircuitBreakerAllocationListenerTests extends ESTestCase {
     }
 
     private BufferAllocator allocator(CircuitBreaker breaker) {
-        return new RootAllocator(new CircuitBreakerAllocationListener(breaker), Long.MAX_VALUE, BlockFactory.EXACT_FIT_ROUNDING_POLICY);
+        return new RootAllocator(new CircuitBreakerAllocationListener(breaker), Long.MAX_VALUE, requestSize -> requestSize);
     }
 
     public void testAllocationWithinLimitSucceeds() {

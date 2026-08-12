@@ -49,7 +49,7 @@ public class BlockFactory {
      * ({@code arrow-memory-netty}); without that pool, it only wastes memory (up to 2x for
      * sub-16 MiB allocations). Pass this policy to let the OS allocator handle alignment.
      */
-    public static final RoundingPolicy EXACT_FIT_ROUNDING_POLICY = requestSize -> requestSize;
+    private static final RoundingPolicy EXACT_FIT_ROUNDING_POLICY = requestSize -> requestSize;
 
     private static final Logger log = LogManager.getLogger(BlockFactory.class);
 

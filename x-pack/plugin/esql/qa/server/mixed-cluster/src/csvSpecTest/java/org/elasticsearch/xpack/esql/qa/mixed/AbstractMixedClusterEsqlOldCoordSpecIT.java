@@ -12,11 +12,11 @@ import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 /**
  * Runs csv-spec tests in a mixed-version cluster with an old-version node as coordinator. This catches
  * regressions where a new-version data node sends a capability-gated response fragment to an old coordinator
- * that cannot deserialize it. {@link AbstractMixedClusterEsqlCurrentCoordinatorSpecIT} is the counterpart for
+ * that cannot deserialize it. {@link AbstractMixedClusterEsqlCurrCoordSpecIT} is the counterpart for
  * the current version; all shared behaviour lives in {@link AbstractMixedClusterEsqlSpecIT}.
  */
-public abstract class AbstractMixedClusterEsqlOldCoordinatorSpecIT extends AbstractMixedClusterEsqlSpecIT {
-    protected AbstractMixedClusterEsqlOldCoordinatorSpecIT(
+public abstract class AbstractMixedClusterEsqlOldCoordSpecIT extends AbstractMixedClusterEsqlSpecIT {
+    protected AbstractMixedClusterEsqlOldCoordSpecIT(
         String fileName,
         String groupName,
         String testName,
@@ -30,7 +30,7 @@ public abstract class AbstractMixedClusterEsqlOldCoordinatorSpecIT extends Abstr
     /**
      * Routes queries through old-version nodes only, selected from {@code GET /_nodes} by matching
      * {@code tests.old_cluster_version}. Including a current-version address would let a new node coordinate
-     * and silently make this suite overlap {@link AbstractMixedClusterEsqlCurrentCoordinatorSpecIT}.
+     * and silently make this suite overlap {@link AbstractMixedClusterEsqlCurrCoordSpecIT}.
      */
     @Override
     protected String getTestRestCluster() {

@@ -36,8 +36,8 @@ import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilit
 /**
  * Shared behaviour for the mixed-version csv-spec suites. Subclasses differ only in which nodes they route
  * queries to, and therefore which version coordinates:
- * {@link AbstractMixedClusterEsqlCurrentCoordinatorSpecIT} takes the current-version nodes and
- * {@link AbstractMixedClusterEsqlOldCoordinatorSpecIT} the old ones. Between them both coordinator versions
+ * {@link AbstractMixedClusterEsqlCurrCoordSpecIT} takes the current-version nodes and
+ * {@link AbstractMixedClusterEsqlOldCoordSpecIT} the old ones. Between them both coordinator versions
  * are exercised on every run.
  * <p>
  * Pinning by version works because {@code TransportEsqlQueryAction} is a

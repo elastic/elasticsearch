@@ -795,3 +795,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecDateIT
   method: test {csv-spec:date.dateDiffUnitFromField}
   issue: https://github.com/elastic/elasticsearch/issues/156519
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecBooleanIT
+  method: test {csv-spec:boolean.mvSliceWarnings}
+  issue: https://github.com/elastic/elasticsearch/issues/156521

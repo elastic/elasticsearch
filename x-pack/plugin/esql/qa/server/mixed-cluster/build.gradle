@@ -50,7 +50,7 @@ esqlCsvSpecTests {
     packageName = 'org.elasticsearch.xpack.esql.qa.mixed'
     // AbstractMixedClusterEsqlSpecIT is the shared base and supplies no addresses, so each variant names the
     // leaf that pins its coordinator version.
-    variant 'MixedClusterEsqlSpec', 'AbstractMixedClusterEsqlCurrentCoordinatorSpecIT'
+    variant 'MixedClusterEsqlCurrentCoordinatorSpec', 'AbstractMixedClusterEsqlCurrentCoordinatorSpecIT'
     variant 'MixedClusterEsqlOldCoordinatorSpec', 'AbstractMixedClusterEsqlOldCoordinatorSpecIT'
 }
 
@@ -79,7 +79,7 @@ buildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseN
     classpath = sourceSets.csvSpecTest.runtimeClasspath
     dependsOn generateEsqlSpecTests
     // Restrict to the current-coordinator variant; the old-coordinator classes run under csvSpecTestsOldCoordinator.
-    include '**/MixedClusterEsqlSpec*IT.class'
+    include '**/MixedClusterEsqlCurrentCoordinatorSpec*IT.class'
   }
 
   def csvSpecTestOldCoordinator = tasks.register("v${bwcVersion}#csvSpecTestsOldCoordinator", StandaloneRestIntegTestTask) {

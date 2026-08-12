@@ -61,14 +61,14 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
-    public float dotProduct(float[] a, float[] b, int offset, int length) {
-        if (offset == 0 && length == a.length) {
+    public float dotProduct(float[] a, int aOffset, float[] b, int bOffset, int length) {
+        if (aOffset == 0 && bOffset == 0 && length == a.length) {
             return dotProduct(a, b);
         }
         float sum = 0f;
-        int end = offset + length;
-        for (int i = offset; i < end; i++) {
-            sum = fma(a[i], b[i], sum);
+        int aEnd = aOffset + length;
+        for (int ai = aOffset, bi = bOffset; ai < aEnd; ai++, bi++) {
+            sum = fma(a[ai], b[bi], sum);
         }
         return sum;
     }

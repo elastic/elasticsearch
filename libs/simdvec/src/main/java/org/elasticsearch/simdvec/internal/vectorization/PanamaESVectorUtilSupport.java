@@ -217,32 +217,32 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
     }
 
     @Override
-    public float dotProduct(float[] a, float[] b, int offset, int length) {
-        if (offset == 0 && length == a.length) {
+    public float dotProduct(float[] a, int aOffset, float[] b, int bOffset, int length) {
+        if (aOffset == 0 && bOffset == 0 && length == a.length) {
             return dotProduct(a, b);
         }
 
-        int i = offset;
-        int vectorEnd = offset + FLOAT_SPECIES.loopBound(length);
-        int end = offset + length;
+        int ai = aOffset, bi = bOffset;
+        int aVectorEnd = aOffset + FLOAT_SPECIES.loopBound(length);
+        int aEnd = aOffset + length;
 
         FloatVector acc = FloatVector.zero(FLOAT_SPECIES);
-        for (; i < vectorEnd; i += FLOAT_SPECIES.length()) {
-            FloatVector av = FloatVector.fromArray(FLOAT_SPECIES, a, i);
-            FloatVector bv = FloatVector.fromArray(FLOAT_SPECIES, b, i);
+        for (; ai < aVectorEnd; ai += FLOAT_SPECIES.length(), bi += FLOAT_SPECIES.length()) {
+            FloatVector av = FloatVector.fromArray(FLOAT_SPECIES, a, ai);
+            FloatVector bv = FloatVector.fromArray(FLOAT_SPECIES, b, bi);
             acc = fma(av, bv, acc);
         }
 
         float result = acc.reduceLanes(ADD);
-        for (; i < end; i++) {
-            result = fma(a[i], b[i], result);
+        for (; ai < aEnd; ai++, bi++) {
+            result = fma(a[ai], b[bi], result);
         }
         return result;
     }
 
     @Override
     public float l2Normalize(float[] v, int offset, int length) {
-        float normSq = dotProduct(v, v, offset, length);
+        float normSq = dotProduct(v, offset, v, offset, length);
         if (normSq == 0f) {
             return 0;
         }

@@ -60,6 +60,17 @@ public class ProjectMetadataRamBytesUsedTests extends AbstractAccountableFieldsT
         return false;
     }
 
+    @Override
+    protected Accountable createRandomTestInstance() {
+        Settings settings = indexSettings(randomIntBetween(1, 4), 0).put("index.version.created", IndexVersion.current().id()).build();
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectIdOrDefault());
+        int indices = randomIntBetween(0, 3);
+        for (int i = 0; i < indices; i++) {
+            builder.put(IndexMetadata.builder("idx-" + i).settings(settings));
+        }
+        return builder.build();
+    }
+
     /**
      * Non-tautology check: adding an index must increase the reported size (the per-index {@link IndexMetadata#ramBytesUsed()} is counted).
      */

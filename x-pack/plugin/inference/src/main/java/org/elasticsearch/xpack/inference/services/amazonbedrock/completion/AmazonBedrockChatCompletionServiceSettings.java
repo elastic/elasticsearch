@@ -10,10 +10,12 @@ package org.elasticsearch.xpack.inference.services.amazonbedrock.completion;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettings;
+import org.elasticsearch.xpack.inference.common.parser.ServiceSettingsOPBuilder;
+import org.elasticsearch.xpack.inference.common.parser.UpdateServiceSettingsOPBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockProvider;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockServiceSettings;
@@ -21,6 +23,9 @@ import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
 import java.util.Map;
+
+import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.ACCESS_KEY_FIELD;
+import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.SECRET_KEY_FIELD;
 
 /**
  * Represents the settings for an Amazon Bedrock chat completion service. Extends {@link AmazonBedrockChatCompletionServiceSettings}, which
@@ -50,11 +55,10 @@ public class AmazonBedrockChatCompletionServiceSettings extends AmazonBedrockSer
      * @return the parser
      */
     static ObjectParser<Builder, ConfigurationParseContext> createParser(boolean ignoreUnknownFields) {
-        ObjectParser<Builder, ConfigurationParseContext> parser = new ObjectParser<>(
-            ModelConfigurations.SERVICE_SETTINGS,
-            ignoreUnknownFields,
-            Builder::new
-        );
+        var parser = new ServiceSettingsOPBuilder<>(ignoreUnknownFields, Builder::new).enableRateLimitSettings(
+            Builder::setRateLimitSettings,
+            DEFAULT_RATE_LIMIT_SETTINGS
+        ).allowSecretFields(ACCESS_KEY_FIELD, SECRET_KEY_FIELD).build();
         AmazonBedrockServiceSettings.declareCommonFields(parser);
         return parser;
     }
@@ -79,14 +83,14 @@ public class AmazonBedrockChatCompletionServiceSettings extends AmazonBedrockSer
 
     /**
      * Parses an update request, which may only contain the mutable {@code rate_limit} field. Including any immutable field (such as
-     * {@code model}, {@code region} or {@code provider}) causes the strict parser to reject the request.
+     * {@code model}, {@code region} or {@code provider}) causes the strict parser to reject the request. {@code access_key} and
+     * {@code secret_key} are tolerated so that credential rotation can be performed in the same request; they are extracted by
+     * {@link AwsSecretSettings} and not passed through to the update.
      */
     private static class Update extends AmazonBedrockServiceSettings.CommonUpdate {
-        private static final ObjectParser<Update, Void> PARSER = new ObjectParser<>(ModelConfigurations.SERVICE_SETTINGS, Update::new);
-
-        static {
-            AmazonBedrockServiceSettings.declareCommonUpdatableFields(PARSER);
-        }
+        private static final ObjectParser<Update, Void> PARSER = new UpdateServiceSettingsOPBuilder<>(Update::new).setRateLimitSettings(
+            Update::setRateLimitSettings
+        ).allowSecretFields(ACCESS_KEY_FIELD, SECRET_KEY_FIELD).build();
 
         public AmazonBedrockChatCompletionServiceSettings mergeInto(AmazonBedrockChatCompletionServiceSettings existing) {
             return new AmazonBedrockChatCompletionServiceSettings(

@@ -19,9 +19,9 @@ import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xpack.inference.common.parser.ServiceSettingsOPBuilder;
 import org.elasticsearch.xpack.inference.common.parser.StatefulValue;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -48,23 +48,15 @@ public abstract class LlamaServiceSettings extends FilteredXContentObject implem
     protected static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(3000);
 
     /**
-     * Registers the common Llama service-settings fields (model_id, url, rate_limit) onto the given parser.
+     * Registers the common Llama service-settings fields (model_id, url) onto the given parser. Note: {@code rate_limit} and
+     * {@code api_key} are handled separately via {@link ServiceSettingsOPBuilder} at the leaf parser level so they are not
+     * duplicated here.
      */
     public static <B extends Builder<? extends LlamaServiceSettings>> void declareCommonFields(
         AbstractObjectParser<B, ConfigurationParseContext> parser
     ) {
         parser.declareString(Builder::setModelId, new ParseField(MODEL_ID));
         parser.declareString(Builder::setUrl, new ParseField(URL));
-        parser.declareObject(
-            Builder::setRateLimitSettings,
-            // An explicitly empty rate_limit object ({}) resolves to the default rate limit rather than null, so the setter is never
-            // invoked with null.
-            (p, c) -> RateLimitSettings.createParser(c == ConfigurationParseContext.PERSISTENT, DEFAULT_RATE_LIMIT_SETTINGS).apply(p, null),
-            new ParseField(RateLimitSettings.FIELD_NAME)
-        );
-        // api_key appears in the same JSON block as service settings in REST requests; DefaultSecretSettings extracts it separately.
-        // Declare it here as a no-op so the strict REQUEST parser does not reject it as an unknown field.
-        parser.declareString((b, v) -> {}, new ParseField(DefaultSecretSettings.API_KEY));
     }
 
     private final String modelId;
@@ -185,27 +177,16 @@ public abstract class LlamaServiceSettings extends FilteredXContentObject implem
     }
 
     /**
-     * Registers the common Llama fields that may be changed by an update request. Only {@code rate_limit} is mutable; the
-     * immutable fields (such as {@code model_id} and {@code url}) are intentionally not declared so that a strict update parser
-     * rejects attempts to change them.
-     */
-    public static void declareCommonUpdatableFields(AbstractObjectParser<? extends CommonUpdate, Void> parser) {
-        StatefulValue.declareNullable(
-            parser,
-            (update, value) -> update.rateLimitSettings = value,
-            (p) -> RateLimitSettings.createParser(false, null).apply(p, null),
-            new ParseField(RateLimitSettings.FIELD_NAME),
-            ObjectParser.ValueType.OBJECT_OR_NULL
-        );
-    }
-
-    /**
      * Common fields parsed from an update request. Because settings are immutable, each subclass builds the new instance itself,
      * calling {@link #mergedRateLimitSettings(LlamaServiceSettings)} to resolve the shared fields.
      */
     public static class CommonUpdate {
 
         protected StatefulValue<RateLimitSettings> rateLimitSettings = StatefulValue.undefined();
+
+        protected void setRateLimitSettings(StatefulValue<RateLimitSettings> rateLimitSettings) {
+            this.rateLimitSettings = rateLimitSettings;
+        }
 
         /**
          * Resolves the rate limit settings to use after applying the update following the tri-state convention: an omitted field keeps

@@ -14,6 +14,7 @@ import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
+import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.net.URI;
@@ -271,6 +272,21 @@ public abstract class AbstractIbmWatsonxServiceSettingsTests<T extends IbmWatson
                 )
             )
         );
+    }
+
+    public void testUpdateServiceSettings_ApiKey_IsIgnored() {
+        var originalServiceSettings = createServiceSettings(
+            INITIAL_TEST_URI,
+            INITIAL_TEST_API_VERSION,
+            INITIAL_TEST_MODEL_ID,
+            INITIAL_TEST_PROJECT_ID,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+        );
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(
+            new HashMap<>(Map.of(DefaultSecretSettings.API_KEY, "secret-key"))
+        );
+
+        assertThat(updatedServiceSettings, is(originalServiceSettings));
     }
 
     public void testUpdateServiceSettings_GivenImmutableFields_ThrowsException() {

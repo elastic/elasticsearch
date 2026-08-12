@@ -12,9 +12,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xpack.inference.common.parser.ServiceSettingsOPBuilder;
+import org.elasticsearch.xpack.inference.common.parser.UpdateServiceSettingsOPBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.llama.LlamaServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -44,11 +45,12 @@ public class LlamaChatCompletionServiceSettings extends LlamaServiceSettings {
      * @return the parser
      */
     static ObjectParser<Builder, ConfigurationParseContext> createParser(boolean ignoreUnknownFields) {
-        ObjectParser<Builder, ConfigurationParseContext> parser = new ObjectParser<>(
-            ModelConfigurations.SERVICE_SETTINGS,
+        var parser = ServiceSettingsOPBuilder.of(
             ignoreUnknownFields,
-            Builder::new
-        );
+            Builder::new,
+            DEFAULT_RATE_LIMIT_SETTINGS,
+            Builder::setRateLimitSettings
+        ).build();
         LlamaServiceSettings.declareCommonFields(parser);
         return parser;
     }
@@ -125,11 +127,10 @@ public class LlamaChatCompletionServiceSettings extends LlamaServiceSettings {
      */
     private static class Update extends LlamaServiceSettings.CommonUpdate {
 
-        private static final ObjectParser<Update, Void> PARSER = new ObjectParser<>(ModelConfigurations.SERVICE_SETTINGS, Update::new);
-
-        static {
-            LlamaServiceSettings.declareCommonUpdatableFields(PARSER);
-        }
+        private static final ObjectParser<Update, Void> PARSER = UpdateServiceSettingsOPBuilder.of(
+            Update::new,
+            Update::setRateLimitSettings
+        ).build();
 
         public LlamaChatCompletionServiceSettings mergeInto(LlamaChatCompletionServiceSettings existing) {
             return new LlamaChatCompletionServiceSettings(existing.modelId(), existing.uri(), mergedRateLimitSettings(existing));

@@ -21,9 +21,10 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xpack.inference.common.parser.ServiceSettingsOPBuilder;
 import org.elasticsearch.xpack.inference.common.parser.StatefulValue;
+import org.elasticsearch.xpack.inference.common.parser.UpdateServiceSettingsOPBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -53,11 +54,12 @@ public class AlibabaCloudSearchServiceSettings extends FilteredXContentObject
     public static final String HTTP_SCHEMA_NAME = "http_schema";
     private static final Set<String> VALID_SCHEMAS = Set.of("https", "http");
 
-    static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(1_000);
+    public static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(1_000);
 
     /**
-     * Registers the common AlibabaCloud AI Search service-settings fields (service_id, host, workspace, http_schema, rate_limit) onto
-     * the given parser.
+     * Registers the common AlibabaCloud AI Search service-settings fields (service_id, host, workspace, http_schema) onto the given
+     * parser. Note: {@code rate_limit} and {@code api_key} are handled separately via {@link ServiceSettingsOPBuilder} at the leaf
+     * parser level so they are not duplicated here.
      */
     public static <B extends Builder<? extends ServiceSettings>> void declareCommonFields(
         AbstractObjectParser<B, ConfigurationParseContext> parser
@@ -66,10 +68,6 @@ public class AlibabaCloudSearchServiceSettings extends FilteredXContentObject
         parser.declareString(Builder::setHost, new ParseField(HOST));
         parser.declareString(Builder::setWorkspaceName, new ParseField(WORKSPACE_NAME));
         parser.declareString(Builder::setHttpSchema, new ParseField(HTTP_SCHEMA_NAME));
-        RateLimitSettings.declareRateLimitSettings(parser, Builder::setRateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
-        // api_key appears in the same JSON block as service settings in REST requests; DefaultSecretSettings extracts it separately.
-        // Declare it here as a no-op so the strict REQUEST parser does not reject it as an unknown field.
-        parser.declareString((b, v) -> {}, new ParseField(DefaultSecretSettings.API_KEY));
     }
 
     /**
@@ -149,9 +147,10 @@ public class AlibabaCloudSearchServiceSettings extends FilteredXContentObject
     }
 
     /**
-     * Registers the common AlibabaCloud AI Search fields that may be changed by an update request: {@code http_schema} and
-     * {@code rate_limit}. The immutable fields ({@code service_id}, {@code host} and {@code workspace}) are intentionally not declared
-     * so that a strict update parser rejects attempts to change them.
+     * Registers the common AlibabaCloud AI Search fields that may be changed by an update request: {@code http_schema}. The immutable
+     * fields ({@code service_id}, {@code host} and {@code workspace}) are intentionally not declared so that a strict update parser
+     * rejects attempts to change them. {@code rate_limit} and {@code api_key} are handled separately via
+     * {@link UpdateServiceSettingsOPBuilder} at the leaf parser level.
      */
     public static void declareCommonUpdatableFields(AbstractObjectParser<? extends CommonUpdate, Void> parser) {
         StatefulValue.declareNullable(parser, (update, value) -> update.httpSchema = value, p -> {
@@ -159,7 +158,6 @@ public class AlibabaCloudSearchServiceSettings extends FilteredXContentObject
             validateHttpSchema(value);
             return value;
         }, new ParseField(HTTP_SCHEMA_NAME), ObjectParser.ValueType.STRING_OR_NULL);
-        RateLimitSettings.declareUpdatableRateLimitSettings(parser, (update, value) -> update.rateLimitSettings = value);
     }
 
     /**
@@ -170,6 +168,10 @@ public class AlibabaCloudSearchServiceSettings extends FilteredXContentObject
 
         protected StatefulValue<String> httpSchema = StatefulValue.undefined();
         protected StatefulValue<RateLimitSettings> rateLimitSettings = StatefulValue.undefined();
+
+        protected void setRateLimitSettings(StatefulValue<RateLimitSettings> rateLimitSettings) {
+            this.rateLimitSettings = rateLimitSettings;
+        }
 
         /**
          * Resolves the common settings to use after applying the update following the tri-state convention: an omitted field keeps

@@ -13,13 +13,15 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettings;
 import org.elasticsearch.xpack.inference.common.parser.EnumParser;
+import org.elasticsearch.xpack.inference.common.parser.ServiceSettingsOPBuilder;
+import org.elasticsearch.xpack.inference.common.parser.UpdateServiceSettingsOPBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockProvider;
@@ -35,6 +37,8 @@ import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSION
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS_SET_BY_USER;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
+import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.ACCESS_KEY_FIELD;
+import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.SECRET_KEY_FIELD;
 
 public class AmazonBedrockEmbeddingsServiceSettings extends AmazonBedrockServiceSettings {
     public static final String NAME = "amazon_bedrock_embeddings_service_settings";
@@ -51,11 +55,10 @@ public class AmazonBedrockEmbeddingsServiceSettings extends AmazonBedrockService
      * @return the parser
      */
     static ObjectParser<Builder, ConfigurationParseContext> createParser(boolean isPersistentContext) {
-        ObjectParser<Builder, ConfigurationParseContext> parser = new ObjectParser<>(
-            ModelConfigurations.SERVICE_SETTINGS,
-            isPersistentContext,
-            Builder::new
-        );
+        var parser = new ServiceSettingsOPBuilder<>(isPersistentContext, Builder::new).enableRateLimitSettings(
+            Builder::setRateLimitSettings,
+            DEFAULT_RATE_LIMIT_SETTINGS
+        ).allowSecretFields(ACCESS_KEY_FIELD, SECRET_KEY_FIELD).build();
         AmazonBedrockServiceSettings.declareCommonFields(parser);
         // dimensions and dimensions_set_by_user cannot be updated via request
         if (isPersistentContext) {
@@ -250,14 +253,16 @@ public class AmazonBedrockEmbeddingsServiceSettings extends AmazonBedrockService
     /**
      * Parses an update request, which may only contain the mutable {@code max_input_tokens} and {@code rate_limit} fields. Including any
      * immutable field (such as {@code region}, {@code model}, {@code provider}, {@code dimensions}, or {@code similarity}) causes the
-     * strict parser to reject the request.
+     * strict parser to reject the request. {@code access_key} and {@code secret_key} are tolerated so that credential rotation can be
+     * performed in the same request; they are extracted by {@link AwsSecretSettings} and not passed through to the update.
      */
     private static class Update extends AmazonBedrockServiceSettings.CommonUpdate {
 
-        private static final ObjectParser<Update, Void> PARSER = new ObjectParser<>(ModelConfigurations.SERVICE_SETTINGS, Update::new);
+        private static final ObjectParser<Update, Void> PARSER = new UpdateServiceSettingsOPBuilder<>(Update::new).setRateLimitSettings(
+            Update::setRateLimitSettings
+        ).allowSecretFields(ACCESS_KEY_FIELD, SECRET_KEY_FIELD).build();
 
         static {
-            declareCommonUpdatableFields(PARSER);
             PARSER.declareInt(Update::setMaxInputTokens, new ParseField(MAX_INPUT_TOKENS));
         }
 

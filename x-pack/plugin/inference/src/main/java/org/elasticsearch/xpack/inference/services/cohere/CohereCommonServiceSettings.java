@@ -25,9 +25,10 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xpack.inference.common.parser.ServiceSettingsOPBuilder;
+import org.elasticsearch.xpack.inference.common.parser.StatefulValue;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
-import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -37,6 +38,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.inference.common.parser.StatefulValue.applyUpdate;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createOptionalUri;
 
@@ -77,9 +79,10 @@ public class CohereCommonServiceSettings extends FilteredXContentObject implemen
     public static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(10_000);
 
     /**
-     * Registers the common Cohere service-settings fields (model_id, url, api_version, rate_limit)
-     * onto the given parser. The deprecated {@code model} alias is also registered and emits a
-     * log warning when encountered in request context.
+     * Registers the common Cohere service-settings fields (model_id, url, api_version) onto the given parser. The deprecated
+     * {@code model} alias is also registered and emits a log warning when encountered in request context. Note: {@code rate_limit} and
+     * {@code api_key} are handled separately via {@link ServiceSettingsOPBuilder} at the leaf parser level so they are not
+     * duplicated here.
      */
     public static <B extends Builder<? extends CohereServiceSettings>> void declareCommonFields(
         AbstractObjectParser<B, ConfigurationParseContext> parser,
@@ -91,14 +94,6 @@ public class CohereCommonServiceSettings extends FilteredXContentObject implemen
         if (context == ConfigurationParseContext.PERSISTENT) {
             parser.declareString(Builder::setApiVersion, new ParseField(API_VERSION));
         }
-        parser.declareObject(
-            Builder::setRateLimitSettings,
-            (p, c) -> RateLimitSettings.createParser(c == ConfigurationParseContext.PERSISTENT, DEFAULT_RATE_LIMIT_SETTINGS).apply(p, null),
-            new ParseField(RateLimitSettings.FIELD_NAME)
-        );
-        // api_key appears in the same JSON block as service settings in REST requests; DefaultSecretSettings extracts it separately.
-        // Declare it here as a no-op so the strict REQUEST parser does not reject it as an unknown field.
-        parser.declareString((b, v) -> {}, new ParseField(DefaultSecretSettings.API_KEY));
     }
 
     /**
@@ -166,7 +161,7 @@ public class CohereCommonServiceSettings extends FilteredXContentObject implemen
     }
 
     public CohereCommonServiceSettings update(CommonUpdate update) {
-        RateLimitSettings updatedRateLimitSettings = Objects.requireNonNullElse(update.rateLimitSettings, this.rateLimitSettings);
+        var updatedRateLimitSettings = applyUpdate(update.rateLimitSettings, this.rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
         return new CohereCommonServiceSettings(this.uri, this.modelId, updatedRateLimitSettings, this.apiVersion);
     }
 
@@ -292,19 +287,11 @@ public class CohereCommonServiceSettings extends FilteredXContentObject implemen
         }
     }
 
-    public static void declareCommonUpdatableFields(AbstractObjectParser<? extends CommonUpdate, Void> parser) {
-        parser.declareObject(
-            CommonUpdate::setRateLimitSettings,
-            (p, c) -> RateLimitSettings.createParser(false, null).apply(p, null),
-            new ParseField(RateLimitSettings.FIELD_NAME)
-        );
-    }
-
     public static class CommonUpdate {
 
-        protected RateLimitSettings rateLimitSettings;
+        protected StatefulValue<RateLimitSettings> rateLimitSettings = StatefulValue.undefined();
 
-        private void setRateLimitSettings(RateLimitSettings rateLimitSettings) {
+        protected void setRateLimitSettings(StatefulValue<RateLimitSettings> rateLimitSettings) {
             this.rateLimitSettings = rateLimitSettings;
         }
     }

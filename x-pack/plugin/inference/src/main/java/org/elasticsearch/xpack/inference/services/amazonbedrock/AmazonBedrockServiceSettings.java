@@ -33,18 +33,18 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.common.parser.StatefulValue.applyUpdate;
 import static org.elasticsearch.xpack.inference.common.parser.StringParser.validateStringIsNotNullOrEmpty;
-import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.ACCESS_KEY_FIELD;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.MODEL_FIELD;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.PROVIDER_FIELD;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.REGION_FIELD;
-import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.SECRET_KEY_FIELD;
 
 public abstract class AmazonBedrockServiceSettings extends FilteredXContentObject implements ServiceSettings {
 
     protected static final String AMAZON_BEDROCK_BASE_NAME = "amazon_bedrock";
 
     /**
-     * Registers the common Bedrock service-settings fields (model, region, provider, rate_limit) onto the given parser.
+     * Registers the common Bedrock service-settings fields (model, region, provider) onto the given parser.
+     * Note: {@code access_key} and {@code secret_key} are intentionally not declared here; they are handled separately via
+     * {@code allowSecretFields} on the parser builder so the strict parser tolerates them without passing them through to the builder.
      */
     public static <B extends AmazonBedrockServiceSettings.Builder<? extends AmazonBedrockServiceSettings>> void declareCommonFields(
         AbstractObjectParser<B, ConfigurationParseContext> parser
@@ -52,17 +52,6 @@ public abstract class AmazonBedrockServiceSettings extends FilteredXContentObjec
         parser.declareString(AmazonBedrockServiceSettings.Builder::setRegion, new ParseField(REGION_FIELD));
         parser.declareString(AmazonBedrockServiceSettings.Builder::setModel, new ParseField(MODEL_FIELD));
         parser.declareString(AmazonBedrockServiceSettings.Builder::setProvider, new ParseField(PROVIDER_FIELD));
-        parser.declareObject(
-            AmazonBedrockServiceSettings.Builder::setRateLimitSettings,
-            // An explicitly empty rate_limit object ({}) resolves to the default rate limit rather than null, so the setter is never
-            // invoked with null.
-            (p, c) -> RateLimitSettings.createParser(c == ConfigurationParseContext.PERSISTENT, DEFAULT_RATE_LIMIT_SETTINGS).apply(p, null),
-            new ParseField(RateLimitSettings.FIELD_NAME)
-        );
-        // access_key/secret_key appear in the same JSON block as service settings in REST requests; DefaultSecretSettings extracts them
-        // separately. Declare it here as a no-op so the strict REQUEST parser does not reject it as an unknown field.
-        parser.declareString((b, v) -> {}, new ParseField(ACCESS_KEY_FIELD));
-        parser.declareString((b, v) -> {}, new ParseField(SECRET_KEY_FIELD));
     }
 
     protected final String region;
@@ -244,27 +233,16 @@ public abstract class AmazonBedrockServiceSettings extends FilteredXContentObjec
     }
 
     /**
-     * Registers the common Bedrock fields that may be changed by an update request. Only {@code rate_limit} is mutable; the
-     * immutable fields (such as {@code model}, {@code region} and {@code provider}) are intentionally not declared so that a strict update
-     * parser rejects attempts to change them.
-     */
-    public static void declareCommonUpdatableFields(AbstractObjectParser<? extends CommonUpdate, Void> parser) {
-        StatefulValue.declareNullable(
-            parser,
-            (update, value) -> update.rateLimitSettings = value,
-            (p) -> RateLimitSettings.createParser(false, null).apply(p, null),
-            new ParseField(RateLimitSettings.FIELD_NAME),
-            ObjectParser.ValueType.OBJECT_OR_NULL
-        );
-    }
-
-    /**
      * Common fields parsed from an update request. Because settings are immutable, each subclass builds the new instance itself,
      * calling {@link #mergedRateLimitSettings(AmazonBedrockServiceSettings)} to resolve the shared fields.
      */
     public static class CommonUpdate {
 
         protected StatefulValue<RateLimitSettings> rateLimitSettings = StatefulValue.undefined();
+
+        protected void setRateLimitSettings(StatefulValue<RateLimitSettings> rateLimitSettings) {
+            this.rateLimitSettings = rateLimitSettings;
+        }
 
         /**
          * Resolves the rate limit settings to use after applying the update following the tri-state convention: an omitted field keeps

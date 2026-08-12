@@ -14,7 +14,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -23,7 +22,9 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.inference.common.parser.EnumParser;
+import org.elasticsearch.xpack.inference.common.parser.ServiceSettingsOPBuilder;
 import org.elasticsearch.xpack.inference.common.parser.StatefulValue;
+import org.elasticsearch.xpack.inference.common.parser.UpdateServiceSettingsOPBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.AlibabaCloudSearchServiceSettings;
 
@@ -56,11 +57,12 @@ public class AlibabaCloudSearchEmbeddingsServiceSettings implements ServiceSetti
      * @return the parser
      */
     static ObjectParser<Builder, ConfigurationParseContext> createParser(boolean ignoreUnknownFields) {
-        ObjectParser<Builder, ConfigurationParseContext> parser = new ObjectParser<>(
-            ModelConfigurations.SERVICE_SETTINGS,
+        var parser = ServiceSettingsOPBuilder.of(
             ignoreUnknownFields,
-            Builder::new
-        );
+            Builder::new,
+            AlibabaCloudSearchServiceSettings.DEFAULT_RATE_LIMIT_SETTINGS,
+            Builder::setRateLimitSettings
+        ).build();
         AlibabaCloudSearchServiceSettings.declareCommonFields(parser);
         parser.declareString(Builder::setSimilarity, EnumParser::parseSimilarity, new ParseField(SIMILARITY));
         parser.declareInt(Builder::setDimensions, new ParseField(DIMENSIONS));
@@ -174,7 +176,10 @@ public class AlibabaCloudSearchEmbeddingsServiceSettings implements ServiceSetti
      */
     private static class Update extends AlibabaCloudSearchServiceSettings.CommonUpdate {
 
-        private static final ObjectParser<Update, Void> PARSER = new ObjectParser<>(ModelConfigurations.SERVICE_SETTINGS, Update::new);
+        private static final ObjectParser<Update, Void> PARSER = UpdateServiceSettingsOPBuilder.of(
+            Update::new,
+            Update::setRateLimitSettings
+        ).build();
 
         static {
             AlibabaCloudSearchServiceSettings.declareCommonUpdatableFields(PARSER);

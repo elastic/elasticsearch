@@ -13,9 +13,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xpack.inference.common.parser.ServiceSettingsOPBuilder;
+import org.elasticsearch.xpack.inference.common.parser.UpdateServiceSettingsOPBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -49,11 +50,12 @@ public class IbmWatsonxChatCompletionServiceSettings extends IbmWatsonxServiceSe
      * @return the parser
      */
     static ObjectParser<Builder, ConfigurationParseContext> createParser(boolean ignoreUnknownFields) {
-        ObjectParser<Builder, ConfigurationParseContext> parser = new ObjectParser<>(
-            ModelConfigurations.SERVICE_SETTINGS,
+        var parser = ServiceSettingsOPBuilder.of(
             ignoreUnknownFields,
-            Builder::new
-        );
+            Builder::new,
+            DEFAULT_RATE_LIMIT_SETTINGS,
+            Builder::setRateLimitSettings
+        ).build();
         IbmWatsonxServiceSettings.declareCommonFields(parser);
         return parser;
     }
@@ -129,11 +131,10 @@ public class IbmWatsonxChatCompletionServiceSettings extends IbmWatsonxServiceSe
      */
     private static class Update extends IbmWatsonxServiceSettings.CommonUpdate {
 
-        private static final ObjectParser<Update, Void> PARSER = new ObjectParser<>(ModelConfigurations.SERVICE_SETTINGS, Update::new);
-
-        static {
-            IbmWatsonxServiceSettings.declareCommonUpdatableFields(PARSER);
-        }
+        private static final ObjectParser<Update, Void> PARSER = UpdateServiceSettingsOPBuilder.of(
+            Update::new,
+            Update::setRateLimitSettings
+        ).build();
 
         public IbmWatsonxChatCompletionServiceSettings mergeInto(IbmWatsonxChatCompletionServiceSettings existing) {
             return new IbmWatsonxChatCompletionServiceSettings(

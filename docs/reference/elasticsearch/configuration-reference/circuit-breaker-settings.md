@@ -66,6 +66,11 @@ $$$request-breaker-overhead$$$
 
 ### Native memory circuit breaker [native-memory-circuit-breaker]
 
+```{applies_to}
+stack: ga 9.6
+serverless: ga
+```
+
 The native memory circuit breaker limits off-heap (native) memory allocations, such as Arrow buffers used by ES|QL. Unlike the other breakers, this breaker is **not** included in the parent circuit breaker's total: the parent's limit is expressed in JVM heap bytes, and adding off-heap bytes to it would mix units. Each resource is bounded independently.
 
 `indices.breaker.native_memory.limit`
@@ -75,7 +80,7 @@ The native memory circuit breaker limits off-heap (native) memory allocations, s
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) A constant that all native memory estimations are multiplied with to determine a final estimation. Defaults to `1.0`. Unlike heap estimations, native charges are exact byte counts, so no padding is needed.
 
 `indices.breaker.native_memory.type`
-:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Determines the type of the native memory breaker. Set to `noop` to disable enforcement (the breaker accepts all allocations but still reports usage). Defaults to `memory`.
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Determines the type of the native memory breaker. Set to `noop` to deactivate enforcement (the breaker accepts all allocations but still reports usage). Defaults to `memory`.
 
 #### Native memory cgroup backstop [native-memory-cgroup-backstop]
 

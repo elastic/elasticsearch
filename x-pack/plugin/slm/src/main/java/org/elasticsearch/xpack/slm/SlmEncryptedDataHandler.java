@@ -76,7 +76,7 @@ public final class SlmEncryptedDataHandler implements EncryptedDataHandler<Snaps
             logger.warn(
                 "destructive encryption reset permanently destroyed the snapshot encryption passwords of SLM policies {}; "
                     + "the policies remain active but their snapshots will exclude any encrypted values and will not be "
-                    + "password-protected until each policy is updated with a new encryption_password",
+                    + "password-protected until each policy is updated with a new encrypted_data_password",
                 clearedPolicies
             );
         }

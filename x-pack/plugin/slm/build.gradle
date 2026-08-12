@@ -27,6 +27,7 @@ dependencies {
   compileOnly project(path: xpackModule('core'))
   compileOnly project(':x-pack:plugin:encryption:spi')
   testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation project(':x-pack:plugin:encryption:spi')
   testImplementation project(xpackModule('ccr'))
   testImplementation project(xpackModule('ilm'))
   testImplementation project(':modules:data-streams')

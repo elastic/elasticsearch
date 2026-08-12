@@ -9,12 +9,16 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.restore;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -100,6 +104,10 @@ public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase
             instance.snapshotUuid(randomBoolean() ? null : randomAlphaOfLength(10));
         }
 
+        if (randomBoolean()) {
+            instance.encryptedDataPassword(new SecureString(randomAlphaOfLengthBetween(15, 30).toCharArray()));
+        }
+
         return instance;
     }
 
@@ -125,6 +133,7 @@ public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase
         RestoreSnapshotRequest original = createTestInstance();
         original.snapshotUuid(null); // cannot be set via the REST API
         original.quiet(false); // cannot be set via the REST API
+        original.encryptedDataPassword(null); // deliberately omitted from toXContent
         XContentBuilder builder = original.toXContent(XContentFactory.jsonBuilder(), new ToXContent.MapParams(Collections.emptyMap()));
         Map<String, Object> map;
         try (
@@ -144,6 +153,50 @@ public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase
         processed.source(map);
 
         assertEquals(original, processed);
+    }
+
+    public void testEncryptionPasswordDroppedBeforeItsTransportVersion() throws IOException {
+        RestoreSnapshotRequest original = new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, "repo", "snap");
+        original.encryptedDataPassword(new SecureString("a-perfectly-valid-password".toCharArray()));
+        TransportVersion before = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("snapshot_encrypted_data_password"));
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(before);
+            original.writeTo(out);
+            try (StreamInput in = out.bytes().streamInput()) {
+                in.setTransportVersion(before);
+                assertNull(new RestoreSnapshotRequest(in).encryptedDataPassword());
+            }
+        }
+    }
+
+    public void testEncryptionPasswordValidation() {
+        RestoreSnapshotRequest request = new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, "repo", "snap");
+        request.encryptedDataPassword(new SecureString("only-14-chars-".toCharArray()));
+        ActionRequestValidationException validationException = request.validate();
+        assertNotNull(validationException);
+        assertThat(validationException.getMessage(), containsString("encrypted_data_password must be at least 15 characters"));
+
+        request.encryptedDataPassword(new SecureString("exactly-15-char".toCharArray()));
+        assertNull(request.validate());
+    }
+
+    public void testEncryptionPasswordSourceParsing() {
+        RestoreSnapshotRequest request = new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, "repo", "snap");
+        request.source(Map.of("encrypted_data_password", "a-perfectly-valid-password"));
+        assertEquals("a-perfectly-valid-password", request.encryptedDataPassword().toString());
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> request.source(Map.of("encrypted_data_password", 12345))
+        );
+        assertThat(e.getMessage(), containsString("malformed encrypted_data_password"));
+    }
+
+    public void testEncryptionPasswordIsNotSerialisedAsXContent() throws IOException {
+        RestoreSnapshotRequest request = createTestInstance();
+        request.encryptedDataPassword(new SecureString("a-perfectly-valid-password".toCharArray()));
+        Map<String, Object> map = convertRequestToMap(request);
+        assertFalse(map.containsKey("encrypted_data_password"));
     }
 
     public void testSkipOperatorOnlyWillNotBeSerialised() throws IOException {

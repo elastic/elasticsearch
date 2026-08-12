@@ -1007,7 +1007,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 // a transformed state (transformers return the same instance when untouched, see SnapshotGlobalStateTransformer)
                 // is password-protected only when the request carried a password; without one the transformation excluded data
                 final boolean hasEncryptedData = createRequest != null
-                    && createRequest.encryptionPassword() != null
+                    && createRequest.encryptedDataPassword() != null
                     && metaForSnapshot != untransformedMetadata;
 
                 final Map<String, SnapshotInfo.IndexSnapshotDetails> indexSnapshotDetails = Maps.newMapWithExpectedSize(
@@ -1058,7 +1058,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                     entry.userMetadata(),
                     entry.startTime(),
                     indexSnapshotDetails
-                ).withHasEncryptedData(hasEncryptedData);
+                ).withEncryptedData(hasEncryptedData, hasEncryptedData ? createRequest.encryptedDataPasswordId() : null);
                 assert snapshotInfo.state() != null;
                 final boolean snapshotInfoStateInvariant = getSnapshotInfoStateInvariant(snapshotInfo);
                 final ListenableFuture<List<ActionListener<SnapshotInfo>>> snapshotListeners = new ListenableFuture<>();

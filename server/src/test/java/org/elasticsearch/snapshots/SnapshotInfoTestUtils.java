@@ -70,7 +70,7 @@ public class SnapshotInfoTestUtils {
             userMetadata,
             startTime,
             indexSnapshotDetails
-        );
+        ).withEncryptedData(randomBoolean(), randomBoolean() ? null : randomAlphaOfLengthBetween(3, 10));
     }
 
     public static Map<String, SnapshotInfo.IndexSnapshotDetails> randomIndexSnapshotDetails() {
@@ -136,6 +136,24 @@ public class SnapshotInfoTestUtils {
     }
 
     static SnapshotInfo mutateSnapshotInfo(SnapshotInfo instance) {
+        switch (randomIntBetween(0, 12)) {
+            case 11:
+                return instance.withEncryptedData(instance.hasEncryptedData() == false, instance.encryptedDataPasswordId());
+            case 12:
+                return instance.withEncryptedData(
+                    instance.hasEncryptedData(),
+                    randomValueOtherThan(instance.encryptedDataPasswordId(), () -> randomAlphaOfLengthBetween(3, 10))
+                );
+            default:
+                // the cases below rebuild through the constructor that defaults the encrypted data fields, so carry them over
+                return mutateSnapshotInfoExceptEncryptedData(instance).withEncryptedData(
+                    instance.hasEncryptedData(),
+                    instance.encryptedDataPasswordId()
+                );
+        }
+    }
+
+    private static SnapshotInfo mutateSnapshotInfoExceptEncryptedData(SnapshotInfo instance) {
         switch (randomIntBetween(0, 10)) {
             case 0:
                 final String newName = randomValueOtherThan(instance.snapshotId().getName(), () -> randomAlphaOfLength(5));

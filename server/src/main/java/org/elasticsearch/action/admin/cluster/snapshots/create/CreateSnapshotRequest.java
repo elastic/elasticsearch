@@ -58,7 +58,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
 
     public static final int MAXIMUM_METADATA_BYTES = 1024; // chosen arbitrarily
     private static final int MIN_PASSWORD_LENGTH = 15;
-    private static final TransportVersion SNAPSHOT_ENCRYPTION_PASSWORD = TransportVersion.fromName("snapshot_encryption_password");
+    private static final TransportVersion SNAPSHOT_ENCRYPTED_DATA_PASSWORD = TransportVersion.fromName("snapshot_encrypted_data_password");
 
     private String snapshot;
 
@@ -83,7 +83,10 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
     private String uuid = null;
 
     @Nullable
-    private SecureString encryptionPassword;
+    private SecureString encryptedDataPassword;
+
+    @Nullable
+    private String encryptedDataPasswordId;
 
     public CreateSnapshotRequest(TimeValue masterNodeTimeout) {
         super(masterNodeTimeout);
@@ -114,8 +117,9 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         partial = in.readBoolean();
         userMetadata = in.readGenericMap();
         uuid = in.readOptionalString();
-        if (in.getTransportVersion().supports(SNAPSHOT_ENCRYPTION_PASSWORD)) {
-            encryptionPassword = in.readOptionalSecureString();
+        if (in.getTransportVersion().supports(SNAPSHOT_ENCRYPTED_DATA_PASSWORD)) {
+            encryptedDataPassword = in.readOptionalSecureString();
+            encryptedDataPasswordId = in.readOptionalString();
         }
     }
 
@@ -132,8 +136,9 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         out.writeBoolean(partial);
         out.writeGenericMap(userMetadata);
         out.writeOptionalString(uuid);
-        if (out.getTransportVersion().supports(SNAPSHOT_ENCRYPTION_PASSWORD)) {
-            out.writeOptionalSecureString(encryptionPassword);
+        if (out.getTransportVersion().supports(SNAPSHOT_ENCRYPTED_DATA_PASSWORD)) {
+            out.writeOptionalSecureString(encryptedDataPassword);
+            out.writeOptionalString(encryptedDataPasswordId);
         }
     }
 
@@ -169,9 +174,15 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
                 validationException
             );
         }
-        if (encryptionPassword != null && encryptionPassword.length() < MIN_PASSWORD_LENGTH) {
+        if (encryptedDataPassword != null && encryptedDataPassword.length() < MIN_PASSWORD_LENGTH) {
             validationException = addValidationError(
-                "encryption_password must be at least " + MIN_PASSWORD_LENGTH + " characters",
+                "encrypted_data_password must be at least " + MIN_PASSWORD_LENGTH + " characters",
+                validationException
+            );
+        }
+        if (encryptedDataPasswordId != null && encryptedDataPassword == null) {
+            validationException = addValidationError(
+                "encrypted_data_password_id requires encrypted_data_password to be set",
                 validationException
             );
         }
@@ -431,15 +442,31 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
      * @return the encryption password for this snapshot, or {@code null} if none was provided
      */
     @Nullable
-    public SecureString encryptionPassword() {
-        return encryptionPassword;
+    public SecureString encryptedDataPassword() {
+        return encryptedDataPassword;
     }
 
     /**
-     * @param encryptionPassword the password used to derive a key for encrypting snapshot customs data
+     * @param encryptedDataPassword the password used to derive a key for encrypting snapshot customs data
      */
-    public CreateSnapshotRequest encryptionPassword(@Nullable SecureString encryptionPassword) {
-        this.encryptionPassword = encryptionPassword;
+    public CreateSnapshotRequest encryptedDataPassword(@Nullable SecureString encryptedDataPassword) {
+        this.encryptedDataPassword = encryptedDataPassword;
+        return this;
+    }
+
+    /**
+     * @return the id of the encrypted data password, or {@code null} if none was provided
+     */
+    @Nullable
+    public String encryptedDataPasswordId() {
+        return encryptedDataPasswordId;
+    }
+
+    /**
+     * @param encryptedDataPasswordId an identifier for the password, recorded in the snapshot info; never the password itself
+     */
+    public CreateSnapshotRequest encryptedDataPasswordId(@Nullable String encryptedDataPasswordId) {
+        this.encryptedDataPasswordId = encryptedDataPasswordId;
         return this;
     }
 
@@ -482,11 +509,18 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
                     }
                     userMetadata((Map<String, Object>) entry.getValue());
                     break;
-                case "encryption_password":
+                case "encrypted_data_password":
                     if (entry.getValue() instanceof String s) {
-                        encryptionPassword = new SecureString(s.toCharArray());
+                        encryptedDataPassword = new SecureString(s.toCharArray());
                     } else {
-                        throw new IllegalArgumentException("malformed encryption_password, should be a string");
+                        throw new IllegalArgumentException("malformed encrypted_data_password, should be a string");
+                    }
+                    break;
+                case "encrypted_data_password_id":
+                    if (entry.getValue() instanceof String s) {
+                        encryptedDataPasswordId = s;
+                    } else {
+                        throw new IllegalArgumentException("malformed encrypted_data_password_id, should be a string");
                     }
                     break;
             }
@@ -510,6 +544,9 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
             indicesOptions.toXContent(builder, params);
         }
         builder.field("metadata", userMetadata);
+        if (encryptedDataPasswordId != null) {
+            builder.field("encrypted_data_password_id", encryptedDataPasswordId);
+        }
         builder.endObject();
         return builder;
     }
@@ -535,7 +572,8 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
             && Objects.equals(masterNodeTimeout(), that.masterNodeTimeout())
             && Objects.equals(userMetadata, that.userMetadata)
             && Objects.equals(uuid, that.uuid)
-            && Objects.equals(encryptionPassword, that.encryptionPassword);
+            && Objects.equals(encryptedDataPassword, that.encryptedDataPassword)
+            && Objects.equals(encryptedDataPasswordId, that.encryptedDataPasswordId);
     }
 
     @Override
@@ -549,7 +587,8 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
             waitForCompletion,
             userMetadata,
             uuid,
-            encryptionPassword
+            encryptedDataPassword,
+            encryptedDataPasswordId
         );
         result = 31 * result + Arrays.hashCode(indices);
         result = 31 * result + Arrays.hashCode(featureStates);

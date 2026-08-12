@@ -195,7 +195,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
             String policyId = policyMetadata.getPolicy().getId();
             // don't time out on this request to not produce failed SLM runs in case of a temporarily slow master node
             CreateSnapshotRequest request = policyMetadata.getPolicy().toRequest(TimeValue.MAX_VALUE);
-            setEncryptionPassword(policyMetadata.getPolicy(), request);
+            setEncryptedDataPassword(policyMetadata.getPolicy(), request);
             final SnapshotId snapshotId = new SnapshotId(request.snapshot(), request.uuid());
 
             final LifecyclePolicySecurityClient clientWithHeaders = new LifecyclePolicySecurityClient(
@@ -357,14 +357,16 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
      * global state is protected under it. {@code SnapshotLifecyclePolicy#toRequest} cannot do this itself because
      * it lives in x-pack core, which has no access to the encryption service.
      */
-    private static void setEncryptionPassword(SnapshotLifecyclePolicy policy, CreateSnapshotRequest request) {
+    // package-private for testing
+    static void setEncryptedDataPassword(SnapshotLifecyclePolicy policy, CreateSnapshotRequest request) {
         EncryptedData encryptedPassword = policy.getEncryptedPassword();
         if (encryptedPassword == null) {
             return;
         }
         byte[] plaintextBytes = EncryptionServiceRegistry.getEncryptionService().decrypt(encryptedPassword);
         try {
-            request.encryptionPassword(new SecureString(new String(plaintextBytes, StandardCharsets.UTF_8).toCharArray()));
+            request.encryptedDataPassword(new SecureString(new String(plaintextBytes, StandardCharsets.UTF_8).toCharArray()));
+            request.encryptedDataPasswordId(policy.getEncryptedPasswordId());
         } finally {
             Arrays.fill(plaintextBytes, (byte) 0);
         }

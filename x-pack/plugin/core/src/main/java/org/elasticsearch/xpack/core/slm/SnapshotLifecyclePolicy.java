@@ -48,7 +48,7 @@ import static org.elasticsearch.xpack.core.ilm.GenerateSnapshotNameStep.validate
  */
 public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecyclePolicy>, Writeable, ToXContentObject {
 
-    private static final TransportVersion SLM_ENCRYPTION_PASSWORD = TransportVersion.fromName("snapshot_encryption_password");
+    private static final TransportVersion SLM_ENCRYPTED_DATA_PASSWORD = TransportVersion.fromName("snapshot_encrypted_data_password");
 
     private final String id;
     private final String name;
@@ -61,6 +61,9 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
     /** Password-encrypted with the cluster PEK; null if no encryption password was configured. */
     @Nullable
     private final EncryptedData encryptedPassword;
+    /** User-supplied identifier of the password; always set when {@link #encryptedPassword} is, never without it. */
+    @Nullable
+    private final String encryptedPasswordId;
 
     private static final ParseField NAME = new ParseField("name");
     private static final ParseField SCHEDULE = new ParseField("schedule");
@@ -68,7 +71,8 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
     private static final ParseField CONFIG = new ParseField("config");
     private static final ParseField RETENTION = new ParseField("retention");
     private static final ParseField UNHEALTHY_IF_NO_SNAPSHOT_WITHIN = new ParseField("unhealthy_if_no_snapshot_within");
-    private static final ParseField ENCRYPTED_PASSWORD = new ParseField("encrypted_password");
+    private static final ParseField ENCRYPTED_PASSWORD = new ParseField("encrypted_data_password");
+    private static final ParseField ENCRYPTED_PASSWORD_ID = new ParseField("encrypted_data_password_id");
     private static final String METADATA_FIELD_NAME = "metadata";
 
     @SuppressWarnings("unchecked")
@@ -83,7 +87,18 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
             SnapshotRetentionConfiguration retention = (SnapshotRetentionConfiguration) a[4];
             TimeValue unhealthyIfNoSnapshotWithin = (TimeValue) a[5];
             EncryptedData encryptedPassword = (EncryptedData) a[6];
-            return new SnapshotLifecyclePolicy(id, name, schedule, repo, config, retention, unhealthyIfNoSnapshotWithin, encryptedPassword);
+            String encryptedPasswordId = (String) a[7];
+            return new SnapshotLifecyclePolicy(
+                id,
+                name,
+                schedule,
+                repo,
+                config,
+                retention,
+                unhealthyIfNoSnapshotWithin,
+                encryptedPassword,
+                encryptedPasswordId
+            );
         }
     );
 
@@ -103,6 +118,7 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
             (p, c) -> EncryptedData.fromXContent(p),
             ENCRYPTED_PASSWORD
         );
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), ENCRYPTED_PASSWORD_ID);
     }
 
     private static final TransportVersion SLM_UNHEALTHY_IF_NO_SNAPSHOT_WITHIN = TransportVersion.fromName(
@@ -117,7 +133,7 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
         @Nullable final Map<String, Object> configuration,
         @Nullable final SnapshotRetentionConfiguration retentionPolicy
     ) {
-        this(id, name, schedule, repository, configuration, retentionPolicy, null, null);
+        this(id, name, schedule, repository, configuration, retentionPolicy, null, null, null);
     }
 
     public SnapshotLifecyclePolicy(
@@ -129,7 +145,7 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
         @Nullable final SnapshotRetentionConfiguration retentionPolicy,
         @Nullable final TimeValue unhealthyIfNoSnapshotWithin
     ) {
-        this(id, name, schedule, repository, configuration, retentionPolicy, unhealthyIfNoSnapshotWithin, null);
+        this(id, name, schedule, repository, configuration, retentionPolicy, unhealthyIfNoSnapshotWithin, null, null);
     }
 
     public SnapshotLifecyclePolicy(
@@ -140,7 +156,8 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
         @Nullable final Map<String, Object> configuration,
         @Nullable final SnapshotRetentionConfiguration retentionPolicy,
         @Nullable final TimeValue unhealthyIfNoSnapshotWithin,
-        @Nullable final EncryptedData encryptedPassword
+        @Nullable final EncryptedData encryptedPassword,
+        @Nullable final String encryptedPasswordId
     ) {
         this.id = Objects.requireNonNull(id, "policy id is required");
         this.name = Objects.requireNonNull(name, "policy snapshot name is required");
@@ -151,6 +168,7 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
         this.unhealthyIfNoSnapshotWithin = unhealthyIfNoSnapshotWithin;
         this.isCronSchedule = isCronSchedule(schedule);
         this.encryptedPassword = encryptedPassword;
+        this.encryptedPasswordId = encryptedPasswordId;
     }
 
     public SnapshotLifecyclePolicy(StreamInput in) throws IOException {
@@ -163,9 +181,9 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
         this.unhealthyIfNoSnapshotWithin = in.getTransportVersion().supports(SLM_UNHEALTHY_IF_NO_SNAPSHOT_WITHIN)
             ? in.readOptionalTimeValue()
             : null;
-        this.encryptedPassword = in.getTransportVersion().supports(SLM_ENCRYPTION_PASSWORD)
-            ? in.readOptionalWriteable(EncryptedData::new)
-            : null;
+        final boolean supportsEncryptedPassword = in.getTransportVersion().supports(SLM_ENCRYPTED_DATA_PASSWORD);
+        this.encryptedPassword = supportsEncryptedPassword ? in.readOptionalWriteable(EncryptedData::new) : null;
+        this.encryptedPasswordId = supportsEncryptedPassword ? in.readOptionalString() : null;
         this.isCronSchedule = isCronSchedule(schedule);
     }
 
@@ -434,13 +452,15 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
         if (out.getTransportVersion().supports(SLM_UNHEALTHY_IF_NO_SNAPSHOT_WITHIN)) {
             out.writeOptionalTimeValue(this.unhealthyIfNoSnapshotWithin);
         }
-        if (out.getTransportVersion().supports(SLM_ENCRYPTION_PASSWORD)) {
+        if (out.getTransportVersion().supports(SLM_ENCRYPTED_DATA_PASSWORD)) {
             out.writeOptionalWriteable(this.encryptedPassword);
+            out.writeOptionalString(this.encryptedPasswordId);
         }
     }
 
     /**
-     * Returns a copy of this policy with the given {@code encryptedPassword} (or {@code null} to clear it).
+     * Returns a copy of this policy with the given {@code encryptedPassword}. Clearing the password ({@code null})
+     * also clears the password id; replacing it keeps the id, since the id names the underlying plaintext password.
      */
     public SnapshotLifecyclePolicy withEncryptedPassword(@Nullable EncryptedData encryptedPassword) {
         return new SnapshotLifecyclePolicy(
@@ -451,7 +471,8 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
             configuration,
             retentionPolicy,
             unhealthyIfNoSnapshotWithin,
-            encryptedPassword
+            encryptedPassword,
+            encryptedPassword == null ? null : encryptedPasswordId
         );
     }
 
@@ -459,6 +480,12 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
     @Nullable
     public EncryptedData getEncryptedPassword() {
         return encryptedPassword;
+    }
+
+    /** Returns the id of the encrypted snapshot password, or {@code null} if no password was configured. */
+    @Nullable
+    public String getEncryptedPasswordId() {
+        return encryptedPasswordId;
     }
 
     @Override
@@ -476,9 +503,13 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
         if (this.unhealthyIfNoSnapshotWithin != null) {
             builder.field(UNHEALTHY_IF_NO_SNAPSHOT_WITHIN.getPreferredName(), this.unhealthyIfNoSnapshotWithin);
         }
-        // the encrypted password is persisted (gateway state, snapshot global state) but never exposed via the API
+        // the encrypted password is persisted (gateway state, snapshot global state) but never exposed via the API;
+        // its id is not sensitive and is returned by the API as well
         if (this.encryptedPassword != null && Metadata.XContentContext.from(params) != Metadata.XContentContext.API) {
             builder.field(ENCRYPTED_PASSWORD.getPreferredName(), this.encryptedPassword);
+        }
+        if (this.encryptedPasswordId != null) {
+            builder.field(ENCRYPTED_PASSWORD_ID.getPreferredName(), this.encryptedPasswordId);
         }
         builder.endObject();
         return builder;
@@ -486,7 +517,17 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, name, schedule, repository, configuration, retentionPolicy, unhealthyIfNoSnapshotWithin, encryptedPassword);
+        return Objects.hash(
+            id,
+            name,
+            schedule,
+            repository,
+            configuration,
+            retentionPolicy,
+            unhealthyIfNoSnapshotWithin,
+            encryptedPassword,
+            encryptedPasswordId
+        );
     }
 
     @Override
@@ -506,7 +547,8 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
             && Objects.equals(configuration, other.configuration)
             && Objects.equals(retentionPolicy, other.retentionPolicy)
             && Objects.equals(unhealthyIfNoSnapshotWithin, other.unhealthyIfNoSnapshotWithin)
-            && Objects.equals(encryptedPassword, other.encryptedPassword);
+            && Objects.equals(encryptedPassword, other.encryptedPassword)
+            && Objects.equals(encryptedPasswordId, other.encryptedPasswordId);
     }
 
     @Override

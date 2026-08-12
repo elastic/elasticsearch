@@ -128,6 +128,8 @@ import org.elasticsearch.xpack.core.security.user.InternalUser;
 import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.UsernamesField;
+import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
+import org.elasticsearch.xpack.core.slm.action.PutSnapshotLifecycleAction;
 import org.elasticsearch.xpack.security.action.user.TransportChangePasswordAction;
 import org.elasticsearch.xpack.security.action.user.TransportSetEnabledAction;
 import org.elasticsearch.xpack.security.audit.AuditLevel;
@@ -1553,6 +1555,53 @@ public class LoggingAuditTrailTests extends ESTestCase {
         assertMsg(generatedDeleteUserAuditEventString, checkedFields);
     }
 
+    public void testSecurityConfigChangeEventFormattingForSnapshotLifecyclePolicy() {
+        final String requestId = randomRequestId();
+        final String[] expectedRoles = randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4));
+        final AuthorizationInfo authorizationInfo = () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, expectedRoles);
+        final Authentication authentication = createAuthentication();
+
+        final String policyId = randomAlphaOfLengthBetween(3, 8);
+        final SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy(
+            policyId,
+            "<daily-snap-{now/d}>",
+            "0 30 1 * * ?",
+            "my_repository",
+            Map.of("indices", "data-*", "encrypted_data_password", "super-secret-snapshot-password"),
+            null
+        );
+        final PutSnapshotLifecycleAction.Request putSLMRequest = new PutSnapshotLifecycleAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            policyId,
+            policy
+        );
+
+        auditTrail.accessGranted(requestId, authentication, PutSnapshotLifecycleAction.NAME, putSLMRequest, authorizationInfo);
+        List<String> output = CapturingLogger.output(logger.getName(), Level.INFO);
+        assertThat(output.size(), is(2));
+        String generatedPutPolicyAuditEventString = output.get(1);
+
+        final String expectedPutPolicyAuditEventString = Strings.format("""
+            "put":{"snapshot_lifecycle_policy":{"id":"%s","name":"<daily-snap-{now/d}>","schedule":"0 30 1 * * ?",\
+            "repository":"my_repository"}}""", policyId);
+        assertThat(generatedPutPolicyAuditEventString, containsString(expectedPutPolicyAuditEventString));
+        // the policy config (and with it the encryption password) is deliberately not part of the audit event
+        assertThat(generatedPutPolicyAuditEventString, not(containsString("encrypted_data_password")));
+        assertThat(generatedPutPolicyAuditEventString, not(containsString("super-secret-snapshot-password")));
+        generatedPutPolicyAuditEventString = generatedPutPolicyAuditEventString.replace(", " + expectedPutPolicyAuditEventString, "");
+        Map<String, String> checkedFields = new HashMap<>(commonFields);
+        checkedFields.remove(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME);
+        checkedFields.remove(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME);
+        checkedFields.put("type", "audit");
+        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, "security_config_change");
+        checkedFields.put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "put_snapshot_lifecycle_policy");
+        checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+        assertMsg(generatedPutPolicyAuditEventString, checkedFields);
+        // clear log
+        CapturingLogger.output(logger.getName(), Level.INFO).clear();
+    }
+
     public void testSecurityConfigChangeEventFormattingForServiceAccountToken() {
         final String requestId = randomRequestId();
         final String[] expectedRoles = randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4));
@@ -2254,7 +2303,16 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 SetProfileEnabledAction.NAME,
                 new SetProfileEnabledRequest(randomAlphaOfLength(20), randomBoolean(), WriteRequest.RefreshPolicy.WAIT_UNTIL)
             ),
-            new Tuple<>(UpdateApiKeyAction.NAME, UpdateApiKeyRequest.usingApiKeyId(randomAlphaOfLength(10)))
+            new Tuple<>(UpdateApiKeyAction.NAME, UpdateApiKeyRequest.usingApiKeyId(randomAlphaOfLength(10))),
+            new Tuple<>(
+                PutSnapshotLifecycleAction.NAME,
+                new PutSnapshotLifecycleAction.Request(
+                    TEST_REQUEST_TIMEOUT,
+                    TEST_REQUEST_TIMEOUT,
+                    "policy",
+                    new SnapshotLifecyclePolicy("policy", "snap", "0 30 1 * * ?", "repo", Map.of(), null)
+                )
+            )
         );
         auditTrail.accessGranted(requestId, authentication, actionAndRequest.v1(), actionAndRequest.v2(), authorizationInfo);
         List<String> output = CapturingLogger.output(logger.getName(), Level.INFO);

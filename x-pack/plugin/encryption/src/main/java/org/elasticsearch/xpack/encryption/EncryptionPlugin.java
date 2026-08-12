@@ -60,6 +60,9 @@ public class EncryptionPlugin extends Plugin implements ActionPlugin, Extensible
         // so this node's createComponents publishes into clean slots.
         EncryptionServiceRegistry.reset();
         EncryptedDataHandlerRegistry.reset();
+        EncryptingSnapshotGlobalStateTransformer.setEncryptedDataRequired(
+            EncryptingSnapshotGlobalStateTransformer.ENCRYPTED_DATA_REQUIRED_SETTING.getDefault(Settings.EMPTY)
+        );
     }
 
     @Override
@@ -69,6 +72,12 @@ public class EncryptionPlugin extends Plugin implements ActionPlugin, Extensible
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
+        services.clusterService()
+            .getClusterSettings()
+            .initializeAndWatch(
+                EncryptingSnapshotGlobalStateTransformer.ENCRYPTED_DATA_REQUIRED_SETTING,
+                EncryptingSnapshotGlobalStateTransformer::setEncryptedDataRequired
+            );
         ProjectEncryptionKeyService pekService = ProjectEncryptionKeyService.create(
             services.clusterService(),
             services.projectResolver(),
@@ -117,6 +126,7 @@ public class EncryptionPlugin extends Plugin implements ActionPlugin, Extensible
         List<Setting<?>> all = new ArrayList<>();
         all.add(KeyRotationCoordinator.ROTATION_INTERVAL_SETTING);
         all.add(KeyRotationCoordinator.CHECK_INTERVAL_SETTING);
+        all.add(EncryptingSnapshotGlobalStateTransformer.ENCRYPTED_DATA_REQUIRED_SETTING);
         all.addAll(ProjectEncryptionKeyPasswordSettings.getSettings());
         return all;
     }

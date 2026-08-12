@@ -104,24 +104,36 @@ public class TransportPutSnapshotLifecycleAction extends TransportMasterNodeActi
     }
 
     /**
-     * If the policy's configuration map contains {@code encryption_password}, encrypts it with the cluster PEK
-     * and returns a new policy with {@code encryptedPassword} set and the plaintext removed from the config.
-     * Returns the original policy unchanged if no password is present.
+     * If the policy's configuration map contains {@code encrypted_data_password}, encrypts it with the cluster PEK
+     * and returns a new policy with {@code encryptedPassword} and {@code encryptedPasswordId} set and both keys
+     * removed from the config. A password must be accompanied by an {@code encrypted_data_password_id} and vice
+     * versa. Returns the original policy unchanged if neither is present.
      */
-    private static SnapshotLifecyclePolicy encryptPasswordIfPresent(SnapshotLifecyclePolicy policy) {
+    // package-private for testing
+    static SnapshotLifecyclePolicy encryptPasswordIfPresent(SnapshotLifecyclePolicy policy) {
         final Map<String, Object> config = policy.getConfig();
-        if (config == null || config.containsKey("encryption_password") == false) {
+        final boolean hasPassword = config != null && config.containsKey("encrypted_data_password");
+        final boolean hasPasswordId = config != null && config.containsKey("encrypted_data_password_id");
+        if (hasPassword == false && hasPasswordId == false) {
             return policy;
         }
-        final Object rawPassword = config.get("encryption_password");
+        if (hasPassword == false || hasPasswordId == false) {
+            throw new IllegalArgumentException("encrypted_data_password and encrypted_data_password_id must both be set or both be absent");
+        }
+        final Object rawPassword = config.get("encrypted_data_password");
         if (rawPassword instanceof String == false) {
-            return policy;
+            throw new IllegalArgumentException("malformed encrypted_data_password, should be a string");
+        }
+        final Object rawPasswordId = config.get("encrypted_data_password_id");
+        if (rawPasswordId instanceof String == false) {
+            throw new IllegalArgumentException("malformed encrypted_data_password_id, should be a string");
         }
         final byte[] passwordBytes = ((String) rawPassword).getBytes(StandardCharsets.UTF_8);
         try {
             final var encryptedPassword = EncryptionServiceRegistry.getEncryptionService().encrypt(passwordBytes);
             final Map<String, Object> newConfig = new HashMap<>(config);
-            newConfig.remove("encryption_password");
+            newConfig.remove("encrypted_data_password");
+            newConfig.remove("encrypted_data_password_id");
             return new SnapshotLifecyclePolicy(
                 policy.getId(),
                 policy.getName(),
@@ -130,7 +142,8 @@ public class TransportPutSnapshotLifecycleAction extends TransportMasterNodeActi
                 newConfig,
                 policy.getRetentionPolicy(),
                 policy.getUnhealthyIfNoSnapshotWithin(),
-                encryptedPassword
+                encryptedPassword,
+                (String) rawPasswordId
             );
         } finally {
             Arrays.fill(passwordBytes, (byte) 0);

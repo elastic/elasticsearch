@@ -11,6 +11,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.encryption.EncryptedData;
 import org.elasticsearch.xpack.encryption.spi.AesGcm;
 
+import java.util.Arrays;
+
 public class PasswordBasedEncryptionTests extends ESTestCase {
 
     private static final char[] PASSWORD = "p4ssw0rd-fips-ok".toCharArray();
@@ -94,5 +96,49 @@ public class PasswordBasedEncryptionTests extends ESTestCase {
         // Version mismatch is a format error from AesGcm — surfaces as IAE, not as a cipher failure.
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PasswordBasedEncryption.unwrap(bad, PASSWORD));
         assertTrue(e.getMessage().contains("unsupported serialization version"));
+    }
+
+    public void testArbitraryLengthPayloadsRoundTrip() {
+        // no longer PEK-only: snapshot secrets are arbitrary length
+        for (int length : new int[] { 0, 1, 15, 100, 5000 }) {
+            byte[] plaintext = randomByteArrayOfLength(length);
+            EncryptedData encrypted = PasswordBasedEncryption.wrap(plaintext, "v1", PASSWORD);
+            assertArrayEquals("length " + length, plaintext, PasswordBasedEncryption.unwrap(encrypted, PASSWORD));
+        }
+    }
+
+    public void testSamePasswordReusesCachedSalt() {
+        EncryptedData first = PasswordBasedEncryption.wrap(randomByteArrayOfLength(16), "v1", PASSWORD);
+        EncryptedData second = PasswordBasedEncryption.wrap(randomByteArrayOfLength(16), "v1", PASSWORD);
+        assertArrayEquals("same password must reuse the cached KEK and its salt", saltOf(first), saltOf(second));
+    }
+
+    public void testDifferentPasswordGetsFreshSalt() {
+        EncryptedData first = PasswordBasedEncryption.wrap(randomByteArrayOfLength(16), "v1", PASSWORD);
+        EncryptedData other = PasswordBasedEncryption.wrap(randomByteArrayOfLength(16), "v1", "another-password-fips".toCharArray());
+        assertFalse("a different password must derive a fresh KEK with a fresh salt", Arrays.equals(saltOf(first), saltOf(other)));
+    }
+
+    public void testAlternatingPasswordsRoundTripThroughTheSingleSlotCache() {
+        char[] other = "another-password-fips".toCharArray();
+        byte[] plaintextA = randomByteArrayOfLength(16);
+        byte[] plaintextB = randomByteArrayOfLength(16);
+
+        EncryptedData a1 = PasswordBasedEncryption.wrap(plaintextA, "v1", PASSWORD);
+        EncryptedData b1 = PasswordBasedEncryption.wrap(plaintextB, "v1", other);
+        EncryptedData a2 = PasswordBasedEncryption.wrap(plaintextA, "v1", PASSWORD);
+
+        assertArrayEquals(plaintextA, PasswordBasedEncryption.unwrap(a1, PASSWORD));
+        assertArrayEquals(plaintextB, PasswordBasedEncryption.unwrap(b1, other));
+        assertArrayEquals(plaintextA, PasswordBasedEncryption.unwrap(a2, PASSWORD));
+    }
+
+    private static byte[] saltOf(EncryptedData encrypted) {
+        byte[] payload = encrypted.payload();
+        return Arrays.copyOfRange(
+            payload,
+            PasswordBasedEncryption.SALT_OFFSET,
+            PasswordBasedEncryption.SALT_OFFSET + PasswordBasedEncryption.SALT_LENGTH_BYTES
+        );
     }
 }

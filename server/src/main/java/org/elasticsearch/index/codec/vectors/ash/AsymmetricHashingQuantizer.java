@@ -52,11 +52,14 @@ public final class AsymmetricHashingQuantizer {
     private final AshSphericalScalarQuantizer quantizer;
     private final Random rng;
 
+    /** Maximum supported bits per dimension. Higher values risk overflowing the short docSum field. */
+    public static final int MAX_BITS_PER_DIM = 4;
+
     /**
      * Creates an ASH quantizer with the given configuration.
      *
      * @param projectedDimsFraction fraction of original dimensions to project to (e.g. 0.5 for half)
-     * @param bitsPerDim bits per projected dimension in the body
+     * @param bitsPerDim bits per projected dimension in the body, at most {@link #MAX_BITS_PER_DIM}
      * @param method training method for W
      * @param nTrainingIterations number of Procrustes iterations (for LEARNED)
      * @param trainingFactor multiplier on dimension for training sample size
@@ -71,8 +74,8 @@ public final class AsymmetricHashingQuantizer {
         if (projectedDimsFraction <= 0 || projectedDimsFraction > 1.0f) {
             throw new IllegalArgumentException("projectedDimsFraction must be in (0, 1]");
         }
-        if (bitsPerDim <= 0) {
-            throw new IllegalArgumentException("bitsPerDim must be positive");
+        if (bitsPerDim <= 0 || bitsPerDim > MAX_BITS_PER_DIM) {
+            throw new IllegalArgumentException("bitsPerDim must be in [1, " + MAX_BITS_PER_DIM + "], got: " + bitsPerDim);
         }
         this.projectedDimsFraction = projectedDimsFraction;
         this.method = method;

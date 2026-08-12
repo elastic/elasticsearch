@@ -117,10 +117,6 @@ public class AsymmetricHashingScorerTests extends ESTestCase {
 
     /** Reference scorer: computes dot(qt, codes) * scale + qdc + offset using plain float arithmetic. */
     private static float referenceScore(float[] qt, float qdc, float[] codes, float scale, float offset) {
-        double dot = 0;
-        for (int j = 0; j < qt.length; j++) {
-            dot += (double) qt[j] * codes[j];
-        }
-        return (float) dot * scale + qdc + offset;
+        return ESVectorUtil.dotProduct(qt, codes) * scale + qdc + offset;
     }
 }

@@ -61,7 +61,7 @@ public class LinkerHelper {
         return LINKER.downcallHandle(functionAddress, functionDescriptor, options);
     }
 
-    public static final MemorySegment ERRNO_STATE = Arena.ofAuto().allocate(Linker.Option.captureStateLayout());
+    private static final MemorySegment ERRNO_STATE = Arena.ofAuto().allocate(Linker.Option.captureStateLayout());
 
     private static final VarHandle ERRNO_VH = MemorySegmentAdapter.varHandleWithoutOffset(
         Linker.Option.captureStateLayout(),
@@ -78,11 +78,57 @@ public class LinkerHelper {
         return (int) ERRNO_VH.get(ERRNO_STATE);
     }
 
+    /** Returns the thread-local errno capture buffer. Used by generated {@code $Impl} classes. */
+    public static MemorySegment errnoState() {
+        return ERRNO_STATE;
+    }
+
     public static MethodHandle downcallHandleWithErrno(String function, FunctionDescriptor functionDescriptor, Linker.Option... options) {
         Linker.Option[] allOptions = new Linker.Option[options.length + 1];
         allOptions[0] = Linker.Option.captureCallState("errno");
         System.arraycopy(options, 0, allOptions, 1, options.length);
-        return LINKER.downcallHandle(functionAddress(function), functionDescriptor, allOptions);
+        MethodHandle originalHandle = LINKER.downcallHandle(functionAddress(function), functionDescriptor, allOptions);
+        return MethodHandles.insertArguments(originalHandle, 0, ERRNO_STATE);
+    }
+
+    private static final MemorySegment LAST_ERROR_STATE = Arena.ofAuto().allocate(Linker.Option.captureStateLayout());
+
+    // "GetLastError" is only a valid captureStateLayout() group element on Windows; resolving the
+    // VarHandle eagerly as a LinkerHelper field would fail LinkerHelper's own class-init on every
+    // other platform and permanently poison the class for unrelated callers (e.g. errno()). Holding
+    // it in a nested class defers that resolution until getLastError() is actually invoked.
+    private static final class LastErrorHolder {
+        private static final VarHandle LAST_ERROR_VH = MemorySegmentAdapter.varHandleWithoutOffset(
+            Linker.Option.captureStateLayout(),
+            groupElement("GetLastError")
+        );
+    }
+
+    /**
+     * Returns the Win32 {@code GetLastError} value captured by the most recent
+     * {@code @CaptureLastError} call on the current thread.
+     *
+     * @see <a href="https://learn.microsoft.com/en-us/windows/win32/api/errhandlingapi/nf-errhandlingapi-getlasterror">GetLastError docs</a>
+     */
+    public static int getLastError() {
+        return (int) LastErrorHolder.LAST_ERROR_VH.get(LAST_ERROR_STATE);
+    }
+
+    /** Returns the Win32 {@code GetLastError} capture buffer. Used by generated {@code $Impl} classes. */
+    public static MemorySegment lastErrorState() {
+        return LAST_ERROR_STATE;
+    }
+
+    public static MethodHandle downcallHandleWithLastError(
+        String function,
+        FunctionDescriptor functionDescriptor,
+        Linker.Option... options
+    ) {
+        Linker.Option[] allOptions = new Linker.Option[options.length + 1];
+        allOptions[0] = Linker.Option.captureCallState("GetLastError");
+        System.arraycopy(options, 0, allOptions, 1, options.length);
+        MethodHandle originalHandle = LINKER.downcallHandle(functionAddress(function), functionDescriptor, allOptions);
+        return MethodHandles.insertArguments(originalHandle, 0, LAST_ERROR_STATE);
     }
 
     public static MethodHandle upcallHandle(

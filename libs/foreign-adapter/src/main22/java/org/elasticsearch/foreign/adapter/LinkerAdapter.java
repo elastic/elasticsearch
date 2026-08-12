@@ -23,6 +23,16 @@ public final class LinkerAdapter {
     }
 
     /**
+     * Prepends {@code Linker.Option.critical(true)} to {@code extra} and returns the combined array.
+     */
+    public static Linker.Option[] criticalWith(Linker.Option[] extra) {
+        Linker.Option[] combined = new Linker.Option[extra.length + 1];
+        combined[0] = Linker.Option.critical(true);
+        System.arraycopy(extra, 0, combined, 1, extra.length);
+        return combined;
+    }
+
+    /**
      * JDK 22+ identity adapter: {@code Linker.Option.critical(true)} already lets the raw downcall accept heap
      * segments, so the {@code @Critical} fallback adapter is never resolved. Mirrors the JDK 21 signature so
      * the generated {@code $Impl} bytecode resolves on both releases.

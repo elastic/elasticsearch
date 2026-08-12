@@ -16,12 +16,14 @@ import java.lang.annotation.Target;
 
 /**
  * Marks a method on a {@link LibrarySpecification @LibrarySpecification} interface as capturing
- * the C {@code errno} value after the native call. The generated implementation will use
- * {@link LinkerHelper#ERRNO_STATE} as the shared errno capture buffer.
+ * the Win32 {@code GetLastError} value after the native call. The generated implementation will
+ * use {@link LinkerHelper#LAST_ERROR_STATE} as the shared last-error capture buffer.
  *
- * <p>See also {@link CaptureLastError} for Windows.
+ * <p>This annotation is mutually exclusive with {@link CaptureErrno} on the same method: POSIX
+ * {@code errno} and Win32 {@code GetLastError} are set by disjoint sets of native functions, so a
+ * single binding never needs both.
  */
 @Retention(RetentionPolicy.SOURCE)
 @Target(ElementType.METHOD)
-public @interface CaptureErrno {
+public @interface CaptureLastError {
 }

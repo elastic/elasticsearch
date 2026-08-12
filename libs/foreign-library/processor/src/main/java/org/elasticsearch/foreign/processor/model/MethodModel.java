@@ -10,12 +10,15 @@
 package org.elasticsearch.foreign.processor.model;
 
 import org.elasticsearch.foreign.CaptureErrno;
+import org.elasticsearch.foreign.CaptureLastError;
 import org.elasticsearch.foreign.Critical;
 import org.elasticsearch.foreign.Function;
+import org.elasticsearch.foreign.Platform;
 import org.elasticsearch.foreign.StructFactory;
 import org.elasticsearch.foreign.Variadic;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -51,6 +54,7 @@ import static org.elasticsearch.foreign.processor.model.StructSpecParser.ARRAY_F
  * @param fallbackAdapterClassName fully-qualified name of the JDK 21 {@code @Critical} fallback adapter class,
  *        or {@code null} if none was specified
  * @param capturesErrno whether the method is annotated with {@code @CaptureErrno}
+ * @param capturesLastError whether the method is annotated with {@code @CaptureLastError}
  * @param firstVariadicArg 0-based index of the first variadic argument, or {@code -1} if not variadic
  * @param isStructFactory whether the method is annotated with {@code @StructFactory}
  * @param structReturnSimpleName simple name of the struct return type; non-null only when {@code isStructFactory}
@@ -69,6 +73,7 @@ public record MethodModel(
     boolean isCritical,
     String fallbackAdapterClassName,
     boolean capturesErrno,
+    boolean capturesLastError,
     int firstVariadicArg,
     boolean isStructFactory,
     String structReturnSimpleName,
@@ -78,6 +83,17 @@ public record MethodModel(
 ) {
 
     /**
+     * The POSIX platform names in {@link Platform}. A {@code @LibrarySpecification} that marks
+     * all of these unavailable is Windows-only, so {@code @CaptureErrno} on one of its methods
+     * can never be exercised. Derived from {@link Platform#values()} (rather than hardcoded)
+     * so it stays in sync if the enum changes.
+     */
+    private static final List<String> POSIX_PLATFORM_NAMES = Arrays.stream(Platform.values())
+        .map(Enum::name)
+        .filter(name -> name.equals(Platform.WINDOWS_X64.name()) == false)
+        .toList();
+
+    /**
      * Builds a {@code MethodModel} from a method on a {@code @LibrarySpecification} interface.
      * Emits {@link Kind#ERROR} diagnostics for any validation failure and returns null.
      *
@@ -85,8 +101,16 @@ public record MethodModel(
      * @param env the processing environment
      * @param enclosingStructNames simple names of {@code @StructSpecification} types enclosed in the same interface,
      *        used to validate {@code @StructFactory} return types
+     * @param unavailableOn enum constant names of platforms where the enclosing {@code @LibrarySpecification} is
+     *        unavailable, used to validate that {@code @CaptureErrno} / {@code @CaptureLastError} are only used
+     *        on a library that can actually run on a platform supporting them
      */
-    public static MethodModel from(ExecutableElement method, ProcessingEnvironment env, List<String> enclosingStructNames) {
+    public static MethodModel from(
+        ExecutableElement method,
+        ProcessingEnvironment env,
+        List<String> enclosingStructNames,
+        List<String> unavailableOn
+    ) {
         Messager messager = env.getMessager();
         String methodName = method.getSimpleName().toString();
         boolean isProtected = method.getModifiers().contains(Modifier.PROTECTED);
@@ -94,6 +118,7 @@ public record MethodModel(
         Function function = method.getAnnotation(Function.class);
         boolean isStructFactory = method.getAnnotation(StructFactory.class) != null;
         boolean capturesErrno = method.getAnnotation(CaptureErrno.class) != null;
+        boolean capturesLastError = method.getAnnotation(CaptureLastError.class) != null;
         Variadic variadicAnnotation = method.getAnnotation(Variadic.class);
         int firstVariadicArg = variadicAnnotation != null ? variadicAnnotation.firstArg() : -1;
 
@@ -107,6 +132,11 @@ public record MethodModel(
             return null;
         }
 
+        if (capturesErrno && capturesLastError) {
+            messager.printMessage(Kind.ERROR, "Method '" + methodName + "' cannot have both @CaptureErrno and @CaptureLastError", method);
+            return null;
+        }
+
         if (isStructFactory) {
             if (function != null) {
                 messager.printMessage(Kind.ERROR, "@StructFactory method '" + methodName + "' must not also have @Function", method);
@@ -116,11 +146,33 @@ public record MethodModel(
                 messager.printMessage(Kind.ERROR, "@StructFactory method '" + methodName + "' must not have @CaptureErrno", method);
                 return null;
             }
+            if (capturesLastError) {
+                messager.printMessage(Kind.ERROR, "@StructFactory method '" + methodName + "' must not have @CaptureLastError", method);
+                return null;
+            }
             if (method.getAnnotation(Critical.class) != null) {
                 messager.printMessage(Kind.ERROR, "@StructFactory method '" + methodName + "' must not have @Critical", method);
                 return null;
             }
             return buildStructFactoryModel(method, methodName, enclosingStructNames, messager);
+        }
+
+        if (capturesLastError && unavailableOn.contains(Platform.WINDOWS_X64.name())) {
+            messager.printMessage(
+                Kind.ERROR,
+                "@CaptureLastError on '" + methodName + "' is invalid: enclosing @LibrarySpecification lists WINDOWS_X64 in unavailableOn",
+                method
+            );
+            return null;
+        }
+
+        if (capturesErrno && unavailableOn.containsAll(POSIX_PLATFORM_NAMES)) {
+            messager.printMessage(
+                Kind.ERROR,
+                "@CaptureErrno on '" + methodName + "' is invalid: enclosing @LibrarySpecification marks all POSIX platforms unavailable",
+                method
+            );
+            return null;
         }
 
         // @Function method
@@ -196,6 +248,7 @@ public record MethodModel(
             isCritical,
             fallbackAdapter,
             capturesErrno,
+            capturesLastError,
             firstVariadicArg,
             false,
             null,
@@ -285,6 +338,7 @@ public record MethodModel(
             List.of(),
             false,
             null,
+            false,
             false,
             -1,
             true,

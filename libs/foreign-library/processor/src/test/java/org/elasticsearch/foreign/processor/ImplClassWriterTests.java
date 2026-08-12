@@ -263,6 +263,63 @@ public class ImplClassWriterTests extends ProcessorTestCase {
     }
 
     /**
+     * A {@code @CaptureLastError @Function} method must generate a class WITHOUT a per-class
+     * {@code lastErrorState} field — the shared segment is obtained at call-time via
+     * {@code LinkerHelper.lastErrorState()}. Verified structurally via {@code loadClassNoInit}:
+     * class-init cannot be driven on non-Windows because
+     * {@code Linker.Option.captureCallState("GetLastError")} throws
+     * {@code IllegalArgumentException} before any descriptor is even built. On Windows, class-init
+     * is exercised by the Windows-gated {@code LinkerHelperTests} test.
+     *
+     * <p>The custom {@link org.elasticsearch.foreign.SymbolResolver} returns a fake non-null
+     * address so a hypothetical {@code linker.downcallHandle} call would succeed without needing a
+     * real native symbol on the classpath; it is unused by the {@code loadClassNoInit} path but
+     * kept for parity with the {@code @CaptureErrno} test and to keep the fixture realistic.
+     */
+    public void testCaptureLastErrorInitializesAgainstFfmApi() throws Exception {
+        String source = """
+            package test;
+            import java.lang.foreign.MemorySegment;
+            import java.lang.foreign.SymbolLookup;
+            import org.elasticsearch.foreign.CaptureLastError;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.ResolvedSymbol;
+            import org.elasticsearch.foreign.SymbolResolver;
+            @LibrarySpecification(symbolResolver = LastErrorLib.FakeResolver.class)
+            public interface LastErrorLib {
+                @CaptureLastError
+                @Function("foo")
+                int foo(int x);
+
+                class FakeResolver implements SymbolResolver {
+                    public FakeResolver() {}
+                    public ResolvedSymbol resolve(String name, SymbolLookup lookup) {
+                        // downcallHandle validates the address is non-NULL; any positive value works.
+                        return new ResolvedSymbol(name, MemorySegment.ofAddress(1L));
+                    }
+                }
+            }
+            """;
+
+        CompilationResult result = compile("test.LastErrorLib", source);
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+
+        Class<?> implClass = result.loadClassNoInit("test.LastErrorLib$Impl");
+        assertNotNull("Generated LastErrorLib$Impl class not found", implClass);
+
+        // Must NOT have a per-class lastErrorState field — shared via LinkerHelper.lastErrorState().
+        try {
+            implClass.getDeclaredField("lastErrorState");
+            fail("LastErrorLib$Impl must not have a per-class lastErrorState field");
+        } catch (NoSuchFieldException expected) {
+            // expected
+        }
+
+        assertEquals(MethodHandle.class, implClass.getDeclaredField("foo$mh").getType());
+    }
+
+    /**
      * A minimal {@code @LibrarySpecification} with a {@code @StructSpecification} record element,
      * a {@code @StructSpecification} interface with an {@code @ArrayField} method, and a
      * {@code @StructFactory} method must generate loadable classes AND, when the factory is

@@ -28,6 +28,14 @@ public final class LinkerAdapter {
     }
 
     /**
+     * Returns {@code extra} unchanged; on JDK 21 {@code Linker.Option.critical} does not exist so
+     * the extra options are used as-is.
+     */
+    public static Linker.Option[] criticalWith(Linker.Option[] extra) {
+        return extra;
+    }
+
+    /**
      * JDK 21 wraps the raw downcall handle of a {@code @Critical} binding through the user-supplied adapter:
      * {@code Linker.Option.critical(true)} is unavailable on this release, so the raw handle would reject any
      * heap {@link java.lang.foreign.MemorySegment} argument. The adapter must declare a {@code public static}

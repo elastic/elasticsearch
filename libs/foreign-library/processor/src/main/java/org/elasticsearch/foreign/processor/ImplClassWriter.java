@@ -132,6 +132,8 @@ class ImplClassWriter {
     private static final MethodTypeDesc MTD_Arena_close = MethodTypeDesc.of(CD_void);
     private static final MethodTypeDesc MTD_MemorySegmentAdapter_allocateString = MethodTypeDesc.of(CD_MemorySegment, CD_Arena, CD_String);
     private static final MethodTypeDesc MTD_critical = MethodTypeDesc.of(CD_LinkerOptionArray);
+    private static final MethodTypeDesc MTD_criticalWith = MethodTypeDesc.of(CD_LinkerOptionArray, CD_LinkerOptionArray);
+    private static final MethodTypeDesc MTD_captureState = MethodTypeDesc.of(CD_MemorySegment);
 
     private final Filer filer;
     private final int classFileVersion;
@@ -389,43 +391,36 @@ class ImplClassWriter {
     }
 
     /**
-     * Emits the {@code Linker.Option[]} array passed to {@code linker.downcallHandle}. For
-     * {@code @Critical} the array is built by {@code LinkerAdapter.critical()}. Otherwise the
-     * array is assembled inline with a {@code captureCallState("errno")} entry for
-     * {@code @CaptureErrno} and/or a {@code firstVariadicArg(N)} entry for {@code @Variadic}
-     * (empty when neither applies).
+     * Emits the {@code Linker.Option[]} array passed to {@code linker.downcallHandle}.
+     *
+     * <p>For a pure {@code @Critical} method (no capture, no variadic) the array is built by
+     * {@code LinkerAdapter.critical()}. Otherwise the array is assembled inline with a
+     * {@code captureCallState("errno")} entry for {@code @CaptureErrno}, a
+     * {@code captureCallState("GetLastError")} entry for {@code @CaptureLastError}, and/or a
+     * {@code firstVariadicArg(N)} entry for {@code @Variadic}; when the method is also
+     * {@code @Critical}, that array is passed to {@code LinkerAdapter.criticalWith()} which
+     * prepends the critical option on JDK 22+ (and returns the array unchanged on JDK 21).
      */
     private static void emitLinkerOptions(CodeBuilder cb, MethodModel nm) {
-        if (nm.isCritical()) {
+        boolean captureErrno = nm.capturesErrno();
+        boolean captureLastError = nm.capturesLastError();
+        boolean variadic = nm.firstVariadicArg() >= 0;
+        boolean critical = nm.isCritical();
+
+        if (critical && !captureErrno && !captureLastError && !variadic) {
             cb.invokestatic(CD_LinkerAdapter, "critical", MTD_critical);
             return;
         }
-        boolean captureErrno = nm.capturesErrno();
-        boolean variadic = nm.firstVariadicArg() >= 0;
-        int size = (captureErrno ? 1 : 0) + (variadic ? 1 : 0);
+
+        int size = (captureErrno ? 1 : 0) + (captureLastError ? 1 : 0) + (variadic ? 1 : 0);
         cb.loadConstant(size);
         cb.anewarray(CD_LinkerOption);
         int idx = 0;
         if (captureErrno) {
-            // Linker.Option.captureCallState is declared as varargs (String...), so its actual
-            // JVM descriptor is ([Ljava/lang/String;)Ljava/lang/foreign/Linker$Option;. Build the
-            // one-element array explicitly. Linker.Option is an interface, so invokestatic must
-            // mark isInterface=true.
-            cb.dup();
-            cb.loadConstant(idx++);
-            cb.iconst_1();
-            cb.anewarray(CD_String);
-            cb.dup();
-            cb.iconst_0();
-            cb.ldc("errno");
-            cb.aastore();
-            cb.invokestatic(
-                CD_LinkerOption,
-                "captureCallState",
-                MethodTypeDesc.of(CD_LinkerOption, ClassDesc.ofDescriptor("[Ljava/lang/String;")),
-                true
-            );
-            cb.aastore();
+            emitCaptureCallStateOption(cb, idx++, "errno");
+        }
+        if (captureLastError) {
+            emitCaptureCallStateOption(cb, idx++, "GetLastError");
         }
         if (variadic) {
             cb.dup();
@@ -434,6 +429,35 @@ class ImplClassWriter {
             cb.invokestatic(CD_LinkerOption, "firstVariadicArg", MethodTypeDesc.of(CD_LinkerOption, ClassDesc.ofDescriptor("I")), true);
             cb.aastore();
         }
+
+        if (critical) {
+            cb.invokestatic(CD_LinkerAdapter, "criticalWith", MTD_criticalWith);
+        }
+    }
+
+    /**
+     * Emits {@code arr[idx] = Linker.Option.captureCallState(stateName)} onto an array already on
+     * the stack. {@code Linker.Option.captureCallState} is declared as varargs ({@code String...}),
+     * so its actual JVM descriptor is {@code ([Ljava/lang/String;)Ljava/lang/foreign/Linker$Option;}.
+     * Build the one-element array explicitly. {@code Linker.Option} is an interface, so
+     * {@code invokestatic} must mark {@code isInterface=true}.
+     */
+    private static void emitCaptureCallStateOption(CodeBuilder cb, int idx, String stateName) {
+        cb.dup();
+        cb.loadConstant(idx);
+        cb.iconst_1();
+        cb.anewarray(CD_String);
+        cb.dup();
+        cb.iconst_0();
+        cb.ldc(stateName);
+        cb.aastore();
+        cb.invokestatic(
+            CD_LinkerOption,
+            "captureCallState",
+            MethodTypeDesc.of(CD_LinkerOption, ClassDesc.ofDescriptor("[Ljava/lang/String;")),
+            true
+        );
+        cb.aastore();
     }
 
     // -------------------------------------------------------------------------
@@ -692,7 +716,9 @@ class ImplClassWriter {
             // Push method handle, then all params (String params → their marshaled MemorySegment slots)
             tryBlock.getstatic(generatedDesc, fieldName, CD_MethodHandle);
             if (nm.capturesErrno()) {
-                tryBlock.getstatic(CD_LinkerHelper, "ERRNO_STATE", CD_MemorySegment);
+                tryBlock.invokestatic(CD_LinkerHelper, "errnoState", MTD_captureState);
+            } else if (nm.capturesLastError()) {
+                tryBlock.invokestatic(CD_LinkerHelper, "lastErrorState", MTD_captureState);
             }
             slot = 1;
             marshaledSlot = arenaSlot + 1;
@@ -757,14 +783,18 @@ class ImplClassWriter {
     }
 
     /**
-     * Invokes the native function through its downcall MethodHandle. Prepends {@code ERRNO_STATE}
-     * when {@code @CaptureErrno} is present.
+     * Invokes the native function through its downcall MethodHandle. When {@code @CaptureErrno} is
+     * present, prepends the segment from {@code LinkerHelper.errnoState()}; when
+     * {@code @CaptureLastError} is present, prepends the segment from
+     * {@code LinkerHelper.lastErrorState()}.
      */
     private static void emitInvokeExact(CodeBuilder cb, ClassDesc generatedDesc, MethodModel nm, String fieldName) {
         cb.getstatic(generatedDesc, fieldName, CD_MethodHandle);
 
         if (nm.capturesErrno()) {
-            cb.getstatic(CD_LinkerHelper, "ERRNO_STATE", CD_MemorySegment);
+            cb.invokestatic(CD_LinkerHelper, "errnoState", MTD_captureState);
+        } else if (nm.capturesLastError()) {
+            cb.invokestatic(CD_LinkerHelper, "lastErrorState", MTD_captureState);
         }
 
         int slot = 1;
@@ -1011,12 +1041,14 @@ class ImplClassWriter {
     }
 
     /**
-     * Builds the native-side descriptor for {@code MethodHandle.invokeExact}. When {@code @CaptureErrno}
-     * is present, prepends {@code MemorySegment} (for {@code ERRNO_STATE}).
+     * Builds the native-side descriptor for {@code MethodHandle.invokeExact}. When
+     * {@code @CaptureErrno} or {@code @CaptureLastError} is present, prepends {@code MemorySegment}
+     * (obtained at call-time from {@code LinkerHelper.errnoState()} or
+     * {@code LinkerHelper.lastErrorState()}, respectively).
      */
     private static MethodTypeDesc buildInvokeExactDesc(MethodModel nm) {
         List<ClassDesc> paramDescs = new ArrayList<>();
-        if (nm.capturesErrno()) {
+        if (nm.capturesErrno() || nm.capturesLastError()) {
             paramDescs.add(CD_MemorySegment);
         }
         for (var paramType : nm.paramTypes()) {

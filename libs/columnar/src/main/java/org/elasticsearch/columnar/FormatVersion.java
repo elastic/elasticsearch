@@ -52,7 +52,7 @@ package org.elasticsearch.columnar;
  *       {@code profile.version().version() >= VERSION_X} at build time.
  *   <li>Register the new id in the relevant registry (field types, numeric transforms and terminals,
  *       block-byte codecs, skip-index codecs).
- *   <li>Add BASELINE fixtures to {@code ColumnarBwcFixtureTests} before the bump merges.
+ *   <li>Add BASELINE fixtures to a BWC fixture test class before the bump merges.
  * </ol>
  */
 public record FormatVersion(int version) implements Comparable<FormatVersion> {

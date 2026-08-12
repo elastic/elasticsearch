@@ -351,13 +351,15 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                         // through), so genuine planner bugs still surface via the sanity check rather than being masked here.
                         // 409 CONFLICT: the server did nothing wrong, the query raced against a concurrent mapping update
                         // and retrying it resolves the conflict.
+                        // Report the mapper's own type name: it stays accurate even when ES|QL cannot model the mapped type
+                        // (where shardType would just say "unsupported") and is more precise than the family name.
                         throw new ElasticsearchStatusException(
                             "field [{}] was resolved as type [{}] when the query started, but is mapped as incompatible type [{}] "
                                 + "in index [{}]; the field was probably mapped concurrently with this query; retrying the query may help",
                             RestStatus.CONFLICT,
                             fieldName,
                             fa.dataType().typeName(),
-                            shardType.typeName(),
+                            mft.typeName(),
                             shardContext.ctx.getFullyQualifiedIndex().getName()
                         );
                     }

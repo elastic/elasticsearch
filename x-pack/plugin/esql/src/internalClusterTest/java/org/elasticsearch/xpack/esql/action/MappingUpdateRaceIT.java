@@ -13,6 +13,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -44,6 +45,7 @@ public class MappingUpdateRaceIT extends AbstractEsqlIntegTestCase {
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
         plugins.add(MockTransportService.TestPlugin.class);
+        plugins.add(MapperExtrasPlugin.class);
         return plugins;
     }
 
@@ -61,6 +63,14 @@ public class MappingUpdateRaceIT extends AbstractEsqlIntegTestCase {
         ElasticsearchStatusException cause = expectMappingRaceFailure("FROM idx_* | STATS s = SUM(features.topic_id)", "idx_dyn");
         assertThat(cause.getMessage(), containsString("field [features.topic_id] was resolved as type [long]"));
         assertThat(cause.getMessage(), containsString("mapped as incompatible type [keyword] in index [idx_dyn]"));
+    }
+
+    /** Raced-in type that ES|QL cannot model: the error reports the mapper's type name, not "unsupported". */
+    public void testUnsupportedMappingAddedBetweenFieldCapsAndExecution() throws Exception {
+        setupIndices("long", "rank_feature");
+        ElasticsearchStatusException cause = expectMappingRaceFailure("FROM idx_* | STATS s = SUM(features.topic_id)", "idx_dyn");
+        assertThat(cause.getMessage(), containsString("field [features.topic_id] was resolved as type [long]"));
+        assertThat(cause.getMessage(), containsString("mapped as incompatible type [rank_feature] in index [idx_dyn]"));
     }
 
     /** The raced-in mapping matches the resolved type: no error, the raced-in doc's value loads normally. */

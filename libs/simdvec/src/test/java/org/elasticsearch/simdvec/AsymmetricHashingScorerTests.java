@@ -223,20 +223,17 @@ public class AsymmetricHashingScorerTests extends ESTestCase {
                 }
 
                 floatScores[v] = AsymmetricHashingScorer.score(qt, qdc, packed, 0, nDims, bitsPerDim, scale, offset);
+                float[] queryConstants = new float[] { qdc, invQScale, qMin, constantCorrection };
+                float[] docConstants = new float[] { scale, offset, (float) docSum };
                 intScores[v] = AsymmetricHashingScorer.scoreInteger(
                     queryQuantized,
                     queryBits,
-                    qdc,
+                    queryConstants,
                     packed,
                     0,
                     bitsPerDim,
                     planeBytes,
-                    scale,
-                    offset,
-                    (short) docSum,
-                    invQScale,
-                    qMin,
-                    constantCorrection
+                    docConstants
                 );
             }
 

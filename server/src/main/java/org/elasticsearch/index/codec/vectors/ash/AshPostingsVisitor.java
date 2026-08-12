@@ -57,9 +57,11 @@ public class AshPostingsVisitor implements IVFVectorsReader.PostingVisitor {
     private final boolean useIntegerScoring;
     private final byte[] queryQuantized;
     private final int queryBitsPerDim;
-    private final float invQScale;
-    private final float qOffset;
-    private final float constantCorrection;
+    // Pre-allocated query constants array: [queryDotCentroid, invQScale, qOffset, constantCorrection]
+    // queryDotCentroid is set per-cluster in resetPostingsScorer; the rest are set once in constructor.
+    private final float[] queryConstants;
+    // Pre-allocated per-vector constants scratch: [scale, offset, docSum]
+    private final float[] docConstants;
 
     // Scratch buffers for bulk I/O
     private final DocIdsWriter idsWriter = new DocIdsWriter();
@@ -113,6 +115,8 @@ public class AshPostingsVisitor implements IVFVectorsReader.PostingVisitor {
         // Integer scoring setup: quantize projected query to queryBitsPerDim bits
         if (queryBitsPerDim > 0) {
             this.useIntegerScoring = true;
+            this.queryConstants = new float[AsymmetricHashingScorer.QC_LENGTH];
+            this.docConstants = new float[AsymmetricHashingScorer.DC_LENGTH];
             float qMin = Float.MAX_VALUE, qMax = -Float.MAX_VALUE;
             for (int j = 0; j < nDims; j++) {
                 qMin = Math.min(qMin, queryTransformed[j]);
@@ -121,8 +125,7 @@ public class AshPostingsVisitor implements IVFVectorsReader.PostingVisitor {
             float range = qMax - qMin;
             int numQueryLevels = 1 << queryBitsPerDim;
             float qScale = range > 0 ? (numQueryLevels - 1) / range : 1.0f;
-            this.invQScale = range > 0 ? range / (numQueryLevels - 1) : 0f;
-            this.qOffset = qMin;
+            float invQScale = range > 0 ? range / (numQueryLevels - 1) : 0f;
 
             this.queryQuantized = new byte[queryBitsPerDim * planeBytes];
             int unsignedSum = 0;
@@ -141,13 +144,16 @@ public class AshPostingsVisitor implements IVFVectorsReader.PostingVisitor {
             // dot(qt_float, centeredCode) = dot(qt_float, unsignedCode) - centerOffset * sum(qt_float)
             // The sum(qt_float) term ≈ invQScale * unsignedQuerySum + qOffset * nDims, precomputed here.
             float centerOffset = ((1 << bitsPerDim) - 1) / 2.0f;
-            this.constantCorrection = centerOffset * (unsignedSum * invQScale + qOffset * nDims);
+            float constantCorrection = centerOffset * (unsignedSum * invQScale + qMin * nDims);
+            // queryDotCentroid (index 0) is set per-cluster in resetPostingsScorer
+            queryConstants[AsymmetricHashingScorer.QC_INV_Q_SCALE] = invQScale;
+            queryConstants[AsymmetricHashingScorer.QC_Q_OFFSET] = qMin;
+            queryConstants[AsymmetricHashingScorer.QC_CONSTANT_CORRECTION] = constantCorrection;
         } else {
             this.useIntegerScoring = false;
             this.queryQuantized = null;
-            this.invQScale = 0;
-            this.qOffset = 0;
-            this.constantCorrection = 0;
+            this.queryConstants = null;
+            this.docConstants = null;
         }
 
         this.bulkCodeBuf = new byte[BULK_SIZE * packedCodeBytes];
@@ -175,6 +181,9 @@ public class AshPostingsVisitor implements IVFVectorsReader.PostingVisitor {
             case COSINE, DOT_PRODUCT -> 2 * score - 1;
             case MAXIMUM_INNER_PRODUCT -> score - 1;
         };
+        if (queryConstants != null) {
+            queryConstants[AsymmetricHashingScorer.QC_QUERY_DOT_CENTROID] = currentQueryDotCentroid;
+        }
 
         return vectors;
     }
@@ -228,20 +237,18 @@ public class AshPostingsVisitor implements IVFVectorsReader.PostingVisitor {
                 float offset = Float.float16ToFloat(bulkOffsetsF16[j]);
                 float rawScore;
                 if (useIntegerScoring) {
+                    docConstants[AsymmetricHashingScorer.DC_SCALE] = scale;
+                    docConstants[AsymmetricHashingScorer.DC_OFFSET] = offset;
+                    docConstants[AsymmetricHashingScorer.DC_DOC_SUM] = bulkDocSums[j];
                     rawScore = AsymmetricHashingScorer.scoreInteger(
                         queryQuantized,
                         queryBitsPerDim,
-                        currentQueryDotCentroid,
+                        queryConstants,
                         bulkCodeBuf,
                         j * packedCodeBytes,
                         bitsPerDim,
                         planeBytes,
-                        scale,
-                        offset,
-                        bulkDocSums[j],
-                        invQScale,
-                        qOffset,
-                        constantCorrection
+                        docConstants
                     );
                 } else {
                     rawScore = AsymmetricHashingScorer.score(

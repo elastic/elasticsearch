@@ -145,6 +145,28 @@ public final class AsymmetricHashingScorer {
         return (float) dot * scale + queryDotCentroid + offset;
     }
 
+    // --- queryConstants indices for scoreInteger ---
+    /** Index of queryDotCentroid in queryConstants array. */
+    public static final int QC_QUERY_DOT_CENTROID = 0;
+    /** Index of invQScale in queryConstants array. */
+    public static final int QC_INV_Q_SCALE = 1;
+    /** Index of qOffset in queryConstants array. */
+    public static final int QC_Q_OFFSET = 2;
+    /** Index of constantCorrection in queryConstants array. */
+    public static final int QC_CONSTANT_CORRECTION = 3;
+    /** Length of the queryConstants array. */
+    public static final int QC_LENGTH = 4;
+
+    // --- docConstants indices for scoreInteger ---
+    /** Index of scale in docConstants array. */
+    public static final int DC_SCALE = 0;
+    /** Index of offset in docConstants array. */
+    public static final int DC_OFFSET = 1;
+    /** Index of docSum in docConstants array. */
+    public static final int DC_DOC_SUM = 2;
+    /** Length of the docConstants array. */
+    public static final int DC_LENGTH = 3;
+
     /**
      * Scores a single database vector using integer arithmetic with a quantized query.
      * The query is quantized to {@code queryBitsPerDim} bits and scoring uses AND+popcount
@@ -166,34 +188,31 @@ public final class AsymmetricHashingScorer {
      *
      * @param queryQuantized quantized query in bit-plane format (queryBitsPerDim × planeBytes)
      * @param queryBitsPerDim bits per dimension for the quantized query
-     * @param queryDotCentroid precomputed query . centroid for this cluster
+     * @param queryConstants per-cluster query constants: [queryDotCentroid, invQScale, qOffset, constantCorrection]
      * @param packedCodes byte buffer containing packed document codes
      * @param codeOffset starting byte offset for this vector's codes within the buffer
      * @param bitsPerDim bits per dimension for document codes
      * @param planeBytes bytes per single bit-plane (ceil(nDims/8))
-     * @param scale the scale factor for this vector
-     * @param offset the offset correction for this vector (includes cross-term per Eq. 19)
-     * @param docSum precomputed sum of unsigned document code values
-     * @param invQScale inverse query quantization scale (queryRange / (numQueryLevels - 1))
-     * @param qOffset query quantization offset (min of queryTransformed)
-     * @param constantCorrection precomputed: centerOffset * (unsignedQuerySum * invQScale + qOffset * nDims)
+     * @param docConstants per-vector constants: [scale, offset, docSum]
      * @return approximate dot product
      */
     public static float scoreInteger(
         byte[] queryQuantized,
         int queryBitsPerDim,
-        float queryDotCentroid,
+        float[] queryConstants,
         byte[] packedCodes,
         int codeOffset,
         int bitsPerDim,
         int planeBytes,
-        float scale,
-        float offset,
-        short docSum,
-        float invQScale,
-        float qOffset,
-        float constantCorrection
+        float[] docConstants
     ) {
+        float invQScale = queryConstants[QC_INV_Q_SCALE];
+        float qOffset = queryConstants[QC_Q_OFFSET];
+        float constantCorrection = queryConstants[QC_CONSTANT_CORRECTION];
+        float scale = docConstants[DC_SCALE];
+        float offset = docConstants[DC_OFFSET];
+        float docSum = docConstants[DC_DOC_SUM];
+
         int rawDot = 0;
         for (int qp = 0; qp < queryBitsPerDim; qp++) {
             for (int dp = 0; dp < bitsPerDim; dp++) {
@@ -206,6 +225,6 @@ public final class AsymmetricHashingScorer {
             }
         }
         float floatDot = Math.fma(invQScale, rawDot, Math.fma(qOffset, docSum, -constantCorrection));
-        return Math.fma(floatDot, scale, queryDotCentroid + offset);
+        return Math.fma(floatDot, scale, queryConstants[QC_QUERY_DOT_CENTROID] + offset);
     }
 }

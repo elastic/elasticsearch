@@ -246,9 +246,6 @@ public class AshPostingsListWriter {
         int count = 0;
         for (int[] cluster : clusters) {
             count += 1;
-            if (cluster == null) {
-                continue;
-            }
             float delta = cluster.length - mean;
             mean += delta / count;
             m2 += delta * (cluster.length - mean);

@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.EstimatedHeapUsageCollector;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.NodeUsageStatsForThreadPoolsCollector;
+import org.elasticsearch.cluster.PartitionSizeCollector;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
@@ -33,6 +34,7 @@ import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.node.internal.TerminationHandler;
 import org.elasticsearch.plugins.PluginsLoader;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.readiness.ReadinessService;
@@ -107,6 +109,10 @@ class NodeServiceProvider {
             CacheSizesAndCommitmentCollector.class,
             () -> CacheSizesAndCommitmentCollector.EMPTY
         );
+        final PartitionSizeCollector partitionSizeCollector = pluginsService.loadSingletonServiceProvider(
+            PartitionSizeCollector.class,
+            () -> PartitionSizeCollector.EMPTY
+        );
         final InternalClusterInfoService service = new InternalClusterInfoService(
             settings,
             writeLoadConstraintSettings,
@@ -115,6 +121,7 @@ class NodeServiceProvider {
             client,
             estimatedHeapUsageCollector,
             cacheSizesAndCommitmentCollector,
+            partitionSizeCollector,
             new NodeUsageStatsForThreadPoolsCollector()
         );
         if (DiscoveryNode.isMasterNode(settings)) {
@@ -206,5 +213,15 @@ class NodeServiceProvider {
 
     ReadinessService newReadinessService(PluginsService pluginsService, ClusterService clusterService, Environment environment) {
         return new ReadinessService(clusterService, environment);
+    }
+
+    ShutdownPrepareService newShutdownPrepareService(
+        PluginsService pluginsService,
+        Settings settings,
+        HttpServerTransport httpServerTransport,
+        TransportService transportService,
+        TerminationHandler terminationHandler
+    ) {
+        return new ShutdownPrepareService(settings, httpServerTransport, transportService, terminationHandler);
     }
 }

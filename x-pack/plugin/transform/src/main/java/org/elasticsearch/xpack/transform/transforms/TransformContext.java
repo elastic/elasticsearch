@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.transform.Transform;
 
 import java.time.Instant;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -54,6 +55,13 @@ public class TransformContext {
     // Atomic so the indexer's onStart credential-swap (replacePersistedCredential) cannot tear
     // against a concurrent reader using getPersistedCloudCredential to wrap an outbound client.
     private final AtomicReference<PersistedCloudCredential> persistedCloudCredential = new AtomicReference<>();
+
+    /**
+     * Set to {@code true} once the transform has processed its first source document, i.e. it has moved past its initial
+     * catch-up phase. Only ever transitions from {@code false} to {@code true}. A {@code _start}-time {@code initial_delay}
+     * override is applied by the checkpoint provider only while this is {@code false}.
+     */
+    private final AtomicBoolean hasProcessedData = new AtomicBoolean(false);
 
     /**
      * If the destination index is blocked (e.g. during a reindex), the Transform will fail to write to it.
@@ -147,6 +155,17 @@ public class TransformContext {
 
     Instant from() {
         return from;
+    }
+
+    public boolean hasProcessedData() {
+        return hasProcessedData.get();
+    }
+
+    /**
+     * Marks that the transform has processed at least one source document. Monotonic: once set it never reverts.
+     */
+    public void setHasProcessedData() {
+        hasProcessedData.set(true);
     }
 
     ProjectId projectId() {

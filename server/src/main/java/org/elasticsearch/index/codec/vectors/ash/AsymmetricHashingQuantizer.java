@@ -94,6 +94,10 @@ public final class AsymmetricHashingQuantizer {
 
     /**
      * Trains the projection matrix W on the given vectors and their cluster assignments.
+     * <p>
+     * This method consumes draws from the instance-level RNG, so successive calls on the same
+     * instance will produce different results. Callers should construct a fresh quantizer per
+     * training run.
      *
      * @param vectors all vectors in the segment, shape (nVectors, originalDim)
      * @param centroids cluster centroids, fetched by vector ordinal

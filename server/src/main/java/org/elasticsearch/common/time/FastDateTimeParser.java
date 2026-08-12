@@ -175,37 +175,6 @@ class FastDateTimeParser implements DateTimeParser {
         private final char dateTimeSeparator;
 
         /**
-         * Constructs a new {@code FastDateParser} object using the standard ISO-8601 {@code 'T'} date/time separator.
-         * See {@link #Engine(Set, boolean, ChronoField, DecimalSeparator, TimezonePresence, Map, char)}.
-         *
-         * @param mandatoryFields  The set of fields that must be present for a valid parse. These should be specified in field order
-         *                         (e.g. if {@link ChronoField#DAY_OF_MONTH} is specified,
-         *                         {@link ChronoField#MONTH_OF_YEAR} should also be specified).
-         *                         {@link ChronoField#YEAR} is always mandatory.
-         * @param optionalTime     {@code false} if the presence of time fields follows {@code mandatoryFields},
-         *                         {@code true} if a time component is always optional,
-         *                         despite the presence of time fields in {@code mandatoryFields}.
-         *                         This makes it possible to specify 'time is optional, but if it is present, it must have these fields'
-         *                         by settings {@code optionalTime = true} and putting time fields such as {@link ChronoField#HOUR_OF_DAY}
-         *                         and {@link ChronoField#MINUTE_OF_HOUR} in {@code mandatoryFields}.
-         * @param maxAllowedField  The most-specific field allowed in the parsed string,
-         *                         or {@code null} if everything up to nanoseconds is allowed.
-         * @param decimalSeparator The decimal separator that is allowed.
-         * @param timezonePresence Specifies if the timezone is optional, mandatory, or forbidden.
-         * @param defaults         Map of default field values, if they are not present in the parsed string.
-         */
-        Engine(
-            Set<ChronoField> mandatoryFields,
-            boolean optionalTime,
-            @Nullable ChronoField maxAllowedField,
-            DecimalSeparator decimalSeparator,
-            TimezonePresence timezonePresence,
-            Map<ChronoField, Integer> defaults
-        ) {
-            this(mandatoryFields, optionalTime, maxAllowedField, decimalSeparator, timezonePresence, defaults, 'T');
-        }
-
-        /**
          * Constructs a new {@code FastDateParser} object.
          *
          * @param mandatoryFields   The set of fields that must be present for a valid parse. These should be specified in field order

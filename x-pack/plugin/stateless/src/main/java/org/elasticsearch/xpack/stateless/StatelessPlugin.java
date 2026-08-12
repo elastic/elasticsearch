@@ -171,6 +171,7 @@ import org.elasticsearch.xpack.stateless.commits.IndexEngineDeletionPolicy;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitCleaner;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.UploadQueueControllerService;
 import org.elasticsearch.xpack.stateless.engine.HollowIndexEngine;
 import org.elasticsearch.xpack.stateless.engine.HollowShardsMetrics;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
@@ -613,7 +614,6 @@ public class StatelessPlugin extends Plugin
         logger.info("[{}] is enabled", NAME);
         hasIndexRole = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.INDEX_ROLE);
 
-        logSettings(settings);
         // It is dangerous to retain these settings because they will be further modified after this ctor due
         // to the call to #additionalSettings. We only parse out the components that has already been set.
         sharedCachedSettingExplicitlySet = SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.exists(settings);
@@ -851,6 +851,17 @@ public class StatelessPlugin extends Plugin
             commitService = null;
         }
         components.add(new StatelessCommitServiceProvider(commitService));
+
+        if (hasIndexRole) {
+            var uploadQueueControllerService = new UploadQueueControllerService(
+                threadPool,
+                settings,
+                clusterService,
+                commitService,
+                services.telemetryProvider()
+            );
+            components.add(uploadQueueControllerService);
+        }
 
         final var snapshotsCommitService = setAndGet(
             this.snapshotsCommitServiceRef,
@@ -1305,6 +1316,7 @@ public class StatelessPlugin extends Plugin
             StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE,
             StatelessCommitService.STATELESS_UPLOAD_MAX_IO_ERROR_RETRIES,
             StatelessCommitService.STATELESS_UPLOAD_SLOW_LOG_THRESHOLD,
+            StatelessCommitService.STATELESS_UPLOAD_AVERAGE_THROUGHPUT_INITIAL_VALUE,
             IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING,
             IndexingDiskController.INDEXING_DISK_RESERVED_BYTES_SETTING,
             BlobStoreHealthIndicator.POLL_INTERVAL_SETTING,
@@ -1422,7 +1434,12 @@ public class StatelessPlugin extends Plugin
             PinnedWindowEvictionPolicy.PINNED_WINDOW_DURATION_SETTING,
             StatelessSharedBlobCacheService.STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_THRESHOLD_SETTING,
             StatelessSharedBlobCacheService.STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_DURATION_SETTING,
-            DisableSimulationRebalancingDecider.SIMULATION_REBALANCING_ENABLED_SETTING
+            DisableSimulationRebalancingDecider.SIMULATION_REBALANCING_ENABLED_SETTING,
+            UploadQueueControllerService.STATELESS_UPLOAD_QUEUE_CONTROLLER_ENABLED,
+            UploadQueueControllerService.STATELESS_UPLOAD_QUEUE_CONTROLLER_INTERVAL,
+            UploadQueueControllerService.STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEX_THROTTLE_THRESHOLD,
+            UploadQueueControllerService.STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEX_THROTTLE_REMOVAL_THRESHOLD,
+            UploadQueueControllerService.STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEX_THROTTLE_COOLDOWN
         );
     }
 
@@ -2030,19 +2047,6 @@ public class StatelessPlugin extends Plugin
 
     public ShardsMappingSizeCollector getShardsMappingSizeCollector() {
         return shardsMappingSizeCollector.get();
-    }
-
-    private static void logSettings(final Settings settings) {
-        // TODO: Move the logging back to StatelessCommitService#new once ES-8507 is resolved
-        final var bccMaxAmountOfCommits = StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.get(settings);
-        final var bccUploadMaxSize = StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE.get(settings);
-        final var virtualBccUploadMaxAge = StatelessCommitService.STATELESS_UPLOAD_VBCC_MAX_AGE.get(settings);
-        logger.info(
-            "delayed upload with [max_commits={}], [max_size={}], [max_age={}]",
-            bccMaxAmountOfCommits,
-            bccUploadMaxSize.getStringRep(),
-            virtualBccUploadMaxAge.getStringRep()
-        );
     }
 
     private record ShouldSkipMerges(IndicesService indicesService, SplitSourceService splitSourceService) implements Predicate<ShardId> {

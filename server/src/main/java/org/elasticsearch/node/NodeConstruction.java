@@ -18,6 +18,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.repositories.reservedstate.ReservedRepositoryAction;
+import org.elasticsearch.action.admin.cluster.stats.ClusterStatsTagsProvider;
 import org.elasticsearch.action.admin.indices.template.reservedstate.ReservedComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.FailureStoreMetrics;
 import org.elasticsearch.action.bulk.IncrementalBulkService;
@@ -236,6 +237,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchUtils;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.support.AggregationUsageService;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
@@ -344,6 +346,8 @@ class NodeConstruction {
             constructor.modules.bindToInstance(ProjectResolver.class, projectResolver);
 
             SearchModule searchModule = constructor.createSearchModule(settingsModule.getSettings(), threadPool, telemetryProvider);
+            settingsModule.getClusterSettings()
+                .addSettingsUpdateConsumer(AggregatorFactories.MAX_NESTED_DEPTH_SETTING, AggregatorFactories::setMaxNestedDepth);
             constructor.createClientAndRegistries(settingsModule.getSettings(), threadPool, searchModule, projectResolver);
             DocumentParsingProvider documentParsingProvider = constructor.getDocumentParsingProvider();
 
@@ -1366,7 +1370,13 @@ class NodeConstruction {
             threadPool
         );
 
-        final var shutdownPrepareService = new ShutdownPrepareService(settings, httpServerTransport, transportService, terminationHandler);
+        final var shutdownPrepareService = serviceProvider.newShutdownPrepareService(
+            pluginsService,
+            settings,
+            httpServerTransport,
+            transportService,
+            terminationHandler
+        );
 
         modules.add(
             loadPersistentTasks(
@@ -1563,7 +1573,8 @@ class NodeConstruction {
     }
 
     private UsageService createUsageService() {
-        UsageService usageService = new UsageService();
+        ClusterStatsTagsProvider tagsProvider = pluginsService.loadSingletonServiceProvider(ClusterStatsTagsProvider.class, () -> null);
+        UsageService usageService = new UsageService(tagsProvider);
         modules.bindToInstance(UsageService.class, usageService);
         return usageService;
     }

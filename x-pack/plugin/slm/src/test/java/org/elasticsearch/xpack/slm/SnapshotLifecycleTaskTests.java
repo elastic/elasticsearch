@@ -360,8 +360,7 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
                 initiatingSnap,
                 randomLong(),
                 SnapshotLifecycleTask.CompletedRegisteredSnapshotInfos.EMPTY,
-                new RuntimeException(),
-                false
+                new RuntimeException()
             );
 
         // deletedPolicy is no longer defined
@@ -402,8 +401,7 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
                 initiatingSnap,
                 randomLong(),
                 SnapshotLifecycleTask.CompletedRegisteredSnapshotInfos.EMPTY,
-                new RuntimeException(),
-                false
+                new RuntimeException()
             );
 
         var definedSlmPolicies = List.of(policyId, otherPolicy);
@@ -439,8 +437,7 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
                 initiatingSnap,
                 randomLong(),
                 SnapshotLifecycleTask.CompletedRegisteredSnapshotInfos.EMPTY,
-                new RuntimeException(),
-                false
+                new RuntimeException()
             );
 
         final SnapshotId stillRunning = randSnapshotId();
@@ -561,8 +558,7 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
                 ),
                 List.of(snapshotInfoSuccess, snapshotInfoFailure1, snapshotInfoFailure2)
             ),
-            new RuntimeException(),
-            false
+            new RuntimeException()
         );
 
         ClusterState newClusterState = writeJobTask.execute(clusterState);
@@ -625,7 +621,48 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
         SnapshotLifecycleStats.SnapshotPolicyStats snapshotPolicyStats = newSlmMetadata.getStats().getMetrics().get(policyId);
         assertEquals(1, snapshotPolicyStats.getSnapshotTakenCount());
         assertEquals(0, snapshotPolicyStats.getSnapshotFailedCount());
+        assertEquals(snapshotA.getName(), newSlmMetadata.getSnapshotConfigurations().get(policyId).getLastSuccess().getSnapshotName());
         assertNull(newSlmMetadata.getSnapshotConfigurations().get(policyId).getLastFailure());
+        assertEquals(0, newSlmMetadata.getSnapshotConfigurations().get(policyId).getInvocationsSinceLastSuccess());
+        assertEquals(Map.of(), SnapshotLifecycleMetadata.EMPTY.getStats().getMetrics());
+
+        RegisteredPolicySnapshots newRegisteredPolicySnapshots = newClusterState.metadata()
+            .getProject(projectId)
+            .custom(RegisteredPolicySnapshots.TYPE);
+        assertEquals(List.of(snapshotB), newRegisteredPolicySnapshots.getSnapshotsByPolicy(policyId));
+    }
+
+    /**
+     * Same TOCTOU as {@link #testDoesNotInferFailureForSnapshotThatFinishedAfterLookup}, but the initiating WriteJobStatus is a
+     * failure: snapshot B finished after lookup and must remain registered rather than being inferred as another failure.
+     */
+    public void testDoesNotInferFailureForSnapshotThatFinishedAfterLookupOnFailurePath() throws Exception {
+        final String policyId = randomAlphaOfLength(10);
+        final SnapshotId snapshotA = randSnapshotId();
+        final SnapshotId snapshotB = randSnapshotId();
+
+        var definedSlmPolicies = List.of(policyId);
+        var registeredSnapshots = Map.of(policyId, List.of(snapshotA, snapshotB));
+        var inProgress = Map.of(policyId, List.<SnapshotId>of());
+        ClusterState clusterState = buildClusterState(projectId, definedSlmPolicies, registeredSnapshots, inProgress);
+
+        ClusterState newClusterState = SnapshotLifecycleTask.WriteJobStatus.failure(
+            projectId,
+            policyId,
+            snapshotA,
+            randomLong(),
+            new SnapshotLifecycleTask.CompletedRegisteredSnapshotInfos(Set.of(snapshotA), List.of()),
+            new RuntimeException("initiating snapshot failed")
+        ).execute(clusterState);
+
+        SnapshotLifecycleMetadata newSlmMetadata = newClusterState.metadata().getProject(projectId).custom(SnapshotLifecycleMetadata.TYPE);
+        SnapshotLifecycleStats.SnapshotPolicyStats snapshotPolicyStats = newSlmMetadata.getStats().getMetrics().get(policyId);
+        assertEquals(0, snapshotPolicyStats.getSnapshotTakenCount());
+        assertEquals(1, snapshotPolicyStats.getSnapshotFailedCount());
+        assertEquals(snapshotA.getName(), newSlmMetadata.getSnapshotConfigurations().get(policyId).getLastFailure().getSnapshotName());
+        assertNull(newSlmMetadata.getSnapshotConfigurations().get(policyId).getLastSuccess());
+        assertEquals(1, newSlmMetadata.getSnapshotConfigurations().get(policyId).getInvocationsSinceLastSuccess());
+        assertEquals(Map.of(), SnapshotLifecycleMetadata.EMPTY.getStats().getMetrics());
 
         RegisteredPolicySnapshots newRegisteredPolicySnapshots = newClusterState.metadata()
             .getProject(projectId)
@@ -680,6 +717,7 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
         assertEquals(2, statsAfterA.getSnapshotTakenCount());
         assertEquals(0, statsAfterA.getSnapshotFailedCount());
         assertEquals(snapshotA.getName(), slmAfterA.getSnapshotConfigurations().get(policyId).getLastSuccess().getSnapshotName());
+        assertEquals(0, slmAfterA.getSnapshotConfigurations().get(policyId).getInvocationsSinceLastSuccess());
         RegisteredPolicySnapshots registeredAfterA = afterA.metadata().getProject(projectId).custom(RegisteredPolicySnapshots.TYPE);
         assertEquals(List.of(), registeredAfterA.getSnapshotsByPolicy(policyId));
 
@@ -698,6 +736,8 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
         assertEquals(2, statsAfterB.getSnapshotTakenCount());
         assertEquals(0, statsAfterB.getSnapshotFailedCount());
         assertEquals(snapshotA.getName(), slmAfterB.getSnapshotConfigurations().get(policyId).getLastSuccess().getSnapshotName());
+        assertEquals(0, slmAfterB.getSnapshotConfigurations().get(policyId).getInvocationsSinceLastSuccess());
+        assertEquals(Map.of(), SnapshotLifecycleMetadata.EMPTY.getStats().getMetrics());
     }
 
     /**
@@ -720,8 +760,7 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
             initiatingSnapshot,
             randomLong(),
             SnapshotLifecycleTask.CompletedRegisteredSnapshotInfos.EMPTY,
-            new RuntimeException("no such index"),
-            true
+            new RuntimeException("no such index")
         ).execute(clusterState);
 
         SnapshotLifecycleMetadata newSlmMetadata = newClusterState.metadata().getProject(projectId).custom(SnapshotLifecycleMetadata.TYPE);
@@ -733,11 +772,13 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
             newSlmMetadata.getSnapshotConfigurations().get(policyId).getLastFailure().getSnapshotName()
         );
         assertEquals(1, newSlmMetadata.getSnapshotConfigurations().get(policyId).getInvocationsSinceLastSuccess());
+        assertEquals(Map.of(), SnapshotLifecycleMetadata.EMPTY.getStats().getMetrics());
     }
 
     /**
      * Like {@link #testDoesNotDoubleCountWhenAnotherCleanupAlreadyRecordedSnapshot}, but for failures: A's cleanup can record B
-     * from SnapshotInfo as a failure and clear the registered set; B's WriteJobStatus.failure must not double-count.
+     * from SnapshotInfo as a failure and clear the registered set; B's WriteJobStatus.failure must not double-count even when
+     * the failure listener could no longer observe B in the registered set (previously confused with never-registered).
      */
     public void testDoesNotDoubleCountFailureWhenAnotherCleanupAlreadyRecordedSnapshot() throws Exception {
         final String policyId = randomAlphaOfLength(10);
@@ -783,6 +824,9 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
         assertEquals(snapshotB.getName(), slmAfterA.getSnapshotConfigurations().get(policyId).getLastFailure().getSnapshotName());
         // A's success resets invocations even though B's failure was recorded in the same cleanup
         assertEquals(0, slmAfterA.getSnapshotConfigurations().get(policyId).getInvocationsSinceLastSuccess());
+        assertTrue(
+            SnapshotLifecycleTask.policyAlreadyRecordsSnapshot(slmAfterA.getSnapshotConfigurations().get(policyId), snapshotB.getName())
+        );
 
         ClusterState afterB = SnapshotLifecycleTask.WriteJobStatus.failure(
             projectId,
@@ -790,8 +834,7 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
             snapshotB,
             randomLong(),
             SnapshotLifecycleTask.CompletedRegisteredSnapshotInfos.EMPTY,
-            new RuntimeException("failed to create snapshot successfully"),
-            false
+            new RuntimeException("failed to create snapshot successfully")
         ).execute(afterA);
 
         SnapshotLifecycleMetadata slmAfterB = afterB.metadata().getProject(projectId).custom(SnapshotLifecycleMetadata.TYPE);
@@ -801,6 +844,31 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
         assertEquals(snapshotB.getName(), slmAfterB.getSnapshotConfigurations().get(policyId).getLastFailure().getSnapshotName());
         assertEquals(snapshotA.getName(), slmAfterB.getSnapshotConfigurations().get(policyId).getLastSuccess().getSnapshotName());
         assertEquals(0, slmAfterB.getSnapshotConfigurations().get(policyId).getInvocationsSinceLastSuccess());
+        assertEquals(Map.of(), SnapshotLifecycleMetadata.EMPTY.getStats().getMetrics());
+    }
+
+    public void testCompletedRegisteredSnapshotInfosRejectsInfoOutsideQueriedSet() {
+        final SnapshotId queried = randSnapshotId();
+        final SnapshotId notQueried = randSnapshotId();
+        final SnapshotInfo info = new SnapshotInfo(
+            new Snapshot(projectId, "repo", notQueried),
+            List.of("index1"),
+            List.of(),
+            List.of(),
+            null,
+            randomNonNegativeLong(),
+            1,
+            List.of(),
+            randomBoolean(),
+            Map.of(),
+            randomNonNegativeLong(),
+            Map.of()
+        );
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> new SnapshotLifecycleTask.CompletedRegisteredSnapshotInfos(Set.of(queried), List.of(info))
+        );
+        assertThat(ex.getMessage(), containsString(notQueried.toString()));
     }
 
     public void testGetCurrentlyRunningSnapshots() {

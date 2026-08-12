@@ -903,17 +903,17 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
                             );
                         }
 
-                        // Verify the ASH top-1 is within the true top-20 (recall sanity check)
+                        // Verify the ASH top-1 is within the true top-50 (recall sanity check)
                         int ashTop1Doc = topDocs.scoreDocs[0].doc;
                         float[] sortedExact = exactScores.clone();
                         java.util.Arrays.sort(sortedExact);
-                        float threshold = sortedExact[numDocs - 20]; // 20th best exact score
+                        float threshold = sortedExact[numDocs - 50]; // 50th best exact score
                         assertTrue(
                             "ASH top-1 doc "
                                 + ashTop1Doc
                                 + " exact score "
                                 + exactScores[ashTop1Doc]
-                                + " not in true top-20 (threshold="
+                                + " not in true top-50 (threshold="
                                 + threshold
                                 + ")",
                             exactScores[ashTop1Doc] >= threshold

@@ -115,10 +115,42 @@ public class AshPostingsListWriter {
 
         // Build cluster-to-vector mappings, counting primary + SOAR overspill assignments
         ClusterAssignmentBuilder clusterAssignments = ClusterAssignmentBuilder.build(assignments, overspillAssignments, nClusters);
-        int[][] assignmentsByCluster = clusterAssignments.assignmentsByCluster();
-        int maxPostingListSize = clusterAssignments.maxPostingListSize();
 
-        // Write posting lists, re-encoding each vector against its posting list's centroid
+        return writePostingLists(
+            vectors,
+            ashQuantizer,
+            wT,
+            originalDim,
+            centroidSupplier,
+            floatVectorValues,
+            clusterAssignments.assignmentsByCluster(),
+            clusterAssignments.maxPostingListSize(),
+            postingsOutput,
+            fileOffset,
+            ashConfig,
+            similarityFunction
+        );
+    }
+
+    /**
+     * Writes ASH-encoded posting lists for all clusters.
+     */
+    private PostingsOffsetAndLength writePostingLists(
+        float[][] vectors,
+        AsymmetricHashingQuantizer ashQuantizer,
+        float[] wT,
+        int originalDim,
+        CentroidSupplier centroidSupplier,
+        FloatVectorValues floatVectorValues,
+        int[][] assignmentsByCluster,
+        int maxPostingListSize,
+        IndexOutput postingsOutput,
+        long fileOffset,
+        IvfSegmentConfig.AshConfig ashConfig,
+        VectorSimilarityFunction similarityFunction
+    ) throws IOException {
+        int nClusters = assignmentsByCluster.length;
+        int nDims = wT.length / originalDim;
         final PackedLongValues.Builder offsets = PackedLongValues.monotonicBuilder(PackedInts.COMPACT);
         final PackedLongValues.Builder lengths = PackedLongValues.monotonicBuilder(PackedInts.COMPACT);
         final int bitsPerDim = ashConfig.bitsPerDim();

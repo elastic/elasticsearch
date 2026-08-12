@@ -14,10 +14,12 @@ To give you insight into what deprecated features you’re using, {{es}}:
 * [Logs deprecation warnings](docs-content://deploy-manage/monitor/logging-configuration/update-elasticsearch-logging-levels.md#deprecation-logging) when deprecated functionality is used.
 * [Provides a deprecation info API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-migration-deprecations) that scans a cluster’s configuration and mappings for deprecated functionality.
 
-## Next version [elasticsearch-nextversion-deprecations]
+<!-- ## Next version [elasticsearch-nextversion-deprecations]-->
 
+<!--
 Indices:
 * Deprecate the `index.number_of_routing_shards` setting. It no longer affects document routing for indices created in {{es}} 9.4.0 and later.
+-->
 
 
 ## 9.5.0 [elasticsearch-9.5.0-deprecations]

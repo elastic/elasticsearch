@@ -29,14 +29,11 @@ $$$index-number-of-shards$$$
 
 $$$index-number-of-routing-shards$$$
 
-`index.number_of_routing_shards`
-:   :::{admonition} Deprecated in 9.6.0
-    This setting was deprecated in 9.6.0. It has no effect on document routing for indices created in {{es}} 9.4.0 and later, which use `hash(_routing) % number_of_shards`. See [`_routing` field](/reference/elasticsearch/mapping-reference/mapping-routing-field.md).
-    :::
+`index.number_of_routing_shards` {applies_to}`stack: deprecated 9.6.0`
+:   This setting is deprecated and has no effect on document routing for indices created in {{es}} 9.4.0 and later, which use `hash(_routing) % number_of_shards`. Refer to [`_routing` field](/reference/elasticsearch/mapping-reference/mapping-routing-field.md).
 
-    Integer value formerly used with [`index.number_of_shards`](index-modules.md#index-number-of-shards) to route documents to a primary shard on indices that use the legacy routing function. See [`_routing` field](/reference/elasticsearch/mapping-reference/mapping-routing-field.md).
-
-    For indices created before {{es}} 9.4.0, {{es}} also used this value when splitting an index. For example, a 5 shard index with `number_of_routing_shards` set to `30` (`5 x 2 x 3`) could be split by a factor of `2` or `3`. In other words, it could be split as follows:
+    For indices created before {{es}} 9.4.0, it is an integer value used with [`index.number_of_shards`](index-modules.md#index-number-of-shards) to route documents to a primary shard on indices that use the legacy routing function. Refer to [`_routing` field](/reference/elasticsearch/mapping-reference/mapping-routing-field.md).
+    {{es}} also uses this value when splitting an index. For example, a 5 shard index with `number_of_routing_shards` set to `30` (`5 x 2 x 3`) could be split by a factor of `2` or `3`. In other words, it could be split as follows:
 
     * `5` → `10` → `30`  (split by 2, then by 3)
     * `5` → `15` → `30` (split by 3, then by 2)
@@ -45,7 +42,7 @@ $$$index-number-of-routing-shards$$$
     This setting’s default value depends on the number of primary shards in the index. The default is designed to allow you to split by factors of 2 up to a maximum of 1024 shards.
 
     ::::{note}
-    In {{es}} 7.0.0 and later versions, this setting affects how documents are distributed across shards for indices that use the legacy routing function. When reindexing an older index with custom routing into another legacy-routing index, you must explicitly set `index.number_of_routing_shards` to maintain the same document distribution. See the [related breaking change](https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html#_document_distribution_changes).
+    When reindexing an older index with custom routing into another legacy-routing index, you must explicitly set `index.number_of_routing_shards` to maintain the same document distribution. See the [related breaking change](https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html#_document_distribution_changes).
     ::::
 
 $$$index-codec$$$ `index.codec` {applies_to}`serverless: all`

@@ -57,23 +57,11 @@ public class StableMasterHealthIndicatorServiceIT extends ESIntegTestCase {
     private static final int MAX_EXTRA_PROJECTS = 5;
 
     private static final List<HealthIndicatorImpact> EXPECTED_UNSTABLE_MASTER_IMPACTS = List.of(
-        new HealthIndicatorImpact(
-            NAME,
-            INGEST_DISABLED_IMPACT_ID,
-            1,
-            """
-                The cluster cannot create, delete, or rebalance indices, and cannot insert or update documents.""",
-            List.of(ImpactArea.INGEST)
-        ),
-        new HealthIndicatorImpact(
-            NAME,
-            AUTOMATION_DISABLED_IMPACT_ID,
-            1,
-            """
-                Scheduled tasks such as Watcher, Index Lifecycle Management, and Snapshot Lifecycle Management will not work. \
-                The _cat APIs will not work.""",
-            List.of(ImpactArea.DEPLOYMENT_MANAGEMENT)
-        ),
+        new HealthIndicatorImpact(NAME, INGEST_DISABLED_IMPACT_ID, 1, """
+            The cluster cannot create, delete, or rebalance indices, and cannot insert or update documents.""", List.of(ImpactArea.INGEST)),
+        new HealthIndicatorImpact(NAME, AUTOMATION_DISABLED_IMPACT_ID, 1, """
+            Scheduled tasks such as Watcher, Index Lifecycle Management, and Snapshot Lifecycle Management will not work. \
+            The _cat APIs will not work.""", List.of(ImpactArea.DEPLOYMENT_MANAGEMENT)),
         new HealthIndicatorImpact(
             NAME,
             BACKUP_DISABLED_IMPACT_ID,
@@ -129,11 +117,7 @@ public class StableMasterHealthIndicatorServiceIT extends ESIntegTestCase {
         ensureStableCluster(nodeCount);
         maybeCreateExtraProjects();
 
-        assertMasterStability(
-            internalCluster().client(),
-            HealthStatus.GREEN,
-            containsString("The cluster has a stable master node")
-        );
+        assertMasterStability(internalCluster().client(), HealthStatus.GREEN, containsString("The cluster has a stable master node"));
     }
 
     /// Tests that the `master_is_stable` indicator returns yellow when the number of master identity changes exceeds

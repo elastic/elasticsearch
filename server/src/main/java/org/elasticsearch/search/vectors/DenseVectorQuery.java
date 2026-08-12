@@ -158,10 +158,19 @@ public abstract class DenseVectorQuery extends Query {
     public static class Floats extends DenseVectorQuery {
 
         private final float[] query;
+        // On a quantized field the codec-bound scorer scores against the quantized representation. When false, scoring
+        // goes through FloatVectorValues#rescorer instead, which reads the full-precision vectors - the same values the
+        // approximate query phase rescores against.
+        private final boolean useQuantized;
 
         public Floats(float[] query, String field, Query filter) {
+            this(query, field, filter, true);
+        }
+
+        public Floats(float[] query, String field, Query filter, boolean useQuantized) {
             super(field, filter);
             this.query = query;
+            this.useQuantized = useQuantized;
         }
 
         public float[] getQuery() {
@@ -182,7 +191,7 @@ public abstract class DenseVectorQuery extends Query {
             } else if (rewritten.getClass() == MatchNoDocsQuery.class) {
                 return rewritten;
             } else {
-                return new Floats(query, field, rewritten);
+                return new Floats(query, field, rewritten, useQuantized);
             }
         }
 
@@ -196,7 +205,7 @@ public abstract class DenseVectorQuery extends Query {
                     if (vectorValues == null) {
                         return null;
                     }
-                    return vectorValues.scorer(query);
+                    return useQuantized ? vectorValues.scorer(query) : vectorValues.rescorer(query);
                 }
             };
         }
@@ -206,12 +215,15 @@ public abstract class DenseVectorQuery extends Query {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Floats floats = (Floats) o;
-            return Objects.equals(field, floats.field) && Objects.deepEquals(query, floats.query) && Objects.equals(filter, floats.filter);
+            return Objects.equals(field, floats.field)
+                && Objects.deepEquals(query, floats.query)
+                && Objects.equals(filter, floats.filter)
+                && useQuantized == floats.useQuantized;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(field, Arrays.hashCode(query), filter);
+            return Objects.hash(field, Arrays.hashCode(query), filter, useQuantized);
         }
     }
 

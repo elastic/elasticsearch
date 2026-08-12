@@ -690,7 +690,7 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
             snapshotB,
             randomLong(),
             randomLong(),
-            new SnapshotLifecycleTask.CompletedRegisteredSnapshotInfos(Set.of(snapshotA), List.of())
+            SnapshotLifecycleTask.CompletedRegisteredSnapshotInfos.EMPTY
         ).execute(afterA);
 
         SnapshotLifecycleMetadata slmAfterB = afterB.metadata().getProject(projectId).custom(SnapshotLifecycleMetadata.TYPE);

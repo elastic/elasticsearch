@@ -2,5 +2,5 @@ area: SLM
 issues:
  - 155621
 pr: 155934
-summary: Do not record concurrent SLM snapshots as failures when SnapshotInfo was not fetched
+summary: Fix SLM stats races that mis-record concurrent snapshot outcomes
 type: bug

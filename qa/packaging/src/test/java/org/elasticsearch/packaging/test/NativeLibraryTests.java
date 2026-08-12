@@ -179,6 +179,7 @@ public class NativeLibraryTests extends PackagingTestCase {
      * {@code "Loaded parquet-rs native library"} log line is present, confirming the library loaded
      * without error.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/156597")
     public void test40ParquetRsNativeLibrary() throws Exception {
         configureAndStart(SECURITY_DISABLED_SETTINGS);
 

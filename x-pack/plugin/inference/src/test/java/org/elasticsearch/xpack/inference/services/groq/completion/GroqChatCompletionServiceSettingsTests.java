@@ -251,7 +251,17 @@ public class GroqChatCompletionServiceSettingsTests extends AbstractWireSerializ
         var updateMap = new HashMap<String, Object>();
         updateMap.put(ORGANIZATION, "");
 
-        expectThrows(XContentParseException.class, () -> originalServiceSettings.updateServiceSettings(updateMap));
+        var e = expectThrows(XContentParseException.class, () -> originalServiceSettings.updateServiceSettings(updateMap));
+        assertThat(
+            e.getCause().getMessage(),
+            is(
+                Strings.format(
+                    "[%s] Invalid value empty string. [%s] must be a non-empty string",
+                    ModelConfigurations.SERVICE_SETTINGS,
+                    ORGANIZATION
+                )
+            )
+        );
     }
 
     public void testToXContent_WritesAllValues() throws IOException {

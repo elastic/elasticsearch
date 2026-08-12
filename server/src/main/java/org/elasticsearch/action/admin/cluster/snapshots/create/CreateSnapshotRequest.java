@@ -57,7 +57,6 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         ToXContentObject {
 
     public static final int MAXIMUM_METADATA_BYTES = 1024; // chosen arbitrarily
-    private static final int MIN_PASSWORD_LENGTH = 15;
     private static final TransportVersion SNAPSHOT_ENCRYPTED_DATA = TransportVersion.fromName("snapshot_encrypted_data");
 
     private String snapshot;
@@ -169,11 +168,8 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
                 validationException
             );
         }
-        if (encryptedData != null && encryptedData.password().length() < MIN_PASSWORD_LENGTH) {
-            validationException = addValidationError(
-                "encrypted_data.password must be at least " + MIN_PASSWORD_LENGTH + " characters",
-                validationException
-            );
+        if (encryptedData != null && encryptedData.validationError() != null) {
+            validationException = addValidationError(encryptedData.validationError(), validationException);
         }
         return validationException;
     }

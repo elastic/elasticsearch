@@ -102,6 +102,8 @@ public final class XPackField {
     public static final String LOGSDB = "logsdb";
     public static final String LOGGING = "logging";
     public static final String VECTORDB_DOCUMENT = "vectordb_document";
+    /** Name constant for the project encryption key (PEK) feature. */
+    public static final String ENCRYPTION = "encryption";
 
     private XPackField() {}
 

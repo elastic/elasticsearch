@@ -196,7 +196,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
             String policyId = policyMetadata.getPolicy().getId();
             // don't time out on this request to not produce failed SLM runs in case of a temporarily slow master node
             CreateSnapshotRequest request = policyMetadata.getPolicy().toRequest(TimeValue.MAX_VALUE);
-            setEncryptedDataPassword(policyMetadata.getPolicy(), request);
+            setEncryptedData(policyMetadata.getPolicy(), request);
             final SnapshotId snapshotId = new SnapshotId(request.snapshot(), request.uuid());
 
             final LifecyclePolicySecurityClient clientWithHeaders = new LifecyclePolicySecurityClient(
@@ -359,7 +359,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
      * it lives in x-pack core, which has no access to the encryption service.
      */
     // package-private for testing
-    static void setEncryptedDataPassword(SnapshotLifecyclePolicy policy, CreateSnapshotRequest request) {
+    static void setEncryptedData(SnapshotLifecyclePolicy policy, CreateSnapshotRequest request) {
         EncryptedData encryptedPassword = policy.getEncryptedPassword();
         if (encryptedPassword == null) {
             return;

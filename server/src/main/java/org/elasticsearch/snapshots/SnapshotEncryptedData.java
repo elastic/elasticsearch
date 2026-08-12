@@ -29,6 +29,9 @@ public final class SnapshotEncryptedData implements Writeable {
 
     public static final String TYPE_PASSWORD = "password";
 
+    /** OWASP-recommended minimum password length. */
+    private static final int MIN_PASSWORD_LENGTH = 15;
+
     private final String type;
     private final SecureString password;
     @Nullable
@@ -93,6 +96,17 @@ public final class SnapshotEncryptedData implements Writeable {
             return s;
         }
         throw new IllegalArgumentException("malformed " + name + ", should be a string");
+    }
+
+    /**
+     * @return a request-validation error for this object, or {@code null} if it is valid
+     */
+    @Nullable
+    public String validationError() {
+        if (password.length() < MIN_PASSWORD_LENGTH) {
+            return "encrypted_data.password must be at least " + MIN_PASSWORD_LENGTH + " characters";
+        }
+        return null;
     }
 
     public String type() {

@@ -25,6 +25,7 @@ import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.encryption.spi.EncryptedDataHandler;
 import org.elasticsearch.xpack.encryption.spi.EncryptedDataHandlerProvider;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
@@ -153,7 +154,10 @@ public class EncryptionPlugin extends Plugin implements ActionPlugin, Extensible
 
     @Override
     public Collection<ActionHandler> getActions() {
-        return List.of(new ActionHandler(TransportEncryptionResetAction.TYPE, TransportEncryptionResetAction.class));
+        return List.of(
+            new ActionHandler(TransportEncryptionResetAction.TYPE, TransportEncryptionResetAction.class),
+            new ActionHandler(XPackUsageFeatureAction.ENCRYPTION, EncryptionUsageTransportAction.class)
+        );
     }
 
     @Override

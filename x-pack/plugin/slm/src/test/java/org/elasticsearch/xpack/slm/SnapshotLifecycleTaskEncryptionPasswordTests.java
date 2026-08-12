@@ -46,7 +46,7 @@ public class SnapshotLifecycleTaskEncryptionPasswordTests extends ESTestCase {
         );
         CreateSnapshotRequest request = new CreateSnapshotRequest(TEST_REQUEST_TIMEOUT, "repo", "snap");
 
-        SnapshotLifecycleTask.setEncryptedDataPassword(policy, request);
+        SnapshotLifecycleTask.setEncryptedData(policy, request);
 
         assertEquals("a-perfectly-valid-password", request.encryptedData().password().toString());
         assertEquals("my-password-id", request.encryptedData().passwordId());
@@ -55,7 +55,7 @@ public class SnapshotLifecycleTaskEncryptionPasswordTests extends ESTestCase {
     public void testPolicyWithoutPasswordLeavesRequestUntouched() {
         CreateSnapshotRequest request = new CreateSnapshotRequest(TEST_REQUEST_TIMEOUT, "repo", "snap");
 
-        SnapshotLifecycleTask.setEncryptedDataPassword(policy(), request);
+        SnapshotLifecycleTask.setEncryptedData(policy(), request);
 
         assertThat(request.encryptedData(), nullValue());
     }

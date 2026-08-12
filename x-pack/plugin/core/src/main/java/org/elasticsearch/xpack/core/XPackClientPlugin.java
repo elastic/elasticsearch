@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.core.datastreams.DataStreamFeatureSetUsage;
 import org.elasticsearch.xpack.core.datastreams.DataStreamLifecycleFeatureSetUsage;
 import org.elasticsearch.xpack.core.datatiers.DataTiersFeatureSetUsage;
 import org.elasticsearch.xpack.core.downsample.DownsampleShardStatus;
+import org.elasticsearch.xpack.core.encryption.EncryptionFeatureSetUsage;
 import org.elasticsearch.xpack.core.enrich.EnrichFeatureSetUsage;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyStatus;
 import org.elasticsearch.xpack.core.eql.EqlFeatureSetUsage;
@@ -346,7 +347,8 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, SearchPlu
                     XPackFeatureUsage.class,
                     XPackField.GPU_VECTOR_INDEXING,
                     GpuVectorIndexingFeatureSetUsage::new
-                )
+                ),
+                new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.ENCRYPTION, EncryptionFeatureSetUsage::new)
             ),
             getChunkingSettingsNamedWriteables().stream()
         ).filter(Objects::nonNull).toList();

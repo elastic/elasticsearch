@@ -11,13 +11,9 @@ package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
-import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
-import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
 import org.elasticsearch.action.admin.indices.ResizeIndexTestUtils;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
@@ -175,7 +171,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         final var indexName = randomIndexName();
 
         // Create index on source
-        createIndex(indexName, indexSettings(1, 0).build());
+        createIndex(indexName, indexSettings(1, 0).put("index.routing.allocation.require._name", source).build());
         indexDoc(indexName, "1", "f", randomAlphaOfLength(10));
         flush(indexName);
         ensureGreen(indexName);
@@ -192,7 +188,9 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         RetryRecoveryTestPlugin.reset();
 
         // Recover from peer
-        ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(indexName, 0, source, target));
+        indicesAdmin().prepareUpdateSettings(indexName)
+            .setSettings(Settings.builder().put("index.routing.allocation.require._name", target))
+            .execute();
 
         // Recovery should succeed, and we should have retried once
         ensureGreen(indexName);
@@ -355,7 +353,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         final var indexName = randomIndexName();
 
         // Create index on source
-        createIndex(indexName, indexSettings(1, 0).build());
+        createIndex(indexName, indexSettings(1, 0).put("index.routing.allocation.require._name", source).build());
         indexDoc(indexName, "1", "f", randomAlphaOfLength(10));
         flush(indexName);
         ensureGreen(indexName);
@@ -374,11 +372,9 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         gate.block();
 
         // Recover from peer async
-        indicesAdmin().execute(
-            TransportClusterRerouteAction.TYPE,
-            new ClusterRerouteRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).setRetryFailed(false)
-                .add(new MoveAllocationCommand(indexName, 0, source, target))
-        );
+        indicesAdmin().prepareUpdateSettings(indexName)
+            .setSettings(Settings.builder().put("index.routing.allocation.require._name", target))
+            .execute();
 
         // Wait for peer recovery attempt
         gate.await();

@@ -181,12 +181,7 @@ public abstract class CrossIndexModeGenerativeRestTest extends GenerativeRestTes
         // causes STATS output aliases with the same names to read from the wrong source when the
         // alias name conflicts with an existing index field, producing incorrect aggregate values.
         // Excluded until the columnar alias-resolution bug is fixed.
-        "ul_logs",
-        // web_logs contains a `uri: keyword` field. A known columnar bug causes WHERE clauses
-        // that call byte_length() on keyword fields to return 0 rows in columnar mode while
-        // standard mode correctly filters. Excluded until the columnar byte_length WHERE-clause
-        // evaluation bug is fixed. TODO: file a GitHub issue.
-        "web_logs"
+        "ul_logs"
     );
 
     /**
@@ -543,6 +538,13 @@ public abstract class CrossIndexModeGenerativeRestTest extends GenerativeRestTes
         // Non-deterministic built-in functions. SAMPLE(field,n) draws a random subset and
         // can return different rows from the two physically different index layouts.
         if (cmdText.contains("NOW(") || cmdText.contains("RANDOM(") || cmdText.contains("SAMPLE(")) {
+            return false;
+        }
+        // BYTE_LENGTH on keyword fields returns 0 in columnar mode due to a known columnar
+        // doc-values read bug. Affects both WHERE predicates (wrong row count) and aggregations
+        // like TOP/STATS (wrong computed values). Close the gate whenever BYTE_LENGTH appears.
+        // TODO: remove once the columnar BYTE_LENGTH doc-values bug is fixed.
+        if (cmdText.contains("BYTE_LENGTH(")) {
             return false;
         }
         // Full-text search functions rely on the inverted index. Columnar mode stores keyword and

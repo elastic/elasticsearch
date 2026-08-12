@@ -9,9 +9,13 @@ package org.elasticsearch.xpack.esql.qa.mixed;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
+import org.apache.http.HttpHost;
 import org.elasticsearch.Version;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.CsvTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -19,8 +23,11 @@ import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 import org.junit.ClassRule;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.JOIN_LOOKUP_V12;
@@ -35,9 +42,10 @@ import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilit
  * <p>
  * Pinning by version works because {@code TransportEsqlQueryAction} is a
  * {@link org.elasticsearch.action.support.HandledTransportAction}: the node that receives
- * {@code POST /_query} plans and coordinates it. Each subclass returns both nodes of its version, so
- * {@code RestClient}'s round-robin rotation stays within one version -- the coordinator version is
- * deterministic while both of that version's nodes take a turn, and the client keeps a spare host.
+ * {@code POST /_query} plans and coordinates it. Each subclass resolves hosts via
+ * {@link #httpAddressesForCoordinator(boolean)} from {@code GET /_nodes} (not from
+ * {@code withNode} declaration order), so both nodes of that version take a turn while rotation stays
+ * within one version and the client keeps a spare host.
  * <p>
  * The cluster is declared with {@code shared(true)}, so it starts once per JVM and is reused by every
  * generated subclass; test data is ingested exactly once, guarded by the {@code INGEST} lock in
@@ -75,6 +83,40 @@ public abstract class AbstractMixedClusterEsqlSpecIT extends EsqlSpecTestCase {
      */
     @Override
     protected abstract String getTestRestCluster();
+
+    /**
+     * HTTP hosts for one coordinator version, resolved from live {@code GET /_nodes} rather than
+     * {@link Clusters#mixedVersionCluster} {@code withNode} order. Old hosts are those whose version matches
+     * {@code tests.old_cluster_version}; current hosts are the rest. Snapshot suffixes are stripped so the
+     * comparison works on PR builds.
+     * <p>
+     * Cannot use {@link #adminClient()}: {@link #getTestRestCluster()} runs from {@code initClient} before
+     * that client exists, so this opens a short-lived probe against every node address.
+     */
+    protected final String httpAddressesForCoordinator(boolean oldCoordinator) {
+        HttpHost[] allHosts = parseClusterHosts(cluster.getHttpAddresses()).toArray(HttpHost[]::new);
+        try (RestClient probe = buildClient(restAdminSettings(), allHosts)) {
+            ObjectPath nodes = ObjectPath.createFromResponse(probe.performRequest(new Request("GET", "/_nodes")));
+            Map<String, Object> nodesMap = nodes.evaluate("nodes");
+            List<String> selected = new ArrayList<>();
+            for (String id : nodesMap.keySet()) {
+                String version = nodes.evaluate("nodes." + id + ".version");
+                boolean isOld = Version.fromString(version.replace("-SNAPSHOT", "")).equals(bwcVersion);
+                if (isOld == oldCoordinator) {
+                    HttpHost host = HttpHost.create(nodes.evaluate("nodes." + id + ".http.publish_address"));
+                    selected.add(host.getHostName() + ":" + host.getPort());
+                }
+            }
+            if (selected.isEmpty()) {
+                throw new IllegalStateException(
+                    "No " + (oldCoordinator ? "old" : "current") + " nodes found in mixed cluster for BWC version [" + bwcVersion + "]"
+                );
+            }
+            return String.join(",", selected);
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to resolve coordinator addresses from /_nodes", e);
+        }
+    }
 
     @Override
     protected Path getCsvDataPath() {

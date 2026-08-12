@@ -28,12 +28,12 @@ public abstract class AbstractMixedClusterEsqlOldCoordinatorSpecIT extends Abstr
     }
 
     /**
-     * Nodes 0 and 2 are the old ones, because {@link Clusters#mixedVersionCluster} declares its nodes as old,
-     * current, old, current. Including a current-version address here would let a new node coordinate and
-     * silently make this suite overlap {@link AbstractMixedClusterEsqlCurrentCoordinatorSpecIT}.
+     * Routes queries through old-version nodes only, selected from {@code GET /_nodes} by matching
+     * {@code tests.old_cluster_version}. Including a current-version address would let a new node coordinate
+     * and silently make this suite overlap {@link AbstractMixedClusterEsqlCurrentCoordinatorSpecIT}.
      */
     @Override
     protected String getTestRestCluster() {
-        return cluster.getHttpAddress(0) + "," + cluster.getHttpAddress(2);
+        return httpAddressesForCoordinator(true);
     }
 }

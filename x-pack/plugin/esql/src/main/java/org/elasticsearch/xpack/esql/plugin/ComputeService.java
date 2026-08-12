@@ -758,16 +758,10 @@ public class ComputeService {
 
         Runnable cancelQueryOnFailure = cancelQueryOnFailure(rootTask);
 
-        try (
-            ComputeListener localListener = new ComputeListener(
-                transportService.getThreadPool(),
-                cancelQueryOnFailure,
-                finalListener.map(profiles -> {
-                    execInfo.markEndQuery();
-                    return new Result(mainPlan.output(), collectedPages, null, configuration, profiles, execInfo);
-                })
-            )
-        ) {
+        try (ComputeListener localListener = new ComputeListener(cancelQueryOnFailure, finalListener.map(profiles -> {
+            execInfo.markEndQuery();
+            return new Result(mainPlan.output(), collectedPages, null, configuration, profiles, execInfo);
+        }))) {
             runCompute(
                 rootTask,
                 computeContext,
@@ -1001,16 +995,10 @@ public class ComputeService {
                 false
             );
             updateShardCountForCoordinatorOnlyQuery(execInfo);
-            try (
-                var computeListener = new ComputeListener(
-                    transportService.getThreadPool(),
-                    cancelQueryOnFailure,
-                    listener.map(completionInfo -> {
-                        updateExecutionInfoAfterCoordinatorOnlyQuery(execInfo);
-                        return new Result(resolvedPlan.output(), collectedPages, null, configuration, completionInfo, execInfo);
-                    })
-                )
-            ) {
+            try (var computeListener = new ComputeListener(cancelQueryOnFailure, listener.map(completionInfo -> {
+                updateExecutionInfoAfterCoordinatorOnlyQuery(execInfo);
+                return new Result(resolvedPlan.output(), collectedPages, null, configuration, completionInfo, execInfo);
+            }))) {
                 runCompute(
                     rootTask,
                     computeContext,
@@ -1064,23 +1052,16 @@ public class ComputeService {
         var exchangeSource = new ExchangeSourceHandler(configuration.pragmas().exchangeBufferSize(), searchExecutor);
         listener = ActionListener.runBefore(listener, () -> exchangeService.removeExchangeSourceHandler(sessionId));
         exchangeService.addExchangeSourceHandler(sessionId, exchangeSource);
-        try (
-            var computeListener = new ComputeListener(
-                transportService.getThreadPool(),
-                cancelQueryOnFailure,
-                listener.delegateFailureAndWrap((l, completionInfo) -> {
-                    failIfAllShardsFailed(execInfo, collectedPages);
-                    execInfo.markEndQuery();
-                    l.onResponse(new Result(outputAttributes, collectedPages, null, configuration, completionInfo, execInfo));
-                })
-            )
-        ) {
+        try (var computeListener = new ComputeListener(cancelQueryOnFailure, listener.delegateFailureAndWrap((l, completionInfo) -> {
+            failIfAllShardsFailed(execInfo, collectedPages);
+            execInfo.markEndQuery();
+            l.onResponse(new Result(outputAttributes, collectedPages, null, configuration, completionInfo, execInfo));
+        }))) {
             try (Releasable ignored = exchangeSource.addEmptySink()) {
                 // run compute on the coordinator
                 final AtomicBoolean localClusterWasInterrupted = new AtomicBoolean();
                 try (
                     var localListener = new ComputeListener(
-                        transportService.getThreadPool(),
                         cancelQueryOnFailure,
                         computeListener.acquireCompute().delegateFailure((l, completionInfo) -> {
                             if (execInfo.clusterInfo.containsKey(LOCAL_CLUSTER)) {
@@ -1239,16 +1220,10 @@ public class ComputeService {
         var exchangeSource = new ExchangeSourceHandler(configuration.pragmas().exchangeBufferSize(), searchExecutor);
         listener = ActionListener.runBefore(listener, () -> exchangeService.removeExchangeSourceHandler(sessionId));
         exchangeService.addExchangeSourceHandler(sessionId, exchangeSource);
-        try (
-            var computeListener = new ComputeListener(
-                transportService.getThreadPool(),
-                cancelQueryOnFailure,
-                listener.delegateFailureAndWrap((l, completionInfo) -> {
-                    execInfo.markEndQuery();
-                    l.onResponse(new Result(outputAttributes, collectedPages, null, configuration, completionInfo, execInfo));
-                })
-            )
-        ) {
+        try (var computeListener = new ComputeListener(cancelQueryOnFailure, listener.delegateFailureAndWrap((l, completionInfo) -> {
+            execInfo.markEndQuery();
+            l.onResponse(new Result(outputAttributes, collectedPages, null, configuration, completionInfo, execInfo));
+        }))) {
             // Run the coordinator plan
             runCompute(
                 rootTask,
@@ -1291,11 +1266,16 @@ public class ComputeService {
             for (String clusterAlias : execInfo.clusterAliases()) {
                 execInfo.swapCluster(
                     clusterAlias,
-                    (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setTotalShards(0)
-                        .setSuccessfulShards(0)
-                        .setSkippedShards(0)
-                        .setFailedShards(0)
-                        .build()
+                    // A subplan may already have searched this cluster's shards (e.g. an IN subquery whose empty result
+                    // folded the main plan to a coordinator-only LocalRelation); only fill in zeros where nothing was
+                    // recorded, so the subplan's accounting survives.
+                    (k, v) -> v.getTotalShards() != null
+                        ? v
+                        : new EsqlExecutionInfo.Cluster.Builder(v).setTotalShards(0)
+                            .setSuccessfulShards(0)
+                            .setSkippedShards(0)
+                            .setFailedShards(0)
+                            .build()
                 );
             }
         }

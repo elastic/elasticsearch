@@ -7,7 +7,6 @@
 
 package org.elasticsearch.oldrepos;
 
-import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.TestMethodAndParams;
 import com.carrotsearch.randomizedtesting.annotations.TestCaseOrdering;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
@@ -26,7 +25,6 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.fixtures.oldelasticsearch.OldElasticsearchContainer;
 import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
@@ -78,8 +76,8 @@ public class OldMappingsIT extends ESRestTestCase {
         }
     }
 
-    private static final OldElasticsearchContainer oldEs = OldEsTestCluster.newContainer();
-    private static final ElasticsearchCluster cluster = OldEsTestCluster.newCluster();
+    private static final OldElasticsearchContainer oldEs = OldEsTestCluster.newContainer(OldMappingsIT.class);
+    private static final ElasticsearchCluster cluster = OldEsTestCluster.newCluster(OldMappingsIT.class);
 
     @ClassRule
     public static TestRule ruleChain = RuleChain.outerRule(oldEs).around(cluster);
@@ -101,7 +99,21 @@ public class OldMappingsIT extends ESRestTestCase {
     @Override
     protected Settings restClientSettings() {
         String token = basicAuthHeaderValue("admin", new SecureString("admin-password".toCharArray()));
-        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
+        return Settings.builder()
+            .put(ThreadContext.PREFIX + ".Authorization", token)
+            // increase the socket timeout so it doesn't fire before the increased ensureGreen timeout below;
+            // waiting on cluster health after restoring/recovering the archived indices can take longer than
+            // the default 30s/60s on busy/contended CI hosts (see ParameterizedRollingUpgradeTestCase).
+            .put(CLIENT_SOCKET_TIMEOUT, "90s")
+            .build();
+    }
+
+    @Override
+    protected String getEnsureGreenTimeout() {
+        // restoring a snapshot into a fresh cluster (and, after a restart, recovering it from disk) can take
+        // longer than the default 30s on busy/contended CI hosts; align with the timeout used by other
+        // BWC-style tests that wait on cluster health (see ParameterizedRollingUpgradeTestCase).
+        return "70s";
     }
 
     @Before
@@ -114,9 +126,7 @@ public class OldMappingsIT extends ESRestTestCase {
 
         setupDone = true;
 
-        String repoLocation = PathUtils.get(System.getProperty("tests.repo.location"))
-            .resolve(RandomizedTest.getContext().getTargetClass().getName())
-            .toString();
+        String repoLocation = OldEsTestCluster.repoLocation(OldMappingsIT.class);
 
         String repoName = "old_mappings_repo";
         String snapshotName = "snap";

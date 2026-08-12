@@ -46,6 +46,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 /**
@@ -397,29 +398,32 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
      * Applies a field-level security filter to a single ignored source value.
      * Shared by {@link IgnoredSourceFormat#LEGACY_SINGLE_IGNORED_SOURCE} and {@link IgnoredSourceFormat#DOC_VALUES_IGNORED_SOURCE}.
      */
-    static BytesRef filterLegacyValue(BytesRef value, Function<Map<String, Object>, Map<String, Object>> filter) throws IOException {
-        // for _ignored_source, parse, filter out the field and its contents, and serialize back downstream
-        MappedNameValue mappedNameValue = SingularIgnoredSourceEncoding.decodeAsMap(value);
-        if (mappedNameValue == null) {
+    static BytesRef filterLegacyValue(
+        BytesRef value,
+        Function<Map<String, Object>, Map<String, Object>> filter,
+        Predicate<String> nameFilter
+    ) throws IOException {
+        NameValue nameValue = SingularIgnoredSourceEncoding.decode(value);
+        if (nameValue.hasValue() == false) {
             return null;
         }
+
+        if (XContentDataHelper.isEncodedObject(nameValue.value()) == false) {
+            // A scalar value has no subfields to strip, so the whole entry either survives or it does not, and the field name alone decides
+            // which. This avoids decoding the value into a map only to serialize it straight back.
+            return nameFilter.test(nameValue.name()) ? value : null;
+        }
+
+        // for _ignored_source, parse, filter out the field and its contents, and serialize back downstream
+        MappedNameValue mappedNameValue = nameValueToMapped(nameValue);
         Map<String, Object> transformedField = filter.apply(mappedNameValue.map());
         if (transformedField.isEmpty()) {
             // All values were filtered
             return null;
         }
-        // The unfiltered map contains at least one element, the field name with its value. If the field contains
-        // an object or an array, the value of the first element is a map or a list, respectively. Otherwise,
-        // it's a single leaf value, e.g. a string or a number.
-        var topValue = mappedNameValue.map().values().iterator().next();
-        if (topValue instanceof Map<?, ?> || topValue instanceof List<?>) {
-            // The field contains an object or an array, reconstruct it from the transformed map in case
-            // any subfield has been filtered out.
-            return SingularIgnoredSourceEncoding.encodeFromMap(mappedNameValue.withMap(transformedField));
-        } else {
-            // The field contains a leaf value, and it hasn't been filtered out. It is safe to propagate the original value.
-            return value;
-        }
+
+        // Reconstruct the value from the transformed map in case any subfield has been filtered out.
+        return SingularIgnoredSourceEncoding.encodeFromMap(mappedNameValue.withMap(transformedField));
     }
 
     public enum IgnoredSourceFormat {
@@ -440,7 +444,11 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
             }
 
             @Override
-            public BytesRef filterValue(BytesRef value, Function<Map<String, Object>, Map<String, Object>> filter) {
+            public BytesRef filterValue(
+                BytesRef value,
+                Function<Map<String, Object>, Map<String, Object>> filter,
+                Predicate<String> nameFilter
+            ) {
                 assert false : "cannot filter ignored source with format NO_IGNORED_SOURCE";
                 return null;
             }
@@ -476,8 +484,12 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
             }
 
             @Override
-            public BytesRef filterValue(BytesRef value, Function<Map<String, Object>, Map<String, Object>> filter) throws IOException {
-                return filterLegacyValue(value, filter);
+            public BytesRef filterValue(
+                BytesRef value,
+                Function<Map<String, Object>, Map<String, Object>> filter,
+                Predicate<String> nameFilter
+            ) throws IOException {
+                return filterLegacyValue(value, filter, nameFilter);
             }
         },
         COALESCED_SINGLE_IGNORED_SOURCE {
@@ -528,7 +540,11 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
             }
 
             @Override
-            public BytesRef filterValue(BytesRef value, Function<Map<String, Object>, Map<String, Object>> filter) throws IOException {
+            public BytesRef filterValue(
+                BytesRef value,
+                Function<Map<String, Object>, Map<String, Object>> filter,
+                Predicate<String> nameFilter // unused: this format keeps the decode-everything path, see filterLegacyValue
+            ) throws IOException {
                 List<MappedNameValue> mappedNameValues = CoalescedIgnoredSourceEncoding.decodeAsMap(value);
                 List<MappedNameValue> filteredNameValues = new ArrayList<>(mappedNameValues.size());
                 boolean maybeDidFilter = false;
@@ -593,8 +609,12 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
             }
 
             @Override
-            public BytesRef filterValue(BytesRef value, Function<Map<String, Object>, Map<String, Object>> filter) throws IOException {
-                return filterLegacyValue(value, filter);
+            public BytesRef filterValue(
+                BytesRef value,
+                Function<Map<String, Object>, Map<String, Object>> filter,
+                Predicate<String> nameFilter
+            ) throws IOException {
+                return filterLegacyValue(value, filter, nameFilter);
             }
         };
 
@@ -616,7 +636,18 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
 
         public abstract void writeIgnoredFields(Collection<NameValue> ignoredFieldValues, IndexVersion indexVersion, boolean hasNestedDocs);
 
-        public abstract BytesRef filterValue(BytesRef value, Function<Map<String, Object>, Map<String, Object>> filter) throws IOException;
+        /**
+         * Applies field-level security to a single stored blob of ignored source.
+         *
+         * @param filter     strips the entries and subfields the user may not see from a decoded value; needed only for objects and arrays
+         * @param nameFilter tests a full field path on its own, so entries holding a leaf value can be kept or dropped without decoding
+         * @return the surviving value, the original blob when nothing was removed, or null when the whole blob was filtered out
+         */
+        public abstract BytesRef filterValue(
+            BytesRef value,
+            Function<Map<String, Object>, Map<String, Object>> filter,
+            Predicate<String> nameFilter
+        ) throws IOException;
     }
 
     public IgnoredSourceFormat ignoredSourceFormat() {

@@ -103,6 +103,7 @@ import org.elasticsearch.painless.spi.annotation.ScriptAwareAnnotation;
 import org.elasticsearch.painless.symbol.FunctionTable.LocalFunction;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCAllEscape;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCCaptureBox;
+import org.elasticsearch.painless.symbol.IRDecorations.IRCChargeAllocation;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCContinuous;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCInitialize;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCInstanceCancellationCheck;
@@ -1825,8 +1826,21 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             methodWriter.box(captured.getAsmType());
         }
 
-        Type methodType = Type.getMethodType(MethodWriter.getType(expressionType), captured.getAsmType());
-        methodWriter.invokeDefCall(methodName, methodType, DefBootstrap.REFERENCE, expressionCanonicalTypeName);
+        boolean chargesAllocation = irTypedCaptureReferenceNode.hasCondition(IRCChargeAllocation.class);
+
+        if (chargesAllocation) {
+            // Charging def-receiver bound ref: push the script (typed CLASS_TYPE) after the receiver. Def.lookupReference drops
+            // the script capture and charges when the target resolved for the runtime receiver is annotated.
+            writeInstanceScriptCapture(writeScope, methodWriter);
+        }
+
+        methodWriter.invokeDefReferenceCall(
+            methodName,
+            MethodWriter.getType(expressionType),
+            captured.getAsmType(),
+            expressionCanonicalTypeName,
+            chargesAllocation
+        );
     }
 
     @Override

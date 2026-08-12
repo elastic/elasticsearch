@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.generator.command.pipe.DissectGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.EnrichGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.EvalGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.GrokGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.HighlightGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.InlineStatsGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.LookupJoinGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.MvExpandGenerator;
@@ -127,6 +128,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "INLINE STATS cannot be used after an explicit or implicit LIMIT command",
         // Full-text functions and `:` operator are not allowed after FORK
         "(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase|KNN)] function)|(?:\\[:\\] operator)) cannot be used after FORK",
+        // Full-text functions and `:` operator are not allowed after HIGHLIGHT
+        "(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase|KNN)] function)|(?:\\[:\\] operator)) cannot be used after HIGHLIGHT",
         // Full-text functions mixed with lookup-side fields via OR cannot be pushed before LOOKUP JOIN _coordinator:
         "cannot be used in a WHERE clause that references both data-side and lookup-side fields after LOOKUP JOIN _coordinator:",
         "sub-plan execution results too large",  // INLINE STATS limitations
@@ -200,7 +203,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "failed to create query: class java\\.lang\\.String cannot be cast to class org\\.apache\\.lucene\\.util\\.BytesRef.*",
 
         // https://github.com/elastic/elasticsearch/pull/153514
-        "can't lookup values from DateRangeBlock",
+        "can't lookup values from LongRangeBlock",
+        "can't lookup values from DoubleRangeBlock",
 
         // https://github.com/elastic/elasticsearch/issues/154079
         "class java\\.util\\.ArrayList cannot be cast to class java\\.lang\\.Boolean.*",
@@ -511,6 +515,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         ctx -> isFullTextAfterWhereBugs(ctx.normalizedErrorMessage),
         ctx -> isFullTextAfterSubqueryInFromBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isLenientFalseFailedToCreateFullTextQueryError(ctx.normalizedErrorMessage, ctx.query),
+        ctx -> isFullTextNullQueryBuilderUnmappedLoadBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isUnsupportedTypeAfterForkError(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isForkWithSortBranchBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isForkTopNIndexOutOfBoundsBug(ctx.normalizedErrorMessage, ctx.query),
@@ -857,6 +862,13 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                     enrichFieldsList.forEach(name -> createdColumns.add((String) name));
                 }
             }
+            case HighlightGenerator.HIGHLIGHT -> {
+                // An empty prefix overwrites an ON column. Mark generated columns as non-index-mapped even when names collide.
+                Object highlightColumns = command.context().get(HighlightGenerator.HIGHLIGHT_COLUMNS);
+                if (highlightColumns instanceof List<?> highlightColumnList) {
+                    highlightColumnList.forEach(name -> createdColumns.add((String) name));
+                }
+            }
             case LookupJoinGenerator.LOOKUP_JOIN -> {
                 // LookupJoinGenerator embeds RENAME commands before the actual LOOKUP JOIN to align
                 // left-side key columns with lookup index key names. Process these renames so that
@@ -1000,6 +1012,28 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             return false;
         }
         return MATCH_LENIENT_FALSE_PATTERN.matcher(query).find() || QSTR_LENIENT_FALSE_PATTERN.matcher(query).find();
+    }
+
+    private static final Pattern FULL_TEXT_FUNCTION_CALL_PATTERN = Pattern.compile(
+        "(?i)\\b(?:match_phrase|match|multi_match|kql|qstr)\\s*\\("
+    );
+
+    /**
+     * A full-text function whose target field is unmapped on some shards of a multi-index {@code FROM} under
+     * {@code unmapped_fields="load"} pushes a null {@link org.elasticsearch.index.query.QueryBuilder} to those shards,
+     * which then NPE while building the Lucene query.
+     * See https://github.com/elastic/elasticsearch/issues/155827
+     */
+    static boolean isFullTextNullQueryBuilderUnmappedLoadBug(String errorMessage, String query) {
+        if (errorMessage == null || query == null) {
+            return false;
+        }
+        if (errorMessage.contains("failed to create query:") == false
+            || errorMessage.contains("Rewriteable.rewrite") == false
+            || errorMessage.contains("because \"builder\" is null") == false) {
+            return false;
+        }
+        return query.contains(FromLoadGenerator.SET_LOAD_PREFIX) && FULL_TEXT_FUNCTION_CALL_PATTERN.matcher(query).find();
     }
 
     /**

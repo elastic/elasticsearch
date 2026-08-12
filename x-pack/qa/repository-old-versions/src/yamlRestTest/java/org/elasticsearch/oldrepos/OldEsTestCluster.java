@@ -7,6 +7,7 @@
 
 package org.elasticsearch.oldrepos;
 
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.fixtures.oldelasticsearch.OldElasticsearchContainer;
@@ -21,21 +22,40 @@ final class OldEsTestCluster {
     private OldEsTestCluster() {}
 
     /**
-     * Creates a new {@link OldElasticsearchContainer} for the version and repo location supplied
-     * via {@code tests.es.version} / {@code tests.repo.location} system properties.
+     * Computes a per-test-class snapshot repository directory nested under the shared
+     * {@code tests.repo.location} base directory.
+     * <p>
+     * Each test class must get its own isolated subdirectory because
+     * {@link OldElasticsearchContainer}'s entrypoint wipes its bind-mounted repo directory on
+     * every container start. All three old-repo test classes share the same Gradle task and run
+     * in separate, potentially concurrent, forked JVMs; if they shared one directory, one
+     * class's container startup could wipe out snapshot data another class was still using,
+     * causing spurious recovery failures after a cluster restart.
      */
-    static OldElasticsearchContainer newContainer() {
-        return new OldElasticsearchContainer(System.getProperty("tests.es.version"), System.getProperty("tests.repo.location"));
+    static String repoLocation(Class<?> testClass) {
+        return PathUtils.get(System.getProperty("tests.repo.location")).resolve(testClass.getName()).toString();
     }
 
     /**
-     * Creates the shared two-node cluster configuration used by all old-repo snapshot tests.
+     * Creates a new {@link OldElasticsearchContainer} for the version supplied via the
+     * {@code tests.es.version} system property, bind-mounting the per-{@code testClass} repo
+     * directory computed by {@link #repoLocation(Class)}.
      */
-    static ElasticsearchCluster newCluster() {
+    static OldElasticsearchContainer newContainer(Class<?> testClass) {
+        return new OldElasticsearchContainer(System.getProperty("tests.es.version"), repoLocation(testClass));
+    }
+
+    /**
+     * Creates the shared two-node cluster configuration used by all old-repo snapshot tests,
+     * with {@code path.repo} set to the per-{@code testClass} repo directory computed by
+     * {@link #repoLocation(Class)}.
+     */
+    static ElasticsearchCluster newCluster(Class<?> testClass) {
+        String repoLocation = repoLocation(testClass);
         return ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
             .nodes(2)
-            .setting("path.repo", () -> System.getProperty("tests.repo.location"))
+            .setting("path.repo", () -> repoLocation)
             .setting("xpack.license.self_generated.type", "trial")
             .setting("xpack.security.enabled", "true")
             .user("admin", "admin-password", "superuser", false)

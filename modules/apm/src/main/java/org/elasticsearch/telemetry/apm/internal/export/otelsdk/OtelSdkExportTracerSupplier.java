@@ -118,9 +118,8 @@ public class OtelSdkExportTracerSupplier implements TraceSupplier {
             .setMaxExportBatchSize(maxExportBatchSize)
             .build();
 
-        // ParentBased honors a sampled upstream traceparent regardless of sampleRate; only locally-started
-        // traces are subject to the ratio.
-        Sampler sampler = Sampler.parentBased(Sampler.traceIdRatioBased(sampleRate));
+        // TODO: emit the modern th: tracestate instead of ot=p: once exporting to EDOT gateway
+        Sampler sampler = new ElasticTracestateSampler(sampleRate);
 
         SdkTracerProvider tracerProvider = SdkTracerProvider.builder()
             .setResource(OtelSdkResource.get(settings))

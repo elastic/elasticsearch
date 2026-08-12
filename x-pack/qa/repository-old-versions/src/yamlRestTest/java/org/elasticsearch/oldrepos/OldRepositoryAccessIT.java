@@ -70,8 +70,8 @@ import static org.hamcrest.Matchers.startsWith;
 @ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
 public class OldRepositoryAccessIT extends ESRestTestCase {
 
-    private static final OldElasticsearchContainer oldEs = OldEsTestCluster.newContainer();
-    private static final ElasticsearchCluster cluster = OldEsTestCluster.newCluster();
+    private static final OldElasticsearchContainer oldEs = OldEsTestCluster.newContainer(OldRepositoryAccessIT.class);
+    private static final ElasticsearchCluster cluster = OldEsTestCluster.newCluster(OldRepositoryAccessIT.class);
 
     @ClassRule
     public static TestRule ruleChain = RuleChain.outerRule(oldEs).around(cluster);
@@ -110,8 +110,9 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
     }
 
     public void runTest(boolean sourceOnlyRepository) throws IOException {
-        String repoLocation = System.getProperty("tests.repo.location");
-        repoLocation = PathUtils.get(repoLocation).resolve("source_only_" + sourceOnlyRepository).toString();
+        String repoLocation = PathUtils.get(OldEsTestCluster.repoLocation(OldRepositoryAccessIT.class))
+            .resolve("source_only_" + sourceOnlyRepository)
+            .toString();
         assumeTrue(
             "source only repositories only supported since ES 6.5.0",
             sourceOnlyRepository == false || oldVersion.onOrAfter(Version.fromString("6.5.0"))

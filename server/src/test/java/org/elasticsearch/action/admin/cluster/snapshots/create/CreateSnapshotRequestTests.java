@@ -184,25 +184,17 @@ public class CreateSnapshotRequestTests extends ESTestCase {
 
     public void testEncryptionPasswordSourceParsing() {
         CreateSnapshotRequest request = new CreateSnapshotRequest(TEST_REQUEST_TIMEOUT, "repo", "snap");
-        request.source(Map.of("encrypted_data_password", "a-perfectly-valid-password"));
+        request.source(Map.of("encrypted_data_password", "a-perfectly-valid-password", "encrypted_data_password_id", "my-password-id"));
         assertEquals("a-perfectly-valid-password", request.encryptedDataPassword().toString());
+        assertEquals("my-password-id", request.encryptedDataPasswordId());
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> request.source(Map.of("encrypted_data_password", 12345))
         );
         assertThat(e.getMessage(), containsString("malformed encrypted_data_password"));
-    }
 
-    public void testEncryptionPasswordIdSourceParsing() {
-        CreateSnapshotRequest request = new CreateSnapshotRequest(TEST_REQUEST_TIMEOUT, "repo", "snap");
-        request.source(Map.of("encrypted_data_password_id", "my-password-id"));
-        assertEquals("my-password-id", request.encryptedDataPasswordId());
-
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> request.source(Map.of("encrypted_data_password_id", 12345))
-        );
+        e = expectThrows(IllegalArgumentException.class, () -> request.source(Map.of("encrypted_data_password_id", 12345)));
         assertThat(e.getMessage(), containsString("malformed encrypted_data_password_id"));
     }
 

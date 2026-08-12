@@ -100,6 +100,8 @@ public class EncryptingSnapshotGlobalStateTransformerTests extends ESTestCase {
     public void testSnapshotWithoutPasswordExcludesEncryptedValues() {
         Metadata metadata = metadataWith(new TestSecretCustom(encryptionService.encrypt(PLAINTEXT), Metadata.ALL_CONTEXTS));
 
+        String warning = "Encrypted data exists but no password was provided; it was excluded from the snapshot. "
+            + "Set encrypted_data_password to include it.";
         Metadata[] transformed = new Metadata[1];
         MockLog.assertThatLogger(
             () -> transformed[0] = transformer.transformForSnapshot(ProjectId.DEFAULT, metadata, createRequest(null)),
@@ -108,14 +110,10 @@ public class EncryptingSnapshotGlobalStateTransformerTests extends ESTestCase {
                 "exclusion warning",
                 EncryptingSnapshotGlobalStateTransformer.class.getCanonicalName(),
                 Level.WARN,
-                "Encrypted data exists but no password was provided; it was excluded from the snapshot. "
-                    + "Set encrypted_data_password to include it."
+                warning
             )
         );
-        assertWarnings(
-            "Encrypted data exists but no password was provided; it was excluded from the snapshot. "
-                + "Set encrypted_data_password to include it."
-        );
+        assertWarnings(warning);
 
         assertNotSame(metadata, transformed[0]);
         assertThat(customOf(transformed[0]).secret(), nullValue());

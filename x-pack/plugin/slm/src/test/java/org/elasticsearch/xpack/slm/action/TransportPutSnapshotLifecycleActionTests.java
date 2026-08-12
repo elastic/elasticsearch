@@ -54,22 +54,15 @@ public class TransportPutSnapshotLifecycleActionTests extends ESTestCase {
         assertThat(result.getEncryptedPasswordId(), equalTo("my-password-id"));
     }
 
-    public void testPasswordWithoutIdIsRejected() {
-        SnapshotLifecyclePolicy policy = policyWithConfig(Map.of("encrypted_data_password", "a-perfectly-valid-password"));
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> TransportPutSnapshotLifecycleAction.encryptPasswordIfPresent(policy)
-        );
-        assertThat(e.getMessage(), containsString("must both be set or both be absent"));
-    }
-
-    public void testIdWithoutPasswordIsRejected() {
-        SnapshotLifecyclePolicy policy = policyWithConfig(Map.of("encrypted_data_password_id", "my-password-id"));
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> TransportPutSnapshotLifecycleAction.encryptPasswordIfPresent(policy)
-        );
-        assertThat(e.getMessage(), containsString("must both be set or both be absent"));
+    public void testUnpairedPasswordOrIdIsRejected() {
+        for (String loneKey : new String[] { "encrypted_data_password", "encrypted_data_password_id" }) {
+            SnapshotLifecyclePolicy policy = policyWithConfig(Map.of(loneKey, "some-value-of-sufficient-len"));
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> TransportPutSnapshotLifecycleAction.encryptPasswordIfPresent(policy)
+            );
+            assertThat(e.getMessage(), containsString("must both be set or both be absent"));
+        }
     }
 
     public void testNonStringPasswordIdIsRejected() {

@@ -59,6 +59,9 @@ tests:
 - class: org.elasticsearch.action.search.SearchQueryThenFetchAsyncActionTests
   method: testBottomFieldSort
   issue: https://github.com/elastic/elasticsearch/issues/156363
+- class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityRestIT
+  method: testTaskCancellation
+  issue: https://github.com/elastic/elasticsearch/issues/156573
 
 # Examples:
 #

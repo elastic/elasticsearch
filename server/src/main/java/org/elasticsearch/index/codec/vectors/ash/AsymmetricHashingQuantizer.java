@@ -34,8 +34,7 @@ import java.util.function.IntUnaryOperator;
  * yielding higher recall than symmetric approaches.
  * <p>
  * All matrices (W, Wt, P, R, etc.) are represented as flat row-major {@code float[]} of
- * length rows*cols. The {@code vectors} training input is {@code float[][]} because the
- * writer owns and reuses that array.
+ * length rows*cols.
  */
 public final class AsymmetricHashingQuantizer {
 
@@ -241,12 +240,7 @@ public final class AsymmetricHashingQuantizer {
         float[] topVectors = SvdUtil.topKRightSingularVectors(xTraining, nTraining, originalDim, nDims, seed);
         // P = top nDims right singular vectors transposed: rows of topVectors are the vectors
         // topVectors shape: (nDims x originalDim); P shape: (originalDim x nDims)
-        float[] p = new float[originalDim * nDims];
-        for (int i = 0; i < originalDim; i++) {
-            for (int j = 0; j < nDims; j++) {
-                p[i * nDims + j] = topVectors[j * originalDim + i];
-            }
-        }
+        float[] p = ESVectorUtil.transposeMatrix(topVectors, nDims, originalDim);
 
         // Project training data: X_ld = xTraining @ P (nTraining x nDims)
         float[] xLd = matMul(xTraining, p, nTraining, originalDim, nDims);

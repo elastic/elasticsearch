@@ -61,8 +61,7 @@ final class SvdUtil {
         }
 
         // Copy A into working matrix (m x n)
-        float[] work = new float[m * n];
-        System.arraycopy(a, 0, work, 0, m * n);
+        float[] work = a.clone();
 
         // V starts as identity (n x n)
         float[] v = new float[n * n];
@@ -445,12 +444,7 @@ final class SvdUtil {
                 // u_new = A w (m-dimensional)
                 float[] uNew = new float[m];
                 for (int i = 0; i < m; i++) {
-                    float sum = 0;
-                    int aBase = i * n;
-                    for (int d = 0; d < n; d++) {
-                        sum = Math.fma(a[aBase + d], w[d], sum);
-                    }
-                    uNew[i] = sum;
+                    uNew[i] = ESVectorUtil.dotProduct(a, i * n, w, 0, n);
                 }
                 // Deflate
                 for (int d = 0; d < found; d++) {

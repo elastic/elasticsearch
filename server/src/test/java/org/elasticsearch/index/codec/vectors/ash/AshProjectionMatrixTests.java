@@ -120,10 +120,7 @@ public class AshProjectionMatrixTests extends ESTestCase {
     private void assertMatrixEquals(float[][] expected, float[][] actual) {
         assertEquals(expected.length, actual.length);
         for (int i = 0; i < expected.length; i++) {
-            assertEquals(expected[i].length, actual[i].length);
-            for (int j = 0; j < expected[i].length; j++) {
-                assertEquals(expected[i][j], actual[i][j], 0f);
-            }
+            assertArrayEquals(expected[i], actual[i], 0f);
         }
     }
 }

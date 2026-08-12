@@ -1404,7 +1404,7 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
             while (iterator.hasNext()) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String normalizedKey = normalizeKeyPrefix(entry.getKey(), prefix);
-                if(normalizedKey != entry.getKey()) {
+                if (normalizedKey != entry.getKey()) {
                     replacements.put(normalizedKey, entry.getValue());
                     iterator.remove();
                 }

@@ -178,8 +178,8 @@ class AzureClientProvider extends AbstractLifecycleComponent {
 
     // Drop (i.e., decrement their ref count) connection providers from the cache. We only start the disposal of a connection provider
     // after the final reference is released (i.e., ref count is 0).
-    void dropConnectionProviders(Set<ConnectionProviderKey> keys) {
-        if (keys.isEmpty()) {
+    void dropConnectionProviders(Set<ConnectionProviderKey> connectionProvidersToEvict) {
+        if (connectionProvidersToEvict.isEmpty()) {
             return;
         }
 
@@ -187,14 +187,14 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         synchronized (this) {
             refs = connectionProvidersCache.entrySet()
                 .stream()
-                .filter(entry -> keys.contains(entry.getKey()))
+                .filter(entry -> connectionProvidersToEvict.contains(entry.getKey()))
                 .map(entry -> entry.getValue())
                 .toList();
 
             // Note that we can remove from the cache for now but the reference is still alive as long as we haven't closed it (i.e., have
             // not called `closeInternal`).
             var newConnectionProvidersCache = new HashMap<>(connectionProvidersCache);
-            for (ConnectionProviderKey key : keys) {
+            for (ConnectionProviderKey key : connectionProvidersToEvict) {
                 newConnectionProvidersCache.remove(key);
             }
             connectionProvidersCache = Map.copyOf(newConnectionProvidersCache);

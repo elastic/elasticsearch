@@ -37,6 +37,11 @@ if [ "$LOCAL" = false ] || [ "$FORCE_UPLOAD" = true ]; then
   UPLOAD=true
 fi
 
+if ! command -v zip > /dev/null; then
+  echo 'Error: zip must be installed.'
+  exit 1;
+fi
+
 if [ "$UPLOAD" = true ] && [ -z "${ARTIFACTORY_API_KEY:-}" ]; then
   echo 'Error: The ARTIFACTORY_API_KEY environment variable must be set.'
   exit 1;

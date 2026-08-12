@@ -570,8 +570,7 @@ public abstract class TDigestTests extends TDigestTestCase {
             }
             digest.compress();
 
-            int iterations = randomIntBetween(100, 1_000);
-            for (int i = 0; i < iterations; i++) {
+            for (int i = 0; i < 1_000; i++) {
                 double q = randomDoubleBetween(0.01, 0.99, true);
                 assertEquals("q=" + q, q, digest.cdf(digest.quantile(q)), 1.0 / sampleCount);
             }

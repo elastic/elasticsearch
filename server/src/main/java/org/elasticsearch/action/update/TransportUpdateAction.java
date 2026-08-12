@@ -46,6 +46,7 @@ import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
@@ -330,7 +331,8 @@ public class TransportUpdateAction extends HandledTransportAction<UpdateRequest,
                     indexShard,
                     threadPool::absoluteTimeInMillis,
                     // Exclude inference fields to ensure embeddings are recomputed.
-                    FetchSourceContext.FETCH_ALL_SOURCE_EXCLUDE_INFERENCE_FIELDS
+                    FetchSourceContext.FETCH_ALL_SOURCE_EXCLUDE_INFERENCE_FIELDS,
+                    SplitShardCountSummary.UNSET
                 ),
                 indexService.getMetadata(),
                 mappingLookup

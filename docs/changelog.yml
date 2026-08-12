@@ -93,6 +93,7 @@ pivot:
     "CAT APIs": ":Data Management/CAT APIs"
     CCR: ":Distributed Indexing/CCR"
     CCS: ":Search Foundations/CCS"
+    Columnar: ":StorageEngine/Columnar"
     CRUD: ":Distributed Indexing/CRUD"
     Client: ":Security/Client"
     "Cluster coordination": ":Distributed Coordination/Cluster Coordination"

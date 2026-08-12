@@ -27,6 +27,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.lucene.search.FuzzyQueries;
 import org.elasticsearch.lucene.search.cost.PointRangeQueryCostEstimator;
+import org.elasticsearch.lucene.search.cost.QueryCostEstimator;
 
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -48,10 +49,8 @@ import java.util.function.Supplier;
  */
 public final class MaxClauseCountQueryVisitor extends QueryVisitor {
 
-    /**
-     * Per-clause floor charged for visited queries that don't implement {@link Accountable}.
-     */
-    static final long LEAF_BASE_BYTES = 1024L;
+    /** Per-clause floor charged for visited queries that don't implement {@link Accountable}. */
+    static final long LEAF_BASE_BYTES = QueryCostEstimator.LEAF_FLOOR_BYTES;
 
     private int numClauses;
     private long estimatedBytes;

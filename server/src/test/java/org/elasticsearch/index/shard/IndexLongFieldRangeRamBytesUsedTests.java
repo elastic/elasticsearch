@@ -29,14 +29,9 @@ public class IndexLongFieldRangeRamBytesUsedTests extends AbstractAccountableFie
     }
 
     @Override
-    protected Set<String> fieldsExcludedFromRamBytesUsed() {
-        return Set.of();
-    }
-
-    @Override
-    protected Accountable createTestInstance() {
-        // NO_SHARDS still holds a non-null shards array, so the estimate covers array overhead rather than a null leaf.
-        return IndexLongFieldRange.NO_SHARDS;
+    protected Accountable createRandomTestInstance() {
+        // Mix of null shards (complete/empty) and non-null arrays of varying length, so a missed array-length term fails.
+        return IndexLongFieldRangeTestUtils.randomSpecificRange();
     }
 
     /**
@@ -46,6 +41,6 @@ public class IndexLongFieldRangeRamBytesUsedTests extends AbstractAccountableFie
     public void testRamBytesUsedCountsTrackedShardsArray() {
         assertThat(IndexLongFieldRange.NO_SHARDS.isComplete(), org.hamcrest.Matchers.is(false));
         assertThat(IndexLongFieldRange.UNKNOWN.isComplete(), org.hamcrest.Matchers.is(true));
-        assertThat(createTestInstance().ramBytesUsed(), greaterThan(IndexLongFieldRange.UNKNOWN.ramBytesUsed()));
+        assertThat(IndexLongFieldRange.NO_SHARDS.ramBytesUsed(), greaterThan(IndexLongFieldRange.UNKNOWN.ramBytesUsed()));
     }
 }

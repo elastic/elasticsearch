@@ -29,13 +29,8 @@ public class IndexWriteLoadRamBytesUsedTests extends AbstractAccountableFieldsTe
     }
 
     @Override
-    protected Set<String> fieldsExcludedFromRamBytesUsed() {
-        return Set.of();
-    }
-
-    @Override
-    protected Accountable createTestInstance() {
-        return IndexWriteLoad.builder(16).build();
+    protected Accountable createRandomTestInstance() {
+        return IndexWriteLoad.builder(randomIntBetween(1, 32)).build();
     }
 
     /**
@@ -43,6 +38,7 @@ public class IndexWriteLoadRamBytesUsedTests extends AbstractAccountableFieldsTe
      */
     public void testRamBytesUsedGrowsWithShardCount() {
         IndexWriteLoad few = IndexWriteLoad.builder(1).build();
-        assertThat(createTestInstance().ramBytesUsed(), greaterThan(few.ramBytesUsed()));
+        IndexWriteLoad many = IndexWriteLoad.builder(16).build();
+        assertThat(many.ramBytesUsed(), greaterThan(few.ramBytesUsed()));
     }
 }

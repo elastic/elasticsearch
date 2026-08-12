@@ -29,13 +29,9 @@ public class IndexMetadataStatsRamBytesUsedTests extends AbstractAccountableFiel
     }
 
     @Override
-    protected Set<String> fieldsExcludedFromRamBytesUsed() {
-        return Set.of();
-    }
-
-    @Override
-    protected Accountable createTestInstance() {
-        return new IndexMetadataStats(IndexWriteLoad.builder(16).build(), 100L, 16);
+    protected Accountable createRandomTestInstance() {
+        int shards = randomIntBetween(1, 32);
+        return new IndexMetadataStats(IndexWriteLoad.builder(shards).build(), randomNonNegativeLong(), shards);
     }
 
     /**
@@ -43,6 +39,7 @@ public class IndexMetadataStatsRamBytesUsedTests extends AbstractAccountableFiel
      */
     public void testRamBytesUsedIncludesWriteLoad() {
         IndexMetadataStats few = new IndexMetadataStats(IndexWriteLoad.builder(1).build(), 100L, 1);
-        assertThat(createTestInstance().ramBytesUsed(), greaterThan(few.ramBytesUsed()));
+        IndexMetadataStats many = new IndexMetadataStats(IndexWriteLoad.builder(16).build(), 100L, 16);
+        assertThat(many.ramBytesUsed(), greaterThan(few.ramBytesUsed()));
     }
 }

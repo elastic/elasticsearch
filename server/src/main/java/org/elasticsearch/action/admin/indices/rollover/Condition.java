@@ -87,13 +87,13 @@ public abstract class Condition<T> implements NamedWriteable, ToXContentFragment
     }
 
     /**
-     * Estimated heap footprint of this condition. Counts the shared {@code type} enum singleton (so summing many conditions over-counts
-     * those few bytes). All concrete subclasses only set the inherited {@code value} and declare no extra fields.
+     * Estimated heap footprint of this condition. The {@code type} enum is a shared singleton, so only the field reference is counted
+     * (already included in {@link RamUsageEstimator#shallowSizeOf(Object)}). All concrete subclasses only set the inherited {@code value}
+     * and declare no extra fields.
      */
     @Override
     public final long ramBytesUsed() {
-        return RamUsageEstimator.shallowSizeOf(this) + RamUsageEstimator.shallowSizeOf(type) + RamUsageEstimator.sizeOf(name)
-            + RamUsageEstimator.sizeOfObject(value);
+        return RamUsageEstimator.shallowSizeOf(this) + RamUsageEstimator.sizeOf(name) + RamUsageEstimator.sizeOfObject(value);
     }
 
     /**

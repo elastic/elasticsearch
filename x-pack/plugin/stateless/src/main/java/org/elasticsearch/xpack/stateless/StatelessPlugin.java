@@ -955,7 +955,7 @@ public class StatelessPlugin extends Plugin
 
         recoveryCommitRegistrationHandler.set(new RecoveryCommitRegistrationHandler(client, clusterService));
 
-        // Memory metrics metricsCollector for heap usage tracking
+        // Memory metrics service for heap usage tracking
         var memoryMetricsService = new StatelessMemoryMetricsService(threadPool::relativeTimeInNanos, clusterService.getClusterSettings());
         clusterService.addListener(memoryMetricsService);
         this.statelessMemoryMetricsService.set(memoryMetricsService);

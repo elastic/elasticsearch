@@ -29,14 +29,14 @@ public class StatelessSearchNodeRecoveryMetricsCollector extends StatelessRecove
 
     public StatelessSearchNodeRecoveryMetricsCollector(MeterRegistry meterRegistry) {
         super(meterRegistry);
-        shardRecoveryTotalBytesWarmedFromIndexingMetric = meterRegistry.registerLongCounter(
-            RECOVERY_BYTES_WARMED_FROM_INDEXING_METRIC,
-            "Bytes warmed from indexing node during the shard recovery",
-            "bytes"
-        );
         shardRecoveryTotalBytesReadFromIndexingMetric = meterRegistry.registerLongCounter(
             RECOVERY_BYTES_READ_FROM_INDEXING_METRIC,
             "Bytes read from indexing node during the shard recovery",
+            "bytes"
+        );
+        shardRecoveryTotalBytesWarmedFromIndexingMetric = meterRegistry.registerLongCounter(
+            RECOVERY_BYTES_WARMED_FROM_INDEXING_METRIC,
+            "Bytes warmed from indexing node during the shard recovery",
             "bytes"
         );
     }

@@ -39,41 +39,37 @@ public class TransportPutSnapshotLifecycleActionTests extends ESTestCase {
     public void testPasswordIsEncryptedAndStrippedFromConfig() {
         Map<String, Object> config = new HashMap<>();
         config.put("indices", "data-*");
-        config.put("encrypted_data_password", "a-perfectly-valid-password");
-        config.put("encrypted_data_password_id", "my-password-id");
+        config.put("encrypted_data", Map.of("type", "password", "password", "a-perfectly-valid-password", "password_id", "my-password-id"));
         SnapshotLifecyclePolicy policy = policyWithConfig(config);
 
         SnapshotLifecyclePolicy result = TransportPutSnapshotLifecycleAction.encryptPasswordIfPresent(policy);
 
         assertNotSame(policy, result);
-        assertThat(result.getConfig().get("encrypted_data_password"), nullValue());
-        assertThat(result.getConfig().get("encrypted_data_password_id"), nullValue());
+        assertThat(result.getConfig().get("encrypted_data"), nullValue());
         assertThat(result.getConfig().get("indices"), equalTo("data-*"));
         assertThat(result.getEncryptedPassword(), notNullValue());
         assertEquals("a-perfectly-valid-password", new String(result.getEncryptedPassword().payload(), StandardCharsets.UTF_8));
         assertThat(result.getEncryptedPasswordId(), equalTo("my-password-id"));
     }
 
-    public void testUnpairedPasswordOrIdIsRejected() {
-        for (String loneKey : new String[] { "encrypted_data_password", "encrypted_data_password_id" }) {
-            SnapshotLifecyclePolicy policy = policyWithConfig(Map.of(loneKey, "some-value-of-sufficient-len"));
-            IllegalArgumentException e = expectThrows(
-                IllegalArgumentException.class,
-                () -> TransportPutSnapshotLifecycleAction.encryptPasswordIfPresent(policy)
-            );
-            assertThat(e.getMessage(), containsString("must both be set or both be absent"));
-        }
-    }
-
-    public void testNonStringPasswordIdIsRejected() {
+    public void testMissingPasswordIdIsRejected() {
         SnapshotLifecyclePolicy policy = policyWithConfig(
-            Map.of("encrypted_data_password", "a-perfectly-valid-password", "encrypted_data_password_id", 12345)
+            Map.of("encrypted_data", Map.of("type", "password", "password", "a-perfectly-valid-password"))
         );
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> TransportPutSnapshotLifecycleAction.encryptPasswordIfPresent(policy)
         );
-        assertThat(e.getMessage(), containsString("malformed encrypted_data_password_id"));
+        assertThat(e.getMessage(), containsString("encrypted_data.password_id is required for SLM policies"));
+    }
+
+    public void testMalformedEncryptedDataIsRejected() {
+        SnapshotLifecyclePolicy policy = policyWithConfig(Map.of("encrypted_data", "not-an-object"));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> TransportPutSnapshotLifecycleAction.encryptPasswordIfPresent(policy)
+        );
+        assertThat(e.getMessage(), containsString("malformed encrypted_data, should be an object"));
     }
 
     public void testPolicyWithoutPasswordIsReturnedByReference() {
@@ -82,15 +78,6 @@ public class TransportPutSnapshotLifecycleActionTests extends ESTestCase {
 
         SnapshotLifecyclePolicy noConfig = new SnapshotLifecyclePolicy("id", "snap", "0 30 1 * * ?", "repo", null, null);
         assertThat(TransportPutSnapshotLifecycleAction.encryptPasswordIfPresent(noConfig), sameInstance(noConfig));
-    }
-
-    public void testNonStringPasswordIsRejected() {
-        SnapshotLifecyclePolicy policy = policyWithConfig(Map.of("encrypted_data_password", 12345, "encrypted_data_password_id", "id"));
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> TransportPutSnapshotLifecycleAction.encryptPasswordIfPresent(policy)
-        );
-        assertThat(e.getMessage(), containsString("malformed encrypted_data_password"));
     }
 
     private static SnapshotLifecyclePolicy policyWithConfig(Map<String, Object> config) {

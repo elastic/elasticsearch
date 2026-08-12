@@ -48,7 +48,7 @@ import static org.elasticsearch.xpack.core.ilm.GenerateSnapshotNameStep.validate
  */
 public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecyclePolicy>, Writeable, ToXContentObject {
 
-    private static final TransportVersion SLM_ENCRYPTED_DATA_PASSWORD = TransportVersion.fromName("snapshot_encrypted_data_password");
+    private static final TransportVersion SLM_ENCRYPTED_DATA = TransportVersion.fromName("snapshot_encrypted_data");
 
     private final String id;
     private final String name;
@@ -71,8 +71,11 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
     private static final ParseField CONFIG = new ParseField("config");
     private static final ParseField RETENTION = new ParseField("retention");
     private static final ParseField UNHEALTHY_IF_NO_SNAPSHOT_WITHIN = new ParseField("unhealthy_if_no_snapshot_within");
-    private static final ParseField ENCRYPTED_PASSWORD = new ParseField("encrypted_data_password");
-    private static final ParseField ENCRYPTED_PASSWORD_ID = new ParseField("encrypted_data_password_id");
+    private static final ParseField ENCRYPTED_DATA = new ParseField("encrypted_data");
+    private static final ParseField ENCRYPTED_DATA_TYPE = new ParseField("type");
+    private static final ParseField ENCRYPTED_DATA_PASSWORD = new ParseField("password");
+    private static final ParseField ENCRYPTED_DATA_PASSWORD_ID = new ParseField("password_id");
+    private static final String ENCRYPTED_DATA_TYPE_PASSWORD = "password";
     private static final String METADATA_FIELD_NAME = "metadata";
 
     @SuppressWarnings("unchecked")
@@ -86,8 +89,7 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
             Map<String, Object> config = (Map<String, Object>) a[3];
             SnapshotRetentionConfiguration retention = (SnapshotRetentionConfiguration) a[4];
             TimeValue unhealthyIfNoSnapshotWithin = (TimeValue) a[5];
-            EncryptedData encryptedPassword = (EncryptedData) a[6];
-            String encryptedPasswordId = (String) a[7];
+            PolicyEncryptedData encryptedData = (PolicyEncryptedData) a[6];
             return new SnapshotLifecyclePolicy(
                 id,
                 name,
@@ -96,8 +98,8 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
                 config,
                 retention,
                 unhealthyIfNoSnapshotWithin,
-                encryptedPassword,
-                encryptedPasswordId
+                encryptedData == null ? null : encryptedData.password(),
+                encryptedData == null ? null : encryptedData.passwordId()
             );
         }
     );
@@ -113,12 +115,26 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
             value -> TimeValue.parseTimeValue(value, UNHEALTHY_IF_NO_SNAPSHOT_WITHIN.getPreferredName()),
             UNHEALTHY_IF_NO_SNAPSHOT_WITHIN
         );
-        PARSER.declareObject(
-            ConstructingObjectParser.optionalConstructorArg(),
-            (p, c) -> EncryptedData.fromXContent(p),
-            ENCRYPTED_PASSWORD
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), PolicyEncryptedData.PARSER, ENCRYPTED_DATA);
+    }
+
+    /** The persisted {@code encrypted_data} object: PEK-encrypted password plus its plaintext id. */
+    private record PolicyEncryptedData(@Nullable EncryptedData password, @Nullable String passwordId) {
+        private static final ConstructingObjectParser<PolicyEncryptedData, String> PARSER = new ConstructingObjectParser<>(
+            "slm_encrypted_data",
+            true,
+            a -> new PolicyEncryptedData((EncryptedData) a[1], (String) a[2])
         );
-        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), ENCRYPTED_PASSWORD_ID);
+
+        static {
+            PARSER.declareString(ConstructingObjectParser.constructorArg(), ENCRYPTED_DATA_TYPE);
+            PARSER.declareObject(
+                ConstructingObjectParser.optionalConstructorArg(),
+                (p, c) -> EncryptedData.fromXContent(p),
+                ENCRYPTED_DATA_PASSWORD
+            );
+            PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), ENCRYPTED_DATA_PASSWORD_ID);
+        }
     }
 
     private static final TransportVersion SLM_UNHEALTHY_IF_NO_SNAPSHOT_WITHIN = TransportVersion.fromName(
@@ -181,7 +197,7 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
         this.unhealthyIfNoSnapshotWithin = in.getTransportVersion().supports(SLM_UNHEALTHY_IF_NO_SNAPSHOT_WITHIN)
             ? in.readOptionalTimeValue()
             : null;
-        final boolean supportsEncryptedPassword = in.getTransportVersion().supports(SLM_ENCRYPTED_DATA_PASSWORD);
+        final boolean supportsEncryptedPassword = in.getTransportVersion().supports(SLM_ENCRYPTED_DATA);
         this.encryptedPassword = supportsEncryptedPassword ? in.readOptionalWriteable(EncryptedData::new) : null;
         this.encryptedPasswordId = supportsEncryptedPassword ? in.readOptionalString() : null;
         this.isCronSchedule = isCronSchedule(schedule);
@@ -452,7 +468,7 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
         if (out.getTransportVersion().supports(SLM_UNHEALTHY_IF_NO_SNAPSHOT_WITHIN)) {
             out.writeOptionalTimeValue(this.unhealthyIfNoSnapshotWithin);
         }
-        if (out.getTransportVersion().supports(SLM_ENCRYPTED_DATA_PASSWORD)) {
+        if (out.getTransportVersion().supports(SLM_ENCRYPTED_DATA)) {
             out.writeOptionalWriteable(this.encryptedPassword);
             out.writeOptionalString(this.encryptedPasswordId);
         }
@@ -504,12 +520,17 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
             builder.field(UNHEALTHY_IF_NO_SNAPSHOT_WITHIN.getPreferredName(), this.unhealthyIfNoSnapshotWithin);
         }
         // the encrypted password is persisted (gateway state, snapshot global state) but never exposed via the API;
-        // its id is not sensitive and is returned by the API as well
-        if (this.encryptedPassword != null && Metadata.XContentContext.from(params) != Metadata.XContentContext.API) {
-            builder.field(ENCRYPTED_PASSWORD.getPreferredName(), this.encryptedPassword);
-        }
-        if (this.encryptedPasswordId != null) {
-            builder.field(ENCRYPTED_PASSWORD_ID.getPreferredName(), this.encryptedPasswordId);
+        // the type and password id are not sensitive and are returned by the API as well
+        if (this.encryptedPassword != null) {
+            builder.startObject(ENCRYPTED_DATA.getPreferredName());
+            builder.field(ENCRYPTED_DATA_TYPE.getPreferredName(), ENCRYPTED_DATA_TYPE_PASSWORD);
+            if (Metadata.XContentContext.from(params) != Metadata.XContentContext.API) {
+                builder.field(ENCRYPTED_DATA_PASSWORD.getPreferredName(), this.encryptedPassword);
+            }
+            if (this.encryptedPasswordId != null) {
+                builder.field(ENCRYPTED_DATA_PASSWORD_ID.getPreferredName(), this.encryptedPasswordId);
+            }
+            builder.endObject();
         }
         builder.endObject();
         return builder;

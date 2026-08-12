@@ -18,6 +18,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
+import org.elasticsearch.snapshots.SnapshotEncryptedData;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.SnapshotState;
@@ -56,7 +57,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
- * End-to-end test of the snapshot {@code encrypted_data_password} feature through the SLM production path: a policy's
+ * End-to-end test of the snapshot {@code encrypted_data} feature through the SLM production path: a policy's
  * PEK-encrypted password is re-wrapped under a snapshot-password-derived key when the policy executes, and re-wrapped
  * under the (destination) PEK when the snapshot is restored with the password. Exercises the whole chain: the
  * {@code SnapshotGlobalStateTransformer} SPI discovery, the transformer implementation in the encryption plugin, and
@@ -108,8 +109,7 @@ public class SLMSnapshotEncryptionPasswordIT extends AbstractSnapshotIntegTestCa
 
         // The stored policy has the plaintext stripped from its config and the password encrypted under the PEK
         SnapshotLifecyclePolicy stored = storedPolicy();
-        assertThat(stored.getConfig().get("encrypted_data_password"), nullValue());
-        assertThat(stored.getConfig().get("encrypted_data_password_id"), nullValue());
+        assertThat(stored.getConfig().get("encrypted_data"), nullValue());
         assertThat(stored.getEncryptedPassword(), notNullValue());
         assertThat(stored.getEncryptedPasswordId(), equalTo(ENCRYPTED_DATA_PASSWORD_ID));
         assertThat(
@@ -117,15 +117,17 @@ public class SLMSnapshotEncryptionPasswordIT extends AbstractSnapshotIntegTestCa
             equalTo(false)
         );
 
-        // GET _slm/policy returns the password id but never the password itself
+        // GET _slm/policy returns the encrypted_data type and password id but never the password itself
         String getResponse = getPolicyApiResponse();
         assertThat(getResponse, containsString(ENCRYPTED_DATA_PASSWORD_ID));
         assertThat(getResponse, not(containsString(ENCRYPTED_DATA_PASSWORD)));
-        assertThat(getResponse, not(containsString("\"encrypted_data_password\":")));
+        assertThat(getResponse, containsString("\"encrypted_data\":{\"type\":\"password\""));
+        assertThat(getResponse, not(containsString("\"password\":{")));
 
         final String snapshotName = executePolicy();
         final SnapshotInfo snapshotInfo = awaitSuccessfulSnapshot(snapshotName);
         assertTrue("snapshot must be flagged as containing encrypted data", snapshotInfo.hasEncryptedData());
+        assertThat(snapshotInfo.encryptedDataType(), equalTo("password"));
         assertThat(snapshotInfo.encryptedDataPasswordId(), equalTo(ENCRYPTED_DATA_PASSWORD_ID));
 
         // Wipe the policy and index so the restored state provably comes from the snapshot
@@ -167,7 +169,7 @@ public class SLMSnapshotEncryptionPasswordIT extends AbstractSnapshotIntegTestCa
         indexRandomDocs(INDEX, 10);
         putPolicyWithEncryptionPassword();
 
-        // A plain snapshot (no encrypted_data_password on the request) excludes the encrypted values from the
+        // A plain snapshot (no encrypted_data on the request) excludes the encrypted values from the
         // snapshot's global state entirely, so it never contains data wrapped under this cluster's PEK
         createSnapshot(REPO, "plain-snapshot", List.of(INDEX));
         assertFalse(
@@ -231,8 +233,10 @@ public class SLMSnapshotEncryptionPasswordIT extends AbstractSnapshotIntegTestCa
         Map<String, Object> config = new HashMap<>();
         config.put("indices", List.of(INDEX));
         config.put("include_global_state", true);
-        config.put("encrypted_data_password", ENCRYPTED_DATA_PASSWORD);
-        config.put("encrypted_data_password_id", ENCRYPTED_DATA_PASSWORD_ID);
+        config.put(
+            "encrypted_data",
+            Map.of("type", "password", "password", ENCRYPTED_DATA_PASSWORD, "password_id", ENCRYPTED_DATA_PASSWORD_ID)
+        );
         SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy(POLICY_ID, "snap", NEVER_EXECUTE_CRON_SCHEDULE, REPO, config, null);
         AcknowledgedResponse response = client().execute(
             PutSnapshotLifecycleAction.INSTANCE,
@@ -298,7 +302,7 @@ public class SLMSnapshotEncryptionPasswordIT extends AbstractSnapshotIntegTestCa
         RestoreSnapshotRequest request = new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, REPO, snapshotName).waitForCompletion(true)
             .includeGlobalState(true);
         if (encryptedDataPassword != null) {
-            request.encryptedDataPassword(new SecureString(encryptedDataPassword.toCharArray()));
+            request.encryptedData(new SnapshotEncryptedData(new SecureString(encryptedDataPassword.toCharArray()), null));
         }
         return client().execute(TransportRestoreSnapshotAction.TYPE, request);
     }

@@ -24,6 +24,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
+import org.elasticsearch.snapshots.SnapshotEncryptedData;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -104,36 +105,27 @@ public class TransportPutSnapshotLifecycleAction extends TransportMasterNodeActi
     }
 
     /**
-     * If the policy's configuration map contains {@code encrypted_data_password}, encrypts it with the cluster PEK
-     * and returns a new policy with {@code encryptedPassword} and {@code encryptedPasswordId} set and both keys
-     * removed from the config. A password must be accompanied by an {@code encrypted_data_password_id} and vice
-     * versa. Returns the original policy unchanged if neither is present.
+     * If the policy's configuration map contains an {@code encrypted_data} object, encrypts its password with the
+     * cluster PEK and returns a new policy with {@code encryptedPassword} and {@code encryptedPasswordId} set and the
+     * object removed from the config. Unlike the one-shot snapshot API, SLM requires {@code password_id}: SLM
+     * snapshots recur unattended, and unlabeled passwords are a rotation hazard. Returns the original policy
+     * unchanged if the object is absent.
      */
     // package-private for testing
     static SnapshotLifecyclePolicy encryptPasswordIfPresent(SnapshotLifecyclePolicy policy) {
         final Map<String, Object> config = policy.getConfig();
-        final boolean hasPassword = config != null && config.containsKey("encrypted_data_password");
-        final boolean hasPasswordId = config != null && config.containsKey("encrypted_data_password_id");
-        if (hasPassword == false && hasPasswordId == false) {
+        if (config == null || config.containsKey("encrypted_data") == false) {
             return policy;
         }
-        if (hasPassword == false || hasPasswordId == false) {
-            throw new IllegalArgumentException("encrypted_data_password and encrypted_data_password_id must both be set or both be absent");
+        final SnapshotEncryptedData encryptedData = SnapshotEncryptedData.fromMap(config.get("encrypted_data"));
+        if (encryptedData.passwordId() == null) {
+            throw new IllegalArgumentException("encrypted_data.password_id is required for SLM policies");
         }
-        final Object rawPassword = config.get("encrypted_data_password");
-        if (rawPassword instanceof String == false) {
-            throw new IllegalArgumentException("malformed encrypted_data_password, should be a string");
-        }
-        final Object rawPasswordId = config.get("encrypted_data_password_id");
-        if (rawPasswordId instanceof String == false) {
-            throw new IllegalArgumentException("malformed encrypted_data_password_id, should be a string");
-        }
-        final byte[] passwordBytes = ((String) rawPassword).getBytes(StandardCharsets.UTF_8);
+        final byte[] passwordBytes = new String(encryptedData.password().getChars()).getBytes(StandardCharsets.UTF_8);
         try {
             final var encryptedPassword = EncryptionServiceRegistry.getEncryptionService().encrypt(passwordBytes);
             final Map<String, Object> newConfig = new HashMap<>(config);
-            newConfig.remove("encrypted_data_password");
-            newConfig.remove("encrypted_data_password_id");
+            newConfig.remove("encrypted_data");
             return new SnapshotLifecyclePolicy(
                 policy.getId(),
                 policy.getName(),
@@ -143,10 +135,11 @@ public class TransportPutSnapshotLifecycleAction extends TransportMasterNodeActi
                 policy.getRetentionPolicy(),
                 policy.getUnhealthyIfNoSnapshotWithin(),
                 encryptedPassword,
-                (String) rawPasswordId
+                encryptedData.passwordId()
             );
         } finally {
             Arrays.fill(passwordBytes, (byte) 0);
+            encryptedData.password().close();
         }
     }
 

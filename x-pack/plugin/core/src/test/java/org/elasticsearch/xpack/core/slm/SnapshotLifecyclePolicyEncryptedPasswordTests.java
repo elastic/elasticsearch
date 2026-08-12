@@ -31,14 +31,16 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 
 /**
- * Covers the {@code encryptedPassword} and {@code encryptedPasswordId} fields of {@link SnapshotLifecyclePolicy}:
- * both must survive the wire and the persisted xcontent representations (gateway state, snapshot global state);
- * the password must never appear in API output while its id is returned by the API.
+ * Covers the {@code encryptedPassword} and {@code encryptedPasswordId} fields of {@link SnapshotLifecyclePolicy},
+ * persisted as the policy's {@code encrypted_data} object: both must survive the wire and the persisted xcontent
+ * representations (gateway state, snapshot global state); the password must never appear in API output while the
+ * object's type and password id are returned by the API.
  */
 public class SnapshotLifecyclePolicyEncryptedPasswordTests extends ESTestCase {
 
-    private static final String ENCRYPTED_PASSWORD_FIELD = "\"encrypted_data_password\":";
-    private static final String ENCRYPTED_PASSWORD_ID_FIELD = "\"encrypted_data_password_id\":";
+    private static final String ENCRYPTED_DATA_FIELD = "\"encrypted_data\":";
+    private static final String PASSWORD_FIELD = "\"password\":";
+    private static final String PASSWORD_ID_FIELD = "\"password_id\":";
 
     public void testWireRoundTrip() throws IOException {
         SnapshotLifecyclePolicy policy = randomPolicyWithPassword();
@@ -54,7 +56,7 @@ public class SnapshotLifecyclePolicyEncryptedPasswordTests extends ESTestCase {
 
     public void testEncryptedPasswordDroppedBeforeItsTransportVersion() throws IOException {
         SnapshotLifecyclePolicy policy = randomPolicyWithPassword();
-        TransportVersion before = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("snapshot_encrypted_data_password"));
+        TransportVersion before = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("snapshot_encrypted_data"));
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.setTransportVersion(before);
             policy.writeTo(out);
@@ -89,12 +91,14 @@ public class SnapshotLifecyclePolicyEncryptedPasswordTests extends ESTestCase {
         );
     }
 
-    public void testApiContextOmitsEncryptedPasswordButReturnsItsId() {
+    public void testApiContextOmitsEncryptedPasswordButReturnsTypeAndId() {
         SnapshotLifecyclePolicy policy = randomPolicyWithPassword();
         // default params resolve to the API context
         String api = Strings.toString(policy);
-        assertThat(api, not(containsString(ENCRYPTED_PASSWORD_FIELD)));
-        assertThat(api, containsString(ENCRYPTED_PASSWORD_ID_FIELD));
+        assertThat(api, containsString(ENCRYPTED_DATA_FIELD));
+        assertThat(api, containsString("\"type\":\"password\""));
+        assertThat(api, not(containsString(PASSWORD_FIELD)));
+        assertThat(api, containsString(PASSWORD_ID_FIELD));
         assertThat(api, containsString(policy.getEncryptedPasswordId()));
     }
 
@@ -127,11 +131,11 @@ public class SnapshotLifecyclePolicyEncryptedPasswordTests extends ESTestCase {
             .setModifiedDate(randomNonNegativeLong())
             .build();
 
-        assertThat(Strings.toString(metadata), not(containsString(ENCRYPTED_PASSWORD_FIELD)));
+        assertThat(Strings.toString(metadata), not(containsString(PASSWORD_FIELD)));
 
         XContentBuilder builder = XContentFactory.jsonBuilder();
         metadata.toXContent(builder, persistenceParams());
-        assertThat(Strings.toString(builder), containsString(ENCRYPTED_PASSWORD_FIELD));
+        assertThat(Strings.toString(builder), containsString(PASSWORD_FIELD));
     }
 
     private static ToXContent.Params persistenceParams() {

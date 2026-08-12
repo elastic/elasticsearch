@@ -21,7 +21,7 @@ import java.util.Map;
 public class RestPutSnapshotLifecycleActionTests extends ESTestCase {
 
     /**
-     * The request body may carry a plaintext {@code encrypted_data_password} nested in the policy's {@code config};
+     * The request body may carry a plaintext {@code encrypted_data.password} nested in the policy's {@code config};
      * it must be redacted from the filtered request that the security audit trail logs.
      */
     public void testEncryptionPasswordIsFilteredFromAuditedBody() throws Exception {
@@ -33,7 +33,11 @@ public class RestPutSnapshotLifecycleActionTests extends ESTestCase {
               "config": {
                 "indices": ["data-*"],
                 "include_global_state": true,
-                "encrypted_data_password": "super-secret-snapshot-password"
+                "encrypted_data": {
+                  "type": "password",
+                  "password": "super-secret-snapshot-password",
+                  "password_id": "my-password-id"
+                }
               }
             }""");
         RestRequest request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(body, XContentType.JSON).build();
@@ -44,7 +48,11 @@ public class RestPutSnapshotLifecycleActionTests extends ESTestCase {
         Map<String, Object> map = XContentHelper.convertToMap(filtered.content(), false, XContentType.JSON).v2();
         @SuppressWarnings("unchecked")
         Map<String, Object> config = (Map<String, Object>) map.get("config");
-        assertNull(config.get("encrypted_data_password"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> encryptedData = (Map<String, Object>) config.get("encrypted_data");
+        assertNull(encryptedData.get("password"));
+        assertEquals("password", encryptedData.get("type"));
+        assertEquals("my-password-id", encryptedData.get("password_id"));
         // the rest of the body must survive filtering
         assertEquals("0 30 1 * * ?", map.get("schedule"));
         assertEquals("my_repository", map.get("repository"));

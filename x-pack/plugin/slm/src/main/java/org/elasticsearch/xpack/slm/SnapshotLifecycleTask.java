@@ -35,6 +35,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.snapshots.RegisteredPolicySnapshots;
 import org.elasticsearch.snapshots.RegisteredPolicySnapshots.PolicySnapshot;
+import org.elasticsearch.snapshots.SnapshotEncryptedData;
 import org.elasticsearch.snapshots.SnapshotException;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
@@ -365,8 +366,12 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
         }
         byte[] plaintextBytes = EncryptionServiceRegistry.getEncryptionService().decrypt(encryptedPassword);
         try {
-            request.encryptedDataPassword(new SecureString(new String(plaintextBytes, StandardCharsets.UTF_8).toCharArray()));
-            request.encryptedDataPasswordId(policy.getEncryptedPasswordId());
+            request.encryptedData(
+                new SnapshotEncryptedData(
+                    new SecureString(new String(plaintextBytes, StandardCharsets.UTF_8).toCharArray()),
+                    policy.getEncryptedPasswordId()
+                )
+            );
         } finally {
             Arrays.fill(plaintextBytes, (byte) 0);
         }

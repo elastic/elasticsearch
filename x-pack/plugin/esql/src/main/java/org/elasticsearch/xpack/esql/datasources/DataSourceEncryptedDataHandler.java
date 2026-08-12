@@ -60,33 +60,33 @@ public final class DataSourceEncryptedDataHandler implements EncryptedDataHandle
 
     @Override
     public DataSourceMetadata reEncrypt(DataSourceMetadata current, UnaryOperator<EncryptedData> rewrap) {
-        if (current.dataSources().isEmpty()) {
-            return current;
-        }
-        Map<String, DataSource> rebuiltSources = new HashMap<>(current.dataSources().size());
+        Map<String, DataSource> rebuilt = new HashMap<>(current.dataSources().size());
         boolean changed = false;
-        for (Map.Entry<String, DataSource> sourceEntry : current.dataSources().entrySet()) {
-            DataSource dataSource = sourceEntry.getValue();
-            Map<String, DataSourceSetting> rebuiltSettings = new HashMap<>(dataSource.settings().size());
-            boolean sourceChanged = false;
-            for (Map.Entry<String, DataSourceSetting> entry : dataSource.settings()) {
-                DataSourceSetting setting = entry.getValue();
-                if (setting.isEncrypted()) {
-                    EncryptedData existing = (EncryptedData) setting.rawValue();
-                    EncryptedData rewrapped = rewrap.apply(existing);
-                    if (rewrapped != existing) {
-                        setting = new DataSourceSetting(rewrapped, true);
-                        sourceChanged = true;
-                    }
-                }
-                rebuiltSettings.put(entry.getKey(), setting);
-            }
-            rebuiltSources.put(
-                sourceEntry.getKey(),
-                sourceChanged ? new DataSource(dataSource.name(), dataSource.type(), dataSource.description(), rebuiltSettings) : dataSource
-            );
-            changed |= sourceChanged;
+        for (Map.Entry<String, DataSource> entry : current.dataSources().entrySet()) {
+            DataSource dataSource = reEncrypt(entry.getValue(), rewrap);
+            rebuilt.put(entry.getKey(), dataSource);
+            changed |= dataSource != entry.getValue();
         }
-        return changed ? new DataSourceMetadata(rebuiltSources) : current;
+        return changed ? new DataSourceMetadata(rebuilt) : current;
+    }
+
+    private static DataSource reEncrypt(DataSource dataSource, UnaryOperator<EncryptedData> rewrap) {
+        Map<String, DataSourceSetting> rebuilt = new HashMap<>(dataSource.settings().size());
+        boolean changed = false;
+        for (Map.Entry<String, DataSourceSetting> entry : dataSource.settings()) {
+            DataSourceSetting setting = reEncrypt(entry.getValue(), rewrap);
+            rebuilt.put(entry.getKey(), setting);
+            changed |= setting != entry.getValue();
+        }
+        return changed ? new DataSource(dataSource.name(), dataSource.type(), dataSource.description(), rebuilt) : dataSource;
+    }
+
+    private static DataSourceSetting reEncrypt(DataSourceSetting setting, UnaryOperator<EncryptedData> rewrap) {
+        if (setting.isEncrypted() == false) {
+            return setting;
+        }
+        EncryptedData existing = (EncryptedData) setting.rawValue();
+        EncryptedData rewrapped = rewrap.apply(existing);
+        return rewrapped == existing ? setting : new DataSourceSetting(rewrapped, true);
     }
 }

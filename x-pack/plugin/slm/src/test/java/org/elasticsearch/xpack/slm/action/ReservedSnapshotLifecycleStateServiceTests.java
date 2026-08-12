@@ -43,9 +43,12 @@ import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadataTests;
 import org.elasticsearch.xpack.core.slm.action.DeleteSnapshotLifecycleAction;
 import org.elasticsearch.xpack.core.slm.action.PutSnapshotLifecycleAction;
+import org.elasticsearch.xpack.encryption.spi.EncryptionServiceRegistry;
+import org.elasticsearch.xpack.slm.IdentityEncryptionService;
 import org.junit.Assert;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -115,6 +118,51 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
             expectThrows(IllegalArgumentException.class, () -> processJSON(action, prevState, badPolicyJSON)).getMessage(),
             is("Required [schedule]")
         );
+    }
+
+    /**
+     * The reserved (file-based settings) path bypasses the transport action's masterOperation, so it must apply the
+     * same strip-and-encrypt to {@code config.encrypted_data}: the stored policy may never carry the plaintext
+     * password in its config, from where it would also leak into the {@code .slm-history-*} index.
+     */
+    public void testEncryptedDataIsStrippedAndEncrypted() throws Exception {
+        EncryptionServiceRegistry.setEncryptionService(IdentityEncryptionService.INSTANCE);
+        try {
+            Metadata.Builder mdBuilder = Metadata.builder();
+            mdBuilder.putCustom(
+                RepositoriesMetadata.TYPE,
+                new RepositoriesMetadata(List.of(new RepositoryMetadata("repo", "fs", Settings.EMPTY)))
+            );
+            ClusterState state = ClusterState.builder(new ClusterName("elasticsearch")).metadata(mdBuilder).build();
+
+            String policyJSON = """
+                {
+                  "daily-snapshots": {
+                    "schedule": "0 1 2 3 4 ?",
+                    "name": "<production-snap-{now/d}>",
+                    "repository": "repo",
+                    "config": {
+                      "indices": ["foo-*"],
+                      "encrypted_data": {
+                        "type": "password",
+                        "password": "a-perfectly-valid-password",
+                        "password_id": "my-password-id"
+                      }
+                    }
+                  }
+                }""";
+
+            TransformState updatedState = processJSON(new ReservedSnapshotAction(), new TransformState(state, Set.of()), policyJSON);
+
+            SnapshotLifecycleMetadata slmMetadata = updatedState.state().metadata().getProject().custom(SnapshotLifecycleMetadata.TYPE);
+            SnapshotLifecyclePolicy stored = slmMetadata.getSnapshotConfigurations().get("daily-snapshots").getPolicy();
+            assertNull(stored.getConfig().get("encrypted_data"));
+            assertNotNull(stored.getEncryptedPassword());
+            assertEquals("a-perfectly-valid-password", new String(stored.getEncryptedPassword().payload(), StandardCharsets.UTF_8));
+            assertEquals("my-password-id", stored.getEncryptedPasswordId());
+        } finally {
+            EncryptionServiceRegistry.reset();
+        }
     }
 
     public void testActionAddRemove() throws Exception {

@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.snapshots.SnapshotEncryptedData;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.xcontent.ToXContent;
@@ -101,7 +102,7 @@ public class EncryptingSnapshotGlobalStateTransformerTests extends ESTestCase {
         Metadata metadata = metadataWith(new TestSecretCustom(encryptionService.encrypt(PLAINTEXT), Metadata.ALL_CONTEXTS));
 
         String warning = "Encrypted data exists but no password was provided; it was excluded from the snapshot. "
-            + "Set encrypted_data_password to include it.";
+            + "Provide encrypted_data to include it.";
         Metadata[] transformed = new Metadata[1];
         MockLog.assertThatLogger(
             () -> transformed[0] = transformer.transformForSnapshot(ProjectId.DEFAULT, metadata, createRequest(null)),
@@ -128,7 +129,7 @@ public class EncryptingSnapshotGlobalStateTransformerTests extends ESTestCase {
             () -> transformer.transformForSnapshot(ProjectId.DEFAULT, metadata, createRequest(null))
         );
         assertThat(e.getMessage(), containsString("snapshot.encrypted_data.required"));
-        assertThat(e.getMessage(), containsString("encrypted_data_password"));
+        assertThat(e.getMessage(), containsString("no encrypted_data was provided"));
     }
 
     public void testStrictModeIsInertWithPasswordOrWithoutEncryptedData() {
@@ -192,7 +193,7 @@ public class EncryptingSnapshotGlobalStateTransformerTests extends ESTestCase {
                 EncryptingSnapshotGlobalStateTransformer.class.getCanonicalName(),
                 Level.WARN,
                 "Encrypted data exists but no password was provided; it was excluded when restoring the snapshot. "
-                    + "Set encrypted_data_password to include it."
+                    + "Provide encrypted_data to include it."
             )
         );
 
@@ -221,7 +222,7 @@ public class EncryptingSnapshotGlobalStateTransformerTests extends ESTestCase {
                 "unused password warning",
                 EncryptingSnapshotGlobalStateTransformer.class.getCanonicalName(),
                 Level.WARN,
-                "an encrypted_data_password was provided but the restored global state contains no encrypted data"
+                "encrypted_data was provided but the restored global state contains no encrypted data"
             )
         );
         assertThat(transformed[0], sameInstance(restored));
@@ -247,11 +248,15 @@ public class EncryptingSnapshotGlobalStateTransformerTests extends ESTestCase {
     }
 
     private static CreateSnapshotRequest createRequest(@Nullable SecureString password) {
-        return new CreateSnapshotRequest(TEST_REQUEST_TIMEOUT, "repo", "snap").encryptedDataPassword(password);
+        return new CreateSnapshotRequest(TEST_REQUEST_TIMEOUT, "repo", "snap").encryptedData(
+            password == null ? null : new SnapshotEncryptedData(password, null)
+        );
     }
 
     private static RestoreSnapshotRequest restoreRequest(@Nullable SecureString password) {
-        return new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, "repo", "snap").encryptedDataPassword(password);
+        return new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, "repo", "snap").encryptedData(
+            password == null ? null : new SnapshotEncryptedData(password, null)
+        );
     }
 
     private static Metadata metadataWith(TestSecretCustom custom) {

@@ -1005,10 +1005,10 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 }
                 final Metadata metaForSnapshot = transformedMetadata;
                 // a transformed state (transformers return the same instance when untouched, see SnapshotGlobalStateTransformer)
-                // is password-protected only when the request carried a password; without one the transformation excluded data
-                final boolean hasEncryptedData = createRequest != null
-                    && createRequest.encryptedDataPassword() != null
-                    && metaForSnapshot != untransformedMetadata;
+                // is protected only when the request carried encrypted_data; without it the transformation excluded the data
+                final SnapshotEncryptedData encryptedData = createRequest != null
+                    && createRequest.encryptedData() != null
+                    && metaForSnapshot != untransformedMetadata ? createRequest.encryptedData() : null;
 
                 final Map<String, SnapshotInfo.IndexSnapshotDetails> indexSnapshotDetails = Maps.newMapWithExpectedSize(
                     finalIndices.size()
@@ -1058,7 +1058,10 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                     entry.userMetadata(),
                     entry.startTime(),
                     indexSnapshotDetails
-                ).withEncryptedData(hasEncryptedData, hasEncryptedData ? createRequest.encryptedDataPasswordId() : null);
+                ).withEncryptedData(
+                    encryptedData == null ? null : encryptedData.type(),
+                    encryptedData == null ? null : encryptedData.passwordId()
+                );
                 assert snapshotInfo.state() != null;
                 final boolean snapshotInfoStateInvariant = getSnapshotInfoStateInvariant(snapshotInfo);
                 final ListenableFuture<List<ActionListener<SnapshotInfo>>> snapshotListeners = new ListenableFuture<>();

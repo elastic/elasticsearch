@@ -23,7 +23,7 @@ import java.util.Map;
 public class RestRestoreSnapshotActionTests extends ESTestCase {
 
     /**
-     * The request body may carry a plaintext {@code encrypted_data_password}; it must be redacted from the filtered
+     * The request body may carry a plaintext {@code encrypted_data.password}; it must be redacted from the filtered
      * request that the security audit trail logs when {@code emit_request_body} is enabled.
      */
     public void testEncryptedDataPasswordIsFilteredFromAuditedBody() throws Exception {
@@ -31,7 +31,10 @@ public class RestRestoreSnapshotActionTests extends ESTestCase {
             {
               "indices": ["data-*"],
               "include_global_state": true,
-              "encrypted_data_password": "super-secret-snapshot-password"
+              "encrypted_data": {
+                "type": "password",
+                "password": "super-secret-snapshot-password"
+              }
             }""");
         RestRequest request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(body, XContentType.JSON).build();
 
@@ -39,7 +42,10 @@ public class RestRestoreSnapshotActionTests extends ESTestCase {
 
         assertNotEquals(body, filtered.content());
         Map<String, Object> map = XContentHelper.convertToMap(filtered.content(), false, XContentType.JSON).v2();
-        assertNull(map.get("encrypted_data_password"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> encryptedData = (Map<String, Object>) map.get("encrypted_data");
+        assertNull(encryptedData.get("password"));
+        assertEquals("password", encryptedData.get("type"));
         assertEquals(true, map.get("include_global_state"));
         assertFalse(filtered.content().utf8ToString().contains("super-secret-snapshot-password"));
     }

@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -132,6 +133,30 @@ public class SnapshotHistoryItemTests extends AbstractXContentSerializingTestCas
             );
             default -> throw new IllegalArgumentException("illegal randomization: " + branch);
         };
+    }
+
+    /**
+     * History items are indexed into {@code .slm-history-*}; the recorded config must never contain the
+     * {@code encrypted_data} object, whatever the policy carries.
+     */
+    public void testEncryptedDataIsOmittedFromRecordedConfig() throws IOException {
+        Map<String, Object> config = new HashMap<>();
+        config.put("indices", "data-*");
+        config.put("encrypted_data", Map.of("type", "password", "password", "a-perfectly-valid-password", "password_id", "my-id"));
+        SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy("policy", "snap", "0 30 1 * * ?", "repo", config, null);
+
+        SnapshotHistoryItem success = SnapshotHistoryItem.creationSuccessRecord(randomNonNegativeLong(), policy, "snap-1");
+        SnapshotHistoryItem failure = SnapshotHistoryItem.creationFailureRecord(
+            randomNonNegativeLong(),
+            policy,
+            "snap-1",
+            new RuntimeException("boom")
+        );
+
+        for (SnapshotHistoryItem item : Arrays.asList(success, failure)) {
+            assertFalse(item.getSnapshotConfiguration().containsKey("encrypted_data"));
+            assertEquals("data-*", item.getSnapshotConfiguration().get("indices"));
+        }
     }
 
     public static Map<String, Object> randomSnapshotConfiguration() {

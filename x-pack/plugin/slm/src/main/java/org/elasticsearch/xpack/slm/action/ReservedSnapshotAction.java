@@ -51,13 +51,15 @@ public class ReservedSnapshotAction implements ReservedClusterStateHandler<List<
         List<Exception> exceptions = new ArrayList<>();
 
         for (var policy : policies) {
-            PutSnapshotLifecycleAction.Request request = new PutSnapshotLifecycleAction.Request(
-                RESERVED_CLUSTER_STATE_HANDLER_IGNORED_TIMEOUT,
-                RESERVED_CLUSTER_STATE_HANDLER_IGNORED_TIMEOUT,
-                policy.getId(),
-                policy
-            );
             try {
+                // strip and PEK-encrypt any encrypted_data in the config, exactly like the transport action does for
+                // API puts; without this a file-based policy would carry its plaintext password into cluster state
+                PutSnapshotLifecycleAction.Request request = new PutSnapshotLifecycleAction.Request(
+                    RESERVED_CLUSTER_STATE_HANDLER_IGNORED_TIMEOUT,
+                    RESERVED_CLUSTER_STATE_HANDLER_IGNORED_TIMEOUT,
+                    policy.getId(),
+                    TransportPutSnapshotLifecycleAction.encryptPasswordIfPresent(policy)
+                );
                 validate(request);
                 SnapshotLifecycleService.validateRepositoryExists(request.getLifecycle().getRepository(), state);
                 SnapshotLifecycleService.validateMinimumInterval(request.getLifecycle(), state);

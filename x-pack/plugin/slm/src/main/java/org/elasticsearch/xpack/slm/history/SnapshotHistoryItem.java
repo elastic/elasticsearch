@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
 import org.elasticsearch.xpack.slm.SnapshotLifecycleTask;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -122,7 +123,7 @@ public class SnapshotHistoryItem implements Writeable, ToXContentObject {
             snapshotName,
             CREATE_OPERATION,
             true,
-            policy.getConfig(),
+            withoutEncryptedData(policy.getConfig()),
             null
         );
     }
@@ -141,9 +142,22 @@ public class SnapshotHistoryItem implements Writeable, ToXContentObject {
             snapshotName,
             CREATE_OPERATION,
             false,
-            policy.getConfig(),
+            withoutEncryptedData(policy.getConfig()),
             exceptionString
         );
+    }
+
+    /**
+     * The recorded config is written to the {@code .slm-history-*} index; a stored policy never carries
+     * {@code encrypted_data} in its config, but strip it defensively so its password can never reach the index.
+     */
+    private static Map<String, Object> withoutEncryptedData(@Nullable Map<String, Object> config) {
+        if (config == null || config.containsKey("encrypted_data") == false) {
+            return config;
+        }
+        Map<String, Object> filtered = new HashMap<>(config);
+        filtered.remove("encrypted_data");
+        return filtered;
     }
 
     public static SnapshotHistoryItem deletionSuccessRecord(long timestamp, String snapshotName, String policyId, String repository) {

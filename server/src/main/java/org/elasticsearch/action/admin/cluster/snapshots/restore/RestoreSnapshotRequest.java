@@ -17,10 +17,10 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.snapshots.SnapshotEncryptedData;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -44,7 +44,7 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBo
 public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotRequest> implements ToXContentObject {
 
     private static final int MIN_PASSWORD_LENGTH = 15;
-    private static final TransportVersion SNAPSHOT_ENCRYPTED_DATA_PASSWORD = TransportVersion.fromName("snapshot_encrypted_data_password");
+    private static final TransportVersion SNAPSHOT_ENCRYPTED_DATA = TransportVersion.fromName("snapshot_encrypted_data");
 
     private String snapshot;
     private String repository;
@@ -68,7 +68,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
     private String snapshotUuid;
 
     @Nullable
-    private SecureString encryptedDataPassword;
+    private SnapshotEncryptedData encryptedData;
 
     public RestoreSnapshotRequest(TimeValue masterNodeTimeout) {
         super(masterNodeTimeout);
@@ -103,8 +103,8 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         indexSettings = readSettingsFromStream(in);
         ignoreIndexSettings = in.readStringArray();
         snapshotUuid = in.readOptionalString();
-        if (in.getTransportVersion().supports(SNAPSHOT_ENCRYPTED_DATA_PASSWORD)) {
-            encryptedDataPassword = in.readOptionalSecureString();
+        if (in.getTransportVersion().supports(SNAPSHOT_ENCRYPTED_DATA)) {
+            encryptedData = in.readOptionalWriteable(SnapshotEncryptedData::new);
         }
     }
 
@@ -126,8 +126,8 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         indexSettings.writeTo(out);
         out.writeStringArray(ignoreIndexSettings);
         out.writeOptionalString(snapshotUuid);
-        if (out.getTransportVersion().supports(SNAPSHOT_ENCRYPTED_DATA_PASSWORD)) {
-            out.writeOptionalSecureString(encryptedDataPassword);
+        if (out.getTransportVersion().supports(SNAPSHOT_ENCRYPTED_DATA)) {
+            out.writeOptionalWriteable(encryptedData);
         }
     }
 
@@ -180,9 +180,9 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         if (ignoreIndexSettings == null) {
             validationException = addValidationError("ignoreIndexSettings are missing", validationException);
         }
-        if (encryptedDataPassword != null && encryptedDataPassword.length() < MIN_PASSWORD_LENGTH) {
+        if (encryptedData != null && encryptedData.password().length() < MIN_PASSWORD_LENGTH) {
             validationException = addValidationError(
-                "encrypted_data_password must be at least " + MIN_PASSWORD_LENGTH + " characters",
+                "encrypted_data.password must be at least " + MIN_PASSWORD_LENGTH + " characters",
                 validationException
             );
         }
@@ -606,12 +606,8 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
                 } else {
                     throw new IllegalArgumentException("malformed ignore_index_settings section, should be an array of strings");
                 }
-            } else if (name.equals("encrypted_data_password")) {
-                if (entry.getValue() instanceof String s) {
-                    encryptedDataPassword = new SecureString(s.toCharArray());
-                } else {
-                    throw new IllegalArgumentException("malformed encrypted_data_password, should be a string");
-                }
+            } else if (name.equals("encrypted_data")) {
+                encryptedData = SnapshotEncryptedData.fromMap(entry.getValue());
             } else {
                 if (IndicesOptions.isIndicesOptions(name) == false) {
                     throw new IllegalArgumentException("Unknown parameter " + name);
@@ -623,18 +619,18 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
     }
 
     /**
-     * @return the encryption password for decrypting snapshot customs data, or {@code null} if none was provided
+     * @return how the snapshot's encrypted data is protected, or {@code null} to skip restoring it
      */
     @Nullable
-    public SecureString encryptedDataPassword() {
-        return encryptedDataPassword;
+    public SnapshotEncryptedData encryptedData() {
+        return encryptedData;
     }
 
     /**
-     * @param encryptedDataPassword the password used to decrypt snapshot customs data on restore
+     * @param encryptedData supplies the password protecting the snapshot's encrypted data so it can be restored
      */
-    public RestoreSnapshotRequest encryptedDataPassword(@Nullable SecureString encryptedDataPassword) {
-        this.encryptedDataPassword = encryptedDataPassword;
+    public RestoreSnapshotRequest encryptedData(@Nullable SnapshotEncryptedData encryptedData) {
+        this.encryptedData = encryptedData;
         return this;
     }
 
@@ -699,7 +695,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
             && Arrays.equals(ignoreIndexSettings, that.ignoreIndexSettings)
             && Objects.equals(snapshotUuid, that.snapshotUuid)
             && skipOperatorOnlyState == that.skipOperatorOnlyState
-            && Objects.equals(encryptedDataPassword, that.encryptedDataPassword);
+            && Objects.equals(encryptedData, that.encryptedData);
     }
 
     @Override
@@ -718,7 +714,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
             indexSettings,
             snapshotUuid,
             skipOperatorOnlyState,
-            encryptedDataPassword
+            encryptedData
         );
         result = 31 * result + Arrays.hashCode(indices);
         result = 31 * result + Arrays.hashCode(ignoreIndexSettings);

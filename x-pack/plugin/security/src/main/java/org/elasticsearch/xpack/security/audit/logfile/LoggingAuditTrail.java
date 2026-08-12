@@ -1606,6 +1606,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
 
         LogEntryBuilder withRequestBody(PutSnapshotLifecycleAction.Request putSLMRequest) throws IOException {
             logEntry.with(EVENT_ACTION_FIELD_NAME, "put_snapshot_lifecycle_policy");
+            final Map<String, Object> config = putSLMRequest.getLifecycle().getConfig();
             XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
             builder.startObject()
                 .startObject("snapshot_lifecycle_policy")
@@ -1613,8 +1614,16 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 .field("name", putSLMRequest.getLifecycle().getName())
                 .field("schedule", putSLMRequest.getLifecycle().getSchedule())
                 .field("repository", putSLMRequest.getLifecycle().getRepository())
-                .endObject() // snapshot_lifecycle_policy
-                .endObject();
+                .field("has_encrypted_data", config != null && config.containsKey("encrypted_data"));
+            if (config != null && config.get("encrypted_data") instanceof Map<?, ?> encryptedDataMap) {
+                if (encryptedDataMap.get("type") instanceof String type) {
+                    builder.field("encrypted_data_type", type);
+                }
+                if (encryptedDataMap.get("password_id") instanceof String passwordId) {
+                    builder.field("encrypted_data_password_id", passwordId);
+                }
+            }
+            builder.endObject().endObject();
             logEntry.with(PUT_CONFIG_FIELD_NAME, Strings.toString(builder));
             return this;
         }

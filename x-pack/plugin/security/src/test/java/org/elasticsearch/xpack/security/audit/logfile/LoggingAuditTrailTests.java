@@ -1562,12 +1562,21 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final Authentication authentication = createAuthentication();
 
         final String policyId = randomAlphaOfLengthBetween(3, 8);
+        final boolean hasPassword = randomBoolean();
+        final Map<String, Object> config = hasPassword
+            ? Map.of(
+                "indices",
+                "data-*",
+                "encrypted_data",
+                Map.of("type", "password", "password", "super-secret-snapshot-password", "password_id", "my-password-id")
+            )
+            : Map.of("indices", "data-*");
         final SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy(
             policyId,
             "<daily-snap-{now/d}>",
             "0 30 1 * * ?",
             "my_repository",
-            Map.of("indices", "data-*", "encrypted_data_password", "super-secret-snapshot-password"),
+            config,
             null
         );
         final PutSnapshotLifecycleAction.Request putSLMRequest = new PutSnapshotLifecycleAction.Request(
@@ -1582,13 +1591,18 @@ public class LoggingAuditTrailTests extends ESTestCase {
         assertThat(output.size(), is(2));
         String generatedPutPolicyAuditEventString = output.get(1);
 
-        final String expectedPutPolicyAuditEventString = Strings.format("""
-            "put":{"snapshot_lifecycle_policy":{"id":"%s","name":"<daily-snap-{now/d}>","schedule":"0 30 1 * * ?",\
-            "repository":"my_repository"}}""", policyId);
+        final String expectedPutPolicyAuditEventString = Strings.format(
+            """
+                "put":{"snapshot_lifecycle_policy":{"id":"%s","name":"<daily-snap-{now/d}>","schedule":"0 30 1 * * ?",\
+                "repository":"my_repository","has_encrypted_data":%s%s}}""",
+            policyId,
+            hasPassword,
+            hasPassword ? ",\"encrypted_data_type\":\"password\",\"encrypted_data_password_id\":\"my-password-id\"" : ""
+        );
         assertThat(generatedPutPolicyAuditEventString, containsString(expectedPutPolicyAuditEventString));
-        // the policy config (and with it the encryption password) is deliberately not part of the audit event
-        assertThat(generatedPutPolicyAuditEventString, not(containsString("encrypted_data_password")));
+        // the audit event carries the object's presence, type, and password id, but never the password or the rest of the config
         assertThat(generatedPutPolicyAuditEventString, not(containsString("super-secret-snapshot-password")));
+        assertThat(generatedPutPolicyAuditEventString, not(containsString("indices")));
         generatedPutPolicyAuditEventString = generatedPutPolicyAuditEventString.replace(", " + expectedPutPolicyAuditEventString, "");
         Map<String, String> checkedFields = new HashMap<>(commonFields);
         checkedFields.remove(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME);

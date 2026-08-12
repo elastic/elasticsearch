@@ -57,6 +57,8 @@ public class SnapshotInfoTestUtils {
 
         final Map<String, SnapshotInfo.IndexSnapshotDetails> indexSnapshotDetails = randomIndexSnapshotDetails();
 
+        final String encryptedDataType = randomBoolean() ? null : SnapshotEncryptedData.TYPE_PASSWORD;
+
         return new SnapshotInfo(
             snapshot,
             indices,
@@ -70,7 +72,7 @@ public class SnapshotInfoTestUtils {
             userMetadata,
             startTime,
             indexSnapshotDetails
-        ).withEncryptedData(randomBoolean(), randomBoolean() ? null : randomAlphaOfLengthBetween(3, 10));
+        ).withEncryptedData(encryptedDataType, encryptedDataType == null || randomBoolean() ? null : randomAlphaOfLengthBetween(3, 10));
     }
 
     public static Map<String, SnapshotInfo.IndexSnapshotDetails> randomIndexSnapshotDetails() {
@@ -138,16 +140,19 @@ public class SnapshotInfoTestUtils {
     static SnapshotInfo mutateSnapshotInfo(SnapshotInfo instance) {
         switch (randomIntBetween(0, 12)) {
             case 11:
-                return instance.withEncryptedData(instance.hasEncryptedData() == false, instance.encryptedDataPasswordId());
+                return instance.withEncryptedData(
+                    instance.encryptedDataType() == null ? SnapshotEncryptedData.TYPE_PASSWORD : null,
+                    instance.encryptedDataPasswordId()
+                );
             case 12:
                 return instance.withEncryptedData(
-                    instance.hasEncryptedData(),
+                    instance.encryptedDataType(),
                     randomValueOtherThan(instance.encryptedDataPasswordId(), () -> randomAlphaOfLengthBetween(3, 10))
                 );
             default:
                 // the cases below rebuild through the constructor that defaults the encrypted data fields, so carry them over
                 return mutateSnapshotInfoExceptEncryptedData(instance).withEncryptedData(
-                    instance.hasEncryptedData(),
+                    instance.encryptedDataType(),
                     instance.encryptedDataPasswordId()
                 );
         }

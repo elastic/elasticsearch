@@ -46,7 +46,7 @@ public final class EncryptingSnapshotGlobalStateTransformer implements SnapshotG
 
     /**
      * When {@code true}, creating a snapshot whose global state contains encrypted data fails unless the request
-     * carries an {@code encrypted_data_password}. When {@code false} (the default) such data is silently excluded
+     * carries an {@code encrypted_data} object. When {@code false} (the default) such data is silently excluded
      * from the snapshot, with a log and deprecation warning. Inert for clusters without encrypted data.
      */
     public static final Setting<Boolean> ENCRYPTED_DATA_REQUIRED_SETTING = Setting.boolSetting(
@@ -59,9 +59,8 @@ public final class EncryptingSnapshotGlobalStateTransformer implements SnapshotG
     private static final Logger logger = LogManager.getLogger(EncryptingSnapshotGlobalStateTransformer.class);
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(EncryptingSnapshotGlobalStateTransformer.class);
 
-    private static final String NO_PASSWORD_WARNING =
-        "Encrypted data exists but no password was provided; it was excluded from the snapshot. "
-            + "Set encrypted_data_password to include it.";
+    private static final String NO_PASSWORD_WARNING = "Encrypted data exists but no password was provided; "
+        + "it was excluded from the snapshot. Provide encrypted_data to include it.";
 
     // instantiated via SPI without constructor dependencies, so the dynamic setting is published into a static slot
     private static volatile boolean encryptedDataRequired = ENCRYPTED_DATA_REQUIRED_SETTING.getDefault(Settings.EMPTY);
@@ -77,7 +76,7 @@ public final class EncryptingSnapshotGlobalStateTransformer implements SnapshotG
     public Metadata transformForSnapshot(ProjectId projectId, Metadata metadata, @Nullable CreateSnapshotRequest request) {
         final ProjectMetadata project = metadata.getProject(projectId);
         final var encryptionService = EncryptionServiceRegistry.getEncryptionService();
-        final SecureString secret = request == null ? null : request.encryptedDataPassword();
+        final SecureString secret = request == null || request.encryptedData() == null ? null : request.encryptedData().password();
 
         final Map<String, Metadata.ProjectCustom> transformed = new HashMap<>();
         for (EncryptedDataHandler<?> rawHandler : EncryptedDataHandlerRegistry.getInstance().handlers()) {
@@ -108,14 +107,14 @@ public final class EncryptingSnapshotGlobalStateTransformer implements SnapshotG
                 throw new IllegalArgumentException(
                     "cannot create snapshot: the cluster contains encrypted data, ["
                         + ENCRYPTED_DATA_REQUIRED_SETTING.getKey()
-                        + "] is set to [true], and no encrypted_data_password was provided"
+                        + "] is set to [true], and no encrypted_data was provided"
                 );
             }
             logger.warn(NO_PASSWORD_WARNING);
-            deprecationLogger.warn(DeprecationCategory.OTHER, "snapshot_encrypted_data_password_missing", NO_PASSWORD_WARNING);
+            deprecationLogger.warn(DeprecationCategory.OTHER, "snapshot_encrypted_data_missing", NO_PASSWORD_WARNING);
         }
         if (secret != null && transformed.isEmpty()) {
-            logger.warn("an encrypted_data_password was provided but the snapshot global state contains no encrypted data");
+            logger.warn("encrypted_data was provided but the snapshot global state contains no encrypted data");
         }
         return transformed.isEmpty() ? metadata : withReplacedCustoms(metadata, project, transformed);
     }
@@ -125,7 +124,7 @@ public final class EncryptingSnapshotGlobalStateTransformer implements SnapshotG
     public Metadata transformForRestore(ProjectId projectId, Metadata restored, RestoreSnapshotRequest request) {
         final ProjectMetadata project = restored.getProject(projectId);
         final var encryptionService = EncryptionServiceRegistry.getEncryptionService();
-        final SecureString secret = request.encryptedDataPassword();
+        final SecureString secret = request.encryptedData() == null ? null : request.encryptedData().password();
 
         final boolean[] excludedForMissingPassword = new boolean[1];
         final Map<String, Metadata.ProjectCustom> rewrapped = new HashMap<>();
@@ -164,11 +163,11 @@ public final class EncryptingSnapshotGlobalStateTransformer implements SnapshotG
         if (excludedForMissingPassword[0]) {
             logger.warn(
                 "Encrypted data exists but no password was provided; it was excluded when restoring the snapshot. "
-                    + "Set encrypted_data_password to include it."
+                    + "Provide encrypted_data to include it."
             );
         }
         if (secret != null && rewrapped.isEmpty()) {
-            logger.warn("an encrypted_data_password was provided but the restored global state contains no encrypted data");
+            logger.warn("encrypted_data was provided but the restored global state contains no encrypted data");
         }
         return rewrapped.isEmpty() ? restored : withReplacedCustoms(restored, project, rewrapped);
     }

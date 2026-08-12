@@ -32,7 +32,7 @@ import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 @ServerlessScope(Scope.INTERNAL)
 public class RestCreateSnapshotAction extends BaseRestHandler implements RestRequestFilter {
 
-    private static final Set<String> FILTERED_FIELDS = Set.of("encrypted_data_password");
+    private static final Set<String> FILTERED_FIELDS = Set.of("encrypted_data.password");
 
     @Override
     public List<Route> routes() {

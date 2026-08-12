@@ -90,10 +90,23 @@ public class IndexBlobStoreCacheDirectory extends BlobStoreCacheDirectory {
         LongAdder bytesReadAdder,
         BlobCacheMetrics.CachePopulationReason cachePopulationReason
     ) {
-        return (bytesRead, readTimeNanos) -> {
-            bytesReadAdder.add(bytesRead);
-            cacheService.getBlobCacheMetrics()
-                .recordCachePopulationMetrics(fileName, bytesRead, readTimeNanos, cachePopulationReason, CachePopulationSource.BlobStore);
+        return new MeteringCacheBlobReader.ReadCompleteCallback() {
+            @Override
+            public void onBytesRead(int bytesRead) {
+                bytesReadAdder.add(bytesRead);
+            }
+
+            @Override
+            public void onCopyCompleted(int totalBytesRead, long timeNanos) {
+                cacheService.getBlobCacheMetrics()
+                    .recordCachePopulationMetrics(
+                        fileName,
+                        totalBytesRead,
+                        timeNanos,
+                        cachePopulationReason,
+                        CachePopulationSource.BlobStore
+                    );
+            }
         };
     }
 

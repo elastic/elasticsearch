@@ -77,4 +77,15 @@ public interface CacheBlobReader {
     default IntConsumer newBytesCopiedConsumer() {
         return ignored -> {};
     }
+
+    /**
+     * Called once after a full range copy completes, with the total byte count and elapsed wall-clock time
+     * of the {@code copyToCacheFileAligned} call. Intended for throughput-metric recording.
+     * <p>
+     * This is always called after all per-chunk {@link #newBytesCopiedConsumer()} invocations for the same
+     * range, and after the {@link org.elasticsearch.blobcache.common.SparseFileTracker} has advanced — so it
+     * must not be used for byte-counter updates that need to be visible before a waiting reader thread unblocks.
+     * The default implementation is a no-op.
+     */
+    default void onCopyCompleted(int totalBytesRead, long timeNanos) {}
 }

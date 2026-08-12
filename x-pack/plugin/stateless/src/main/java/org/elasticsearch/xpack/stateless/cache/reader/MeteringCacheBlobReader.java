@@ -48,8 +48,6 @@ public class MeteringCacheBlobReader implements CacheBlobReader {
     /**
      * Returns a consumer that increments the byte counter as each chunk lands in the cache, before the
      * {@link org.elasticsearch.blobcache.common.SparseFileTracker} unblocks any waiting reader threads.
-     * This replaces the previous close()-based accounting to eliminate the race between cache-fill completion
-     * and metric collection in {@link org.elasticsearch.xpack.stateless.recovery.metering.StatelessRecoveryMetricsCollector}.
      * Exceptions thrown by the callback are caught and logged at DEBUG to prevent a metrics failure from
      * aborting the cache-fill operation.
      */
@@ -57,24 +55,49 @@ public class MeteringCacheBlobReader implements CacheBlobReader {
     public IntConsumer newBytesCopiedConsumer() {
         return bytes -> {
             try {
-                readCompleteCallback.onReadCompleted(bytes, 0);
+                readCompleteCallback.onBytesRead(bytes);
             } catch (Exception e) {
-                logger.debug("Error calling readCompleteCallback", e);
+                logger.debug("Error calling call-back", e);
             }
         };
     }
 
     /**
-     * Notified as bytes are copied into the shared blob cache, once per chunk, via
-     * {@link #newBytesCopiedConsumer()}.
+     * Records the elapsed time of the full range copy. Called once per range, after all chunks have landed
+     * and after the {@link org.elasticsearch.blobcache.common.SparseFileTracker} has advanced. Safe to call
+     * after the reader has been unblocked because this only affects throughput telemetry, not byte counters.
+     */
+    @Override
+    public void onCopyCompleted(int totalBytesRead, long timeNanos) {
+        try {
+            readCompleteCallback.onCopyCompleted(totalBytesRead, timeNanos);
+        } catch (Exception e) {
+            logger.debug("Error calling timing call-back", e);
+        }
+    }
+
+    /**
+     * Notified as bytes land in the cache (per-chunk) and once when the full range copy completes.
+     * The two methods are called from different points in the copy pipeline; see
+     * {@link MeteringCacheBlobReader#newBytesCopiedConsumer()} and
+     * {@link MeteringCacheBlobReader#onCopyCompleted(int, long)} for the happens-before guarantees.
      */
     public interface ReadCompleteCallback {
         /**
-         * Notify that a chunk of bytes was copied into the cache.
+         * Called once per chunk, before the SparseFileTracker advances. Used for byte-counter updates
+         * that must be visible to reader threads before they are unblocked.
          *
-         * @param bytesRead The number of bytes in the chunk
-         * @param timeToReadNanos Reserved for future timing use; currently always 0
+         * @param bytesRead The number of bytes in this chunk
          */
-        void onReadCompleted(int bytesRead, long timeToReadNanos);
+        default void onBytesRead(int bytesRead) {};
+
+        /**
+         * Called once after the full range copy completes, with the total bytes and wall-clock duration
+         * of the copy. Used for throughput-metric recording.
+         *
+         * @param totalBytesRead Total bytes copied for this range
+         * @param timeNanos      Wall-clock duration of the copy in nanoseconds
+         */
+        default void onCopyCompleted(int totalBytesRead, long timeNanos) {};
     }
 }

@@ -200,12 +200,22 @@ public class SequentialRangeMissingHandler implements SharedBlobCacheService.Ran
                 assert ThreadPool.assertCurrentThreadPool(expectedThreadPoolNames);
                 // bytesCopiedConsumer is invoked for each chunk BEFORE progressUpdater advances the
                 // SparseFileTracker. This guarantees that the byte count is visible to any reader thread
-                // that the SparseFileTracker may unblock
+                // that the SparseFileTracker may unblock, eliminating the race with recovery metrics collection.
                 final IntConsumer earlyCountingProgressUpdater = bytes -> {
                     bytesCopiedConsumer.accept(bytes);
                     progressUpdater.accept(bytes);
                 };
-                SharedBytes.copyToCacheFileAligned(channel, in, channelPos, earlyCountingProgressUpdater, writeBufferSupplier.get());
+                final long copyStartNanos = System.nanoTime();
+                final int totalBytesCopied = SharedBytes.copyToCacheFileAligned(
+                    channel,
+                    in,
+                    channelPos,
+                    earlyCountingProgressUpdater,
+                    writeBufferSupplier.get()
+                );
+                // Report total bytes and elapsed copy time for throughput metrics. Called after all
+                // SparseFileTracker advances so it must not be used for byte-counter updates.
+                cacheBlobReader.onCopyCompleted(totalBytesCopied, System.nanoTime() - copyStartNanos);
                 return null;
             }
         }));

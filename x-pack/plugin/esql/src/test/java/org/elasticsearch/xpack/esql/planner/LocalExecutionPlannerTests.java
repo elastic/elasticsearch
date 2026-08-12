@@ -606,7 +606,10 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             PlannerSettings.DOC_SEQUENCE_BYTES_REF_FIELD_THRESHOLD.getDefault(Settings.EMPTY),
             PlannerSettings.PARALLEL_OPERATOR_PROMOTION_THRESHOLD_ROWS.getDefault(Settings.EMPTY),
             PlannerSettings.PARALLEL_OPERATOR_MAX_WORKERS.getDefault(Settings.EMPTY),
-            PlannerSettings.IN_SUBQUERY_HASH_JOIN_THRESHOLD.getDefault(Settings.EMPTY)
+            PlannerSettings.IN_SUBQUERY_HASH_JOIN_THRESHOLD.getDefault(Settings.EMPTY),
+            PlannerSettings.DEFAULTS.minCompetitiveGlobalMergeEnabled(),
+            PlannerSettings.DEFAULTS.minCompetitiveGlobalMergeBatchPages(),
+            PlannerSettings.DEFAULTS.minCompetitiveSliceOrderByTimestampEnabled()
         );
         LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
             "test",

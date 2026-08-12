@@ -296,7 +296,7 @@ public class PlannerSettings {
 
     public static final Setting<Integer> MIN_COMPETITIVE_GLOBAL_MERGE_BATCH_PAGES = Setting.intSetting(
         "esql.min_competitive.global_merge.batch_pages",
-        4,
+        1,
         1,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic

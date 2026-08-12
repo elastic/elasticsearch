@@ -75,6 +75,14 @@
 #
 # For more information, consult the discovery and cluster formation module documentation.
 #
+#--------------------------- ES|QL QUERY PROCESSING ------------------------------
+#
+# Pilot: optimized TopN over Lucene when sorting by @timestamp (Path B). Defaults:
+#
+#esql.min_competitive.global_merge.enabled: true
+#esql.min_competitive.global_merge.batch_pages: 1
+#esql.min_competitive.slice_order_by_timestamp.enabled: true
+#
 # ---------------------------------- Various -----------------------------------
 #
 # Allow wildcard deletion of indices:

@@ -35,6 +35,36 @@ public class PlannerSettingsTests extends ESTestCase {
         assertThat(registeredKeys, hasItems(PlannerSettings.TIME_SERIES_TARGET_CHUNK_ROWS.getKey()));
     }
 
+    public void testMinCompetitiveDefaults() {
+        assertThat(PlannerSettings.DEFAULTS.minCompetitiveGlobalMergeEnabled(), equalTo(true));
+        assertThat(PlannerSettings.DEFAULTS.minCompetitiveGlobalMergeBatchPages(), equalTo(1));
+        assertThat(PlannerSettings.DEFAULTS.minCompetitiveSliceOrderByTimestampEnabled(), equalTo(true));
+    }
+
+    public void testMinCompetitiveSettingsAreRegistered() {
+        var registeredKeys = PlannerSettings.settings().stream().map(Setting::getKey).toList();
+        assertThat(
+            registeredKeys,
+            hasItems(
+                PlannerSettings.MIN_COMPETITIVE_GLOBAL_MERGE_ENABLED.getKey(),
+                PlannerSettings.MIN_COMPETITIVE_GLOBAL_MERGE_BATCH_PAGES.getKey(),
+                PlannerSettings.MIN_COMPETITIVE_SLICE_ORDER_BY_TIMESTAMP.getKey()
+            )
+        );
+    }
+
+    public void testMinCompetitiveGlobalMergeBatchPagesIsDynamic() {
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(PlannerSettings.settings()));
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+        PlannerSettings.Holder holder = new PlannerSettings.Holder(clusterService);
+
+        assertThat(holder.get().minCompetitiveGlobalMergeBatchPages(), equalTo(1));
+
+        clusterSettings.applySettings(Settings.builder().put(PlannerSettings.MIN_COMPETITIVE_GLOBAL_MERGE_BATCH_PAGES.getKey(), 4).build());
+        assertThat(holder.get().minCompetitiveGlobalMergeBatchPages(), equalTo(4));
+    }
+
     public void testTimeSeriesTargetChunkRowsIsDecoupledFromRegularAggregationSettings() {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(PlannerSettings.settings()));
         // ClusterService is mocked because the Holder only reads getClusterSettings(); standing up a real

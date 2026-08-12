@@ -30,6 +30,7 @@ import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromList;
@@ -632,6 +633,36 @@ public class LuceneSliceQueueTests extends ESTestCase {
         }
     }
 
+    public void testReorderSlicesByTimestampDesc() {
+        var shardContext = new LuceneSourceOperatorTests.MockShardContext(null);
+        String field = "@timestamp";
+        List<LuceneSlice> slices = new ArrayList<>(
+            List.of(
+                timestampSlice(shardContext, 0, field, 100L),
+                timestampSlice(shardContext, 1, field, 300L),
+                timestampSlice(shardContext, 2, field, 200L)
+            )
+        );
+        LuceneSliceQueue.reorderSlicesByPointFieldMax(slices, field, true);
+        assertThat(LuceneSliceQueue.sliceMaxPointValue(slices.get(0), field), equalTo(300L));
+        assertThat(LuceneSliceQueue.sliceMaxPointValue(slices.get(1), field), equalTo(200L));
+        assertThat(LuceneSliceQueue.sliceMaxPointValue(slices.get(2), field), equalTo(100L));
+        assertThat(slices.stream().map(LuceneSlice::slicePosition).toList(), equalTo(List.of(0, 1, 2)));
+    }
+
+    private static LuceneSlice timestampSlice(ShardContext shardContext, int position, String field, long maxTimestamp) {
+        LeafReaderContext leaf = new TimestampPointLeafReader(field, maxTimestamp).getContext();
+        return new LuceneSlice(
+            position,
+            true,
+            shardContext,
+            List.of(new PartialLeafReaderContext(leaf, 0, 10)),
+            null,
+            List.of(maxTimestamp),
+            LuceneSlice.NEVER_BLOCKED
+        );
+    }
+
     static class MockLeafReader extends LeafReader {
         private final int maxDoc;
         private final PartitionedDocValues.PrefixPartitions prefixPartitions;
@@ -768,6 +799,66 @@ public class LuceneSliceQueueTests extends ESTestCase {
         @Override
         public CacheHelper getReaderCacheHelper() {
             throw new UnsupportedOperationException();
+        }
+    }
+
+    static class TimestampPointLeafReader extends MockLeafReader {
+        private final String fieldName;
+        private final byte[] maxPacked;
+
+        TimestampPointLeafReader(String fieldName, long maxTimestamp) {
+            super(10);
+            this.fieldName = fieldName;
+            maxPacked = new byte[Long.BYTES];
+            NumericUtils.longToSortableBytes(maxTimestamp, maxPacked, 0);
+        }
+
+        @Override
+        public PointValues getPointValues(String field) {
+            if (field.equals(fieldName) == false) {
+                return null;
+            }
+            return new PointValues() {
+                @Override
+                public PointTree getPointTree() {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public byte[] getMinPackedValue() {
+                    return maxPacked.clone();
+                }
+
+                @Override
+                public byte[] getMaxPackedValue() {
+                    return maxPacked.clone();
+                }
+
+                @Override
+                public int getNumDimensions() {
+                    return 1;
+                }
+
+                @Override
+                public int getNumIndexDimensions() {
+                    return 1;
+                }
+
+                @Override
+                public int getBytesPerDimension() {
+                    return Long.BYTES;
+                }
+
+                @Override
+                public long size() {
+                    return 1;
+                }
+
+                @Override
+                public int getDocCount() {
+                    return 1;
+                }
+            };
         }
     }
 

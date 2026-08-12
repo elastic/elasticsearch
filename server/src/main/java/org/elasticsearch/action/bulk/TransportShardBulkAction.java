@@ -93,7 +93,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     private final UpdateHelper updateHelper;
     private final MappingUpdatedAction mappingUpdatedAction;
-    private final boolean batchIndexingEnabled;
+    private final ShardBatchIndexer shardBatchIndexer;
 
     private final DocumentParsingProvider documentParsingProvider;
 
@@ -133,7 +133,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         );
         this.updateHelper = updateHelper;
         this.mappingUpdatedAction = mappingUpdatedAction;
-        this.batchIndexingEnabled = ShardBatchIndexer.BATCH_INDEXING.get(settings);
+        this.shardBatchIndexer = new ShardBatchIndexer(settings);
         this.documentParsingProvider = documentParsingProvider;
     }
 
@@ -199,8 +199,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         var listener = ActionListener.releaseBefore(pressureExpansionTracker, outerListener);
         final BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(request, primary, pressureExpansionTracker);
         long startBatchTime = System.nanoTime();
-        if (ShardBatchIndexer.canUseBatchIndexing(request, batchIndexingEnabled)) {
-            ShardBatchIndexer.performBatchIndexOnPrimary(
+        if (shardBatchIndexer.canUseBatchIndexing(request)) {
+            shardBatchIndexer.performBatchIndexOnPrimary(
                 request.items(),
                 request.getBulkShardBatch().getBatch(),
                 context,
@@ -762,8 +762,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         ActionListener.completeWith(listener, () -> {
             final long startBulkTime = System.nanoTime();
             final Translog.Location location;
-            if (ShardBatchIndexer.canUseBatchIndexing(request, batchIndexingEnabled)) {
-                ShardBatchIndexer.ReplicaBatchResult batchResult = ShardBatchIndexer.performBatchIndexOnReplica(
+            if (shardBatchIndexer.canUseBatchIndexing(request)) {
+                ShardBatchIndexer.ReplicaBatchResult batchResult = shardBatchIndexer.performBatchIndexOnReplica(
                     request.items(),
                     request.getBulkShardBatch().getBatch(),
                     replica

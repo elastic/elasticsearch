@@ -1,0 +1,5 @@
+pr: 141348
+summary: Fork API key hash computation only when expensive hash algorithm is used
+area: Authentication
+type: enhancement
+issues: []

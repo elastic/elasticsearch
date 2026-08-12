@@ -39,6 +39,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
@@ -111,7 +112,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         IndexingPressure indexingPressure,
         SystemIndices systemIndices,
         ProjectResolver projectResolver,
-        DocumentParsingProvider documentParsingProvider
+        DocumentParsingProvider documentParsingProvider,
+        BigArrays bigArrays
     ) {
         super(
             settings,
@@ -133,7 +135,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         );
         this.updateHelper = updateHelper;
         this.mappingUpdatedAction = mappingUpdatedAction;
-        this.shardBatchIndexer = new ShardBatchIndexer(settings);
+        this.shardBatchIndexer = new ShardBatchIndexer(settings, bigArrays.bytesRefRecycler());
         this.documentParsingProvider = documentParsingProvider;
     }
 

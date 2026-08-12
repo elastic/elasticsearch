@@ -17,6 +17,7 @@ import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PackedLongValues;
 import org.elasticsearch.common.CheckedIntFunction;
 import org.elasticsearch.index.codec.vectors.diskbbq.CentroidSupplier;
+import org.elasticsearch.index.codec.vectors.diskbbq.ClusterAssignmentBuilder;
 import org.elasticsearch.index.codec.vectors.diskbbq.DocIdsWriter;
 import org.elasticsearch.index.codec.vectors.diskbbq.IntSorter;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfSegmentConfig;
@@ -27,7 +28,6 @@ import org.elasticsearch.simdvec.AsymmetricHashingScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
-import java.util.Arrays;
 
 import static org.elasticsearch.simdvec.ES940OSQVectorsScorer.BULK_SIZE;
 
@@ -114,31 +114,9 @@ public class AshPostingsListWriter {
         this.ashProjectionMatrix = new AshProjectionMatrix(w, originalDim, nDims);
 
         // Build cluster-to-vector mappings, counting primary + SOAR overspill assignments
-        int[] centroidVectorCount = new int[nClusters];
-        for (int i = 0; i < nVectors; i++) {
-            centroidVectorCount[assignments[i]]++;
-            for (var it = overspillAssignments.getAssignmentsFor(i); it.hasNext();) {
-                centroidVectorCount[it.nextInt()]++;
-            }
-        }
-
-        int maxPostingListSize = 0;
-        int[][] assignmentsByCluster = new int[nClusters][];
-        for (int c = 0; c < nClusters; c++) {
-            int size = centroidVectorCount[c];
-            maxPostingListSize = Math.max(maxPostingListSize, size);
-            assignmentsByCluster[c] = new int[size];
-        }
-        Arrays.fill(centroidVectorCount, 0);
-
-        for (int i = 0; i < nVectors; i++) {
-            int c = assignments[i];
-            assignmentsByCluster[c][centroidVectorCount[c]++] = i;
-            for (var it = overspillAssignments.getAssignmentsFor(i); it.hasNext();) {
-                int s = it.nextInt();
-                assignmentsByCluster[s][centroidVectorCount[s]++] = i;
-            }
-        }
+        ClusterAssignmentBuilder clusterAssignments = ClusterAssignmentBuilder.build(assignments, overspillAssignments, nClusters);
+        int[][] assignmentsByCluster = clusterAssignments.assignmentsByCluster();
+        int maxPostingListSize = clusterAssignments.maxPostingListSize();
 
         // Write posting lists, re-encoding each vector against its posting list's centroid
         final PackedLongValues.Builder offsets = PackedLongValues.monotonicBuilder(PackedInts.COMPACT);

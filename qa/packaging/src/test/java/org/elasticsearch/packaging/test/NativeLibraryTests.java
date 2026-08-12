@@ -168,6 +168,31 @@ public class NativeLibraryTests extends PackagingTestCase {
     }
 
     /**
+     * Verifies that the native parquet-rs library (libes_parquet_rs.so/libes_parquet_rs.dylib) loads successfully.
+     * <p>
+     * The {@code libes_parquet_rs} library is a Rust native library loaded via Panama FFI during
+     * {@code NativeAccess} initialization at node startup. It provides Parquet file metadata and schema
+     * operations. If the native library cannot be loaded (e.g. due to a glibc version incompatibility),
+     * the node logs a warning instead of the success message.
+     * <p>
+     * On Linux and macOS (where the native Rust library is supported), this test asserts that the
+     * {@code "Loaded parquet-rs native library"} log line is present, confirming the library loaded
+     * without error.
+     */
+    public void test40ParquetRsNativeLibrary() throws Exception {
+        configureAndStart(SECURITY_DISABLED_SETTINGS);
+
+        try {
+            if (Platforms.LINUX || Platforms.DARWIN) {
+                String logs = getElasticsearchLogs();
+                assertThat(logs, containsString("Loaded parquet-rs native library"));
+            }
+        } finally {
+            stopElasticsearch();
+        }
+    }
+
+    /**
      * Returns the Elasticsearch startup logs, handling both Docker and non-Docker distributions.
      */
     private String getElasticsearchLogs() {

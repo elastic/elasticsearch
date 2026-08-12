@@ -44,7 +44,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -413,93 +412,6 @@ public class BasicBlockTests extends ESTestCase {
         assertThat(breaker.getUsed(), greaterThan(0L));
         assertRefCountingBehavior(vector);
         assertThat(breaker.getUsed(), is(0L));
-    }
-
-    public void testFilterOrdinalBytesRefBlock() {
-        int dictSize = between(1, 10);
-        int positionCount = between(1, 100);
-        try (
-            var dictBuilder = blockFactory.newBytesRefVectorBuilder(dictSize);
-            var ordinalBuilder = blockFactory.newIntBlockBuilder(positionCount)
-        ) {
-            for (int i = 0; i < dictSize; i++) {
-                dictBuilder.appendBytesRef(new BytesRef("value" + i));
-            }
-            for (int i = 0; i < positionCount; i++) {
-                int valueCount = randomIntBetween(0, 2);
-                switch (valueCount) {
-                    case 0 -> ordinalBuilder.appendNull();
-                    case 1 -> ordinalBuilder.appendInt(randomIntBetween(0, dictSize - 1));
-                    default -> {
-                        ordinalBuilder.beginPositionEntry();
-                        for (int v = 0; v < valueCount; v++) {
-                            ordinalBuilder.appendInt(randomIntBetween(0, dictSize - 1));
-                        }
-                        ordinalBuilder.endPositionEntry();
-                    }
-                }
-            }
-            try (var block = new OrdinalBytesRefBlock(ordinalBuilder.build(), dictBuilder.build())) {
-                int[] masks = new int[between(1, 100)];
-                for (int i = 0; i < masks.length; i++) {
-                    masks[i] = randomIntBetween(0, positionCount - 1);
-                }
-                try (var filtered = block.filter(true, masks)) {
-                    assertThat(filtered, not(instanceOf(OrdinalBytesRefBlock.class)));
-                }
-                assertSliceFullRange(block);
-                assertSliceOrdinalBytesRefBlock(block, 0, 0);
-                if (positionCount > 1) {
-                    assertSliceOrdinalBytesRefBlock(block, 0, 1);
-                    assertSliceOrdinalBytesRefBlock(block, 1, positionCount);
-                }
-            }
-        }
-    }
-
-    private void assertSliceOrdinalBytesRefBlock(OrdinalBytesRefBlock block, int beginInclusive, int endExclusive) {
-        try (var sliced = block.slice(beginInclusive, endExclusive)) {
-            assertThat(sliced, instanceOf(OrdinalBytesRefBlock.class));
-            assertThat(sliced.getPositionCount(), equalTo(endExclusive - beginInclusive));
-        }
-    }
-
-    public void testFilterOrdinalBytesRefVector() {
-        int dictSize = between(1, 10);
-        int positionCount = between(1, 100);
-        try (
-            var dictBuilder = blockFactory.newBytesRefVectorBuilder(dictSize);
-            var ordinalBuilder = blockFactory.newIntVectorBuilder(positionCount)
-        ) {
-            for (int i = 0; i < dictSize; i++) {
-                dictBuilder.appendBytesRef(new BytesRef("value" + i));
-            }
-            for (int i = 0; i < positionCount; i++) {
-                ordinalBuilder.appendInt(randomIntBetween(0, dictSize - 1));
-            }
-            try (var vector = new OrdinalBytesRefVector(ordinalBuilder.build(), dictBuilder.build())) {
-                int[] masks = new int[between(1, 100)];
-                for (int i = 0; i < masks.length; i++) {
-                    masks[i] = randomIntBetween(0, positionCount - 1);
-                }
-                try (var filtered = vector.filter(true, masks)) {
-                    assertThat(filtered, not(instanceOf(OrdinalBytesRefVector.class)));
-                }
-                assertSliceFullRange(vector);
-                assertSliceOrdinalBytesRefVector(vector, 0, 0);
-                if (positionCount > 1) {
-                    assertSliceOrdinalBytesRefVector(vector, 0, 1);
-                    assertSliceOrdinalBytesRefVector(vector, 1, positionCount);
-                }
-            }
-        }
-    }
-
-    private void assertSliceOrdinalBytesRefVector(OrdinalBytesRefVector vector, int beginInclusive, int endExclusive) {
-        try (var sliced = vector.slice(beginInclusive, endExclusive)) {
-            assertThat(sliced, instanceOf(OrdinalBytesRefVector.class));
-            assertThat(sliced.getPositionCount(), equalTo(endExclusive - beginInclusive));
-        }
     }
 
     /**

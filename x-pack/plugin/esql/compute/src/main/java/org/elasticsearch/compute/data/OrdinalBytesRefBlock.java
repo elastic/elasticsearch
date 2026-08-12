@@ -265,6 +265,10 @@ public final class OrdinalBytesRefBlock extends AbstractBlockRefCounted implemen
 
     @Override
     public OrdinalBytesRefBlock expand() {
+        if (mayHaveMultivaluedFields() == false) {
+            incRef();
+            return this;
+        }
         OrdinalBytesRefBlock result = null;
         IntBlock expandedOrdinals = ordinals.expand();
         try {

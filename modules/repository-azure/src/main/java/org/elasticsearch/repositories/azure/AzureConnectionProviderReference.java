@@ -11,12 +11,16 @@ package org.elasticsearch.repositories.azure;
 
 import reactor.netty.resources.ConnectionProvider;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Releasable;
 
 /// Handles the disposal of the wrapped [ConnectionProvider] using reference counting.
 class AzureConnectionProviderReference extends AbstractRefCounted implements Releasable {
+    private static final Logger logger = LogManager.getLogger(AzureConnectionProviderReference.class);
+
     private final ConnectionProvider connectionProvider;
     private final ActionListener<Void> disposalListener;
 
@@ -36,11 +40,10 @@ class AzureConnectionProviderReference extends AbstractRefCounted implements Rel
 
     @Override
     protected void closeInternal() {
-        connectionProvider.disposeLater()
-            .subscribe(
-                ignored -> {},
-                t -> disposalListener.onFailure(t instanceof Exception e ? e : new RuntimeException(t)),
-                () -> disposalListener.onResponse(null)
-            );
+        connectionProvider.disposeLater().subscribe(ignored -> {}, t -> {
+            // not much we can do in case of an error, but we still need to complete `disposalListener` (see `AzureClientProvider#doStop`)
+            logger.warn("Error disposing connection provider", t);
+            disposalListener.onResponse(null);
+        }, () -> disposalListener.onResponse(null));
     }
 }

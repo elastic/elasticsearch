@@ -9,7 +9,6 @@
 
 package org.elasticsearch.columnar.numeric;
 
-import org.apache.lucene.store.ByteArrayDataInput;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -166,7 +165,7 @@ public class SplitDeltaTransformTests extends ESTestCase {
         assertTrue("SplitDelta must fire on this input", fired);
 
         long[] decoded = work.clone();
-        t.decode(decoded, valueCount, readerFor(params));
+        t.decode(decoded, valueCount, DataInputMetadataReader.wrap(params));
         for (int i = 0; i < valueCount; i++) {
             assertEquals("round-trip failure at position " + i, original[i], decoded[i]);
         }
@@ -193,7 +192,7 @@ public class SplitDeltaTransformTests extends ESTestCase {
         boolean fired = t.tryEncode(work, valueCount, params);
         if (fired) {
             long[] decoded = work.clone();
-            t.decode(decoded, valueCount, readerFor(params));
+            t.decode(decoded, valueCount, DataInputMetadataReader.wrap(params));
             for (int i = 0; i < valueCount; i++) {
                 assertEquals("round-trip failure at position " + i, original[i], decoded[i]);
             }
@@ -203,12 +202,6 @@ public class SplitDeltaTransformTests extends ESTestCase {
             }
             assertEquals("declined stage must write no params", 0L, params.size());
         }
-    }
-
-    private static MetadataReader readerFor(MetadataBuffer buf) {
-        DataInputMetadataReader r = new DataInputMetadataReader();
-        r.reset(new ByteArrayDataInput(buf.toArrayCopy()));
-        return r;
     }
 
     private static long[] filled(long value) {

@@ -9,7 +9,6 @@
 
 package org.elasticsearch.columnar.numeric;
 
-import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.test.ESTestCase;
 
@@ -99,7 +98,7 @@ public class AlpDoubleTransformTests extends ESTestCase {
         boolean fired = stage.tryEncode(work, BLOCK, params);
         if (fired) {
             // If it fired anyway, it must round-trip correctly.
-            stage.decode(work, BLOCK, readerFor(params));
+            stage.decode(work, BLOCK, DataInputMetadataReader.wrap(params));
             for (int i = 0; i < BLOCK; i++) {
                 assertEquals("round-trip failure at " + i, block[i], work[i]);
             }
@@ -160,7 +159,7 @@ public class AlpDoubleTransformTests extends ESTestCase {
         MetadataBuffer params = new MetadataBuffer();
         boolean fired = stage.tryEncode(work, valueCount, params);
         assertTrue("AlpDoubleTransform must fire on this input", fired);
-        stage.decode(work, valueCount, readerFor(params));
+        stage.decode(work, valueCount, DataInputMetadataReader.wrap(params));
         for (int i = 0; i < valueCount; i++) {
             assertEquals("round-trip failure at position " + i, original[i], work[i]);
         }
@@ -171,7 +170,7 @@ public class AlpDoubleTransformTests extends ESTestCase {
         MetadataBuffer params = new MetadataBuffer();
         boolean fired = stage.tryEncode(work, valueCount, params);
         if (fired) {
-            stage.decode(work, valueCount, readerFor(params));
+            stage.decode(work, valueCount, DataInputMetadataReader.wrap(params));
             for (int i = 0; i < valueCount; i++) {
                 assertEquals("round-trip failure at position " + i, original[i], work[i]);
             }
@@ -181,11 +180,5 @@ public class AlpDoubleTransformTests extends ESTestCase {
             }
             assertEquals("declined stage must write no params", 0L, params.size());
         }
-    }
-
-    private static MetadataReader readerFor(MetadataBuffer buf) {
-        DataInputMetadataReader r = new DataInputMetadataReader();
-        r.reset(new ByteArrayDataInput(buf.toArrayCopy()));
-        return r;
     }
 }

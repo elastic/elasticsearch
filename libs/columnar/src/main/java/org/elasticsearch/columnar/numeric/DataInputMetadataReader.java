@@ -9,6 +9,7 @@
 
 package org.elasticsearch.columnar.numeric;
 
+import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.DataInput;
 
 import java.io.IOException;
@@ -25,6 +26,13 @@ final class DataInputMetadataReader implements MetadataReader {
     /** Binds this reader to {@code in} for the next block decode. */
     void reset(DataInput in) {
         this.in = in;
+    }
+
+    /** A reader over the bytes a {@link MetadataBuffer} accumulated, for reading back what was just written. */
+    static DataInputMetadataReader wrap(MetadataBuffer buf) {
+        DataInputMetadataReader reader = new DataInputMetadataReader();
+        reader.reset(new ByteArrayDataInput(buf.toArrayCopy()));
+        return reader;
     }
 
     @Override

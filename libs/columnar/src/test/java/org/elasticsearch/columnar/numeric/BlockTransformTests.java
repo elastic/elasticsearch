@@ -9,7 +9,6 @@
 
 package org.elasticsearch.columnar.numeric;
 
-import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.test.ESTestCase;
 
@@ -130,7 +129,7 @@ public class BlockTransformTests extends ESTestCase {
         boolean fired = stage.tryEncode(work, valueCount, params);
         if (fired) {
             long[] decoded = work.clone();
-            stage.decode(decoded, valueCount, readerFor(params));
+            stage.decode(decoded, valueCount, DataInputMetadataReader.wrap(params));
             for (int i = 0; i < valueCount; i++) {
                 assertEquals(name + " must round-trip value " + i + " when it fires", original[i], decoded[i]);
             }
@@ -141,12 +140,6 @@ public class BlockTransformTests extends ESTestCase {
             }
             assertEquals(name + " must not write params when it declines", 0L, params.size());
         }
-    }
-
-    private static MetadataReader readerFor(MetadataBuffer buf) {
-        DataInputMetadataReader r = new DataInputMetadataReader();
-        r.reset(new ByteArrayDataInput(buf.toArrayCopy()));
-        return r;
     }
 
     private static long[] filled(long value) {

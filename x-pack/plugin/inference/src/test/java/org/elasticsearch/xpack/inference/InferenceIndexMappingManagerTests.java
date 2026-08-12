@@ -44,9 +44,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -127,19 +129,20 @@ public class InferenceIndexMappingManagerTests extends ESTestCase {
         assertThat("CreateIndex should have been requested exactly once", capturedListeners, hasSize(1));
         assertFalse("Caller listener should not be notified until the I/O completes", callerListener.completed);
 
-        // Verify the CreateIndexRequest was issued with the descriptor's mappings and settings.
+        // The empty origin on the CreateIndexRequest is load-bearing: it routes
+        // TransportCreateIndexAction to the managed-system-index branch, which builds the index
+        // entirely from the descriptor compatible with the oldest node in the cluster — including
+        // the hidden write alias. Setting an origin would make the master honor the request
+        // verbatim instead, skipping the minimum-mappings-version guard and creating the alias
+        // without the hidden/write-index flags. Any mappings/settings on the request would be
+        // ignored on the managed branch, which is why the manager must not set them.
         ArgumentCaptor<CreateIndexRequest> createCaptor = ArgumentCaptor.forClass(CreateIndexRequest.class);
         verify(mockClient).execute(eq(TransportCreateIndexAction.TYPE), createCaptor.capture(), any());
-        CreateIndexRequest capturedRequest = createCaptor.getValue();
+        assertThat("CreateIndexRequest must target the primary index", createCaptor.getValue().index(), equalTo(InferenceIndex.INDEX_NAME));
         assertThat(
-            "CreateIndexRequest must carry the descriptor's mappings",
-            jsonToMap(capturedRequest.mappings()),
-            equalTo(jsonToMap(descriptor.getMappings()))
-        );
-        assertThat(
-            "CreateIndexRequest must carry the descriptor's settings",
-            capturedRequest.settings(),
-            equalTo(descriptor.getSettings())
+            "CreateIndexRequest must not carry an origin so the master builds the index from the managed descriptor",
+            createCaptor.getValue().origin(),
+            is(emptyString())
         );
 
         // Simulate an acknowledged create response. Creation alone does not guarantee the latest
@@ -149,6 +152,20 @@ public class InferenceIndexMappingManagerTests extends ESTestCase {
 
         assertThat("PutMapping should follow the successful create", putMappingListeners, hasSize(1));
         assertFalse("Caller listener should not be notified until the put-mapping completes", callerListener.completed);
+
+        // The follow-up PutMapping is the request that installs this node's latest mappings.
+        ArgumentCaptor<PutMappingRequest> putMappingCaptor = ArgumentCaptor.forClass(PutMappingRequest.class);
+        verify(mockClient).execute(eq(TransportPutMappingAction.TYPE), putMappingCaptor.capture(), any());
+        assertThat(
+            "The follow-up PutMappingRequest must carry the descriptor's latest mappings",
+            jsonToMap(putMappingCaptor.getValue().source()),
+            equalTo(jsonToMap(descriptor.getMappings()))
+        );
+        assertThat(
+            "The follow-up PutMappingRequest must carry the inference origin",
+            putMappingCaptor.getValue().origin(),
+            equalTo(ClientHelper.INFERENCE_ORIGIN)
+        );
 
         putMappingListeners.get(0).onResponse(AcknowledgedResponse.of(true));
 

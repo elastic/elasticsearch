@@ -11,10 +11,8 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
-import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
@@ -161,19 +159,24 @@ public class InferenceIndexMappingManager {
 
     private void createIndex(ActionListener<Void> listener) {
         String primaryIndex = descriptor.getPrimaryIndex();
-        logger.debug("Creating index [{}] with up-to-date mappings", primaryIndex);
-        CreateIndexRequest request = new CreateIndexRequest(primaryIndex).mapping(descriptor.getMappings())
-            .settings(descriptor.getSettings())
-            .alias(new Alias(descriptor.getAliasName()))
-            .waitForActiveShards(ActiveShardCount.ALL);
+        logger.debug("Creating index [{}]", primaryIndex);
+        // Deliberately a bare request: for a managed system index with an empty origin,
+        // TransportCreateIndexAction ignores any mappings/settings/aliases on the request and builds
+        // the index from the descriptor compatible with the oldest node in the cluster, including the
+        // hidden write alias and waiting for all shards to be active. Do NOT set an origin here "for
+        // symmetry" with putMapping: a non-empty origin flips the master to honoring this request
+        // verbatim, which would skip the minimum-mappings-version guard and create the alias without
+        // the hidden/write-index flags. The follow-up put-mapping brings the index to this node's
+        // latest mappings.
+        CreateIndexRequest request = new CreateIndexRequest(primaryIndex);
 
         client.admin().indices().create(request, ActionListener.wrap(response -> {
             if (response.isAcknowledged()) {
                 // A successful create does NOT guarantee the index got this node's latest mappings:
-                // for managed system indices, TransportCreateIndexAction ignores the mappings in the
-                // request and applies the descriptor compatible with the minimum mappings version
-                // across all nodes. In a mixed-version cluster that may be an older version, so we
-                // always follow up with a put-mapping to bring the index to the latest mappings.
+                // the master creates managed system indices with the descriptor compatible with the
+                // minimum mappings version across all nodes. In a mixed-version cluster that may be
+                // an older version, so we always follow up with a put-mapping to bring the index to
+                // the latest mappings.
                 logger.debug("Successfully created index [{}]; updating mappings to the latest version", primaryIndex);
             } else {
                 // An unacknowledged create does not mean the index was not created: the master applied

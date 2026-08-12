@@ -1,4 +1,4 @@
-area: "ES|QL, Infra/Circuit Breakers"
+area: Infra/Circuit Breakers
 issues: []
 pr: 156600
 summary: "Add native-memory circuit breaker, starting with Arrow buffer accounting"

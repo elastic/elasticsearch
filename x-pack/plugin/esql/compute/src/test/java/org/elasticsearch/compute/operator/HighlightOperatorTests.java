@@ -25,7 +25,9 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRef;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -489,11 +491,41 @@ public class HighlightOperatorTests extends OperatorTestCase {
         }
     }
 
-    public void testMultiTermQueryDisablesFiltering() {
+    public void testMultiTermQueryFiltersViaAutomaton() {
         Query prefixQuery = new PrefixQuery(new Term(CONTENT_FIELD, "fo"));
         BytesRefBlock result = highlight(
             config("fo*", 5, 0, 0),
             prefixQuery,
+            bytesRefs(List.of(List.of("the quick fox"), List.of("a plain sentence")))
+        );
+        try {
+            assertThat(value(result, 0), equalTo("the quick <em>fox</em>"));
+            assertThat(result.isNull(1), equalTo(true));
+        } finally {
+            result.close();
+        }
+    }
+
+    public void testLeadingWildcardQueryFiltersViaAutomaton() {
+        Query wildcardQuery = new WildcardQuery(new Term(CONTENT_FIELD, "*ox"));
+        BytesRefBlock result = highlight(
+            config("*ox", 5, 0, 0),
+            wildcardQuery,
+            bytesRefs(List.of(List.of("the quick fox jumps"), List.of("a plain sentence")))
+        );
+        try {
+            assertThat(value(result, 0), equalTo("the quick <em>fox</em> jumps"));
+            assertThat(result.isNull(1), equalTo(true));
+        } finally {
+            result.close();
+        }
+    }
+
+    public void testRegexpQueryFiltersViaAutomaton() {
+        Query regexpQuery = new RegexpQuery(new Term(CONTENT_FIELD, "f.x"));
+        BytesRefBlock result = highlight(
+            config("/f.x/", 5, 0, 0),
+            regexpQuery,
             bytesRefs(List.of(List.of("the quick fox"), List.of("a plain sentence")))
         );
         try {

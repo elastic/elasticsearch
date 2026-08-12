@@ -8,6 +8,31 @@ import { KIND_KEYS, KIND_LABELS, KIND_ORDER } from "./domain.ts";
 // preserves each iteration's JUnit XML.
 const REPEAT_REST_TEST = ".buildkite/scripts/flakiness-detection/runners/repeat-rest-test.sh";
 
+// Maps a source set to the Gradle task that compiles it. Used by the pre-flight
+// compile gate so a PR that does not compile is caught once, up front, instead
+// of failing every re-run batch identically.
+const SOURCE_SET_COMPILE_TASK: Record<string, string> = {
+  test: "compileTestJava",
+  internalClusterTest: "compileInternalClusterTestJava",
+  javaRestTest: "compileJavaRestTestJava",
+  yamlRestTest: "compileYamlRestTestJava",
+};
+
+/**
+ * The unique `:project:compile<SourceSet>Java` tasks covering every runnable
+ * test's source set, e.g. `:server:compileTestJava`. Compiling these transitively
+ * builds their dependencies, so a green result means the batches can at least be
+ * enumerated and started.
+ */
+export function compileTasksFor(tests: ClassifiedTest[]): string[] {
+  const tasks = new Set<string>();
+  for (const t of tests) {
+    const compileTask = SOURCE_SET_COMPILE_TASK[t.sourceSet];
+    if (compileTask) tasks.add(`${t.gradleProject}:${compileTask}`);
+  }
+  return [...tasks];
+}
+
 export function dedupeTests(tests: ClassifiedTest[]): ClassifiedTest[] {
   const seen = new Set<string>();
   const result: ClassifiedTest[] = [];

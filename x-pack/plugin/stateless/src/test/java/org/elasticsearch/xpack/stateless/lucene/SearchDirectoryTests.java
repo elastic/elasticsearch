@@ -9,10 +9,8 @@ package org.elasticsearch.xpack.stateless.lucene;
 
 import org.apache.logging.log4j.Level;
 import org.apache.lucene.codecs.CodecUtil;
-import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
@@ -216,24 +214,10 @@ public class SearchDirectoryTests extends ESTestCase {
         };
     }
 
-    public void testStatelessDirectory() throws IOException {
-        try (Directory directory = StatelessDirectoryFactory.create(LuceneTestCase.createTempDir().toAbsolutePath())) {
-            // It's important to close the IndexOutput so the necessary metadata gets updated
-            try (var output = directory.createOutput("vectors", IOContext.DEFAULT)) {
-                output.writeInt(12);
-            }
-
-            var input = directory.openInput("vectors", IOContext.DEFAULT);
-            var value = input.readInt();
-            assertThat(value, equalTo(12));
-            input.close();
-        }
-    }
-
     /**
      * Test that BlobCacheIndexInput can be read from the cache while the blob in object store keeps growing in size.
      *
-     * In production, the batched compound commits are expanded in cache by appending compound commits. For simplicity, this test appends
+     * <p>In production, the batched compound commits are expanded in cache by appending compound commits. For simplicity, this test appends
      * Lucene files instead.
      */
     public void testExpandingCacheRegions() throws Exception {

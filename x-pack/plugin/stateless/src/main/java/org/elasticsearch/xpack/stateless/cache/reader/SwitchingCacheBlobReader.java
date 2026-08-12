@@ -99,6 +99,11 @@ public class SwitchingCacheBlobReader implements CacheBlobReader {
         }
     }
 
+    // Both newBytesCopiedConsumer() and onCopyCompleted() route to the same reader as
+    // getRangeInputStream(): the dispatch is evaluated once, at handler-construction time, so all
+    // three operations for a given fill always go to the same underlying reader even if
+    // isUploaded() changes mid-copy.
+
     @Override
     public IntConsumer newBytesCopiedConsumer() {
         if (latestUploadInfo.isUploaded()) {

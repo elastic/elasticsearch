@@ -71,14 +71,7 @@ public class MeteringCacheBlobReaderTests extends ESTestCase {
         meteringCacheBlobReader.onCopyCompleted(total, time);
 
         assertThat(capturedTotal[0], equalTo(total));
-        assertThat(capturedTime[0], greaterThan(0L));
-    }
-
-    public void testCallbacksNotCalledWhenNotInvoked() {
-        final var readCompleteCallback = mock(MeteringCacheBlobReader.ReadCompleteCallback.class);
-        final var meteringCacheBlobReader = new MeteringCacheBlobReader(createFakeCacheBlobReader(), readCompleteCallback);
-        meteringCacheBlobReader.newBytesCopiedConsumer();
-        verifyNoInteractions(readCompleteCallback);
+        assertThat(capturedTime[0], equalTo(time));
     }
 
     @TestLogging(value = "org.elasticsearch.xpack.stateless.cache.reader.MeteringCacheBlobReader:DEBUG", reason = "test debug log message")

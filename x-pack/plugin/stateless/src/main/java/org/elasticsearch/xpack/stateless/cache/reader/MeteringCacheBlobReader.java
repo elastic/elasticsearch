@@ -89,7 +89,7 @@ public class MeteringCacheBlobReader implements CacheBlobReader {
          *
          * @param bytesRead The number of bytes in this chunk
          */
-        default void onBytesRead(int bytesRead) {};
+        default void onBytesRead(int bytesRead) {}
 
         /**
          * Called once after the full range copy completes, with the total bytes and wall-clock duration
@@ -98,6 +98,6 @@ public class MeteringCacheBlobReader implements CacheBlobReader {
          * @param totalBytesRead Total bytes copied for this range
          * @param timeNanos      Wall-clock duration of the copy in nanoseconds
          */
-        default void onCopyCompleted(int totalBytesRead, long timeNanos) {};
+        default void onCopyCompleted(int totalBytesRead, long timeNanos) {}
     }
 }

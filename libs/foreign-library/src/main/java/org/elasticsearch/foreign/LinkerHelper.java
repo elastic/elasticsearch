@@ -9,6 +9,8 @@
 
 package org.elasticsearch.foreign;
 
+import org.elasticsearch.foreign.adapter.MemorySegmentAdapter;
+
 import java.lang.foreign.Arena;
 import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.Linker;
@@ -16,6 +18,9 @@ import java.lang.foreign.MemorySegment;
 import java.lang.foreign.SymbolLookup;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
+
+import static java.lang.foreign.MemoryLayout.PathElement.groupElement;
 
 /**
  * Utility methods for calling into the native linker.
@@ -57,6 +62,21 @@ public class LinkerHelper {
     }
 
     public static final MemorySegment ERRNO_STATE = Arena.ofAuto().allocate(Linker.Option.captureStateLayout());
+
+    private static final VarHandle ERRNO_VH = MemorySegmentAdapter.varHandleWithoutOffset(
+        Linker.Option.captureStateLayout(),
+        groupElement("errno")
+    );
+
+    /**
+     * Returns the errno value captured by the most recent {@code @CaptureErrno} call on the
+     * current thread.
+     *
+     * @see <a href="https://man7.org/linux/man-pages/man3/errno.3.html">errno manpage</a>
+     */
+    public static int errno() {
+        return (int) ERRNO_VH.get(ERRNO_STATE);
+    }
 
     public static MethodHandle downcallHandleWithErrno(String function, FunctionDescriptor functionDescriptor, Linker.Option... options) {
         Linker.Option[] allOptions = new Linker.Option[options.length + 1];

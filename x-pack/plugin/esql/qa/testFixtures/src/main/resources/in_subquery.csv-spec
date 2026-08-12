@@ -3505,3 +3505,503 @@ FROM employees
 
 first_name:keyword
 ;
+
+// IN subquery inside CASE, COALESCE, IS [NOT] NULL in WHERE
+
+caseWhenInSubquery
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_case_coalesce_is_null
+
+FROM employees
+| WHERE CASE(emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no), true, false)
+| SORT emp_no
+| KEEP emp_no, first_name
+;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+10002          | Bezalel
+10003          | Parto
+;
+
+caseWhenNotInSubquery
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_case_coalesce_is_null
+
+FROM employees
+| WHERE CASE(emp_no NOT IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no), true, false)
+| STATS c = COUNT(*)
+;
+
+c:long
+97
+;
+
+caseThenArmInSubquery
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_case_coalesce_is_null
+
+FROM employees
+| WHERE CASE(salary > 0, emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no), false)
+| SORT emp_no
+| KEEP emp_no, first_name
+;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+10002          | Bezalel
+10003          | Parto
+;
+
+caseElseArmNotInSubquery
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_case_coalesce_is_null
+
+FROM employees
+| WHERE CASE(salary < 0, false, emp_no NOT IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no))
+| STATS c = COUNT(*)
+;
+
+c:long
+97
+;
+
+coalesceInSubquery
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_case_coalesce_is_null
+
+FROM employees
+| WHERE COALESCE(emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no), false)
+| SORT emp_no
+| KEEP emp_no, first_name
+;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+10002          | Bezalel
+10003          | Parto
+;
+
+coalesceNotInSubquery
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_case_coalesce_is_null
+
+FROM employees
+| WHERE COALESCE(emp_no NOT IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no), false)
+| STATS c = COUNT(*)
+;
+
+c:long
+97
+;
+
+isNotNullInSubquery
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_case_coalesce_is_null
+
+FROM employees
+| WHERE (emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)) IS NOT NULL
+| STATS c = COUNT(*)
+;
+
+// IS NOT NULL of a non-null mark is always TRUE so all 100 employees pass
+c:long
+100
+;
+
+isNullInSubquery
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_case_coalesce_is_null
+
+FROM employees
+| WHERE (emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)) IS NULL
+| STATS c = COUNT(*)
+;
+
+// IS NULL of a non-null mark is always FALSE so no employees pass
+c:long
+0
+;
+
+caseWithConjunctiveInSubqueries
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_case_coalesce_is_null
+
+// CASE(emp_no IN top-5 AND emp_no IN top-3, ...) — intersection is {10001,10002,10003}
+FROM employees
+| WHERE CASE(
+    emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 5 | KEEP emp_no)
+      AND emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no),
+    true, false)
+| STATS c = COUNT(*)
+;
+
+c:long
+3
+;
+
+coalesceWithDisjunctiveInSubqueries
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_case_coalesce_is_null
+
+// COALESCE(emp_no IN top-3 OR emp_no IN top-5, false) — union is {10001,...,10005}
+FROM employees
+| WHERE COALESCE(
+    emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)
+      OR emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 5 | KEEP emp_no),
+    false)
+| STATS c = COUNT(*)
+;
+
+c:long
+5
+;
+
+isNotNullWithDisjunctiveInSubqueries
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_case_coalesce_is_null
+
+// (emp_no IN top-3 OR emp_no IN top-5) IS NOT NULL — marks are never NULL so always true
+FROM employees
+| WHERE (emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)
+         OR emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 5 | KEEP emp_no)) IS NOT NULL
+| STATS c = COUNT(*)
+;
+
+c:long
+100
+;
+
+caseMixingCoalesceAndIsNotNull
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_case_coalesce_is_null
+
+// CASE(COALESCE(emp_no IN top-50, false) AND (emp_no IN top-3) IS NOT NULL, ...)
+// COALESCE part: true for top-50; IS NOT NULL of non-null mark: always true => returns top-50
+FROM employees
+| WHERE CASE(
+    COALESCE(emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 50 | KEEP emp_no), false)
+      AND (emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)) IS NOT NULL,
+    true, false)
+| STATS c = COUNT(*)
+;
+
+c:long
+50
+;
+
+caseInSubqueryAndBareInSubqueryWithAnd
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_case_coalesce_is_null
+
+// CASE(emp_no IN top-5, ...) AND salary > 0 AND emp_no IN top-3
+// CASE true for top-5; salary > 0 always true; SemiJoin on top-3 → {10001,10002,10003}
+FROM employees
+| WHERE CASE(emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 5 | KEEP emp_no), true, false)
+    AND salary > 0
+    AND emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)
+| STATS c = COUNT(*)
+;
+
+c:long
+3
+;
+
+caseInSubqueryAndBareInSubqueryWithOr
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_case_coalesce_is_null
+
+// CASE(emp_no IN top-3, ...) OR salary < 0 OR emp_no IN top-5
+// salary < 0 always false; result: employees with emp_no in top-3 OR top-5 = top-5
+FROM employees
+| WHERE CASE(emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no), true, false)
+    OR salary < 0
+    OR emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 5 | KEEP emp_no)
+| STATS c = COUNT(*)
+;
+
+c:long
+5
+;
+
+caseInSubqueryAndOrWithBareIn
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_case_coalesce_is_null
+
+// CASE(emp_no IN top-5, ...) AND (salary < 0 OR emp_no IN top-3)
+// CASE true for top-5; salary < 0 false; emp_no IN top-3: {10001,10002,10003} — intersection
+FROM employees
+| WHERE CASE(emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 5 | KEEP emp_no), true, false)
+    AND (salary < 0 OR emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no))
+| STATS c = COUNT(*)
+;
+
+c:long
+3
+;
+
+// ===================================================================
+// Null-semantics tests for CASE/COALESCE/IS NULL with IN subquery
+// ===================================================================
+//
+// A MarkJoin mark can be:
+//   TRUE  – LHS matches an RHS value
+//   FALSE – LHS does not match AND RHS has no NULLs in the key column
+//   NULL  – LHS does not match AND RHS has at least one NULL in the key column
+//           OR the LHS value itself is NULL
+//
+// The tests below explore how CASE, COALESCE, and IS [NOT] NULL each
+// treat FALSE marks vs NULL marks differently.
+
+// ----------------------------------------------------------
+// Group 1: RHS contains NULLs → all marks are NULL
+//
+// `emp_no IN (FROM employees | KEEP languages)`:
+//   emp_no is 10001-10100; language values are 1-5.  No emp_no matches
+//   any language value.  Because the languages column has 10 NULLs,
+//   every mark is NULL (no match + NULLs present in RHS).
+// ----------------------------------------------------------
+
+inSubqueryWithRHSContainingNullsNoMatchingInsideIsNull
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_case_coalesce_is_null
+
+// IS NULL of a NULL mark is TRUE, so all 100 employees pass
+FROM employees
+| WHERE (emp_no IN (FROM employees | KEEP languages)) IS NULL
+| STATS c = COUNT(*)
+;
+
+c:long
+100
+;
+
+inSubqueryWithRHSContainingNullsNoMatchingInsideIsNotNull
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_case_coalesce_is_null
+
+// IS NOT NULL of a NULL mark is FALSE, so no employees pass
+FROM employees
+| WHERE (emp_no IN (FROM employees | KEEP languages)) IS NOT NULL
+| STATS c = COUNT(*)
+;
+
+c:long
+0
+;
+
+inSubqueryWithRHSContainingNullsNoMatchingInsideCoalesce
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_case_coalesce_is_null
+
+// COALESCE(NULL mark, false) = false, so no employees pass
+FROM employees
+| WHERE COALESCE(emp_no IN (FROM employees | KEEP languages), false)
+| STATS c = COUNT(*)
+;
+
+c:long
+0
+;
+
+inSubqueryWithRHSContainingNullsNoMatchingInsideCase
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_case_coalesce_is_null
+
+// CASE(NULL mark, true, false) uses the ELSE arm → false, so no employees pass
+FROM employees
+| WHERE CASE(emp_no IN (FROM employees | KEEP languages), true, false)
+| STATS c = COUNT(*)
+;
+
+c:long
+0
+;
+
+// ----------------------------------------------------------
+// Group 2: LHS is NULL → mark is NULL even when RHS has no NULLs
+//
+// `languages IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)`:
+//   LHS is `languages`: 90 employees have non-null language values (1-5),
+//   10 have null.  RHS = {10001, 10002, 10003} (no NULLs).
+//   Non-null language values (1-5) cannot match {10001,10002,10003}
+//   and no NULLs are present in the RHS → mark = FALSE for those 90.
+//   Null language values: NULL IN {10001,10002,10003} = NULL → mark = NULL.
+//
+// IS [NOT] NULL and COALESCE each distinguish FALSE marks from NULL marks,
+// enabling precise control over how null LHS values are handled.
+// ----------------------------------------------------------
+
+inSubqueryWithLHSContainingNullsNoMatchingInsideIsNull
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_case_coalesce_is_null
+
+// IS NULL(FALSE) = FALSE for non-null-language employees (90)
+// IS NULL(NULL)  = TRUE  for null-language employees (10)
+FROM employees
+| WHERE (languages IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)) IS NULL
+| STATS c = COUNT(*)
+;
+
+c:long
+10
+;
+
+inSubqueryWithLHSContainingNullsNoMatchingInsideIsNotNull
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_case_coalesce_is_null
+
+// IS NOT NULL(FALSE) = TRUE  for non-null-language employees (90)
+// IS NOT NULL(NULL)  = FALSE for null-language employees (10)
+FROM employees
+| WHERE (languages IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)) IS NOT NULL
+| STATS c = COUNT(*)
+;
+
+c:long
+90
+;
+
+notInSubqueryWithLHSContainingNullsNoMatchingInsideIsNull
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_case_coalesce_is_null
+
+// IS NULL(FALSE) = FALSE for non-null-language employees (90)
+// IS NULL(NULL)  = TRUE  for null-language employees (10)
+FROM employees
+| WHERE (languages NOT IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)) IS NULL
+| STATS c = COUNT(*)
+;
+
+c:long
+10
+;
+
+notInSubqueryWithLHSContainingNullsNoMatchingInsideIsNotNull
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_case_coalesce_is_null
+
+// IS NOT NULL(FALSE) = TRUE  for non-null-language employees (90)
+// IS NOT NULL(NULL)  = FALSE for null-language employees (10)
+FROM employees
+| WHERE (languages NOT IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)) IS NOT NULL
+| STATS c = COUNT(*)
+;
+
+c:long
+90
+;
+
+inSubqueryWithLHSContainingNullsNoMatchingInsideCoalesce
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_case_coalesce_is_null
+
+// COALESCE(FALSE, true) = FALSE  (non-null language employees — COALESCE does not skip FALSE)
+// COALESCE(NULL,  true) = TRUE   (null language employees — NULL is coalesced to the fallback)
+// Only the 10 employees with null languages pass.
+FROM employees
+| WHERE COALESCE(languages IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no), true)
+| STATS c = COUNT(*)
+;
+
+c:long
+10
+;
+
+notInSubqueryWithLHSContainingNullsNoMatchingInsideCoalesce
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_case_coalesce_is_null
+
+// CASE(TRUE, true, false) = TRUE for non-null-language employees (90)
+// CASE(NULL, true, false) = FALSE  for null-language employees (10)
+FROM employees
+| WHERE CASE(languages NOT IN (FROM employees | KEEP emp_no), true, false)
+| STATS c = COUNT(*)
+;
+
+c:long
+90
+;
+
+// ----------------------------------------------------------
+// Group 3: RHS has mixed NULLs and real values
+//
+// Subquery returns {10001, null, null}:
+//   FROM employees | SORT emp_no ASC | LIMIT 3
+//   | EVAL x = CASE(emp_no == 10001, emp_no, null) | KEEP x
+//
+//   emp_no = 10001 → mark = TRUE  (matches 10001)
+//   emp_no ≠ 10001 → mark = NULL  (no match, NULLs present in RHS)
+// ----------------------------------------------------------
+
+inSubqueryWithRHSContainingNullsInsideIsNull
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_case_coalesce_is_null
+
+// IS NULL(TRUE)  = FALSE → emp_no=10001 is excluded
+// IS NULL(NULL)  = TRUE  → all other 99 employees are included
+FROM employees
+| WHERE (emp_no IN (
+    FROM employees | SORT emp_no ASC | LIMIT 3
+    | EVAL x = CASE(emp_no == 10001, emp_no, null) | KEEP x
+  )) IS NULL
+| STATS c = COUNT(*)
+;
+
+c:long
+99
+;
+
+notInSubqueryWithRHSContainingNullsInsideIsNull
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_case_coalesce_is_null
+
+// IS NULL(FALSE) = FALSE → emp_no=10001 is excluded
+// IS NULL(NULL)  = TRUE  → all other 99 employees are included
+FROM employees
+| WHERE (emp_no NOT IN (
+    FROM employees | SORT emp_no ASC | LIMIT 3
+    | EVAL x = CASE(emp_no == 10001, emp_no, null) | KEEP x
+  )) IS NULL
+| STATS c = COUNT(*)
+;
+
+c:long
+99
+;
+
+inSubqueryWithRHSContainingNullsInsideIsNotNull
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_case_coalesce_is_null
+
+// IS NOT NULL(TRUE) = TRUE  → emp_no=10001 is included
+// IS NOT NULL(NULL) = FALSE → all other 99 employees are excluded
+FROM employees
+| WHERE (emp_no IN (
+    FROM employees | SORT emp_no ASC | LIMIT 3
+    | EVAL x = CASE(emp_no == 10001, emp_no, null) | KEEP x
+  )) IS NOT NULL
+| STATS c = COUNT(*)
+;
+
+c:long
+1
+;
+
+notInSubqueryWithRHSContainingNullsInsideIsNotNull
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_case_coalesce_is_null
+
+// IS NOT NULL(FALSE) = TRUE  → emp_no=10001 is included because its mark is non-null
+// IS NOT NULL(NULL)  = FALSE → all other 99 employees are excluded
+FROM employees
+| WHERE (emp_no NOT IN (
+    FROM employees | SORT emp_no ASC | LIMIT 3
+    | EVAL x = CASE(emp_no == 10001, emp_no, null) | KEEP x
+  )) IS NOT NULL
+| STATS c = COUNT(*)
+;
+
+c:long
+1
+;

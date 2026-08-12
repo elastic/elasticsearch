@@ -11,13 +11,13 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.internal.hppc.IntArrayList;
 import org.apache.lucene.internal.hppc.LongArrayList;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.downsample.SortedNumericDoubleValuesTestUtils.DocValuesType;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.downsample.SortedNumericDoubleValuesTestUtils.trackingWithDocIdIterator;
 import static org.elasticsearch.xpack.downsample.SortedNumericDoubleValuesTestUtils.withDocIdIterator;
@@ -95,10 +95,10 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
         resetDataPoints.processDataPoints((timestamp, dataPoints) -> {
             assertThat(timestamp, anyOf(equalTo(60L), equalTo(50L)));
             if (timestamp == 60L) {
-                assertThat(dataPoints, equalTo(List.of(Tuple.tuple("my-counter", new ResetDataPoints.CounterResetValue(5.0)))));
+                assertThat(dataPoints, equalTo(Map.of("my-counter", new ResetDataPoints.CounterResetValue(5.0))));
             }
             if (timestamp == 50L) {
-                assertThat(dataPoints, equalTo(List.of(Tuple.tuple("my-counter", new ResetDataPoints.CounterResetValue(16.0)))));
+                assertThat(dataPoints, equalTo(Map.of("my-counter", new ResetDataPoints.CounterResetValue(16.0))));
             }
         });
         producer.reset();
@@ -132,7 +132,7 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
         assertThat(resetDataPoints.countResetDocuments(), equalTo(1));
         resetDataPoints.processDataPoints((timestamp, dataPoints) -> {
             assertThat(timestamp, equalTo(20L));
-            assertThat(dataPoints, equalTo(List.of(Tuple.tuple("my-counter", new ResetDataPoints.CounterResetValue(0.0)))));
+            assertThat(dataPoints, equalTo(Map.of("my-counter", new ResetDataPoints.CounterResetValue(0.0))));
         });
         producer.reset();
         assertThat(producer.downsampledValue(), equalTo(Double.NaN));
@@ -167,13 +167,13 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
         resetDataPoints.processDataPoints((timestamp, dataPoints) -> {
             assertThat(timestamp, anyOf(equalTo(40L), equalTo(60L), equalTo(70L)));
             if (timestamp == 40L) {
-                assertThat(dataPoints, equalTo(List.of(Tuple.tuple("my-counter", new ResetDataPoints.CounterResetValue(8.0)))));
+                assertThat(dataPoints, equalTo(Map.of("my-counter", new ResetDataPoints.CounterResetValue(8.0))));
             }
             if (timestamp == 60L) {
-                assertThat(dataPoints, equalTo(List.of(Tuple.tuple("my-counter", new ResetDataPoints.CounterResetValue(5.0)))));
+                assertThat(dataPoints, equalTo(Map.of("my-counter", new ResetDataPoints.CounterResetValue(5.0))));
             }
             if (timestamp == 70L) {
-                assertThat(dataPoints, equalTo(List.of(Tuple.tuple("my-counter", new ResetDataPoints.CounterResetValue(2.0)))));
+                assertThat(dataPoints, equalTo(Map.of("my-counter", new ResetDataPoints.CounterResetValue(2.0))));
             }
         });
         producer.reset();
@@ -209,16 +209,16 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
         resetDataPoints.processDataPoints((timestamp, dataPoints) -> {
             assertThat(timestamp, anyOf(equalTo(30L), equalTo(40L), equalTo(50L), equalTo(60L)));
             if (timestamp == 30L) {
-                assertThat(dataPoints, equalTo(List.of(Tuple.tuple("my-counter", new ResetDataPoints.CounterResetValue(4.0)))));
+                assertThat(dataPoints, equalTo(Map.of("my-counter", new ResetDataPoints.CounterResetValue(4.0))));
             }
             if (timestamp == 40L) {
-                assertThat(dataPoints, equalTo(List.of(Tuple.tuple("my-counter", new ResetDataPoints.CounterResetValue(3.0)))));
+                assertThat(dataPoints, equalTo(Map.of("my-counter", new ResetDataPoints.CounterResetValue(3.0))));
             }
             if (timestamp == 50L) {
-                assertThat(dataPoints, equalTo(List.of(Tuple.tuple("my-counter", new ResetDataPoints.CounterResetValue(5.0)))));
+                assertThat(dataPoints, equalTo(Map.of("my-counter", new ResetDataPoints.CounterResetValue(5.0))));
             }
             if (timestamp == 60L) {
-                assertThat(dataPoints, equalTo(List.of(Tuple.tuple("my-counter", new ResetDataPoints.CounterResetValue(2.0)))));
+                assertThat(dataPoints, equalTo(Map.of("my-counter", new ResetDataPoints.CounterResetValue(2.0))));
             }
         });
         producer.reset();
@@ -231,6 +231,46 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
         producer.tsidReset();
         assertThat(collector.previousValue, equalTo(Double.NaN));
         assertThat(producer.delegateCollector(), nullValue());
+    }
+
+    /**
+     * Two consecutive resets within a single bucket. Each of the three values triggers the
+     * reset criterion ({@code counterValue > previousValue}) in back-to-back iterations,
+     * exercising the {@code previousAlreadyPersisted} guard added to mirror the analogous fix
+     * in the exponential-histogram path.
+     * <p>
+     * Values (descending time order, i.e. the order in which the collector receives them):
+     * <ol>
+     *   <li>t=40: 5  — first collected; initialises state</li>
+     *   <li>t=30: 10 — reset 1: 10 &gt; 5; the guard pushes (t=40, 5) then line 567 pushes (t=30, 10)</li>
+     *   <li>t=20: 15 — reset 2: 15 &gt; 10; {@code previousAlreadyPersisted} is true because the stack
+     *       top already carries t=30, so the guard skips the redundant push of (t=30, 10)</li>
+     * </ol>
+     * Downsampled doc: 15 (oldest value)
+     * Reset docs: 10 at t=30, 5 at t=40
+     */
+    public void testConsecutiveResetsDoNotDuplicateDataPoint() throws IOException {
+        ResetDataPoints resetDataPoints = new ResetDataPoints();
+        NumericMetricFieldDownsampler.AggregateCounter producer = new NumericMetricFieldDownsampler.AggregateCounter("my-counter", null);
+        IntArrayList docIdBuffer = IntArrayList.from(0, 1, 2);
+        LongArrayList timeValues = LongArrayList.from(40, 30, 20);
+        SortedNumericDoubleValues counterValues = getIterator(docIdBuffer, 5.0, 10.0, 15.0);
+        producer.collect(counterValues, timeValues, docIdBuffer, randomFrom(Temporality.DEFAULT, Temporality.CUMULATIVE));
+        producer.updateResetDataPoints(resetDataPoints);
+
+        assertThat(producer.downsampledValue(), equalTo(15.0));
+        assertThat(resetDataPoints.countResetDocuments(), equalTo(2));
+        resetDataPoints.processDataPoints((timestamp, dataPoints) -> {
+            // Each timestamp must have exactly one entry — a duplicate would indicate the guard misfired
+            assertThat("timestamp " + timestamp + " must have exactly one reset value", dataPoints.size(), equalTo(1));
+            assertThat(timestamp, anyOf(equalTo(30L), equalTo(40L)));
+            if (timestamp == 30L) {
+                assertThat(dataPoints, equalTo(Map.of("my-counter", new ResetDataPoints.CounterResetValue(10.0))));
+            }
+            if (timestamp == 40L) {
+                assertThat(dataPoints, equalTo(Map.of("my-counter", new ResetDataPoints.CounterResetValue(5.0))));
+            }
+        });
     }
 
     /**
@@ -265,7 +305,7 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
         assertThat(resetDataPoints.countResetDocuments(), equalTo(1));
         resetDataPoints.processDataPoints((timestamp, dataPoints) -> {
             assertThat(timestamp, equalTo(20L));
-            assertThat(dataPoints, equalTo(List.of(Tuple.tuple("my-counter", new ResetDataPoints.CounterResetValue(8.0)))));
+            assertThat(dataPoints, equalTo(Map.of("my-counter", new ResetDataPoints.CounterResetValue(8.0))));
         });
         producer.reset();
         assertThat(producer.downsampledValue(), equalTo(Double.NaN));
@@ -312,10 +352,10 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
         resetDataPoints.processDataPoints((timestamp, dataPoints) -> {
             assertThat(timestamp, anyOf(equalTo(20L), equalTo(30L)));
             if (timestamp == 20L) {
-                assertThat(dataPoints, equalTo(List.of(Tuple.tuple("my-counter", new ResetDataPoints.CounterResetValue(8.0)))));
+                assertThat(dataPoints, equalTo(Map.of("my-counter", new ResetDataPoints.CounterResetValue(8.0))));
             }
             if (timestamp == 30L) {
-                assertThat(dataPoints, equalTo(List.of(Tuple.tuple("my-counter", new ResetDataPoints.CounterResetValue(0.0)))));
+                assertThat(dataPoints, equalTo(Map.of("my-counter", new ResetDataPoints.CounterResetValue(0.0))));
             }
         });
         producer.reset();

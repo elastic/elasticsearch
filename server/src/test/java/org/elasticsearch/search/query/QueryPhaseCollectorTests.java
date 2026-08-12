@@ -177,32 +177,68 @@ public class QueryPhaseCollectorTests extends ESTestCase {
     }
 
     /**
-     * When the two collectors only disagree on whether they need scores, collection stays non-exhaustive, yet both collectors still
-     * see all the matching documents because neither of them can skip while the other one is collecting.
+     * When the two collectors only disagree on whether they need scores, the overall score mode stays non-exhaustive, yet the collector
+     * that wants to skip documents must not do so while the other one is still collecting: no competitive iterator is exposed until one
+     * of the two has early terminated. Each block below gives one of the collectors a queue and a hits threshold of one, so that it wants
+     * to skip from its second document on, then asserts that the other collector still sees every matching document.
      */
     public void testNonExhaustiveScoreModesWithAggs() throws IOException {
         // sorting by index order does not need scores, while adding _score as a secondary sort does
-        CollectorManager<TopFieldCollector, TopFieldDocs> topDocsManager = new TopFieldCollectorManager(
-            new Sort(SortField.FIELD_DOC, SortField.FIELD_SCORE),
-            numDocs,
-            null,
-            1000
-        );
-        CollectorManager<TopFieldCollector, TopFieldDocs> aggsManager = new TopFieldCollectorManager(Sort.INDEXORDER, numDocs, null, 1000);
-        assertEquals(ScoreMode.TOP_DOCS_WITH_SCORES, topDocsManager.newCollector().scoreMode());
-        assertEquals(ScoreMode.TOP_DOCS, aggsManager.newCollector().scoreMode());
-        CollectorManager<QueryPhaseCollector, Result<TopFieldDocs, TopFieldDocs>> manager = createCollectorManager(
-            topDocsManager,
-            null,
-            0,
-            aggsManager,
-            null
-        );
-        assertEquals(ScoreMode.TOP_DOCS_WITH_SCORES, manager.newCollector().scoreMode());
-        Result<TopFieldDocs, TopFieldDocs> result = searcher.search(new TermQuery(new Term("field2", "value")), manager);
-        assertFalse(result.terminatedAfter);
-        assertEquals(numField2Docs, result.topDocs.totalHits.value());
-        assertEquals(numField2Docs, result.aggs.totalHits.value());
+        Sort noScores = Sort.INDEXORDER;
+        Sort withScores = new Sort(SortField.FIELD_DOC, SortField.FIELD_SCORE);
+        TermQuery query = new TermQuery(new Term("field2", "value"));
+        {
+            // the top docs collector is the one that wants to skip
+            CollectorManager<TopFieldCollector, TopFieldDocs> topDocsManager = new TopFieldCollectorManager(noScores, 1, null, 1);
+            CollectorManager<TopFieldCollector, TopFieldDocs> aggsManager = new TopFieldCollectorManager(
+                withScores,
+                numDocs,
+                null,
+                numDocs
+            );
+            assertEquals(ScoreMode.TOP_DOCS, topDocsManager.newCollector().scoreMode());
+            assertEquals(ScoreMode.TOP_DOCS_WITH_SCORES, aggsManager.newCollector().scoreMode());
+            CollectorManager<QueryPhaseCollector, Result<TopFieldDocs, TopFieldDocs>> manager = createCollectorManager(
+                topDocsManager,
+                null,
+                0,
+                aggsManager,
+                null
+            );
+            assertEquals(ScoreMode.TOP_DOCS_WITH_SCORES, manager.newCollector().scoreMode());
+            Result<TopFieldDocs, TopFieldDocs> result = searcher.search(query, manager);
+            assertFalse(result.terminatedAfter);
+            assertEquals(1, result.topDocs.scoreDocs.length);
+            // the aggs collector never reaches its own threshold, hence it counts every match exactly
+            assertEquals(numField2Docs, result.aggs.totalHits.value());
+            assertEquals(TotalHits.Relation.EQUAL_TO, result.aggs.totalHits.relation());
+        }
+        {
+            // the aggs collector is the one that wants to skip
+            CollectorManager<TopFieldCollector, TopFieldDocs> topDocsManager = new TopFieldCollectorManager(
+                withScores,
+                numDocs,
+                null,
+                numDocs
+            );
+            CollectorManager<TopFieldCollector, TopFieldDocs> aggsManager = new TopFieldCollectorManager(noScores, 1, null, 1);
+            assertEquals(ScoreMode.TOP_DOCS_WITH_SCORES, topDocsManager.newCollector().scoreMode());
+            assertEquals(ScoreMode.TOP_DOCS, aggsManager.newCollector().scoreMode());
+            CollectorManager<QueryPhaseCollector, Result<TopFieldDocs, TopFieldDocs>> manager = createCollectorManager(
+                topDocsManager,
+                null,
+                0,
+                aggsManager,
+                null
+            );
+            assertEquals(ScoreMode.TOP_DOCS_WITH_SCORES, manager.newCollector().scoreMode());
+            Result<TopFieldDocs, TopFieldDocs> result = searcher.search(query, manager);
+            assertFalse(result.terminatedAfter);
+            assertEquals(1, result.aggs.scoreDocs.length);
+            // the top docs collector never reaches its own threshold, hence it counts every match exactly
+            assertEquals(numField2Docs, result.topDocs.totalHits.value());
+            assertEquals(TotalHits.Relation.EQUAL_TO, result.topDocs.totalHits.relation());
+        }
     }
 
     public void testPostFilterTopDocsOnly() throws IOException {
@@ -446,6 +482,9 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             );
             Result<TopFieldDocs, Void> result = searcher.search(booleanQuery, manager);
             assertFalse(result.terminatedAfter);
+            // documents were skipped, otherwise the hit count would be exact like in the block above. numField2Docs is far above the
+            // hits threshold of 10, so at least one slice exceeds it no matter how the index ends up segmented.
+            assertEquals(TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO, result.topDocs.totalHits.relation());
             assertEquals(10, result.topDocs.scoreDocs.length);
             for (int i = 0; i < 10; i++) {
                 assertEquals(allTopDocs.scoreDocs[i].doc, result.topDocs.scoreDocs[i].doc);

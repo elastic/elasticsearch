@@ -680,3 +680,129 @@ max_bytes:long | cluster:keyword
 10797          | qa
 7403           | staging
 ;
+
+// ======== multi-valued field patterns ========
+
+multiColumnInSubqueryWithOneMultiValuedFieldWithMvExpand
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+
+FROM employees
+| MV_EXPAND job_positions
+| WHERE (emp_no, job_positions) IN (FROM employees
+                                    | MV_EXPAND job_positions
+                                    | WHERE emp_no == 10001
+                                    | KEEP emp_no, job_positions)
+| KEEP emp_no, job_positions
+| SORT emp_no, job_positions
+;
+
+emp_no:integer | job_positions:keyword
+10001          | Accountant
+10001          | Senior Python Developer
+;
+
+multiColumnInSubqueryWithOneMultiValuedFieldWithoutMvExpand
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+
+FROM employees
+| WHERE (emp_no, job_positions) IN (FROM employees
+                                    | WHERE salary > 60000
+                                    | KEEP emp_no, job_positions)
+| KEEP emp_no, job_positions, salary
+| SORT emp_no
+;
+
+emp_no:integer | job_positions:keyword      | salary:integer
+10019          | Purchase Manager           | 73717
+10021          | Support Engineer           | 60408
+10024          | Junior Developer           | 64675
+10027          | Senior Python Developer    | 73851
+10036          | Senior Python Developer    | 60781
+10054          | Principal Support Engineer | 65367
+10086          | Senior Python Developer    | 68547
+10100          | Purchase Manager           | 68431
+;
+
+multiColumnInSubqueryWithTwoMultiValuedFieldsWithMvExpand
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+
+FROM employees
+| MV_EXPAND job_positions
+| WHERE (job_positions, is_rehired) IN (FROM employees
+                                        | MV_EXPAND job_positions
+                                        | WHERE emp_no == 10001
+                                        | KEEP job_positions, is_rehired)
+| KEEP emp_no, job_positions, is_rehired
+| SORT emp_no, job_positions, is_rehired
+| LIMIT 5
+;
+
+emp_no:integer | job_positions:keyword   | is_rehired:boolean
+;
+
+multiColumnInSubqueryWithTwoMultiValuedFieldsWithoutMvExpand
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+
+FROM employees
+| WHERE (job_positions, is_rehired) IN (FROM employees | KEEP job_positions, is_rehired)
+| KEEP emp_no, job_positions, is_rehired
+| SORT emp_no
+| LIMIT 5
+;
+
+warningRegex:.*evaluation of \[\(job_positions, is_rehired\) IN \(FROM .*employees.* \| KEEP job_positions, is_rehired\)\] failed.*
+warningRegex:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+
+emp_no:integer | job_positions:keyword      | is_rehired:boolean
+10021          | Support Engineer           | true
+10027          | Senior Python Developer    | false
+10068          | Architect                  | true
+10075          | Purchase Manager           | true
+10082          | Principal Support Engineer | false
+;
+
+multiColumnNotInSubqueryWithMultiValuedFieldWithMvExpand
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+
+FROM employees
+| MV_EXPAND job_positions
+| WHERE (emp_no, job_positions) NOT IN (FROM employees
+                                        | WHERE salary > 27000
+                                        | MV_EXPAND job_positions
+                                        | KEEP emp_no, job_positions)
+| KEEP emp_no, job_positions, salary
+| SORT emp_no, job_positions
+;
+
+emp_no:integer | job_positions:keyword      | salary:integer
+10015          | Head Human Resources       | 25324
+10015          | Junior Developer           | 25324
+10015          | Principal Support Engineer | 25324
+10015          | Support Engineer           | 25324
+10035          | Data Scientist             | 25945
+10035          | Senior Python Developer    | 25945
+10048          | Internship                 | 26436
+10092          | Accountant                 | 25976
+10092          | Junior Developer           | 25976
+;
+
+multiColumnNotInSubqueryWithMultiValuedFieldWithoutMvExpand
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+
+FROM employees
+| WHERE (emp_no, job_positions) NOT IN (FROM employees | WHERE salary > 27000 | KEEP emp_no, job_positions)
+| STATS cnt = COUNT(*)
+;
+
+warningRegex:.*evaluation of \[\(emp_no, job_positions\) NOT IN \(FROM .*employees.* \| WHERE salary > 27000 \| KEEP emp_no, job_positions\)\] failed.*
+warningRegex:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+
+cnt:long
+1
+;

@@ -513,7 +513,7 @@ public abstract class AbstractSubqueryJoin extends Join implements SortPreservin
 
         MultiColumnDedupResult(Block[] keyColumns) {
             this.keyColumns = keyColumns;
-            int positions = keyColumns.length > 0 ? keyColumns[0].getPositionCount() : 0;
+            int positions = positions();
             this.isNullPosition = new boolean[positions];
             boolean anyNull = false;
             for (Block col : keyColumns) {

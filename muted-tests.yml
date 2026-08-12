@@ -834,3 +834,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecViewsIT
   method: test {csv-spec:views.multiValueWarningsWithNoViews}
   issue: https://github.com/elastic/elasticsearch/issues/156580
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecLookupJoinIT
+  method: test {csv-spec:lookup-join.mvJoinKeyOnTheLookupIndex}
+  issue: https://github.com/elastic/elasticsearch/issues/156582

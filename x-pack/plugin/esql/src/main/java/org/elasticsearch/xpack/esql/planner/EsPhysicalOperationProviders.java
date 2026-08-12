@@ -333,6 +333,34 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         boolean isUnsupported = attr.dataType() == DataType.UNSUPPORTED;
         UnionTypeEsField unionTypes = findUnionTypes(attr);
         if (unionTypes == null) {
+            if (isUnsupported == false
+                && functionConfig == null
+                && attr instanceof FieldAttribute fa
+                && fa.field() instanceof PotentiallyUnmappedKeywordEsField == false) {
+                MappedFieldType mft = shardContext.fieldType(fieldName);
+                if (mft != null) {
+                    DataType shardType = EsqlDataTypeRegistry.INSTANCE.fromEs(mft.familyTypeName(), mft.getMetricType());
+                    if (shardType.widenSmallNumeric() != fa.dataType().widenSmallNumeric()) {
+                        // The shard's mapping does not agree with the type the query was planned with, and no union-types converter
+                        // was attached. This happens when a mapping update (e.g. a dynamically mapped field) lands between field-caps
+                        // resolution on the coordinator and execution on this shard: the block loader would produce blocks of the
+                        // shard's type and trip the generic sanity check in ValuesSourceReaderOperator. Fail up front with an error
+                        // that explains the mismatch instead. Deliberately narrow (same-family types and converted union types pass
+                        // through), so genuine planner bugs still surface via the sanity check rather than being masked here.
+                        throw new IllegalStateException(
+                            "field ["
+                                + fieldName
+                                + "] was resolved as type ["
+                                + fa.dataType().typeName()
+                                + "] when the query started, but is mapped as incompatible type ["
+                                + shardType.typeName()
+                                + "] in index ["
+                                + shardContext.ctx.getFullyQualifiedIndex().getName()
+                                + "]; the field was probably mapped concurrently with this query; retrying the query may help"
+                        );
+                    }
+                }
+            }
             BlockLoader blockLoader = shardContext.blockLoader(
                 fieldName,
                 isUnsupported,

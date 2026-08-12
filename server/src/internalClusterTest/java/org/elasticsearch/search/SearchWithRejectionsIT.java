@@ -145,36 +145,34 @@ public class SearchWithRejectionsIT extends ESIntegTestCase {
         final CountDownLatch block = new CountDownLatch(1);
         final int threads = threadPool.info(ThreadPool.Names.SEARCH).getMax();
         final CountDownLatch started = new CountDownLatch(threads);
-        // Stoppable wrapper lets try-with-resources own the ExecutorService without shutting down the
-        // node-owned SEARCH pool (shutdown/close are no-ops). Tasks keep running on the real executor
-        // until the returned releasable counts down {@code block}.
-        try (ExecutorService searchExecutor = new StoppableExecutorServiceWrapper(threadPool.executor(ThreadPool.Names.SEARCH))) {
-            try {
-                for (int i = 0; i < threads; i++) {
-                    searchExecutor.execute(() -> {
-                        started.countDown();
-                        awaitQuietly(block);
-                    });
-                }
-                safeAwait(started);
-                // Fill the queue slot (queue_size=1). With all workers blocked, the next submit rejects.
-                try {
-                    searchExecutor.execute(() -> awaitQuietly(block));
-                } catch (EsRejectedExecutionException e) {
-                    // already full
-                }
-                expectThrows(EsRejectedExecutionException.class, () -> searchExecutor.execute(() -> {}));
-            } catch (Throwable t) {
-                // The cluster is shared by the whole suite, so never leave SEARCH threads blocked on a setup failure.
-                block.countDown();
-                throw new AssertionError("failed to saturate SEARCH pool", t);
+        // Stoppable wrapper: shutdown() is a no-op so we cannot tear down the node-owned SEARCH pool.
+        // Not try-with-resources: on this branch ExecutorService is not AutoCloseable.
+        final ExecutorService searchExecutor = new StoppableExecutorServiceWrapper(threadPool.executor(ThreadPool.Names.SEARCH));
+        try {
+            for (int i = 0; i < threads; i++) {
+                searchExecutor.execute(() -> {
+                    started.countDown();
+                    awaitQuietly(block);
+                });
             }
-            return () -> {
-                if (block.getCount() > 0) {
-                    block.countDown();
-                }
-            };
+            safeAwait(started);
+            // Fill the queue slot (queue_size=1). With all workers blocked, the next submit rejects.
+            try {
+                searchExecutor.execute(() -> awaitQuietly(block));
+            } catch (EsRejectedExecutionException e) {
+                // already full
+            }
+            expectThrows(EsRejectedExecutionException.class, () -> searchExecutor.execute(() -> {}));
+        } catch (Throwable t) {
+            // The cluster is shared by the whole suite, so never leave SEARCH threads blocked on a setup failure.
+            block.countDown();
+            throw new AssertionError("failed to saturate SEARCH pool", t);
         }
+        return () -> {
+            if (block.getCount() > 0) {
+                block.countDown();
+            }
+        };
     }
 
     private void assertBusyOpenContexts(String index, long expected) throws Exception {

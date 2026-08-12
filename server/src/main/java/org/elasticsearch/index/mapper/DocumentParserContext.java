@@ -31,7 +31,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -217,11 +216,8 @@ public abstract class DocumentParserContext {
     private final SourceToParse sourceToParse;
 
     private final Set<String> ignoredFields;
-    private final Set<String> ignoredFieldsView;
     private final List<IgnoredSourceFieldMapper.NameValue> ignoredFieldValues;
-    private final LinkedHashMap<String, IgnoredSourceFieldMapper.NameValue> pendingIgnoredFieldValues;
     private final Set<String> singleValuedFields;
-    private final Map<String, BytesRef> pendingMultiValueViolations;
     private Scope currentScope;
 
     private final Map<String, List<Mapper.Builder>> dynamicMappers;
@@ -262,7 +258,6 @@ public abstract class DocumentParserContext {
         SourceToParse sourceToParse,
         Set<String> ignoreFields,
         List<IgnoredSourceFieldMapper.NameValue> ignoredFieldValues,
-        LinkedHashMap<String, IgnoredSourceFieldMapper.NameValue> pendingIgnoredFieldValues,
         Scope currentScope,
         Map<String, List<Mapper.Builder>> dynamicMappers,
         Map<String, ObjectMapper.Builder> dynamicObjectMappers,
@@ -280,18 +275,14 @@ public abstract class DocumentParserContext {
         DynamicMapperSize dynamicMapperSize,
         ObjectArrayElementCounter objectArrayElementCounter,
         boolean recordedSource,
-        Set<String> singleValuedFields,
-        Map<String, BytesRef> pendingMultiValueViolations
+        Set<String> singleValuedFields
     ) {
         this.mappingLookup = mappingLookup;
         this.mappingParserContext = mappingParserContext;
         this.sourceToParse = sourceToParse;
         this.ignoredFields = ignoreFields;
-        this.ignoredFieldsView = Collections.unmodifiableSet(this.ignoredFields);
         this.ignoredFieldValues = ignoredFieldValues;
-        this.pendingIgnoredFieldValues = pendingIgnoredFieldValues;
         this.singleValuedFields = singleValuedFields;
-        this.pendingMultiValueViolations = pendingMultiValueViolations;
         this.currentScope = currentScope;
         this.dynamicMappers = dynamicMappers;
         this.dynamicObjectMappers = dynamicObjectMappers;
@@ -320,7 +311,6 @@ public abstract class DocumentParserContext {
             in.sourceToParse,
             in.ignoredFields,
             in.ignoredFieldValues,
-            in.pendingIgnoredFieldValues,
             in.currentScope,
             in.dynamicMappers,
             in.dynamicObjectMappers,
@@ -338,8 +328,7 @@ public abstract class DocumentParserContext {
             in.dynamicMappersSize,
             in.objectArrayElementCounter,
             in.recordedSource,
-            in.singleValuedFields,
-            in.pendingMultiValueViolations
+            in.singleValuedFields
         );
     }
 
@@ -356,7 +345,6 @@ public abstract class DocumentParserContext {
             source,
             new HashSet<>(),
             new ArrayList<>(),
-            new LinkedHashMap<>(),
             Scope.SINGLETON,
             new HashMap<>(),
             new HashMap<>(),
@@ -374,8 +362,7 @@ public abstract class DocumentParserContext {
             new DynamicMapperSize(),
             new ObjectArrayElementCounter(),
             false,
-            new HashSet<>(),
-            new HashMap<>()
+            new HashSet<>()
         );
     }
 
@@ -450,18 +437,13 @@ public abstract class DocumentParserContext {
                 "Field [" + fieldName + "] is configured with [multi_value=false] but encountered multiple values in the same document"
             );
         }
-        // Stash the encoded violating value; FieldMapper.parse drains this via takePendingMultiValueViolation at its end.
-        pendingMultiValueViolations.put(fieldName, XContentDataHelper.encodeToken(parser()));
+        if (mappingLookup.isSourceSynthetic() || mappingLookup.isSourceColumnarStored()) {
+            // Stored source already retains the offending value; only synthetic (and columnar_stored, which reconstructs
+            // its per-document source the same way) need the value copied out to survive reconstruction.
+            OnFailureStoredValues.storeValueForOnFailureIgnore(this, fieldName, parser());
+        }
         addIgnoredField(fieldName);
         return true;
-    }
-
-    /**
-     * Returns and removes the pending multi-value violation stash for {@code fieldName}, or {@code null} if none.
-     * Called by {@link FieldMapper#parse} at its end to collect any violation into a {@link FieldMapper.ParseResult.MultiValueViolation}.
-     */
-    final BytesRef takePendingMultiValueViolation(String fieldName) {
-        return pendingMultiValueViolations.remove(fieldName);
     }
 
     /**
@@ -529,17 +511,10 @@ public abstract class DocumentParserContext {
     }
 
     /**
-     * Returns {@code true} if {@code field} has been added to the ignored-fields set.
-     */
-    public final boolean isFieldIgnored(String field) {
-        return ignoredFields.contains(field);
-    }
-
-    /**
      * Return the collection of fields that have been ignored so far.
      */
-    public final Set<String> getIgnoredFields() {
-        return ignoredFieldsView;
+    public final Collection<String> getIgnoredFields() {
+        return Collections.unmodifiableCollection(ignoredFields);
     }
 
     /**
@@ -580,47 +555,6 @@ public abstract class DocumentParserContext {
             return tuple.v1();
         }
         return this;
-    }
-
-    /**
-     * Tentative pre-capture variant used by {@link FallbackPostMapper}.
-     * Clones the parser sub-context (capturing XContent) and registers the result in the pending list.
-     * The caller must follow with {@link #commitPendingPreCapture} or {@link #discardPendingPreCapture}.
-     */
-    final DocumentParserContext addPendingPreCapture(IgnoredSourceFieldMapper.NameValue ignoredFieldWithNoSource) throws IOException {
-        assert ignoredFieldWithNoSource != null;
-        assert ignoredFieldWithNoSource.value() == null;
-        Tuple<DocumentParserContext, XContentBuilder> tuple = XContentDataHelper.cloneSubContext(this);
-        pendingIgnoredFieldValues.put(
-            ignoredFieldWithNoSource.name(),
-            ignoredFieldWithNoSource.cloneWithValue(XContentDataHelper.encodeXContentBuilder(tuple.v2()))
-        );
-        return tuple.v1();
-    }
-
-    /**
-     * Moves the pending pre-capture entry for {@code fieldPath} into the committed ignored-field list.
-     * Any void placeholder previously added for this field (e.g. by copy_to processing) is evicted first,
-     * so {@code _ignored_source} holds exactly one entry for the field.
-     */
-    final void commitPendingPreCapture(String fieldPath) {
-        IgnoredSourceFieldMapper.NameValue nv = pendingIgnoredFieldValues.remove(fieldPath);
-        if (nv != null) {
-            ignoredFieldValues.removeIf(e -> e.name().equals(fieldPath) && XContentDataHelper.isDataPresent(e.value()) == false);
-            ignoredFieldValues.add(nv);
-        }
-    }
-
-    /**
-     * Removes the pending pre-capture entry for {@code fieldPath} without committing it.
-     */
-    final void discardPendingPreCapture(String fieldPath) {
-        pendingIgnoredFieldValues.remove(fieldPath);
-    }
-
-    /** Returns {@code true} if a pending pre-capture entry exists for {@code fieldPath}. */
-    final boolean hasPendingPreCapture(String fieldPath) {
-        return pendingIgnoredFieldValues.containsKey(fieldPath);
     }
 
     /**
@@ -870,10 +804,12 @@ public abstract class DocumentParserContext {
             int additionalFieldsToAdd = getNewFieldsSize() + mapperSize;
             if (indexSettings().isIgnoreDynamicFieldsBeyondLimit()) {
                 if (mappingLookup.exceedsLimit(indexSettings().getMappingTotalFieldsLimit(), additionalFieldsToAdd)) {
-                    try {
-                        FallbackPostMapper.capture(this, fullPath, FallbackPostMapper.Reason.FIELD_LIMIT_EXCEEDED);
-                    } catch (IOException e) {
-                        throw new IllegalArgumentException("failed to parse field [" + fullPath + " ]", e);
+                    if (canAddIgnoredField()) {
+                        try {
+                            addIgnoredField(IgnoredSourceFieldMapper.NameValue.fromContext(this, fullPath, encodeFlattenedToken()));
+                        } catch (IOException e) {
+                            throw new IllegalArgumentException("failed to parse field [" + fullPath + " ]", e);
+                        }
                     }
                     addIgnoredField(fullPath);
                     return false;
@@ -885,10 +821,12 @@ public abstract class DocumentParserContext {
 
             if (indexSettings().isIgnoreDynamicFieldNamesBeyondLimit()) {
                 if (builder.leafName().length() > indexSettings().getMappingFieldNameLengthLimit()) {
-                    try {
-                        FallbackPostMapper.capture(this, fullPath, FallbackPostMapper.Reason.FIELD_NAME_TOO_LONG);
-                    } catch (IOException e) {
-                        throw new IllegalArgumentException("failed to parse field [" + fullPath + "]", e);
+                    if (canAddIgnoredField()) {
+                        try {
+                            addIgnoredField(IgnoredSourceFieldMapper.NameValue.fromContext(this, fullPath, encodeFlattenedToken()));
+                        } catch (IOException e) {
+                            throw new IllegalArgumentException("failed to parse field [" + fullPath + "]", e);
+                        }
                     }
                     addIgnoredField(fullPath);
                     return false;
@@ -1202,22 +1140,7 @@ public abstract class DocumentParserContext {
             // 3. copy_to points at dynamic field which is not yet applied to mapping, we will process it properly after the dynamic update
             if (parent != null) {
                 int offset = parent.isRoot() ? 0 : parent.fullPath().length() + 1;
-                // Skip the void placeholder when a real captured value is already committed for this field
-                // (e.g. COPY_TO_DESTINATION pre-capture that was already committed before this copy fires).
-                // Adding void on top of a real value causes two entries in _ignored_source, which produces
-                // inconsistent round-trip binary when JSON field order changes between original and round-trip.
-                boolean hasRealValue = false;
-                for (IgnoredSourceFieldMapper.NameValue e : ignoredFieldValues) {
-                    if (e.name().equals(copyToField) && XContentDataHelper.isDataPresent(e.value())) {
-                        hasRealValue = true;
-                        break;
-                    }
-                }
-                if (hasRealValue == false) {
-                    ignoredFieldValues.add(
-                        new IgnoredSourceFieldMapper.NameValue(copyToField, offset, XContentDataHelper.voidValue(), doc)
-                    );
-                }
+                ignoredFieldValues.add(new IgnoredSourceFieldMapper.NameValue(copyToField, offset, XContentDataHelper.voidValue(), doc));
             }
         }
 

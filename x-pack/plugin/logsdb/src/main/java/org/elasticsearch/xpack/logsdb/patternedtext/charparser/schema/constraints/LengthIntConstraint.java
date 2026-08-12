@@ -7,23 +7,32 @@
 
 package org.elasticsearch.xpack.logsdb.patternedtext.charparser.schema.constraints;
 
-// Length constraint ({})
+/**
+ * Character-length constraint ({@code {n}}) for a numeric subToken: the subToken must be exactly {@code n} characters long. This is a
+ * property of the raw text (so leading zeros count), NOT of the value, and is enforced by the parser's char-length gate. The constraint is
+ * therefore value-NEUTRAL - {@link #isApplicable} is always true and {@link #trueRanges} is the full range - so that when it is combined
+ * with a value constraint via {@link #and}, it never clips the value range (a value floor, e.g. rejecting negatives, is a base-type
+ * property, applied by the compiler). It only reports the required length via {@link #getRequiredCharLength}.
+ */
 public final class LengthIntConstraint implements IntConstraint {
-    int lowerBound;
-    int upperBound;
+    private final int length;
 
     public LengthIntConstraint(int length) {
-        this.lowerBound = (int) Math.pow(10, length - 1);
-        this.upperBound = (int) Math.pow(10, length) - 1;
+        this.length = length;
     }
 
     @Override
     public boolean isApplicable(int value) {
-        return value >= lowerBound && value <= upperBound;
+        return true;
     }
 
     @Override
     public IntConstraints.Range[] trueRanges() {
-        return new IntConstraints.Range[] { new IntConstraints.Range(lowerBound, upperBound) };
+        return new IntConstraints.Range[] { new IntConstraints.Range(Integer.MIN_VALUE, Integer.MAX_VALUE) };
+    }
+
+    @Override
+    public int getRequiredCharLength() {
+        return length;
     }
 }

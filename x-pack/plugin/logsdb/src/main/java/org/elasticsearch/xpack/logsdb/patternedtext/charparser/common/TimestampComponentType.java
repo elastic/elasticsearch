@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.logsdb.patternedtext.charparser.common;
 public enum TimestampComponentType {
     YEAR("Y"),
     TWO_DIGIT_YEAR("YY"),
+    COMPACT_DATE_YYMMDD("YYMMDD"),
+    COMPACT_TIME_HHMMSS("HHMMSS"),
     MONTH("M"),
     DAY("D"),
     HOUR("h"),
@@ -32,6 +34,8 @@ public enum TimestampComponentType {
     // enum instance codes (derived from ordinal)
     public static final int YEAR_CODE;
     public static final int TWO_DIGIT_YEAR_CODE;
+    public static final int COMPACT_DATE_YYMMDD_CODE;
+    public static final int COMPACT_TIME_HHMMSS_CODE;
     public static final int MONTH_CODE;
     public static final int DAY_CODE;
     public static final int HOUR_CODE;
@@ -49,6 +53,8 @@ public enum TimestampComponentType {
     static {
         YEAR_CODE = YEAR.ordinal();
         TWO_DIGIT_YEAR_CODE = TWO_DIGIT_YEAR.ordinal();
+        COMPACT_DATE_YYMMDD_CODE = COMPACT_DATE_YYMMDD.ordinal();
+        COMPACT_TIME_HHMMSS_CODE = COMPACT_TIME_HHMMSS.ordinal();
         MONTH_CODE = MONTH.ordinal();
         DAY_CODE = DAY.ordinal();
         HOUR_CODE = HOUR.ordinal();

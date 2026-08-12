@@ -18,6 +18,15 @@ public record SubTokenBaseType(
     char[] allowedCharacters
 ) {
 
+    /**
+     * Whether this base type admits negative values. Signed integers ({@code %J}) do; unsigned integers ({@code %I}) and everything else
+     * do not. Used by the compiler to floor the value range of unsigned numeric subTokens at 0 (both {@code %I} and {@code %J} share the
+     * {@link EncodingType#INTEGER} encoding, so the symbol is the only discriminator).
+     */
+    public boolean isSigned() {
+        return "J".equals(symbol);
+    }
+
     @Override
     public String toString() {
         return name;

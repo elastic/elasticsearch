@@ -52,6 +52,23 @@ public class StringConstraintsTests extends ESTestCase {
         assertTrue(constraint.isApplicable("123"));
         assertFalse(constraint.isApplicable("abcd"));
         assertFalse(constraint.isApplicable("ab"));
+        assertEquals(3, constraint.getRequiredCharLength());
+    }
+
+    public void testConflictingAndLengthConstraintsAreRejected() {
+        // {4} && {6} is a contradiction (can't be both lengths) and is rejected at parse time; the same length is not a conflict
+        expectThrows(IllegalArgumentException.class, () -> StringConstraints.parseStringConstraint("{4} && {6}"));
+        assertEquals(4, StringConstraints.parseStringConstraint("{4} && {4}").getRequiredCharLength());
+    }
+
+    public void testOrOfLengthConstraintsMatchesEitherLength() {
+        // Unlike numeric subTokens, a string subToken CAN declare {n} || {m}: length is validated at runtime, so it matches either length.
+        StringConstraint constraint = StringConstraints.parseStringConstraint("{4} || {6}");
+        assertTrue(constraint.isApplicable("abcd"));     // 4 chars
+        assertTrue(constraint.isApplicable("abcdef"));   // 6 chars
+        assertFalse(constraint.isApplicable("abc"));     // 3
+        assertFalse(constraint.isApplicable("abcde"));   // 5
+        assertFalse(constraint.isApplicable("abcdefg")); // 7
     }
 
     public void testAndConstraint() {

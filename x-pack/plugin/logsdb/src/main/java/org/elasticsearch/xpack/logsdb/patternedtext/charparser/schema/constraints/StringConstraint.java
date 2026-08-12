@@ -37,6 +37,15 @@ public interface StringConstraint {
      */
     boolean isApplicable(String value);
 
+    /**
+     * The exact character length ({@code {n}}) this constraint imposes, or -1 if none. String subTokens validate their length at runtime
+     * (see {@link LengthStringConstraint#isApplicable}), but this is used to reject conflicting {@code {n}} declarations within a single
+     * subToken at parse time, consistently with numeric subTokens.
+     */
+    default int getRequiredCharLength() {
+        return -1;
+    }
+
     default StringConstraint and(final StringConstraint other) {
         return new AndStringConstraint(this, other);
     }

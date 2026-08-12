@@ -26,10 +26,21 @@ public interface IntConstraint {
      */
     boolean isApplicable(int value);
 
+    /**
+     * The exact character length ({@code {n}}) this constraint imposes on the (numeric) subToken, or -1 if none. Character length is
+     * orthogonal to value and is enforced separately by the parser's char-length gate, so {@link LengthIntConstraint} reports its length
+     * here while remaining value-neutral. Composite constraints propagate the length of whichever operand carries one.
+     */
+    default int getRequiredCharLength() {
+        return -1;
+    }
+
     default IntConstraint and(IntConstraint constraint) {
         if (constraint == null) {
             throw new IllegalArgumentException("Constraint cannot be null");
         }
+        // reject conflicting {n} lengths at parse time (throws); for a valid chain this is the single combined length
+        int combinedCharLength = ConstraintCharLengths.combine(getRequiredCharLength(), constraint.getRequiredCharLength());
 
         return new IntConstraint() {
             @Override
@@ -56,6 +67,11 @@ public interface IntConstraint {
             public boolean isApplicable(int value) {
                 return IntConstraint.this.isApplicable(value) && constraint.isApplicable(value);
             }
+
+            @Override
+            public int getRequiredCharLength() {
+                return combinedCharLength;
+            }
         };
     }
 
@@ -63,6 +79,8 @@ public interface IntConstraint {
         if (constraint == null) {
             throw new IllegalArgumentException("Constraint cannot be null");
         }
+        // a single subToken has one char-length gate slot, so {n} || {m} (distinct) is unsupported and rejected here
+        int combinedCharLength = ConstraintCharLengths.combine(getRequiredCharLength(), constraint.getRequiredCharLength());
 
         return new IntConstraint() {
             @Override
@@ -101,6 +119,11 @@ public interface IntConstraint {
             @Override
             public boolean isApplicable(int value) {
                 return IntConstraint.this.isApplicable(value) || constraint.isApplicable(value);
+            }
+
+            @Override
+            public int getRequiredCharLength() {
+                return combinedCharLength;
             }
         };
     }

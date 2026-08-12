@@ -39,6 +39,19 @@ public final class CompiledSchema {
     public final byte[] charToCharType;
 
     /**
+     * For each character length (index), the bitmask of subToken types allowed at that length. Types with a {n} character-length
+     * constraint are allowed only at length n; all other types at any length. The last index is the "any length" bitmask (clamp target).
+     */
+    public final int[] charLengthToAllowedSubTokenBitmask;
+
+    /**
+     * A fast-access lookup table indicating whether a character may act as a special (per-token-type) subToken delimiter.
+     * Such characters are normally boundary characters, but a specific token type may declare them as subToken delimiters at a specific
+     * position (see {@code special_sub_token_delimiters}). Indexed by ASCII code.
+     */
+    public final boolean[] isSpecialSubTokenDelimiter;
+
+    /**
      * A fast-access lookup table for finding parsing information for delimiter characters.
      * This array contains instances of {@link CharSpecificParsingInfo} for delimiter characters, where the index in the array
      * corresponds to the ASCII code of the character.
@@ -154,6 +167,8 @@ public final class CompiledSchema {
     public CompiledSchema(
         int[] charToSubTokenBitmask,
         byte[] charToCharType,
+        int[] charLengthToAllowedSubTokenBitmask,
+        boolean[] isSpecialSubTokenDelimiter,
         CharSpecificParsingInfo[] charSpecificParsingInfos,
         SubstringToIntegerMap subTokenNumericValueRepresentation,
         int maxSubTokensPerToken,
@@ -175,6 +190,8 @@ public final class CompiledSchema {
     ) {
         this.charToSubTokenBitmask = charToSubTokenBitmask;
         this.charToCharType = charToCharType;
+        this.charLengthToAllowedSubTokenBitmask = charLengthToAllowedSubTokenBitmask;
+        this.isSpecialSubTokenDelimiter = isSpecialSubTokenDelimiter;
         this.charSpecificParsingInfos = charSpecificParsingInfos;
         this.subTokenNumericValueRepresentation = subTokenNumericValueRepresentation;
         this.maxSubTokensPerToken = maxSubTokensPerToken;

@@ -219,7 +219,9 @@ public class SchemaCompilerTests extends ESTestCase {
         int bitmask = smallIntegerSubTokenBitmasks[22];
         assertNotEquals("DD bitmask should be set for 22", 0x00, bitmask & DD_bitmask);
         assertEquals("MM bitmask should not be set for 22", 0x00, bitmask & MM_bitmask);
-        assertEquals("YYYY bitmask should not be set for 22", 0x00, bitmask & YYYY_bitmask);
+        // YYYY is now {4} && 2000-2100: the small-integer table carries its bit only for in-range values, so it is NOT set for 22.
+        // (The exact 4-character requirement is still enforced separately by the charLengthToAllowedSubTokenBitmask gate, asserted below.)
+        assertEquals("YYYY (2000-2100) not set for 22", 0x00, bitmask & YYYY_bitmask);
         assertNotEquals("hh bitmask should be set for 22", 0x00, bitmask & hh_bitmask);
         assertNotEquals("mm bitmask should be set for 22", 0x00, bitmask & mm_bitmask);
         assertNotEquals("ss bitmask should be set for 22", 0x00, bitmask & ss_bitmask);
@@ -228,7 +230,7 @@ public class SchemaCompilerTests extends ESTestCase {
         bitmask = smallIntegerSubTokenBitmasks[50];
         assertEquals("DD bitmask should not be set for 50", 0x00, bitmask & DD_bitmask);
         assertEquals("DD bitmask should not be set for 50", 0x00, bitmask & MM_bitmask);
-        assertEquals("YYYY bitmask should not be set for 50", 0x00, bitmask & YYYY_bitmask);
+        assertEquals("YYYY (2000-2100) not set for 50", 0x00, bitmask & YYYY_bitmask);
         assertEquals("hh bitmask should not be set for 50", 0x00, bitmask & hh_bitmask);
         assertNotEquals("mm bitmask should be set for 50", 0x00, bitmask & mm_bitmask);
         assertNotEquals("ss bitmask should be set for 50", 0x00, bitmask & ss_bitmask);
@@ -238,6 +240,40 @@ public class SchemaCompilerTests extends ESTestCase {
         assertNotEquals(0x00, bitmaskForInteger & YYYY_bitmask);
         assertEquals(0x00, bitmaskForInteger & TZOhhmm_bitmask);
         assertNotEquals("int_bitmask should be set for 2000", 0x00, bitmaskForInteger & int_bitmask);
+
+        // The character-length gate is what actually enforces the exact digit count for length-constrained numeric subTokens ({n}):
+        // yy {2}, YYYY {4}, TZOhhmm {5} (sign + 4 digits), yymmdd {6}, hhmmss {6}. Each is allowed ONLY at its exact character length;
+        // unconstrained numeric types (e.g. the generic integer) are allowed at every length, including the final "any length" clamp index.
+        int yy_bitmask = subTokenBitmaskRegistry.getBitmask("yy");
+        int yymmdd_bitmask = subTokenBitmaskRegistry.getBitmask("yymmdd");
+        int hhmmss_bitmask = subTokenBitmaskRegistry.getBitmask("hhmmss");
+        int[] charLengthGate = compiledSchema.charLengthToAllowedSubTokenBitmask;
+        int clampIndex = charLengthGate.length - 1;
+        assertNotEquals("yy allowed at length 2", 0x00, charLengthGate[2] & yy_bitmask);
+        assertEquals("yy not allowed at length 4", 0x00, charLengthGate[4] & yy_bitmask);
+        assertNotEquals("YYYY allowed at length 4", 0x00, charLengthGate[4] & YYYY_bitmask);
+        assertEquals("YYYY not allowed at length 2", 0x00, charLengthGate[2] & YYYY_bitmask);
+        assertEquals("YYYY not allowed at length 6", 0x00, charLengthGate[6] & YYYY_bitmask);
+        assertNotEquals("yymmdd allowed at length 6", 0x00, charLengthGate[6] & yymmdd_bitmask);
+        assertEquals("yymmdd not allowed at length 4", 0x00, charLengthGate[4] & yymmdd_bitmask);
+        assertNotEquals("hhmmss allowed at length 6", 0x00, charLengthGate[6] & hhmmss_bitmask);
+        assertEquals("hhmmss not allowed at length 5", 0x00, charLengthGate[5] & hhmmss_bitmask);
+        assertNotEquals("TZOhhmm allowed at length 5 (sign + 4 digits)", 0x00, charLengthGate[5] & TZOhhmm_bitmask);
+        assertEquals("TZOhhmm not allowed at length 4", 0x00, charLengthGate[4] & TZOhhmm_bitmask);
+        assertNotEquals("int allowed at length 4", 0x00, charLengthGate[4] & int_bitmask);
+        assertNotEquals("int allowed at clamp index", 0x00, charLengthGate[clampIndex] & int_bitmask);
+        assertEquals("YYYY not allowed at clamp index", 0x00, charLengthGate[clampIndex] & YYYY_bitmask);
+
+        // Unsigned (%I) numeric subTokens never match negative values - even a value-neutral {n} type like yy: the compiler floors their
+        // value range at 0. Signed (%J) subTokens such as TZOhhmm still match negatives within their declared range. (-3 and -500 are both
+        // inside TZOhhmm's [-1800,1800] range, so the range-bitmask lookup resolves them without hitting the "below minimum" guard.)
+        assertEquals("yy (%I) must not match a negative value", 0x00, getBitmaskForInteger(-3, compiledSchema) & yy_bitmask);
+        assertEquals("YYYY (%I) must not match a negative value", 0x00, getBitmaskForInteger(-3, compiledSchema) & YYYY_bitmask);
+        assertNotEquals(
+            "TZOhhmm (%J) must match negatives within its range",
+            0x00,
+            getBitmaskForInteger(-500, compiledSchema) & TZOhhmm_bitmask
+        );
 
         CharSpecificParsingInfo[] charSpecificParsingInfos = compiledSchema.charSpecificParsingInfos;
         assertNotNull(charSpecificParsingInfos);
@@ -444,10 +480,21 @@ public class SchemaCompilerTests extends ESTestCase {
             }
             assertNull(info.multiTokenBitmaskPerDelimiterPartPosition);
         }
-        CharSpecificParsingInfo info = charSpecificParsingInfos[','];
-        assertNotNull("CharSpecificParsingInfo should be defined for token boundary char: ','", info);
-        assertNull(info.tokenBitmaskPerDelimiterPosition);
-        assertNull(info.bitmaskGeneratorPerPosition);
-        assertNotNull(info.multiTokenBitmaskPerDelimiterPartPosition);
+        // A pure boundary character (not declared as a special subToken delimiter by any token type) has no delimiter position info.
+        CharSpecificParsingInfo boundaryInfo = charSpecificParsingInfos[';'];
+        assertNotNull("CharSpecificParsingInfo should be defined for token boundary char: ';'", boundaryInfo);
+        assertNull(boundaryInfo.tokenBitmaskPerDelimiterPosition);
+        assertNull(boundaryInfo.bitmaskGeneratorPerPosition);
+        assertFalse("';' should NOT be a special subToken delimiter", compiledSchema.isSpecialSubTokenDelimiter[';']);
+
+        // ',' is a boundary character AND a special subToken delimiter (declared by the Zookeeper time token), so it carries BOTH the
+        // per-position delimiter info and the boundary (multi-token delimiter part) info.
+        CharSpecificParsingInfo commaInfo = charSpecificParsingInfos[','];
+        assertNotNull("CharSpecificParsingInfo should be defined for special delimiter / boundary char: ','", commaInfo);
+        assertNotNull(commaInfo.tokenBitmaskPerDelimiterPosition);
+        // bitmaskGeneratorPerPosition is legitimately null here: the Zookeeper time token's subTokens are all integers (int-value lookup),
+        // so no string subToken generator is needed for ',', just like '.'/':'.
+        assertNotNull(commaInfo.multiTokenBitmaskPerDelimiterPartPosition);
+        assertTrue("',' should be marked as a special subToken delimiter", compiledSchema.isSpecialSubTokenDelimiter[',']);
     }
 }

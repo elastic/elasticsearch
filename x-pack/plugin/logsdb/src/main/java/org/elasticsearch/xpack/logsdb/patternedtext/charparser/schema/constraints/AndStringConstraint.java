@@ -14,9 +14,19 @@ import java.util.Set;
 
 public record AndStringConstraint(StringConstraint first, StringConstraint second) implements StringConstraint {
 
+    public AndStringConstraint {
+        // reject conflicting {n} character-length declarations within a single subToken at parse time
+        ConstraintCharLengths.combine(first.getRequiredCharLength(), second.getRequiredCharLength());
+    }
+
     @Override
     public OperatorType getType() {
         return OperatorType.AND;
+    }
+
+    @Override
+    public int getRequiredCharLength() {
+        return ConstraintCharLengths.combine(first.getRequiredCharLength(), second.getRequiredCharLength());
     }
 
     @Override

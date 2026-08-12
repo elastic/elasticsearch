@@ -34,6 +34,8 @@ public final class TimestampFormat {
 
     private final int yearIndex;
     private final int twoDigitYearIndex;
+    private final int compactDateIndex;
+    private final int compactTimeIndex;
     private final int monthIndex;
     private final int dayIndex;
     private final int hourIndex;
@@ -55,22 +57,24 @@ public final class TimestampFormat {
         int timestampComponentsCount = 0;
         this.yearIndex = timestampComponentsOrder[TimestampComponentType.YEAR_CODE];
         this.twoDigitYearIndex = timestampComponentsOrder[TimestampComponentType.TWO_DIGIT_YEAR_CODE];
-        if (yearIndex < 0 && twoDigitYearIndex < 0) {
+        this.compactDateIndex = timestampComponentsOrder[TimestampComponentType.COMPACT_DATE_YYMMDD_CODE];
+        this.compactTimeIndex = timestampComponentsOrder[TimestampComponentType.COMPACT_TIME_HHMMSS_CODE];
+        if (yearIndex < 0 && twoDigitYearIndex < 0 && compactDateIndex < 0) {
             throw new IllegalArgumentException("Timestamp format must include a year component");
         }
         timestampComponentsCount++;
         this.monthIndex = timestampComponentsOrder[TimestampComponentType.MONTH_CODE];
-        if (monthIndex < 0) {
+        if (monthIndex < 0 && compactDateIndex < 0) {
             throw new IllegalArgumentException("Timestamp format must include a month component");
         }
         timestampComponentsCount++;
         this.dayIndex = timestampComponentsOrder[TimestampComponentType.DAY_CODE];
-        if (dayIndex < 0) {
+        if (dayIndex < 0 && compactDateIndex < 0) {
             throw new IllegalArgumentException("Timestamp format must include a day component");
         }
         timestampComponentsCount++;
         this.hourIndex = timestampComponentsOrder[TimestampComponentType.HOUR_CODE];
-        if (hourIndex < 0) {
+        if (hourIndex < 0 && compactTimeIndex < 0) {
             throw new IllegalArgumentException("Timestamp format must include an hour component");
         }
         timestampComponentsCount++;
@@ -80,12 +84,12 @@ public final class TimestampFormat {
             amPm = true;
         }
         this.minuteIndex = timestampComponentsOrder[TimestampComponentType.MINUTE_CODE];
-        if (minuteIndex < 0) {
+        if (minuteIndex < 0 && compactTimeIndex < 0) {
             throw new IllegalArgumentException("Timestamp format must include a minute component");
         }
         timestampComponentsCount++;
         this.secondIndex = timestampComponentsOrder[TimestampComponentType.SECOND_CODE];
-        if (secondIndex < 0) {
+        if (secondIndex < 0 && compactTimeIndex < 0) {
             throw new IllegalArgumentException("Timestamp format must include a second component");
         }
         timestampComponentsCount++;
@@ -134,21 +138,41 @@ public final class TimestampFormat {
 
     public long toTimestamp(int[] parsedTimestampComponents) {
         int year, month, day, hour, minute, second, nanos, timezoneOffset;
-        year = yearIndex >= 0 ? parsedTimestampComponents[yearIndex] : 2000 + parsedTimestampComponents[twoDigitYearIndex];
-        month = parsedTimestampComponents[monthIndex];
-        day = parsedTimestampComponents[dayIndex];
-        hour = parsedTimestampComponents[hourIndex];
-        // Handle AM/PM if present
-        if (amPmIndex >= 0) {
-            int amPmCode = parsedTimestampComponents[amPmIndex];
-            if (amPmCode == TimestampComponentType.AM_CODE && hour == 12) {
-                hour = 0; // 12 AM is midnight
-            } else if (amPmCode == TimestampComponentType.PM_CODE && hour < 12) {
-                hour += 12; // Convert PM hour to 24-hour format
-            }
+        if (compactDateIndex >= 0) {
+            // compact date yymmdd in a single value: rightmost two digits = day, then month, then 2-digit year (20yy)
+            int compactDate = parsedTimestampComponents[compactDateIndex];
+            day = compactDate % 100;
+            compactDate /= 100;
+            month = compactDate % 100;
+            compactDate /= 100;
+            year = 2000 + compactDate % 100;
+        } else {
+            year = yearIndex >= 0 ? parsedTimestampComponents[yearIndex] : 2000 + parsedTimestampComponents[twoDigitYearIndex];
+            month = parsedTimestampComponents[monthIndex];
+            day = parsedTimestampComponents[dayIndex];
         }
-        minute = parsedTimestampComponents[minuteIndex];
-        second = parsedTimestampComponents[secondIndex];
+        if (compactTimeIndex >= 0) {
+            // compact time HHMMSS in a single value: rightmost two digits = second, then minute, then hour
+            int compactTime = parsedTimestampComponents[compactTimeIndex];
+            second = compactTime % 100;
+            compactTime /= 100;
+            minute = compactTime % 100;
+            compactTime /= 100;
+            hour = compactTime % 100;
+        } else {
+            hour = parsedTimestampComponents[hourIndex];
+            // Handle AM/PM if present
+            if (amPmIndex >= 0) {
+                int amPmCode = parsedTimestampComponents[amPmIndex];
+                if (amPmCode == TimestampComponentType.AM_CODE && hour == 12) {
+                    hour = 0; // 12 AM is midnight
+                } else if (amPmCode == TimestampComponentType.PM_CODE && hour < 12) {
+                    hour += 12; // Convert PM hour to 24-hour format
+                }
+            }
+            minute = parsedTimestampComponents[minuteIndex];
+            second = parsedTimestampComponents[secondIndex];
+        }
         if (millisecondIndex >= 0) {
             nanos = parsedTimestampComponents[millisecondIndex] * 1_000_000;
         } else if (microsecondIndex >= 0) {

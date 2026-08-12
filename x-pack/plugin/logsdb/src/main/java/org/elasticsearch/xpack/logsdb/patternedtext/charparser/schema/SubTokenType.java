@@ -46,6 +46,8 @@ public class SubTokenType implements Type {
         Class<?> type = baseType.baseType();
 
         if (int.class.equals(type)) {
+            // A {n} term parses to a value-neutral LengthIntConstraint; the parser's char-length gate enforces the exact character count
+            // (so leading zeros count), while any value terms are validated against the value. Length can appear anywhere in the && chain.
             this.intConstraint = IntConstraints.parseIntConstraint(constraint);
             this.stringConstraint = null;
         } else if (String.class.equals(type)) {
@@ -86,6 +88,11 @@ public class SubTokenType implements Type {
 
     public StringConstraint getStringConstraint() {
         return stringConstraint;
+    }
+
+    /** The required exact character length for this (numeric) subToken, or -1 if unconstrained. Derived from the constraint's {n} term. */
+    public int getRequiredCharLength() {
+        return intConstraint == null ? -1 : intConstraint.getRequiredCharLength();
     }
 
     public TimestampComponentType getTimestampComponentType() {

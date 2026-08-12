@@ -96,13 +96,42 @@ public class IntConstraintsTests extends ESTestCase {
     }
 
     public void testLengthConstraint() {
+        // A {n} constraint is value-NEUTRAL: it imposes only a character length (enforced separately by the parser's char-length gate),
+        // NOT a value range. So isApplicable is always true and trueRanges is the full range; the length is exposed via getRequiredCharLength.
         IntConstraint predicate = IntConstraints.parseIntConstraint("{3}");
+        assertEquals(3, predicate.getRequiredCharLength());
         assertTrue(predicate.isApplicable(123));
-        assertTrue(predicate.isApplicable(100));
-        assertTrue(predicate.isApplicable(999));
-        assertFalse(predicate.isApplicable(1000));
-        assertFalse(predicate.isApplicable(99));
-        assertArrayEquals(new IntConstraints.Range[] { new IntConstraints.Range(100, 999) }, predicate.trueRanges());
+        assertTrue(predicate.isApplicable(1000)); // value-agnostic - length is checked by character count, not by value
+        assertTrue(predicate.isApplicable(99));
+        assertArrayEquals(
+            new IntConstraints.Range[] { new IntConstraints.Range(Integer.MIN_VALUE, Integer.MAX_VALUE) },
+            predicate.trueRanges()
+        );
+    }
+
+    public void testLengthConstraintCombinedWithValueRange() {
+        // {n} combined with a value range: value filtering comes from the range, the length from getRequiredCharLength. The length term may
+        // appear anywhere in the && chain (leading or trailing), since it propagates through the composite constraint.
+        IntConstraint leading = IntConstraints.parseIntConstraint("{3} && 100-500");
+        assertEquals(3, leading.getRequiredCharLength());
+        assertTrue(leading.isApplicable(200));
+        assertFalse(leading.isApplicable(600));
+        assertArrayEquals(new IntConstraints.Range[] { new IntConstraints.Range(100, 500) }, leading.trueRanges());
+
+        IntConstraint trailing = IntConstraints.parseIntConstraint("100-500 && {3}");
+        assertEquals(3, trailing.getRequiredCharLength());
+        assertArrayEquals(new IntConstraints.Range[] { new IntConstraints.Range(100, 500) }, trailing.trueRanges());
+
+        // a constraint with no {n} term reports no required length
+        assertEquals(-1, IntConstraints.parseIntConstraint("100-500").getRequiredCharLength());
+    }
+
+    public void testConflictingLengthConstraintsAreRejected() {
+        // a subToken may declare at most one {n}; two different lengths are rejected at parse time, whether chained with && or ||
+        expectThrows(IllegalArgumentException.class, () -> IntConstraints.parseIntConstraint("{4} && {6}"));
+        expectThrows(IllegalArgumentException.class, () -> IntConstraints.parseIntConstraint("{4} || {6}"));
+        // the same length repeated is not a conflict
+        assertEquals(4, IntConstraints.parseIntConstraint("{4} && {4}").getRequiredCharLength());
     }
 
     public void testAndConstraint() {

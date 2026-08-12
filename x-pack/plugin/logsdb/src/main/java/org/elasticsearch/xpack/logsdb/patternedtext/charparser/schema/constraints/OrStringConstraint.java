@@ -14,6 +14,10 @@ import java.util.Set;
 
 public record OrStringConstraint(StringConstraint first, StringConstraint second) implements StringConstraint {
 
+    // Note: unlike numeric subTokens, a string subToken CAN have {n} || {m}: length is checked at runtime by isApplicable, not by the
+    // single-slot char-length gate, so "either length" is a real capability. We therefore do NOT reject it, and report no single required
+    // length (inherited -1) so a disjunction of lengths doesn't conflict when nested inside an &&.
+
     @Override
     public OperatorType getType() {
         return OperatorType.OR;

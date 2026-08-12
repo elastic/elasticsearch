@@ -25,4 +25,9 @@ public record LengthStringConstraint(int requiredLength) implements StringConstr
     public boolean isApplicable(String value) {
         return value.length() == requiredLength;
     }
+
+    @Override
+    public int getRequiredCharLength() {
+        return requiredLength;
+    }
 }

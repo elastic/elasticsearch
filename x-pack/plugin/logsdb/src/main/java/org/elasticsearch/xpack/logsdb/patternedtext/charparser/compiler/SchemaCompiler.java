@@ -293,6 +293,10 @@ public class SchemaCompiler {
             smallIntegerSubTokenBitmasks[i] = genericSubTokenTypesBitmask;
         }
         ArrayList<IntRangeBitmask> intRangeBitmasks = new ArrayList<>();
+        // Character-length constraints ({n}) for numeric subTokens are enforced by character count (not value), so they are collected
+        // here and turned into a charLength -> allowed subToken bitmask table below, rather than folded into the value bitmask.
+        int maxRequiredCharLength = 0;
+        ArrayList<int[]> charLengthConstrainedSubTokens = new ArrayList<>(); // entries: { requiredCharLength, subTokenBitmask }
 
         for (org.elasticsearch.xpack.logsdb.patternedtext.charparser.schema.SubTokenType subTokenType : schema.getSubTokenTypes()) {
             ArrayList<Integer> tokenBitmaskByPositionList = subTokenTypeToTokenBitmaskByPosition.get(subTokenType.name());
@@ -317,15 +321,27 @@ public class SchemaCompiler {
             allSubTokenBitmask |= subTokenBitmask;
 
             IntConstraint intConstraint = subTokenType.getIntConstraint();
+            int requiredCharLength = subTokenType.getRequiredCharLength();
             if (intConstraint != null) {
+                // Unsigned numeric subTokens (%I) never match negative values; only %J (signed) does. Both share the INTEGER encoding, so
+                // the base type's signedness is the discriminator. Value-neutral {n} length constraints (and bare `<=`/`<` constraints)
+                // report a range open below 0, so this floor is what keeps e.g. `yy {2}` from matching "-3".
+                boolean floorAtZero = subTokenType.getBaseType().isSigned() == false;
                 for (int i = 0; i < smallIntegerSubTokenBitmasks.length; i++) {
                     if (intConstraint.isApplicable(i)) {
                         smallIntegerSubTokenBitmasks[i] |= subTokenBitmask;
                     }
                 }
                 for (IntConstraints.Range range : intConstraint.trueRanges()) {
-                    intRangeBitmasks.add(new IntRangeBitmask(range, subTokenBitmask));
+                    int lowerBound = floorAtZero ? Math.max(0, range.lowerBound()) : range.lowerBound();
+                    if (lowerBound <= range.upperBound()) {
+                        intRangeBitmasks.add(new IntRangeBitmask(new IntConstraints.Range(lowerBound, range.upperBound()), subTokenBitmask));
+                    }
                 }
+            }
+            if (requiredCharLength > 0) {
+                maxRequiredCharLength = Math.max(maxRequiredCharLength, requiredCharLength);
+                charLengthConstrainedSubTokens.add(new int[] { requiredCharLength, subTokenBitmask });
             }
 
             StringConstraint stringConstraint = subTokenType.getStringConstraint();
@@ -393,6 +409,9 @@ public class SchemaCompiler {
 
         CharSpecificParsingInfo[] charSpecificParsingInfos = new CharSpecificParsingInfo[ASCII_RANGE];
 
+        // special_sub_token_delimiters support
+        boolean[] isSpecialSubTokenDelimiter = new boolean[ASCII_RANGE];
+
         for (char delimiter : schema.getSubTokenDelimiters()) {
             if (delimiter < ASCII_RANGE) {
                 // subToken delimiter characters should be mapped to the inclusive subToken bitmask, as they are valid to all subToken types
@@ -432,10 +451,28 @@ public class SchemaCompiler {
                     tokenBoundaryCharToMultiTokenBitmaskPerIndex,
                     maxDelimiterPartsLength
                 );
+                // If this boundary character is also declared as a special subToken delimiter by some token type, build its per-position
+                // token bitmask and subToken generators too, so the parser can treat it as a subToken delimiter in exactly those contexts.
+                int[] specialTokenBitmaskPerSubTokenIndex = null;
+                ToIntFunction<SubstringView>[] specialSubTokenBitmaskGeneratorPerSubTokenIndices = null;
+                ArrayList<Integer> boundaryTokenBitmaskPerSubTokenIndexArray = delimiterCharToTokenBitmaskPerSubTokenIndex.get(
+                    tokenBoundaryCharacter
+                );
+                if (boundaryTokenBitmaskPerSubTokenIndexArray != null) {
+                    fillListUpToIndex(boundaryTokenBitmaskPerSubTokenIndexArray, maxSubTokensPerToken - 1, () -> 0);
+                    specialTokenBitmaskPerSubTokenIndex = boundaryTokenBitmaskPerSubTokenIndexArray.stream()
+                        .mapToInt(Integer::intValue)
+                        .toArray();
+                    specialSubTokenBitmaskGeneratorPerSubTokenIndices = turnChainBuilderListToFunctionArray(
+                        delimiterCharToBitmaskGeneratorPerSubTokenIndex.get(tokenBoundaryCharacter),
+                        maxSubTokensPerToken
+                    );
+                    isSpecialSubTokenDelimiter[tokenBoundaryCharacter] = true;
+                }
                 CharSpecificParsingInfo tokenBoundaryCharParsingInfo = new CharSpecificParsingInfo(
                     tokenBoundaryCharacter,
-                    null,
-                    null,
+                    specialTokenBitmaskPerSubTokenIndex,
+                    specialSubTokenBitmaskGeneratorPerSubTokenIndices,
                     multiTokenBitmaskPerBoundaryCharIndex
                 );
                 charSpecificParsingInfos[tokenBoundaryCharacter] = tokenBoundaryCharParsingInfo;
@@ -473,6 +510,35 @@ public class SchemaCompiler {
                 throw new IllegalArgumentException(
                     "Token delimiter character '" + delimiter + "' is outside the ASCII range and will not be processed."
                 );
+            }
+        }
+
+        // Content-character special_sub_token_delimiters (e.g. ISO-8601 'T'): a token type may declare, via special_sub_token_delimiters,
+        // a character that is NOT part of any global delimiter/boundary set to act as a subToken delimiter at a specific position. That
+        // character was recorded in delimiterCharToTokenBitmaskPerSubTokenIndex while compiling the token's format, but the loops above only
+        // wire up characters belonging to a global set - so a pure content-character delimiter is left orphaned (its per-position entry is
+        // built but never consumed). We consume those leftovers here: any recorded delimiter that has not already received a
+        // CharSpecificParsingInfo above is such a content character. Crucially we do NOT touch charToCharType or charToSubTokenBitmask for
+        // it - it must remain an ordinary content character everywhere else (its subToken bitmask stays the alphabetic/keyword bits, not
+        // allSubTokenBitmask). The parser skips folding it into the preceding subToken only in the exact position where it acts as a
+        // delimiter (see CharParser: isSpecialSubTokenDelimiter gate).
+        for (Map.Entry<Character, ArrayList<Integer>> specialDelimiterEntry : delimiterCharToTokenBitmaskPerSubTokenIndex.entrySet()) {
+            char specialDelimiter = specialDelimiterEntry.getKey();
+            if (specialDelimiter < ASCII_RANGE && charSpecificParsingInfos[specialDelimiter] == null) {
+                ArrayList<Integer> tokenBitmaskPerSubTokenIndexArray = specialDelimiterEntry.getValue();
+                fillListUpToIndex(tokenBitmaskPerSubTokenIndexArray, maxSubTokensPerToken - 1, () -> 0);
+                int[] specialTokenBitmaskPerSubTokenIndex = tokenBitmaskPerSubTokenIndexArray.stream().mapToInt(Integer::intValue).toArray();
+                ToIntFunction<SubstringView>[] specialSubTokenBitmaskGeneratorPerSubTokenIndices = turnChainBuilderListToFunctionArray(
+                    delimiterCharToBitmaskGeneratorPerSubTokenIndex.get(specialDelimiter),
+                    maxSubTokensPerToken
+                );
+                charSpecificParsingInfos[specialDelimiter] = new CharSpecificParsingInfo(
+                    specialDelimiter,
+                    specialTokenBitmaskPerSubTokenIndex,
+                    specialSubTokenBitmaskGeneratorPerSubTokenIndices,
+                    null // not a multi-token boundary/delimiter-part character
+                );
+                isSpecialSubTokenDelimiter[specialDelimiter] = true;
             }
         }
 
@@ -553,9 +619,30 @@ public class SchemaCompiler {
             integerSubTokenBitmasks[i] = intRangeBitmask.bitmask() | genericSubTokenTypesBitmask;
         }
 
+        // Build the character-length gate: for each character length, the bitmask of subToken types allowed at that length. A type with a
+        // {n} character-length constraint is allowed only at length n; every other type is allowed at any length. The last index holds the
+        // "any length" bitmask, used (via clamping in the parser) for character lengths beyond the maximum constrained length.
+        int lengthConstrainedBitmask = 0;
+        for (int[] entry : charLengthConstrainedSubTokens) {
+            lengthConstrainedBitmask |= entry[1];
+        }
+        int lengthUnconstrainedBitmask = allSubTokenBitmask & ~lengthConstrainedBitmask;
+        int[] charLengthToAllowedSubTokenBitmask = new int[maxRequiredCharLength + 2];
+        for (int len = 0; len < charLengthToAllowedSubTokenBitmask.length; len++) {
+            int allowed = lengthUnconstrainedBitmask;
+            for (int[] entry : charLengthConstrainedSubTokens) {
+                if (entry[0] == len) {
+                    allowed |= entry[1];
+                }
+            }
+            charLengthToAllowedSubTokenBitmask[len] = allowed;
+        }
+
         return new CompiledSchema(
             charToSubTokenBitmask,
             charToCharType,
+            charLengthToAllowedSubTokenBitmask,
+            isSpecialSubTokenDelimiter,
             charSpecificParsingInfos,
             subTokenValueToBitmaskMapBuilder.build(),
             maxSubTokensPerToken,
@@ -939,6 +1026,8 @@ public class SchemaCompiler {
         return switch (subTokenType.name()) {
             case "YYYY" -> "yyyy";                  // 4-digit year
             case "yy" -> "yy";                      // 2-digit year (interpreted as 20yy)
+            case "yymmdd" -> "yyMMdd";              // compact date (single value)
+            case "hhmmss" -> "HHmmss";              // compact time (single value)
             case "MM" -> "MM";                      // 2-digit month
             case "Mon" -> "MMM";                    // 3-letter month abbreviation
             case "DD" -> "dd";                      // 2-digit day

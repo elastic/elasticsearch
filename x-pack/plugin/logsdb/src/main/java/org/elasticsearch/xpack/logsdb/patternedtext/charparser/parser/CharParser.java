@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.UUIDArgument;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.common.EncodingType;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.compiler.CompiledSchema;
 
+import java.time.DateTimeException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -57,6 +58,7 @@ public final class CharParser implements Parser {
     private final byte[] charToCharType;
 
     private final CharSpecificParsingInfo[] charSpecificParsingInfos;
+    private final boolean[] isSpecialSubTokenDelimiter;
     private final SubstringToIntegerMap subTokenNumericValueRepresentationMap;
 
     // a fast lookup table for all valid multi-token bitmasks based on the length of the concatenated delimiter parts
@@ -71,6 +73,8 @@ public final class CharParser implements Parser {
     private final int maxSubTokensPerMultiToken;
     private final int maxTokensPerMultiToken;
     private final int smallIntegerSubTokenUpperBound;
+    private final int[] charLengthToAllowedSubTokenBitmask;
+    private final int charLengthGateMaxIndex;
 
     // current subToken state
     private int currentSubTokenStartIndex;
@@ -120,6 +124,7 @@ public final class CharParser implements Parser {
         this.numUsedCharacters = this.charToSubTokenBitmask.length;
         this.charToCharType = compiledSchema.charToCharType;
         this.charSpecificParsingInfos = compiledSchema.charSpecificParsingInfos;
+        this.isSpecialSubTokenDelimiter = compiledSchema.isSpecialSubTokenDelimiter;
         this.subTokenNumericValueRepresentationMap = compiledSchema.subTokenNumericValueRepresentation;
         this.delimiterPartsLengthToMultiTokenBitmask = compiledSchema.delimiterPartsTotalLengthToMultiTokenBitmask;
         this.intSubTokenBitmask = compiledSchema.intSubTokenBitmask;
@@ -130,6 +135,8 @@ public final class CharParser implements Parser {
         this.maxSubTokensPerMultiToken = compiledSchema.maxSubTokensPerMultiToken;
         this.maxTokensPerMultiToken = compiledSchema.maxTokensPerMultiToken;
         this.smallIntegerSubTokenUpperBound = compiledSchema.smallIntegerSubTokenBitmasks.length;
+        this.charLengthToAllowedSubTokenBitmask = compiledSchema.charLengthToAllowedSubTokenBitmask;
+        this.charLengthGateMaxIndex = this.charLengthToAllowedSubTokenBitmask.length - 1;
 
         bufferedSubTokenBitmasks = new int[maxSubTokensPerMultiToken];
         bufferedSubTokenIntValues = new int[maxSubTokensPerMultiToken];
@@ -268,7 +275,27 @@ public final class CharParser implements Parser {
                 currentSubTokenBitmask = currentTokenBitmask = currentMultiTokenBitmask = 0;
             }
 
-            currentSubTokenBitmask &= charToSubTokenBitmask[currentChar];
+            // The current character normally narrows the sub-token bitmask (a no-op AND for delimiter/boundary characters, which map to
+            // the all-ones bitmask). A character declared via special_sub_token_delimiters is the exception: within the specific token type
+            // and position that declares it, it must instead END the current sub-token WITHOUT being folded into its bitmask - this matters
+            // for content-character delimiters such as ISO-8601 'T', whose (alphabetic) sub-token bitmask would otherwise clear the numeric
+            // bits of the preceding sub-token before we even recognize it as a delimiter.
+            if (isSpecialSubTokenDelimiter[currentChar] == false
+                || currentTokenBitmask == 0
+                || currentSubTokenStartIndex == indexWithinRawMessage) {
+                currentSubTokenBitmask &= charToSubTokenBitmask[currentChar];
+            } else {
+                int[] specialTokenBitmaskPerDelimiterPosition = charSpecificParsingInfos[currentChar].tokenBitmaskPerDelimiterPosition;
+                int candidateSubTokenIndex = currentTokenSubTokenIndex + 1;
+                if (candidateSubTokenIndex < specialTokenBitmaskPerDelimiterPosition.length
+                    && (currentTokenBitmask & specialTokenBitmaskPerDelimiterPosition[candidateSubTokenIndex]) != 0) {
+                    // the character acts as a sub-token delimiter here: end the current sub-token WITHOUT folding it into the bitmask
+                    charType = SUBTOKEN_DELIMITER_CHAR_CODE;
+                } else {
+                    // a special-delimiter character that is not acting as a delimiter at this position is an ordinary content character
+                    currentSubTokenBitmask &= charToSubTokenBitmask[currentChar];
+                }
+            }
 
             switch (charType) {
                 case DIGIT_CHAR_CODE:
@@ -383,6 +410,11 @@ public final class CharParser implements Parser {
                             // at this position
                             currentSubTokenBitmask = 0;
                         }
+
+                        // enforce exact character-length constraints ({n} on numeric subTokens): a length-constrained subToken type keeps
+                        // its bit only when the actual character count matches (so leading zeros count, e.g. "080609" is a valid 6-digit
+                        // compact date but "1109" is not).
+                        currentSubTokenBitmask &= charLengthToAllowedSubTokenBitmask[Math.min(currentSubTokenLength, charLengthGateMaxIndex)];
 
                         // update the current token bitmask based on all "on" bits in the current sub-token bitmask
                         currentTokenBitmask &= subTokenBitmaskRegistry.getHigherLevelBitmaskByPosition(
@@ -539,16 +571,23 @@ public final class CharParser implements Parser {
                                         );
                                     }
                                     if (multiTokenType.encodingType() == EncodingType.TIMESTAMP) {
-                                        int currentMultiTokenEndIndex = bufferedTokenStartIndexes[bufferedTokensIndex]
-                                            + bufferedTokenLengths[bufferedTokensIndex];
-                                        int multiTokenLength = currentMultiTokenEndIndex - currentMultiTokenStartIndex;
-                                        long timestampMillis = multiTokenType.getTimestampFormat().toTimestamp(bufferedSubTokenIntValues);
-                                        argument = new Timestamp(
-                                            currentMultiTokenStartIndex,
-                                            multiTokenLength,
-                                            timestampMillis,
-                                            multiTokenType.getTimestampFormat().getJavaTimeFormat()
-                                        );
+                                        try {
+                                            long timestampMillis = multiTokenType.getTimestampFormat()
+                                                .toTimestamp(bufferedSubTokenIntValues);
+                                            int currentMultiTokenEndIndex = bufferedTokenStartIndexes[bufferedTokensIndex]
+                                                + bufferedTokenLengths[bufferedTokensIndex];
+                                            int multiTokenLength = currentMultiTokenEndIndex - currentMultiTokenStartIndex;
+                                            argument = new Timestamp(
+                                                currentMultiTokenStartIndex,
+                                                multiTokenLength,
+                                                timestampMillis,
+                                                multiTokenType.getTimestampFormat().getJavaTimeFormat()
+                                            );
+                                        } catch (DateTimeException e) {
+                                            // The matched values do not form a valid calendar date/time (e.g. a compact yymmdd/HHMMSS whose
+                                            // decomposition is out of range). This is not actually a timestamp: leave argument null so the
+                                            // buffered tokens are emitted individually (as their own %I / etc. arguments) instead.
+                                        }
                                     } else {
                                         throw new ParseException("Unknown multi-token type: " + multiTokenType.name());
                                     }

@@ -197,7 +197,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
 
         // Encode per-cluster using the production path
         float[] wT = ESVectorUtil.transposeMatrix(w, dim, expectedNDims);
-        AsymmetricHashingQuantizer.PrecomputedCentroid precomputed = AsymmetricHashingQuantizer.precomputeCentroid(centroids[0], wT);
+        AsymmetricHashingQuantizer.VectorAndNorm precomputed = AsymmetricHashingQuantizer.precomputeCentroid(centroids[0], wT);
         for (int i = 0; i < nVectors; i++) {
             AsymmetricHashingQuantizer.EncodedVector enc = quantizer.encode(vectors[i], centroids[0], wT, precomputed);
             assertNotNull(enc.xEnc());
@@ -246,7 +246,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
 
         // Encode per-cluster using the production path
         float[] wT = ESVectorUtil.transposeMatrix(w, dim, nDims);
-        AsymmetricHashingQuantizer.PrecomputedCentroid precomputed = AsymmetricHashingQuantizer.precomputeCentroid(centroids[0], wT);
+        AsymmetricHashingQuantizer.VectorAndNorm precomputed = AsymmetricHashingQuantizer.precomputeCentroid(centroids[0], wT);
         float[][] encodedVectors = new float[nVectors][nDims];
         float[] scales = new float[nVectors];
         float[] offsets = new float[nVectors];
@@ -337,7 +337,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
                 qt[j] = (float) sum;
             }
             float queryDotCentroid = ESVectorUtil.dotProduct(query, centroid, dim);
-            AsymmetricHashingQuantizer.PrecomputedCentroid precomputed = AsymmetricHashingQuantizer.precomputeCentroid(centroid, wT);
+            AsymmetricHashingQuantizer.VectorAndNorm precomputed = AsymmetricHashingQuantizer.precomputeCentroid(centroid, wT);
 
             double sumSqErr = 0;
             double sumSqTrue = 0;
@@ -546,7 +546,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
             for (int j = 0; j < nDims; j++) {
                 double s = 0;
                 for (int d = 0; d < dim; d++) {
-                    s += (double) queries[q][d] * w[d * nDims + j];
+                    s = Math.fma(queries[q][d], w[d * nDims + j], s);
                 }
                 qt[q][j] = (float) s;
             }
@@ -558,8 +558,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
 
         // Precompute per-cluster values
         float[] wT = ESVectorUtil.transposeMatrix(w, dim, nDims);
-        AsymmetricHashingQuantizer.PrecomputedCentroid[] precomputedPerCluster =
-            new AsymmetricHashingQuantizer.PrecomputedCentroid[nClusters];
+        AsymmetricHashingQuantizer.VectorAndNorm[] precomputedPerCluster = new AsymmetricHashingQuantizer.VectorAndNorm[nClusters];
         for (int c = 0; c < nClusters; c++) {
             precomputedPerCluster[c] = AsymmetricHashingQuantizer.precomputeCentroid(centroids[c], wT);
         }
@@ -628,15 +627,12 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
 
     /** Returns indices of the k largest values in scores, unordered. */
     private static int[] topKIndices(double[] scores, int k) {
-        Integer[] idx = IntStream.range(0, scores.length)
+        return IntStream.range(0, scores.length)
             .boxed()
             .sorted(Comparator.comparingDouble(i -> scores[i]))
-            .toArray(Integer[]::new);
-        int[] out = new int[k];
-        for (int i = 0; i < k; i++) {
-            out[i] = idx[i];
-        }
-        return out;
+            .limit(k)
+            .mapToInt(Integer::intValue)
+            .toArray();
     }
 
     private static double computeRankCorrelation(float[][] vectors, float[] query, float[] approxScores) {
@@ -659,10 +655,11 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
     }
 
     private static int[] ranks(float[] scores) {
-        Integer[] indices = IntStream.range(0, scores.length)
+        int[] indices = IntStream.range(0, scores.length)
             .boxed()
             .sorted(Comparator.comparingDouble(i -> scores[i]))
-            .toArray(Integer[]::new);
+            .mapToInt(Integer::intValue)
+            .toArray();
         int[] ranks = new int[indices.length];
         for (int r = 0; r < indices.length; r++) {
             ranks[indices[r]] = r;

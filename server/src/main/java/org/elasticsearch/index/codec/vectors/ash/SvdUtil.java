@@ -12,6 +12,7 @@ package org.elasticsearch.index.codec.vectors.ash;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.util.Arrays;
+import java.util.Random;
 
 import static org.elasticsearch.simdvec.ESVectorUtil.transposeMatrix;
 
@@ -27,6 +28,17 @@ import static org.elasticsearch.simdvec.ESVectorUtil.transposeMatrix;
 final class SvdUtil {
 
     private SvdUtil() {}
+
+    /**
+     * Returns an array of floats each with a Gaussian distribution around 0.0
+     */
+    public static float[] randomGaussians(Random random, int dims) {
+        float[] v = new float[dims];
+        for (int i = 0; i < dims; i++) {
+            v[i] = (float) random.nextGaussian();
+        }
+        return v;
+    }
 
     /**
      * Result of a thin SVD decomposition.
@@ -340,14 +352,10 @@ final class SvdUtil {
         //
         // We store V in column-major form (n x k) for QR, but use a transposed (k x n) copy
         // for the matmul inner loops to enable row-contiguous access and JIT vectorization.
-        java.util.Random rng = new java.util.Random(seed);
         int iters = 20; // sufficient for PCA init that gets refined by Procrustes
 
         // V: (n x k) row-major -- each column is a candidate eigenvector
-        float[] v = new float[n * k];
-        for (int i = 0; i < n * k; i++) {
-            v[i] = (float) rng.nextGaussian();
-        }
+        float[] v = randomGaussians(new Random(seed), n * k);
         qrOrthogonalize(v, n, k);
 
         for (int iter = 0; iter < iters; iter++) {
@@ -424,10 +432,7 @@ final class SvdUtil {
 
         for (int vec = 0; vec < k; vec++) {
             // Random initial vector (m-dimensional)
-            float[] u = new float[m];
-            for (int i = 0; i < m; i++) {
-                u[i] = (float) rng.nextGaussian();
-            }
+            float[] u = randomGaussians(rng, m);
             ESVectorUtil.l2Normalize(u);
 
             // Power iteration on A A^T: u <- A (A^T u) / ||...||

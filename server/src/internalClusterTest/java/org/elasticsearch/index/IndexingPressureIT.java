@@ -701,7 +701,8 @@ public class IndexingPressureIT extends ESIntegTestCase {
             updateRequest,
             primaryShard,
             primaryThreadPool::absoluteTimeInMillis,
-            FetchSourceContext.FETCH_ALL_SOURCE
+            FetchSourceContext.FETCH_ALL_SOURCE,
+            SplitShardCountSummary.IRRELEVANT
         );
         final DocWriteRequest<?> preparedWrite = prepared.action();
         final long expansionDeltaBytes = Math.max(0L, preparedWrite.ramBytesUsed() - updateRequest.ramBytesUsed());

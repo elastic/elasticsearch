@@ -1503,6 +1503,11 @@ public class EsqlCapabilities {
         WHERE_IN_SUBQUERY_FORK_UNKNOWN_COLUMN_FIX,
 
         /**
+         * Support IN subquery inside {@code CASE}, {@code COALESCE}, and {@code IS [NOT] NULL} expressions in the {@code WHERE} command.
+         */
+        WHERE_IN_SUBQUERY_WITH_CASE_COALESCE_IS_NULL,
+
+        /**
          * Support for views in cluster state (and REST API).
          */
         VIEWS_IN_CLUSTER_STATE,

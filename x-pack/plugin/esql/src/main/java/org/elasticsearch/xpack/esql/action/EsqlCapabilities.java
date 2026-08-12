@@ -391,6 +391,15 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_FIX_IMPLICIT_CAST_ON_SMALL_NUMERIC_PUNK,
 
         /**
+         * Fix a fatal {@code AssertionError} in the server-side fallback synthetic-source block loader when an unmapped field that
+         * resolves to an object in synthetic {@code _source} is referenced explicitly under {@code unmapped_fields="load"}/{@code
+         * "LOAD_ALL"}. A scalar (e.g. keyword) column can't hold an object, so the field now reads as {@code null} instead of tripping
+         * an assertion (a multi-parent {@code _ignored_source} grouping, or a {@code START_OBJECT} token where a scalar was expected).
+         * See https://github.com/elastic/elasticsearch/issues/156381 and https://github.com/elastic/elasticsearch/issues/156433.
+         */
+        OPTIONAL_FIELDS_FIX_LOAD_OBJECT_FROM_SYNTHETIC_SOURCE,
+
+        /**
          * Support specifically for *just* the _index METADATA field. Used by CsvTests, since that is the only metadata field currently
          * supported.
          */

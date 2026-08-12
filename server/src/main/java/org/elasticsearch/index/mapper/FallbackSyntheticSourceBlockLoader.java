@@ -157,18 +157,17 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
                 return;
             }
 
-            assert valuesGroupedByParent.size() == 1 : "expected single parent key but got " + valuesGroupedByParent.keySet();
-
             // TODO figure out how to handle XContentDataHelper#voidValue()
 
-            // The map has at most one key: the source filter is scoped to a single field, so all entries share the same name
-            // (either the field itself or one ancestor object).
+            // The source filter is scoped to one field, but there can be several parent keys: when the requested field is itself an
+            // object, its leaves may have been stored individually under different parents. A scalar can't hold an object, so those
+            // descendant entries contribute nothing and the field reads null.
             var blockValues = new ArrayList<T>();
             for (var entries : valuesGroupedByParent.values()) {
                 for (var nv : entries) {
                     if (nv.name().equals(fieldName)) {
                         readFromFieldValue(nv, blockValues);
-                    } else {
+                    } else if (fieldName.startsWith(nv.name() + ".")) {
                         parseFieldFromParent(nv, blockValues);
                     }
                 }
@@ -339,14 +338,27 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
                         if (nullValue != null) {
                             convertValue(nullValue, accumulator);
                         }
+                    } else if (isObjectOrArray(parser.currentToken())) {
+                        // A scalar field can't represent an object (or a nested array) element, so it contributes no value; skip it.
+                        parser.skipChildren();
                     } else {
                         parseNonNullValue(parser, accumulator);
                     }
                 }
                 return;
             }
+            if (isObjectOrArray(parser.currentToken())) {
+                // The synthetic _source value for this field is an object - e.g. an unmapped object field referenced as a keyword,
+                // whose _ignored_source entry holds the whole subtree. A scalar field has no representation for it, so it reads null.
+                parser.skipChildren();
+                return;
+            }
 
             parseNonNullValue(parser, accumulator);
+        }
+
+        private static boolean isObjectOrArray(XContentParser.Token token) {
+            return token == XContentParser.Token.START_OBJECT || token == XContentParser.Token.START_ARRAY;
         }
 
         protected abstract void parseNonNullValue(XContentParser parser, List<T> accumulator) throws IOException;

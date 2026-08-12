@@ -4168,6 +4168,25 @@ FROM synthetic_source_partial_mapping
 2024-10-23T13:33:34.937Z | 43
 ;
 
+// Synthetic source reconstructs the dotted source key "unmapped.nested" as an object, so a bare reference to its parent
+// "unmapped" resolves to an object. A keyword scalar can't hold an object, so it loads as null
+syntheticSourceObjectUnmappedFieldLoadsAsNull
+required_capability: optional_fields_v5
+required_capability: optional_fields_fix_load_object_from_synthetic_source
+
+SET unmapped_fields="load"\;
+FROM synthetic_source_partial_mapping
+| KEEP @timestamp, unmapped, unmapped.nested
+| SORT @timestamp
+| LIMIT 3
+;
+
+@timestamp:datetime      | unmapped:keyword | unmapped.nested:keyword
+2024-10-23T12:15:03.360Z | null             | g
+2024-10-23T12:27:28.948Z | null             | f
+2024-10-23T13:33:34.937Z | null             | e
+;
+
 loadPartiallyMappedNormalizedKeyword
 required_capability: optional_fields_v5
 required_capability: optional_fields_fix_load_partially_mapped

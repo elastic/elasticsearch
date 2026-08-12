@@ -54,6 +54,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -531,6 +532,38 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
                 assertThat(
                     blockLoaderReadValuesFromRowStrideReader(breaker, settings, reader, fieldType, true),
                     equalTo(List.of(new BytesRef("cat"), new BytesRef("dog")))
+                );
+            }
+        }
+    }
+
+    /**
+     * Test for https://github.com/elastic/elasticsearch/issues/156433 fix.
+     */
+    public void testBlockLoaderSourceOnlyRuntimeFieldObjectValueFromSyntheticSourceReadsNull() throws IOException {
+        var settings = Settings.builder().put("index.mapping.source.mode", "synthetic").build();
+        try (
+            Directory directory = newDirectory();
+            RandomIndexWriter iw = new RandomIndexWriter(random(), directory, newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE))
+        ) {
+            iw.addDocuments(
+                List.of(
+                    createDocumentWithIgnoredSource("{\"nested\":\"a\"}"), // object -> null
+                    createDocumentWithIgnoredSource("[{\"nested\":\"a\"}]"), // array holding only an object -> null
+                    createDocumentWithIgnoredSource("[\"cat\",{\"nested\":\"a\"}]"), // object element skipped, sibling scalar kept
+                    createDocumentWithIgnoredSource("[\"dog\"]") // plain scalar
+                )
+            );
+            try (DirectoryReader reader = iw.getReader()) {
+                KeywordScriptFieldType fieldType = simpleSourceOnlyMappedFieldType();
+
+                BlockLoader loader = fieldType.blockLoader(blContext(settings, true));
+                assertThat(loader, instanceOf(FallbackSyntheticSourceBlockLoader.class));
+
+                CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
+                assertThat(
+                    blockLoaderReadValuesFromRowStrideReader(breaker, settings, reader, fieldType, true),
+                    equalTo(Arrays.asList(null, null, new BytesRef("cat"), new BytesRef("dog")))
                 );
             }
         }

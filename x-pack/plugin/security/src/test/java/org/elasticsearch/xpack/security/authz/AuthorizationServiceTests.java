@@ -4246,7 +4246,8 @@ public class AuthorizationServiceTests extends ESTestCase {
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
             ActionListener<TargetProjects> callback = (ActionListener<TargetProjects>) invocation.getArguments()[0];
-            callback.onResponse(new TargetProjects(origin, List.of(linked)));
+            // hasLinkedProjects=true simulates ServerlessAuthorizedProjectsResolver setting the flag
+            callback.onResponse(new TargetProjects(origin, List.of(linked), null, true));
             return null;
         }).when(authorizedProjectsResolver).resolveAuthorizedProjects(anyActionListener());
         when(crossProjectModeDecider.crossProjectEnabled()).thenReturn(true);
@@ -4286,7 +4287,8 @@ public class AuthorizationServiceTests extends ESTestCase {
     }
 
     public void testProjectRoutingFailureNotRecordedWhenNoLinkedProjects() {
-        // authorizedProjectsResolver returns TargetProjects with empty linkedProjects → hadLinks=false → no counter increment
+        // authorizedProjectsResolver returns TargetProjects with hasLinkedProjects=false (no links configured)
+        // → recordSearchProjectRoutingFailure is a no-op
         final ProjectRoutingInfo origin = createRandomProjectWithAlias(randomAlphaOfLengthBetween(5, 10));
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
@@ -4322,7 +4324,6 @@ public class AuthorizationServiceTests extends ESTestCase {
             () -> authorize(authentication, TransportSearchAction.NAME, searchRequest, true, null)
         );
 
-        // hasLinkedProjects=false → recordSearchProjectRoutingFailure is a no-op
         final ProjectRoutingUsageSnapshot snapshot = usageService.getProjectRoutingUsageHolder().getSnapshot();
         assertThat(snapshot.getSearchQueriesTotal(), equalTo(0L));
         assertThat(snapshot.getSearchProjectRoutingFailures(), equalTo(0L));
@@ -4336,7 +4337,8 @@ public class AuthorizationServiceTests extends ESTestCase {
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
             ActionListener<TargetProjects> callback = (ActionListener<TargetProjects>) invocation.getArguments()[0];
-            callback.onResponse(new TargetProjects(origin, List.of(linked)));
+            // hasLinkedProjects=true simulates ServerlessAuthorizedProjectsResolver setting the flag
+            callback.onResponse(new TargetProjects(origin, List.of(linked), null, true));
             return null;
         }).when(authorizedProjectsResolver).resolveAuthorizedProjects(anyActionListener());
         when(crossProjectModeDecider.crossProjectEnabled()).thenReturn(true);
@@ -4381,7 +4383,8 @@ public class AuthorizationServiceTests extends ESTestCase {
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
             ActionListener<TargetProjects> callback = (ActionListener<TargetProjects>) invocation.getArguments()[0];
-            callback.onResponse(new TargetProjects(origin, List.of(linked)));
+            // hasLinkedProjects=true to confirm action-name gating (not the hasLinkedProjects gate) suppresses recording
+            callback.onResponse(new TargetProjects(origin, List.of(linked), null, true));
             return null;
         }).when(authorizedProjectsResolver).resolveAuthorizedProjects(anyActionListener());
         when(crossProjectModeDecider.crossProjectEnabled()).thenReturn(true);
@@ -4428,7 +4431,8 @@ public class AuthorizationServiceTests extends ESTestCase {
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
             ActionListener<TargetProjects> callback = (ActionListener<TargetProjects>) invocation.getArguments()[0];
-            callback.onResponse(new TargetProjects(origin, List.of(linked)));
+            // hasLinkedProjects=true simulates ServerlessAuthorizedProjectsResolver setting the flag
+            callback.onResponse(new TargetProjects(origin, List.of(linked), null, true));
             return null;
         }).when(authorizedProjectsResolver).resolveAuthorizedProjects(anyActionListener());
         when(crossProjectModeDecider.crossProjectEnabled()).thenReturn(true);

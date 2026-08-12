@@ -644,10 +644,6 @@ public class AuthorizationService {
                 }
                 return existing;
             }
-            // Compute hadLinks before resolving: the resolver may throw InvalidProjectRoutingException
-            // before setResolvedTargetProjects() is called. The catch block stores a pre-routing
-            // TargetProjects so onAuthorizedResourceLoadFailure() can read hasLinkedProjects.
-            boolean hadLinks = authorizedProjects.linkedProjects() != null && authorizedProjects.linkedProjects().isEmpty() == false;
             try {
                 final TargetProjects targetProjects = projectRoutingResolver.resolve(
                     crossProjectCandidate.getProjectRouting(),
@@ -657,9 +653,11 @@ public class AuthorizationService {
                 crossProjectCandidate.setResolvedTargetProjects(targetProjects);
                 return targetProjects;
             } catch (InvalidProjectRoutingException e) {
-                crossProjectCandidate.setResolvedTargetProjects(
-                    new TargetProjects(authorizedProjects.originProject(), authorizedProjects.linkedProjects(), null, hadLinks)
-                );
+                // Set the list of authorized projects on the crossProjectCandidate for purposes of telemetry gathering,
+                // even though we are going to return an error. authorizedProjects.hasLinkedProjects() is already set
+                // by ServerlessAuthorizedProjectsResolver, so store it directly.
+                // onAuthorizedResourceLoadFailure() can read hasLinkedProjects from it.
+                crossProjectCandidate.setResolvedTargetProjects(authorizedProjects);
                 throw e;
             }
         }

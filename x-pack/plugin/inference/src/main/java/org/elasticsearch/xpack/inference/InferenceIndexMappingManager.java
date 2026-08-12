@@ -18,6 +18,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
@@ -64,6 +65,16 @@ public class InferenceIndexMappingManager {
     @Nullable // non-null while a create/put-mapping update is in flight
     private SubscribableListener<Void> inFlightUpdate;
 
+    /**
+     * Content hash of the mapping source that was last verified to be up-to-date. Reading the mappings
+     * version requires decompressing and parsing the whole mapping source on every call
+     * ({@code MappingMetadata.sourceAsMap()} has no caching), so the successful outcome is memoized by
+     * content hash and the check is skipped while the index mapping is unchanged — the 100%-common
+     * case on the write path.
+     */
+    @Nullable
+    private volatile String upToDateMappingsSha256;
+
     public InferenceIndexMappingManager(Client client, SystemIndexDescriptor descriptor) {
         this.client = new OriginSettingClient(client, ClientHelper.INFERENCE_ORIGIN);
         this.descriptor = descriptor;
@@ -96,9 +107,20 @@ public class InferenceIndexMappingManager {
             return;
         }
 
+        // Fastest path: the mapping source is content-identical to one already verified up-to-date,
+        // so skip re-parsing it (see the field's javadoc).
+        MappingMetadata mappingMetadata = indexMetadata.mapping();
+        if (mappingMetadata != null && mappingMetadata.getSha256().equals(upToDateMappingsSha256)) {
+            listener.onResponse(null);
+            return;
+        }
+
         // Index exists – check whether its mapping version is already current.
         if (SystemIndexMappingUpdateService.checkIndexMappingUpToDate(descriptor, indexMetadata)) {
-            // Fast path: mappings are already up-to-date; call the listener immediately.
+            // Fast path: mappings are already up-to-date; memoize and call the listener immediately.
+            // checkIndexMappingUpToDate returns false when there is no mapping, so mappingMetadata is
+            // non-null here.
+            upToDateMappingsSha256 = mappingMetadata.getSha256();
             listener.onResponse(null);
             return;
         }

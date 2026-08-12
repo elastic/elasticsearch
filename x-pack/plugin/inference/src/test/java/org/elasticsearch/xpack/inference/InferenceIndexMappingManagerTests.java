@@ -513,6 +513,39 @@ public class InferenceIndexMappingManagerTests extends ESTestCase {
         assertNull("No failure should be reported", callerListener.failure);
     }
 
+    public void testUpToDateMemo_doesNotShortCircuitWhenMappingsChange() {
+        // Guards the up-to-date memoization: after a successful check is memoized, a state whose
+        // mapping content differs (e.g. an older mapping reappearing after a migration or restore)
+        // must not be wrongly short-circuited — it must trigger a mapping update.
+        InferenceIndexMappingManager manager = new InferenceIndexMappingManager(mockClient, descriptor);
+
+        List<ActionListener<AcknowledgedResponse>> putMappingListeners = new ArrayList<>();
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<AcknowledgedResponse> listener = invocation.getArgument(2);
+            putMappingListeners.add(listener);
+            return null;
+        }).when(mockClient).execute(eq(TransportPutMappingAction.TYPE), any(), any());
+
+        // Two calls with up-to-date mappings: the first parses and memoizes, the second hits the memo.
+        ClusterState upToDateState = clusterStateWithIndex(InferenceIndex.INDEX_NAME, descriptor.getMappings());
+        for (int i = 0; i < 2; i++) {
+            TestActionListener callerListener = new TestActionListener();
+            manager.withUpToDateMappings(upToDateState, callerListener);
+            assertTrue("Caller listener must be notified synchronously on the fast path", callerListener.completed);
+            assertNull("No failure should be reported", callerListener.failure);
+        }
+        verify(mockClient, never()).execute(any(), any(), any());
+
+        // A state with different (stale) mapping content must bypass the memo and issue a PutMapping.
+        ClusterState staleState = clusterStateWithIndex(InferenceIndex.INDEX_NAME, InferenceIndex.mappingsV3());
+        TestActionListener callerListener = new TestActionListener();
+        manager.withUpToDateMappings(staleState, callerListener);
+
+        assertThat("The stale mappings must trigger a PutMapping despite the memoized check", putMappingListeners, hasSize(1));
+        assertFalse("Caller listener should not be notified until the I/O completes", callerListener.completed);
+    }
+
     public void testConcurrentCalls_singleUpdateNotifiesAllCallers() {
         ClusterState clusterState = clusterStateWithIndex(InferenceIndex.INDEX_NAME, InferenceIndex.mappingsV3());
         InferenceIndexMappingManager manager = new InferenceIndexMappingManager(mockClient, descriptor);

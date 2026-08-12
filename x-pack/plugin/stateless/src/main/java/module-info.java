@@ -17,6 +17,7 @@ module org.elasticsearch.xpack.stateless {
     requires org.elasticsearch.base;
     requires org.elasticsearch.blobcache;
     requires org.elasticsearch.logging;
+    requires org.elasticsearch.lucene.store;
     requires org.elasticsearch.server;
     requires org.elasticsearch.xcore;
     requires org.elasticsearch.xcontent;

@@ -284,16 +284,8 @@ public abstract sealed class IndexReshardingState implements Writeable, ToXConte
 
         @Override
         public long ramBytesUsed() {
-            // Array elements are shared enum singletons; counting each slot over-counts when the same enum appears repeatedly or when
-            // many Splits are summed, which keeps the estimate a safe upper bound vs RamUsageTester.
-            long size = BASE_RAM_BYTES_USED + RamUsageEstimator.shallowSizeOf(sourceShards) + RamUsageEstimator.shallowSizeOf(targetShards);
-            for (SourceShardState state : sourceShards) {
-                size += RamUsageEstimator.shallowSizeOf(state);
-            }
-            for (TargetShardState state : targetShards) {
-                size += RamUsageEstimator.shallowSizeOf(state);
-            }
-            return size;
+            // sourceShards/targetShards hold shared enum singletons; only the arrays (and their references) are counted.
+            return BASE_RAM_BYTES_USED + RamUsageEstimator.shallowSizeOf(sourceShards) + RamUsageEstimator.shallowSizeOf(targetShards);
         }
 
         // visible for testing

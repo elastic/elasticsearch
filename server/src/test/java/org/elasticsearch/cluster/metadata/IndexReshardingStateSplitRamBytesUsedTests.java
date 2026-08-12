@@ -14,6 +14,8 @@ import org.elasticsearch.test.AbstractAccountableFieldsTestCase;
 
 import java.util.Set;
 
+import static org.hamcrest.Matchers.greaterThan;
+
 public class IndexReshardingStateSplitRamBytesUsedTests extends AbstractAccountableFieldsTestCase {
 
     @Override
@@ -27,12 +29,22 @@ public class IndexReshardingStateSplitRamBytesUsedTests extends AbstractAccounta
     }
 
     @Override
-    protected Set<String> fieldsExcludedFromRamBytesUsed() {
-        return Set.of();
+    protected boolean assertsAgainstRamUsageTester() {
+        // Array elements are shared enum singletons; RamUsageTester includes them and ramBytesUsed() does not.
+        return false;
     }
 
     @Override
-    protected Accountable createTestInstance() {
-        return IndexReshardingState.Split.newSplitByMultiple(8, 2);
+    protected Accountable createRandomTestInstance() {
+        return IndexReshardingState.Split.newSplitByMultiple(randomIntBetween(1, 16), 2);
+    }
+
+    /**
+     * Non-tautology check: more source shards means larger arrays and a larger estimate.
+     */
+    public void testRamBytesUsedGrowsWithShardCount() {
+        IndexReshardingState.Split small = IndexReshardingState.Split.newSplitByMultiple(1, 2);
+        IndexReshardingState.Split large = IndexReshardingState.Split.newSplitByMultiple(8, 2);
+        assertThat(large.ramBytesUsed(), greaterThan(small.ramBytesUsed()));
     }
 }

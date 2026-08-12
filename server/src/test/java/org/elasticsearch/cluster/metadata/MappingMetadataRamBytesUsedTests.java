@@ -31,18 +31,9 @@ public class MappingMetadataRamBytesUsedTests extends AbstractAccountableFieldsT
     }
 
     @Override
-    protected Set<String> fieldsExcludedFromRamBytesUsed() {
-        return Set.of();
-    }
-
-    @Override
-    protected Accountable createTestInstance() {
+    protected Accountable createRandomTestInstance() {
         try {
-            return new MappingMetadata(CompressedXContent.fromJSON("""
-                { "_doc": { "properties": {
-                  "a": { "type": "keyword" }, "b": { "type": "keyword" }, "c": { "type": "text" }, "d": { "type": "long" }
-                } } }
-                """));
+            return new MappingMetadata(CompressedXContent.fromJSON(randomMappingJson(randomIntBetween(1, 16))));
         } catch (IOException e) {
             throw new AssertionError(e);
         }
@@ -52,9 +43,20 @@ public class MappingMetadataRamBytesUsedTests extends AbstractAccountableFieldsT
      * Non-tautology check: the estimate must include the compressed mapping source, so a larger mapping is larger on heap.
      */
     public void testRamBytesUsedIncludesSource() throws IOException {
-        MappingMetadata small = new MappingMetadata(CompressedXContent.fromJSON("""
-            { "_doc": { "properties": { "a": { "type": "keyword" } } } }
-            """));
-        assertThat(createTestInstance().ramBytesUsed(), greaterThan(small.ramBytesUsed()));
+        MappingMetadata small = new MappingMetadata(CompressedXContent.fromJSON(randomMappingJson(1)));
+        MappingMetadata large = new MappingMetadata(CompressedXContent.fromJSON(randomMappingJson(16)));
+        assertThat(large.ramBytesUsed(), greaterThan(small.ramBytesUsed()));
+    }
+
+    private static String randomMappingJson(int fieldCount) {
+        StringBuilder json = new StringBuilder("{ \"_doc\": { \"properties\": {");
+        for (int i = 0; i < fieldCount; i++) {
+            if (i > 0) {
+                json.append(',');
+            }
+            json.append("\"field").append(i).append("\": { \"type\": \"keyword\" }");
+        }
+        json.append("} } }");
+        return json.toString();
     }
 }

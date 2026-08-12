@@ -49,24 +49,36 @@ public class LifecycleExecutionStateRamBytesUsedTests extends AbstractAccountabl
     }
 
     @Override
-    protected Set<String> fieldsExcludedFromRamBytesUsed() {
-        return Set.of();
-    }
-
-    @Override
-    protected Accountable createTestInstance() {
-        return LifecycleExecutionState.builder()
-            .setPhase("hot")
-            .setAction("rollover")
-            .setStep("check-rollover-ready")
-            .setStepInfo("{\"some\":\"info\"}")
-            .build();
+    protected Accountable createRandomTestInstance() {
+        LifecycleExecutionState.Builder builder = LifecycleExecutionState.builder();
+        if (randomBoolean()) {
+            builder.setPhase(randomAlphaOfLengthBetween(3, 8));
+        }
+        if (randomBoolean()) {
+            builder.setAction(randomAlphaOfLengthBetween(3, 12));
+        }
+        if (randomBoolean()) {
+            builder.setStep(randomAlphaOfLengthBetween(3, 16));
+        }
+        if (randomBoolean()) {
+            builder.setStepInfo("{\"info\":\"" + randomAlphaOfLengthBetween(4, 24) + "\"}");
+        }
+        if (randomBoolean()) {
+            builder.setPhaseTime(randomNonNegativeLong());
+        }
+        return builder.build();
     }
 
     /**
      * Non-tautology check: populating string fields must increase the estimate over the empty state.
      */
     public void testRamBytesUsedGrowsWhenPopulated() {
-        assertThat(createTestInstance().ramBytesUsed(), greaterThan(LifecycleExecutionState.EMPTY_STATE.ramBytesUsed()));
+        LifecycleExecutionState populated = LifecycleExecutionState.builder()
+            .setPhase("hot")
+            .setAction("rollover")
+            .setStep("check-rollover-ready")
+            .setStepInfo("{\"some\":\"info\"}")
+            .build();
+        assertThat(populated.ramBytesUsed(), greaterThan(LifecycleExecutionState.EMPTY_STATE.ramBytesUsed()));
     }
 }

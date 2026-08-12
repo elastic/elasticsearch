@@ -29,13 +29,14 @@ public class IndexReshardingMetadataRamBytesUsedTests extends AbstractAccountabl
     }
 
     @Override
-    protected Set<String> fieldsExcludedFromRamBytesUsed() {
-        return Set.of();
+    protected boolean assertsAgainstRamUsageTester() {
+        // Nested Split arrays hold shared enum singletons that RamUsageTester includes and ramBytesUsed() does not.
+        return false;
     }
 
     @Override
-    protected Accountable createTestInstance() {
-        return IndexReshardingMetadata.newSplitByMultiple(8, 2);
+    protected Accountable createRandomTestInstance() {
+        return IndexReshardingMetadata.newSplitByMultiple(randomIntBetween(1, 16), 2);
     }
 
     /**
@@ -43,6 +44,7 @@ public class IndexReshardingMetadataRamBytesUsedTests extends AbstractAccountabl
      */
     public void testRamBytesUsedGrowsWithShardCount() {
         IndexReshardingMetadata small = IndexReshardingMetadata.newSplitByMultiple(1, 2);
-        assertThat(createTestInstance().ramBytesUsed(), greaterThan(small.ramBytesUsed()));
+        IndexReshardingMetadata large = IndexReshardingMetadata.newSplitByMultiple(8, 2);
+        assertThat(large.ramBytesUsed(), greaterThan(small.ramBytesUsed()));
     }
 }

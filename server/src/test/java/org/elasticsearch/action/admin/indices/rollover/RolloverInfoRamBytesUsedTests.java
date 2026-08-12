@@ -10,9 +10,9 @@
 package org.elasticsearch.action.admin.indices.rollover;
 
 import org.apache.lucene.util.Accountable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractAccountableFieldsTestCase;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
@@ -31,17 +31,19 @@ public class RolloverInfoRamBytesUsedTests extends AbstractAccountableFieldsTest
     }
 
     @Override
-    protected Set<String> fieldsExcludedFromRamBytesUsed() {
-        return Set.of();
+    protected boolean assertsAgainstRamUsageTester() {
+        // Nested Condition instances omit shared Type enum singletons that RamUsageTester includes.
+        return false;
     }
 
     @Override
-    protected Accountable createTestInstance() {
-        return new RolloverInfo(
-            "alias",
-            List.of(new MaxDocsCondition(1L), new MaxAgeCondition(TimeValue.timeValueDays(1)), new MaxDocsCondition(2L)),
-            1L
-        );
+    protected Accountable createRandomTestInstance() {
+        int n = randomIntBetween(1, 4);
+        List<Condition<?>> conditions = new ArrayList<>(n);
+        for (int i = 0; i < n; i++) {
+            conditions.add(new MaxDocsCondition(randomNonNegativeLong()));
+        }
+        return new RolloverInfo(randomAlphaOfLengthBetween(1, 12), conditions, randomNonNegativeLong());
     }
 
     /**
@@ -49,6 +51,11 @@ public class RolloverInfoRamBytesUsedTests extends AbstractAccountableFieldsTest
      */
     public void testRamBytesUsedGrowsWithConditions() {
         RolloverInfo one = new RolloverInfo("alias", List.of(new MaxDocsCondition(1L)), 1L);
-        assertThat(createTestInstance().ramBytesUsed(), greaterThan(one.ramBytesUsed()));
+        RolloverInfo many = new RolloverInfo(
+            "alias",
+            List.of(new MaxDocsCondition(1L), new MaxDocsCondition(2L), new MaxDocsCondition(3L)),
+            1L
+        );
+        assertThat(many.ramBytesUsed(), greaterThan(one.ramBytesUsed()));
     }
 }

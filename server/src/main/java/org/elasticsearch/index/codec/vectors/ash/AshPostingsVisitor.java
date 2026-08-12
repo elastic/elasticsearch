@@ -59,6 +59,12 @@ public class AshPostingsVisitor implements IVFVectorsReader.PostingVisitor {
         float score(byte[] packedCodes, int codeOffset, byte[] corrections, int correctionOffset);
     }
 
+    /** Strategy for converting a raw dot product into a Lucene similarity score. */
+    @FunctionalInterface
+    private interface SimilarityConverter {
+        float convert(float approxDotProduct, byte[] corrections, int correctionOffset);
+    }
+
     private final IndexInput indexInput;
     private final Bits acceptDocs;
     private final int nDims;
@@ -78,6 +84,8 @@ public class AshPostingsVisitor implements IVFVectorsReader.PostingVisitor {
 
     // Scoring strategy: float or integer path, selected once at construction time
     private final DotProductScorer dotProductScorer;
+    // Similarity conversion strategy: selected once at construction time
+    private final SimilarityConverter similarityConverter;
     // Pre-allocated query constants array: [queryDotCentroid, invQScale, qOffset, constantCorrection]
     // queryDotCentroid is set per-cluster in resetPostingsScorer; the rest are set once in constructor.
     private final float[] queryConstants;
@@ -200,6 +208,23 @@ public class AshPostingsVisitor implements IVFVectorsReader.PostingVisitor {
             );
         }
 
+        // Similarity conversion strategy
+        this.similarityConverter = switch (similarityFunction) {
+            case EUCLIDEAN -> (dot, corr, corrOff) -> {
+                float vecCentroidDot = Float.intBitsToFloat(
+                    (int) BitUtil.VH_LE_INT.get(corr, corrOff + AsymmetricHashingScorer.CORR_VEC_CENTROID_DOT)
+                );
+                float vecCentroidSqDist = Float.intBitsToFloat(
+                    (int) BitUtil.VH_LE_INT.get(corr, corrOff + AsymmetricHashingScorer.CORR_VEC_CENTROID_SQ_DIST)
+                );
+                float sqDist = currentQueryCentroidSqDist + vecCentroidSqDist - 2 * (dot - vecCentroidDot - currentQueryDotCentroid
+                    + currentCentroidNormSq);
+                return 1 / (1 + Math.max(0, sqDist));
+            };
+            case COSINE, DOT_PRODUCT -> (dot, corr, corrOff) -> (1 + dot) / 2;
+            case MAXIMUM_INNER_PRODUCT -> (dot, corr, corrOff) -> dot >= 0 ? dot + 1 : 1 / (1 - dot);
+        };
+
         this.bulkCodeBuf = new byte[BULK_SIZE * packedCodeBytes];
     }
 
@@ -250,7 +275,6 @@ public class AshPostingsVisitor implements IVFVectorsReader.PostingVisitor {
     private int processBlock(KnnCollector knnCollector, int blockSize) throws IOException {
         readDocIds(blockSize);
         int docsToScore = filterAcceptedDocs(blockSize);
-        boolean isEuclidean = similarityFunction == VectorSimilarityFunction.EUCLIDEAN;
         if (docsToScore == 0) {
             // Skip the entire block: codes + corrections
             long bytesToSkip = (long) blockSize * packedCodeBytes + (long) blockSize * AsymmetricHashingScorer.CORRECTION_BYTES;
@@ -267,25 +291,8 @@ public class AshPostingsVisitor implements IVFVectorsReader.PostingVisitor {
         for (int j = 0; j < blockSize; j++) {
             if (docIdsScratch[j] != -1) {
                 int corrOff = j * AsymmetricHashingScorer.CORRECTION_BYTES;
-                // Compute approximate ⟨q,x⟩ via ASH (same for all similarity functions)
                 float approxDotProduct = dotProductScorer.score(bulkCodeBuf, j * packedCodeBytes, bulkCorrectionsBuf, corrOff);
-                // Convert raw dot product to similarity score
-                if (isEuclidean) {
-                    // Appendix A, Eq. A.2:
-                    // ‖q-x‖² = ‖q-μ*‖² + ‖x-μ*‖² - 2·(⟨q,x⟩ - ⟨μ*,x⟩ - ⟨q,μ*⟩ + ‖μ*‖²)
-                    float vecCentroidDot = Float.intBitsToFloat(
-                        (int) BitUtil.VH_LE_INT.get(bulkCorrectionsBuf, corrOff + AsymmetricHashingScorer.CORR_VEC_CENTROID_DOT)
-                    );
-                    float vecCentroidSqDist = Float.intBitsToFloat(
-                        (int) BitUtil.VH_LE_INT.get(bulkCorrectionsBuf, corrOff + AsymmetricHashingScorer.CORR_VEC_CENTROID_SQ_DIST)
-                    );
-                    float sqDist = currentQueryCentroidSqDist + vecCentroidSqDist - 2 * (approxDotProduct - vecCentroidDot
-                        - currentQueryDotCentroid + currentCentroidNormSq);
-                    // Clamp to non-negative (floating point rounding can produce small negatives)
-                    scores[j] = 1 / (1 + Math.max(0, sqDist));
-                } else {
-                    scores[j] = convertScore(approxDotProduct);
-                }
+                scores[j] = similarityConverter.convert(approxDotProduct, bulkCorrectionsBuf, corrOff);
                 if (scores[j] > maxScore) {
                     maxScore = scores[j];
                 }
@@ -296,14 +303,6 @@ public class AshPostingsVisitor implements IVFVectorsReader.PostingVisitor {
             collectBulk(knnCollector, blockSize, docsToScore, maxScore);
         }
         return docsToScore;
-    }
-
-    private float convertScore(float rawDotProduct) {
-        return switch (similarityFunction) {
-            case EUCLIDEAN -> throw new IllegalStateException("EUCLIDEAN handled inline in processBlock");
-            case COSINE, DOT_PRODUCT -> (1 + rawDotProduct) / 2;
-            case MAXIMUM_INNER_PRODUCT -> rawDotProduct >= 0 ? rawDotProduct + 1 : 1 / (1 - rawDotProduct);
-        };
     }
 
     private void readDocIds(int count) throws IOException {

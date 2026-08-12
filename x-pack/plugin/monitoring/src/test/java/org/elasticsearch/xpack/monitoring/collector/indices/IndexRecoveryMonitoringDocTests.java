@@ -49,10 +49,8 @@ public class IndexRecoveryMonitoringDocTests extends BaseMonitoringDocTestCase<I
 
     private RecoveryResponse mockRecoveryResponse;
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initRecoveryResponseMock() throws Exception {
         mockRecoveryResponse = mock(RecoveryResponse.class);
     }
 

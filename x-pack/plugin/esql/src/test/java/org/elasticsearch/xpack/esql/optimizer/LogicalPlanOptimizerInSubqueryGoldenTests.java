@@ -376,4 +376,143 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
             )
         );
     }
+
+    // -- IN subquery inside CASE, COALESCE, IS [NOT] NULL in WHERE --
+
+    public void testInSubqueryInCaseWhen() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE CASE(emp_no IN (FROM employees | KEEP emp_no), true, false)
+            """, STAGES);
+    }
+
+    public void testNotInSubqueryInCaseWhen() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE CASE(emp_no NOT IN (FROM employees | KEEP emp_no), true, false)
+            """, STAGES);
+    }
+
+    public void testInSubqueryInCoalesce() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE COALESCE(emp_no IN (FROM employees | KEEP emp_no), false)
+            """, STAGES);
+    }
+
+    public void testInSubqueryInIsNotNull() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE (emp_no IN (FROM employees | KEEP emp_no)) IS NOT NULL
+            """, STAGES);
+    }
+
+    public void testInSubqueryInIsNull() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE (emp_no IN (FROM employees | KEEP emp_no)) IS NULL
+            """, STAGES);
+    }
+
+    public void testCaseWithConjunctiveInSubqueries() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE CASE(emp_no IN (FROM employees | KEEP emp_no) AND languages IN (FROM employees | KEEP languages), true, false)
+            """, STAGES);
+    }
+
+    public void testCaseWithMixedConjunctiveDisjunctiveInSubqueries() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE CASE(emp_no IN (FROM employees | KEEP emp_no) AND (salary > 50000 OR languages IN (FROM employees | KEEP languages)),
+                         true, false)
+            """, STAGES);
+    }
+
+    public void testIsNotNullWithDisjunctiveInSubqueries() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE (emp_no IN (FROM employees | KEEP emp_no) OR languages IN (FROM employees | KEEP languages)) IS NOT NULL
+            """, STAGES);
+    }
+
+    public void testIsNullWithConjunctiveInSubqueries() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE (emp_no IN (FROM employees | KEEP emp_no) AND languages IN (FROM employees | KEEP languages)) IS NULL
+            """, STAGES);
+    }
+
+    public void testCoalesceWithDisjunctiveInSubqueries() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE COALESCE(emp_no IN (FROM employees | KEEP emp_no) OR languages IN (FROM employees | KEEP languages), false)
+            """, STAGES);
+    }
+
+    public void testCoalesceWithConjunctiveInSubqueries() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE COALESCE(emp_no IN (FROM employees | KEEP emp_no), languages IN (FROM employees | KEEP languages), false)
+            """, STAGES);
+    }
+
+    public void testCoalesceInSubqueryAsSecondArg() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE COALESCE(null, emp_no IN (FROM employees | KEEP emp_no))
+            """, STAGES);
+    }
+
+    public void testCaseMixingCoalesceAndIsNotNull() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE CASE(COALESCE(emp_no IN (FROM employees | KEEP emp_no), false)
+                         AND (languages IN (FROM employees | KEEP languages)) IS NOT NULL,
+                         true, false)
+            """, STAGES);
+    }
+
+    public void testDisjunctiveIsNotNullAndCoalesceCase() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE (emp_no IN (FROM employees | KEEP emp_no) AND languages IN (FROM employees | KEEP languages)) IS NOT NULL
+              OR COALESCE(CASE(salary IN (FROM employees | KEEP salary), true, false), false)
+            """, STAGES);
+    }
+
+    public void testConjunctiveWithCoalesceDisjunctionAndIsNull() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE salary > 50000
+              AND COALESCE(emp_no IN (FROM employees | KEEP emp_no) OR languages IN (FROM employees | KEEP languages), false)
+              AND (salary IN (FROM employees | KEEP salary)) IS NULL
+            """, STAGES);
+    }
+
+    public void testCaseInSubqueryAndBareInSubqueryWithAnd() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE CASE(emp_no IN (FROM employees | KEEP emp_no), true, false)
+              AND salary > 50000
+              AND languages IN (FROM employees | KEEP languages)
+            """, STAGES);
+    }
+
+    public void testCaseInSubqueryAndBareInSubqueryWithOr() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE CASE(emp_no IN (FROM employees | KEEP emp_no), true, false)
+              OR salary > 50000
+              OR languages IN (FROM employees | KEEP languages)
+            """, STAGES);
+    }
+
+    public void testCaseInSubqueryAndOrWithBareIn() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE CASE(emp_no IN (FROM employees | KEEP emp_no), true, false)
+              AND (salary > 50000 OR languages IN (FROM employees | KEEP languages))
+            """, STAGES);
+    }
 }

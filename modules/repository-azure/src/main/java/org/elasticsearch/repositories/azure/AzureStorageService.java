@@ -221,8 +221,8 @@ public class AzureStorageService {
         clientsManager.refreshClusterClientSettings(clientsSettings);
     }
 
-    public void dropConnectionProviders(Set<AzureClientProvider.ConnectionProviderKey> keys) {
-        azureClientProvider.dropConnectionProviders(keys);
+    public void dropConnectionProviders(Set<AzureClientProvider.ConnectionProviderKey> connectionProvidersToEvict) {
+        azureClientProvider.dropConnectionProviders(connectionProvidersToEvict);
     }
 
     // visible for testing
@@ -349,8 +349,8 @@ public class AzureStorageService {
                 }
             }
 
-            // get all the connection-provider references we need to remove from the `connectionProvidersCache`
-            Set<AzureClientProvider.ConnectionProviderKey> keys = new HashSet<>();
+            // get all the connection-provider references we need to evict from the `connectionProvidersCache`
+            final Set<AzureClientProvider.ConnectionProviderKey> connectionProvidersToEvict = new HashSet<>();
 
             for (var previousEntry : previousPerProjectStorageSettings.entrySet()) {
                 final var projectId = previousEntry.getKey();
@@ -364,16 +364,18 @@ public class AzureStorageService {
                     if (!previousClientSettings.equals(currentClientSettings)) {
                         // if either the project was removed, or its setting were changed, we schedule the previous connection-provider
                         // for removal from the cache
-                        keys.add(new AzureClientProvider.ConnectionProviderKey(projectId, clientName, previousClientSettings));
+                        connectionProvidersToEvict.add(
+                            new AzureClientProvider.ConnectionProviderKey(projectId, clientName, previousClientSettings)
+                        );
                     }
                 }
             }
 
-            if (!keys.isEmpty()) {
+            if (!connectionProvidersToEvict.isEmpty()) {
                 executor.execute(new AbstractRunnable() {
                     @Override
                     protected void doRun() throws Exception {
-                        dropConnectionProviders(keys);
+                        dropConnectionProviders(connectionProvidersToEvict);
                     }
 
                     @Override
@@ -433,17 +435,21 @@ public class AzureStorageService {
                 return;
             }
 
+            // get all the connection-provider references we need to evict from the `connectionProvidersCache`
+            final Set<AzureClientProvider.ConnectionProviderKey> connectionProvidersToEvict = new HashSet<>();
+
             // go through the previously-set settings to find the settings that no longer appear in `clientSettings`
-            final Set<AzureClientProvider.ConnectionProviderKey> keys = new HashSet<>();
             for (var previousEntry : previousSettings.entrySet()) {
                 final var clientName = previousEntry.getKey();
                 final var previousClientSettings = previousEntry.getValue();
                 final var currentClientSettings = clientsSettings.get(clientName);
                 if (!previousClientSettings.equals(currentClientSettings)) {
-                    keys.add(new AzureClientProvider.ConnectionProviderKey(ProjectId.DEFAULT, clientName, previousClientSettings));
+                    connectionProvidersToEvict.add(
+                        new AzureClientProvider.ConnectionProviderKey(ProjectId.DEFAULT, clientName, previousClientSettings)
+                    );
                 }
             }
-            dropConnectionProviders(keys);
+            dropConnectionProviders(connectionProvidersToEvict);
         }
 
         private boolean newOrUpdated(ProjectId projectId, Map<String, AzureStorageSettings> currentClientSettings) {

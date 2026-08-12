@@ -16,8 +16,17 @@ import org.elasticsearch.simdvec.AsymmetricHashingScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.Random;
+import java.util.Set;
 import java.util.function.IntFunction;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.oneOf;
 
 /**
  * Tests for the core ASH algorithm components: SVD, quantizers, and the full pipeline.
@@ -46,7 +55,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         }
         SvdUtil.SvdResult result = SvdUtil.thinSvd(a, 4, 3);
         // Only first singular value should be non-zero
-        assertTrue(result.s()[0] > 0.1f);
+        assertThat(result.s()[0], greaterThan(0.1f));
         assertEquals(0.0f, result.s()[1], 1e-4f);
         assertEquals(0.0f, result.s()[2], 1e-4f);
     }
@@ -132,9 +141,9 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         // With 2 bits, levels are 0 or 1, so magnitudes are 0.5 or 1.5
         for (float val : result.centeredCodes()[0]) {
             float absMag = Math.abs(val);
-            assertTrue("Expected magnitude 0.5 or 1.5 but got " + absMag, absMag == 0.5f || absMag == 1.5f);
+            assertThat(absMag, oneOf(0.5f, 1.5f));
         }
-        assertTrue(result.codeNorms()[0] > 0);
+        assertThat(result.codeNorms()[0], greaterThan(0f));
     }
 
     public void testFullPipelineRandomMethod() {
@@ -270,7 +279,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         // Verify approximate dot products correlate with exact ones
         double correlation = computeRankCorrelation(vectors, query, scores);
         // With learned method, expect reasonable correlation
-        assertTrue("Expected positive rank correlation, got " + correlation, correlation > 0.3);
+        assertThat("Expected positive rank correlation", correlation, greaterThan(0.3));
     }
 
     public void testReconstructedDotProductApproximatesTrueDotProduct() {
@@ -351,10 +360,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
                 sumSqTrue += (double) trueDot * trueDot;
             }
             double relRmse = Math.sqrt(sumSqErr / sumSqTrue);
-            assertTrue(
-                "bitsPerDim=" + bitsPerDim + " relative RMSE too high: " + relRmse + " (threshold " + relRmseThreshold + ")",
-                relRmse < relRmseThreshold
-            );
+            assertThat("bitsPerDim=" + bitsPerDim + " relative RMSE too high", relRmse, lessThan(relRmseThreshold));
         }
     }
 
@@ -383,7 +389,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         float[][] centroids = { new float[dim] };
         int[] assignments = { 0, 0 };
 
-        IntFunction<float[]> centroidGetter = (i) -> centroids[assignments[i]];
+        IntFunction<float[]> centroidGetter = i -> centroids[assignments[i]];
 
         AsymmetricHashingQuantizer quantizer = new AsymmetricHashingQuantizer(
             0.25f,
@@ -414,10 +420,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         float qdc = 0.4f;
 
         // Compute reference score via plain float dot product
-        double dot = 0;
-        for (int j = 0; j < nDims; j++) {
-            dot += (double) qt[j] * codes[j];
-        }
+        double dot = ESVectorUtil.dotProduct(qt, codes, nDims);
         float floatScore = (float) dot * scale + qdc + offset;
         float multiBitScore = AsymmetricHashingScorer.score(qt, qdc, packed, nDims, bitsPerDim, scale, offset);
         assertEquals(floatScore, multiBitScore, 1e-4f);
@@ -451,9 +454,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         assertEquals(nDims, restored.nDims());
 
         for (int i = 0; i < originalDim; i++) {
-            for (int j = 0; j < nDims; j++) {
-                assertEquals(w[i][j], restored.w()[i][j], 0f);
-            }
+            assertArrayEquals(w[i], restored.w()[i], 0f);
         }
     }
 
@@ -473,9 +474,9 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         assertEquals(n, topK[0].length);
 
         // First vector should be dominated by dim 0 (corresponding to singular value 4)
-        assertTrue(Math.abs(topK[0][0]) > 0.9f);
+        assertThat(Math.abs(topK[0][0]), greaterThan(0.9f));
         // Second vector should be dominated by dim 1 (singular value 3)
-        assertTrue(Math.abs(topK[1][1]) > 0.9f);
+        assertThat(Math.abs(topK[1][1]), greaterThan(0.9f));
     }
 
     public void testScoreReconstructsDotProduct() {
@@ -569,15 +570,8 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
             byte[] packed = AsymmetricHashingScorer.pack(enc.xEnc(), bitsPerDim);
 
             for (int q = 0; q < nQueries; q++) {
-                double exactDot = 0;
-                for (int d = 0; d < dim; d++) {
-                    exactDot += (double) queries[q][d] * vectors[i][d];
-                }
-
-                double qDotC = 0;
-                for (int d = 0; d < dim; d++) {
-                    qDotC += (double) queries[q][d] * c[d];
-                }
+                double exactDot = ESVectorUtil.dotProduct(queries[q], vectors[i]);
+                double qDotC = ESVectorUtil.dotProduct(queries[q], c);
 
                 float approxScore = AsymmetricHashingScorer.score(
                     qt[q],
@@ -595,7 +589,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         }
 
         // Pearson correlation across all (query, vector) pairs
-        double sumE = 0, sumA = 0, sumEE = 0, sumAA = 0, sumEA = 0, sumAbsDiff = 0;
+        double sumE = 0, sumA = 0, sumEE = 0, sumAA = 0, sumEA = 0;
         long n = 0;
         for (int q = 0; q < nQueries; q++) {
             for (int i = 0; i < nVectors; i++) {
@@ -605,7 +599,6 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
                 sumEE += e * e;
                 sumAA += a * a;
                 sumEA += e * a;
-                sumAbsDiff += Math.abs(e - a);
                 n++;
             }
         }
@@ -616,8 +609,8 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         double pearson = covEA / Math.sqrt(varE * varA);
         double recall = recallAtK(approx, exact, k);
 
-        assertTrue("pearson " + pearson + " below " + pearsonThreshold, pearson > pearsonThreshold);
-        assertTrue("recall@" + k + " " + recall + " below " + recallThreshold, recall > recallThreshold);
+        assertThat(pearson, greaterThan(pearsonThreshold));
+        assertThat("recall@" + k, recall, greaterThan(recallThreshold));
     }
 
     /** Average overlap@k between approx-top-k and exact-top-k, per query. */
@@ -627,44 +620,21 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         for (int q = 0; q < nQueries; q++) {
             int[] approxTop = topKIndices(approx[q], k);
             int[] exactTop = topKIndices(exact[q], k);
-            java.util.HashSet<Integer> e = new java.util.HashSet<>();
-            for (int idx : exactTop) {
-                e.add(idx);
-            }
-            for (int idx : approxTop) {
-                if (e.contains(idx)) hits++;
-            }
+            Set<Integer> e = Arrays.stream(exactTop).boxed().collect(Collectors.toSet());
+            hits += Arrays.stream(approxTop).filter(e::contains).count();
         }
         return (double) hits / ((long) nQueries * k);
     }
 
     /** Returns indices of the k largest values in scores, unordered. */
     private static int[] topKIndices(double[] scores, int k) {
-        int n = scores.length;
-        Integer[] idx = new Integer[n];
-        for (int i = 0; i < n; i++) {
-            idx[i] = i;
-        }
-        java.util.Arrays.sort(idx, (a, b) -> Double.compare(scores[b], scores[a]));
+        Integer[] idx = IntStream.range(0, scores.length)
+            .boxed()
+            .sorted(Comparator.comparingDouble(i -> scores[i]))
+            .toArray(Integer[]::new);
         int[] out = new int[k];
         for (int i = 0; i < k; i++) {
             out[i] = idx[i];
-        }
-        return out;
-    }
-
-    private static float[][] randomUnit(int n, int d, Random rng) {
-        float[][] out = new float[n][d];
-        for (int i = 0; i < n; i++) {
-            double s = 0;
-            for (int j = 0; j < d; j++) {
-                out[i][j] = (float) rng.nextGaussian();
-                s += out[i][j] * out[i][j];
-            }
-            float inv = (float) (1.0 / Math.sqrt(s));
-            for (int j = 0; j < d; j++) {
-                out[i][j] *= inv;
-            }
         }
         return out;
     }
@@ -673,11 +643,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         int n = vectors.length;
         float[] exactScores = new float[n];
         for (int i = 0; i < n; i++) {
-            double dot = 0;
-            for (int j = 0; j < query.length; j++) {
-                dot += (double) vectors[i][j] * query[j];
-            }
-            exactScores[i] = (float) dot;
+            exactScores[i] = ESVectorUtil.dotProduct(query, vectors[i]);
         }
 
         // Spearman rank correlation (simplified)
@@ -685,6 +651,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         int[] approxRanks = ranks(approxScores);
         double sumD2 = 0;
         for (int i = 0; i < n; i++) {
+            // no ESVectorUtil.squareDistance method with ints :(
             double d = exactRanks[i] - approxRanks[i];
             sumD2 += d * d;
         }
@@ -692,14 +659,12 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
     }
 
     private static int[] ranks(float[] scores) {
-        int n = scores.length;
-        Integer[] indices = new Integer[n];
-        for (int i = 0; i < n; i++) {
-            indices[i] = i;
-        }
-        java.util.Arrays.sort(indices, (a, b) -> Float.compare(scores[b], scores[a]));
-        int[] ranks = new int[n];
-        for (int r = 0; r < n; r++) {
+        Integer[] indices = IntStream.range(0, scores.length)
+            .boxed()
+            .sorted(Comparator.comparingDouble(i -> scores[i]))
+            .toArray(Integer[]::new);
+        int[] ranks = new int[indices.length];
+        for (int r = 0; r < indices.length; r++) {
             ranks[indices[r]] = r;
         }
         return ranks;

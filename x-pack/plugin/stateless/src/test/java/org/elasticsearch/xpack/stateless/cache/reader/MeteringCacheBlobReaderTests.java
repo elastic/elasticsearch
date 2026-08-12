@@ -19,6 +19,8 @@ import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -33,9 +35,6 @@ public class MeteringCacheBlobReaderTests extends ESTestCase {
                 public void onBytesRead(int bytesRead) {
                     capturedBytes.add(bytesRead);
                 }
-
-                @Override
-                public void onCopyCompleted(int totalBytesRead, long timeNanos) {}
             }
         );
 
@@ -50,15 +49,15 @@ public class MeteringCacheBlobReaderTests extends ESTestCase {
     }
 
     public void testOnCopyCompletedCallback() {
-        final var capturedTotal = new int[] { 0 };
-        final var capturedTime = new long[] { 0 };
+        final var capturedTotal = new AtomicInteger();
+        final var capturedTime = new AtomicLong(0);
         final var meteringCacheBlobReader = new MeteringCacheBlobReader(
             createFakeCacheBlobReader(),
             new MeteringCacheBlobReader.ReadCompleteCallback() {
                 @Override
                 public void onCopyCompleted(int totalBytesRead, long timeNanos) {
-                    capturedTotal[0] = totalBytesRead;
-                    capturedTime[0] = timeNanos;
+                    capturedTotal.set(totalBytesRead);
+                    capturedTime.set(timeNanos);
                 }
             }
         );
@@ -67,8 +66,8 @@ public class MeteringCacheBlobReaderTests extends ESTestCase {
         final var time = randomLongBetween(1, 1_000_000);
         meteringCacheBlobReader.onCopyCompleted(total, time);
 
-        assertThat(capturedTotal[0], equalTo(total));
-        assertThat(capturedTime[0], equalTo(time));
+        assertThat(capturedTotal.get(), equalTo(total));
+        assertThat(capturedTime.get(), equalTo(time));
     }
 
     @TestLogging(value = "org.elasticsearch.xpack.stateless.cache.reader.MeteringCacheBlobReader:DEBUG", reason = "test debug log message")
@@ -102,9 +101,6 @@ public class MeteringCacheBlobReaderTests extends ESTestCase {
     public void testExceptionIsLoggedAtDebugWhenTimingCallbackThrows() {
         final var callbackException = new RuntimeException("Timing callback exception");
         final var throwingCallback = new MeteringCacheBlobReader.ReadCompleteCallback() {
-            @Override
-            public void onBytesRead(int bytesRead) {}
-
             @Override
             public void onCopyCompleted(int totalBytesRead, long timeNanos) {
                 throw callbackException;

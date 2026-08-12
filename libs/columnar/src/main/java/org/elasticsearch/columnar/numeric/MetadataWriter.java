@@ -9,8 +9,6 @@
 
 package org.elasticsearch.columnar.numeric;
 
-import java.io.IOException;
-
 /**
  * Write-side view of per-block stage metadata for a {@link BlockTransform}. Exposes only the scalar
  * operations valid for compact reversal parameters — a fixed or variable-length integer, a
@@ -31,29 +29,29 @@ import java.io.IOException;
 public interface MetadataWriter {
 
     /** Writes a single byte. */
-    MetadataWriter writeByte(byte v) throws IOException;
+    MetadataWriter writeByte(byte v);
 
     /** Writes a fixed-width 4-byte big-endian integer. */
-    MetadataWriter writeInt(int v) throws IOException;
+    MetadataWriter writeInt(int v);
 
     /** Writes a fixed-width 8-byte big-endian long. */
-    MetadataWriter writeLong(long v) throws IOException;
+    MetadataWriter writeLong(long v);
 
     /**
      * Writes an unsigned variable-length integer. {@code v} must be non-negative; use
      * {@link #writeZInt} for signed values.
      */
-    MetadataWriter writeVInt(int v) throws IOException;
+    MetadataWriter writeVInt(int v);
 
     /**
      * Writes an unsigned variable-length long. {@code v} must be non-negative; use
      * {@link #writeZLong} for signed values.
      */
-    MetadataWriter writeVLong(long v) throws IOException;
+    MetadataWriter writeVLong(long v);
 
     /** Writes a signed variable-length integer using zigzag encoding. */
-    MetadataWriter writeZInt(int v) throws IOException;
+    MetadataWriter writeZInt(int v);
 
     /** Writes a signed variable-length long using zigzag encoding. */
-    MetadataWriter writeZLong(long v) throws IOException;
+    MetadataWriter writeZLong(long v);
 }

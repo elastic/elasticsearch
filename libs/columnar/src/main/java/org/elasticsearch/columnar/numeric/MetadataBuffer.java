@@ -13,6 +13,7 @@ import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.DataOutput;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 
 /**
  * Write-side buffer for per-block {@link BlockTransform} stage metadata. Implements
@@ -44,44 +45,64 @@ final class MetadataBuffer implements MetadataWriter {
     }
 
     @Override
-    public MetadataWriter writeByte(byte v) throws IOException {
+    public MetadataWriter writeByte(byte v) {
         buf.writeByte(v);
         return this;
     }
 
     @Override
-    public MetadataWriter writeInt(int v) throws IOException {
+    public MetadataWriter writeInt(int v) {
         buf.writeInt(v);
         return this;
     }
 
     @Override
-    public MetadataWriter writeLong(long v) throws IOException {
+    public MetadataWriter writeLong(long v) {
         buf.writeLong(v);
         return this;
     }
 
     @Override
-    public MetadataWriter writeVInt(int v) throws IOException {
-        buf.writeVInt(v);
+    public MetadataWriter writeVInt(int v) {
+        try {
+            buf.writeVInt(v);
+        } catch (IOException e) {
+            // Writing to memory via ByteBuffersDataOutput, so this should never happen
+            throw new UncheckedIOException(e);
+        }
         return this;
     }
 
     @Override
-    public MetadataWriter writeVLong(long v) throws IOException {
-        buf.writeVLong(v);
+    public MetadataWriter writeVLong(long v) {
+        try {
+            buf.writeVLong(v);
+        } catch (IOException e) {
+            // Writing to memory via ByteBuffersDataOutput, so this should never happen
+            throw new UncheckedIOException(e);
+        }
         return this;
     }
 
     @Override
-    public MetadataWriter writeZInt(int v) throws IOException {
-        buf.writeZInt(v);
+    public MetadataWriter writeZInt(int v) {
+        try {
+            buf.writeZInt(v);
+        } catch (IOException e) {
+            // Writing to memory via ByteBuffersDataOutput, so this should never happen
+            throw new UncheckedIOException(e);
+        }
         return this;
     }
 
     @Override
-    public MetadataWriter writeZLong(long v) throws IOException {
-        buf.writeZLong(v);
+    public MetadataWriter writeZLong(long v) {
+        try {
+            buf.writeZLong(v);
+        } catch (IOException e) {
+            // Writing to memory via ByteBuffersDataOutput, so this should never happen
+            throw new UncheckedIOException(e);
+        }
         return this;
     }
 }

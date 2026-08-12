@@ -289,15 +289,7 @@ public final class AsymmetricHashingQuantizer {
                     q[i * nDims + j] = Math.fma(-dot, q[i * nDims + prev], q[i * nDims + j]);
                 }
             }
-            // Normalize column j
-            double normSq = 0;
-            for (int i = 0; i < originalDim; i++) {
-                normSq = Math.fma(q[i * nDims + j], q[i * nDims + j], normSq);
-            }
-            float invNorm = (float) (1.0 / Math.sqrt(normSq));
-            for (int i = 0; i < originalDim; i++) {
-                q[i * nDims + j] *= invNorm;
-            }
+            SvdUtil.normalizeColumn(q, j, nDims, originalDim);
         }
         return q;
     }

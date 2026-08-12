@@ -816,3 +816,6 @@ tests:
 - class: org.elasticsearch.common.xcontent.builder.XContentBuilderTests
   method: testCloseAllowIllFormedDoesNotValidateStructuralCorrectness
   issue: https://github.com/elastic/elasticsearch/issues/156563
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecMathIT
+  method: test {csv-spec:math.mvSumOverflowOnNode}
+  issue: https://github.com/elastic/elasticsearch/issues/156565

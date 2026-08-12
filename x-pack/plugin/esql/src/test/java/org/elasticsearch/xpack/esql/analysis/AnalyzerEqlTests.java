@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
@@ -449,7 +450,13 @@ public class AnalyzerEqlTests extends ESTestCase {
 
     private static IndexResolution indexWith(String name, Map<String, EsField> mapping) {
         return IndexResolution.valid(
-            new EsIndex(name, mapping, Map.of(name, IndexMode.STANDARD), Map.of("", List.of(name)), Map.of("", List.of(name)))
+            new EsIndex(
+                name,
+                mapping,
+                Map.of(name, new IndexProperties(IndexMode.STANDARD, 0)),
+                Map.of("", List.of(name)),
+                Map.of("", List.of(name))
+            )
         );
     }
 

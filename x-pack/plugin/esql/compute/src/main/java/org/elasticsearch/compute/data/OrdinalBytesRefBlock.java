@@ -303,13 +303,6 @@ public final class OrdinalBytesRefBlock extends AbstractBlockRefCounted implemen
 
     @Override
     public String toString() {
-        return getClass().getSimpleName()
-            + "[positions="
-            + getPositionCount()
-            + ", ordinals="
-            + ordinals
-            + ", bytes="
-            + bytes
-            + "]";
+        return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", ordinals=" + ordinals + ", bytes=" + bytes + "]";
     }
 }

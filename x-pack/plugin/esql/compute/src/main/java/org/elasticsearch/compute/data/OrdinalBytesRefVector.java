@@ -185,14 +185,7 @@ public final class OrdinalBytesRefVector extends AbstractBlockRefCounted impleme
 
     @Override
     public String toString() {
-        return getClass().getSimpleName()
-            + "[positions="
-            + getPositionCount()
-            + ", ordinals="
-            + ordinals
-            + ", bytes="
-            + bytes
-            + "]";
+        return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", ordinals=" + ordinals + ", bytes=" + bytes + "]";
     }
 
     @Override

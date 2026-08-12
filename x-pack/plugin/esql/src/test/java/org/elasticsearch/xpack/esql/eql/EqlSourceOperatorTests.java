@@ -481,27 +481,23 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
         Source source = new Source(1, 0, "eqlq");
         EqlSearchResponse response = eventResponse(List.of(fieldEvent("a"), fieldEvent("b"))); // fills the cap of 2
 
+        String expected = "Line "
+            + source.lineNumber()
+            + ":"
+            + source.columnNumber()
+            + " ["
+            + source.text()
+            + "]: EQL query returned the maximum number of results ["
+            + size
+            + "]; results may be incomplete. Raise the size option or the [esql.query.result_truncation_max_size] setting";
+
         SourceOperator operator = operator(client, driverContext, eqlRequest(size), EqlRelation.Mode.EVENT, source, true);
         Page page = null;
         try {
             assertBlocked(operator);
             client.capturedListener.onResponse(response);
-            // The callback ran on this thread and must not have warned: the warning is the getOutput() path's job.
-            assertFalse("no warning must be emitted by the response callback", threadContext.getResponseHeaders().containsKey("Warning"));
-
             page = operator.getOutput();
             assertThat(page.getPositionCount(), equalTo(2));
-
-            String expected = "Line "
-                + source.lineNumber()
-                + ":"
-                + source.columnNumber()
-                + " ["
-                + source.text()
-                + "]: EQL query returned the maximum number of results ["
-                + size
-                + "]; results may be incomplete. Raise the size option or the [esql.query.result_truncation_max_size] setting";
-            assertWarnings(expected);
         } finally {
             if (page != null) {
                 page.releaseBlocks();
@@ -509,6 +505,8 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
             operator.close();
             response.decRef();
         }
+        // The warning is registered on the driver context during getOutput(), not the response callback.
+        assertThat(collectWarnings(driverContext), equalTo(List.of(expected)));
         assertThat(driverContext.breaker().getUsed(), equalTo(0L));
     }
 
@@ -534,22 +532,8 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
         try {
             assertBlocked(operator);
             client.capturedListener.onResponse(response);
-            assertFalse(
-                "the warning is the getOutput path's job, not the callback",
-                threadContext.getResponseHeaders().containsKey("Warning")
-            );
-
             page = operator.getOutput();
             assertThat(page.getPositionCount(), equalTo(1));
-            assertWarnings(
-                "Line "
-                    + source.lineNumber()
-                    + ":"
-                    + source.columnNumber()
-                    + " ["
-                    + source.text()
-                    + "]: EQL query returned partial results (one or more shards failed or timed out); some events may be missing"
-            );
         } finally {
             if (page != null) {
                 page.releaseBlocks();
@@ -557,6 +541,21 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
             operator.close();
             response.decRef();
         }
+        // The warning is registered on the driver context during getOutput(), not the response callback.
+        assertThat(
+            collectWarnings(driverContext),
+            equalTo(
+                List.of(
+                    "Line "
+                        + source.lineNumber()
+                        + ":"
+                        + source.columnNumber()
+                        + " ["
+                        + source.text()
+                        + "]: EQL query returned partial results (one or more shards failed or timed out); some events may be missing"
+                )
+            )
+        );
         assertThat(driverContext.breaker().getUsed(), equalTo(0L));
     }
 
@@ -580,7 +579,6 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
             assertBlocked(operator);
             client.capturedListener.onResponse(response);
             page = operator.getOutput();
-            assertFalse("below the cap must not warn", threadContext.getResponseHeaders().containsKey("Warning"));
         } finally {
             if (page != null) {
                 page.releaseBlocks();
@@ -588,6 +586,7 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
             operator.close();
             response.decRef();
         }
+        assertThat("below the cap must not warn", collectWarnings(driverContext), equalTo(List.of()));
         assertThat(driverContext.breaker().getUsed(), equalTo(0L));
     }
 
@@ -611,7 +610,6 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
             assertBlocked(operator);
             client.capturedListener.onResponse(response);
             page = operator.getOutput();
-            assertFalse("flag off must not warn", threadContext.getResponseHeaders().containsKey("Warning"));
         } finally {
             if (page != null) {
                 page.releaseBlocks();
@@ -619,6 +617,7 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
             operator.close();
             response.decRef();
         }
+        assertThat("flag off must not warn", collectWarnings(driverContext), equalTo(List.of()));
         assertThat(driverContext.breaker().getUsed(), equalTo(0L));
     }
 

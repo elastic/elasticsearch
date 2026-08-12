@@ -15,9 +15,9 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.DataType;
+import org.elasticsearch.inference.EndpointClusterState;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InferenceStringGroup;
-import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.search.vectors.LookupQueryVectorBuilder;
@@ -273,7 +273,7 @@ public class KnnMixedFieldTypeCrossClusterSearchIT extends AbstractSemanticCross
             Map.of(LOOKUP_SOURCE_FIELD, generateDenseVectorFieldValue(DIMS, DenseVectorFieldMapper.ElementType.FLOAT, 1.0f))
         );
 
-        Map<String, MinimalServiceSettings> inferenceEndpoints = Map.of(
+        Map<String, EndpointClusterState> inferenceEndpoints = Map.of(
             TEXT_EMBEDDING_INFERENCE_ID,
             textEmbeddingServiceSettings(DIMS, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT),
             EMBEDDING_INFERENCE_ID,

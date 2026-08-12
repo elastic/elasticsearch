@@ -263,12 +263,6 @@ public record DriverCompletionInfo(
     private static final TransportVersion ESQL_EXTERNAL_PARTIAL_RESULTS = TransportVersion.fromName("esql_external_partial_results");
     public static final TransportVersion ESQL_DRIVER_WARNINGS = TransportVersion.fromName("esql_driver_warnings");
 
-    /**
-     * Read from a stream, falling back to {@link ThreadContext} response headers when the
-     * remote node predates {@link #ESQL_DRIVER_WARNINGS}. Old nodes send warnings as
-     * RFC 7234 {@code Warning:} transport response headers; the transport layer deposits
-     * them into the current thread's context before this method is called.
-     */
     public static DriverCompletionInfo readFrom(StreamInput in, ThreadContext threadContext) throws IOException {
         long documentsFound = in.readVLong();
         long valuesLoaded = in.readVLong();

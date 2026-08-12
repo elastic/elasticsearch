@@ -447,7 +447,7 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
         // To make warnings optional for some version, uncomment this. Tests might also
         // need changing, but that's fine.
         // if (Clusters.bwcVersion().before(Version.V_9_6_0)) {
-        //     testCase.makeWarningsOptional();
+        // testCase.makeWarningsOptional();
         // }
         return testCase;
     }

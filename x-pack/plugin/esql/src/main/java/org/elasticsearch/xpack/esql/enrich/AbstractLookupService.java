@@ -257,8 +257,6 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
 
     /**
      * Read the response from a {@link StreamInput}.
-     * When the remote node is old (transport version before {@link DriverCompletionInfo#ESQL_DRIVER_WARNINGS}),
-     * warnings arrive as RFC 7234 {@code Warning:} transport response headers stored in {@code threadContext}.
      */
     protected abstract LookupResponse readLookupResponse(StreamInput in, BlockFactory blockFactory, ThreadContext threadContext)
         throws IOException;

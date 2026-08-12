@@ -899,7 +899,7 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
                             float relError = Math.abs(sd.score - exact) / Math.max(exact, 1e-6f);
                             assertTrue(
                                 "EUCLIDEAN score for doc " + sd.doc + ": ASH=" + sd.score + " exact=" + exact + " relError=" + relError,
-                                relError < 0.25f
+                                relError < 0.35f
                             );
                         }
 

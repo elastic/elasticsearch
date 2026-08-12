@@ -273,17 +273,11 @@ public class AshPostingsVisitor implements IVFVectorsReader.PostingVisitor {
         indexInput.readBytes(bulkCodeBuf, 0, blockSize * packedCodeBytes);
         indexInput.readFloats(bulkScales, 0, blockSize);
         indexInput.readFloats(bulkOffsets, 0, blockSize);
-        for (int j = 0; j < blockSize; j++) {
-            bulkDocSums[j] = indexInput.readInt();
-        }
+        indexInput.readInts(bulkDocSums, 0, blockSize);
         // EUCLIDEAN: read ⟨μ*,x⟩ and ‖x-μ*‖² per vector (float32)
         if (isEuclidean) {
-            for (int j = 0; j < blockSize; j++) {
-                bulkVecCentroidDots[j] = Float.intBitsToFloat(indexInput.readInt());
-            }
-            for (int j = 0; j < blockSize; j++) {
-                bulkVecCentroidSqDists[j] = Float.intBitsToFloat(indexInput.readInt());
-            }
+            indexInput.readFloats(bulkVecCentroidDots, 0, blockSize);
+            indexInput.readFloats(bulkVecCentroidSqDists, 0, blockSize);
         }
 
         // Score each vector

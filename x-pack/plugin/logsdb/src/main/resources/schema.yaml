@@ -59,8 +59,10 @@ predefined_constructs:
 # Special characters define how the parser should split and handle input text.
 # Modifying these will directly affect how tokens and subtokens are extracted from text.
 special_characters:
-  # characters that delimit tokens in the text (typically spaces and tabs)
-  token_delimiters: " \t"
+  # characters that delimit tokens in the text (typically spaces and tabs). '|' is included because it is used
+  # as a field separator by pipe-delimited log formats (e.g. "<field>|<field>|<field>"); splitting on it lets
+  # each field be recognized on its own.
+  token_delimiters: " \t|"
   # characters that delimit subTokens within a token (e.g., periods in IPv4 addresses)
   sub_token_delimiters: |-
     -+_:=/.
@@ -162,6 +164,13 @@ schema:
       constraint: "{6} && 0-235959"
       description: "Compact time as a single integer HHMMSS (e.g. HDFS logs), decomposed into hh:mm:ss"
       timestamp_component_type: "HHMMSS"
+    - name: "yyyymmdd"
+      base_type: "%I"
+      # exactly 8 digits ({8} keeps it distinct from the 4-digit $YYYY), within a plausible yyyymmdd range;
+      # exact calendar validity is enforced when computing the timestamp (invalid dates fall back to plain ints)
+      constraint: "{8} && 20000101-21001231"
+      description: "Compact date as a single integer yyyymmdd, decomposed into yyyy-mm-dd"
+      timestamp_component_type: "YYYYMMDD"
     - name: "MM"
       base_type: "%I"
       constraint: "1-12"
@@ -313,6 +322,12 @@ schema:
       encoding_type: "%A"
       format: "$yy/$MM/$DD"
       description: "Date without time, 2-digit year first, slash-separated (e.g. Spark logs)"
+    - name: "mmdd-dot-date"
+      # %F (not %A): a standalone "N.M" that is not part of a full month.day date-time must fall back to a
+      # double, exactly as today - never to literal text. Only used as the date part of $mmdd-datetime-timestamp.
+      encoding_type: "%F"
+      format: "$MM.$DD"
+      description: "Month.day date fragment, e.g. 10.30 (no year)"
     - name: "compact-date"
       encoding_type: "%I"
       format: "$yymmdd"
@@ -321,6 +336,11 @@ schema:
       encoding_type: "%I"
       format: "$hhmmss"
       description: "Compact time token HHMMSS (e.g. HDFS logs); a plain integer unless part of a compact timestamp"
+    - name: "yyyymmdd-datetime"
+      encoding_type: "%T"
+      # e.g 20171223-22:15:29:606  (yyyyMMdd-HH:mm:ss:SSS, single token; '-' and ':' are sub-token delimiters, colon before millis)
+      format: "$yyyymmdd-$hh:$mm:$ss:$ms"
+      description: "Compact-date date-time with millisecond resolution (yyyyMMdd-HH:mm:ss:SSS)"
     - name: "timeS"
       encoding_type: "%A"
       format: "$hh:$mm:$ss"
@@ -393,3 +413,13 @@ schema:
       # e.g Thu Oct 05 14:48:00 2023
       format: "$Day $Mon $DD $timeMS $YYYY"
       description: "Apache error log formatted timestamp"
+    - name: "syslog-bsd-timestamp"
+      encoding_type: "%T"
+      # e.g Jun 14 15:16:01  (BSD / RFC-3164 syslog format; no year - year defaults on compute)
+      format: "$Mon $DD $timeS"
+      description: "BSD/RFC-3164 syslog timestamp (MMM dd HH:mm:ss, no year)"
+    - name: "mmdd-datetime-timestamp"
+      encoding_type: "%T"
+      # e.g [10.30 16:49:06]  (month.day time, no year; the [] are boundary chars - year defaults on compute)
+      format: "$mmdd-dot-date $timeS"
+      description: "Month.day date-time (MM.DD HH:mm:ss, no year)"

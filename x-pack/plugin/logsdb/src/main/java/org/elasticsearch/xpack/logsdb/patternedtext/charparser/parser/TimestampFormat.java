@@ -16,6 +16,11 @@ import java.util.Locale;
 
 public final class TimestampFormat {
 
+    // Default year for yearless timestamp formats (BSD/RFC-3164 syslog: "MMM dd HH:mm:ss"). Chosen as a leap
+    // year so that Feb 29 is a valid calendar date; the true year is not present in the log line. This only
+    // affects the computed value, never the %T template, and is deterministic (no clock read) to keep parsing pure.
+    private static final int DEFAULT_YEAR_WHEN_ABSENT = 2000;
+
     private final String javaTimeFormat;
     private final DateTimeFormatter dateTimeFormatter;
 
@@ -36,6 +41,7 @@ public final class TimestampFormat {
     private final int twoDigitYearIndex;
     private final int compactDateIndex;
     private final int compactTimeIndex;
+    private final int compactDateYyyymmddIndex;
     private final int monthIndex;
     private final int dayIndex;
     private final int hourIndex;
@@ -59,17 +65,21 @@ public final class TimestampFormat {
         this.twoDigitYearIndex = timestampComponentsOrder[TimestampComponentType.TWO_DIGIT_YEAR_CODE];
         this.compactDateIndex = timestampComponentsOrder[TimestampComponentType.COMPACT_DATE_YYMMDD_CODE];
         this.compactTimeIndex = timestampComponentsOrder[TimestampComponentType.COMPACT_TIME_HHMMSS_CODE];
-        if (yearIndex < 0 && twoDigitYearIndex < 0 && compactDateIndex < 0) {
-            throw new IllegalArgumentException("Timestamp format must include a year component");
+        this.compactDateYyyymmddIndex = timestampComponentsOrder[TimestampComponentType.COMPACT_DATE_YYYYMMDD_CODE];
+        // A year is OPTIONAL: BSD/RFC-3164 syslog timestamps ("MMM dd HH:mm:ss", e.g. Linux/OpenSSH) carry no
+        // year. When none is present, toTimestamp() substitutes DEFAULT_YEAR_WHEN_ABSENT. Month, day, hour,
+        // minute and second stay required (enforced below), so a bare time can still never become a timestamp.
+        // A compact date (yymmdd or yyyymmdd) carries year+month+day in one value, so it satisfies all three.
+        if (yearIndex >= 0 || twoDigitYearIndex >= 0 || compactDateIndex >= 0 || compactDateYyyymmddIndex >= 0) {
+            timestampComponentsCount++;
         }
-        timestampComponentsCount++;
         this.monthIndex = timestampComponentsOrder[TimestampComponentType.MONTH_CODE];
-        if (monthIndex < 0 && compactDateIndex < 0) {
+        if (monthIndex < 0 && compactDateIndex < 0 && compactDateYyyymmddIndex < 0) {
             throw new IllegalArgumentException("Timestamp format must include a month component");
         }
         timestampComponentsCount++;
         this.dayIndex = timestampComponentsOrder[TimestampComponentType.DAY_CODE];
-        if (dayIndex < 0 && compactDateIndex < 0) {
+        if (dayIndex < 0 && compactDateIndex < 0 && compactDateYyyymmddIndex < 0) {
             throw new IllegalArgumentException("Timestamp format must include a day component");
         }
         timestampComponentsCount++;
@@ -146,8 +156,18 @@ public final class TimestampFormat {
             month = compactDate % 100;
             compactDate /= 100;
             year = 2000 + compactDate % 100;
+        } else if (compactDateYyyymmddIndex >= 0) {
+            // compact date yyyymmdd in a single value (e.g. HealthApp): day, then month, then the full 4-digit year
+            int compactDate = parsedTimestampComponents[compactDateYyyymmddIndex];
+            day = compactDate % 100;
+            compactDate /= 100;
+            month = compactDate % 100;
+            compactDate /= 100;
+            year = compactDate;
         } else {
-            year = yearIndex >= 0 ? parsedTimestampComponents[yearIndex] : 2000 + parsedTimestampComponents[twoDigitYearIndex];
+            year = yearIndex >= 0 ? parsedTimestampComponents[yearIndex]
+                : twoDigitYearIndex >= 0 ? 2000 + parsedTimestampComponents[twoDigitYearIndex]
+                : DEFAULT_YEAR_WHEN_ABSENT;
             month = parsedTimestampComponents[monthIndex];
             day = parsedTimestampComponents[dayIndex];
         }

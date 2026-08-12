@@ -184,6 +184,174 @@ public class ParserTests extends ESTestCase {
         assertEquals("Oct %I %I %I:%I:%I PM INFO Response from %4 took %I ms", patternedMessage.toString());
     }
 
+    // ---- BSD / RFC-3164 syslog timestamps: "MMM dd HH:mm:ss" with NO year (e.g. Linux, OpenSSH) ----
+    // The month name ($Mon) anchors it; the year is absent, so it defaults to a fixed leap year (2000) so
+    // that any valid month/day (incl. Feb 29) yields a valid calendar date. Only the %T collapse matters
+    // for templates; the defaulted-year value is asserted to pin the documented behavior.
+
+    public void testSyslogBsdTimestamp() throws ParseException {
+        String message = "Jun 14 15:16:01 host service started";
+        List<Argument<?>> parsedArguments = parser.parse(message);
+        Parser.constructPattern(message, parsedArguments, patternedMessage, true);
+        assertEquals("%T host service started", patternedMessage.toString());
+        assertThat(parsedArguments.getFirst(), instanceOf(Timestamp.class));
+        Timestamp timestamp = (Timestamp) parsedArguments.getFirst();
+        assertEquals(960995761000L, timestamp.getTimestampMillis()); // 2000-06-14T15:16:01Z (default year)
+    }
+
+    public void testSyslogBsdTimestampOpenSsh() throws ParseException {
+        String message = "Dec 10 06:55:46 LabSZ sshd connection";
+        List<Argument<?>> parsedArguments = parser.parse(message);
+        Parser.constructPattern(message, parsedArguments, patternedMessage, true);
+        assertEquals("%T LabSZ sshd connection", patternedMessage.toString());
+        assertThat(parsedArguments.getFirst(), instanceOf(Timestamp.class));
+        assertEquals(976431346000L, ((Timestamp) parsedArguments.getFirst()).getTimestampMillis()); // 2000-12-10T06:55:46Z
+    }
+
+    public void testSyslogBsdTimestampMidnightBoundary() throws ParseException {
+        String message = "Jan 01 00:00:00 x";
+        List<Argument<?>> parsedArguments = parser.parse(message);
+        Parser.constructPattern(message, parsedArguments, patternedMessage, true);
+        assertEquals("%T x", patternedMessage.toString());
+        assertEquals(946684800000L, ((Timestamp) parsedArguments.getFirst()).getTimestampMillis()); // 2000-01-01T00:00:00Z
+    }
+
+    public void testSyslogBsdTimestampLeapDay() throws ParseException {
+        // Feb 29 is only a valid date because the defaulted year (2000) is a leap year - guards against a
+        // non-leap default that would throw DateTimeException and silently drop the timestamp.
+        String message = "Feb 29 12:00:00 leap";
+        List<Argument<?>> parsedArguments = parser.parse(message);
+        Parser.constructPattern(message, parsedArguments, patternedMessage, true);
+        assertEquals("%T leap", patternedMessage.toString());
+        assertEquals(951825600000L, ((Timestamp) parsedArguments.getFirst()).getTimestampMillis()); // 2000-02-29T12:00:00Z
+    }
+
+    public void testSyslogBsdNoTimeIsNotTimestamp() throws ParseException {
+        // month + day but no HH:mm:ss -> not a complete timestamp -> must not collapse to %T
+        String message = "Jun 14 combo";
+        List<Argument<?>> parsedArguments = parser.parse(message);
+        Parser.constructPattern(message, parsedArguments, patternedMessage, true);
+        assertEquals("Jun %I combo", patternedMessage.toString());
+    }
+
+    public void testSyslogBsdInvalidDayIsNotTimestamp() throws ParseException {
+        // day 32 is out of the [1,31] range -> $DD does not match -> not a timestamp
+        String message = "Jun 32 15:16:01 x";
+        List<Argument<?>> parsedArguments = parser.parse(message);
+        Parser.constructPattern(message, parsedArguments, patternedMessage, true);
+        // Not a timestamp (day 32). NB: "Jun" renders as %A here, not literal - a pre-existing quirk of the
+        // shared isCurSubTokenContainsDigits flag in the sub-token emit path, exposed by the multi-token's flush batching.
+        assertEquals("%A %I %I:%I:%I x", patternedMessage.toString());
+    }
+
+    public void testSyslogBsdInvalidHourIsNotTimestamp() throws ParseException {
+        // hour 25 is out of the [0,23] range -> $timeS does not match -> not a timestamp
+        String message = "Jun 14 25:16:01 x";
+        List<Argument<?>> parsedArguments = parser.parse(message);
+        Parser.constructPattern(message, parsedArguments, patternedMessage, true);
+        assertEquals("Jun %I %I:%I:%I x", patternedMessage.toString());
+    }
+
+    // ---- Proxifier timestamps: "[MM.DD HH:mm:ss]" (no year; the [] are boundary chars, stripped). ----
+    // The MM.DD date fragment is a %F token, so a decimal that is NOT part of a full Proxifier timestamp still
+    // renders as a double (never literal), avoiding any regression for ordinary "N.M" decimals.
+
+    public void testProxifierTimestamp() throws ParseException {
+        String message = "[10.30 16:49:06] chrome started";
+        List<Argument<?>> parsedArguments = parser.parse(message);
+        Parser.constructPattern(message, parsedArguments, patternedMessage, true);
+        assertEquals("[%T] chrome started", patternedMessage.toString());
+        assertThat(parsedArguments.getFirst(), instanceOf(Timestamp.class));
+        assertEquals(972924546000L, ((Timestamp) parsedArguments.getFirst()).getTimestampMillis()); // 2000-10-30T16:49:06Z
+    }
+
+    public void testProxifierTimestampBoundary() throws ParseException {
+        String message = "[01.01 00:00:00] x";
+        List<Argument<?>> parsedArguments = parser.parse(message);
+        Parser.constructPattern(message, parsedArguments, patternedMessage, true);
+        assertEquals("[%T] x", patternedMessage.toString());
+        assertEquals(946684800000L, ((Timestamp) parsedArguments.getFirst()).getTimestampMillis()); // 2000-01-01T00:00:00Z
+    }
+
+    public void testProxifierStandaloneDecimalStaysDouble() throws ParseException {
+        // a decimal that looks like MM.DD but is NOT followed by a time must remain a %F double (regression guard)
+        String message = "version 10.30 released";
+        List<Argument<?>> parsedArguments = parser.parse(message);
+        Parser.constructPattern(message, parsedArguments, patternedMessage, true);
+        assertEquals("version %F released", patternedMessage.toString());
+        assertThat(parsedArguments.getFirst(), instanceOf(DoubleArgument.class));
+    }
+
+    public void testProxifierBracketedDecimalWithoutTimeStaysDouble() throws ParseException {
+        // bracketed decimal with no following time -> not a Proxifier timestamp -> stays %F, not %T
+        String message = "[10.30] done";
+        List<Argument<?>> parsedArguments = parser.parse(message);
+        Parser.constructPattern(message, parsedArguments, patternedMessage, true);
+        assertEquals("[%F] done", patternedMessage.toString());
+    }
+
+    public void testProxifierInvalidMonthIsNotTimestamp() throws ParseException {
+        // 13 is out of the [1,12] month range -> $MM does not match -> not a Proxifier timestamp
+        String message = "[13.30 16:49:06] x";
+        List<Argument<?>> parsedArguments = parser.parse(message);
+        Parser.constructPattern(message, parsedArguments, patternedMessage, true);
+        assertEquals("[%F %I:%I:%I] x", patternedMessage.toString());
+    }
+
+    public void testProxifierInvalidHourIsNotTimestamp() throws ParseException {
+        // 25 is out of the [0,23] hour range -> $timeS does not match -> not a Proxifier timestamp
+        String message = "[10.30 25:49:06] x";
+        List<Argument<?>> parsedArguments = parser.parse(message);
+        Parser.constructPattern(message, parsedArguments, patternedMessage, true);
+        assertEquals("[%F %I:%I:%I] x", patternedMessage.toString());
+    }
+
+    // ---- HealthApp timestamps: "yyyyMMdd-HH:mm:ss:SSS" (8-digit compact date, colon before millis), followed
+    // by '|'-delimited fields. Requires '|' to be a token delimiter so the timestamp is its own token. ----
+
+    public void testHealthAppTimestamp() throws ParseException {
+        String message = "20171223-22:15:29:606|Step_LSC|30002312|flush";
+        List<Argument<?>> parsedArguments = parser.parse(message);
+        Parser.constructPattern(message, parsedArguments, patternedMessage, true);
+        assertEquals("%T|Step_LSC|%I|flush", patternedMessage.toString());
+        assertThat(parsedArguments.getFirst(), instanceOf(Timestamp.class));
+        assertEquals(1514067329606L, ((Timestamp) parsedArguments.getFirst()).getTimestampMillis()); // 2017-12-23T22:15:29.606Z
+    }
+
+    public void testHealthAppTimestampBoundary() throws ParseException {
+        String message = "20000101-00:00:00:000|x";
+        List<Argument<?>> parsedArguments = parser.parse(message);
+        Parser.constructPattern(message, parsedArguments, patternedMessage, true);
+        assertEquals("%T|x", patternedMessage.toString());
+        assertEquals(946684800000L, ((Timestamp) parsedArguments.getFirst()).getTimestampMillis()); // 2000-01-01T00:00:00.000Z
+    }
+
+    public void testHealthAppOutOfRangeDateIsNotTimestamp() throws ParseException {
+        // 12345678 is below the [20000101,21001231] range -> $yyyymmdd does not match -> not a timestamp
+        String message = "12345678-22:15:29:606|x";
+        List<Argument<?>> parsedArguments = parser.parse(message);
+        Parser.constructPattern(message, parsedArguments, patternedMessage, true);
+        assertEquals("%I-%I:%I:%I:%I|x", patternedMessage.toString());
+    }
+
+    public void testHealthAppInvalidDateIsNotTimestamp() throws ParseException {
+        // 20171332 is in range but decomposes to month 13 / day 32 -> DateTimeException -> must fall back, not %T
+        String message = "20171332-22:15:29:606|x";
+        List<Argument<?>> parsedArguments = parser.parse(message);
+        Parser.constructPattern(message, parsedArguments, patternedMessage, true);
+        // invalid date (month 13/day 32) -> DateTimeException fallback -> sub-tokens emitted individually (no %T)
+        assertEquals("%I-%I:%I:%I:%I|x", patternedMessage.toString());
+    }
+
+    public void testPipeIsTokenDelimiter() throws ParseException {
+        // '|' becomes a token delimiter (needed to isolate the HealthApp timestamp); an embedded integer field collapses.
+        // (Uses non-hex letters x/y - a single 'a'/'b' would be recognized as a %H hex value.)
+        String message = "x|123|y";
+        List<Argument<?>> parsedArguments = parser.parse(message);
+        Parser.constructPattern(message, parsedArguments, patternedMessage, true);
+        assertEquals("x|%I|y", patternedMessage.toString());
+    }
+
     public void testNumberArgumentsWithSign() throws ParseException {
         String message = "-5 is negative, this:+10:-8 is both and this is positive: +20";
         List<Argument<?>> parsedArguments = parser.parse(message);

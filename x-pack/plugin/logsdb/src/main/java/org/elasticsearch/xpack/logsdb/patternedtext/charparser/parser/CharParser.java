@@ -619,13 +619,20 @@ public final class CharParser implements Parser {
                                             "Timestamp token cannot be the non-first in a multi-token, but found at position " + i
                                         );
                                     }
-                                    long timestampMillis = tokenType.getTimestampFormat().toTimestamp(bufferedSubTokenIntValues);
-                                    yield new Timestamp(
-                                        bufferedTokenStartIndexes[i],
-                                        bufferedTokenLengths[i],
-                                        timestampMillis,
-                                        tokenType.getTimestampFormat().getJavaTimeFormat()
-                                    );
+                                    try {
+                                        long timestampMillis = tokenType.getTimestampFormat().toTimestamp(bufferedSubTokenIntValues);
+                                        yield new Timestamp(
+                                            bufferedTokenStartIndexes[i],
+                                            bufferedTokenLengths[i],
+                                            timestampMillis,
+                                            tokenType.getTimestampFormat().getJavaTimeFormat()
+                                        );
+                                    } catch (DateTimeException e) {
+                                        // Matched the shape but the values are not a valid calendar date/time (e.g. a compact
+                                        // yyyymmdd that decomposes to month 13). Not actually a timestamp: yield null so the
+                                        // token's sub-tokens are emitted individually. Mirrors the multi-token handling above.
+                                        yield null;
+                                    }
                                 }
                                 case INTEGER -> {
                                     int integerSubTokenIndex = bufferedTokenSubTokenFirstIndexes[i];

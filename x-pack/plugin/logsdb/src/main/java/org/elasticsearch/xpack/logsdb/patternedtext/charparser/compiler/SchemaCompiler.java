@@ -1027,6 +1027,7 @@ public class SchemaCompiler {
             case "YYYY" -> "yyyy";                  // 4-digit year
             case "yy" -> "yy";                      // 2-digit year (interpreted as 20yy)
             case "yymmdd" -> "yyMMdd";              // compact date (single value)
+            case "yyyymmdd" -> "yyyyMMdd";          // compact date with 4-digit year (single value, e.g. HealthApp)
             case "hhmmss" -> "HHmmss";              // compact time (single value)
             case "MM" -> "MM";                      // 2-digit month
             case "Mon" -> "MMM";                    // 3-letter month abbreviation

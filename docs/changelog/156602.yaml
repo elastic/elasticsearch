@@ -1,0 +1,7 @@
+area: Data streams
+issues:
+ - 156594
+pr: 156602
+summary: "Rolling upgrade from 9.4.x to main fails: `Template` deserialization stream\
+  \ misalignment in BWC tests [#156594]"
+type: bug

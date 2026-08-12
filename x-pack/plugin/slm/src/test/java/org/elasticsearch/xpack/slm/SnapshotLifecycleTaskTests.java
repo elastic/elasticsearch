@@ -469,7 +469,13 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
         var definedSlmPolicies = List.of(policyId);
         var registeredSnapshots = Map.of(
             policyId,
-            List.of(stillRunning, inferredFailureSnapshot, snapshotInfoSuccess.snapshotId(), snapshotInfoFailure.snapshotId())
+            List.of(
+                stillRunning,
+                inferredFailureSnapshot,
+                snapshotInfoSuccess.snapshotId(),
+                snapshotInfoFailure.snapshotId(),
+                initiatingSnapshot
+            )
         );
         var inProgress = Map.of(policyId, List.of(stillRunning));
         ClusterState clusterState = buildClusterState(projectId, definedSlmPolicies, registeredSnapshots, inProgress);

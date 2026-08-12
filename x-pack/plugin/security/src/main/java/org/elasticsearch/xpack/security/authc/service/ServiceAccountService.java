@@ -97,6 +97,15 @@ public class ServiceAccountService {
         return Map.copyOf(ACCOUNTS);
     }
 
+    /**
+     * @deprecated Retained for out-of-repo callers that predate the built-in/managed split.
+     *             Use {@link #getBuiltInServiceAccounts()} instead.
+     */
+    @Deprecated
+    public static Map<String, ServiceAccount> getServiceAccounts() {
+        return getBuiltInServiceAccounts();
+    }
+
     public static ServiceAccountToken tryParseToken(SecureString bearerString) {
         try {
             if (bearerString == null) {

@@ -578,16 +578,35 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                 }
             }
 
-            // Add stats from the just completed snapshot execution, unless another cleanup already recorded it.
-            // Two snapshots completing close together can each discover the other as completed and fetch SnapshotInfo;
-            // the first WriteJobStatus then records both outcomes and removes both from the registered set, so the
-            // second must not increment stats / overwrite last success or failure again.
+            // Add stats from the just completed snapshot execution, unless a successful snapshot was already
+            // recorded by another cleanup. CreateSnapshot can fail before the snapshot is registered (e.g. missing
+            // index), so failures are still recorded when unregistered. Two successful snapshots finishing together
+            // can each clean the other up; the second success must not double-count.
             if (snapshotIsRegistered == false) {
-                logger.warn(
-                    "Snapshot [{}] not found in registered set after snapshot completion. This means snapshot was"
-                        + " already recorded by another snapshot's cleanup run.",
-                    snapshotId.getName()
-                );
+                if (exception.isPresent()) {
+                    logger.warn(
+                        "Snapshot [{}] not found in registered set after snapshot failure. Recording failure stats"
+                            + " anyway (snapshot may have failed before registration).",
+                        snapshotId.getName()
+                    );
+                    newStats = newStats.withFailedIncremented(policyName);
+                    newPolicyMetadata.setLastFailure(
+                        new SnapshotInvocationRecord(
+                            snapshotId.getName(),
+                            null,
+                            snapshotFinishTime,
+                            exception.map(SnapshotLifecycleTask::exceptionToString).orElse(null)
+                        )
+                    );
+                    // Do not increment invocationsSinceLastSuccess: if another cleanup already recorded this
+                    // snapshot as a failure, that path already incremented it.
+                } else {
+                    logger.warn(
+                        "Snapshot [{}] not found in registered set after snapshot completion. This means snapshot was"
+                            + " already recorded by another snapshot's cleanup run.",
+                        snapshotId.getName()
+                    );
+                }
             } else if (exception.isPresent()) {
                 newStats = newStats.withFailedIncremented(policyName);
                 newPolicyMetadata.setLastFailure(

@@ -696,6 +696,40 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
         assertEquals(snapshotA.getName(), slmAfterB.getSnapshotConfigurations().get(policyId).getLastSuccess().getSnapshotName());
     }
 
+    /**
+     * CreateSnapshot can fail before the snapshot is added to the registered set (e.g. missing index). Failure stats
+     * must still be recorded so SLM does not appear stuck with empty policy metrics.
+     */
+    public void testRecordsFailureEvenWhenSnapshotNeverRegistered() throws Exception {
+        final String policyId = randomAlphaOfLength(10);
+        final SnapshotId initiatingSnapshot = randSnapshotId();
+
+        var definedSlmPolicies = List.of(policyId);
+        var registeredSnapshots = Map.of(policyId, List.<SnapshotId>of());
+        var inProgress = Map.of(policyId, List.<SnapshotId>of());
+        ClusterState clusterState = buildClusterState(projectId, definedSlmPolicies, registeredSnapshots, inProgress);
+
+        ClusterState newClusterState = SnapshotLifecycleTask.WriteJobStatus.failure(
+            projectId,
+            policyId,
+            initiatingSnapshot,
+            randomLong(),
+            SnapshotLifecycleTask.CompletedRegisteredSnapshotInfos.EMPTY,
+            new RuntimeException("no such index")
+        ).execute(clusterState);
+
+        SnapshotLifecycleMetadata newSlmMetadata = newClusterState.metadata().getProject(projectId).custom(SnapshotLifecycleMetadata.TYPE);
+        SnapshotLifecycleStats.SnapshotPolicyStats snapshotPolicyStats = newSlmMetadata.getStats().getMetrics().get(policyId);
+        assertEquals(0, snapshotPolicyStats.getSnapshotTakenCount());
+        assertEquals(1, snapshotPolicyStats.getSnapshotFailedCount());
+        assertEquals(
+            initiatingSnapshot.getName(),
+            newSlmMetadata.getSnapshotConfigurations().get(policyId).getLastFailure().getSnapshotName()
+        );
+        // Never registered, so another cleanup could not have counted invocationsSinceLastSuccess for this snapshot
+        assertEquals(0, newSlmMetadata.getSnapshotConfigurations().get(policyId).getInvocationsSinceLastSuccess());
+    }
+
     public void testGetCurrentlyRunningSnapshots() {
         final SnapshotId snapshot1 = randSnapshotId();
         final SnapshotId snapshot2 = randSnapshotId();

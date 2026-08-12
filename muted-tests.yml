@@ -801,3 +801,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecUnmappedTypeConflictsIT
   method: test {csv-spec:unmapped-type-conflicts.typeConflictLongDateUnmappedNonExistentCastToDouble}
   issue: https://github.com/elastic/elasticsearch/issues/156542
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecStringIT
+  method: test {csv-spec:string.mvString_IN_MultiValueConstant}
+  issue: https://github.com/elastic/elasticsearch/issues/156549

@@ -32,8 +32,8 @@ public interface ESVectorUtilSupport {
     /** Calculates the dot product of the given float arrays. */
     float dotProduct(float[] a, float[] b);
 
-    /** Calculates the dot product over {@code [offset, offset + length)}. */
-    float dotProduct(float[] a, float[] b, int offset, int length);
+    /** Calculates the dot product over {@code [[ab]Offset, [ab]Offset + length)}. */
+    float dotProduct(float[] a, int aOffset, float[] b, int bOffset, int length);
 
     /**
      * L2-normalizes {@code v[offset:offset + length)} in place. A zero prefix is a no-op.

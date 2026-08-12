@@ -55,17 +55,21 @@ public abstract class AbstractAccountableFieldsTestCase extends ESTestCase {
 
     /**
      * @return names of reference fields deliberately not counted in {@code ramBytesUsed()}, each of which should have a comment (in the
-     * subclass or the production code) explaining why it needs no accounting.
+     * subclass or the production code) explaining why it needs no accounting. Defaults to none; override when a field is intentionally
+     * omitted (e.g. a shared enum singleton).
      */
-    protected abstract Set<String> fieldsExcludedFromRamBytesUsed();
+    protected Set<String> fieldsExcludedFromRamBytesUsed() {
+        return Set.of();
+    }
 
     /**
-     * A populated instance of {@link #classUnderTest()} for {@link #testRamBytesUsedNeverUnderCountsActualHeap()}. Subclasses that opt out
-     * via {@link #assertsAgainstRamUsageTester()} need not override this.
+     * A randomly populated instance of {@link #classUnderTest()} for {@link #testRamBytesUsedNeverUnderCountsActualHeap()}. Varying sizes
+     * (array lengths, map entries, string lengths) catch estimates that miss a length-dependent cost. Subclasses that opt out via
+     * {@link #assertsAgainstRamUsageTester()} need not override this.
      */
-    protected Accountable createTestInstance() {
+    protected Accountable createRandomTestInstance() {
         throw new UnsupportedOperationException(
-            classUnderTest().getSimpleName() + " must implement createTestInstance() when assertsAgainstRamUsageTester() is true"
+            classUnderTest().getSimpleName() + " must implement createRandomTestInstance() when assertsAgainstRamUsageTester() is true"
         );
     }
 
@@ -114,14 +118,22 @@ public abstract class AbstractAccountableFieldsTestCase extends ESTestCase {
             classUnderTest().getSimpleName() + " deliberately under-counts shared/interned state vs a full-graph RamUsageTester walk",
             assertsAgainstRamUsageTester()
         );
-        Accountable instance = createTestInstance();
-        long estimate = instance.ramBytesUsed();
-        long actual = RamUsageTester.ramUsed(instance);
-        assertThat(
-            "estimate under-counts retained heap: estimate=" + estimate + " actual=" + actual + " for " + classUnderTest().getSimpleName(),
-            estimate,
-            greaterThanOrEqualTo(actual)
-        );
+        final int iterations = scaledRandomIntBetween(5, 20);
+        for (int i = 0; i < iterations; i++) {
+            Accountable instance = createRandomTestInstance();
+            long estimate = instance.ramBytesUsed();
+            long actual = RamUsageTester.ramUsed(instance);
+            assertThat(
+                "estimate under-counts retained heap: estimate="
+                    + estimate
+                    + " actual="
+                    + actual
+                    + " for "
+                    + classUnderTest().getSimpleName(),
+                estimate,
+                greaterThanOrEqualTo(actual)
+            );
+        }
     }
 
     /**

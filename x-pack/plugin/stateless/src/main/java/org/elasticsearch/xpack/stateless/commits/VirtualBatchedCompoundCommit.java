@@ -19,7 +19,7 @@ import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.common.io.stream.CountingStreamOutput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
-import org.elasticsearch.common.io.stream.SlicedByteArrayOutputStream;
+import org.elasticsearch.common.io.stream.SlicedOutputStream;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -1068,19 +1068,16 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
             return writeHeader(new CountingStreamOutput());
         }
 
-        private InputStream writeHeaderToInputStream(ByteArrayOutputStream out) throws IOException {
-            writeHeader(out);
+        @Override
+        public InputStream getInputStream(long offset, long length) throws IOException {
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            writeHeader(new SlicedOutputStream(out, offset, length));
             return new ByteArrayInputStream(out.toByteArray());
         }
 
         @Override
-        public InputStream getInputStream(long offset, long length) throws IOException {
-            return writeHeaderToInputStream(new SlicedByteArrayOutputStream((int) offset, (int) length));
-        }
-
-        @Override
         public InputStream getInputStream() throws IOException {
-            return writeHeaderToInputStream(new ByteArrayOutputStream());
+            return getInputStream(0, Long.MAX_VALUE);
         }
     }
 

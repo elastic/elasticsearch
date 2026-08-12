@@ -42,7 +42,7 @@ if [ "$UPLOAD" = true ] && [ -z "${ARTIFACTORY_API_KEY:-}" ]; then
   exit 1;
 fi
 
-TOOLCHAIN_IMAGE="docker.elastic.co/elasticsearch-infra/es-rust-cross-toolchain:1"
+TOOLCHAIN_IMAGE="docker.elastic.co/elasticsearch-dev/es-rust-cross-toolchain:2"
 if [ "$LOCAL" = true ]; then
   TOOLCHAIN_IMAGE="es-rust-cross-toolchain:local"
 fi

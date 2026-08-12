@@ -330,8 +330,11 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                         }
 
                         @Override
-                        public void onFailure(Exception e) {
-                            logger.warn(() -> format("failed to retrieve stale registered snapshots for job [%s]", jobId), e);
+                        public void onFailure(Exception getSnapshotsException) {
+                            logger.warn(
+                                () -> format("failed to retrieve stale registered snapshots for job [%s]", jobId),
+                                getSnapshotsException
+                            );
                             // still record the failed snapshot; leave other registered snapshots for a later run
                             submitUnbatchedTask(
                                 clusterService,

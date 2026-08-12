@@ -287,14 +287,21 @@ public class InSubqueryResolver {
 
         boolean rewriteChildren = canRewriteInSubqueryChildren(expr);
         List<Expression> children = expr.children();
-        List<Expression> rewritten = new ArrayList<>(children.size());
-        boolean changed = false;
-        for (Expression child : children) {
+        List<Expression> rewritten = null;
+        for (int i = 0; i < children.size(); i++) {
+            Expression child = children.get(i);
             Expression r = rewriteInSubqueries(child, rewriteChildren, joins, syntheticEvals);
-            rewritten.add(r);
-            changed |= r != child;
+            if (rewritten != null) {
+                rewritten.add(r);
+            } else if (r != child) {
+                rewritten = new ArrayList<>(children.size());
+                for (int j = 0; j < i; j++) {
+                    rewritten.add(children.get(j));
+                }
+                rewritten.add(r);
+            }
         }
-        return changed ? expr.replaceChildren(rewritten) : expr;
+        return rewritten != null ? expr.replaceChildren(rewritten) : expr;
     }
 
     /**

@@ -1290,9 +1290,8 @@ public class SharedBlobCacheWarmingService {
     private record WarmingRun(Type type, ShardId shardId, String logIdentifier, Map<String, Object> labels) {
         /**
          * Returns the subset of {@link #labels()} whose keys conform to the ES attribute naming convention
-         * (i.e. keys prefixed with {@code es_}). Use this for metrics that are not exempted in
-         * {@link org.elasticsearch.telemetry.apm.internal.MetricValidator}'s {@code SKIP_VALIDATION} map, such as
-         * {@link #BLOB_CACHE_WARMING_DURATION_METRIC}.
+         * (i.e. keys prefixed with {@code es_}). Use this for metrics that carry no {@code SKIP_VALIDATION}
+         * exemption in the APM metric validator, such as {@link #BLOB_CACHE_WARMING_DURATION_METRIC}.
          */
         Map<String, Object> conformingLabels() {
             return labels.entrySet()

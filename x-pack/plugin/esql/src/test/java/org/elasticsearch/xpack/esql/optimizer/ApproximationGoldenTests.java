@@ -7,8 +7,9 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.test.TransportVersionUtils;
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 
 import java.util.ArrayList;
@@ -19,6 +20,17 @@ import java.util.List;
  * Golden tests for query approximation.
  */
 public class ApproximationGoldenTests extends GoldenTestCase {
+    private static final String ESQL_APPROXIMATION_LOOKUP_JOIN = "esql_approximation_lookup_join";
+
+    @ParametersFactory(argumentFormatting = "%1$s")
+    public static Iterable<Object[]> parameters() {
+        return goldenModes();
+    }
+
+    public ApproximationGoldenTests(@Name("mode") String mode) {
+        super(mode);
+    }
+
     private static final EnumSet<Stage> STAGES = EnumSet.of(
         Stage.LOGICAL_OPTIMIZATION,
         Stage.PHYSICAL_OPTIMIZATION,
@@ -92,26 +104,14 @@ public class ApproximationGoldenTests extends GoldenTestCase {
 
     public void testLookupJoin() {
         assumeTrue("needs approximation lookup join", EsqlCapabilities.Cap.APPROXIMATION_LOOKUP_JOIN_V2.isEnabled());
-        runGoldenTest("""
+        builder("""
             SET approximation=true;
             FROM many_numbers
               | EVAL language_code = sv % 4 + 1
               | LOOKUP JOIN languages_lookup ON language_code
               | EVAL length = LENGTH(language_name)
               | STATS MEDIAN(length)
-            """, STAGES, TransportVersionUtils.randomVersionSupporting(TransportVersion.fromName("esql_approximation_lookup_join")));
-    }
-
-    public void testLookupJoin_withOldDataNode() {
-        assumeTrue("needs approximation lookup join", EsqlCapabilities.Cap.APPROXIMATION_LOOKUP_JOIN_V2.isEnabled());
-        runGoldenTest("""
-            SET approximation=true;
-            FROM many_numbers
-              | EVAL language_code = sv % 4 + 1
-              | LOOKUP JOIN languages_lookup ON language_code
-              | EVAL length = LENGTH(language_name)
-              | STATS MEDIAN(length)
-            """, STAGES, TransportVersionUtils.randomVersionNotSupporting(TransportVersion.fromName("esql_approximation_lookup_join")));
+            """).stages(STAGES).expectationChangesAt(ESQL_APPROXIMATION_LOOKUP_JOIN).run();
     }
 
     public void testFork() {

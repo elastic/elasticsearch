@@ -167,10 +167,8 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         IOUtils.closeWhileHandlingException(threadPool);
     }
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void resetQueryTokenCount() throws Exception {
         queryTokenCount = null;
     }
 

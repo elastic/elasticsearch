@@ -37,10 +37,6 @@ public abstract class AbstractColumnarArrayOrderFieldDataTestCase extends Mapper
 
     protected abstract String fieldTypeName();
 
-    public final void setUp() throws Exception {
-        super.setUp();
-    }
-
     private MapperService columnarMapperService() throws IOException {
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         return createMapperService(settings, mapping(b -> b.startObject("field").field("type", fieldTypeName()).endObject()));

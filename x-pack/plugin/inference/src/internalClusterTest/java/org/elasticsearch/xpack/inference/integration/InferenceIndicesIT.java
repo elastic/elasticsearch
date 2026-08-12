@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -28,10 +29,12 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.plugins.CircuitBreakerPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
@@ -83,7 +86,7 @@ public class InferenceIndicesIT extends ESIntegTestCase {
         "my_api_key"
     );
 
-    public static class LocalStateIndexSettingsInferencePlugin extends LocalStateCompositeXPackPlugin {
+    public static class LocalStateIndexSettingsInferencePlugin extends LocalStateCompositeXPackPlugin implements CircuitBreakerPlugin {
         private final InferencePlugin inferencePlugin;
 
         public LocalStateIndexSettingsInferencePlugin(final Settings settings, final Path configPath) throws Exception {
@@ -130,6 +133,15 @@ public class InferenceIndicesIT extends ESIntegTestCase {
             plugins.add(inferencePlugin);
         }
 
+        @Override
+        public BreakerSettings getCircuitBreaker(Settings settings) {
+            return inferencePlugin.getCircuitBreaker(settings);
+        }
+
+        @Override
+        public void setCircuitBreaker(CircuitBreaker circuitBreaker) {
+            inferencePlugin.setCircuitBreaker(circuitBreaker);
+        }
     }
 
     @Override

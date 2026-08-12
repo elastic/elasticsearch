@@ -191,7 +191,7 @@ public class RetryingHttpSender implements RequestSender {
                     } else {
                         r.readFullResponse(
                             l.delegateFailureAndWrap(
-                                (delegateListener, httpResult) -> validateAndParseInferenceResults(httpResult, delegateListener)
+                                (delegateListener, httpResult) -> handleInitialStreamFailure(httpResult, delegateListener)
                             )
                         );
                     }
@@ -205,6 +205,21 @@ public class RetryingHttpSender implements RequestSender {
                     )
                 );
             }
+        }
+
+        /**
+         * Only called when {@link HttpResult#isSuccessfulResponse()} returns false, to determine the appropriate
+         * error message and whether to retry the request.
+         */
+        private void handleInitialStreamFailure(HttpResult httpResult, ActionListener<InferenceServiceResults> listener) {
+            Exception failure;
+            try {
+                failure = responseHandler.buildFailureStatusCodeException(outboundRequest, httpResult);
+            } catch (Exception e) {
+                failure = e;
+            }
+            Objects.requireNonNull(failure, "Failure exception must not be null");
+            listener.onFailure(new SenderException(httpResult, failure));
         }
 
         private void validateAndParseInferenceResults(HttpResult httpResult, ActionListener<InferenceServiceResults> listener) {

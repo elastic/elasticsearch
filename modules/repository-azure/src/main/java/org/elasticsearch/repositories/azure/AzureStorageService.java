@@ -285,6 +285,11 @@ public class AzureStorageService {
         @Override
         public void applyClusterState(ClusterChangedEvent event) {
             assert perProjectStorageSettings != null;
+
+            if (!event.metadataChanged()) {
+                return;
+            }
+
             final Map<ProjectId, ProjectMetadata> currentProjects = event.state().metadata().projects();
 
             final var previousPerProjectStorageSettings = Map.copyOf(perProjectStorageSettings);
@@ -365,7 +370,6 @@ public class AzureStorageService {
             }
 
             if (!keys.isEmpty()) {
-                // run the actual removal in a different thread so not to block the cluster-state-updater thread
                 executor.execute(new AbstractRunnable() {
                     @Override
                     protected void doRun() throws Exception {
@@ -374,7 +378,7 @@ public class AzureStorageService {
 
                     @Override
                     public void onFailure(Exception e) {
-                        logger.warn("Failed to close refresh cache", e);
+                        logger.warn("Failed to drop connection providers", e);
                     }
                 });
             }

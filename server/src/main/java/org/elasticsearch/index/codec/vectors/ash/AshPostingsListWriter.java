@@ -86,10 +86,9 @@ public class AshPostingsListWriter {
         // Collect all vectors into arrays for ASH training and per-write re-encoding.
         // ClusteringFloatVectorValues (KMeansFloatVectorValues) supports random-access vectorValue(ord)
         // without requiring iterator advance — the same pattern used in ESNextDiskBBQVectorsWriter.
-        float[][] vectors = new float[nVectors][originalDim];
+        float[][] vectors = new float[nVectors][];
         for (int i = 0; i < nVectors; i++) {
-            float[] v = floatVectorValues.vectorValue(i);
-            System.arraycopy(v, 0, vectors[i], 0, originalDim);
+            vectors[i] = floatVectorValues.vectorValue(i).clone();
         }
 
         // Create and train the ASH quantizer

@@ -623,9 +623,9 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             assertWarmingDurationMetricRecorded(
                 recordingMeterRegistry,
                 Map.of(
-                    "primary",
+                    "es_primary",
                     true,
-                    "prewarming_type",
+                    "es_prewarming_type",
                     SharedBlobCacheWarmingService.Type.INDEXING_BCC_HEADER_PREWARM.name(),
                     SharedBlobCacheWarmingService.WARMING_TYPE_ATTRIBUTE_KEY,
                     "region0PreWarm"
@@ -2045,7 +2045,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             assertWarmingDurationMetricRecorded(
                 recordingMeterRegistry,
                 Map.of(
-                    "prewarming_type",
+                    "es_prewarming_type",
                     SharedBlobCacheWarmingService.Type.SEARCH.name(),
                     SharedBlobCacheWarmingService.WARMING_TYPE_ATTRIBUTE_KEY,
                     "offline"
@@ -2233,6 +2233,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                         Map.of(
                             "prewarming_type",
                             SharedBlobCacheWarmingService.Type.SEARCH.name(),
+                            "es_prewarming_type",
+                            SharedBlobCacheWarmingService.Type.SEARCH.name(),
                             SharedBlobCacheWarmingService.WARMING_TYPE_ATTRIBUTE_KEY,
                             "offline"
                         )
@@ -2299,9 +2301,9 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             assertWarmingDurationMetricRecorded(
                 recordingMeterRegistry,
                 Map.of(
-                    "primary",
+                    "es_primary",
                     true,
-                    "prewarming_type",
+                    "es_prewarming_type",
                     SharedBlobCacheWarmingService.Type.SEARCH.name(),
                     SharedBlobCacheWarmingService.WARMING_TYPE_ATTRIBUTE_KEY,
                     "headerFooter"
@@ -2571,7 +2573,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             assertWarmingDurationMetricRecorded(
                 recordingMeterRegistry,
                 Map.of(
-                    "prewarming_type",
+                    "es_prewarming_type",
                     SharedBlobCacheWarmingService.Type.INDEXING_MERGE.name(),
                     SharedBlobCacheWarmingService.WARMING_TYPE_ATTRIBUTE_KEY,
                     "merge"
@@ -2591,6 +2593,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 equalTo(
                     Map.of(
                         "prewarming_type",
+                        SharedBlobCacheWarmingService.Type.INDEXING_MERGE.name(),
+                        "es_prewarming_type",
                         SharedBlobCacheWarmingService.Type.INDEXING_MERGE.name(),
                         SharedBlobCacheWarmingService.WARMING_TYPE_ATTRIBUTE_KEY,
                         "merge"

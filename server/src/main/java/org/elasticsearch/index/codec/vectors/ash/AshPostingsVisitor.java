@@ -52,6 +52,12 @@ import static org.elasticsearch.simdvec.ES940OSQVectorsScorer.BULK_SIZE;
  */
 public class AshPostingsVisitor implements IVFVectorsReader.PostingVisitor {
 
+    /** Strategy for computing the approximate dot product from packed codes. */
+    @FunctionalInterface
+    private interface DotProductScorer {
+        float score(byte[] packedCodes, int codeOffset, float[] docConstants);
+    }
+
     private final IndexInput indexInput;
     private final Bits acceptDocs;
     private final int nDims;
@@ -69,10 +75,8 @@ public class AshPostingsVisitor implements IVFVectorsReader.PostingVisitor {
     // Precomputed query transform: queryTransformed = query @ W (raw projection, not centered)
     private final float[] queryTransformed;
 
-    // Integer scoring state (null/zero when using float path)
-    private final boolean useIntegerScoring;
-    private final byte[] queryQuantized;
-    private final int queryBitsPerDim;
+    // Scoring strategy: float or integer path, selected once at construction time
+    private final DotProductScorer dotProductScorer;
     // Pre-allocated query constants array: [queryDotCentroid, invQScale, qOffset, constantCorrection]
     // queryDotCentroid is set per-cluster in resetPostingsScorer; the rest are set once in constructor.
     private final float[] queryConstants;
@@ -130,7 +134,6 @@ public class AshPostingsVisitor implements IVFVectorsReader.PostingVisitor {
         this.planeBytes = (nDims + 7) >>> 3;
         this.packedCodeBytes = bitsPerDim * planeBytes;
         this.similarityFunction = similarityFunction;
-        this.queryBitsPerDim = queryBitsPerDim;
         this.query = query;
         this.centroidReader = centroidReader;
 
@@ -150,7 +153,6 @@ public class AshPostingsVisitor implements IVFVectorsReader.PostingVisitor {
 
         // Integer scoring setup: quantize projected query to queryBitsPerDim bits
         if (queryBitsPerDim > 0) {
-            this.useIntegerScoring = true;
             float qMin = Float.MAX_VALUE, qMax = -Float.MAX_VALUE;
             for (int j = 0; j < nDims; j++) {
                 qMin = Math.min(qMin, queryTransformed[j]);
@@ -161,7 +163,7 @@ public class AshPostingsVisitor implements IVFVectorsReader.PostingVisitor {
             float qScale = range > 0 ? (numQueryLevels - 1) / range : 1.0f;
             float invQScale = range > 0 ? range / (numQueryLevels - 1) : 0f;
 
-            this.queryQuantized = new byte[queryBitsPerDim * planeBytes];
+            byte[] queryQuantized = new byte[queryBitsPerDim * planeBytes];
             int unsignedSum = 0;
             for (int j = 0; j < nDims; j++) {
                 int level = Math.clamp(Math.round((queryTransformed[j] - qMin) * qScale), 0, numQueryLevels - 1);
@@ -183,9 +185,27 @@ public class AshPostingsVisitor implements IVFVectorsReader.PostingVisitor {
             queryConstants[AsymmetricHashingScorer.QC_INV_Q_SCALE] = invQScale;
             queryConstants[AsymmetricHashingScorer.QC_Q_OFFSET] = qMin;
             queryConstants[AsymmetricHashingScorer.QC_CONSTANT_CORRECTION] = constantCorrection;
+            final int qBits = queryBitsPerDim;
+            this.dotProductScorer = (packedCodes, codeOffset, dc) -> AsymmetricHashingScorer.scoreInteger(
+                queryQuantized,
+                qBits,
+                queryConstants,
+                packedCodes,
+                codeOffset,
+                bitsPerDim,
+                planeBytes,
+                dc
+            );
         } else {
-            this.useIntegerScoring = false;
-            this.queryQuantized = null;
+            this.dotProductScorer = (packedCodes, codeOffset, dc) -> AsymmetricHashingScorer.score(
+                queryTransformed,
+                queryConstants,
+                packedCodes,
+                codeOffset,
+                nDims,
+                bitsPerDim,
+                dc
+            );
         }
 
         this.bulkCodeBuf = new byte[BULK_SIZE * packedCodeBytes];
@@ -273,32 +293,10 @@ public class AshPostingsVisitor implements IVFVectorsReader.PostingVisitor {
                 float scale = bulkScales[j];
                 float offset = bulkOffsets[j];
                 // Compute approximate ⟨q,x⟩ via ASH (same for all similarity functions)
-                float approxDotProduct;
                 docConstants[AsymmetricHashingScorer.DC_SCALE] = scale;
                 docConstants[AsymmetricHashingScorer.DC_OFFSET] = offset;
-                if (useIntegerScoring) {
-                    docConstants[AsymmetricHashingScorer.DC_DOC_SUM] = bulkDocSums[j];
-                    approxDotProduct = AsymmetricHashingScorer.scoreInteger(
-                        queryQuantized,
-                        queryBitsPerDim,
-                        queryConstants,
-                        bulkCodeBuf,
-                        j * packedCodeBytes,
-                        bitsPerDim,
-                        planeBytes,
-                        docConstants
-                    );
-                } else {
-                    approxDotProduct = AsymmetricHashingScorer.score(
-                        queryTransformed,
-                        queryConstants,
-                        bulkCodeBuf,
-                        j * packedCodeBytes,
-                        nDims,
-                        bitsPerDim,
-                        docConstants
-                    );
-                }
+                docConstants[AsymmetricHashingScorer.DC_DOC_SUM] = bulkDocSums[j];
+                float approxDotProduct = dotProductScorer.score(bulkCodeBuf, j * packedCodeBytes, docConstants);
                 // Convert raw dot product to similarity score
                 if (isEuclidean) {
                     // Appendix A, Eq. A.2:

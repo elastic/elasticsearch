@@ -164,7 +164,7 @@ final class ComputeResponse extends TransportResponse {
         Set<String> recoveredWarnings = threadContext.getResponseHeaders()
             .getOrDefault("Warning", List.of())
             .stream()
-            .map(s -> HeaderWarning.extractWarningValueFromWarningHeader(s, false))
+            .map(ComputeResponse::extractPlainWarningText)
             .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
         if (recoveredWarnings.isEmpty()) {
             return info;
@@ -182,5 +182,28 @@ final class ComputeResponse extends TransportResponse {
             info.partial(),
             recoveredWarnings
         );
+    }
+
+    /**
+     * Extracts the plain warning text from an RFC 7234 warning header value.
+     * {@link HeaderWarning#extractWarningValueFromWarningHeader} returns the escaped form
+     * (matching {@code escapeAndEncode(original)}), so we must reverse the backslash escaping
+     * to recover the original text that {@link HeaderWarning#addWarning} expects.
+     */
+    static String extractPlainWarningText(String warningHeader) {
+        String escaped = HeaderWarning.extractWarningValueFromWarningHeader(warningHeader, false);
+        if (escaped.indexOf('\\') < 0) {
+            return escaped;
+        }
+        StringBuilder sb = new StringBuilder(escaped.length());
+        for (int i = 0; i < escaped.length(); i++) {
+            char c = escaped.charAt(i);
+            if (c == '\\' && i + 1 < escaped.length()) {
+                sb.append(escaped.charAt(++i));
+            } else {
+                sb.append(c);
+            }
+        }
+        return sb.toString();
     }
 }

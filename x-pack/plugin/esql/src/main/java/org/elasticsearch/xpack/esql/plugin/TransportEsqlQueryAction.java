@@ -591,7 +591,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             .getResponseHeaders()
             .getOrDefault("Warning", List.of())
             .stream()
-            .map(s -> HeaderWarning.extractWarningValueFromWarningHeader(s, false))
+            .map(ComputeResponse::extractPlainWarningText)
             .collect(Collectors.toCollection(HashSet::new));
         for (String warning : result.completionInfo().warnings()) {
             if (existingWarnings.contains(warning) == false) {

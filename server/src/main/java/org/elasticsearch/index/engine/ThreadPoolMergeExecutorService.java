@@ -493,6 +493,7 @@ public class ThreadPoolMergeExecutorService implements Closeable {
         private final ThreadPool threadPool;
 
         private record HighStageConfig(RelativeByteSizeValue watermark, ByteSizeValue maxHeadroom) {}
+
         private volatile HighStageConfig highStageConfig;
 
         private volatile TimeValue checkInterval;

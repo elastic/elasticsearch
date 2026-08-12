@@ -12,7 +12,7 @@ Known issues are significant defects or limitations that may impact your impleme
 
 * Boolean queries containing a `must`, `filter`, or `should` clause, along with a `must_not` clause, on fields with disabled indexing can return false-positive matches. This occurs when a DSL or ES|QL query selects Lucene's bulk-scoring path due to an iterator evaluation defect in Lucene ([apache/lucene#16450](https://github.com/apache/lucene/pull/16450)). [TSDB](https://www.elastic.co/docs/manage-data/data-store/data-streams/time-series-data-stream-tsds) and [columnar](https://www.elastic.co/docs/reference/elasticsearch/columnar) indices and data streams are affected, since they disable indexing on all fields by default.
 
-  A fix is prepared for upcoming release 9.5.1.
+  The [fix](https://github.com/elastic/elasticsearch/pull/155936) is included in 9.5.1.
 
 ## 9.3.6 [elasticsearch-9.3.6-known-issues]
 

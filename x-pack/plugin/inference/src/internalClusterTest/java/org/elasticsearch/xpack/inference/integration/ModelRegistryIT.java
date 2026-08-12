@@ -89,7 +89,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder.OLD_DEFAULT_SETTINGS;
 import static org.elasticsearch.xpack.inference.TaskTypeTests.randomTaskTypeOtherThanAny;
-import static org.elasticsearch.xpack.inference.registry.ModelRegistryTests.assertMinimalServiceSettings;
+import static org.elasticsearch.xpack.inference.registry.ModelRegistryTests.assertEndpointClusterState;
 import static org.elasticsearch.xpack.inference.registry.ModelRegistryTests.assertStoreModel;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
@@ -662,7 +662,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         assertThat(response.size(), Matchers.is(1));
         assertThat(response.get(0), Matchers.is(new ModelStoreResponse(inferenceId, RestStatus.CREATED, null)));
 
-        assertMinimalServiceSettings(modelRegistry, model);
+        assertEndpointClusterState(modelRegistry, model);
 
         var listener = new PlainActionFuture<UnparsedModel>();
         modelRegistry.getModelWithSecrets(inferenceId, listener);
@@ -671,7 +671,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         assertModel(returnedModel, model, secrets);
     }
 
-    public void testMinimalServiceSettings_MultipleIds() {
+    public void testEndpointClusterState_MultipleIds() {
         var service = randomAlphaOfLength(5);
         var createdModels = new ArrayList<Model>();
         int modelCount = randomIntBetween(20, 30);
@@ -694,7 +694,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         }
     }
 
-    public void testMinimalServiceSettings_GivenOneNonMatchingId_AndShouldThrow() {
+    public void testEndpointClusterState_GivenOneNonMatchingId_AndShouldThrow() {
         var service = randomAlphaOfLength(5);
         var createdModels = new ArrayList<Model>();
         Function<Integer, String> endpointIdCreator = i -> "endpoint_id_" + i;
@@ -716,7 +716,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         assertThat(e.getMessage(), Matchers.is("non_matching_id does not exist in this cluster."));
     }
 
-    public void testMinimalServiceSettings_GivenOneNonMatchingId_AndShouldNotThrow() {
+    public void testEndpointClusterState_GivenOneNonMatchingId_AndShouldNotThrow() {
         var service = randomAlphaOfLength(5);
         var createdModels = new ArrayList<Model>();
 
@@ -778,7 +778,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
     }
 
     private static void assertModelAndMinimalSettingsWithoutSecrets(ModelRegistry registry, Model model) {
-        assertMinimalServiceSettings(registry, model);
+        assertEndpointClusterState(registry, model);
 
         var listener = new PlainActionFuture<UnparsedModel>();
         registry.getModel(model.getInferenceEntityId(), listener);
@@ -788,7 +788,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
     }
 
     private static void assertModelAndMinimalSettingsWithSecrets(ModelRegistry registry, Model model, String secrets) {
-        assertMinimalServiceSettings(registry, model);
+        assertEndpointClusterState(registry, model);
 
         var listener = new PlainActionFuture<UnparsedModel>();
         registry.getModelWithSecrets(model.getInferenceEntityId(), listener);
@@ -998,7 +998,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         assertFalse(response.get(0).failed());
 
         assertIndicesContainExpectedDocsCount(model, 2);
-        assertMinimalServiceSettings(modelRegistry, model);
+        assertEndpointClusterState(modelRegistry, model);
 
         var getModelWithSecretsListener = new PlainActionFuture<UnparsedModel>();
         modelRegistry.getModelWithSecrets(model.getInferenceEntityId(), getModelWithSecretsListener);
@@ -1091,7 +1091,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         assertThat(response.get(2), Matchers.is(new ModelStoreResponse(testModelId2, RestStatus.CREATED, null)));
 
         assertIndicesContainExpectedDocsCount(eisModel, 2);
-        assertMinimalServiceSettings(modelRegistry, eisModel);
+        assertEndpointClusterState(modelRegistry, eisModel);
 
         var getModelWithSecretsListener = new PlainActionFuture<UnparsedModel>();
         modelRegistry.getModelWithSecrets(eisModel.getInferenceEntityId(), getModelWithSecretsListener);

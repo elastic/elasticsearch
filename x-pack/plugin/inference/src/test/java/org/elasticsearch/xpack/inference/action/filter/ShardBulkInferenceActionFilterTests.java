@@ -1389,7 +1389,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         };
         doAnswer(unparsedModelAnswer).when(modelRegistry).getModelWithSecrets(any(), any());
 
-        Answer<EndpointClusterState> singleMinimalServiceSettingsAnswer = invocationOnMock -> {
+        Answer<EndpointClusterState> singleEndpointClusterStateAnswer = invocationOnMock -> {
             String inferenceId = (String) invocationOnMock.getArguments()[0];
             var model = modelMap.get(inferenceId);
             if (model == null) {
@@ -1398,24 +1398,24 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
             return new EndpointClusterState(model);
         };
-        doAnswer(singleMinimalServiceSettingsAnswer).when(modelRegistry).getEndpointClusterState(any());
+        doAnswer(singleEndpointClusterStateAnswer).when(modelRegistry).getEndpointClusterState(any());
 
-        Answer<Map<String, EndpointClusterState>> multipleMinimalServiceSettingsAnswer = invocationOnMock -> {
+        Answer<Map<String, EndpointClusterState>> multipleEndpointClusterStateAnswer = invocationOnMock -> {
             Set<String> inferenceIds = (Set<String>) invocationOnMock.getArguments()[0];
             boolean throwIfAnyNotFound = (boolean) invocationOnMock.getArguments()[1];
 
-            Map<String, EndpointClusterState> minimalServiceSettingsMap = new HashMap<>();
+            Map<String, EndpointClusterState> endpointClusterStateMap = new HashMap<>();
             for (String inferenceId : inferenceIds) {
                 var model = modelMap.get(inferenceId);
                 if (model != null) {
-                    minimalServiceSettingsMap.put(inferenceId, new EndpointClusterState(model));
+                    endpointClusterStateMap.put(inferenceId, new EndpointClusterState(model));
                 } else if (throwIfAnyNotFound) {
                     throw new ResourceNotFoundException("model id [{}] not found", inferenceId);
                 }
             }
-            return minimalServiceSettingsMap;
+            return endpointClusterStateMap;
         };
-        doAnswer(multipleMinimalServiceSettingsAnswer).when(modelRegistry).getEndpointClusterState(any(), anyBoolean());
+        doAnswer(multipleEndpointClusterStateAnswer).when(modelRegistry).getEndpointClusterState(any(), anyBoolean());
 
         InferenceService inferenceService = mock(InferenceService.class);
         Answer<?> chunkedInferAnswer = invocationOnMock -> {

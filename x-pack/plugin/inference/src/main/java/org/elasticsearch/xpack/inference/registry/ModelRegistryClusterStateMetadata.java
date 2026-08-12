@@ -262,7 +262,7 @@ public class ModelRegistryClusterStateMetadata implements Metadata.ProjectCustom
         return Set.copyOf(serviceToInferenceEndpointIds.get(service));
     }
 
-    public EndpointClusterState getMinimalServiceSettings(String inferenceEntityId) {
+    public EndpointClusterState getEndpointClusterState(String inferenceEntityId) {
         return modelMap.get(inferenceEntityId);
     }
 

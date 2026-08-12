@@ -163,10 +163,10 @@ public class ModelRegistryTests extends ESSingleNodeTestCase {
         registry.storeModel(model, storeListener, TimeValue.THIRTY_SECONDS);
         assertTrue(storeListener.actionGet(TimeValue.THIRTY_SECONDS));
 
-        assertMinimalServiceSettings(registry, model);
+        assertEndpointClusterState(registry, model);
     }
 
-    public static void assertMinimalServiceSettings(ModelRegistry registry, Model model) {
+    public static void assertEndpointClusterState(ModelRegistry registry, Model model) {
         var settings = registry.getEndpointClusterState(model.getInferenceEntityId());
         assertNotNull(settings);
         assertThat(settings.taskType(), Matchers.equalTo(model.getTaskType()));

@@ -23,7 +23,7 @@ public class ElserInternalServiceSettings extends ElasticsearchInternalServiceSe
 
     public static final String NAME = "elser_mlnode_service_settings";
 
-    public static EndpointClusterState minimalServiceSettings() {
+    public static EndpointClusterState endpointClusterState() {
         return EndpointClusterState.sparseEmbedding(ElasticsearchInternalService.NAME);
     }
 

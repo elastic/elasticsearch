@@ -35,11 +35,13 @@ import static org.elasticsearch.rest.action.admin.indices.RestPutComponentTempla
 public class RestPutComposableIndexTemplateAction extends BaseRestHandler {
 
     private static final String INDEX_TEMPLATE_TRACKING_INFO = "index_template_tracking_info";
+    private static final String INDEX_TEMPLATE_MANAGED_FIELD = "index_template_managed_field";
 
     private static final Set<String> CAPABILITIES = Set.of(
         SUPPORTS_FAILURE_STORE,
         SUPPORTS_FAILURE_STORE_LIFECYCLE,
         INDEX_TEMPLATE_TRACKING_INFO,
+        INDEX_TEMPLATE_MANAGED_FIELD,
         SUPPORTS_DOWNSAMPLING_METHOD,
         SUPPORTS_FROZEN_AFTER,
         FAILURE_STORE_LIFECYCLE_REJECTS_FROZEN_AFTER
@@ -65,7 +67,11 @@ public class RestPutComposableIndexTemplateAction extends BaseRestHandler {
         putRequest.create(request.paramAsBoolean("create", false));
         putRequest.cause(request.param("cause", "api"));
         try (var parser = request.contentParser()) {
-            putRequest.indexTemplate(ComposableIndexTemplate.parse(parser));
+            ComposableIndexTemplate template = ComposableIndexTemplate.parse(parser);
+            if (template.isManaged()) {
+                throw new IllegalArgumentException("[managed] is a system-managed field and cannot be set by a user");
+            }
+            putRequest.indexTemplate(template);
         }
 
         return channel -> client.execute(TransportPutComposableIndexTemplateAction.TYPE, putRequest, new RestToXContentListener<>(channel));

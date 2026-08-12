@@ -616,7 +616,7 @@ public class MetadataIndexTemplateService {
         validateV2TemplateRequest(metadata.componentTemplates(), name, template);
     }
 
-    public static void validateV2TemplateRequest(
+    private static void validateV2TemplateRequest(
         Map<String, ComponentTemplate> componentTemplates,
         String name,
         ComposableIndexTemplate template

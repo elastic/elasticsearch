@@ -118,6 +118,8 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
      */
     record CompletedRegisteredSnapshotInfos(Set<SnapshotId> queriedSnapshotIds, List<SnapshotInfo> snapshotInfos) {
         CompletedRegisteredSnapshotInfos {
+            queriedSnapshotIds = Set.copyOf(queriedSnapshotIds);
+            snapshotInfos = List.copyOf(snapshotInfos);
             for (SnapshotInfo snapshotInfo : snapshotInfos) {
                 if (queriedSnapshotIds.contains(snapshotInfo.snapshotId()) == false) {
                     throw new IllegalArgumentException(
@@ -614,7 +616,11 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
             // the policy does not already record this snapshot name. Concurrent cleanups that already removed a
             // registered snapshot and wrote last success/failure must not double-count.
             if (snapshotIsRegistered == false) {
-                if (exception.isPresent() && policyAlreadyRecordsSnapshot(policyMetadata, snapshotId.getName()) == false) {
+                // Check both the pre-cleanup metadata and this task's cleanup of other registered snapshots: the
+                // initiating name may only appear on last success/failure after the loop above.
+                final boolean alreadyRecorded = policyAlreadyRecordsSnapshot(policyMetadata, snapshotId.getName())
+                    || policyAlreadyRecordsSnapshot(newPolicyMetadata.build(), snapshotId.getName());
+                if (exception.isPresent() && alreadyRecorded == false) {
                     // Expected for CreateSnapshot failures that never reached registration (e.g. missing index).
                     logger.debug(
                         "Snapshot [{}] not found in registered set after snapshot failure. Recording failure stats"

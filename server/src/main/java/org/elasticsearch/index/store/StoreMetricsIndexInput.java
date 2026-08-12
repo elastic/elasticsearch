@@ -26,6 +26,7 @@ import java.util.Set;
 
 public class StoreMetricsIndexInput extends FilterIndexInput implements DirectAccessInput {
     final PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder;
+    private StoreMetrics cachedMetrics;
 
     public static IndexInput create(String resourceDescription, IndexInput in, PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder) {
         if (in instanceof StoreMetricsIndexInput) {
@@ -118,8 +119,15 @@ public class StoreMetricsIndexInput extends FilterIndexInput implements DirectAc
         in.updateIOContext(context);
     }
 
+    private StoreMetrics metrics() {
+        if (cachedMetrics == null) {
+            cachedMetrics = metricHolder.instance();
+        }
+        return cachedMetrics;
+    }
+
     void addBytesRead(long bytes) {
-        metricHolder.instance().addBytesRead(bytes);
+        metrics().addBytesRead(bytes);
     }
 
     @Override
@@ -172,19 +180,19 @@ public class StoreMetricsIndexInput extends FilterIndexInput implements DirectAc
     @Override
     public void readLongs(long[] dst, int offset, int length) throws IOException {
         getDelegate().readLongs(dst, offset, length);
-        metricHolder.instance().addBytesRead(8L * length);
+        addBytesRead(8L * length);
     }
 
     @Override
     public void readInts(int[] dst, int offset, int length) throws IOException {
         getDelegate().readInts(dst, offset, length);
-        metricHolder.instance().addBytesRead(4L * length);
+        addBytesRead(4L * length);
     }
 
     @Override
     public void readFloats(float[] floats, int offset, int len) throws IOException {
         getDelegate().readFloats(floats, offset, len);
-        metricHolder.instance().addBytesRead(4L * len);
+        addBytesRead(4L * len);
     }
 
     @Override

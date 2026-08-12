@@ -57,29 +57,58 @@ public class StoreMetricsIndexInputTests extends ESTestCase {
         assertEquals(0, snapshot.getBytesRead());
     }
 
-    public void testThreadIsolationOnMetrics() throws Exception {
+    public void testEachInputInstanceAttributedToFirstUseThread() throws Exception {
+        // Models the normal search path: each task has its own input instance (from clone/slice).
+        // With sticky cachedMetrics, per-task attribution is still correct because cachedMetrics on
+        // each instance is set on its first-use thread.
+        PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder = new ThreadLocalDirectoryMetricHolder<>(StoreMetrics::new);
+        IndexInput input1 = StoreMetricsIndexInput.create("test1", mock(IndexInput.class), metricHolder);
+        IndexInput input2 = StoreMetricsIndexInput.create("test2", mock(IndexInput.class), metricHolder);
+
+        input1.readBytes(new byte[100], 0, 100);
+        assertEquals(100, metricHolder.instance().getBytesRead());
+
+        Thread other = new Thread(() -> {
+            try {
+                assertEquals(0, metricHolder.instance().getBytesRead());
+                input2.readBytes(new byte[200], 0, 200);
+                assertEquals(200, metricHolder.instance().getBytesRead());
+            } catch (IOException e) {
+                fail("IOException in other thread: " + e.getMessage());
+            }
+        });
+        other.start();
+        other.join();
+
+        assertEquals(100, metricHolder.instance().getBytesRead());
+    }
+
+    public void testHandoffAttributionIsStickyToFirstThread() throws Exception {
+        // Documents the intentional contract tightening: attribution is sticky to the first-use
+        // thread, not the current thread on every read. An input that is first-read on thread A
+        // and then handed off to thread B accumulates all bytes in thread A's StoreMetrics.
+        // Re-checking Thread.currentThread() on every read to restore rebinding would erase the
+        // performance win.
         PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder = new ThreadLocalDirectoryMetricHolder<>(StoreMetrics::new);
         IndexInput indexInput = StoreMetricsIndexInput.create("test", mock(IndexInput.class), metricHolder);
 
-        assertEquals(0, metricHolder.instance().getBytesRead());
+        // First read on main thread — sets cachedMetrics to main thread's StoreMetrics.
         indexInput.readByte();
         assertEquals(1, metricHolder.instance().getBytesRead());
 
-        Thread otherThread = new Thread(() -> {
+        Thread other = new Thread(() -> {
             try {
-                assertEquals(0, metricHolder.instance().getBytesRead());
+                // cachedMetrics already set; bytes go to main thread's StoreMetrics.
                 indexInput.readBytes(new byte[512], 0, 512);
-                assertEquals(512, metricHolder.instance().getBytesRead());
+                assertEquals(0, metricHolder.instance().getBytesRead());
             } catch (IOException e) {
-                fail("IOException thrown in other thread: " + e.getMessage());
+                fail("IOException in other thread: " + e.getMessage());
             }
         });
+        other.start();
+        other.join();
 
-        otherThread.start();
-        otherThread.join();
-
-        // Back in the original thread, metrics should be unchanged
-        assertEquals(1, metricHolder.instance().getBytesRead());
+        assertEquals(513, metricHolder.instance().getBytesRead());
     }
 
     public void testSliceMetrics() throws IOException {
@@ -125,34 +154,65 @@ public class StoreMetricsIndexInputTests extends ESTestCase {
         assertEquals(15, metricHolder.instance().getBytesRead());
     }
 
-    public void testRandomAccessInputReadyThreadIsolation() throws Exception {
+    public void testEachRandomAccessInputAttributedToFirstUseThread() throws Exception {
+        // Models the DocValues path on MMapDirectory: each getNumeric() call gets its own
+        // randomAccessSlice() wrapper (a RandomAccessIndexInput), used on its own thread.
+        // Per-task attribution is correct because cachedMetrics on each slice is set on first use.
         PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder = new ThreadLocalDirectoryMetricHolder<>(StoreMetrics::new);
         IndexInput mockIndexInput = mock(IndexInput.class);
-        RandomAccessInput mockRandomAccessInput = mock(RandomAccessInput.class);
-        when(mockIndexInput.randomAccessSlice(anyLong(), anyLong())).thenReturn(mockRandomAccessInput);
+        // Slice implements both IndexInput and RandomAccessInput — takes the RandomAccessIndexInput path.
+        IndexInput mockSlice = mock(IndexInput.class, withSettings().extraInterfaces(RandomAccessInput.class));
+        when(mockIndexInput.randomAccessSlice(anyLong(), anyLong())).thenReturn((RandomAccessInput) mockSlice);
+        IndexInput indexInput = StoreMetricsIndexInput.create("test", mockIndexInput, metricHolder);
+
+        RandomAccessInput slice1 = indexInput.randomAccessSlice(0, 1000);
+        slice1.readByte(0);
+        assertEquals(1, metricHolder.instance().getBytesRead());
+
+        RandomAccessInput slice2 = indexInput.randomAccessSlice(0, 1000);
+        Thread other = new Thread(() -> {
+            try {
+                assertEquals(0, metricHolder.instance().getBytesRead());
+                slice2.readLong(0);
+                assertEquals(8, metricHolder.instance().getBytesRead());
+            } catch (IOException e) {
+                fail("IOException in other thread: " + e.getMessage());
+            }
+        });
+        other.start();
+        other.join();
+
+        assertEquals(1, metricHolder.instance().getBytesRead());
+    }
+
+    public void testRandomAccessHandoffAttributionIsSticky() throws Exception {
+        // Sticky-attribution counterpart for RandomAccessIndexInput: a slice first-read on thread A
+        // accumulates all subsequent reads (including from thread B) into thread A's StoreMetrics.
+        PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder = new ThreadLocalDirectoryMetricHolder<>(StoreMetrics::new);
+        IndexInput mockIndexInput = mock(IndexInput.class);
+        // Slice implements both IndexInput and RandomAccessInput — takes the RandomAccessIndexInput path.
+        IndexInput mockSlice = mock(IndexInput.class, withSettings().extraInterfaces(RandomAccessInput.class));
+        when(mockIndexInput.randomAccessSlice(anyLong(), anyLong())).thenReturn((RandomAccessInput) mockSlice);
         IndexInput indexInput = StoreMetricsIndexInput.create("test", mockIndexInput, metricHolder);
 
         RandomAccessInput randomAccessInput = indexInput.randomAccessSlice(0, 1000);
 
-        assertEquals(0, metricHolder.instance().getBytesRead());
+        // First read on main thread — sets cachedMetrics to main thread's StoreMetrics.
         randomAccessInput.readByte(0);
         assertEquals(1, metricHolder.instance().getBytesRead());
 
-        Thread otherThread = new Thread(() -> {
+        Thread other = new Thread(() -> {
             try {
-                assertEquals(0, metricHolder.instance().getBytesRead());
                 randomAccessInput.readLong(0);
-                assertEquals(8, metricHolder.instance().getBytesRead());
+                assertEquals(0, metricHolder.instance().getBytesRead());
             } catch (IOException e) {
-                fail("IOException thrown in other thread: " + e.getMessage());
+                fail("IOException in other thread: " + e.getMessage());
             }
         });
+        other.start();
+        other.join();
 
-        otherThread.start();
-        otherThread.join();
-
-        // Back in the original thread, metrics should be unchanged
-        assertEquals(1, metricHolder.instance().getBytesRead());
+        assertEquals(9, metricHolder.instance().getBytesRead());
     }
 
     public void testRandomAccessIndexInputReadBytes() throws IOException {
@@ -249,5 +309,50 @@ public class StoreMetricsIndexInputTests extends ESTestCase {
         assertFalse(
             ((DirectAccessInput) decorated).withMemorySegmentSlices(new long[] { 0L }, 10, 1, mss -> fail("action should not be called"))
         );
+    }
+
+    public void testCachedMetricsUsedOnSubsequentReads() throws Exception {
+        // Core regression guard: instance() must be called exactly once (lazy init on first read),
+        // not on every read. If addBytesRead reverts to calling metricHolder.instance() directly,
+        // instanceCallCount will exceed 1 and this test fails.
+        ThreadLocalDirectoryMetricHolder<StoreMetrics> base = new ThreadLocalDirectoryMetricHolder<>(StoreMetrics::new);
+        int[] instanceCallCount = { 0 };
+        PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder = new PluggableDirectoryMetricsHolder<>() {
+            @Override
+            public StoreMetrics instance() {
+                instanceCallCount[0]++;
+                return base.instance();
+            }
+
+            @Override
+            public PluggableDirectoryMetricsHolder<StoreMetrics> singleThreaded() {
+                return base.singleThreaded();
+            }
+        };
+        IndexInput indexInput = StoreMetricsIndexInput.create("test", mock(IndexInput.class), metricHolder);
+
+        for (int i = 0; i < 100; i++) {
+            indexInput.readByte();
+        }
+
+        assertEquals(1, instanceCallCount[0]);
+        assertEquals(100, base.instance().getBytesRead());
+    }
+
+    public void testSmallDocValuesReadsAreCountedImmediately() throws IOException {
+        // Bytes from a RandomAccessIndexInput (the DocValues path on MMapDirectory) must be counted
+        // on every read with no minimum volume. Previously, sub-threshold reads from wrappers that
+        // were abandoned without close() were permanently lost.
+        PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder = new ThreadLocalDirectoryMetricHolder<>(StoreMetrics::new);
+        IndexInput mockIndexInput = mock(IndexInput.class, withSettings().extraInterfaces(RandomAccessInput.class));
+        IndexInput indexInput = StoreMetricsIndexInput.create("test", mockIndexInput, metricHolder);
+
+        assertThat(indexInput, Matchers.instanceOf(RandomAccessInput.class));
+        RandomAccessInput randomAccessInput = (RandomAccessInput) indexInput;
+
+        // Single readLong without closing — models an abandoned per-acquisition DocValues wrapper.
+        randomAccessInput.readLong(0);
+
+        assertEquals(8, metricHolder.instance().getBytesRead());
     }
 }

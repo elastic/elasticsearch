@@ -147,12 +147,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         Property.IndexScope
     );
 
-    public static final FeatureFlag DIRECTORY_METRICS_FEATURE_FLAG = new FeatureFlag("directory_metrics") {
-        @Override
-        public boolean isEnabled() {
-            return false; // force-disabled: benchmark branch to measure flag overhead vs nightly baseline
-        }
-    };
+    public static final FeatureFlag DIRECTORY_METRICS_FEATURE_FLAG = new FeatureFlag("directory_metrics");
 
     /**
      * A {@link org.apache.lucene.store.IOContext.FileOpenHint} that we will only read the Lucene file footer

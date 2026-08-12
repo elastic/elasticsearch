@@ -11,6 +11,7 @@ package org.elasticsearch.index.codec.vectors.ash;
 
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
+import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PackedLongValues;
@@ -76,7 +77,8 @@ public class AshPostingsListWriter {
         long fileOffset,
         int[] assignments,
         OverspillAssignments overspillAssignments,
-        IvfSegmentConfig.AshConfig ashConfig
+        IvfSegmentConfig.AshConfig ashConfig,
+        VectorSimilarityFunction similarityFunction
     ) throws IOException {
         int nVectors = assignments.length;
         int originalDim = fieldInfo.getVectorDimension();
@@ -160,6 +162,10 @@ public class AshPostingsListWriter {
         final short[] blockScales = new short[BULK_SIZE];
         final short[] blockOffsets = new short[BULK_SIZE];
         final short[] blockDocSums = new short[BULK_SIZE];
+        // EUCLIDEAN-only per-vector fields (Appendix A, Eq. A.2)
+        final boolean isEuclidean = similarityFunction == VectorSimilarityFunction.EUCLIDEAN;
+        final short[] blockVecCentroidDots = isEuclidean ? new short[BULK_SIZE] : null;
+        final short[] blockVecCentroidSqDists = isEuclidean ? new short[BULK_SIZE] : null;
         DocIdsWriter idsWriter = new DocIdsWriter();
         FlatCentroidClusters centroidClusters = (FlatCentroidClusters) centroidSupplier.centroidIndex();
 
@@ -170,10 +176,15 @@ public class AshPostingsListWriter {
             int[] cluster = assignmentsByCluster[c];
             long offset = postingsOutput.alignFilePointer(Float.BYTES) - fileOffset;
             offsets.add(offset);
-            // Header: parent-centroid distance, size
+            // Header: parent-centroid distance, size, centroid ordinal
             postingsOutput.writeInt(Float.floatToIntBits(ESVectorUtil.squareDistance(centroid, centroidClusters.getCentroid(c))));
             int size = cluster.length;
             postingsOutput.writeVInt(size);
+            postingsOutput.writeVInt(c);
+            // For EUCLIDEAN: write ‖μ*‖² (centroid squared norm) — needed for Eq. A.2
+            if (isEuclidean) {
+                postingsOutput.writeInt(Float.floatToIntBits(ESVectorUtil.dotProduct(centroid, centroid)));
+            }
 
             // Sort by docId
             for (int j = 0; j < size; j++) {
@@ -190,6 +201,7 @@ public class AshPostingsListWriter {
 
             // Write vectors in bulk blocks using structure-of-arrays layout:
             // [docIds][all packed_codes][all scales][all offsets][all docSums]
+            // EUCLIDEAN additionally writes: [all vecCentroidDots][all vecCentroidSqDists]
             int written = 0;
             while (written < size) {
                 int blockSize = Math.min(BULK_SIZE, size - written);
@@ -211,6 +223,12 @@ public class AshPostingsListWriter {
                         docSum += Math.round(xEnc[d] + centerOffset);
                     }
                     blockDocSums[j] = (short) docSum;
+                    // EUCLIDEAN: compute ⟨μ*,x⟩ and ‖x-μ*‖² from the original float vectors
+                    if (isEuclidean) {
+                        float[] vec = vectors[vectorOrd];
+                        blockVecCentroidDots[j] = Float.floatToFloat16(ESVectorUtil.dotProduct(centroid, vec));
+                        blockVecCentroidSqDists[j] = Float.floatToFloat16(ESVectorUtil.squareDistance(vec, centroid));
+                    }
                 }
                 // Write all packed codes contiguously
                 postingsOutput.writeBytes(blockCodesBuf, 0, blockSize * packedCodeBytes);
@@ -225,6 +243,15 @@ public class AshPostingsListWriter {
                 // Write all docSums (sum of unsigned code values, for D2Q4 correction)
                 for (int j = 0; j < blockSize; j++) {
                     postingsOutput.writeShort(blockDocSums[j]);
+                }
+                // EUCLIDEAN: write ⟨μ*,x⟩ and ‖x-μ*‖² per vector (Appendix A, Eq. A.2)
+                if (isEuclidean) {
+                    for (int j = 0; j < blockSize; j++) {
+                        postingsOutput.writeShort(blockVecCentroidDots[j]);
+                    }
+                    for (int j = 0; j < blockSize; j++) {
+                        postingsOutput.writeShort(blockVecCentroidSqDists[j]);
+                    }
                 }
                 written += blockSize;
             }

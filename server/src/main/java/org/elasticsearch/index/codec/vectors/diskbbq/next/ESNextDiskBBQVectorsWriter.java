@@ -268,7 +268,8 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
             fileOffset,
             assignments,
             overspillAssignments,
-            segmentConfig.ash()
+            segmentConfig.ash(),
+            fieldInfo.getVectorSimilarityFunction()
         );
         pendingAshMatrix = ashWriter.getAshProjectionMatrix();
         return new CentroidOffsetAndLength(result.offsets(), result.lengths());

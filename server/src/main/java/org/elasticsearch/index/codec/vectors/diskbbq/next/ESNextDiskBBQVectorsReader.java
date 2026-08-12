@@ -54,6 +54,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.IntFunction;
 
 import static org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer.DEFAULT_LAMBDA;
 import static org.elasticsearch.index.codec.vectors.diskbbq.PostingMetadata.NO_ORDINAL;
@@ -522,6 +523,23 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         // ASH path: use AshPostingsVisitor with precomputed W matrix
         if (entry.quantizationType() == QuantizationType.ASH) {
             var ashMatrix = getAshProjectionMatrix(fieldInfo);
+            // Build centroid-reading function: reads raw float centroids from the tail of the centroid file.
+            // Raw centroids are stored contiguously at the end of the centroid slice as:
+            // centroidSlice.length() - numCentroids * dimension * Float.BYTES
+            int dimension = fieldInfo.getVectorDimension();
+            int numCentroids = entry.numCentroids();
+            long rawCentroidsOffset = centroidSlice.length() - (long) numCentroids * dimension * Float.BYTES;
+            IndexInput centroidInput = centroidSlice.clone();
+            IntFunction<float[]> centroidReader = (int ord) -> {
+                float[] centroid = new float[dimension];
+                try {
+                    centroidInput.seek(rawCentroidsOffset + (long) ord * dimension * Float.BYTES);
+                    centroidInput.readFloats(centroid, 0, dimension);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+                return centroid;
+            };
             return new AshPostingsVisitor(
                 ashMatrix.wT(),
                 target,
@@ -529,7 +547,8 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
                 indexInput,
                 needsScoring,
                 entry.ashBitsPerDim(),
-                DEFAULT_ASH_QUERY_BITS_PER_DIM
+                DEFAULT_ASH_QUERY_BITS_PER_DIM,
+                centroidReader
             );
         }
 

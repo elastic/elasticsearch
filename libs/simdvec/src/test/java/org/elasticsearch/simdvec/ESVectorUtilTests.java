@@ -524,10 +524,24 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         int length = randomIntBetween(1, vectorSize - offset);
         float[] a = randomFloatVector(vectorSize);
         float[] b = randomFloatVector(vectorSize);
-        float expected = defaultedProvider.getVectorUtilSupport().dotProduct(a, b, offset, length);
-        float actual = panamaProvider.getVectorUtilSupport().dotProduct(a, b, offset, length);
+        float expected = defaultedProvider.getVectorUtilSupport().dotProduct(a, offset, b, offset, length);
+        float actual = panamaProvider.getVectorUtilSupport().dotProduct(a, offset, b, offset, length);
         assertEquals(expected, actual, 1e-3f * length);
-        actual = nativeProvider.getVectorUtilSupport().dotProduct(a, b, offset, length);
+        actual = nativeProvider.getVectorUtilSupport().dotProduct(a, offset, b, offset, length);
+        assertEquals(expected, actual, 1e-3f * length);
+    }
+
+    public void testDotProductOffsetRange() {
+        int vectorSize = randomIntBetween(64, 2048);
+        int aOffset = randomIntBetween(0, vectorSize - 1);
+        int bOffset = randomIntBetween(0, vectorSize - 1);
+        int length = randomIntBetween(1, vectorSize - Math.max(aOffset, bOffset));
+        float[] a = randomFloatVector(vectorSize);
+        float[] b = randomFloatVector(vectorSize);
+        float expected = defaultedProvider.getVectorUtilSupport().dotProduct(a, aOffset, b, bOffset, length);
+        float actual = panamaProvider.getVectorUtilSupport().dotProduct(a, aOffset, b, bOffset, length);
+        assertEquals(expected, actual, 1e-3f * length);
+        actual = nativeProvider.getVectorUtilSupport().dotProduct(a, aOffset, b, bOffset, length);
         assertEquals(expected, actual, 1e-3f * length);
     }
 

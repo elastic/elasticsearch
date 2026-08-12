@@ -23,7 +23,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.empty;
 
 public class ComputeResponseTests extends ESTestCase {
 
@@ -77,43 +76,5 @@ public class ComputeResponseTests extends ESTestCase {
         var deserialized = new ComputeResponse(in, threadContext);
 
         assertThat(deserialized.getCompletionInfo().warnings(), containsInAnyOrder(warningTexts.toArray()));
-    }
-
-    /**
-     * Verifies that warnings are empty when deserializing from an old node without a
-     * {@link ThreadContext} (i.e. using the single-arg constructor). This is the expected
-     * behavior: without ThreadContext, there is no way to recover the response headers.
-     */
-    public void testWarningsEmptyWithoutThreadContext() throws IOException {
-        var warningTexts = List.of(
-            "Line 1:9: evaluation of [x] failed, treating result as null. Only first 20 failures recorded.",
-            "Line 1:9: java.lang.IllegalArgumentException: single-value function encountered multi-value"
-        );
-        var completionInfoWithWarnings = new DriverCompletionInfo(
-            10,
-            10,
-            5,
-            0,
-            0,
-            0,
-            List.of(),
-            List.of(),
-            Map.of(),
-            false,
-            new LinkedHashSet<>(warningTexts)
-        );
-        var response = new ComputeResponse(completionInfoWithWarnings, TimeValue.timeValueMillis(100), 5, 5, 0, 0, List.of());
-
-        var oldVersion = TransportVersionUtils.getPreviousVersion(DriverCompletionInfo.ESQL_DRIVER_WARNINGS);
-
-        BytesStreamOutput out = new BytesStreamOutput();
-        out.setTransportVersion(oldVersion);
-        response.writeTo(out);
-
-        StreamInput in = out.bytes().streamInput();
-        in.setTransportVersion(oldVersion);
-        var deserialized = new ComputeResponse(in);
-
-        assertThat(deserialized.getCompletionInfo().warnings(), empty());
     }
 }

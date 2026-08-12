@@ -65,10 +65,6 @@ final class ComputeResponse extends TransportResponse {
         this.failures = failures;
     }
 
-    ComputeResponse(StreamInput in) throws IOException {
-        this(in, null);
-    }
-
     ComputeResponse(StreamInput in, ThreadContext threadContext) throws IOException {
         DriverCompletionInfo info;
         if (supportsCompletionInfo(in.getTransportVersion())) {

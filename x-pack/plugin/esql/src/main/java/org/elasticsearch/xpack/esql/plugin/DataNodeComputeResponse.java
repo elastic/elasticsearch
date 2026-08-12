@@ -38,10 +38,6 @@ final class DataNodeComputeResponse extends TransportResponse {
         this.shardLevelFailures = shardLevelFailures;
     }
 
-    DataNodeComputeResponse(StreamInput in) throws IOException {
-        this(in, null);
-    }
-
     DataNodeComputeResponse(StreamInput in, ThreadContext threadContext) throws IOException {
         DriverCompletionInfo info;
         if (supportsCompletionInfo(in.getTransportVersion())) {

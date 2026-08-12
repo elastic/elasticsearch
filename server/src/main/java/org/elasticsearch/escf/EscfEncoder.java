@@ -13,6 +13,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.sourcebatch.LeafSink;
 import org.elasticsearch.sourcebatch.SourceBatchEncodeHelper;
 import org.elasticsearch.sourcebatch.SourceBatchEncoder;
@@ -41,6 +43,7 @@ import java.util.List;
 public final class EscfEncoder implements SourceBatchEncoder {
 
     private final EscfBatchBuilder backend;
+    private final Recycler<BytesRef> recycler;
 
     public EscfEncoder() {
         this(BytesRefRecycler.NON_RECYCLING_INSTANCE);
@@ -48,12 +51,23 @@ public final class EscfEncoder implements SourceBatchEncoder {
 
     public EscfEncoder(Recycler<BytesRef> recycler) {
         this.backend = new EscfBatchBuilder(recycler);
+        this.recycler = recycler;
     }
 
     @Override
     public void parseToScratch(BytesReference source, XContentType xContentType, LeafSink sink) throws IOException {
         EscfRowBuffer row = backend.beginRow();
-        try (XContentParser parser = XContentHelper.createParserNotCompressed(XContentParserConfiguration.EMPTY, source, xContentType)) {
+        BytesReference sourceToParse = source;
+        Releasable releasable = Releasables.NO_OP;
+        if (source.hasArray() == false && source.length() <= recycler.pageSize()) {
+            Recycler.V<BytesRef> obtained = recycler.obtain();
+            releasable = obtained;
+            sourceToParse = BytesReference.copyTo(source, obtained.v());
+        }
+        try (
+            Releasable toClose = releasable;
+            XContentParser parser = XContentHelper.createParserNotCompressed(XContentParserConfiguration.EMPTY, sourceToParse, xContentType)
+        ) {
             parser.allowDuplicateKeys(true);
             parser.nextToken(); // START_OBJECT
             flattenObject(row, parser, parser.nextToken(), sink);

@@ -11,23 +11,35 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.compute.EsqlRefCountingListener;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
+import org.elasticsearch.compute.operator.ResponseHeadersCollector;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.threadpool.ThreadPool;
 
 /**
  * A variant of {@link RefCountingListener} with the following differences:
  * 1. Automatically cancels sub tasks on failure (via runOnTaskFailure)
  * 2. Collects driver profiles from sub tasks.
- * 3. Collects failures and returns the most appropriate exception to the caller.
+ * 3. Collects response headers from sub tasks, specifically warnings emitted by nodes that are too old to
+ *    report them in {@link DriverCompletionInfo#warnings()}.
+ * 4. Collects failures and returns the most appropriate exception to the caller.
  */
 final class ComputeListener implements Releasable {
     private final DriverCompletionInfo.AtomicAccumulator completionInfoAccumulator = new DriverCompletionInfo.AtomicAccumulator();
     private final EsqlRefCountingListener refs;
+    /*
+     * Nodes older than DriverCompletionInfo.ESQL_DRIVER_WARNINGS can't put their warnings in the completion
+     * info, so they send them back as transport response headers instead. Those land on whichever thread
+     * handles the response, which is not the thread that renders the final response, so collect them here.
+     */
+    private final ResponseHeadersCollector responseHeaders;
     private final Runnable runOnFailure;
 
-    ComputeListener(Runnable runOnFailure, ActionListener<DriverCompletionInfo> delegate) {
+    ComputeListener(ThreadPool threadPool, Runnable runOnFailure, ActionListener<DriverCompletionInfo> delegate) {
         this.runOnFailure = runOnFailure;
+        this.responseHeaders = new ResponseHeadersCollector(threadPool.getThreadContext());
         // listener that executes after all the sub-listeners refs (created via acquireCompute) have completed
         this.refs = new EsqlRefCountingListener(delegate.delegateFailure((l, ignored) -> {
+            responseHeaders.finish();
             delegate.onResponse(completionInfoAccumulator.finish());
         }));
     }
@@ -47,14 +59,19 @@ final class ComputeListener implements Releasable {
     }
 
     /**
-     * Acquires a new listener that collects compute result.
+     * Acquires a new listener that collects compute result. This listener will also collect warnings emitted
+     * as response headers by nodes too old to report them in {@link DriverCompletionInfo#warnings()}.
      */
     ActionListener<DriverCompletionInfo> acquireCompute() {
         final ActionListener<Void> delegate = acquireAvoid();
         return ActionListener.wrap(info -> {
+            responseHeaders.collect();
             completionInfoAccumulator.accumulate(info);
             delegate.onResponse(null);
-        }, delegate::onFailure);
+        }, e -> {
+            responseHeaders.collect();
+            delegate.onFailure(e);
+        });
     }
 
     @Override

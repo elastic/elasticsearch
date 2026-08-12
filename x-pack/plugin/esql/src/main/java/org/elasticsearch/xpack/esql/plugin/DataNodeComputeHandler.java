@@ -196,7 +196,9 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                             onGroupFailure = runOnTaskFailure;
                         }
                         final AtomicReference<DataNodeComputeResponse> nodeResponseRef = new AtomicReference<>();
-                        try (var computeListener = new ComputeListener(onGroupFailure, l.map(ignored -> nodeResponseRef.get()))) {
+                        try (
+                            var computeListener = new ComputeListener(threadPool, onGroupFailure, l.map(ignored -> nodeResponseRef.get()))
+                        ) {
                             final boolean sameNodeAsCoordinator = transportService.getLocalNode()
                                 .getId()
                                 .equals(connection.getNode().getId());
@@ -362,7 +364,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     // into a dedicated parentComputeListener.acquireCompute() slot.
                     final ActionListener<DriverCompletionInfo> profileSlot = parentComputeListener.acquireCompute();
                     final ActionListener<Void> outerL = l;
-                    try (var computeListener = new ComputeListener(onGroupFailure, ActionListener.wrap(info -> {
+                    try (var computeListener = new ComputeListener(threadPool, onGroupFailure, ActionListener.wrap(info -> {
                         try {
                             profileSlot.onResponse(info);
                         } finally {
@@ -715,6 +717,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         final Map<ShardId, Exception> shardLevelFailures = new HashMap<>();
         try (
             ComputeListener computeListener = new ComputeListener(
+                transportService.getThreadPool(),
                 computeService.cancelQueryOnFailure(task),
                 listener.map(profiles -> new DataNodeComputeResponse(profiles, shardLevelFailures))
             )
@@ -961,6 +964,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
 
         try (
             ComputeListener computeListener = new ComputeListener(
+                threadPool,
                 computeService.cancelQueryOnFailure(task),
                 listener.map(profiles -> new DataNodeComputeResponse(profiles, Map.of()))
             )

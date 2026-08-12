@@ -164,8 +164,8 @@ public class AshPostingsListWriter {
         // Each field is packed into a byte[] and written with a single writeBytes() call
         // rather than per-element writeShort/writeInt loops.
         final byte[] blockCodesBuf = new byte[BULK_SIZE * packedCodeBytes];
-        final byte[] blockScalesBuf = new byte[BULK_SIZE * Short.BYTES];
-        final byte[] blockOffsetsBuf = new byte[BULK_SIZE * Short.BYTES];
+        final byte[] blockScalesBuf = new byte[BULK_SIZE * Float.BYTES];
+        final byte[] blockOffsetsBuf = new byte[BULK_SIZE * Float.BYTES];
         final byte[] blockDocSumsBuf = new byte[BULK_SIZE * Integer.BYTES];
         // EUCLIDEAN-only per-vector fields (Appendix A, Eq. A.2)
         final boolean isEuclidean = similarityFunction == VectorSimilarityFunction.EUCLIDEAN;
@@ -217,8 +217,8 @@ public class AshPostingsListWriter {
                     AsymmetricHashingQuantizer.EncodedVector enc = ashQuantizer.encode(vectors[vectorOrd], centroid, wT, precomputed);
                     byte[] vectorPacked = AsymmetricHashingScorer.pack(enc.xEnc(), bitsPerDim);
                     System.arraycopy(vectorPacked, 0, blockCodesBuf, j * packedCodeBytes, packedCodeBytes);
-                    BitUtil.VH_LE_SHORT.set(blockScalesBuf, j * Short.BYTES, Float.floatToFloat16(enc.scale()));
-                    BitUtil.VH_LE_SHORT.set(blockOffsetsBuf, j * Short.BYTES, Float.floatToFloat16(enc.offset()));
+                    BitUtil.VH_LE_INT.set(blockScalesBuf, j * Float.BYTES, Float.floatToIntBits(enc.scale()));
+                    BitUtil.VH_LE_INT.set(blockOffsetsBuf, j * Float.BYTES, Float.floatToIntBits(enc.offset()));
                     // Compute docSum: sum of unsigned code values directly from the centered float codes
                     int docSum = 0;
                     float[] xEnc = enc.xEnc();
@@ -244,9 +244,9 @@ public class AshPostingsListWriter {
                 // Write all packed codes contiguously
                 postingsOutput.writeBytes(blockCodesBuf, 0, blockSize * packedCodeBytes);
                 // Write all scales
-                postingsOutput.writeBytes(blockScalesBuf, 0, blockSize * Short.BYTES);
+                postingsOutput.writeBytes(blockScalesBuf, 0, blockSize * Float.BYTES);
                 // Write all offsets
-                postingsOutput.writeBytes(blockOffsetsBuf, 0, blockSize * Short.BYTES);
+                postingsOutput.writeBytes(blockOffsetsBuf, 0, blockSize * Float.BYTES);
                 // Write all docSums (sum of unsigned code values, for D2Q4 correction)
                 postingsOutput.writeBytes(blockDocSumsBuf, 0, blockSize * Integer.BYTES);
                 // EUCLIDEAN: write ⟨μ*,x⟩ and ‖x-μ*‖² per vector (Appendix A, Eq. A.2)

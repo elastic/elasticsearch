@@ -28,7 +28,7 @@ import static org.elasticsearch.simdvec.ES940OSQVectorsScorer.BULK_SIZE;
 /**
  * PostingVisitor for ASH-encoded posting lists.
  * <p>
- * Reads bit-packed codes with float16 scale/offset per vector and scores them
+ * Reads bit-packed codes with float32 scale/offset per vector and scores them
  * asymmetrically using the precomputed query transform. The on-disk format per block is:
  * <pre>
  *   [docIds][packed_codes × blockSize][scales × blockSize][offsets × blockSize][docSums × blockSize]
@@ -85,8 +85,8 @@ public class AshPostingsVisitor implements IVFVectorsReader.PostingVisitor {
     private final int[] offsetsScratch = new int[BULK_SIZE];
     private final float[] scores = new float[BULK_SIZE];
     private final byte[] bulkCodeBuf;
-    private final short[] bulkScalesF16 = new short[BULK_SIZE];
-    private final short[] bulkOffsetsF16 = new short[BULK_SIZE];
+    private final float[] bulkScales = new float[BULK_SIZE];
+    private final float[] bulkOffsets = new float[BULK_SIZE];
     private final int[] bulkDocSums = new int[BULK_SIZE];
     // EUCLIDEAN-only bulk buffers
     private final float[] bulkVecCentroidDots;
@@ -241,7 +241,7 @@ public class AshPostingsVisitor implements IVFVectorsReader.PostingVisitor {
         boolean isEuclidean = similarityFunction == VectorSimilarityFunction.EUCLIDEAN;
         if (docsToScore == 0) {
             // Skip the entire block: codes + scales + offsets + docSums (+ EUCLIDEAN fields)
-            long bytesToSkip = (long) blockSize * packedCodeBytes + (long) blockSize * Short.BYTES * 2 + (long) blockSize * Integer.BYTES;
+            long bytesToSkip = (long) blockSize * packedCodeBytes + (long) blockSize * Float.BYTES * 2 + (long) blockSize * Integer.BYTES;
             if (isEuclidean) {
                 bytesToSkip += (long) blockSize * Float.BYTES * 2;
             }
@@ -251,12 +251,8 @@ public class AshPostingsVisitor implements IVFVectorsReader.PostingVisitor {
 
         // Read structure-of-arrays: codes, scales, offsets, docSums
         indexInput.readBytes(bulkCodeBuf, 0, blockSize * packedCodeBytes);
-        for (int j = 0; j < blockSize; j++) {
-            bulkScalesF16[j] = indexInput.readShort();
-        }
-        for (int j = 0; j < blockSize; j++) {
-            bulkOffsetsF16[j] = indexInput.readShort();
-        }
+        indexInput.readFloats(bulkScales, 0, blockSize);
+        indexInput.readFloats(bulkOffsets, 0, blockSize);
         for (int j = 0; j < blockSize; j++) {
             bulkDocSums[j] = indexInput.readInt();
         }
@@ -274,8 +270,8 @@ public class AshPostingsVisitor implements IVFVectorsReader.PostingVisitor {
         float maxScore = Float.NEGATIVE_INFINITY;
         for (int j = 0; j < blockSize; j++) {
             if (docIdsScratch[j] != -1) {
-                float scale = Float.float16ToFloat(bulkScalesF16[j]);
-                float offset = Float.float16ToFloat(bulkOffsetsF16[j]);
+                float scale = bulkScales[j];
+                float offset = bulkOffsets[j];
                 // Compute approximate ⟨q,x⟩ via ASH (same for all similarity functions)
                 float approxDotProduct;
                 docConstants[AsymmetricHashingScorer.DC_SCALE] = scale;

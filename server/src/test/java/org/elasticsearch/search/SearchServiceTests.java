@@ -27,6 +27,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -89,6 +90,7 @@ import java.util.function.Predicate;
 import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.DIRECT_EXECUTOR_SERVICE;
 import static org.elasticsearch.search.SearchService.isExecutorQueuedBeyondPrewarmingFactor;
+import static org.elasticsearch.search.SearchService.isTransientRejection;
 import static org.elasticsearch.search.SearchService.wrapFailureListener;
 import static org.elasticsearch.search.SearchService.wrapListenerForErrorHandling;
 import static org.hamcrest.CoreMatchers.is;
@@ -369,6 +371,20 @@ public class SearchServiceTests extends IndexShardTestCase {
         expectThrows(RuntimeException.class, () -> wrapped.onFailure(cause));
         assertTrue("releasable must be closed even when cleanup throws", releasableClosed.get());
         assertSame("listener.onFailure must be called even when cleanup throws", cause, failure.get());
+    }
+
+    public void testIsTransientRejection() {
+        assertTrue(isTransientRejection(new EsRejectedExecutionException("rejected", false)));
+        assertFalse(isTransientRejection(new EsRejectedExecutionException("shutdown", true)));
+        assertFalse(isTransientRejection(new RuntimeException("other")));
+
+        Exception wrapped = new RuntimeException(new EsRejectedExecutionException("rejected", false));
+        assertTrue(isTransientRejection(wrapped));
+
+        // suppressed-only rejection must not retain (cause-chain unwrap only)
+        RuntimeException primary = new RuntimeException("primary");
+        primary.addSuppressed(new EsRejectedExecutionException("rejected", false));
+        assertFalse(isTransientRejection(primary));
     }
 
     public void testIsExecutorQueuedBeyondPrewarmingFactor() throws InterruptedException {

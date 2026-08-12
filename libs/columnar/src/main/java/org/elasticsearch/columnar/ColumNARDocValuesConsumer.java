@@ -20,9 +20,11 @@ import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.MergeState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOSupplier;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.columnar.numeric.ColumnarNumericBinaryDocValues;
@@ -32,6 +34,11 @@ import org.elasticsearch.columnar.numeric.NumericColumnWriter;
 import org.elasticsearch.columnar.numeric.NumericPipeline;
 import org.elasticsearch.columnar.numeric.NumericPipelineSelector;
 import org.elasticsearch.columnar.numeric.SkipIndexCodec;
+import org.elasticsearch.columnar.string.ColumnarStringBinaryDocValues;
+import org.elasticsearch.columnar.string.StringColumnMetadata;
+import org.elasticsearch.columnar.string.StringColumnValues;
+import org.elasticsearch.columnar.string.StringColumnWriter;
+import org.elasticsearch.columnar.string.StringDictionary;
 import org.elasticsearch.columnar.substrate.BlockBytesCodec;
 import org.elasticsearch.columnar.substrate.ColumnarCodecUtil;
 
@@ -55,7 +62,13 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
     private final int blockSize;
     private boolean closed = false;
 
-    private record FieldEntry(int fieldNumber, byte fieldTypeId, NumericColumnMetadata metadata) {}
+    /** A column's metadata, flushed to the meta stream on close. Both column types expose this shape. */
+    @FunctionalInterface
+    private interface MetadataWriter {
+        void writeTo(DataOutput out) throws IOException;
+    }
+
+    private record FieldEntry(int fieldNumber, byte fieldTypeId, MetadataWriter metadata) {}
 
     ColumNARDocValuesConsumer(SegmentWriteState state, NumericPipelineSelector pipelineSelector, int blockSize) throws IOException {
         this.pipelineSelector = pipelineSelector;
@@ -94,7 +107,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
         if (type.isNumeric()) {
             writeNumericColumn(field, type, () -> ColumnarNumericBinaryDocValues.decodePayloads(valuesProducer.getBinary(field)));
         } else {
-            throw new UnsupportedOperationException("ColumNAR field type [" + type + "] is not implemented yet");
+            writeStringColumn(field, type, () -> ColumnarStringBinaryDocValues.decodePayloads(valuesProducer.getBinary(field)));
         }
     }
 
@@ -107,10 +120,11 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
     @Override
     public void mergeBinaryField(FieldInfo field, MergeState mergeState) throws IOException {
         ColumnarFieldType type = ColumnarFieldType.fromField(field);
-        if (type.isNumeric() == false) {
-            throw new UnsupportedOperationException("ColumNAR field type [" + type + "] is not implemented yet");
+        if (type.isNumeric()) {
+            writeNumericColumn(field, type, () -> mergeCursor(field, mergeState));
+        } else {
+            writeStringColumn(field, type, () -> stringMergeCursor(field, mergeState));
         }
-        writeNumericColumn(field, type, () -> mergeCursor(field, mergeState));
     }
 
     private static NumericColumnValues mergeCursor(FieldInfo field, MergeState mergeState) throws IOException {
@@ -191,6 +205,89 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
         }
     }
 
+    /**
+     * The string counterpart of {@link #mergeCursor}: reads each source segment's values in bulk off disk via
+     * {@link ColumnarStringBinaryDocValues#directValues}, in merged doc order. A fresh cursor is built per pass
+     * — count plus cardinality probe, iterator, then values.
+     */
+    private static StringColumnValues stringMergeCursor(FieldInfo field, MergeState mergeState) throws IOException {
+        List<StringMergeSub> subs = new ArrayList<>();
+        long cost = 0;
+        for (int i = 0; i < mergeState.docValuesProducers.length; i++) {
+            DocValuesProducer producer = mergeState.docValuesProducers[i];
+            if (producer == null) {
+                continue;
+            }
+            FieldInfo readerField = mergeState.fieldInfos[i].fieldInfo(field.name);
+            if (readerField == null || readerField.getDocValuesType() != DocValuesType.BINARY) {
+                continue;
+            }
+            BinaryDocValues binary = producer.getBinary(readerField);
+            if (binary == null) {
+                continue;
+            }
+            // Read decoded values directly for our own columns; fall back to the payload for anything else.
+            StringColumnValues values = binary instanceof ColumnarStringBinaryDocValues columnar
+                ? columnar.directValues()
+                : ColumnarStringBinaryDocValues.decodePayloads(binary);
+            cost += values.cost();
+            subs.add(new StringMergeSub(mergeState.docMaps[i], values));
+        }
+
+        DocIDMerger<StringMergeSub> merger = DocIDMerger.of(subs, mergeState.needsIndexSort);
+        long finalCost = cost;
+        return new StringColumnValues() {
+            private StringMergeSub current;
+            private int docID = -1;
+
+            @Override
+            public int docID() {
+                return docID;
+            }
+
+            @Override
+            public int nextDoc() throws IOException {
+                current = merger.next();
+                docID = current == null ? DocIdSetIterator.NO_MORE_DOCS : current.mappedDocID;
+                return docID;
+            }
+
+            @Override
+            public int valueCount() {
+                return current.values.valueCount();
+            }
+
+            @Override
+            public BytesRef nextValue() throws IOException {
+                return current.values.nextValue();
+            }
+
+            @Override
+            public int advance(int target) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public long cost() {
+                return finalCost;
+            }
+        };
+    }
+
+    private static final class StringMergeSub extends DocIDMerger.Sub {
+        private final StringColumnValues values;
+
+        StringMergeSub(MergeState.DocMap docMap, StringColumnValues values) {
+            super(docMap);
+            this.values = values;
+        }
+
+        @Override
+        public int nextDoc() throws IOException {
+            return values.nextDoc();
+        }
+    }
+
     private void writeNumericColumn(FieldInfo field, ColumnarFieldType type, IOSupplier<NumericColumnValues> cursors) throws IOException {
         // Count in one pass, then stream the values block by block from fresh cursors — never buffer
         // the whole field on-heap, so a large merge stays memory-bounded.
@@ -219,7 +316,47 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             context,
             data
         );
-        fields.add(new FieldEntry(field.number, type.id(), metadata));
+        fields.add(new FieldEntry(field.number, type.id(), metadata::writeTo));
+    }
+
+    /**
+     * Counts the column and probes its cardinality in one pass, then streams the values block by block from
+     * fresh cursors — never buffering the whole field on-heap. The probe decides the layout: a column whose
+     * distinct values fit {@link StringDictionary#MAX_SIZE} is written as a per-segment dictionary plus an
+     * ordinal stream, and anything wider stores its values directly.
+     */
+    private void writeStringColumn(FieldInfo field, ColumnarFieldType type, IOSupplier<StringColumnValues> cursors) throws IOException {
+        int numDocsWithField = 0;
+        int numValues = 0;
+        StringDictionary.Builder dictionaryBuilder = new StringDictionary.Builder();
+        StringColumnValues counter = cursors.get();
+        for (int doc = counter.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = counter.nextDoc()) {
+            numDocsWithField++;
+            int count = counter.valueCount();
+            if (count != 1) {
+                throw new UnsupportedOperationException(
+                    "ColumNAR string columns are single-valued; document [" + doc + "] of field [" + field.name + "] has " + count
+                );
+            }
+            numValues += count;
+            for (int i = 0; i < count; i++) {
+                dictionaryBuilder.add(counter.nextValue());
+            }
+        }
+
+        StringColumnMetadata metadata = StringColumnWriter.write(
+            maxDoc,
+            numDocsWithField,
+            numValues,
+            cursors,
+            dictionaryBuilder.build(),
+            blockSize,
+            BlockBytesCodec.forId(BlockBytesCodec.IDENTITY_ID),
+            directory,
+            context,
+            data
+        );
+        fields.add(new FieldEntry(field.number, type.id(), metadata::writeTo));
     }
 
     @Override

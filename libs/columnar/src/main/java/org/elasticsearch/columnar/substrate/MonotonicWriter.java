@@ -7,31 +7,44 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.columnar.numeric;
+package org.elasticsearch.columnar.substrate;
 
+import org.apache.lucene.store.ByteBuffersDataInput;
 import org.apache.lucene.store.ByteBuffersDataOutput;
+import org.apache.lucene.store.ByteBuffersIndexInput;
 import org.apache.lucene.store.ByteBuffersIndexOutput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.IOUtils;
+import org.apache.lucene.util.LongValues;
+import org.apache.lucene.util.packed.DirectMonotonicReader;
 import org.apache.lucene.util.packed.DirectMonotonicWriter;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.List;
 
 /**
- * Builds a {@code DirectMonotonic} table (block offsets, per-document value addresses) into a
- * temporary file, so the table never sits on the heap while it is being written. On {@link #finish}
- * the temporary data is copied into the column's data output and its small metadata is returned;
- * {@link #close} removes the temporary file.
+ * Builds a {@code DirectMonotonic} table (block offsets, per-document value addresses, dictionary term
+ * offsets) into a temporary file, so the table never sits on the heap while it is being written. On
+ * {@link #finish} the temporary data is copied into the column's data output and its small metadata is
+ * returned; {@link #close} removes the temporary file.
+ *
+ * <p>Type-agnostic: every column type addresses its blocks through one of these tables, so this lives in
+ * the substrate rather than beside any one column implementation. {@link #open} is the read-side
+ * counterpart, mapping a finished table back to a {@link LongValues} over the data input.
  */
-final class MonotonicWriter implements Closeable {
+public final class MonotonicWriter implements Closeable {
+
+    /** Monotonic block shift used by every ColumNAR offset table. Frozen: readers assume this value. */
+    public static final int BLOCK_SHIFT = 16;
 
     /** Location of a finished table in the data file, plus its {@code DirectMonotonic} metadata. */
-    record Table(long dataOffset, long dataLength, byte[] meta) {
-        static final Table NONE = new Table(0, 0, new byte[0]);
+    public record Table(long dataOffset, long dataLength, byte[] meta) {
+        public static final Table NONE = new Table(0, 0, new byte[0]);
     }
 
     private final Directory directory;
@@ -43,7 +56,7 @@ final class MonotonicWriter implements Closeable {
     private final DirectMonotonicWriter writer;
     private boolean dataClosed = false;
 
-    MonotonicWriter(Directory directory, IOContext context, String prefix, long numValues, int blockShift) throws IOException {
+    public MonotonicWriter(Directory directory, IOContext context, String prefix, long numValues, int blockShift) throws IOException {
         this.directory = directory;
         this.context = context;
         this.metaOut = new ByteBuffersIndexOutput(metaBuffer, "monotonic-meta", "monotonic-meta");
@@ -52,12 +65,12 @@ final class MonotonicWriter implements Closeable {
         this.writer = DirectMonotonicWriter.getInstance(metaOut, dataTemp, numValues, blockShift);
     }
 
-    void add(long value) throws IOException {
+    public void add(long value) throws IOException {
         writer.add(value);
     }
 
     /** Flushes the table, copies its data into {@code data}, and returns where it landed. */
-    Table finish(IndexOutput data) throws IOException {
+    public Table finish(IndexOutput data) throws IOException {
         writer.finish();
         metaOut.close();
         dataTemp.close();
@@ -67,6 +80,23 @@ final class MonotonicWriter implements Closeable {
             data.copyBytes(in, in.length());
         }
         return new Table(dataOffset, data.getFilePointer() - dataOffset, metaBuffer.toArrayCopy());
+    }
+
+    /**
+     * Reopens a table written by this class: {@code metaBytes} is the {@link Table#meta()} held in the
+     * column metadata, and the values themselves are read off-heap from {@code data}.
+     */
+    public static LongValues open(IndexInput data, byte[] metaBytes, long numEntries, long dataOffset, long dataLength) throws IOException {
+        DirectMonotonicReader.Meta tableMeta;
+        try (
+            IndexInput metaInput = new ByteBuffersIndexInput(
+                new ByteBuffersDataInput(List.of(ByteBuffer.wrap(metaBytes))),
+                "monotonic-meta"
+            )
+        ) {
+            tableMeta = DirectMonotonicReader.loadMeta(metaInput, numEntries, BLOCK_SHIFT);
+        }
+        return DirectMonotonicReader.getInstance(tableMeta, data.randomAccessSlice(dataOffset, dataLength));
     }
 
     @Override

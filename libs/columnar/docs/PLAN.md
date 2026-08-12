@@ -7,8 +7,10 @@ The direction, the decisions that constrain it, and the build order. Update as d
 - **Binary format.** One adaptive binary substrate under every field; served through ColumNAR's own
   range-query and block-loader APIs, not Lucene's typed shapes (those throw). No delegate.
 - **Type-tagged, open.** Every field is a `BINARY` field tagged with a `ColumnarFieldType`
-  (`columnar.type`). Numeric (`LONG`/`DOUBLE`) today; string and more slot in behind the same
-  attribute + framing.
+  (`columnar.type`). Numeric (`LONG`/`DOUBLE`) and `STRING` today; more slot in behind the same
+  attribute + framing. How a column encodes within its type (a numeric pipeline, or plain vs.
+  dictionary for a string) is internal to the column and recorded in its own metadata, never in the
+  type tag.
 - **Per-field encoding is the driver.** The integration picks the encoding from what it knows about
   the field (type, sorted, metric role). Keep the seam open.
 - **Ordinals are internal and per-segment.** A string column decides plain vs. ordinal per segment
@@ -37,6 +39,13 @@ The direction, the decisions that constrain it, and the build order. Update as d
 - Per-stage encode/decode JMH benchmarks (`EncodeBlockTransformBenchmark`,
   `DecodeBlockTransformBenchmark`) covering Delta, Offset, GCD, SplitDelta, ALP, and FOR
   across ten block shapes.
+- Adaptive keyword (string) column: `ColumnarFieldType.STRING` served at `getBinary` through
+  `ColumnarStringBinaryDocValues`. A per-segment cardinality probe picks the layout — `PLAIN`
+  (`[vint length][bytes]` per value) above the threshold, `DICTIONARY` (a capped, first-seen-order
+  terms dictionary plus one ordinal per value, ordinals encoded through
+  `NumericPipeline.defaultPipeline`) at or below it. `StringDictionary.MAX_SIZE` is 256, so an ordinal
+  fits 8 bits. Ordinals stay internal; only a segment that chose `DICTIONARY` carries a dictionary.
+  Dense and sparse; single-valued only (see Next). Ported from the original POC's dict-binary path.
 - Per-field pipeline selection: `NumericPipelineSelector` (`@FunctionalInterface`
   `select(fieldName, type) -> NumericPipelineTemplate`) injected into `ColumNARDocValuesFormat`
   at construction time alongside an explicit `blockSize`. The selector answers "which pipeline
@@ -51,12 +60,30 @@ The direction, the decisions that constrain it, and the build order. Update as d
 - **Server-side selector wiring**: implement a concrete `NumericPipelineSelector` in server that
   inspects `FieldType`, `IndexMode`, and `MetricType` to route each field to the correct pipeline
   factory, and wire it into `PerFieldFormatSupplier`.
-- **Adaptive keyword (string) column**: measure cardinality while writing a segment and pick the
-  layout per segment — **plain** (values stored directly) for high-cardinality segments, **ordinals**
-  (a per-segment terms dictionary + ordinal codes) for low-cardinality ones. Ordinals stay entirely
-  internal: the surface remains binary (`getBinary`), never `SortedSet`/ordinal shapes, and only the
-  segments that chose ordinals carry a dictionary. The cardinality threshold and dictionary layout are
-  the tuning knobs.
+- **String column follow-ups** — the initial column is a faithful port of the POC's dict-binary path;
+  each of these was deliberately left out to keep that port reviewable, and each is an open question on
+  the porting PR rather than a settled decision:
+  1. **Multi-valued string columns**: single-valued only today (the writer rejects a document with more
+     than one value). The substrate already supplies presence and a value-address table, so this mirrors
+     what `NumericColumnWriter` does; note `ColumnarStringBinaryDocValues.binaryValue` currently relies
+     on one reused `BytesRef` per document and has to copy once several ordinals are collected.
+  2. **Sorted terms dictionary**: terms are stored in first-seen order, so an ordinal carries no
+     ordering. Sorting the (capped, therefore cheap to sort) dictionary would make ordinals
+     order-preserving, which is what a string range/prefix query and sort-by-ordinal would need to reuse
+     the existing min/max skip index. Changes the on-disk layout, so it wants deciding before the format
+     ships.
+  3. **Cardinality policy**: the probe accepts a dictionary purely on distinct count
+     (`StringDictionary.MAX_SIZE`, 256) with no ratio guard, so a small column whose values are nearly
+     all distinct still pays for a dictionary that cannot pay for itself. A ratio guard
+     (`distinct * 2 <= numValues`) and a larger cap are both worth measuring — the cap and the
+     dictionary layout are the tuning knobs.
+  4. **Skip index and a string range query**: the string column writes no skip index, so there is no
+     `ColumnarStringRangeQuery` counterpart yet. Depends on (2).
+  5. **Ordinal pipeline selection**: the ordinal stream is hardcoded to
+     `NumericPipeline.defaultPipeline`. Routing it through `NumericPipelineSelector`, or giving it a
+     dedicated ordinal pipeline, is untested either way. `NumericBlockEncoder.encodeOrdinals` /
+     `decodeOrdinals` (the run / two-run / cycle / bit-packed codec) is present but unused and is the
+     obvious candidate to measure against.
 - **Block compression via native Zstd**: add Zstd as the last encoder in the block pipeline (its own
   frozen id, applied after the terminal, so it stays additive and BWC), backed by
   `org.elasticsearch.nativeaccess.Zstd` rather than a Java LZ4. Most useful on the low-entropy stages

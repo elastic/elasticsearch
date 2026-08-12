@@ -20,7 +20,9 @@ Every field is a `BinaryDocValues` field tagged with a `ColumnarFieldType` (the 
   - `binaryValue()` — re-emits the payload for a classic binary consumer.
 - **`STRING` (keyword)** — an adaptive per-segment column: plain bytes, or an internal terms
   dictionary + ordinals, chosen from that segment's cardinality. Ordinals never surface (the read API
-  stays binary) and a segment carries a dictionary only if it picked ordinals. Not built yet.
+  stays binary) and a segment carries a dictionary only if it picked ordinals. Read back through
+  `binaryValue()`, which re-emits the values as a `StringBinaryPayload`. Single-valued for now
+  (a document with more than one value is rejected at write time).
 
 The typed shapes (`Numeric`, `SortedNumeric`, `Sorted`, `SortedSet`) are **not** this library's
 surface: they throw. There is no delegate format — a type it can't handle is an error. A typed view,
@@ -54,6 +56,12 @@ reuse or renumber an id.
   reordered) in configurable fixed-size blocks (default 128), a block offset table, and — only when multi-valued — a
   per-document value-address table. A block decodes whole into a reused buffer with a single-block
   cache; the range and bulk paths read straight out of it.
+- **String column.** The same shape, with the per-segment layout choice on top: a
+  `StringColumnLayout.PLAIN` block stores `[vint length][bytes]` per value, while a
+  `DICTIONARY` block stores one ordinal per value and the segment carries a capped terms
+  dictionary (`StringDictionary.MAX_SIZE`, in first-seen order). The ordinal stream runs through the
+  numeric pipeline, so repeated and sequential ordinal runs collapse through the existing
+  delta/offset/GCD detection rather than a string-specific encoder. No skip index yet.
 - **Skip index.** Range pushdown lives inside the column (a `BINARY` field can't carry a Lucene
   skipper): a multi-level per-interval min/max index the range query consults.
 

@@ -26,6 +26,9 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.columnar.numeric.ColumnarNumericBinaryDocValues;
 import org.elasticsearch.columnar.numeric.NumericColumnMetadata;
 import org.elasticsearch.columnar.numeric.NumericColumnReader;
+import org.elasticsearch.columnar.string.ColumnarStringBinaryDocValues;
+import org.elasticsearch.columnar.string.StringColumnMetadata;
+import org.elasticsearch.columnar.string.StringColumnReader;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
 import org.elasticsearch.columnar.substrate.ColumnarCodecUtil;
 
@@ -45,8 +48,8 @@ final class ColumNARDocValuesProducer extends DocValuesProducer {
     private final Map<Integer, Column> columns = new HashMap<>();
     private boolean closed = false;
 
-    /** A read-side column: its declared type and the metadata needed to open it. */
-    private record Column(ColumnarFieldType type, NumericColumnMetadata numeric) {}
+    /** A read-side column: its declared type and the metadata needed to open it; exactly one is set. */
+    private record Column(ColumnarFieldType type, NumericColumnMetadata numeric, StringColumnMetadata string) {}
 
     ColumNARDocValuesProducer(SegmentReadState state) throws IOException {
         this.maxDoc = state.segmentInfo.maxDoc();
@@ -90,8 +93,8 @@ final class ColumNARDocValuesProducer extends DocValuesProducer {
 
     private Column readColumn(ColumnarFieldType type, ChecksumIndexInput meta) throws IOException {
         return switch (type) {
-            case LONG, DOUBLE -> new Column(type, NumericColumnMetadata.readFrom(meta, maxDoc));
-            case STRING -> throw new UnsupportedOperationException("ColumNAR [" + type + "] column is not implemented yet");
+            case LONG, DOUBLE -> new Column(type, NumericColumnMetadata.readFrom(meta, maxDoc), null);
+            case STRING -> new Column(type, null, StringColumnMetadata.readFrom(meta, maxDoc));
         };
     }
 
@@ -103,8 +106,13 @@ final class ColumNARDocValuesProducer extends DocValuesProducer {
         }
         return switch (column.type()) {
             case LONG, DOUBLE -> numericBinary(column.numeric());
-            case STRING -> throw new UnsupportedOperationException("ColumNAR [" + column.type() + "] column is not implemented yet");
+            case STRING -> stringBinary(column.string());
         };
+    }
+
+    private BinaryDocValues stringBinary(StringColumnMetadata metadata) throws IOException {
+        StringColumnReader reader = new StringColumnReader(metadata, data);
+        return new ColumnarStringBinaryDocValues(reader, reader.iterator());
     }
 
     private BinaryDocValues numericBinary(NumericColumnMetadata metadata) throws IOException {

@@ -9,19 +9,15 @@
 
 package org.elasticsearch.columnar.numeric;
 
-import org.apache.lucene.store.ByteBuffersDataInput;
-import org.apache.lucene.store.ByteBuffersIndexInput;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.LongValues;
-import org.apache.lucene.util.packed.DirectMonotonicReader;
 import org.elasticsearch.columnar.substrate.BlockBytesCodec;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
 import org.elasticsearch.columnar.substrate.ColumnIteratorReader;
+import org.elasticsearch.columnar.substrate.MonotonicWriter;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.List;
 
 /**
  * Reads a numeric column written by {@link NumericColumnWriter}, single- or multi-valued.
@@ -59,7 +55,7 @@ public final class NumericColumnReader {
             this.blockBuffer = new long[0];
             return;
         }
-        this.blockOffsets = monotonic(
+        this.blockOffsets = MonotonicWriter.open(
             data,
             meta.blockOffsetsMeta(),
             meta.numBlocks() + 1L,
@@ -67,7 +63,7 @@ public final class NumericColumnReader {
             meta.blockOffsetsDataLength()
         );
         this.valueAddresses = meta.multiValued()
-            ? monotonic(
+            ? MonotonicWriter.open(
                 data,
                 meta.valueAddressesMeta(),
                 meta.numDocsWithField() + 1L,
@@ -135,19 +131,5 @@ public final class NumericColumnReader {
         int valueCount = Math.min(meta.blockSize(), meta.numValues() - block * meta.blockSize());
         encoder.decode(blockData, valueCount, blockBuffer);
         cachedBlock = block;
-    }
-
-    private static LongValues monotonic(IndexInput data, byte[] metaBytes, long numEntries, long dataOffset, long dataLength)
-        throws IOException {
-        DirectMonotonicReader.Meta tableMeta;
-        try (
-            IndexInput metaInput = new ByteBuffersIndexInput(
-                new ByteBuffersDataInput(List.of(ByteBuffer.wrap(metaBytes))),
-                "monotonic-meta"
-            )
-        ) {
-            tableMeta = DirectMonotonicReader.loadMeta(metaInput, numEntries, NumericColumnWriter.DIRECT_MONOTONIC_BLOCK_SHIFT);
-        }
-        return DirectMonotonicReader.getInstance(tableMeta, data.randomAccessSlice(dataOffset, dataLength));
     }
 }

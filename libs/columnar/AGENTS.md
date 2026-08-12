@@ -9,8 +9,11 @@ Read `README.md` for the architecture first, then this. It covers what is expens
    delegate format — an unsupported type is an error, not a fallback.
 
 2. **Type-tagged and open.** Every field carries a `ColumnarFieldType` (`columnar.type` attribute).
-   `LONG`/`DOUBLE` are the numeric column today; new types (`STRING`, …) slot in by extending
-   the write dispatch (consumer) and read dispatch (producer) — the field framing is generic.
+   `LONG`/`DOUBLE` are the numeric column and `STRING` is the string column; further types slot in by
+   extending the write dispatch (consumer) and read dispatch (producer) — the field framing is generic.
+   The type tag names the *logical* type only. How a column encodes within that type — a numeric
+   pipeline, or `PLAIN` vs. `DICTIONARY` for a string — is internal to the column and lives in its own
+   metadata; never widen the type enum to express an encoding choice.
 
 3. **The integration chooses the encoding.** Encoding is a per-field decision driven by what the
    integration knows (type, sorted, metric role). Keep that seam open; don't hard-wire one pipeline.
@@ -20,7 +23,10 @@ Read `README.md` for the architecture first, then this. It covers what is expens
 
 5. **Never hold a column on the heap.** Read, write and merge stream one block at a time. Offset
    tables use `DirectMonotonic` (temp file on write, mapped slice on read); presence uses
-   `IndexedDISI`. Only bounded metadata and one decode block stay in memory.
+   `IndexedDISI`. Only bounded metadata and one decode block stay in memory. A string column's terms
+   dictionary is bounded metadata — it is capped at `StringDictionary.MAX_SIZE` and a segment that
+   exceeds the cap carries none at all, which is exactly what keeps it heap-safe. Raising that cap is a
+   heap decision, not just a compression one.
 
 ## Encoders
 

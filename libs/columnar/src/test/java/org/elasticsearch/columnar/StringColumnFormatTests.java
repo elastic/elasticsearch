@@ -1,0 +1,221 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.columnar;
+
+import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.codecs.DocValuesFormat;
+import org.apache.lucene.codecs.FilterCodec;
+import org.apache.lucene.codecs.perfield.PerFieldDocValuesFormat;
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.StringField;
+import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LogDocMergePolicy;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.util.TestUtil;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.columnar.string.StringBinaryPayload;
+import org.elasticsearch.columnar.string.StringDictionary;
+import org.elasticsearch.test.ESTestCase;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * Drives string columns through the real Lucene write path — {@link IndexWriter}, several segments, deletions,
+ * then a force-merge — so both the ingest path (payloads from the mapper) and the merge path (values read in
+ * bulk off a source segment via the column's own reader) are exercised end to end at the {@code BINARY}
+ * surface.
+ *
+ * <p>Run at both ends of the cardinality range, because the two {@code StringColumnLayout}s take different code
+ * paths through the writer and reader, and a merge can also change which layout a segment picks.
+ */
+public class StringColumnFormatTests extends ESTestCase {
+
+    private static final String FIELD = "keyword";
+    private static final String ID = "id";
+
+    /** Few distinct values, so every segment picks the dictionary layout. */
+    public void testLowCardinalityRoundTripAndMerge() throws IOException {
+        String[] terms = { "nginx", "apache", "kafka", "elasticsearch", "" };
+        assertRoundTripAndMerge(numDocs -> {
+            String[] values = new String[numDocs];
+            for (int d = 0; d < numDocs; d++) {
+                values[d] = randomFrom(terms);
+            }
+            return values;
+        });
+    }
+
+    /** Every value distinct, so the probe overflows and values are stored directly. */
+    public void testHighCardinalityRoundTripAndMerge() throws IOException {
+        assertRoundTripAndMerge(numDocs -> {
+            String[] values = new String[numDocs];
+            for (int d = 0; d < numDocs; d++) {
+                values[d] = "term-" + d + "-" + randomAlphaOfLength(between(1, 20));
+            }
+            return values;
+        });
+    }
+
+    /**
+     * Values that stay under the cap per segment but exceed it once merged, so the merged segment must switch
+     * from the dictionary layout to the plain one.
+     */
+    public void testCardinalityGrowsPastCapOnMerge() throws IOException {
+        final int numDocs = StringDictionary.MAX_SIZE * 3;
+        final String[] values = new String[numDocs];
+        for (int d = 0; d < numDocs; d++) {
+            values[d] = "term-" + d;
+        }
+        final FieldType type = stringFieldType();
+
+        try (Directory dir = newDirectory()) {
+            final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(columnarCodec()).setMergePolicy(new LogDocMergePolicy());
+            final BytesRefBuilder builder = new BytesRefBuilder();
+            try (IndexWriter writer = new IndexWriter(dir, iwc)) {
+                for (int d = 0; d < numDocs; d++) {
+                    final Document doc = new Document();
+                    doc.add(new Field(FIELD, BytesRef.deepCopyOf(encode(values[d], builder)), type));
+                    writer.addDocument(doc);
+                    // Commit often enough that each segment stays under the dictionary cap on its own.
+                    if ((d + 1) % (StringDictionary.MAX_SIZE / 2) == 0) {
+                        writer.commit();
+                    }
+                }
+                writer.forceMerge(1);
+            }
+
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                assertEquals("force-merged to one segment", 1, reader.leaves().size());
+                assertEquals(List.of(values), readValues(reader.leaves().get(0).reader()));
+            }
+        }
+    }
+
+    private interface ValueGenerator {
+        String[] generate(int numDocs);
+    }
+
+    private void assertRoundTripAndMerge(ValueGenerator generator) throws IOException {
+        for (int iter = 0; iter < 4; iter++) {
+            final int numDocs = between(200, 3000);
+            final String[] values = generator.generate(numDocs);
+            final boolean[] deleted = new boolean[numDocs];
+            final FieldType type = stringFieldType();
+
+            try (Directory dir = newDirectory()) {
+                // LogDocMergePolicy merges adjacent segments, so the merged order stays insertion order and the
+                // ordered check below also verifies per-document association.
+                final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(columnarCodec()).setMergePolicy(new LogDocMergePolicy());
+                final BytesRefBuilder builder = new BytesRefBuilder();
+                final int batch = Math.max(1, numDocs / between(2, 6));
+                try (IndexWriter writer = new IndexWriter(dir, iwc)) {
+                    for (int d = 0; d < numDocs; d++) {
+                        final Document doc = new Document();
+                        doc.add(new StringField(ID, Integer.toString(d), Field.Store.NO));
+                        doc.add(new Field(FIELD, BytesRef.deepCopyOf(encode(values[d], builder)), type));
+                        writer.addDocument(doc);
+                        if ((d + 1) % batch == 0) {
+                            writer.commit(); // force a segment boundary so the merge has real work
+                        }
+                    }
+
+                    // Read the values back before merging, so the per-segment ingest path is checked too.
+                    try (DirectoryReader reader = DirectoryReader.open(writer)) {
+                        final List<String> actual = new ArrayList<>();
+                        for (var leaf : reader.leaves()) {
+                            actual.addAll(readValues(leaf.reader()));
+                        }
+                        assertEquals("values before merge", List.of(values), actual);
+                    }
+
+                    for (int d = 0; d < numDocs; d++) {
+                        if (random().nextInt(6) == 0) {
+                            writer.deleteDocuments(new Term(ID, Integer.toString(d)));
+                            deleted[d] = true;
+                        }
+                    }
+                    writer.forceMerge(1);
+                }
+
+                final List<String> expected = new ArrayList<>();
+                for (int d = 0; d < numDocs; d++) {
+                    if (deleted[d] == false) {
+                        expected.add(values[d]);
+                    }
+                }
+
+                try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                    assertEquals("force-merged to one segment", 1, reader.leaves().size());
+                    assertEquals(
+                        "merged column holds the surviving values in order",
+                        expected,
+                        readValues(reader.leaves().get(0).reader())
+                    );
+                }
+            }
+        }
+    }
+
+    /** Every document's values, in doc order, decoded from the payloads the column re-emits. */
+    private static List<String> readValues(LeafReader leaf) throws IOException {
+        final BinaryDocValues dv = leaf.getBinaryDocValues(FIELD);
+        final StringBinaryPayload.Reader payloadReader = new StringBinaryPayload.Reader();
+        final List<String> actual = new ArrayList<>();
+        for (int doc = dv.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = dv.nextDoc()) {
+            final int count = payloadReader.reset(dv.binaryValue());
+            for (int i = 0; i < count; i++) {
+                actual.add(payloadReader.next().utf8ToString());
+            }
+        }
+        return actual;
+    }
+
+    private static BytesRef encode(String value, BytesRefBuilder builder) {
+        return StringBinaryPayload.encode(new BytesRef[] { new BytesRef(value) }, 1, builder);
+    }
+
+    private static FieldType stringFieldType() {
+        final FieldType type = new FieldType();
+        type.setDocValuesType(DocValuesType.BINARY);
+        type.putAttribute(ColumNARDocValuesFormat.TYPE_ATTRIBUTE, ColumnarFieldType.STRING.name());
+        type.freeze();
+        return type;
+    }
+
+    private static Codec columnarCodec() {
+        final DocValuesFormat columnar = new ColumNARDocValuesFormat();
+        final Codec base = TestUtil.getDefaultCodec();
+        return new FilterCodec(base.getName(), base) {
+            private final DocValuesFormat perField = new PerFieldDocValuesFormat() {
+                @Override
+                public DocValuesFormat getDocValuesFormatForField(String field) {
+                    return FIELD.equals(field) ? columnar : base.docValuesFormat();
+                }
+            };
+
+            @Override
+            public DocValuesFormat docValuesFormat() {
+                return perField;
+            }
+        };
+    }
+}

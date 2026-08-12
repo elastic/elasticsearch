@@ -14,6 +14,7 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.engine.Engine;
@@ -50,14 +51,18 @@ public final class ShardBatchIndexer {
     // Maximum number of operations to parse and index in a single pass to bound memory usage.
     static final int BATCH_CHUNK_SIZE = 5000;
 
-    private ShardBatchIndexer() {}
+    private final boolean batchIndexingEnabled;
+
+    ShardBatchIndexer(Settings settings) {
+        this.batchIndexingEnabled = BATCH_INDEXING.get(settings);
+    }
 
     /**
      * Checks whether the batch indexing path can be used for this request.
      * Returns true if batch indexing is enabled, an EIRF batch is present, synthetic source is active,
      * and all operations are index/create (no deletes, no updates).
      */
-    public static boolean canUseBatchIndexing(BulkShardRequest request, boolean batchIndexingEnabled) {
+    public boolean canUseBatchIndexing(BulkShardRequest request) {
         if (batchIndexingEnabled == false) {
             return false;
         }
@@ -76,7 +81,7 @@ public final class ShardBatchIndexer {
     /**
      * Attempts batch indexing on primary using the columnar mapper pipeline.
      */
-    static void performBatchIndexOnPrimary(
+    void performBatchIndexOnPrimary(
         final BulkItemRequest[] items,
         final SourceBatch batch,
         final BulkPrimaryExecutionContext context,
@@ -88,7 +93,7 @@ public final class ShardBatchIndexer {
         });
     }
 
-    private static void doBatchIndexOnPrimary(
+    private void doBatchIndexOnPrimary(
         final BulkItemRequest[] items,
         final SourceBatch batch,
         final IndexShard primary,
@@ -150,7 +155,7 @@ public final class ShardBatchIndexer {
      * <p>Within each chunk, a failed or NOOP primary response also ends the contiguous valid run; those
      * items and any remainder fall back to sequential processing via the returned {@code processedItems}.
      */
-    static ReplicaBatchResult performBatchIndexOnReplica(BulkItemRequest[] items, SourceBatch batch, IndexShard replica) throws Exception {
+    ReplicaBatchResult performBatchIndexOnReplica(BulkItemRequest[] items, SourceBatch batch, IndexShard replica) throws Exception {
         final ShardBatchMapper.BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(
             batch.schema(),
             replica.mapperService().mappingLookup(),

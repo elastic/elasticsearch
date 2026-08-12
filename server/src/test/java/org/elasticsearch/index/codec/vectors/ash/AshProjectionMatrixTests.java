@@ -67,7 +67,7 @@ public class AshProjectionMatrixTests extends ESTestCase {
 
         assertEquals(originalDim, restored.originalDim());
         assertEquals(nDims, restored.nDims());
-        assertMatrixEquals(w, restored.w());
+        assertArrayEquals(w, restored.w(), 0f);
     }
 
     public void testByteSizeMatchesActualSerialized() throws IOException {
@@ -111,12 +111,5 @@ public class AshProjectionMatrixTests extends ESTestCase {
             m[i] = (float) random().nextGaussian();
         }
         return m;
-    }
-
-    private void assertMatrixEquals(float[] expected, float[] actual) {
-        assertEquals(expected.length, actual.length);
-        for (int i = 0; i < expected.length; i++) {
-            assertEquals(expected[i], actual[i], 0f);
-        }
     }
 }

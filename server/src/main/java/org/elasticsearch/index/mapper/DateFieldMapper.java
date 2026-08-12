@@ -522,13 +522,13 @@ public final class DateFieldMapper extends FieldMapper {
         }
     }
 
-    public static final TypeParser MILLIS_PARSER = createTypeParserWithLegacySupport((n, c) -> {
-        return new Builder(n, Resolution.MILLISECONDS, c.getDateFormatter(), c.scriptCompiler(), c.getIndexSettings());
-    });
+    public static final TypeParser MILLIS_PARSER = createTypeParserWithLegacySupport(
+        (n, c) -> new Builder(n, Resolution.MILLISECONDS, c.getDateFormatter(), c.scriptCompiler(), c.getIndexSettings())
+    );
 
-    public static final TypeParser NANOS_PARSER = createTypeParserWithLegacySupport((n, c) -> {
-        return new Builder(n, Resolution.NANOSECONDS, c.getDateFormatter(), c.scriptCompiler(), c.getIndexSettings());
-    });
+    public static final TypeParser NANOS_PARSER = createTypeParserWithLegacySupport(
+        (n, c) -> new Builder(n, Resolution.NANOSECONDS, c.getDateFormatter(), c.scriptCompiler(), c.getIndexSettings())
+    );
 
     public static final class DateFieldType extends MappedFieldType {
         final DateFormatter dateTimeFormatter;
@@ -928,7 +928,7 @@ public final class DateFieldMapper extends FieldMapper {
                 long minValue = Long.MAX_VALUE;
                 long maxValue = Long.MIN_VALUE;
                 List<LeafReaderContext> leaves = reader.leaves();
-                if (leaves.size() == 0) {
+                if (leaves.isEmpty()) {
                     // no data, so nothing matches
                     return Relation.DISJOINT;
                 }

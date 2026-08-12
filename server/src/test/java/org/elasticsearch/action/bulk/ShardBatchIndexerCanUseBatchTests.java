@@ -22,6 +22,7 @@ import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -43,7 +44,10 @@ public class ShardBatchIndexerCanUseBatchTests extends ESTestCase {
                 ShardBatchIndexer.BATCH_INDEXING_FEATURE_FLAG.isEnabled()
             );
         }
-        return new ShardBatchIndexer(Settings.builder().put(ShardBatchIndexer.BATCH_INDEXING.getKey(), enabled).build());
+        return new ShardBatchIndexer(
+            Settings.builder().put(ShardBatchIndexer.BATCH_INDEXING.getKey(), enabled).build(),
+            BytesRefRecycler.NON_RECYCLING_INSTANCE
+        );
     }
 
     private static IndexRequest indexRequest(String id) {

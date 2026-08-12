@@ -131,48 +131,7 @@ public class AzureClientProviderTests extends ESTestCase {
         );
     }
 
-    private AzureStorageSettings createStorageSettings(String clientName, Settings.Builder builder) {
-        final MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString(Strings.format("azure.client.%s.account", clientName), "account");
-        secureSettings.setString(Strings.format("azure.client.%s.key", clientName), encodeKey("key"));
-
-        final Settings settings = builder.setSecureSettings(secureSettings).build();
-
-        Map<String, AzureStorageSettings> clientSettings = AzureStorageSettings.load(settings);
-        AzureStorageSettings storageSettings = clientSettings.get(clientName);
-        assertNotNull(storageSettings);
-        return storageSettings;
-    }
-
-    private AzureStorageSettings createStorageSettings(String clientName, int perClientMaxConnections) {
-        return createStorageSettings(
-            clientName,
-            Settings.builder().put(Strings.format("azure.client.%s.max_connections", clientName), perClientMaxConnections)
-        );
-    }
-
-    private AzureBlobServiceClient createClient(
-        AzureClientProvider clientProvider,
-        String clientName,
-        AzureStorageSettings storageSettings
-    ) {
-        return clientProvider.createClient(
-            null,
-            clientName,
-            storageSettings,
-            LocationMode.PRIMARY_ONLY,
-            new RequestRetryOptions(),
-            null,
-            NOOP_HANDLER,
-            randomFrom(OperationPurpose.values())
-        );
-    }
-
-    private AzureBlobServiceClient createClient(String clientName, AzureStorageSettings storageSettings) {
-        return createClient(azureClientProvider, clientName, storageSettings);
-    }
-
-    public void testFallBacksToDefaultMaxConnections() {
+    public void testFallsBackToDefaultMaxConnections() {
         final int defaultMaxConnections = randomIntBetween(1, 200);
         final String clientName = "azure";
         var storageSettings = createStorageSettings(
@@ -189,7 +148,7 @@ public class AzureClientProviderTests extends ESTestCase {
         );
     }
 
-    public void testUsesPerClientMaxConnections() {
+    public void testPerClientMaxConnectionsTakePrecedenceOverDefault() {
         final int defaultMaxConnections = randomIntBetween(1, 200);
         final int perClientMaxConnections = randomValueOtherThan(defaultMaxConnections, () -> randomIntBetween(1, 200));
         final String clientName = "azure";
@@ -351,5 +310,46 @@ public class AzureClientProviderTests extends ESTestCase {
 
     private static String encodeKey(final String value) {
         return Base64.getEncoder().encodeToString(value.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private AzureStorageSettings createStorageSettings(String clientName, Settings.Builder builder) {
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString(Strings.format("azure.client.%s.account", clientName), "account");
+        secureSettings.setString(Strings.format("azure.client.%s.key", clientName), encodeKey("key"));
+
+        final Settings settings = builder.setSecureSettings(secureSettings).build();
+
+        Map<String, AzureStorageSettings> clientSettings = AzureStorageSettings.load(settings);
+        AzureStorageSettings storageSettings = clientSettings.get(clientName);
+        assertNotNull(storageSettings);
+        return storageSettings;
+    }
+
+    private AzureStorageSettings createStorageSettings(String clientName, int perClientMaxConnections) {
+        return createStorageSettings(
+            clientName,
+            Settings.builder().put(Strings.format("azure.client.%s.max_connections", clientName), perClientMaxConnections)
+        );
+    }
+
+    private AzureBlobServiceClient createClient(
+        AzureClientProvider clientProvider,
+        String clientName,
+        AzureStorageSettings storageSettings
+    ) {
+        return clientProvider.createClient(
+            null,
+            clientName,
+            storageSettings,
+            LocationMode.PRIMARY_ONLY,
+            new RequestRetryOptions(),
+            null,
+            NOOP_HANDLER,
+            randomFrom(OperationPurpose.values())
+        );
+    }
+
+    private AzureBlobServiceClient createClient(String clientName, AzureStorageSettings storageSettings) {
+        return createClient(azureClientProvider, clientName, storageSettings);
     }
 }

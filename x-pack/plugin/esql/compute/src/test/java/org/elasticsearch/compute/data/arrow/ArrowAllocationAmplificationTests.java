@@ -47,7 +47,8 @@ public class ArrowAllocationAmplificationTests extends ESTestCase {
         long[] sizes = { 1_048_577L, 4_500_000L, 1_280_000L, 16_777_215L, 16_777_216L, 62_200_000L };
         for (long requestedBytes : sizes) {
             var breaker = new LimitedBreaker("test", ByteSizeValue.ofBytes(LARGE_LIMIT));
-            var blockFactory = new MockBlockFactory(BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker));
+            // Arrow allocations are charged to the native memory breaker, not the on-heap breaker.
+            var blockFactory = new MockBlockFactory(BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).nativeMemoryBreaker(breaker));
             ArrowBuf buf = blockFactory.arrowAllocator().buffer(requestedBytes);
             assertEquals(
                 "arrowAllocator() must charge exactly the requested bytes for size " + requestedBytes,

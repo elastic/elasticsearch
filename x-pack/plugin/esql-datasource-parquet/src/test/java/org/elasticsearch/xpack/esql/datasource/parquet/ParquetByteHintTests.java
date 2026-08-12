@@ -218,7 +218,13 @@ public class ParquetByteHintTests extends ESTestCase {
 
     private static BlockFactory factory(CountingBreaker breaker) {
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, breaker.service());
-        return BlockFactory.builder(bigArrays).breaker(new NoopCircuitBreaker("test-factory")).build();
+        // The counting breaker's service() returns the counter for every breaker name including
+        // NATIVE_MEMORY. Explicitly set a noop native breaker so the Arrow sliding window
+        // is not counted — only BigArrays keyword-byte reservations should appear in the count.
+        return BlockFactory.builder(bigArrays)
+            .breaker(new NoopCircuitBreaker("test-factory"))
+            .nativeMemoryBreaker(new NoopCircuitBreaker("test-factory-native"))
+            .build();
     }
 
     private static StorageObject storageObject(byte[] data) {

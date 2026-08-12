@@ -95,7 +95,7 @@ public class InferenceFunctionEvaluator {
             @Override
             public CircuitBreaker getBreaker(String name) {
                 if (name.equals(CircuitBreaker.REQUEST) == false) {
-                    throw new UnsupportedOperationException("Only REQUEST circuit breaker is supported");
+                    return null;
                 }
                 return breaker;
             }

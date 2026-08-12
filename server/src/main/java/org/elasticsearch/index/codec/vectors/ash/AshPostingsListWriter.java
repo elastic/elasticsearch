@@ -166,9 +166,7 @@ public class AshPostingsListWriter {
         final byte[] blockCodesBuf = new byte[BULK_SIZE * packedCodeBytes];
         final byte[] blockScalesBuf = new byte[BULK_SIZE * Short.BYTES];
         final byte[] blockOffsetsBuf = new byte[BULK_SIZE * Short.BYTES];
-        final boolean wideDocSum = bitsPerDim > 4;
-        final int docSumBytes = wideDocSum ? Integer.BYTES : Short.BYTES;
-        final byte[] blockDocSumsBuf = new byte[BULK_SIZE * docSumBytes];
+        final byte[] blockDocSumsBuf = new byte[BULK_SIZE * Integer.BYTES];
         // EUCLIDEAN-only per-vector fields (Appendix A, Eq. A.2)
         final boolean isEuclidean = similarityFunction == VectorSimilarityFunction.EUCLIDEAN;
         final byte[] blockVecCentroidDotsBuf = isEuclidean ? new byte[BULK_SIZE * Float.BYTES] : null;
@@ -227,11 +225,7 @@ public class AshPostingsListWriter {
                     for (int d = 0; d < nDims; d++) {
                         docSum += Math.round(xEnc[d] + centerOffset);
                     }
-                    if (wideDocSum) {
-                        BitUtil.VH_LE_INT.set(blockDocSumsBuf, j * Integer.BYTES, docSum);
-                    } else {
-                        BitUtil.VH_LE_SHORT.set(blockDocSumsBuf, j * Short.BYTES, (short) docSum);
-                    }
+                    BitUtil.VH_LE_INT.set(blockDocSumsBuf, j * Integer.BYTES, docSum);
                     // EUCLIDEAN: compute ⟨μ*,x⟩ and ‖x-μ*‖² from the original float vectors
                     if (isEuclidean) {
                         float[] vec = vectors[vectorOrd];
@@ -254,7 +248,7 @@ public class AshPostingsListWriter {
                 // Write all offsets
                 postingsOutput.writeBytes(blockOffsetsBuf, 0, blockSize * Short.BYTES);
                 // Write all docSums (sum of unsigned code values, for D2Q4 correction)
-                postingsOutput.writeBytes(blockDocSumsBuf, 0, blockSize * docSumBytes);
+                postingsOutput.writeBytes(blockDocSumsBuf, 0, blockSize * Integer.BYTES);
                 // EUCLIDEAN: write ⟨μ*,x⟩ and ‖x-μ*‖² per vector (Appendix A, Eq. A.2)
                 if (isEuclidean) {
                     postingsOutput.writeBytes(blockVecCentroidDotsBuf, 0, blockSize * Float.BYTES);

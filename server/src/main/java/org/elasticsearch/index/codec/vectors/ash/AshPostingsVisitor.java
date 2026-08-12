@@ -88,7 +88,6 @@ public class AshPostingsVisitor implements IVFVectorsReader.PostingVisitor {
     private final short[] bulkScalesF16 = new short[BULK_SIZE];
     private final short[] bulkOffsetsF16 = new short[BULK_SIZE];
     private final int[] bulkDocSums = new int[BULK_SIZE];
-    private final boolean wideDocSum;
     // EUCLIDEAN-only bulk buffers
     private final float[] bulkVecCentroidDots;
     private final float[] bulkVecCentroidSqDists;
@@ -134,7 +133,6 @@ public class AshPostingsVisitor implements IVFVectorsReader.PostingVisitor {
         this.queryBitsPerDim = queryBitsPerDim;
         this.query = query;
         this.centroidReader = centroidReader;
-        this.wideDocSum = bitsPerDim > 4;
 
         boolean isEuclidean = similarityFunction == VectorSimilarityFunction.EUCLIDEAN;
         this.bulkVecCentroidDots = isEuclidean ? new float[BULK_SIZE] : null;
@@ -243,8 +241,7 @@ public class AshPostingsVisitor implements IVFVectorsReader.PostingVisitor {
         boolean isEuclidean = similarityFunction == VectorSimilarityFunction.EUCLIDEAN;
         if (docsToScore == 0) {
             // Skip the entire block: codes + scales + offsets + docSums (+ EUCLIDEAN fields)
-            int docSumBytes = wideDocSum ? Integer.BYTES : Short.BYTES;
-            long bytesToSkip = (long) blockSize * packedCodeBytes + (long) blockSize * Short.BYTES * 2 + (long) blockSize * docSumBytes;
+            long bytesToSkip = (long) blockSize * packedCodeBytes + (long) blockSize * Short.BYTES * 2 + (long) blockSize * Integer.BYTES;
             if (isEuclidean) {
                 bytesToSkip += (long) blockSize * Float.BYTES * 2;
             }
@@ -261,7 +258,7 @@ public class AshPostingsVisitor implements IVFVectorsReader.PostingVisitor {
             bulkOffsetsF16[j] = indexInput.readShort();
         }
         for (int j = 0; j < blockSize; j++) {
-            bulkDocSums[j] = wideDocSum ? indexInput.readInt() : indexInput.readShort();
+            bulkDocSums[j] = indexInput.readInt();
         }
         // EUCLIDEAN: read ⟨μ*,x⟩ and ‖x-μ*‖² per vector (float32)
         if (isEuclidean) {

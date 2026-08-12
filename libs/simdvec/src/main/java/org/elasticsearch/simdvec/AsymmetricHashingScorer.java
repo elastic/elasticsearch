@@ -162,15 +162,19 @@ public final class AsymmetricHashingScorer {
     /** Length of the queryConstants array. */
     public static final int QC_LENGTH = 4;
 
-    // --- Per-vector correction layout (AoS: scale, offset, docSum interleaved per vector) ---
+    // --- Per-vector correction layout (AoS: all fields interleaved per vector) ---
     /** Byte offset of scale (float32) within a correction entry. */
     public static final int CORR_SCALE = 0;
     /** Byte offset of offset (float32) within a correction entry. */
     public static final int CORR_OFFSET = Float.BYTES;
     /** Byte offset of docSum (int32) within a correction entry. */
     public static final int CORR_DOC_SUM = 2 * Float.BYTES;
+    /** Byte offset of ⟨μ*,x⟩ (float32) within a correction entry (EUCLIDEAN; 0 otherwise). */
+    public static final int CORR_VEC_CENTROID_DOT = 3 * Float.BYTES;
+    /** Byte offset of ‖x-μ*‖² (float32) within a correction entry (EUCLIDEAN; 0 otherwise). */
+    public static final int CORR_VEC_CENTROID_SQ_DIST = 4 * Float.BYTES;
     /** Total bytes per correction entry. */
-    public static final int CORRECTION_BYTES = 3 * Float.BYTES;
+    public static final int CORRECTION_BYTES = 5 * Float.BYTES;
 
     /**
      * Scores a single database vector using integer arithmetic with a quantized query.

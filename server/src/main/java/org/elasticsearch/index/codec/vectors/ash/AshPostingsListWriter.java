@@ -161,13 +161,10 @@ public class AshPostingsListWriter {
         final int[] docDeltas = new int[maxPostingListSize];
         final int[] clusterOrds = new int[maxPostingListSize];
         // Pre-allocated bulk block byte buffers.
-        // Codes are written contiguously, then corrections in AoS layout (scale, offset, docSum per vector).
+        // Codes are written contiguously, then corrections in AoS layout per vector.
         final byte[] blockCodesBuf = new byte[BULK_SIZE * packedCodeBytes];
         final byte[] blockCorrectionsBuf = new byte[BULK_SIZE * AsymmetricHashingScorer.CORRECTION_BYTES];
-        // EUCLIDEAN-only per-vector fields (Appendix A, Eq. A.2)
         final boolean isEuclidean = similarityFunction == VectorSimilarityFunction.EUCLIDEAN;
-        final byte[] blockVecCentroidDotsBuf = isEuclidean ? new byte[BULK_SIZE * Float.BYTES] : null;
-        final byte[] blockVecCentroidSqDistsBuf = isEuclidean ? new byte[BULK_SIZE * Float.BYTES] : null;
         DocIdsWriter idsWriter = new DocIdsWriter();
 
         for (int c = 0; c < nClusters; c++) {
@@ -177,14 +174,12 @@ public class AshPostingsListWriter {
             int[] cluster = assignmentsByCluster[c];
             long offset = postingsOutput.alignFilePointer(Float.BYTES) - fileOffset;
             offsets.add(offset);
-            // Header: size, centroid ordinal
+            // Header: size, centroid ordinal, centroid norm squared
             int size = cluster.length;
             postingsOutput.writeVInt(size);
             postingsOutput.writeVInt(c);
-            // For EUCLIDEAN: write ‖μ*‖² (centroid squared norm) — needed for Eq. A.2
-            if (isEuclidean) {
-                postingsOutput.writeInt(Float.floatToIntBits(ESVectorUtil.dotProduct(centroid, centroid)));
-            }
+            float centroidNormSq = isEuclidean ? ESVectorUtil.dotProduct(centroid, centroid) : 0f;
+            postingsOutput.writeInt(Float.floatToIntBits(centroidNormSq));
 
             // Sort by docId
             for (int j = 0; j < size; j++) {
@@ -232,30 +227,27 @@ public class AshPostingsListWriter {
                         docSum += Math.round(xEnc[d] + centerOffset);
                     }
                     BitUtil.VH_LE_INT.set(blockCorrectionsBuf, corrOff + AsymmetricHashingScorer.CORR_DOC_SUM, docSum);
-                    // EUCLIDEAN: compute ⟨μ*,x⟩ and ‖x-μ*‖² from the original float vectors
+                    // EUCLIDEAN: ⟨μ*,x⟩ and ‖x-μ*‖² from the original float vectors; 0 otherwise
                     if (isEuclidean) {
                         float[] vec = vectors[vectorOrd];
                         BitUtil.VH_LE_INT.set(
-                            blockVecCentroidDotsBuf,
-                            j * Float.BYTES,
+                            blockCorrectionsBuf,
+                            corrOff + AsymmetricHashingScorer.CORR_VEC_CENTROID_DOT,
                             Float.floatToIntBits(ESVectorUtil.dotProduct(centroid, vec))
                         );
                         BitUtil.VH_LE_INT.set(
-                            blockVecCentroidSqDistsBuf,
-                            j * Float.BYTES,
+                            blockCorrectionsBuf,
+                            corrOff + AsymmetricHashingScorer.CORR_VEC_CENTROID_SQ_DIST,
                             Float.floatToIntBits(ESVectorUtil.squareDistance(vec, centroid))
                         );
+                    } else {
+                        BitUtil.VH_LE_INT.set(blockCorrectionsBuf, corrOff + AsymmetricHashingScorer.CORR_VEC_CENTROID_DOT, 0);
+                        BitUtil.VH_LE_INT.set(blockCorrectionsBuf, corrOff + AsymmetricHashingScorer.CORR_VEC_CENTROID_SQ_DIST, 0);
                     }
                 }
-                // Write all packed codes contiguously
+                // Write all packed codes contiguously, then all corrections
                 postingsOutput.writeBytes(blockCodesBuf, 0, blockSize * packedCodeBytes);
-                // Write all corrections in AoS layout (scale, offset, docSum per vector)
                 postingsOutput.writeBytes(blockCorrectionsBuf, 0, blockSize * AsymmetricHashingScorer.CORRECTION_BYTES);
-                // EUCLIDEAN: write ⟨μ*,x⟩ and ‖x-μ*‖² per vector (Appendix A, Eq. A.2)
-                if (isEuclidean) {
-                    postingsOutput.writeBytes(blockVecCentroidDotsBuf, 0, blockSize * Float.BYTES);
-                    postingsOutput.writeBytes(blockVecCentroidSqDistsBuf, 0, blockSize * Float.BYTES);
-                }
                 written += blockSize;
             }
             lengths.add(postingsOutput.getFilePointer() - fileOffset - offset);

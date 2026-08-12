@@ -12,6 +12,7 @@ package org.elasticsearch.index.codec.vectors.ash;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.index.codec.vectors.diskbbq.DocIdsWriter;
 import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader;
@@ -87,11 +88,8 @@ public class AshPostingsVisitor implements IVFVectorsReader.PostingVisitor {
     private final int[] offsetsScratch = new int[BULK_SIZE];
     private final float[] scores = new float[BULK_SIZE];
     private final byte[] bulkCodeBuf;
-    // Per-vector corrections in AoS layout: [scale, offset, docSum] × blockSize
+    // Per-vector corrections in AoS layout: [scale, offset, docSum, vecCentroidDot, vecCentroidSqDist] × blockSize
     private final byte[] bulkCorrectionsBuf = new byte[BULK_SIZE * AsymmetricHashingScorer.CORRECTION_BYTES];
-    // EUCLIDEAN-only bulk buffers
-    private final float[] bulkVecCentroidDots;
-    private final float[] bulkVecCentroidSqDists;
 
     // Per-posting-list state
     private int vectors;
@@ -133,10 +131,6 @@ public class AshPostingsVisitor implements IVFVectorsReader.PostingVisitor {
         this.similarityFunction = similarityFunction;
         this.query = query;
         this.centroidReader = centroidReader;
-
-        boolean isEuclidean = similarityFunction == VectorSimilarityFunction.EUCLIDEAN;
-        this.bulkVecCentroidDots = isEuclidean ? new float[BULK_SIZE] : null;
-        this.bulkVecCentroidSqDists = isEuclidean ? new float[BULK_SIZE] : null;
 
         // Precompute query projection: queryTransformed[j] = dot(query, wT[j*originalDim .. (j+1)*originalDim))
         this.queryTransformed = new float[nDims];
@@ -219,9 +213,9 @@ public class AshPostingsVisitor implements IVFVectorsReader.PostingVisitor {
         float[] centroid = centroidReader.apply(centroidOrd);
         currentQueryDotCentroid = ESVectorUtil.dotProduct(query, centroid);
 
-        // EUCLIDEAN: read centroid norm squared from header and compute ‖q-μ*‖²
+        // Read centroid norm squared from header; compute ‖q-μ*‖² for EUCLIDEAN
+        currentCentroidNormSq = Float.intBitsToFloat(indexInput.readInt());
         if (similarityFunction == VectorSimilarityFunction.EUCLIDEAN) {
-            currentCentroidNormSq = Float.intBitsToFloat(indexInput.readInt());
             currentQueryCentroidSqDist = ESVectorUtil.squareDistance(query, centroid);
         }
 
@@ -258,23 +252,15 @@ public class AshPostingsVisitor implements IVFVectorsReader.PostingVisitor {
         int docsToScore = filterAcceptedDocs(blockSize);
         boolean isEuclidean = similarityFunction == VectorSimilarityFunction.EUCLIDEAN;
         if (docsToScore == 0) {
-            // Skip the entire block: codes + corrections (+ EUCLIDEAN fields)
+            // Skip the entire block: codes + corrections
             long bytesToSkip = (long) blockSize * packedCodeBytes + (long) blockSize * AsymmetricHashingScorer.CORRECTION_BYTES;
-            if (isEuclidean) {
-                bytesToSkip += (long) blockSize * Float.BYTES * 2;
-            }
             indexInput.skipBytes(bytesToSkip);
             return 0;
         }
 
-        // Read codes and corrections (AoS: scale, offset, docSum per vector)
+        // Read codes and corrections (unified AoS layout for all similarity functions)
         indexInput.readBytes(bulkCodeBuf, 0, blockSize * packedCodeBytes);
         indexInput.readBytes(bulkCorrectionsBuf, 0, blockSize * AsymmetricHashingScorer.CORRECTION_BYTES);
-        // EUCLIDEAN: read ⟨μ*,x⟩ and ‖x-μ*‖² per vector (float32)
-        if (isEuclidean) {
-            indexInput.readFloats(bulkVecCentroidDots, 0, blockSize);
-            indexInput.readFloats(bulkVecCentroidSqDists, 0, blockSize);
-        }
 
         // Score each vector
         float maxScore = Float.NEGATIVE_INFINITY;
@@ -287,8 +273,12 @@ public class AshPostingsVisitor implements IVFVectorsReader.PostingVisitor {
                 if (isEuclidean) {
                     // Appendix A, Eq. A.2:
                     // ‖q-x‖² = ‖q-μ*‖² + ‖x-μ*‖² - 2·(⟨q,x⟩ - ⟨μ*,x⟩ - ⟨q,μ*⟩ + ‖μ*‖²)
-                    float vecCentroidDot = bulkVecCentroidDots[j];
-                    float vecCentroidSqDist = bulkVecCentroidSqDists[j];
+                    float vecCentroidDot = Float.intBitsToFloat(
+                        (int) BitUtil.VH_LE_INT.get(bulkCorrectionsBuf, corrOff + AsymmetricHashingScorer.CORR_VEC_CENTROID_DOT)
+                    );
+                    float vecCentroidSqDist = Float.intBitsToFloat(
+                        (int) BitUtil.VH_LE_INT.get(bulkCorrectionsBuf, corrOff + AsymmetricHashingScorer.CORR_VEC_CENTROID_SQ_DIST)
+                    );
                     float sqDist = currentQueryCentroidSqDist + vecCentroidSqDist - 2 * (approxDotProduct - vecCentroidDot
                         - currentQueryDotCentroid + currentCentroidNormSq);
                     // Clamp to non-negative (floating point rounding can produce small negatives)

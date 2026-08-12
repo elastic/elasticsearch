@@ -60,8 +60,10 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFrom
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.resolveInferenceTimeout;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedCacheControlUnifiedCompletionOperation;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedEmbeddingOperation;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedReasoningUnifiedCompletionOperation;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedSessionIdUnifiedCompletionOperation;
 
 public abstract class SenderService<M extends Model> implements InferenceService {
 
@@ -232,7 +234,7 @@ public abstract class SenderService<M extends Model> implements InferenceService
                 ValidationException validationException = new ValidationException();
                 service.validateInputType(inputType, model, validationException);
                 validationException.throwIfValidationErrorsExist();
-                yield new EmbeddingsInput(input, inputType, stream);
+                yield EmbeddingsInput.fromStrings(input, inputType, stream);
             }
             default -> throw new ElasticsearchStatusException(
                 Strings.format("Invalid task type received when determining input type: [%s]", model.getTaskType().toString()),
@@ -253,6 +255,12 @@ public abstract class SenderService<M extends Model> implements InferenceService
             if (supportsChatCompletionReasoning() == false && request.containsChatCompletionReasoning()) {
                 throwUnsupportedReasoningUnifiedCompletionOperation(name());
             }
+            if (supportsChatCompletionCacheControl() == false && request.containsChatCompletionCacheControl()) {
+                throwUnsupportedCacheControlUnifiedCompletionOperation(name());
+            }
+            if (supportsChatCompletionSessionId() == false && request.containsSessionId()) {
+                throwUnsupportedSessionIdUnifiedCompletionOperation(name());
+            }
             doUnifiedCompletionInfer(model, new UnifiedChatInput(request, true), resolvedInferenceTimeout, listener);
         } catch (Exception e) {
             listener.onFailure(e);
@@ -260,6 +268,14 @@ public abstract class SenderService<M extends Model> implements InferenceService
     }
 
     protected boolean supportsChatCompletionReasoning() {
+        return false;
+    }
+
+    protected boolean supportsChatCompletionCacheControl() {
+        return false;
+    }
+
+    protected boolean supportsChatCompletionSessionId() {
         return false;
     }
 

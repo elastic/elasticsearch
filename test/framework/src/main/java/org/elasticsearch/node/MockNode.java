@@ -58,6 +58,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.LinkedProjectConfigService;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
+import org.elasticsearch.transport.TransportMessageListener;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
 
@@ -65,6 +66,7 @@ import java.io.Closeable;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -198,7 +200,8 @@ public class MockNode extends Node {
             String nodeId,
             LinkedProjectConfigService linkedProjectConfigService,
             CrossProjectModeDecider crossProjectModeDecider,
-            ProjectResolver projectResolver
+            ProjectResolver projectResolver,
+            List<? extends TransportMessageListener.Provider> transportMessageListenerProviders
         ) {
 
             // we use the MockTransportService.TestPlugin class as a marker to create a network
@@ -219,7 +222,8 @@ public class MockNode extends Node {
                     nodeId,
                     linkedProjectConfigService,
                     crossProjectModeDecider,
-                    projectResolver
+                    projectResolver,
+                    transportMessageListenerProviders
                 );
             } else {
                 return new MockTransportService(

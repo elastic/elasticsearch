@@ -42,7 +42,9 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
@@ -50,6 +52,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.ArgumentMatchers.same;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -142,7 +145,6 @@ public class CredentialTransitionsTests extends ESTestCase {
         when(delegateClient.threadPool()).thenReturn(threadPool);
 
         CloudCredential callerCredential = new CloudCredential(new SecureString("caller".toCharArray()));
-        when(credentialManager.hasCloudManagedCredential(same(threadContext))).thenReturn(true);
         when(credentialManager.extractCloudManagedCredential(same(threadContext))).thenReturn(callerCredential);
         when(credentialManager.wrapClient(same(delegateClient), eq(callerCredential))).thenReturn(wrappedClient);
         when(wrappedClient.threadPool()).thenReturn(threadPool);
@@ -193,7 +195,7 @@ public class CredentialTransitionsTests extends ESTestCase {
         when(threadPool.getThreadContext()).thenReturn(threadContext);
         when(client.threadPool()).thenReturn(threadPool);
 
-        when(credentialManager.hasCloudManagedCredential(same(threadContext))).thenReturn(false);
+        // no stub for extractCloudManagedCredential: the mock returns null, i.e. the caller is not cloud-managed
         when(credentialManager.wrapClient(same(client), nullable(CloudCredential.class))).thenReturn(client);
 
         mockSearchProbeSucceeds(client);
@@ -227,7 +229,8 @@ public class CredentialTransitionsTests extends ESTestCase {
         );
 
         assertThat(failure.get(), equalTo(grantFailure));
-        verify(credentialManager, never()).extractCloudManagedCredential(any());
+        // extract is consulted (atomic capture) and yields null, so the bare client is used
+        verify(credentialManager, atLeastOnce()).extractCloudManagedCredential(same(threadContext));
         verify(credentialManager).wrapClient(same(client), nullable(CloudCredential.class));
         verify(client).execute(same(TransportSearchAction.TYPE), any(SearchRequest.class), any());
     }
@@ -244,7 +247,7 @@ public class CredentialTransitionsTests extends ESTestCase {
 
         CloudCredential carriedCredential = new CloudCredential(new SecureString("carried".toCharArray()));
         CloudCredential threadCredential = new CloudCredential(new SecureString("thread".toCharArray()));
-        when(credentialManager.hasCloudManagedCredential(same(threadContext))).thenReturn(true);
+        // tripwire: if the code wrongly extracted from the thread context it would see threadCredential
         when(credentialManager.extractCloudManagedCredential(same(threadContext))).thenReturn(threadCredential);
         when(credentialManager.wrapClient(same(client), eq(carriedCredential))).thenReturn(client);
 
@@ -295,7 +298,7 @@ public class CredentialTransitionsTests extends ESTestCase {
         when(client.threadPool()).thenReturn(threadPool);
 
         CloudCredential carriedCredential = new CloudCredential(new SecureString("carried".toCharArray()));
-        when(credentialManager.hasCloudManagedCredential(same(threadContext))).thenReturn(false);
+        // no stub for extractCloudManagedCredential: the thread context lacks the transient, the carried credential wins
         when(credentialManager.wrapClient(same(client), eq(carriedCredential))).thenReturn(client);
 
         mockSearchProbeSucceeds(client);
@@ -351,7 +354,6 @@ public class CredentialTransitionsTests extends ESTestCase {
         when(client.threadPool()).thenReturn(threadPool);
 
         CloudCredential callerCredential = new CloudCredential(new SecureString("caller".toCharArray()));
-        when(credentialManager.hasCloudManagedCredential(same(threadContext))).thenReturn(true);
         when(credentialManager.extractCloudManagedCredential(same(threadContext))).thenReturn(callerCredential);
         when(credentialManager.wrapClient(same(client), eq(callerCredential))).thenReturn(client);
 
@@ -403,7 +405,6 @@ public class CredentialTransitionsTests extends ESTestCase {
         when(client.threadPool()).thenReturn(threadPool);
 
         CloudCredential callerCredential = new CloudCredential(new SecureString("caller".toCharArray()));
-        when(credentialManager.hasCloudManagedCredential(same(threadContext))).thenReturn(true);
         when(credentialManager.extractCloudManagedCredential(same(threadContext))).thenReturn(callerCredential);
         when(credentialManager.wrapClient(same(client), eq(callerCredential))).thenReturn(client);
 
@@ -437,7 +438,11 @@ public class CredentialTransitionsTests extends ESTestCase {
             ActionListener.wrap(ignored -> fail("expected probe failure"), failure::set)
         );
 
-        assertThat(failure.get(), equalTo(noMatchingProject));
+        assertThat(failure.get(), instanceOf(NoMatchingProjectException.class));
+        assertThat(failure.get().getMessage(), containsString("Cannot update datafeed [df]"));
+        assertThat(failure.get().getMessage(), containsString("_alias:*"));
+        assertThat(failure.get().getMessage(), containsString("nonexistent_project"));
+        assertThat(failure.get().getCause(), equalTo(noMatchingProject));
         verify(apiKeyService, never()).grantCloudAuthentication(any(), anyString(), any());
     }
 
@@ -452,7 +457,6 @@ public class CredentialTransitionsTests extends ESTestCase {
         when(client.threadPool()).thenReturn(threadPool);
 
         CloudCredential callerCredential = new CloudCredential(new SecureString("caller".toCharArray()));
-        when(credentialManager.hasCloudManagedCredential(same(threadContext))).thenReturn(true);
         when(credentialManager.extractCloudManagedCredential(same(threadContext))).thenReturn(callerCredential);
         when(credentialManager.wrapClient(same(client), eq(callerCredential))).thenReturn(client);
 

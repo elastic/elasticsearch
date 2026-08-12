@@ -292,6 +292,7 @@ public abstract class LuceneOperator extends SourceOperator {
                 scoreModeFunction,
                 leafSplitGuard,
                 minDocsPerSlice,
+                singleValueQueryWarnings,
                 slicePriority
             );
             this.taskConcurrency = Math.min(sliceQueue.totalSlices(), taskConcurrency);

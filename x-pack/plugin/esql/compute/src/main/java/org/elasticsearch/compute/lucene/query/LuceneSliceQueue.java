@@ -24,7 +24,9 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.PartialLeafReaderContext;
 import org.elasticsearch.compute.lucene.ShardContext;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.codec.tsdb.PartitionedDocValues;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
@@ -313,6 +315,7 @@ public final class LuceneSliceQueue {
             scoreModeFunction,
             leafSplitGuard,
             minDocsPerSlice,
+            QueryWarnings.NOOP,
             null
         );
     }
@@ -327,6 +330,7 @@ public final class LuceneSliceQueue {
         Function<ShardContext, ScoreMode> scoreModeFunction,
         LeafSplitGuard leafSplitGuard,
         int minDocsPerSlice,
+        QueryWarnings singleValueQueryWarnings,
         @Nullable SlicePriority slicePriority
     ) {
         List<LuceneSlice> slices = new ArrayList<>();
@@ -349,8 +353,13 @@ public final class LuceneSliceQueue {
                      * to do this before picking the partitioning strategy so we
                      * can pick more aggressive strategies when the query rewrites
                      * into MatchAll.
+                     *
+                     * Sometimes (IVF/BBQ) rewrites run the whole query, and we
+                     * don't have a place to put warnings. So, for now, we use a
+                     * NOOP to discard any warnings we encounter. We'll change soon
+                     * to collect them.
                      */
-                    try {
+                    try (Releasable ignored = singleValueQueryWarnings.bindDiscarding()) {
                         query = ctx.searcher().rewrite(query);
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);

@@ -34,7 +34,9 @@ public final class MemorySegmentAdapter {
     /**
      * Return a {@link VarHandle} to access an element within the given memory layout.
      *
-     * Note: This is no-op in Java 21, see the Java 22 implementation.
+     * Returns the VarHandle directly; in Java 21, a single-element path VarHandle does not need an
+     * offset coordinate inserted (unlike the Java 22 variant, which inserts a fixed {@code 0L} at
+     * coordinate position 1).
      *
      * @param layout The layout of a struct to access
      * @param element The element within the struct to access
@@ -42,6 +44,27 @@ public final class MemorySegmentAdapter {
      */
     public static VarHandle varHandleWithoutOffset(MemoryLayout layout, MemoryLayout.PathElement element) {
         return layout.varHandle(element);
+    }
+
+    /**
+     * Return a {@link VarHandle} to access a sequence element within the given memory layout,
+     * using a two-element path: {@code groupElement(name)} then {@code sequenceElement()}.
+     *
+     * Returns the VarHandle directly; in Java 21, group+sequence path VarHandles do not need an
+     * offset coordinate inserted (unlike the Java 22 variant, which inserts a fixed {@code 0L} at
+     * coordinate position 1).
+     *
+     * @param layout The layout of a struct to access
+     * @param group The group element path element (e.g. {@code groupElement("fieldName")})
+     * @param seq The sequence element path element (i.e. {@code sequenceElement()})
+     * @return A {@link VarHandle} that accesses indexed sequence elements with a fixed offset of 0
+     */
+    public static VarHandle varHandleSequenceWithoutOffset(
+        MemoryLayout layout,
+        MemoryLayout.PathElement group,
+        MemoryLayout.PathElement seq
+    ) {
+        return layout.varHandle(group, seq);
     }
 
     private MemorySegmentAdapter() {}

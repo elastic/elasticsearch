@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 155623
+summary: Fix TS bucket named after timestamp field
+type: bug

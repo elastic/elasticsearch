@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.compute.operator.SideChannel;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
 import java.util.concurrent.locks.ReentrantLock;
@@ -155,6 +156,6 @@ public final class SharedGlobalTopK extends SideChannel {
 
     @Override
     protected void closeSideChannel() {
-        Releasables.closeExpectNoException(globalQueue);
+        Releasables.closeExpectNoException((Releasable) globalQueue);
     }
 }

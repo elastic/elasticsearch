@@ -39,7 +39,7 @@ public class NodeShutdownShardSnapshotsIT extends AbstractSnapshotIntegTestCase 
         final String nodeForRemoval = internalCluster().startDataOnlyNode(
             Settings.builder()
                 // we block a snapshot thread and expect another shard snapshot to complete concurrently
-                .put("thread_pool.snapshot.max", 2)
+                .put("thread_pool.snapshot.max", 3)
                 .build()
         );
         ensureStableCluster(2);
@@ -57,6 +57,8 @@ public class NodeShutdownShardSnapshotsIT extends AbstractSnapshotIntegTestCase 
 
         // Index more docs so that the 2nd snapshot has data to write for index1 but not index 2.
         indexRandomDocs(index1, between(10, 100));
+        // Make sure there's only a single segment, this will minimise the number of threads used to snapshot each shard
+        forceMerge(true);
         final String snapshotName = randomSnapshotName();
         final var snapshotFuture = startFullSnapshotBlockedOnDataNode(snapshotName, repoName, nodeForRemoval);
 

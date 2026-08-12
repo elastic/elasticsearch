@@ -28,20 +28,28 @@ public class CancelRecoveriesActionRequestTests extends AbstractWireSerializingT
 
     @Override
     protected CancelRecoveriesAction.Request createTestInstance() {
-        return new CancelRecoveriesAction.Request(randomNonNegativeLong(), randomCancellations());
+        return new CancelRecoveriesAction.Request(randomNonNegativeLong(), randomNonNegativeLong(), randomCancellations());
     }
 
     @Override
     protected CancelRecoveriesAction.Request mutateInstance(CancelRecoveriesAction.Request instance) throws IOException {
-        return randomBoolean()
-            ? new CancelRecoveriesAction.Request(
+        return switch (between(0, 2)) {
+            case 0 -> new CancelRecoveriesAction.Request(
+                randomValueOtherThan(instance.term(), ESTestCase::randomNonNegativeLong),
+                instance.clusterStateVersion(),
+                instance.cancellations()
+            );
+            case 1 -> new CancelRecoveriesAction.Request(
+                instance.term(),
                 randomValueOtherThan(instance.clusterStateVersion(), ESTestCase::randomNonNegativeLong),
                 instance.cancellations()
-            )
-            : new CancelRecoveriesAction.Request(
+            );
+            default -> new CancelRecoveriesAction.Request(
+                instance.term(),
                 instance.clusterStateVersion(),
                 randomValueOtherThan(instance.cancellations(), this::randomCancellations)
             );
+        };
     }
 
     private List<ShardRecoveryCancellation> randomCancellations() {

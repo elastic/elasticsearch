@@ -438,6 +438,33 @@ public final class MethodWriter extends GeneratorAdapter {
         invokeDynamic(name, methodType.getDescriptor(), DEF_BOOTSTRAP_HANDLE, args);
     }
 
+    /**
+     * Writes a dynamic call for a method reference with a {@code def} receiver, resolved by {@link DefBootstrap#REFERENCE}.
+     * <p>
+     * A charging reference has pushed the script after the receiver, so the call site takes a trailing {@link WriterConstants#CLASS_TYPE}
+     * parameter and passes the charge flag as an extra bootstrap argument. Both are omitted when not charging, which is what keeps
+     * call sites byte-for-byte identical while allocation tracking is disabled.
+     *
+     * @param name method name
+     * @param interfaceType the functional interface the reference produces
+     * @param receiverType the captured receiver
+     * @param interfaceCanonicalTypeName canonical type name of the functional interface, resolved at runtime
+     * @param chargesAllocation whether the runtime-resolved target is charged per invocation
+     */
+    public void invokeDefReferenceCall(
+        String name,
+        Type interfaceType,
+        Type receiverType,
+        String interfaceCanonicalTypeName,
+        boolean chargesAllocation
+    ) {
+        Type methodType = chargesAllocation
+            ? Type.getMethodType(interfaceType, receiverType, CLASS_TYPE)
+            : Type.getMethodType(interfaceType, receiverType);
+        Object[] params = chargesAllocation ? new Object[] { interfaceCanonicalTypeName, 1 } : new Object[] { interfaceCanonicalTypeName };
+        invokeDefCall(name, methodType, DefBootstrap.REFERENCE, params);
+    }
+
     public void invokeMethodCall(PainlessMethod painlessMethod) {
         Type type = Type.getType(painlessMethod.javaMethod().getDeclaringClass());
         Method method = Method.getMethod(painlessMethod.javaMethod());
@@ -466,14 +493,13 @@ public final class MethodWriter extends GeneratorAdapter {
     }
 
     public void invokeLambdaCall(FunctionRef functionRef) {
-        // A charging reference (annotated @allocates target under tracking) threads three extra static args — the
-        // estimator's owner/name/descriptor — so the generated lambda charges the delegate per invocation against the
-        // captured script (see LambdaBootstrap). Both paths otherwise build the same args and end with the injections.
-        boolean chargesAllocation = functionRef.allocationEstimator != null;
+        // A charging reference threads four extra static args (script capture index + estimator owner/name/descriptor) so the
+        // generated lambda charges per invocation. Typed references capture the script first, so the index is 0.
+        boolean chargesAllocation = functionRef.chargesAllocation;
 
         int size = 7 + functionRef.delegateInjections.length;
         if (chargesAllocation) {
-            size += 3;
+            size += 4;
         }
 
         Object[] args = new Object[size];
@@ -487,6 +513,7 @@ public final class MethodWriter extends GeneratorAdapter {
         args[i++] = functionRef.isDelegateAugmented ? 1 : 0;
         if (chargesAllocation) {
             java.lang.reflect.Method estimator = functionRef.allocationEstimator;
+            args[i++] = 0;
             args[i++] = Type.getInternalName(estimator.getDeclaringClass());
             args[i++] = estimator.getName();
             args[i++] = Method.getMethod(estimator).getDescriptor();

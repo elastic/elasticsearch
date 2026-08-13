@@ -54,6 +54,7 @@ import org.elasticsearch.xpack.esql.view.ViewResolutionService;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -151,6 +152,21 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<EsqlResolveF
             // local resolutions
             if (localIndices != null) {
                 var abstractions = resolveIndexAbstractions(localIndices, projectState);
+
+                if (request.fieldCapsRequest().clusterAlias() != null) {
+                    // validate no remote resources
+                    var views = qualifyIndexAbstraction(request.fieldCapsRequest().clusterAlias(), abstractions.views);
+                    var datasets = qualifyIndexAbstraction(request.fieldCapsRequest().clusterAlias(), abstractions.views);
+
+                    if (!views.isEmpty() && !datasets.isEmpty()) {
+                        throw new RemoteResourceNotSupportedException(views, datasets);
+                    } else if (!views.isEmpty()) {
+                        throw new RemoteViewNotSupportedException(views);
+                    } else if (!datasets.isEmpty()) {
+                        throw new RemoteDatasetNotSupportedException(datasets);
+                    }
+                }
+
                 response.resolvedLocally = abstractions.expressions;
                 resolveConcreteIndices(request, abstractions.indices, response, resultListener);
                 // TODO resolve views
@@ -232,7 +248,8 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<EsqlResolveF
                                     .filter(Objects::nonNull)
                                     .collect(Collectors.toCollection(() -> result.indices));
                             }
-                            // TODO collect views and datasets
+                            case VIEW -> result.views.add(indexAbstraction);
+                            case DATASET -> result.datasets.add(indexAbstraction);
                         }
                     }
                 }
@@ -278,8 +295,8 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<EsqlResolveF
     private static class ResolvedIndexAbstractions {
         private final ResolvedIndexExpressions expressions;
         private final List<IndexAbstraction> indices = new ArrayList<>();
-        // TODO views
-        // TODO datasets
+        private final List<IndexAbstraction> views = new ArrayList<>();
+        private final List<IndexAbstraction> datasets = new ArrayList<>();
 
         ResolvedIndexAbstractions(ResolvedIndexExpressions expressions) {
             this.expressions = expressions;
@@ -449,5 +466,9 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<EsqlResolveF
                 return indicesOptions;
             }
         }));
+    }
+
+    private static List<String> qualifyIndexAbstraction(String clusterAlias, Collection<IndexAbstraction> names) {
+        return names.stream().sorted().map(name -> clusterAlias + ":" + name.getName()).toList();
     }
 }

@@ -14,12 +14,13 @@ import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
-import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
-import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
@@ -28,6 +29,7 @@ import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression.PushedBlockLoaderExpression;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.FieldExtract;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
@@ -37,7 +39,7 @@ import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
-import org.elasticsearch.xpack.esql.plan.IndexPattern;
+import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -71,8 +73,6 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_SEARCH_STATS;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.testAnalyzerContext;
 import static org.hamcrest.Matchers.greaterThan;
 
 /**
@@ -119,13 +119,13 @@ public class FieldExtractFusionCorpusInventoryTests extends ESTestCase {
     private static final Pattern SET_PREAMBLE = Pattern.compile("^(?:\\s*SET\\b[^;]*;)+", Pattern.CASE_INSENSITIVE);
 
     /**
-     * Commands that introduce a second source the offline analyzer cannot resolve. {@code LOOKUP JOIN} is deliberately
-     * absent: every {@code lookup-settings.json} dataset is pre-resolved into the shared lookup map (see
-     * {@link #lookupResolutions()}), so join shapes are measured (and are where the real {@code ABOVE_JOIN_OR_MULTISOURCE}
-     * fallbacks surface). {@code ENRICH} still needs an enrich policy resolution the harness does not build, and
-     * {@code FORK} fans out into multiple sub-plans, so both remain out of scope.
+     * Commands that introduce a second source the offline analyzer cannot resolve. Both {@code LOOKUP JOIN} and
+     * {@code ENRICH} are deliberately absent: every {@code lookup-settings.json} dataset is pre-resolved into the shared
+     * lookup map ({@link #lookupResolutions()}) and every corpus enrich policy into the analyzer's enrich resolution
+     * ({@link #registerCorpusEnrichPolicies}), so both shapes are measured. Only {@code FORK}, which fans out into
+     * multiple sub-plans, remains out of scope here.
      */
-    private static final Pattern MULTI_SOURCE = Pattern.compile("\\b(ENRICH|FORK)\\b", Pattern.CASE_INSENSITIVE);
+    private static final Pattern MULTI_SOURCE = Pattern.compile("\\bFORK\\b", Pattern.CASE_INSENSITIVE);
 
     /** How many representative rewritten queries to log per fallback bucket. */
     private static final int MAX_SAMPLES_PER_REASON = 5;
@@ -171,8 +171,6 @@ public class FieldExtractFusionCorpusInventoryTests extends ESTestCase {
         WILDCARD_OR_REMOTE,
         /** Multi-index {@code FROM a, b} or a sub-query source (comma/paren before the first pipe). */
         MULTI_INDEX_FROM,
-        /** Contains an {@code ENRICH} the offline harness cannot resolve (no enrich policy resolution built). */
-        ENRICH,
         /** Contains a {@code FORK}, which fans out into multiple sub-plans. */
         FORK,
         /** Leading {@code FROM <token>} names an index with no known/loadable dataset mapping. */
@@ -262,7 +260,9 @@ public class FieldExtractFusionCorpusInventoryTests extends ESTestCase {
             PhysicalPlan dataNode;
             try {
                 dataNode = dataNodeFragment(datasetPlan.analyzer(), rewrite.rewrittenQuery());
-            } catch (Exception e) {
+            } catch (Exception | AssertionError e) {
+                // Analysis/planning of an arbitrary corpus query can throw either (e.g. the analyzer asserts on an
+                // unresolved enrich mode); treat any such failure as unplannable rather than a harness error.
                 skipByReason.merge(Skip.UNPLANNABLE, 1, Integer::sum);
                 logger.debug(() -> "keyword\u2192flattened dry run: unplannable [" + rewrite.rewrittenQuery() + "]", e);
                 continue;
@@ -297,8 +297,9 @@ public class FieldExtractFusionCorpusInventoryTests extends ESTestCase {
      * {@link NotSingle} reason it is out of scope. Kept in one place so the reject reasons stay mutually exclusive and
      * the {@link Skip#NOT_SINGLE_DATASET} bucket can be broken down for prioritising further widening. {@code FROM} and
      * {@code TS} (time-series) sources are in scope, including multi-index {@code FROM a, b} (merged into one resolution
-     * with union types for conflicting fields); index names may be quoted. A trailing {@code LOOKUP JOIN} stays in scope
-     * (resolved from {@link #lookupResolutions()}); {@code ENRICH}/{@code FORK} and cross-cluster/wildcard remain out.
+     * with union types for conflicting fields); index names may be quoted. Trailing {@code LOOKUP JOIN} and {@code ENRICH}
+     * stay in scope (resolved from {@link #lookupResolutions()} / the analyzer's enrich resolution); only {@code FORK} and
+     * cross-cluster/wildcard sources remain out.
      */
     private static SourceClass classifySource(String query) {
         Matcher command = LEADING_COMMAND.matcher(query);
@@ -320,10 +321,9 @@ public class FieldExtractFusionCorpusInventoryTests extends ESTestCase {
         if (sourceList.indexOf('(') >= 0) {
             return SourceClass.rejected(NotSingle.MULTI_INDEX_FROM);
         }
-        // ENRICH/FORK anywhere in the query need resolution the harness does not build, regardless of the source shape.
-        Matcher multiSource = MULTI_SOURCE.matcher(query);
-        if (multiSource.find()) {
-            return SourceClass.rejected(multiSource.group(1).equalsIgnoreCase("FORK") ? NotSingle.FORK : NotSingle.ENRICH);
+        // FORK fans out into multiple sub-plans the harness does not model, regardless of the source shape.
+        if (MULTI_SOURCE.matcher(query).find()) {
+            return SourceClass.rejected(NotSingle.FORK);
         }
         List<CsvTestsDataLoader.TestDataset> datasets = new ArrayList<>();
         List<String> names = new ArrayList<>();
@@ -388,32 +388,24 @@ public class FieldExtractFusionCorpusInventoryTests extends ESTestCase {
             try {
                 Set<String> keywordPaths = new HashSet<>();
                 Map<String, Map<String, EsField>> perIndexFields = new LinkedHashMap<>();
-                Map<String, IndexMode> concreteIndices = new LinkedHashMap<>();
+                Map<String, IndexProperties> concreteIndices = new LinkedHashMap<>();
                 for (CsvTestsDataLoader.TestDataset dataset : source.datasets()) {
                     String originalMapping = CsvTestsDataLoader.readMappingFile(dataset);
                     collectKeywordPaths("", LoadMapping.loadMapping(stream(originalMapping)), keywordPaths);
                     String flattened = KeywordToFlattenedTransformer.transformMapping(originalMapping, Set.of()).transformedMapping();
                     perIndexFields.put(dataset.indexName(), LoadMapping.loadMapping(stream(flattened)));
-                    concreteIndices.put(dataset.indexName(), source.mode());
+                    concreteIndices.put(dataset.indexName(), new IndexProperties(source.mode(), 0));
                 }
                 Map<String, EsField> fields = mergeFields(perIndexFields);
                 EsIndex index = new EsIndex(source.indexPattern(), fields, concreteIndices, Map.of(), Map.of());
-                Map<IndexPattern, IndexResolution> resolutions = Map.of(
-                    new IndexPattern(Source.EMPTY, source.indexPattern()),
-                    IndexResolution.valid(index)
-                );
-                Analyzer analyzer = new Analyzer(
-                    testAnalyzerContext(
-                        TEST_CFG,
-                        TEST_FUNCTION_REGISTRY,
-                        resolutions,
-                        lookupResolutions(),
-                        new EnrichResolution(),
-                        emptyInferenceResolution()
-                    ),
-                    TEST_VERIFIER
-                );
-                return new DatasetPlan(analyzer, keywordPaths);
+
+                // TestAnalyzer defers enrich resolution until analyze(), keying each ENRICH occurrence by its Source the way
+                // production does, so registering every corpus policy up front resolves whichever ones a query uses.
+                TestAnalyzer builder = EsqlTestUtils.analyzer().configuration(TEST_CFG).functionRegistry(TEST_FUNCTION_REGISTRY);
+                builder.addIndex(source.indexPattern(), IndexResolution.valid(index));
+                lookupResolutions().values().forEach(builder::addLookupIndex);
+                registerCorpusEnrichPolicies(builder);
+                return new DatasetPlan(builder.buildAnalyzer(TEST_VERIFIER), keywordPaths);
             } catch (Exception e) {
                 logger.debug(() -> "keyword\u2192flattened dry run: cannot build analyzer for [" + key + "]", e);
                 return new DatasetPlan(null, Set.of());
@@ -452,6 +444,45 @@ public class FieldExtractFusionCorpusInventoryTests extends ESTestCase {
     }
 
     /**
+     * Registers every corpus enrich policy ({@link CsvTestsDataLoader#ENRICH_POLICIES}) into the analyzer builder, so
+     * queries containing {@code ENRICH <policy>} resolve offline. The match type and field come from the policy JSON;
+     * the enrich-field types come from the source index mapping ({@link TestAnalyzer#addEnrichPolicy} derives the enrich
+     * fields as every mapped field except the match field). Each policy is registered under all {@link Enrich.Mode}s, so
+     * bare {@code ENRICH policy} as well as {@code _coordinator:}/{@code _remote:} pinned occurrences resolve (an
+     * unregistered mode would make the analyzer assert on an unresolved policy rather than fail softly). Registration is
+     * best-effort per policy: one whose JSON or mapping cannot be read is skipped rather than breaking the whole analyzer.
+     */
+    private static void registerCorpusEnrichPolicies(TestAnalyzer builder) {
+        for (CsvTestsDataLoader.EnrichConfig policy : CsvTestsDataLoader.ENRICH_POLICIES.values()) {
+            try {
+                String matchType;
+                String matchField;
+                try (
+                    XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, policy.loadPolicy())
+                ) {
+                    parser.nextToken(); // START_OBJECT
+                    parser.nextToken(); // FIELD_NAME: the match type (match / range / geo_match)
+                    matchType = parser.currentName();
+                    parser.nextToken(); // START_OBJECT: the policy body
+                    matchField = (String) parser.map().get("match_field");
+                }
+                for (Enrich.Mode mode : Enrich.Mode.values()) {
+                    builder.addEnrichPolicy(
+                        mode,
+                        matchType,
+                        policy.policyName(),
+                        matchField,
+                        policy.index(),
+                        "mapping-" + policy.index() + ".json"
+                    );
+                }
+            } catch (Exception e) {
+                logger.debug(() -> "keyword\u2192flattened dry run: cannot register enrich policy [" + policy.policyName() + "]", e);
+            }
+        }
+    }
+
+    /**
      * Shared {@code LOOKUP JOIN} target resolutions (keyed by index name, {@link IndexMode#LOOKUP}), built once from
      * every {@code lookup-settings.json} dataset with the same keyword&#8594;flattened mapping remap applied. Attaching
      * these to every per-dataset analyzer lets {@code FROM <main> | ... | LOOKUP JOIN <lookup> ON <key>} shapes plan
@@ -473,7 +504,13 @@ public class FieldExtractFusionCorpusInventoryTests extends ESTestCase {
                             Set.of()
                         ).transformedMapping();
                         Map<String, EsField> fields = LoadMapping.loadMapping(stream(flattened));
-                        EsIndex index = new EsIndex(name, fields, Map.of(name, IndexMode.LOOKUP), Map.of(), Map.of());
+                        EsIndex index = new EsIndex(
+                            name,
+                            fields,
+                            Map.of(name, new IndexProperties(IndexMode.LOOKUP, 0)),
+                            Map.of(),
+                            Map.of()
+                        );
                         return IndexResolution.valid(index);
                     } catch (Exception e) {
                         logger.debug(() -> "keyword\u2192flattened dry run: cannot build lookup resolution for [" + name + "]", e);

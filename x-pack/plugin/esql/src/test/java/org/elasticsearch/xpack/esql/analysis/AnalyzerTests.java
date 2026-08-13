@@ -55,6 +55,7 @@ import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedSingleTypeEsFie
 import org.elasticsearch.xpack.esql.core.type.TextEsField;
 import org.elasticsearch.xpack.esql.core.type.TypeConflictedField;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
+import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
@@ -4717,7 +4718,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testTypeConflictedMultifieldIsCleanedAfterAnalysis() {
-        // A conflicted sub-field must be stripped so its parent FieldAttribute is transportable.
+        // A conflicted sub-field must be neutralized so its parent FieldAttribute is transportable.
         LinkedHashMap<String, Set<String>> typesToIndices = new LinkedHashMap<>();
         typesToIndices.put(KEYWORD.typeName(), Set.of("conflict-a"));
         typesToIndices.put(DataType.TEXT.typeName(), Set.of("conflict-b"));
@@ -4725,7 +4726,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testTsRoleConflictedMultifieldIsCleanedAfterAnalysis() {
-        // InvalidMappedTsField is not a TypeConflictedField but also throws on transport, so it must be stripped too.
+        // InvalidMappedTsField is not a TypeConflictedField but also throws on transport, so it must be neutralized too.
         EsField cleanedParent = assertConflictedMultifieldIsCleaned(new InvalidMappedTsField("analyzed", "role conflict"));
         // The rebuilt parent keeps its keyword type so exact-match/sort still work.
         assertThat(cleanedParent, instanceOf(KeywordEsField.class));
@@ -4761,7 +4762,9 @@ public class AnalyzerTests extends ESTestCase {
         assertFalse(parentAttributes.isEmpty());
         EsField cleanedParent = null;
         for (FieldAttribute parentAttribute : parentAttributes) {
-            assertThat(parentAttribute.field().getProperties(), not(hasKey("analyzed")));
+            // The conflict is replaced by a transportable UnsupportedEsField, not dropped: the sub-field key stays.
+            assertThat(parentAttribute.field().getProperties(), hasKey("analyzed"));
+            assertThat(parentAttribute.field().getProperties().get("analyzed"), instanceOf(UnsupportedEsField.class));
             cleanedParent = parentAttribute.field();
         }
         return cleanedParent;
@@ -4776,8 +4779,8 @@ public class AnalyzerTests extends ESTestCase {
         }
     }
 
-    public void testTextFieldRetainsOnlyExactKeywordSubfield() {
-        // A text field keeps its exact keyword sub-field (pushdown resolves it on the data node) and drops every other sub-field.
+    public void testTextFieldKeepsHealthySubfields() {
+        // Healthy sub-fields are kept untouched - including a text field's exact keyword, which pushdown resolves on the data node.
         EsField exact = new KeywordEsField("keyword", Map.of(), true, 256, false, false, EsField.TimeSeriesFieldType.NONE);
         EsField normalized = new KeywordEsField("norm", Map.of(), true, 256, true, false, EsField.TimeSeriesFieldType.NONE);
         EsField message = new TextEsField(
@@ -4791,12 +4794,12 @@ public class AnalyzerTests extends ESTestCase {
         EsField parentField = shippedFieldAfterAnalysis("message", message, "FROM idx | SORT message | LIMIT 2");
         assertThat(parentField, instanceOf(TextEsField.class));
         assertThat(parentField.getProperties(), hasKey("keyword"));
-        assertThat(parentField.getProperties(), not(hasKey("norm")));
+        assertThat(parentField.getProperties(), hasKey("norm"));
         assertThat(parentField.getExactInfo().hasExact(), is(true));
     }
 
-    public void testTextFieldWithConflictedExactSubfieldIsFullyStripped() {
-        // The only keyword sub-field is itself type-conflicted, so it is not exact anyway; strip it so nothing throws on transport.
+    public void testTextFieldWithConflictedExactSubfieldIsNeutralized() {
+        // The only keyword sub-field is itself type-conflicted: neutralize it to a transportable UnsupportedEsField (no exact left).
         LinkedHashMap<String, Set<String>> typesToIndices = new LinkedHashMap<>();
         typesToIndices.put(KEYWORD.typeName(), Set.of("idx-a"));
         typesToIndices.put(DataType.LONG.typeName(), Set.of("idx-b"));
@@ -4810,12 +4813,12 @@ public class AnalyzerTests extends ESTestCase {
 
         EsField parentField = shippedFieldAfterAnalysis("message", message, "FROM idx | LIMIT 2");
         assertThat(parentField, instanceOf(TextEsField.class));
-        assertThat(parentField.getProperties().isEmpty(), is(true));
+        assertThat(parentField.getProperties().get("keyword"), instanceOf(UnsupportedEsField.class));
         assertThat(parentField.getExactInfo().hasExact(), is(false));
     }
 
     public void testPunkFallbackStripsNestedConflictedSubfield() {
-        // A potentially-unmapped field falls back to its mapped type; that mapped field's conflicted sub-field must still be stripped.
+        // A potentially-unmapped field falls back to its mapped type; that mapped field's conflicted sub-field must be neutralized.
         LinkedHashMap<String, Set<String>> typesToIndices = new LinkedHashMap<>();
         typesToIndices.put(KEYWORD.typeName(), Set.of("idx-a"));
         typesToIndices.put(DataType.LONG.typeName(), Set.of("idx-b"));
@@ -4830,10 +4833,31 @@ public class AnalyzerTests extends ESTestCase {
         );
         EsField punk = new PotentiallyUnmappedSingleTypeEsField(mapped, Set.of("idx-a"));
 
-        EsField parentField = shippedFieldAfterAnalysis("val", punk, "SET unmapped_fields=\"load\"; FROM idx | LIMIT 2");
-        // The mapped type is kept (its conflicted sub-field stripped), not the PUNK marker.
-        assertThat(parentField, not(instanceOf(TypeConflictedField.class)));
-        assertThat(parentField.getProperties(), not(hasKey("sub")));
+        EsField parentField = shippedFieldAfterAnalysis("val", punk, "FROM idx | LIMIT 2");
+        // The mapped keyword type is kept (not the PUNK marker) and its conflicted sub-field is neutralized to unsupported.
+        assertThat(parentField, instanceOf(KeywordEsField.class));
+        assertThat(parentField.getProperties().get("sub"), instanceOf(UnsupportedEsField.class));
+    }
+
+    public void testUnsupportedParentWithPropagatedSubfieldIsUntouched() {
+        // Regression (FieldExtractorIT): an unsupported parent with a healthy/inherited sub-field must not be downgraded - it must
+        // stay unsupported and keep its original types, otherwise it drops out of the Verifier and loses original_types.
+        EsField raw = new UnsupportedEsField("raw", List.of("ip_range"), "ip_range", Map.of());
+        EsField parent = new UnsupportedEsField("f", List.of("ip_range"), null, Map.of("raw", raw));
+        EsIndex index = new EsIndex("idx", Map.of("f", parent), Map.of("idx-a", IndexMode.STANDARD), Map.of(), Map.of());
+
+        LogicalPlan plan = analyzer().addIndex(IndexResolution.valid(index)).query("FROM idx | LIMIT 2");
+
+        List<UnsupportedAttribute> found = new ArrayList<>();
+        plan.forEachExpressionDown(UnsupportedAttribute.class, ua -> {
+            if (ua.name().equals("f")) {
+                found.add(ua);
+            }
+        });
+        assertFalse("expected [f] to remain an UnsupportedAttribute", found.isEmpty());
+        UnsupportedEsField cleaned = found.getLast().field();
+        assertThat(cleaned.getOriginalTypes(), contains("ip_range"));
+        assertThat(cleaned.getProperties(), hasKey("raw"));
     }
 
     /** Analyzes {@code query} over a single-field index and returns the last {@code fieldName} attribute's (cleaned) field. */
@@ -4845,9 +4869,7 @@ public class AnalyzerTests extends ESTestCase {
             Map.of(),
             Map.of()
         );
-        TestAnalyzer analyzer = analyzer().addIndex(IndexResolution.valid(index));
-        // A SET statement (e.g. unmapped_fields="load") only parses through statement(), not query().
-        LogicalPlan plan = query.stripLeading().startsWith("SET") ? analyzer.statement(query) : analyzer.query(query);
+        LogicalPlan plan = analyzer().addIndex(IndexResolution.valid(index)).query(query);
 
         List<EsField> found = new ArrayList<>();
         plan.forEachExpressionDown(FieldAttribute.class, fieldAttribute -> {

@@ -70,7 +70,6 @@ import org.elasticsearch.xpack.esql.core.type.MissingEsField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedSingleTypeEsField;
-import org.elasticsearch.xpack.esql.core.type.TextEsField;
 import org.elasticsearch.xpack.esql.core.type.TypeConflictedField;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
@@ -3468,7 +3467,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             EsField field = fa.field();
             FieldAttribute shipped;
             if (field instanceof PotentiallyUnmappedSingleTypeEsField punk) {
-                // Falls back to its single mapped type; that mapped field may still carry sub-fields to strip.
+                // Falls back to its single mapped type; that mapped field may still carry a nested conflict to neutralize.
                 shipped = fallbackToMappedType(fa, punk);
             } else if (field instanceof TypeConflictedField) {
                 // A top-level conflict is representable as an UnsupportedAttribute; its properties never ship.
@@ -3476,26 +3475,39 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             } else {
                 shipped = fa;
             }
-            EsField stripped = stripSubfields(shipped.field());
-            return stripped == shipped.field() ? shipped : shipped.withField(stripped);
+            EsField cleaned = stripNestedConflicts(shipped.field());
+            return cleaned == shipped.field() ? shipped : shipped.withField(cleaned);
         }
 
         /**
-         * Sub-fields aren't needed once the field ships, and a conflict nested in a healthy parent throws on serialize,
-         * so drop them - except a {@code text} field's exact keyword sub-field, which pushdown still resolves through
-         * {@code properties} on the data node.
+         * A conflict object nested in a healthy parent's {@code properties} throws when the parent serializes, so swap it for a
+         * transportable {@link UnsupportedEsField}. Healthy sub-fields are kept as-is (rebuilding the parent would downgrade an
+         * unsupported one and lose its original types), so the parent is rebuilt only when a nested conflict was actually replaced.
          */
-        private static EsField stripSubfields(EsField field) {
+        private static EsField stripNestedConflicts(EsField field) {
             Map<String, EsField> properties = field.getProperties();
             if (properties == null || properties.isEmpty()) {
                 return field;
             }
-            Map<String, EsField> kept = Map.of();
-            if (field instanceof TextEsField text && text.getExactInfo().hasExact()) {
-                EsField exact = text.getExactField();
-                kept = Map.of(exact.getName(), stripSubfields(exact));
+            Map<String, EsField> rewritten = new LinkedHashMap<>(properties.size());
+            boolean changed = false;
+            for (Map.Entry<String, EsField> entry : properties.entrySet()) {
+                EsField child = entry.getValue();
+                EsField cleanedChild = asTransportable(child);
+                rewritten.put(entry.getKey(), cleanedChild);
+                changed |= cleanedChild != child;
             }
-            return field.withProperties(kept);
+            return changed ? field.withProperties(rewritten) : field;
+        }
+
+        private static EsField asTransportable(EsField field) {
+            if (field instanceof TypeConflictedField tcf) {
+                return new UnsupportedEsField(tcf.getName(), tcf.getTypesToIndices().keySet().stream().toList());
+            }
+            if (field instanceof InvalidMappedTsField imtf) {
+                return new UnsupportedEsField(imtf.getName(), List.of());
+            }
+            return stripNestedConflicts(field);
         }
 
         private static void warnObservedNonLoadablePunks(LogicalPlan plan, AnalyzerContext context) {

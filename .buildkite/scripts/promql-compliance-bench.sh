@@ -13,6 +13,31 @@ control=
 die() { printf '%s: %s\n' "$prog" "$*" >&2; exit 1; }
 log() { printf -- '--- %s\n' "$*" >&2; }
 
+investigation_instructions() {
+	local dataset=$1 branch=$2 version=$3 test_instance_timeout=$4
+
+	log 'investigating the regression'
+	printf '%s\n' \
+		"The control and test logs are attached to this job as Buildkite artifacts." \
+		"Compare entries with the same [CASE_NAME]. A regressed case is OK in" \
+		"@$dataset-control.log and FAIL or ERR in @$dataset-test.log." \
+		"FAIL entries show the differing series and points; ERR entries show the" \
+		"Elasticsearch error." \
+		"" \
+		"Re-run a single case locally (replace CASE_NAME with its log value):" \
+		"REPRODUCE WITH: GH_TOKEN=\"\$(gh auth token)\" PROMCHECK_VER=$version PROMCHECK_TEST_INSTANCE_TIMEOUT=$test_instance_timeout BUILDKITE_PULL_REQUEST_BASE_BRANCH=$branch PROMCHECK_CASE='.[] | select(.name == \"CASE_NAME\")' .buildkite/scripts/promql-compliance-bench.sh $dataset" \
+		"" \
+		"PROMCHECK_CASE also accepts jq selectors, for example:" \
+		"  PROMCHECK_CASE='.[] | select(.expr | test(\"histogram_fraction\"))'" >&2
+
+	if [[ ${BUILDKITE_BUILD_NUMBER:-} && ${BUILDKITE_PIPELINE_SLUG:-} && ${BUILDKITE_JOB_ID:-} ]]; then
+		printf '\nDownload the logs with:\n' >&2
+		printf '  bk artifacts list %q --pipeline %q --job %q\n' \
+			"$BUILDKITE_BUILD_NUMBER" "$BUILDKITE_PIPELINE_SLUG" "$BUILDKITE_JOB_ID" >&2
+		printf '  bk artifacts download <artifact-id>\n' >&2
+	fi
+}
+
 counts() {
 	awk -F'|' '
 		function trim(s) { gsub(/[[:space:]]/, "", s); return s }
@@ -51,10 +76,19 @@ main() {
 	local fixture=$input/$dataset.jsonl
 	local control_log=$output/@$dataset-control.log
 	local test_log=$output/@$dataset-test.log
+	local case_filter=${PROMCHECK_CASE:-}
 	local src dst n=0 rc
 	local c_ok c_fail c_err c_skip c_total
 	local t_ok t_fail t_err t_skip t_total
 	local delta status
+	local -a promcheck_args=(
+		--granularity 15s
+		--test-instance-timeout "$test_instance_timeout"
+	)
+
+	if [[ $case_filter ]]; then
+		promcheck_args+=(--case "$case_filter")
+	fi
 
 	for cmd in curl find git jq tar tee uv; do
 		command -v "$cmd" >/dev/null || die "missing: $cmd"
@@ -116,8 +150,7 @@ main() {
 	log 'running control'
 	set +e
 	NO_COLOR=1 uv run --cache-dir "$cache" --python "$python_version" --with "$pkg" promcheck \
-		--granularity 15s \
-		--test-instance-timeout "$test_instance_timeout" \
+		"${promcheck_args[@]}" \
 		--workspace "$control" \
 		"$fixture" 2>&1 | tee "$control_log"
 	rc=${PIPESTATUS[0]}
@@ -129,8 +162,7 @@ main() {
 	log 'running test'
 	set +e
 	NO_COLOR=1 uv run --cache-dir "$cache" --python "$python_version" --with "$pkg" promcheck \
-		--granularity 15s \
-		--test-instance-timeout "$test_instance_timeout" \
+		"${promcheck_args[@]}" \
 		--workspace "$PWD" \
 		"$fixture" 2>&1 | tee "$test_log"
 	rc=${PIPESTATUS[0]}
@@ -152,6 +184,9 @@ main() {
 	fi
 
 	log "$status: ok=$c_ok fail=$c_fail err=$c_err skip=$c_skip total=$c_total -> ok=$t_ok fail=$t_fail err=$t_err skip=$t_skip total=$t_total delta_ok=${delta:+$delta}"
+	if ((delta < 0)); then
+		investigation_instructions "$dataset" "$branch" "$version" "$test_instance_timeout"
+	fi
 	((delta >= 0))
 }
 

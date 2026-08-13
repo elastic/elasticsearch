@@ -61,6 +61,7 @@ import org.elasticsearch.transport.netty4.NettyAllocator;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -156,11 +157,38 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         return EVENT_LOOP_THREAD_COUNT.get(settings);
     }
 
-    record ConnectionProviderKey(ProjectId projectId, String clientName, AzureStorageSettings settings) {
+    // Used as key in the `connectionProvidersCache`. A client is identified by (`projectId`, `clientName`), but the key also includes
+    // the `account` name because it is a reloadable `SecureSetting` and it determines the endpoint we connect to: since a
+    // `ConnectionProvider` maintains a fixed connection pool per remote host, a client whose account changed must get a new pool.
+    // The other reloadable settings (`key` and `sas_token`) are not part of the key because there is no reason to build a new connection
+    // pool when they change.
+    // All remaining settings are `NodeScope` and require a restart, which clears the cache anyway.
+    record ConnectionProviderKey(ProjectId projectId, String clientName, String account) {
         ConnectionProviderKey {
             // see `getAllClientSettings` where `clusterStorageSettings` are returned when `projectId` is `null` or `ProjectId.DEFAULT`
             projectId = projectId == null ? ProjectId.DEFAULT : projectId;
         }
+
+        // Returns the keys for the providers that we need to evict from the cache when the settings of a project change from
+        // `previousSettings` to `currentSettings`.
+        // If `currentSettings` is null, then all the keys from the `previousSettings` need to be evicted.
+        static Set<ConnectionProviderKey> connectionProvidersToEvict(
+            @Nullable ProjectId projectId,
+            Map<String, AzureStorageSettings> previousSettings,
+            @Nullable Map<String, AzureStorageSettings> currentSettings
+        ) {
+            final Set<AzureClientProvider.ConnectionProviderKey> toEvict = new HashSet<>();
+            for (var entry : previousSettings.entrySet()) {
+                final var clientName = entry.getKey();
+                final var previousAccount = entry.getValue().getAccount();
+                final var currentClientSettings = currentSettings == null ? null : currentSettings.get(clientName);
+                if (currentClientSettings == null || !previousAccount.equals(currentClientSettings.getAccount())) {
+                    toEvict.add(new AzureClientProvider.ConnectionProviderKey(projectId, clientName, previousAccount));
+                }
+            }
+            return toEvict;
+        }
+
     }
 
     // Cache that keeps connection providers that can be reused. The key of the cache includes all Azure settings
@@ -203,19 +231,26 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         IOUtils.closeWhileHandlingException(refs);
     }
 
-    ConnectionProvider buildConnectionProvider(ConnectionProviderKey key) {
+    ConnectionProvider buildConnectionProvider(int maxConnections) {
         return ConnectionProvider.builder("azure-sdk-connection-pool")
-            .maxConnections(key.settings().getMaxConnections())
+            .maxConnections(maxConnections)
             .pendingAcquireMaxCount(PENDING_CONNECTION_QUEUE_SIZE) // This determines the max outstanding queued requests
             .pendingAcquireTimeout(Duration.ofMillis(openConnectionTimeout.millis()))
             .maxIdleTime(Duration.ofMillis(maxIdleTime.millis()))
             .build();
     }
 
-    private AzureConnectionProviderReference acquireConnectionProvider(ConnectionProviderKey key) {
+    private AzureConnectionProviderReference acquireConnectionProvider(
+        @Nullable ProjectId projectId,
+        String clientName,
+        AzureStorageSettings settings
+    ) {
         if (closed) {
             throw new AlreadyClosedException("AzureClientProvider is already closed");
         }
+
+        String account = settings.getAccount();
+        ConnectionProviderKey key = new ConnectionProviderKey(projectId, clientName, account);
 
         final var connectionProviderRef = connectionProvidersCache.get(key);
         if (connectionProviderRef != null && connectionProviderRef.tryIncRef()) {
@@ -233,7 +268,7 @@ class AzureClientProvider extends AbstractLifecycleComponent {
             }
 
             final var newConnectionProviderRef = new AzureConnectionProviderReference(
-                buildConnectionProvider(key),
+                buildConnectionProvider(settings.getMaxConnections()),
                 connectionProviderDisposals.acquire()
             );
             // `newConnectionProviderRef` starts with a reference count of 1 which corresponds to it being in the cache and is potentially
@@ -279,8 +314,7 @@ class AzureClientProvider extends AbstractLifecycleComponent {
             throw new AlreadyClosedException("AzureClientProvider is already closed");
         }
 
-        ConnectionProviderKey key = new ConnectionProviderKey(projectId, clientName, settings);
-        AzureConnectionProviderReference connectionProviderReference = acquireConnectionProvider(key);
+        AzureConnectionProviderReference connectionProviderReference = acquireConnectionProvider(projectId, clientName, settings);
         // We release the reference if constructing the client fails, so that we don't leak the connection provider.
         Releasable toRelease = connectionProviderReference;
 

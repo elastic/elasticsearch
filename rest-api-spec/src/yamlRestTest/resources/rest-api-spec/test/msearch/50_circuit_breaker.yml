@@ -210,7 +210,6 @@ teardown:
 
   # max_concurrent_searches=1 forces sequential execution so sub-search 0 completes and
   # its estimate is reserved before sub-search 1 starts.
-  #
   - do:
       msearch:
         max_concurrent_searches: 1

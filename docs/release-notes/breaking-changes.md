@@ -12,25 +12,15 @@ If you are migrating from a version prior to version 9.0, you must first upgrade
 
 % ## Next version [elasticsearch-nextversion-breaking-changes]
 
-```{applies_to}
-stack: ga 9.4.5
-```
-## 9.4.5 [elasticsearch-9.4.5-breaking-changes]
+## 9.5.1 [elasticsearch-9.5.1-breaking-changes]
 
 ILM:
 * When `number_of_replicas` is specified in the ILM `allocate` action, `auto_expand_replicas` is now explicitly removed from the index settings. [#155279](https://github.com/elastic/elasticsearch/pull/155279) (issue: [#150407](https://github.com/elastic/elasticsearch/issues/150407))
 
-
-
-## 9.5.1 [elasticsearch-9.5.1-breaking-changes]
+## 9.4.5 [elasticsearch-9.4.5-breaking-changes]
 
 ILM:
-* When `number_of_replicas` is specified in the ILM `allocate` action, `auto_expand_replicas` is now explicitly removed from the index settings.
-Previously, if an index had `auto_expand_replicas` configured, this setting would remain in place even after the `allocate` action ran, overriding the specified `number_of_replicas` and causing the action to have no effect on the actual replica count.
-With this change, specifying `number_of_replicas` in an `allocate` action will always take effect by also clearing `auto_expand_replicas`.
-If you want `auto_expand_replicas` to continue taking effect after the `allocate` action runs, remove the `number_of_replicas` setting from that action. [#155279](https://github.com/elastic/elasticsearch/pull/155279) (issue: [#150407](https://github.com/elastic/elasticsearch/issues/150407))
-
-
+* When `number_of_replicas` is specified in the ILM `allocate` action, `auto_expand_replicas` is now explicitly removed from the index settings. [#155279](https://github.com/elastic/elasticsearch/pull/155279) (issue: [#150407](https://github.com/elastic/elasticsearch/issues/150407))
 
 ## 9.5.0 [elasticsearch-9.5.0-breaking-changes]
 

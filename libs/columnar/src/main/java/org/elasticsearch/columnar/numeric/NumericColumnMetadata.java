@@ -183,7 +183,7 @@ public record NumericColumnMetadata(
      * {@link org.elasticsearch.columnar.FormatVersion}:
      * <pre>{@code
      * int flags = 0;
-     * if (formatVersion.version() >= FormatVersion.VERSION_V1_EXTRA_FLAGS) {
+     * if (formatVersion.onOrAfter(FormatVersion.V1_EXTRA_FLAGS)) {
      *     flags = in.readVInt();
      * }
      * }</pre>

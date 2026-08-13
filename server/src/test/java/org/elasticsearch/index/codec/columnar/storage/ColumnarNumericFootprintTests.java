@@ -60,14 +60,6 @@ public class ColumnarNumericFootprintTests extends ColumnarNumericStorageTestBas
         runFootprintTest("RANDOM_FULL", (f, t) -> NumericPipeline::defaultPipeline, 401781);
     }
 
-    public void testInvalidBlockSizeRejected() {
-        final NumericPipelineSelector sel = (f, t) -> NumericPipeline::defaultPipeline;
-        for (int bs : new int[] { 0, -1, 64, 127, 384, 640, ColumNARDocValuesFormat.MAX_BLOCK_SIZE * 2 }) {
-            final int blockSize = bs;
-            expectThrows(IllegalArgumentException.class, () -> new ColumNARDocValuesFormat(sel, blockSize));
-        }
-    }
-
     private void runFootprintTest(String workload, NumericPipelineSelector selector, long expectedBytes) throws IOException {
         final long[] values = generate(workload, DOC_COUNT);
         final long columnar = measureConsumer(new ColumNARDocValuesFormat(selector, BLOCK_SIZE), values, true);

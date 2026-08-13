@@ -124,7 +124,11 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             "function is not supported on federated data sources \\[.*\\]",
             // A wildcard FROM pattern that expands to include an external dataset creates a
             // federated/subquery-like structure internally; FORK cannot follow such a source.
-            "FORK after subquery is not supported"
+            "FORK after subquery is not supported",
+            // Full-text functions and the [:] operator are not allowed when the FROM clause resolves
+            // to include external (parquet) datasets — the verifier rejects them with a message of the
+            // form "[X] function/operator cannot be used after from <pattern>".
+            "(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase|KNN)] function)|(?:\\[:\\] operator)) cannot be used after from .*"
         )
     );
 

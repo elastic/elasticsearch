@@ -272,7 +272,7 @@ public abstract class AbstractPrometheusRestIT extends ESRestTestCase {
      * Any two of the varying labels identify a series uniquely, so dropping any single label still leaves four
      * distinct series, each keeping its own value.
      */
-    protected static final List<PromqlSeries> LABELLED_SERIES = List.of(
+    protected static final List<PromqlResponseSeries> LABELLED_SERIES = List.of(
         labelledSeries("a", "p1", "r1", 1.0),
         labelledSeries("a", "p2", "r2", 2.0),
         labelledSeries("b", "p1", "r2", 3.0),
@@ -281,14 +281,13 @@ public abstract class AbstractPrometheusRestIT extends ESRestTestCase {
 
     /**
      * Remote-write labels live under a {@code labels} passthrough field, so each dimension surfaces both as a concrete
-     * field ({@code labels.pod}) and as a short alias ({@code pod}). These names straddle that prefix lexically -
-     * cluster/instance/job sort before it, pod/region after - so a resolver that picks by sort order rather than by
-     * meaning is caught on one side or the other.
+     * field ({@code labels.pod}) and as a short alias ({@code pod}). Covering labels on both sides of that prefix
+     * (cluster/instance/job before it, pod/region after) catches resolvers that pick by sort order rather than meaning.
      */
     protected static final List<String> LABELLED_SERIES_LABELS = List.of("cluster", "instance", "job", "pod", "region");
 
-    private static PromqlSeries labelledSeries(String cluster, String pod, String region, double value) {
-        return new PromqlSeries(
+    private static PromqlResponseSeries labelledSeries(String cluster, String pod, String region, double value) {
+        return new PromqlResponseSeries(
             Map.of("job", "test_job", "instance", "localhost:9090", "cluster", cluster, "pod", pod, "region", region),
             value
         );
@@ -296,7 +295,7 @@ public abstract class AbstractPrometheusRestIT extends ESRestTestCase {
 
     protected void ingestLabelledSeries(String metricName) throws IOException {
         RemoteWrite.WriteRequest.Builder writeRequest = RemoteWrite.WriteRequest.newBuilder();
-        for (PromqlSeries series : LABELLED_SERIES) {
+        for (PromqlResponseSeries series : LABELLED_SERIES) {
             RemoteWrite.TimeSeries.Builder timeSeries = RemoteWrite.TimeSeries.newBuilder().addLabels(label("__name__", metricName));
             series.labels().forEach((name, value) -> timeSeries.addLabels(label(name, value)));
             writeRequest.addTimeseries(timeSeries.addSamples(sample(series.value(), LABELLED_SERIES_TIMESTAMP)).build());

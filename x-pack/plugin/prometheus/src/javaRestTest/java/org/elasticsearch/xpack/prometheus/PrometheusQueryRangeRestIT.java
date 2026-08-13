@@ -15,9 +15,10 @@ import org.elasticsearch.test.rest.ObjectPath;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 import java.util.function.UnaryOperator;
 
-import static org.elasticsearch.xpack.prometheus.PromqlSeries.of;
+import static org.elasticsearch.xpack.prometheus.PromqlResponseSeries.of;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
@@ -142,11 +143,41 @@ public class PrometheusQueryRangeRestIT extends AbstractPrometheusRestIT {
         assertThat(rangeSeries(METRIC + " * 2"), containsInAnyOrder(expected(series -> series.withValue(series.value() * 2))));
     }
 
-    private static PromqlSeries[] expected(UnaryOperator<PromqlSeries> transform) {
-        return LABELLED_SERIES.stream().map(transform).toArray(PromqlSeries[]::new);
+    /**
+     * Label selectors: equality, inequality, regex match, regex not-match, and AND combinations.
+     * The AND case ({@code cluster="a",pod!="p1"}) caught a Lucene bug where mixed equality+inequality
+     * filters produced wrong results.
+     */
+    public void testQueryRangeLabelSelectorFilters() throws Exception {
+        ingestLabelledSeries(METRIC);
+
+        // {cluster="a"}: equality
+        assertThat(rangeSeries(METRIC + "{cluster=\"a\"}"), containsInAnyOrder(matching(s -> "a".equals(s.labels().get("cluster")))));
+        // {pod!="p1"}: inequality
+        assertThat(rangeSeries(METRIC + "{pod!=\"p1\"}"), containsInAnyOrder(matching(s -> "p1".equals(s.labels().get("pod")) == false)));
+        // {cluster="a",pod!="p1"}: AND (the Lucene bug case)
+        assertThat(
+            rangeSeries(METRIC + "{cluster=\"a\",pod!=\"p1\"}"),
+            containsInAnyOrder(matching(s -> "a".equals(s.labels().get("cluster")) && "p1".equals(s.labels().get("pod")) == false))
+        );
+        // {region=~"r1"}: regex match
+        assertThat(rangeSeries(METRIC + "{region=~\"r1\"}"), containsInAnyOrder(matching(s -> "r1".equals(s.labels().get("region")))));
+        // {region!~"r1"}: regex not-match
+        assertThat(
+            rangeSeries(METRIC + "{region!~\"r1\"}"),
+            containsInAnyOrder(matching(s -> "r1".equals(s.labels().get("region")) == false))
+        );
     }
 
-    private List<PromqlSeries> rangeSeries(String promql) throws Exception {
+    private static PromqlResponseSeries[] expected(UnaryOperator<PromqlResponseSeries> transform) {
+        return LABELLED_SERIES.stream().map(transform).toArray(PromqlResponseSeries[]::new);
+    }
+
+    private static PromqlResponseSeries[] matching(Predicate<PromqlResponseSeries> predicate) {
+        return LABELLED_SERIES.stream().filter(predicate).toArray(PromqlResponseSeries[]::new);
+    }
+
+    private List<PromqlResponseSeries> rangeSeries(String promql) throws Exception {
         Request request = prometheusReadRequest(
             "/_prometheus/api/v1/query_range",
             new BasicNameValuePair("query", promql),
@@ -160,7 +191,7 @@ public class PrometheusQueryRangeRestIT extends AbstractPrometheusRestIT {
         ObjectPath responsePath = ObjectPath.createFromResponse(response);
         assertThat(responsePath.evaluate("status"), equalTo("success"));
         assertThat(responsePath.evaluate("data.resultType"), equalTo("matrix"));
-        return PromqlSeries.ofRange(responsePath);
+        return PromqlResponseSeries.ofRange(responsePath);
     }
 
     private static void assertMetricResults(ObjectPath responsePath) throws IOException {

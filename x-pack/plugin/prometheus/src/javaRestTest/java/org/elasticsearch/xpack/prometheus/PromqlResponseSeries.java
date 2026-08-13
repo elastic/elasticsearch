@@ -19,36 +19,36 @@ import java.util.Map;
  * A series in a Prometheus query response: its labels, without {@code __name__}, and one value. Tests describe the
  * fixture they ingest with the same type, so expectations can be derived from it rather than restated.
  */
-record PromqlSeries(Map<String, String> labels, double value) {
+record PromqlResponseSeries(Map<String, String> labels, double value) {
 
-    static PromqlSeries of(String label, String labelValue, double value) {
-        return new PromqlSeries(Map.of(label, labelValue), value);
+    static PromqlResponseSeries of(String label, String labelValue, double value) {
+        return new PromqlResponseSeries(Map.of(label, labelValue), value);
     }
 
-    PromqlSeries without(String label) {
+    PromqlResponseSeries without(String label) {
         Map<String, String> remaining = new HashMap<>(labels);
         remaining.remove(label);
-        return new PromqlSeries(remaining, value);
+        return new PromqlResponseSeries(remaining, value);
     }
 
-    PromqlSeries withValue(double newValue) {
-        return new PromqlSeries(labels, newValue);
+    PromqlResponseSeries withValue(double newValue) {
+        return new PromqlResponseSeries(labels, newValue);
     }
 
-    static List<PromqlSeries> ofInstant(ObjectPath response) throws IOException {
-        List<PromqlSeries> series = new ArrayList<>();
+    static List<PromqlResponseSeries> ofInstant(ObjectPath response) throws IOException {
+        List<PromqlResponseSeries> series = new ArrayList<>();
         for (int i = 0; i < seriesCount(response); i++) {
-            series.add(new PromqlSeries(labels(response, i), value(response.evaluate("data.result." + i + ".value"))));
+            series.add(new PromqlResponseSeries(labels(response, i), value(response.evaluate("data.result." + i + ".value"))));
         }
         return series;
     }
 
     /** Each series is represented by its last sample. */
-    static List<PromqlSeries> ofRange(ObjectPath response) throws IOException {
-        List<PromqlSeries> series = new ArrayList<>();
+    static List<PromqlResponseSeries> ofRange(ObjectPath response) throws IOException {
+        List<PromqlResponseSeries> series = new ArrayList<>();
         for (int i = 0; i < seriesCount(response); i++) {
             List<List<Object>> samples = response.evaluate("data.result." + i + ".values");
-            series.add(new PromqlSeries(labels(response, i), value(samples.getLast())));
+            series.add(new PromqlResponseSeries(labels(response, i), value(samples.getLast())));
         }
         return series;
     }

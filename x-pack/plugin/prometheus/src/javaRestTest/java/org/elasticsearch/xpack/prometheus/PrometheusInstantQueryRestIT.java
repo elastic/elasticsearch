@@ -17,7 +17,7 @@ import org.elasticsearch.test.rest.ObjectPath;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.xpack.prometheus.PromqlSeries.of;
+import static org.elasticsearch.xpack.prometheus.PromqlResponseSeries.of;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -169,7 +169,7 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
             assertThat(
                 "without(" + dropped + ")",
                 instantSeries("sum without (" + dropped + ") (" + METRIC + ")"),
-                containsInAnyOrder(LABELLED_SERIES.stream().map(series -> series.without(dropped)).toArray(PromqlSeries[]::new))
+                containsInAnyOrder(LABELLED_SERIES.stream().map(series -> series.without(dropped)).toArray(PromqlResponseSeries[]::new))
             );
         }
     }
@@ -186,12 +186,12 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         assertThat(instantSeries(METRIC + " > 1"), containsInAnyOrder(seriesWithValueAbove(1.0)));
     }
 
-    private static PromqlSeries[] seriesWithValueAbove(double threshold) {
-        return LABELLED_SERIES.stream().filter(series -> series.value() > threshold).toArray(PromqlSeries[]::new);
+    private static PromqlResponseSeries[] seriesWithValueAbove(double threshold) {
+        return LABELLED_SERIES.stream().filter(series -> series.value() > threshold).toArray(PromqlResponseSeries[]::new);
     }
 
-    private List<PromqlSeries> instantSeries(String promql) throws Exception {
-        return PromqlSeries.ofInstant(executeInstantQuery(promql, "2026-01-01T00:05:00Z", null));
+    private List<PromqlResponseSeries> instantSeries(String promql) throws Exception {
+        return PromqlResponseSeries.ofInstant(executeInstantQuery(promql, "2026-01-01T00:05:00Z", null));
     }
 
     private static void assertMetricResult(ObjectPath responsePath) throws IOException {

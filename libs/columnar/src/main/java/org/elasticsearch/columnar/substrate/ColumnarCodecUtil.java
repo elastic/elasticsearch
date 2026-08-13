@@ -26,10 +26,7 @@ public final class ColumnarCodecUtil {
 
     private ColumnarCodecUtil() {}
 
-    /**
-     * Writes a ColumNAR index header for {@code name} into {@code out} stamping {@code version}.
-     * Callers obtain the version from a {@link org.elasticsearch.columnar.ColumnarWriteProfile}.
-     */
+    /** Writes a ColumNAR index header for {@code name} into {@code out} stamping {@code version}. */
     public static void writeHeader(IndexOutput out, String name, final FormatVersion version, byte[] segmentId, String segmentSuffix)
         throws IOException {
         CodecUtil.writeIndexHeader(out, name, version.version(), segmentId, segmentSuffix);
@@ -37,8 +34,8 @@ public final class ColumnarCodecUtil {
 
     /**
      * Checks a ColumNAR index header on {@code in}, accepting any version in
-     * {@code [FormatVersion.MIN_SUPPORTED, FormatVersion.CURRENT]}, and returns the on-disk
-     * version as a typed {@link FormatVersion}. Throws
+     * {@code [FormatVersion.BASELINE, FormatVersion.CURRENT]}, and returns the on-disk version as
+     * a typed {@link FormatVersion}. Throws
      * {@link org.apache.lucene.index.IndexFormatTooNewException} or
      * {@link org.apache.lucene.index.IndexFormatTooOldException} if the version is outside the
      * readable range.
@@ -51,7 +48,7 @@ public final class ColumnarCodecUtil {
         final int raw = CodecUtil.checkIndexHeader(
             in,
             name,
-            FormatVersion.MIN_SUPPORTED.version(),
+            FormatVersion.BASELINE.version(),
             FormatVersion.CURRENT.version(),
             segmentId,
             segmentSuffix

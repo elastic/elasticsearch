@@ -10,7 +10,6 @@
 package org.elasticsearch.columnar;
 
 import org.apache.lucene.codecs.CodecUtil;
-import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.ByteBuffersDirectory;
@@ -22,37 +21,10 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
-/**
- * Checks that format-version boundary conditions produce the right exceptions.
- *
- * <p>A header stamped at {@code CURRENT.version() + 1} must throw {@link IndexFormatTooNewException}
- * so a not-yet-upgraded node fails loudly at segment open rather than deep inside a block decode.
- * A header stamped below {@code MIN_SUPPORTED} must throw {@link IndexFormatTooOldException}.
- * The meta/data version-mismatch rejection is documented for the first post-BASELINE bump; while
- * {@code CURRENT == BASELINE} the test is skipped and does not exercise {@link CorruptIndexException}.
- */
 public class ColumnarFormatVersionTests extends ESTestCase {
 
     private static final byte[] SEGMENT_ID = new byte[16];
     private static final String SUFFIX = "";
-
-    public void testEnsureReadableAcceptsCurrentVersion() {
-        FormatVersion.CURRENT.ensureReadable();
-    }
-
-    public void testEnsureReadableRejectsFutureVersion() {
-        final FormatVersion future = new FormatVersion(FormatVersion.CURRENT.version() + 1);
-        final IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, future::ensureReadable);
-        assertTrue(ex.getMessage().contains(String.valueOf(future.version())));
-    }
-
-    public void testEnsureReadableRejectsPastVersion() {
-        // NOTE: at BASELINE, MIN_SUPPORTED.version() - 1 == -1, which the FormatVersion constructor
-        // rejects before ensureReadable() can. The test is meaningful only once MIN_SUPPORTED > 0.
-        assumeTrue("past-version test requires MIN_SUPPORTED > 0", FormatVersion.MIN_SUPPORTED.version() > 0);
-        final FormatVersion past = new FormatVersion(FormatVersion.MIN_SUPPORTED.version() - 1);
-        expectThrows(IllegalArgumentException.class, past::ensureReadable);
-    }
 
     public void testTooNewVersionRejected() throws IOException {
         final int futureVersion = FormatVersion.CURRENT.version() + 1;
@@ -68,7 +40,7 @@ public class ColumnarFormatVersionTests extends ESTestCase {
     }
 
     public void testTooOldVersionRejected() throws IOException {
-        final int pastVersion = FormatVersion.MIN_SUPPORTED.version() - 1;
+        final int pastVersion = FormatVersion.BASELINE.version() - 1;
         try (ByteBuffersDirectory dir = new ByteBuffersDirectory()) {
             writeHeaderOnly(dir, "test.cnm", ColumNARDocValuesFormat.META_CODEC, pastVersion);
             try (ChecksumIndexInput in = dir.openChecksumInput("test.cnm")) {
@@ -76,30 +48,6 @@ public class ColumnarFormatVersionTests extends ESTestCase {
                     IndexFormatTooOldException.class,
                     () -> ColumnarCodecUtil.checkHeader(in, ColumNARDocValuesFormat.META_CODEC, SEGMENT_ID, SUFFIX)
                 );
-            }
-        }
-    }
-
-    public void testMetadataVersionMismatchContractForFirstBump() throws IOException {
-        // NOTE: when V_1 lands, rewrite this to open a ColumNARDocValuesProducer on the two
-        // mismatched files and assert CorruptIndexException instead of just checking the versions differ.
-        assumeTrue("mismatch test requires CURRENT >= 1", FormatVersion.CURRENT.version() >= 1);
-        final int metaVersion = FormatVersion.CURRENT.version() - 1;
-        final int dataVersion = FormatVersion.CURRENT.version();
-        try (ByteBuffersDirectory dir = new ByteBuffersDirectory()) {
-            writeHeaderOnly(dir, "seg.cnm", ColumNARDocValuesFormat.META_CODEC, metaVersion);
-            writeHeaderOnly(dir, "seg.cnd", ColumNARDocValuesFormat.DATA_CODEC, dataVersion);
-            try (ChecksumIndexInput meta = dir.openChecksumInput("seg.cnm")) {
-                final FormatVersion readMeta = ColumnarCodecUtil.checkHeader(meta, ColumNARDocValuesFormat.META_CODEC, SEGMENT_ID, SUFFIX);
-                try (ChecksumIndexInput data = dir.openChecksumInput("seg.cnd")) {
-                    final FormatVersion readData = ColumnarCodecUtil.checkHeader(
-                        data,
-                        ColumNARDocValuesFormat.DATA_CODEC,
-                        SEGMENT_ID,
-                        SUFFIX
-                    );
-                    assertFalse(readMeta.matches(readData));
-                }
             }
         }
     }

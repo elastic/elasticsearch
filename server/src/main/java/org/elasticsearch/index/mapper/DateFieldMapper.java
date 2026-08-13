@@ -125,6 +125,7 @@ public final class DateFieldMapper extends FieldMapper {
     private static final IndexableFieldType SORTED_NUMERIC_DV_FIELD_TYPE = SortedNumericDocValuesField.TYPE;
     private static final IndexableFieldType SORTED_NUMERIC_DV_INDEXED_FIELD_TYPE = SortedNumericDocValuesField.indexedField("_sentinel", 0L)
         .fieldType();
+    private static final IndexableFieldType LONG_FIELD_TYPE = new LongField("_sentinel", 0L, Field.Store.NO).fieldType();
 
     public enum Resolution {
         MILLISECONDS(CONTENT_TYPE, NumericType.DATE, DateMillisDocValuesField::new) {
@@ -1279,7 +1280,6 @@ public final class DateFieldMapper extends FieldMapper {
         // but are deliberately not rejected here instead rejected at parse time.
         return indexSettings.getMode().isStrictColumnar()
             && docValuesParameters.enabled()
-            && indexed == false
             && store == false
             && hasScript() == false
             && copyTo().copyToFields().isEmpty()
@@ -1300,9 +1300,14 @@ public final class DateFieldMapper extends FieldMapper {
                     + "]"
             );
         };
-        final IndexableFieldType columnFieldType = fieldType().hasDocValuesSkipper()
-            ? SORTED_NUMERIC_DV_INDEXED_FIELD_TYPE
-            : SORTED_NUMERIC_DV_FIELD_TYPE;
+        final IndexableFieldType columnFieldType;
+        if (fieldType().hasDocValuesSkipper()) {
+            columnFieldType = SORTED_NUMERIC_DV_INDEXED_FIELD_TYPE;
+        } else if (indexed) {
+            columnFieldType = LONG_FIELD_TYPE;
+        } else {
+            columnFieldType = SORTED_NUMERIC_DV_FIELD_TYPE;
+        }
         ctx.addColumn(LuceneLongColumn.of(outData, fieldType().name(), columnFieldType, LongColumn.NumericKind.LONG));
     }
 

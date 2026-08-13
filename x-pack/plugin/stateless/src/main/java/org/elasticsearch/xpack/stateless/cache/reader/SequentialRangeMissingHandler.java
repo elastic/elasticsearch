@@ -58,7 +58,10 @@ public class SequentialRangeMissingHandler implements SharedBlobCacheService.Ran
      * @param writeBufferSupplier     returns byte buffer which is used for copying data from blob reader to cache.
      *                                Be aware of threaded usage of writeBufferSupplier. Underlying buffer is used exclusively in
      *                                a gap filling thread, so it should not be shared with other modifying threads.
-     * @param bytesCopiedConsumer     a consumer to be called everytime some bytes are copied to the cache
+     * @param bytesCopiedConsumer     called with the per-chunk byte delta before the
+     *                                {@link org.elasticsearch.blobcache.common.SparseFileTracker} advances; use for
+     *                                supplementary tracking (e.g. warming-service byte counters). Reader-level metering
+     *                                is handled by the reader itself. Pass {@code ignored -> {}} if unneeded.
      * @param expectedThreadPoolNames lists threads which can be used to fill the range
      */
     public SequentialRangeMissingHandler(
@@ -198,30 +201,15 @@ public class SequentialRangeMissingHandler implements SharedBlobCacheService.Ran
         createInputStream(streamFactory, relativePos, len, completionListener.map(in -> {
             try (in) {
                 assert ThreadPool.assertCurrentThreadPool(expectedThreadPoolNames);
-                // copyToCacheFileAligned calls progressUpdater with the cumulative byte total after each
-                // chunk lands, not with the per-chunk delta. We track the previous cumulative total so we
-                // can compute the delta and feed it to bytesCopiedConsumer before advancing the
-                // SparseFileTracker. This guarantees that the byte count is visible to any reader thread
-                // that the SparseFileTracker may unblock, eliminating the race with recovery metrics
-                // collection.
+                // copyToCacheFileAligned delivers cumulative totals; subtract previous to get per-chunk delta.
                 final int[] prevCumulativeBytes = { 0 };
-                final IntConsumer earlyCountingProgressUpdater = cumulativeBytes -> {
+                final long copyStartNanos = System.nanoTime();
+                final int totalBytesCopied = SharedBytes.copyToCacheFileAligned(channel, in, channelPos, cumulativeBytes -> {
+                    // before progressUpdater: SparseFileTracker may unblock readers on advance
                     bytesCopiedConsumer.accept(cumulativeBytes - prevCumulativeBytes[0]);
                     prevCumulativeBytes[0] = cumulativeBytes;
                     progressUpdater.accept(cumulativeBytes);
-                };
-                final long copyStartNanos = System.nanoTime();
-                final int totalBytesCopied = SharedBytes.copyToCacheFileAligned(
-                    channel,
-                    in,
-                    channelPos,
-                    earlyCountingProgressUpdater,
-                    writeBufferSupplier.get()
-                );
-                // Report total bytes and elapsed copy time for throughput metrics. Only called when bytes
-                // were actually copied (i.e. a cache miss), since recordCachePopulationMetrics requires
-                // bytesCopied > 0. Called after all SparseFileTracker advances so it must not be used
-                // for byte-counter updates.
+                }, writeBufferSupplier.get());
                 if (totalBytesCopied > 0) {
                     cacheBlobReader.onCopyCompleted(totalBytesCopied, System.nanoTime() - copyStartNanos);
                 }

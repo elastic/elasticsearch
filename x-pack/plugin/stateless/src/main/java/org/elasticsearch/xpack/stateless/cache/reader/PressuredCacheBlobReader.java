@@ -18,7 +18,6 @@ import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.concurrent.Executor;
-import java.util.function.IntConsumer;
 
 /**
  * {@link CacheBlobReader} wrapper: acquires {@link FillCacheMemoryPressure} budget for the requested length before delegating, and
@@ -79,11 +78,6 @@ public class PressuredCacheBlobReader implements CacheBlobReader {
     @Override
     public String executorName() {
         return delegate.executorName();
-    }
-
-    @Override
-    public IntConsumer newBytesCopiedConsumer() {
-        return delegate.newBytesCopiedConsumer();
     }
 
     @Override

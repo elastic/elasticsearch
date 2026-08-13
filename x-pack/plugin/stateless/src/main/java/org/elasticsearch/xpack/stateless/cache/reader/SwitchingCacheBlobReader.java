@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.stateless.cache.reader.ObjectStoreUploadTracker.U
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 
 import java.io.InputStream;
-import java.util.function.IntConsumer;
 
 /**
  * Switches between two {@link CacheBlobReader} implementations based on whether the batched compound commit has been uploaded to the
@@ -99,20 +98,8 @@ public class SwitchingCacheBlobReader implements CacheBlobReader {
         }
     }
 
-    // Both newBytesCopiedConsumer() and onCopyCompleted() route to the same reader as
-    // getRangeInputStream(): the dispatch is evaluated once, at handler-construction time, so all
-    // three operations for a given fill always go to the same underlying reader even if
-    // isUploaded() changes mid-copy.
-
-    @Override
-    public IntConsumer newBytesCopiedConsumer() {
-        if (latestUploadInfo.isUploaded()) {
-            return cacheBlobReaderForUploaded.newBytesCopiedConsumer();
-        } else {
-            return cacheBlobReaderForNonUploaded.newBytesCopiedConsumer();
-        }
-    }
-
+    // onCopyCompleted routes on current isUploaded(); if state flipped mid-copy,
+    // timing goes to the wrong reader — acceptable for throughput telemetry only.
     @Override
     public void onCopyCompleted(int totalBytesRead, long timeNanos) {
         if (latestUploadInfo.isUploaded()) {

@@ -12,8 +12,9 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobcache.common.ByteRange;
 
+import java.io.FilterInputStream;
+import java.io.IOException;
 import java.io.InputStream;
-import java.util.function.IntConsumer;
 
 /**
  * Wrapper around {@link CacheBlobReader} which counts how many bytes were read through delegated {@link CacheBlobReader}
@@ -37,29 +38,12 @@ public class MeteringCacheBlobReader implements CacheBlobReader {
 
     @Override
     public void getRangeInputStream(long position, int length, ActionListener<InputStream> listener) {
-        delegate.getRangeInputStream(position, length, listener);
+        delegate.getRangeInputStream(position, length, listener.map(MeteringInputStream::new));
     }
 
     @Override
     public String executorName() {
         return delegate.executorName();
-    }
-
-    /**
-     * Returns a consumer that increments the byte counter as each chunk lands in the cache, before the
-     * {@link org.elasticsearch.blobcache.common.SparseFileTracker} unblocks any waiting reader threads.
-     * Exceptions thrown by the callback are caught and logged at DEBUG to prevent a metrics failure from
-     * aborting the cache-fill operation.
-     */
-    @Override
-    public IntConsumer newBytesCopiedConsumer() {
-        return bytes -> {
-            try {
-                readCompleteCallback.onBytesRead(bytes);
-            } catch (Exception e) {
-                logger.debug("Error calling call-back", e);
-            }
-        };
     }
 
     /**
@@ -77,15 +61,13 @@ public class MeteringCacheBlobReader implements CacheBlobReader {
     }
 
     /**
-     * Notified as bytes land in the cache (per-chunk) and once when the full range copy completes.
-     * The two methods are called from different points in the copy pipeline; see
-     * {@link MeteringCacheBlobReader#newBytesCopiedConsumer()} and
-     * {@link MeteringCacheBlobReader#onCopyCompleted(int, long)} for the happens-before guarantees.
+     * Notified as bytes are read from the source stream (per-chunk) and once when the full range copy completes.
      */
     public interface ReadCompleteCallback {
         /**
-         * Called once per chunk, before the SparseFileTracker advances. Used for byte-counter updates
-         * that must be visible to reader threads before they are unblocked.
+         * Called as bytes are read from the metered stream, before they are written to the cache and before the
+         * SparseFileTracker advances. Used for byte-counter updates that must be visible to reader threads before
+         * they are unblocked.
          *
          * @param bytesRead The number of bytes in this chunk
          */
@@ -99,5 +81,43 @@ public class MeteringCacheBlobReader implements CacheBlobReader {
          * @param timeNanos      Wall-clock duration of the copy in nanoseconds
          */
         default void onCopyCompleted(int totalBytesRead, long timeNanos) {}
+    }
+
+    /**
+     * Counts bytes per-read and notifies {@link ReadCompleteCallback#onBytesRead} immediately on each chunk,
+     * before the data is written to the cache. This ensures byte-counter updates are visible to any reader
+     * thread that the SparseFileTracker may unblock after the chunk lands.
+     */
+    private class MeteringInputStream extends FilterInputStream {
+
+        private MeteringInputStream(InputStream delegate) {
+            super(delegate);
+        }
+
+        @Override
+        public int read() throws IOException {
+            final int b = super.read();
+            if (b != -1) {
+                notifyBytesRead(1);
+            }
+            return b;
+        }
+
+        @Override
+        public int read(byte[] b, int off, int len) throws IOException {
+            final int n = super.read(b, off, len);
+            if (n > 0) {
+                notifyBytesRead(n);
+            }
+            return n;
+        }
+
+        private void notifyBytesRead(int n) {
+            try {
+                readCompleteCallback.onBytesRead(n);
+            } catch (Exception e) {
+                logger.debug("Error calling call-back", e);
+            }
+        }
     }
 }

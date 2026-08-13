@@ -16,6 +16,7 @@ import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
@@ -23,10 +24,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class MeteringCacheBlobReaderTests extends ESTestCase {
 
-    public void testOnBytesReadCallback() {
+    public void testOnBytesReadCallbackViaStreamReads() throws IOException {
         final var capturedBytes = new ArrayList<Integer>();
         final var meteringCacheBlobReader = new MeteringCacheBlobReader(
             createFakeCacheBlobReader(),
@@ -38,14 +40,20 @@ public class MeteringCacheBlobReaderTests extends ESTestCase {
             }
         );
 
-        final var consumer = meteringCacheBlobReader.newBytesCopiedConsumer();
+        final int chunk1 = randomIntBetween(1, 512);
+        final int chunk2 = randomIntBetween(1, 512);
+        final int length = chunk1 + chunk2;
+        final int[] read1 = { 0 };
+        final int[] read2 = { 0 };
+        meteringCacheBlobReader.getRangeInputStream(0, length, ActionListener.wrap(stream -> {
+            final var buf = new byte[length];
+            read1[0] = stream.read(buf, 0, chunk1);
+            read2[0] = stream.read(buf, chunk1, chunk2);
+        }, e -> fail("unexpected: " + e)));
 
-        final var chunk1 = randomIntBetween(1, 1024);
-        final var chunk2 = randomIntBetween(1, 1024);
-        consumer.accept(chunk1);
-        consumer.accept(chunk2);
-
-        assertThat(capturedBytes, equalTo(List.of(chunk1, chunk2)));
+        assertThat(read1[0], greaterThan(0));
+        assertThat(read2[0], greaterThan(0));
+        assertThat(capturedBytes, equalTo(List.of(read1[0], read2[0])));
     }
 
     public void testOnCopyCompletedCallback() {
@@ -71,7 +79,7 @@ public class MeteringCacheBlobReaderTests extends ESTestCase {
     }
 
     @TestLogging(value = "org.elasticsearch.xpack.stateless.cache.reader.MeteringCacheBlobReader:DEBUG", reason = "test debug log message")
-    public void testExceptionIsLoggedAtDebugWhenBytesCallbackThrows() {
+    public void testExceptionIsLoggedAtDebugWhenBytesCallbackThrows() throws IOException {
         final var callbackException = new RuntimeException("Callback exception");
         final var throwingCallback = new MeteringCacheBlobReader.ReadCompleteCallback() {
             @Override
@@ -80,7 +88,6 @@ public class MeteringCacheBlobReaderTests extends ESTestCase {
             }
         };
         final var meteringCacheBlobReader = new MeteringCacheBlobReader(createFakeCacheBlobReader(), throwingCallback);
-        final var consumer = meteringCacheBlobReader.newBytesCopiedConsumer();
         try (MockLog mockLog = MockLog.capture(MeteringCacheBlobReader.class)) {
             mockLog.addExpectation(
                 new MockLog.ExceptionSeenEventExpectation(
@@ -92,7 +99,11 @@ public class MeteringCacheBlobReaderTests extends ESTestCase {
                     callbackException.getMessage()
                 )
             );
-            consumer.accept(randomIntBetween(1, 1024));
+            final int length = randomIntBetween(1, 1024);
+            meteringCacheBlobReader.getRangeInputStream(0, length, ActionListener.wrap(stream -> {
+                final byte[] buf = new byte[length];
+                stream.read(buf, 0, length);
+            }, e -> fail("unexpected: " + e)));
             mockLog.assertAllExpectationsMatched();
         }
     }

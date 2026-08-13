@@ -235,8 +235,8 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         final AtomicArray<MultiSearchResponse.Item> responses = new AtomicArray<>(numRequests);
         final AtomicInteger responseCounter = new AtomicInteger(numRequests);
         // Each completed sub-search stays in {@code responses} until the last one finishes. Incremental bytes (hits,
-        // suggest, etc.) are reserved here; query-phase aggregation bytes are handed off from {@link QueryPhaseResultConsumer}
-        // and released together when the combined {@link MultiSearchResponse} is delivered.
+        // suggest, etc.) and failure-item bytes are reserved here; query-phase aggregation bytes are handed off from
+        // {@link QueryPhaseResultConsumer} and released together when the combined {@link MultiSearchResponse} is delivered.
         final MultiSearchBreakerAccounting breakerAccounting = new MultiSearchBreakerAccounting();
         final ActionListener<MultiSearchResponse> breakerReleasingListener = ActionListener.runAfter(
             listener,
@@ -682,15 +682,47 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         return false;
     }
 
+    /**
+     * Reserves breaker bytes for a failure item. A failure item can't simply be discarded like an
+     * over-sized response can, but its size (e.g. a {@link SearchPhaseExecutionException} with many
+     * {@link ShardSearchFailure} entries) is unbounded, so a genuine trip is handled by substituting the
+     * small, bounded {@link CircuitBreakingException} itself via {@link #accountBoundedFailureSubstitute}
+     * instead of force-adding the original. Any other exception is treated as a breaker bug rather than a
+     * legitimate trip: it's logged, and the original bytes are force-added so a defect here can't hang
+     * the msearch.
+     */
     private MultiSearchResponse.Item accountFailureItem(MultiSearchBreakerAccounting breakerAccounting, MultiSearchResponse.Item item) {
         long bytes = estimateFailureBytes(item.getFailure());
         try {
             circuitBreaker.addEstimateBytesAndMaybeBreak(bytes, "<msearch_failure>");
-        } catch (Exception reservationFailure) {
+        } catch (CircuitBreakingException tripped) {
+            return accountBoundedFailureSubstitute(breakerAccounting, tripped);
+        } catch (Exception unexpected) {
+            logger.warn("msearch circuit breaker: failed to reserve bytes for failure item", unexpected);
             circuitBreaker.addWithoutBreaking(bytes);
+            breakerAccounting.add(bytes, 0);
+            return item;
         }
         breakerAccounting.add(bytes, 0);
         return item;
+    }
+
+    /**
+     * Accounts for a small, bounded {@link CircuitBreakingException} substituted for a failure item that
+     * didn't fit. Unlike the original, it's safe to force through as a last resort if it still doesn't fit.
+     */
+    private MultiSearchResponse.Item accountBoundedFailureSubstitute(
+        MultiSearchBreakerAccounting breakerAccounting,
+        CircuitBreakingException substitute
+    ) {
+        long substituteBytes = estimateFailureBytes(substitute);
+        try {
+            circuitBreaker.addEstimateBytesAndMaybeBreak(substituteBytes, "<msearch_failure>");
+        } catch (CircuitBreakingException stillTripped) {
+            circuitBreaker.addWithoutBreaking(substituteBytes);
+        }
+        breakerAccounting.add(substituteBytes, 0);
+        return new MultiSearchResponse.Item(null, substitute);
     }
 
     record SearchRequestSlot(SearchRequest request, int responseSlot) {
@@ -700,6 +732,8 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
     /**
      * Tracks REQUEST breaker bytes reserved while sub-search responses are buffered: incremental estimates from
      * {@link #estimateActualBytes} plus query-phase aggregation bytes handed off from {@link QueryPhaseResultConsumer}.
+     * Also tracks bytes reserved for failure items via {@link #accountFailureItem}, whether from a genuine
+     * sub-search failure or from a {@link CircuitBreakingException} substituted for an over-sized item.
      */
     final class MultiSearchBreakerAccounting {
         private final AtomicLong incrementalBytes = new AtomicLong();

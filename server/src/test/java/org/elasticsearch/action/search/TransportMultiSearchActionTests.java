@@ -80,6 +80,7 @@ import static org.elasticsearch.common.lucene.Lucene.writeExplanation;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
@@ -931,9 +932,12 @@ public class TransportMultiSearchActionTests extends ESTestCase {
     }
 
     /**
-     * Even when the tracking breaker's byte limit is exhausted partway through, every failure item
-     * must still be accounted for (via {@link CircuitBreaker#addWithoutBreaking} once reservation is
-     * rejected) rather than discarded, so the msearch completes with all its original failure detail.
+     * Even when the tracking breaker's byte limit is exhausted partway through, every failure item must
+     * still be present in the response -- never dropped -- so the msearch completes rather than hanging.
+     * But since the underlying failures here (each with 10 shard failures) are far larger than the byte
+     * limit, {@link TransportMultiSearchAction#accountFailureItem} rejects them and substitutes a small,
+     * bounded {@link CircuitBreakingException} instead of forcing the original, unbounded failure onto an
+     * already-saturated breaker -- this is what gives the breaker real enforcement power on this path.
      */
     public void testAllSubSearchesFailStillTripsBreaker() throws Exception {
         int numRequests = 20;
@@ -949,11 +953,34 @@ public class TransportMultiSearchActionTests extends ESTestCase {
             captured -> System.arraycopy(captured, 0, items, 0, numRequests)
         );
 
+        long originalFailureBytes = TransportMultiSearchAction.estimateFailureBytes(searchPhaseExecutionExceptionWithShardFailures(10));
         for (MultiSearchResponse.Item item : items) {
             assertTrue(item.isFailure());
-            assertThat(item.getFailure(), instanceOf(SearchPhaseExecutionException.class));
-            assertThat(((SearchPhaseExecutionException) item.getFailure()).shardFailures().length, equalTo(10));
+            assertThat(item.getFailure(), instanceOf(CircuitBreakingException.class));
         }
+        assertThat(breaker.maxWithoutBreaking(), lessThan(originalFailureBytes));
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    public void testAccountFailureItemSubstitutesBoundedExceptionWhenTripped() throws Exception {
+        long largeFailureBytes = TransportMultiSearchAction.estimateFailureBytes(searchPhaseExecutionExceptionWithShardFailures(50));
+        // Just enough headroom for a bounded substitute, but not for the large original failure.
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(largeFailureBytes - 1);
+
+        MultiSearchResponse.Item[] items = new MultiSearchResponse.Item[1];
+        runMsearchWithBreaker(
+            breaker,
+            1,
+            () -> SearchResponse.emptyResponseBuilder().tookInMillis(1L).build(),
+            index -> true,
+            () -> searchPhaseExecutionExceptionWithShardFailures(50),
+            captured -> items[0] = captured[0]
+        );
+
+        assertTrue(items[0].isFailure());
+        assertThat(items[0].getFailure(), instanceOf(CircuitBreakingException.class));
+        assertThat(items[0].getFailure(), not(instanceOf(SearchPhaseExecutionException.class)));
+        assertThat(breaker.maxWithoutBreaking(), equalTo(0L));
         assertThat(breaker.getUsed(), equalTo(0L));
     }
 
@@ -1069,6 +1096,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         private final AtomicLong used = new AtomicLong();
         private final AtomicLong totalReserved = new AtomicLong();
         private final AtomicLong totalWithoutBreaking = new AtomicLong();
+        private final AtomicLong maxWithoutBreaking = new AtomicLong();
         private final AtomicInteger reservationCalls = new AtomicInteger();
         private final int tripOnCall;
         private final long byteLimit;
@@ -1116,6 +1144,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
             used.addAndGet(bytes);
             if (bytes > 0) {
                 totalWithoutBreaking.addAndGet(bytes);
+                maxWithoutBreaking.updateAndGet(current -> Math.max(current, bytes));
             }
         }
 
@@ -1154,6 +1183,10 @@ public class TransportMultiSearchActionTests extends ESTestCase {
 
         long totalReserved() {
             return totalReserved.get();
+        }
+
+        long maxWithoutBreaking() {
+            return maxWithoutBreaking.get();
         }
     }
 

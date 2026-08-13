@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.FieldExtract;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Length;
 import org.elasticsearch.xpack.esql.expression.function.vector.DotProduct;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
@@ -39,6 +40,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.RegexExtractExec;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.junit.Before;
@@ -62,6 +64,7 @@ import static org.hamcrest.Matchers.startsWith;
 public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOptimizerTests {
     private TestPlannerOptimizer allTypesPlannerOptimizer;
     private TestPlannerOptimizer tsPlannerOptimizer;
+    private TestPlannerOptimizer flattenedPlannerOptimizer;
 
     public PushExpressionsToFieldLoadTests(String name, Configuration config) {
         super(name, config);
@@ -74,6 +77,12 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
             .addIndex("test_all", "mapping-all-types.json")
             .buildAnalyzer();
         allTypesPlannerOptimizer = new TestPlannerOptimizer(config, allTypesAnalyzer);
+
+        Analyzer flattenedAnalyzer = EsqlTestUtils.analyzer()
+            .configuration(config)
+            .addIndex("test", "mapping-flattened_keyed.json")
+            .buildAnalyzer();
+        flattenedPlannerOptimizer = new TestPlannerOptimizer(config, flattenedAnalyzer);
 
         Analyzer tsAnalyzer = EsqlTestUtils.analyzer()
             .configuration(config)
@@ -709,6 +718,47 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
 
         List<FieldAttribute> textLengthPushed = findPushedFields(plan, "text", BlockLoaderFunctionConfig.Function.LENGTH);
         assertThat("LENGTH(text) in subquery should be pushed", textLengthPushed, hasSize(1));
+    }
+
+    // ---- field_extract into DISSECT / GROK input (RegexExtractExec) ----
+
+    public void testFieldExtractInDissect() {
+        assumeTrue("field_extract must be part of this build", FieldExtract.isFnFieldExtractCapabilityMet());
+        // The trailing SORT/LIMIT pushes the DISSECT into the data-node fragment where the rule runs. The DISSECT
+        // input is field_extract(data, "host.name"); it must fuse into a keyed sub-field load rather than survive
+        // as a per-row evaluator feeding the RegexExtractExec.
+        PhysicalPlan plan = flattenedPlannerOptimizer.plan("""
+            FROM test
+            | DISSECT field_extract(data, "host.name") "%{a} %{b}"
+            | SORT id
+            | LIMIT 10
+            | KEEP a, b
+            """);
+
+        List<FieldAttribute> pushed = findPushedFields(plan, "data", BlockLoaderFunctionConfig.Function.EXTRACT_FLATTENED_SUBFIELD);
+        assertThat("field_extract feeding DISSECT should fuse", pushed, hasSize(1));
+
+        RegexExtractExec dissect = findFirst(plan, RegexExtractExec.class);
+        assertNotNull("Should find a RegexExtractExec (DISSECT)", dissect);
+        FieldAttribute input = as(dissect.inputExpression(), FieldAttribute.class);
+        assertThat(
+            as(input.field(), FunctionEsField.class).functionConfig().function(),
+            is(BlockLoaderFunctionConfig.Function.EXTRACT_FLATTENED_SUBFIELD)
+        );
+    }
+
+    public void testFieldExtractInGrok() {
+        assumeTrue("field_extract must be part of this build", FieldExtract.isFnFieldExtractCapabilityMet());
+        PhysicalPlan plan = flattenedPlannerOptimizer.plan("""
+            FROM test
+            | GROK field_extract(data, "host.name") "%{WORD:a}"
+            | SORT id
+            | LIMIT 10
+            | KEEP a
+            """);
+
+        List<FieldAttribute> pushed = findPushedFields(plan, "data", BlockLoaderFunctionConfig.Function.EXTRACT_FLATTENED_SUBFIELD);
+        assertThat("field_extract feeding GROK should fuse", pushed, hasSize(1));
     }
 
     // ---- Lookup join test (Primaries check) ----

@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
+import org.elasticsearch.xpack.esql.plan.physical.RegexExtractExec;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 
 import java.util.ArrayList;
@@ -142,7 +143,12 @@ public class PushExpressionsToFieldLoad extends ParameterizedRule<PhysicalPlan, 
 
         private PhysicalPlan doRule(PhysicalPlan plan) {
             addedNewAttribute = false;
-            if (plan instanceof EvalExec || plan instanceof FilterExec || plan instanceof AggregateExec) {
+            // RegexExtractExec (DISSECT/GROK) carries its parsed value in inputExpression, another position where
+            // a pushable expression such as field_extract(<flattened>, "<key>") can be folded into the field load.
+            if (plan instanceof EvalExec
+                || plan instanceof FilterExec
+                || plan instanceof AggregateExec
+                || plan instanceof RegexExtractExec) {
                 return transformPotentialInvocation(plan);
             }
             if (addedAttrs.isEmpty()) {

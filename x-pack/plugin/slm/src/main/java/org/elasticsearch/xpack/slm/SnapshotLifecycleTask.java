@@ -299,26 +299,24 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                             "failed to create snapshot successfully, " + failures + " out of " + total + " total shards failed"
                         );
                         // SnapshotInfo means the snapshot was started and registered; never treat as never-registered.
-                        recordSnapshotFailure(e, false);
+                        recordSnapshotFailure(e, false, clusterService.state().projectState(projectId));
                     }
                 }
 
                 @Override
                 public void onFailure(Exception e) {
-                    // Capture now: if the snapshot was never registered (e.g. CreateSnapshot failed before registration),
-                    // WriteJobStatus must still record the failure when the snapshot is absent from the registered set.
-                    // If it is registered now, a concurrent cleanup may remove it before WriteJobStatus runs - skip then.
-                    // SnapshotInfo failures use recordSnapshotFailure(..., false) above so they are not confused with
-                    // never-registered when a peer cleanup already removed this id from the registered set (#136759).
-                    final boolean snapshotNeverRegistered = clusterService.state()
-                        .projectState(projectId)
-                        .metadata()
+                    // Capture never-registered from the same cluster state used for the completed-snapshot lookup.
+                    // If it is registered now, a concurrent cleanup may remove it before WriteJobStatus runs; skip then.
+                    // SnapshotInfo failures pass recordFailureIfUnregistered=false so a peer cleanup is not confused
+                    // with a never-registered CreateSnapshot failure (#136759).
+                    ProjectState currentProjectState = clusterService.state().projectState(projectId);
+                    final boolean snapshotNeverRegistered = currentProjectState.metadata()
                         .custom(RegisteredPolicySnapshots.TYPE, RegisteredPolicySnapshots.EMPTY)
                         .contains(snapshotId) == false;
-                    recordSnapshotFailure(e, snapshotNeverRegistered);
+                    recordSnapshotFailure(e, snapshotNeverRegistered, currentProjectState);
                 }
 
-                private void recordSnapshotFailure(Exception e, boolean recordFailureIfUnregistered) {
+                private void recordSnapshotFailure(Exception e, boolean recordFailureIfUnregistered, ProjectState currentProjectState) {
                     logger.warn(
                         () -> format("failed to create snapshot for snapshot lifecycle policy [%s]", policyMetadata.getPolicy().getId()),
                         e
@@ -345,8 +343,6 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                         );
                     }
 
-                    // retrieve the current project state after snapshot is completed, since snapshotting can take a while
-                    ProjectState currentProjectState = clusterService.state().projectState(projectId);
                     findCompletedRegisteredSnapshotInfo(currentProjectState, policyId, client, new ActionListener<>() {
                         @Override
                         public void onResponse(CompletedRegisteredSnapshotInfos completedRegisteredSnapshotInfos) {
@@ -484,6 +480,8 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
          * When true, this failure is for a snapshot that was never added to the registered set (e.g., CreateSnapshot failed before
          * registration). WriteJobStatus must still record failure stats even though the snapshot is unregistered. When false, an
          * unregistered initiating snapshot means another cleanup already recorded it - skip to avoid double-counting (#136759).
+         * Ignored when {@link #queriedSnapshotIds} contains this snapshot: lookup saw it registered, so a missing registered
+         * entry is a peer cleanup, not a never-registered failure.
          */
         private final boolean recordFailureIfUnregistered;
 
@@ -628,11 +626,14 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
 
             // Add stats from the just completed snapshot execution, unless another cleanup already recorded it.
             // CreateSnapshot can fail before registration (e.g. missing index); those failures set
-            // recordFailureIfUnregistered so they are still counted. Concurrent cleanups that already removed a
-            // registered snapshot must not double-count success or failure (#136759): last success/failure only
-            // names one snapshot, so a peer's initiating failure can overwrite the name we would otherwise match.
+            // recordFailureIfUnregistered so they are still counted, but only when lookup did not see this id
+            // (queriedSnapshotIds containing it means it was registered, so a missing entry is a peer cleanup).
+            // Concurrent cleanups that already removed a registered snapshot must not double-count success or
+            // failure (#136759): last success/failure only names one snapshot, so a peer's initiating failure
+            // can overwrite the name we would otherwise match.
             if (snapshotIsRegistered == false) {
-                if (exception.isPresent() && recordFailureIfUnregistered) {
+                // If lookup saw this id, it was registered then; a peer cleanup must not be treated as never-registered.
+                if (exception.isPresent() && recordFailureIfUnregistered && queriedSnapshotIds.contains(snapshotId) == false) {
                     // Expected for CreateSnapshot failures that never reached registration (e.g. missing index).
                     logger.debug(
                         "Snapshot [{}] not found in registered set after snapshot failure. Recording failure stats"

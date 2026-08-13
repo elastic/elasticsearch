@@ -173,7 +173,11 @@ public class FireworksAiService extends SenderService<FireworksAiModel> {
 
         for (var request : batchedRequests) {
             var action = embeddingsModel.accept(actionCreator, taskSettings);
-            action.execute(new EmbeddingsInput(request.batch().inputs(), inputType), timeout, request.listener());
+            action.execute(
+                new EmbeddingsInput(request.batch().inputs(), request.batch().ramBytesUsed(), inputType),
+                timeout,
+                request.listener()
+            );
         }
     }
 

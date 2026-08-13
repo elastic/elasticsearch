@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
@@ -117,9 +117,7 @@ public class MappingUpdateRaceIT extends AbstractEsqlIntegTestCase {
      */
     public void testLoadModePromotedMappingAddedBetweenFieldCapsAndExecution() throws Exception {
         createDynamicIndex("idx_dyn", "integer", null);
-        List<IndexRequestBuilder> reqs = new ArrayList<>();
-        reqs.add(prepareIndex("idx_dyn").setSource("other", "b"));
-        indexRandom(true, reqs);
+        prepareIndex("idx_dyn").setSource("other", "b").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
         ensureGreen("idx_dyn");
 
         ElasticsearchStatusException cause = expectMappingRaceFailure(
@@ -134,7 +132,7 @@ public class MappingUpdateRaceIT extends AbstractEsqlIntegTestCase {
      * Creates idx_mapped with {@link #FIELD} mapped as {@code mappedType} (value 1), and idx_dyn where a dynamic
      * template maps the field as {@code dynamicType} once a doc containing it arrives.
      */
-    private void setupIndices(String mappedType, String dynamicType) throws Exception {
+    private void setupIndices(String mappedType, String dynamicType) {
         assertAcked(
             prepareCreate("idx_mapped").setSettings(indexSettings(1, 0)).setMapping(FIELD, "type=" + mappedType, "other", "type=keyword")
         );
@@ -172,15 +170,13 @@ public class MappingUpdateRaceIT extends AbstractEsqlIntegTestCase {
         assertAcked(prepareCreate(index).setSettings(settings).setMapping("other", "type=keyword"));
     }
 
-    private void indexInitialDocs(boolean mappedIndex) throws Exception {
-        List<IndexRequestBuilder> reqs = new ArrayList<>();
+    private void indexInitialDocs(boolean mappedIndex) {
         if (mappedIndex) {
-            reqs.add(prepareIndex("idx_mapped").setSource(FIELD, 1, "other", "a"));
+            prepareIndex("idx_mapped").setSource(FIELD, 1, "other", "a").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
         } else {
-            reqs.add(prepareIndex("idx_plain").setSource("other", "a"));
+            prepareIndex("idx_plain").setSource("other", "a").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
         }
-        reqs.add(prepareIndex("idx_dyn").setSource("other", "b"));
-        indexRandom(true, reqs);
+        prepareIndex("idx_dyn").setSource("other", "b").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
         ensureGreen(mappedIndex ? "idx_mapped" : "idx_plain", "idx_dyn");
     }
 

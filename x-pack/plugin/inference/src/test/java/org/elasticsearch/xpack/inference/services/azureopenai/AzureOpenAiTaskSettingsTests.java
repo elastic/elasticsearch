@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.common.parser.Headers;
 import org.elasticsearch.xpack.inference.common.parser.HeadersTests;
 import org.elasticsearch.xpack.inference.common.parser.StatefulValue;
+import org.elasticsearch.xpack.inference.common.parser.StatefulValueTests;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields;
 
@@ -40,13 +41,7 @@ public abstract class AzureOpenAiTaskSettingsTests<T extends AzureOpenAiTaskSett
     private static final Headers HEADERS = new Headers(StatefulValue.of(HEADERS_MAP));
 
     public T createRandom() {
-        StatefulValue<String> user = randomFrom(
-            StatefulValue.undefined(),
-            StatefulValue.nullInstance(),
-            StatefulValue.of(randomAlphaOfLength(15))
-        );
-        var headers = HeadersTests.createRandom();
-        return create(user, headers);
+        return create(StatefulValueTests.createRandomStatefulString(), HeadersTests.createRandom());
     }
 
     public void testIsEmpty() {
@@ -385,25 +380,15 @@ public abstract class AzureOpenAiTaskSettingsTests<T extends AzureOpenAiTaskSett
 
     @Override
     protected T mutateInstance(T instance) {
-        var setNull = randomBoolean();
-        var fieldToMutate = randomIntBetween(0, 1);
+        var user = instance.user();
+        var headers = instance.headers();
+        switch (randomInt(1)) {
+            case 0 -> user = StatefulValueTests.doMutateStatefulString(user);
+            case 1 -> headers = HeadersTests.doMutateInstance(headers);
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
 
-        return switch (fieldToMutate) {
-            case 0 -> {
-                StatefulValue<String> userForCreate;
-
-                if (instance.user().isUndefined()) {
-                    userForCreate = setNull ? StatefulValue.nullInstance() : StatefulValue.of(randomAlphaOfLength(15));
-                } else if (instance.user().isNull()) {
-                    userForCreate = randomBoolean() ? StatefulValue.undefined() : StatefulValue.of(randomAlphaOfLength(15));
-                } else {
-                    userForCreate = StatefulValue.of(instance.user() + "modified");
-                }
-                yield create(userForCreate, instance.headers());
-            }
-            case 1 -> create(instance.user(), HeadersTests.doMutateInstance(instance.headers()));
-            default -> throw new IllegalStateException("Unexpected value: " + fieldToMutate);
-        };
+        return create(user, headers);
     }
 
     protected abstract T create(StatefulValue<String> user, @Nullable Headers headers);

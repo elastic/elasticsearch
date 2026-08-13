@@ -17,7 +17,9 @@ import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.common.parser.Headers;
+import org.elasticsearch.xpack.inference.common.parser.HeadersTests;
 import org.elasticsearch.xpack.inference.common.parser.StatefulValue;
+import org.elasticsearch.xpack.inference.common.parser.StatefulValueTests;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 
 import java.io.IOException;
@@ -30,17 +32,7 @@ import static org.hamcrest.Matchers.is;
 public abstract class OpenAiTaskSettingsTests<T extends OpenAiTaskSettings> extends AbstractBWCWireSerializationTestCase<T> {
 
     public T createRandom() {
-        var user = randomFrom(
-            StatefulValue.<String>undefined(),
-            StatefulValue.<String>nullInstance(),
-            StatefulValue.of(randomAlphaOfLength(15))
-        );
-        var headers = randomFrom(
-            Headers.UNDEFINED_INSTANCE,
-            Headers.NULL_INSTANCE,
-            new Headers(StatefulValue.of(Map.of(randomAlphaOfLength(15), randomAlphaOfLength(15))))
-        );
-        return create(user, headers);
+        return create(StatefulValueTests.createRandomStatefulString(), HeadersTests.createRandom());
     }
 
     public void testIsEmpty() {
@@ -167,39 +159,15 @@ public abstract class OpenAiTaskSettingsTests<T extends OpenAiTaskSettings> exte
 
     @Override
     protected T mutateInstance(T instance) throws IOException {
-        return randomBoolean() ? mutateUser(instance) : mutateHeaders(instance);
-    }
-
-    private T mutateUser(T instance) {
-        var currentUser = instance.user();
-        StatefulValue<String> newUser;
-        if (currentUser.isUndefined()) {
-            newUser = randomBoolean() ? StatefulValue.nullInstance() : StatefulValue.of(randomAlphaOfLength(15));
-        } else if (currentUser.isNull()) {
-            newUser = randomBoolean() ? StatefulValue.undefined() : StatefulValue.of(randomAlphaOfLength(15));
-        } else {
-            newUser = randomFrom(StatefulValue.undefined(), StatefulValue.nullInstance(), StatefulValue.of(currentUser.get() + "_mutated"));
+        var user = instance.user();
+        var headers = instance.headers();
+        switch (randomInt(1)) {
+            case 0 -> user = StatefulValueTests.doMutateStatefulString(user);
+            case 1 -> headers = HeadersTests.doMutateInstance(headers);
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
-        return create(newUser, instance.headers());
-    }
 
-    private T mutateHeaders(T instance) {
-        var currentHeaders = instance.headers();
-        Headers newHeaders;
-        if (currentHeaders.mapValue().isUndefined()) {
-            newHeaders = randomBoolean()
-                ? Headers.NULL_INSTANCE
-                : new Headers(StatefulValue.of(Map.of(randomAlphaOfLength(15), randomAlphaOfLength(15))));
-        } else if (currentHeaders.isNull()) {
-            newHeaders = randomBoolean()
-                ? Headers.UNDEFINED_INSTANCE
-                : new Headers(StatefulValue.of(Map.of(randomAlphaOfLength(15), randomAlphaOfLength(15))));
-        } else {
-            var mutatedMap = new HashMap<>(currentHeaders.mapValue().get());
-            mutatedMap.put(randomAlphaOfLength(15), randomAlphaOfLength(15));
-            newHeaders = randomFrom(Headers.UNDEFINED_INSTANCE, Headers.NULL_INSTANCE, new Headers(StatefulValue.of(mutatedMap)));
-        }
-        return create(instance.user(), newHeaders);
+        return create(user, headers);
     }
 
     public void testToXContent_WritesUserAndHeaders() throws IOException {

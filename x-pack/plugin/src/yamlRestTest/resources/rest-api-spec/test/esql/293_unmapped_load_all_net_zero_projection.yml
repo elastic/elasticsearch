@@ -1,0 +1,101 @@
+---
+setup:
+  - requires:
+      test_runner_features: [capabilities, allowed_warnings_regex]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [optional_fields_load_all, optional_fields_load_all_net_zero_projection]
+      reason: "net-zero projection under SET unmapped_fields=\"load_all\" returns zero columns instead of failing"
+
+  - do:
+      indices.create:
+        index: load-all-net-zero
+        body:
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              message:
+                type: keyword
+
+  - do:
+      bulk:
+        index: load-all-net-zero
+        refresh: true
+        body:
+          - { "index": {} }
+          - { "@timestamp": "2024-01-01T00:00:00Z", "message": "a" }
+          - { "index": {} }
+          - { "@timestamp": "2024-01-02T00:00:00Z", "message": "b" }
+          - { "index": {} }
+          - { "@timestamp": "2024-01-03T00:00:00Z", "message": "c" }
+
+  # test1/test2 are dynamically mapped; only test3 is explicit (dynamic:false) so its id_unmapped stays unmapped and is only
+  # discoverable by reading _source on the data node.
+  - do:
+      indices.create:
+        index: test3
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              id1:
+                type: ip
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "test1" } }
+          - { "id1": true, "id3": "foobar" }
+          - { "index": { "_index": "test2" } }
+          - { "id1": "127.0.0.1", "id2": 500 }
+          - { "index": { "_index": "test3" } }
+          - { "id1": "192.168.1.1", "id_unmapped": 300 }
+
+---
+'keep then drop the same column returns zero columns':
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load_all"; FROM load-all-net-zero | KEEP message | DROP message'
+  - length: { columns: 0 }
+  - length: { values: 3 }
+
+---
+'drop every mapped column returns zero columns':
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load_all"; FROM load-all-net-zero | DROP @timestamp, message'
+  - length: { columns: 0 }
+  - length: { values: 3 }
+
+---
+'net zero projection after where returns zero columns':
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load_all"; FROM load-all-net-zero | WHERE message == "a" | KEEP message | DROP message'
+  - length: { columns: 0 }
+  - length: { values: 1 }
+
+---
+'net zero projection discoverable only at runtime returns zero columns':
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+        - "Field \\[.*\\] of type \\[.*\\] is unmapped in some indices and has no implicit conversion from .*, so it will not be loaded from _source; values will be null in those indices"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load_all"; FROM test* | KEEP * | DROP x, id*'
+  - length: { columns: 0 }
+  - length: { values: 3 }

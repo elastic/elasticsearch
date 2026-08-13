@@ -32,6 +32,9 @@ import java.util.function.IntUnaryOperator;
  * <p>
  * At query time, the query is projected via W but NOT quantized (asymmetric scoring),
  * yielding higher recall than symmetric approaches.
+ * <p>
+ * All matrices (W, Wt, P, R, etc.) are represented as flat row-major {@code float[]} of
+ * length rows*cols.
  */
 public final class AsymmetricHashingQuantizer {
 
@@ -97,9 +100,9 @@ public final class AsymmetricHashingQuantizer {
      *
      * @param vectors all vectors in the segment, shape (nVectors, originalDim)
      * @param centroids cluster centroids, fetched by vector ordinal
-     * @return the learned projection matrix W, shape (originalDim, nDims)
+     * @return the learned projection matrix W in row-major order, shape (originalDim, nDims)
      */
-    public float[][] train(float[][] vectors, IntFunction<float[]> centroids) {
+    public float[] train(float[][] vectors, IntFunction<float[]> centroids) {
         int originalDim = vectors[0].length;
         int nDims = nDims(originalDim);
 
@@ -115,20 +118,21 @@ public final class AsymmetricHashingQuantizer {
         int trainingSize = Math.min(originalDim * trainingFactor, vectors.length);
         int[] sampleIndices = sampleIndices(vectors.length, trainingSize);
 
-        // Center and normalize the sampled vectors into a fresh array. We must not mutate
+        // Center and normalize the sampled vectors into a fresh flat array. We must not mutate
         // `vectors` in place -- the writer reuses it for per-posting-list encoding later.
-        float[][] xTraining = new float[trainingSize][originalDim];
+        float[] xTraining = new float[trainingSize * originalDim];
         for (int i = 0; i < trainingSize; i++) {
             int srcIdx = sampleIndices[i];
             float[] centroid = centroids.apply(srcIdx);
+            int base = i * originalDim;
             for (int d = 0; d < originalDim; d++) {
-                xTraining[i][d] = vectors[srcIdx][d] - centroid[d];
+                xTraining[base + d] = vectors[srcIdx][d] - centroid[d];
             }
-            ESVectorUtil.l2Normalize(xTraining[i]);
+            ESVectorUtil.l2Normalize(xTraining, base, originalDim);
         }
 
         // LEARNED: PCA init + Procrustes
-        return learnedTraining(xTraining, originalDim, nDims);
+        return learnedTraining(xTraining, trainingSize, originalDim, nDims);
     }
 
     /**
@@ -141,83 +145,41 @@ public final class AsymmetricHashingQuantizer {
     public record EncodedVector(float[] xEnc, float scale, float offset) {}
 
     /**
-     * Encodes a single vector against a single centroid. This is the per-(vector,centroid) slice
-     * of the batch {@link #encode} method, useful when each posting list needs vectors encoded
-     * against its own centroid (e.g. for SOAR overspill, where one vector may be encoded twice
-     * against two different centroids).
-     *
-     * @param vector the input vector, length originalDim
-     * @param centroid the centroid to center against, length originalDim
-     * @param w the trained projection matrix, shape (originalDim, nDims)
-     * @return xEnc/scale/offset for this (vector, centroid) pair
-     */
-    public EncodedVector encodeOne(float[] vector, float[] centroid, float[][] w) {
-        int originalDim = vector.length;
-        int nDims = w[0].length;
-
-        var centered = centralizeVector(vector, centroid);
-
-        // Project: xLatent = centered @ W
-        float[] xLatent = new float[nDims];
-        for (int j = 0; j < nDims; j++) {
-            double sum = 0;
-            for (int d = 0; d < originalDim; d++) {
-                sum = Math.fma(centered.centroidProjected[d], w[d][j], sum);
-            }
-            xLatent[j] = (float) sum;
-        }
-
-        // Quantize
-        AshSphericalScalarQuantizer.SingleQuantizeResult qr = quantizer.encodeOne(xLatent);
-        float[] xEnc = qr.centeredCode();
-        float codeNorm = qr.codeNorm();
-
-        // Scale: norm / codeNorm
-        float scale = codeNorm > 0 ? (float) Math.sqrt(centered.centroidNormSq) / codeNorm : 0;
-
-        // Offset = dot(vector, centroid) - dot(centroid, centroid)
-        // The cross-term -scale * <Wμ, code> is NOT included here because the scorer
-        // already projects the centered query (q - μ) @ W, which implicitly subtracts it.
-        float dotVecCent = ESVectorUtil.dotProduct(vector, centroid, originalDim);
-        float dotCentCent = ESVectorUtil.dotProduct(centroid, centroid, originalDim);
-        float offset = dotVecCent - dotCentCent;
-
-        return new EncodedVector(xEnc, scale, offset);
-    }
-
-    /**
      * Precomputed per-centroid values that are invariant across all vectors in a posting list.
-     * Computing these once per posting list eliminates redundant work in {@link #encodeOneFast}.
+     * Computing these once per posting list eliminates redundant work in {@link #encode}.
      *
      * @param centroidProjected centroid projected through W^T, shape (nDims,): centroid @ W
      * @param centroidNormSq squared L2 norm of the centroid: ||centroid||^2
      */
     public record PrecomputedCentroid(float[] centroidProjected, float centroidNormSq) {}
 
-    private static PrecomputedCentroid centralizeVector(float[] vector, float[] centroid) {
+    /** Result of centering and normalizing a vector against its centroid. */
+    private record CenteredVector(float[] normalized, float normSq) {}
+
+    private static CenteredVector centralizeVector(float[] vector, float[] centroid) {
         int originalDim = vector.length;
         float[] centered = new float[originalDim];
         for (int d = 0; d < originalDim; d++) {
             centered[d] = vector[d] - centroid[d];
         }
         float normSq = ESVectorUtil.l2Normalize(centered);
-        // re-use the PrecomputedCentroid record for simplicity...
-        return normSq == 0f ? new PrecomputedCentroid(new float[originalDim], 0) : new PrecomputedCentroid(centered, normSq);
+        return normSq == 0f ? new CenteredVector(new float[originalDim], 0) : new CenteredVector(centered, normSq);
     }
 
     /**
      * Precomputes centroid-dependent values for a posting list. Call once per cluster,
-     * then pass the result to {@link #encodeOneFast} for each vector in that cluster.
+     * then pass the result to {@link #encode} for each vector in that cluster.
      *
      * @param centroid the posting list centroid, length originalDim
-     * @param wT transposed projection matrix, shape (nDims, originalDim)
+     * @param wT transposed projection matrix in row-major order, shape (nDims, originalDim)
      * @return precomputed values for this centroid
      */
-    public static PrecomputedCentroid precomputeCentroid(float[] centroid, float[][] wT) {
-        int nDims = wT.length;
+    public static PrecomputedCentroid precomputeCentroid(float[] centroid, float[] wT) {
+        int originalDim = centroid.length;
+        int nDims = wT.length / originalDim;
         float[] centroidProjected = new float[nDims];
         for (int j = 0; j < nDims; j++) {
-            centroidProjected[j] = ESVectorUtil.dotProduct(centroid, wT[j]);
+            centroidProjected[j] = ESVectorUtil.dotProduct(centroid, 0, wT, j * originalDim, originalDim);
         }
         float centroidNormSq = ESVectorUtil.dotProduct(centroid, centroid);
         return new PrecomputedCentroid(centroidProjected, centroidNormSq);
@@ -229,20 +191,22 @@ public final class AsymmetricHashingQuantizer {
      *
      * @param vector the input vector, length originalDim
      * @param centroid the centroid (needed for centering), length originalDim
-     * @param wT transposed projection matrix, shape (nDims, originalDim)
+     * @param wT transposed projection matrix in row-major order, shape (nDims, originalDim)
      * @param precomputed precomputed centroid projection and norm
      * @return xEnc/scale/offset for this (vector, centroid) pair
      */
-    public EncodedVector encodeOneFast(float[] vector, float[] centroid, float[][] wT, PrecomputedCentroid precomputed) {
-        int nDims = wT.length;
+    public EncodedVector encode(float[] vector, float[] centroid, float[] wT, PrecomputedCentroid precomputed) {
+        int originalDim = centroid.length;
+        int nDims = wT.length / originalDim;
 
         // Center and compute norm
         var centered = centralizeVector(vector, centroid);
 
         // Project using transposed W: xLatent[j] = dot(centered, wT[j])
+        float[] normalizedCentered = centered.normalized();
         float[] xLatent = new float[nDims];
         for (int j = 0; j < nDims; j++) {
-            xLatent[j] = ESVectorUtil.dotProduct(centered.centroidProjected, wT[j]);
+            xLatent[j] = ESVectorUtil.dotProduct(normalizedCentered, 0, wT, j * originalDim, originalDim);
         }
 
         // Quantize
@@ -251,143 +215,60 @@ public final class AsymmetricHashingQuantizer {
         float codeNorm = qr.codeNorm();
 
         // Scale: norm / codeNorm
-        float scale = codeNorm > 0 ? (float) Math.sqrt(centered.centroidNormSq) / codeNorm : 0;
+        float scale = codeNorm > 0 ? (float) Math.sqrt(centered.normSq()) / codeNorm : 0;
 
-        // Offset = dot(vector, centroid) - ||centroid||^2
+        // Offset per ASH paper Equation 19: ⟨x, μ⟩ - scale * ⟨centroid@W, code⟩ - ‖μ‖²
+        // The cross-term ⟨centroid@W, code⟩ accounts for using the raw projected query Wq (Eq. 18)
+        // rather than the centered query W(q-μ). At query time the scorer computes ⟨Wq, code⟩,
+        // and the centroid's contribution is pre-subtracted here so no per-posting-list centroid
+        // recomputation is needed during search.
         float dotVecCent = ESVectorUtil.dotProduct(vector, centroid);
         float offset = dotVecCent - precomputed.centroidNormSq();
+        float[] centroidProjected = precomputed.centroidProjected();
+        float correction = ESVectorUtil.dotProduct(centroidProjected, xEnc);
+        offset -= scale * correction;
 
         return new EncodedVector(xEnc, scale, offset);
     }
 
-    /**
-     * Transposes W from (originalDim x nDims) to (nDims x originalDim).
-     * The transposed layout enables SIMD-friendly row-wise dot products during encoding.
-     *
-     * @param w the projection matrix, shape (originalDim, nDims)
-     * @return the transposed matrix, shape (nDims, originalDim)
-     */
-    static float[][] transposeW(float[][] w) {
-        int originalDim = w.length;
-        int nDims = w[0].length;
-        float[][] wT = new float[nDims][originalDim];
-        for (int i = 0; i < originalDim; i++) {
-            for (int j = 0; j < nDims; j++) {
-                wT[j][i] = w[i][j];
-            }
-        }
-        return wT;
-    }
-
-    /**
-     * Encodes vectors using the trained projection matrix W.
-     *
-     * @param vectors all vectors, shape (nVectors, originalDim)
-     * @param centroids cluster centroids, fetched by ordinal
-     * @param assignments cluster assignment per vector
-     * @param w the trained projection matrix, shape (originalDim, nDims)
-     * @return encoding result with codes, scales, and offsets
-     */
-    public AsymmetricHashingResult encode(float[][] vectors, IntFunction<float[]> centroids, int[] assignments, float[][] w) {
-        assert vectors.length > 0 : "encode() requires at least one vector";
-        int nClusters = Integer.MIN_VALUE;
-        int originalDim = vectors[0].length;
-        int nDims = w[0].length;
-        int nVectors = vectors.length;
-
-        // Project centered+normalized vectors via W
-        float[][] xLatent = new float[nVectors][nDims];
-        float[] norms = new float[nVectors];
-        float[] scales = new float[nVectors];
-        float[] offsets = new float[nVectors];
-
-        for (int i = 0; i < nVectors; i++) {
-            int clusterLabel = assignments[i];
-            float[] centroid = centroids.apply(clusterLabel);
-
-            nClusters = Math.max(nClusters, clusterLabel);
-
-            var centered = centralizeVector(vectors[i], centroid);
-            norms[i] = (float) Math.sqrt(centered.centroidNormSq);
-
-            // Project: xLatent[i] = centered @ W
-            for (int j = 0; j < nDims; j++) {
-                double sum = 0;
-                for (int d = 0; d < originalDim; d++) {
-                    sum = Math.fma(centered.centroidProjected[d], w[d][j], sum);
-                }
-                xLatent[i][j] = (float) sum;
-            }
-        }
-
-        // Quantize in latent space
-        AshSphericalScalarQuantizer.QuantizeResult qr = quantizer.encode(xLatent);
-        float[][] xEnc = qr.centeredCodes();
-        float[] codeNorms = qr.codeNorms();
-
-        // Compute scale and offset
-        for (int i = 0; i < nVectors; i++) {
-            // scale = norm / codeNorm
-            scales[i] = codeNorms[i] > 0 ? norms[i] / codeNorms[i] : 0;
-
-            // offset = dot(vector, centroid) - dot(centroid, centroid) - scale[i] * dot(centroids @ W, xEnc)
-            float[] centroid = centroids.apply(assignments[i]);
-
-            float dotVecCent = ESVectorUtil.dotProduct(vectors[i], centroid, originalDim);
-            float dotCentCent = ESVectorUtil.dotProduct(centroid, centroid, originalDim);
-            offsets[i] += dotVecCent - dotCentCent;
-        }
-
-        nClusters++; // we have the max cluster ID so far, add one to get the size
-
-        return new AsymmetricHashingResult(w, xEnc, scales, offsets, nClusters);
-    }
-
-    private float[][] learnedTraining(float[][] xTraining, int originalDim, int nDims) {
+    private float[] learnedTraining(float[] xTraining, int nTraining, int originalDim, int nDims) {
         // PCA initialization: extract top nDims right singular vectors via power iteration
         // This is much faster than full SVD when nDims << originalDim
-        float[][] topVectors = SvdUtil.topKRightSingularVectors(xTraining, xTraining.length, originalDim, nDims, seed);
+        float[] topVectors = SvdUtil.topKRightSingularVectors(xTraining, nTraining, originalDim, nDims, seed);
         // P = top nDims right singular vectors transposed: rows of topVectors are the vectors
-        // P shape: (originalDim x nDims) where each column is a right singular vector
-        float[][] p = new float[originalDim][nDims];
-        for (int i = 0; i < originalDim; i++) {
-            for (int j = 0; j < nDims; j++) {
-                p[i][j] = topVectors[j][i];
-            }
-        }
+        // topVectors shape: (nDims x originalDim); P shape: (originalDim x nDims)
+        float[] p = ESVectorUtil.transposeMatrix(topVectors, nDims, originalDim);
 
         // Project training data: X_ld = xTraining @ P (nTraining x nDims)
-        int nTraining = xTraining.length;
-        float[][] xLd = matMul(xTraining, p, nTraining, originalDim, nDims);
+        float[] xLd = matMul(xTraining, p, nTraining, originalDim, nDims);
 
         // Initialize random M (nDims x nDims)
         Random rng = new Random(seed);
-        float[][] m = new float[nDims][nDims];
-        for (int i = 0; i < nDims; i++) {
-            for (int j = 0; j < nDims; j++) {
-                m[i][j] = (float) rng.nextGaussian();
-            }
+        float[] m = new float[nDims * nDims];
+        for (int i = 0; i < nDims * nDims; i++) {
+            m[i] = (float) rng.nextGaussian();
         }
 
         // Iterative Procrustes
-        float[][] r = null;
+        float[] r = null;
         for (int epoch = 0; epoch <= nTrainingIterations; epoch++) {
             // R = procrustes(M)
             r = SvdUtil.procrustes(m, nDims);
 
             if (epoch < nTrainingIterations) {
-                // X_transformed = X_ld @ R
-                float[][] xTransformed = matMul(xLd, r, nTraining, nDims, nDims);
+                // X_transformed = X_ld @ R (nTraining x nDims)
+                float[] xTransformed = matMul(xLd, r, nTraining, nDims, nDims);
                 // Quantize
-                AshSphericalScalarQuantizer.QuantizeResult qr = quantizer.encode(xTransformed);
-                float[][] xEnc = qr.centeredCodes();
+                AshSphericalScalarQuantizer.QuantizeResult qr = quantizer.encode(xTransformed, nTraining, nDims);
+                float[] xEnc = qr.centeredCodes();
                 float[] codeNorms = qr.codeNorms();
                 // Normalize encoded: xEnc[i] /= codeNorms[i]
                 for (int i = 0; i < nTraining; i++) {
                     if (codeNorms[i] > 0) {
                         float inv = 1.0f / codeNorms[i];
+                        int base = i * nDims;
                         for (int j = 0; j < nDims; j++) {
-                            xEnc[i][j] *= inv;
+                            xEnc[base + j] *= inv;
                         }
                     }
                 }
@@ -400,14 +281,12 @@ public final class AsymmetricHashingQuantizer {
         return matMul(p, r, originalDim, nDims, nDims);
     }
 
-    private float[][] randomOrthogonal(int originalDim, int nDims) {
+    private float[] randomOrthogonal(int originalDim, int nDims) {
         Random rng = new Random(seed);
         // Generate random matrix and orthogonalize columns via modified Gram-Schmidt
-        float[][] q = new float[originalDim][nDims];
-        for (int i = 0; i < originalDim; i++) {
-            for (int j = 0; j < nDims; j++) {
-                q[i][j] = (float) rng.nextGaussian();
-            }
+        float[] q = new float[originalDim * nDims];
+        for (int i = 0; i < originalDim * nDims; i++) {
+            q[i] = (float) rng.nextGaussian();
         }
         // Modified Gram-Schmidt: orthogonalize column by column
         for (int j = 0; j < nDims; j++) {
@@ -415,20 +294,20 @@ public final class AsymmetricHashingQuantizer {
             for (int prev = 0; prev < j; prev++) {
                 float dot = 0;
                 for (int i = 0; i < originalDim; i++) {
-                    dot = Math.fma(q[i][j], q[i][prev], dot);
+                    dot = Math.fma(q[i * nDims + j], q[i * nDims + prev], dot);
                 }
                 for (int i = 0; i < originalDim; i++) {
-                    q[i][j] = Math.fma(-dot, q[i][prev], q[i][j]);
+                    q[i * nDims + j] = Math.fma(-dot, q[i * nDims + prev], q[i * nDims + j]);
                 }
             }
-            // Normalize (note iterating across rows)
+            // Normalize column j
             double normSq = 0;
             for (int i = 0; i < originalDim; i++) {
-                normSq = Math.fma(q[i][j], q[i][j], normSq);
+                normSq = Math.fma(q[i * nDims + j], q[i * nDims + j], normSq);
             }
             float invNorm = (float) (1.0 / Math.sqrt(normSq));
             for (int i = 0; i < originalDim; i++) {
-                q[i][j] *= invNorm;
+                q[i * nDims + j] *= invNorm;
             }
         }
         return q;
@@ -440,14 +319,12 @@ public final class AsymmetricHashingQuantizer {
      * the returned array is just [0, n) in order.
      */
     private int[] sampleIndices(int n, int sampleSize) {
-        if (sampleSize >= n) {
-            int[] all = new int[n];
-            Arrays.setAll(all, IntUnaryOperator.identity());
-            return all;
-        }
-        Random rng = new Random(seed);
         int[] indices = new int[n];
         Arrays.setAll(indices, IntUnaryOperator.identity());
+        if (sampleSize >= n) {
+            return indices;
+        }
+        Random rng = new Random(seed);
         for (int i = 0; i < sampleSize; i++) {
             int j = i + rng.nextInt(n - i);
             int tmp = indices[i];
@@ -459,39 +336,31 @@ public final class AsymmetricHashingQuantizer {
         return picked;
     }
 
-    /** C = A @ B where A is (m x k), B is (k x n).
-     *  Uses row-broadcast accumulation for JIT auto-vectorization of the inner loop. */
-    private static float[][] matMul(float[][] a, float[][] b, int m, int k, int n) {
-        float[][] c = new float[m][n];
+    /** C = A @ B where A is flat (m x k), B is flat (k x n).
+     *  Uses row-broadcast accumulation; each inner loop is a contiguous SIMD axpy. */
+    private static float[] matMul(float[] a, float[] b, int m, int k, int n) {
+        float[] c = new float[m * n];
         for (int i = 0; i < m; i++) {
-            float[] aRow = a[i];
-            float[] cRow = c[i];
+            int aBase = i * k;
+            int cBase = i * n;
             for (int l = 0; l < k; l++) {
-                float aVal = aRow[l];
-                float[] bRow = b[l];
-                for (int j = 0; j < n; j++) {
-                    cRow[j] = Math.fma(aVal, bRow[j], cRow[j]);
-                }
+                ESVectorUtil.linearCombination(a[aBase + l], b, l * n, c, cBase, n);
             }
         }
         return c;
     }
 
-    /** C = A.T @ B where A is (m x k), B is (m x n), result is (k x n).
-     *  Uses row-broadcast accumulation for cache-friendly access patterns. */
-    private static float[][] matMulTransposeA(float[][] a, float[][] b, int m, int k, int n) {
-        float[][] c = new float[k][n];
+    /** C = A.T @ B where A is flat (m x k), B is flat (m x n), result is flat (k x n).
+     *  Uses row-broadcast accumulation; each inner loop is a contiguous SIMD axpy. */
+    private static float[] matMulTransposeA(float[] a, float[] b, int m, int k, int n) {
+        float[] c = new float[k * n];
         // Accumulate by iterating over shared dimension (rows of A and B) in the outer loop.
-        // This gives sequential reads on both a[l] and b[l], and scattered writes to c[i].
+        // This gives sequential reads on a[l*k..] and b[l*n..], and scattered writes to c[i*n..].
         for (int l = 0; l < m; l++) {
-            float[] aRow = a[l];
-            float[] bRow = b[l];
+            int aBase = l * k;
+            int bBase = l * n;
             for (int i = 0; i < k; i++) {
-                float aVal = aRow[i];
-                float[] cRow = c[i];
-                for (int j = 0; j < n; j++) {
-                    cRow[j] = Math.fma(aVal, bRow[j], cRow[j]);
-                }
+                ESVectorUtil.linearCombination(a[aBase + i], b, bBase, c, i * n, n);
             }
         }
         return c;

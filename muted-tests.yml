@@ -908,3 +908,6 @@ tests:
 - class: org.elasticsearch.reindex.RethrottleTests
   method: testDeleteByQuery
   issue: https://github.com/elastic/elasticsearch/issues/156709
+- class: org.elasticsearch.xpack.core.inference.action.PutCCMConfigurationActionRequestTests
+  method: testBwcSerialization
+  issue: https://github.com/elastic/elasticsearch/issues/156714

@@ -58,7 +58,7 @@ public class StreamingPageOperatorTests extends AnyOperatorTestCase {
 
     public void testInitiallyBlocked() {
         PageStreamPublisher publisher = new PageStreamPublisher(PAGE_SIZE);
-        try (StreamingPageOperator operator = new StreamingPageOperator(publisher, Function.identity())) {
+        try (StreamingPageOperator operator = new StreamingPageOperator(publisher, publisher.registerProducer(), Function.identity())) {
             assertFalse("operator should not need input before any subscriber demand", operator.needsInput());
             assertFalse("unblock listener should not be done before demand", operator.isBlocked().listener().isDone());
         }
@@ -70,7 +70,7 @@ public class StreamingPageOperatorTests extends AnyOperatorTestCase {
         publisher.subscribe(subscriber);
         subscriber.requestOne();
 
-        try (StreamingPageOperator operator = new StreamingPageOperator(publisher, Function.identity())) {
+        try (StreamingPageOperator operator = new StreamingPageOperator(publisher, publisher.registerProducer(), Function.identity())) {
             assertTrue("operator should accept input after subscriber demand", operator.needsInput());
             assertTrue("unblock listener should be done after demand", operator.isBlocked().listener().isDone());
         }
@@ -88,7 +88,7 @@ public class StreamingPageOperatorTests extends AnyOperatorTestCase {
             return sliced;
         };
 
-        try (StreamingPageOperator operator = new StreamingPageOperator(publisher, sliceToOneRow)) {
+        try (StreamingPageOperator operator = new StreamingPageOperator(publisher, publisher.registerProducer(), sliceToOneRow)) {
             long[] values = { 1L, 2L };
             Block block = blockFactory().newLongArrayVector(values, 2).asBlock();
             operator.addInput(new Page(2, block));
@@ -108,7 +108,7 @@ public class StreamingPageOperatorTests extends AnyOperatorTestCase {
         publisher.subscribe(subscriber);
         subscriber.requestOne();
 
-        try (StreamingPageOperator operator = new StreamingPageOperator(publisher, Function.identity())) {
+        try (StreamingPageOperator operator = new StreamingPageOperator(publisher, publisher.registerProducer(), Function.identity())) {
             for (int rowCount : new int[] { 1, 2, 3 }) {
                 long[] values = new long[rowCount];
                 for (int i = 0; i < rowCount; i++) {
@@ -131,7 +131,7 @@ public class StreamingPageOperatorTests extends AnyOperatorTestCase {
 
     public void testFinishSetsIsFinished() {
         PageStreamPublisher publisher = new PageStreamPublisher(PAGE_SIZE);
-        try (StreamingPageOperator operator = new StreamingPageOperator(publisher, Function.identity())) {
+        try (StreamingPageOperator operator = new StreamingPageOperator(publisher, publisher.registerProducer(), Function.identity())) {
             assertFalse("not finished before finish() is called", operator.isFinished());
             operator.finish();
             assertTrue("finished after finish() is called", operator.isFinished());
@@ -144,7 +144,7 @@ public class StreamingPageOperatorTests extends AnyOperatorTestCase {
         publisher.subscribe(subscriber);
         subscriber.requestOne();
 
-        try (StreamingPageOperator operator = new StreamingPageOperator(publisher, Function.identity())) {
+        try (StreamingPageOperator operator = new StreamingPageOperator(publisher, publisher.registerProducer(), Function.identity())) {
             assertTrue("operator should need input when subscriber has demand", operator.needsInput());
             operator.finish();
             assertFalse("operator should not need input after finish()", operator.needsInput());

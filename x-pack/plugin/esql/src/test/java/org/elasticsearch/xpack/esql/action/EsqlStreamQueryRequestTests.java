@@ -11,6 +11,11 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
+import java.util.Locale;
+
+import static org.hamcrest.Matchers.containsString;
+
 public class EsqlStreamQueryRequestTests extends ESTestCase {
 
     public void testValidateRejectsNullPageSize() {
@@ -21,7 +26,7 @@ public class EsqlStreamQueryRequestTests extends ESTestCase {
         );
         ActionRequestValidationException e = req.validate();
         assertNotNull("validate() must return a non-null exception when page_size is missing", e);
-        assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("page_size"));
+        assertThat(e.getMessage(), containsString("page_size"));
     }
 
     public void testValidateRejectsZeroPageSize() {
@@ -30,7 +35,7 @@ public class EsqlStreamQueryRequestTests extends ESTestCase {
         EsqlStreamQueryRequest req = EsqlStreamQueryRequest.from(base, ActionListener.noop(), false);
         ActionRequestValidationException e = req.validate();
         assertNotNull("validate() must return a non-null exception when page_size is 0", e);
-        assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("page_size"));
+        assertThat(e.getMessage(), containsString("page_size"));
     }
 
     public void testValidateRejectsNegativePageSize() {
@@ -39,7 +44,7 @@ public class EsqlStreamQueryRequestTests extends ESTestCase {
         EsqlStreamQueryRequest req = EsqlStreamQueryRequest.from(base, ActionListener.noop(), false);
         ActionRequestValidationException e = req.validate();
         assertNotNull("validate() must return a non-null exception when page_size is negative", e);
-        assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("page_size"));
+        assertThat(e.getMessage(), containsString("page_size"));
     }
 
     public void testValidateAcceptsPositivePageSize() {
@@ -54,5 +59,43 @@ public class EsqlStreamQueryRequestTests extends ESTestCase {
         EsqlQueryRequest base = EsqlQueryRequest.syncEsqlQueryRequest("FROM idx");
         assertFalse(EsqlStreamQueryRequest.from(base, ActionListener.noop(), false).dropNullColumns());
         assertTrue(EsqlStreamQueryRequest.from(base, ActionListener.noop(), true).dropNullColumns());
+    }
+
+    public void testParseStreamAllSupportedFields() throws IOException {
+        Locale locale = randomLocale(random());
+        String json = String.format(Locale.ROOT, """
+            {
+                "query": "FROM idx",
+                "filter": {"term": {"field": "value"}},
+                "accept_pragma_risks": true,
+                "pragma": {},
+                "params": [1],
+                "locale": "%s",
+                "tables": {"t": {"c": {"keyword": ["v"]}}},
+                "page_size": 100
+            }
+            """, locale.toLanguageTag());
+
+        EsqlQueryRequest request = EsqlQueryRequestTests.parseEsqlQueryRequest(json, RequestXContent::parseStream);
+
+        assertEquals("FROM idx", request.query());
+        assertNotNull(request.filter());
+        assertNotNull(request.pragmas());
+        assertEquals(1, request.params().size());
+        assertEquals(locale, request.locale());
+        assertNotNull(request.tables());
+        assertFalse(request.tables().isEmpty());
+        assertEquals(100, (int) request.pageSize());
+    }
+
+    public void testParseStreamRejectsUnknownFields() {
+        String unknownFieldName = "unknown_field";
+        String json = "{\"query\": \"FROM idx\", \"" + unknownFieldName + "\": true}";
+
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> EsqlQueryRequestTests.parseEsqlQueryRequest(json, RequestXContent::parseStream)
+        );
+        assertThat(e.getMessage(), containsString(unknownFieldName));
     }
 }

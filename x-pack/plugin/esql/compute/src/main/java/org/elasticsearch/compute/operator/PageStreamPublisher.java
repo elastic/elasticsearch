@@ -21,15 +21,22 @@ import java.util.concurrent.Flow;
 
 /**
  * Bridges compute-thread page production to async REST delivery with backpressure.
- * The compute driver calls {@link #addPage(Page)} and {@link #pagesFinished()} as it produces
- * results. The REST listener subscribes via {@link Flow.Publisher#subscribe} and uses the
- * resulting {@link Flow.Subscription} to signal demand. When the outer transport action
- * completes it calls {@link #completeWithFooter} (or {@link #failStream} on failure).
+ * One or more compute-driver threads call {@link Producer#addPage(Page)} and
+ * {@link Producer#finish()} on handles obtained from {@link #registerProducer()}.
+ * The REST listener subscribes via {@link Flow.Publisher#subscribe} and uses the resulting
+ * {@link Flow.Subscription} to signal demand. When the outer transport action completes it calls
+ * {@link #completeWithFooter} (or {@link #failStream} on failure).
+ *
+ * Multi-producer safe. Every {@link StreamingPageOperator} instance feeds this publisher
+ * through its own {@link Producer} handle. Handles must be registered via {@link #registerProducer()}
+ * before any driver is scheduled; {@code LocalExecutionPlan.createDrivers} builds all driver
+ * instances before scheduling any, so this holds in practice. The {@code pagesFinished} signal
+ * is raised only when the last registered producer calls {@link Producer#finish()}.
  *
  * The monitor ({@code synchronized (this)}) guards only buffer bookkeeping: the deque, row
- * counts, demand, and terminal-state flags. Block copying ({@link #buildPage}) and all
- * subscriber callbacks ({@code onNext}, {@code onError}, {@code onComplete}) run outside
- * the monitor
+ * counts, demand, outstanding-producer count, and terminal-state flags. Block copying
+ * ({@link #buildPage}) and all subscriber callbacks ({@code onNext}, {@code onError},
+ * {@code onComplete}) run outside the monitor.
  *
  * At most one thread delivers at a time, enforced by {@link #deliveryInProgress}. Any thread
  * that updates state while delivery is running sets {@link #deliveryPending} and returns; the
@@ -87,7 +94,9 @@ public class PageStreamPublisher implements Flow.Publisher<Page> {
     private int frontOffset;
 
     private volatile Flow.Subscriber<? super Page> subscriber;
-    private SubscribableListener<Void> unblockListener = new SubscribableListener<>();
+
+    // Null when writable, otherwise shared future completed (take-and-null) when predicate turns true.
+    private SubscribableListener<Void> notWritableFuture;
 
     private long demand;
     private boolean pagesFinished = false;
@@ -103,6 +112,9 @@ public class PageStreamPublisher implements Flow.Publisher<Page> {
     private long pagesDelivered;
     private final SubscribableListener<Void> closedListener = new SubscribableListener<>();
 
+    // Decremented on each Producer.finish(); zero → pagesFinished = true.
+    private int outstandingProducers;
+
     public PageStreamPublisher(int pageSize) {
         if (pageSize < 1) {
             throw new IllegalArgumentException("pageSize must be at least 1, got [" + pageSize + "]");
@@ -111,7 +123,29 @@ public class PageStreamPublisher implements Flow.Publisher<Page> {
     }
 
     public synchronized IsBlockedResult waitForWriting() {
-        return new IsBlockedResult(unblockListener, "streaming_page_consumer");
+        if (isWritable()) {
+            return Operator.NOT_BLOCKED;
+        }
+        if (notWritableFuture == null) {
+            notWritableFuture = new SubscribableListener<>();
+        }
+        return new IsBlockedResult(notWritableFuture, "streaming_page_consumer");
+    }
+
+    private boolean isWritable() {
+        assert Thread.holdsLock(this);
+        return cancelled || terminated() || (demand > 0 && bufferedRows < pageSize);
+    }
+
+    private void notifyWritable() {
+        SubscribableListener<Void> toNotify;
+        synchronized (this) {
+            toNotify = notWritableFuture;
+            notWritableFuture = null;
+        }
+        if (toNotify != null) {
+            toNotify.onResponse(null);
+        }
     }
 
     public synchronized boolean isClosed() {
@@ -122,35 +156,51 @@ public class PageStreamPublisher implements Flow.Publisher<Page> {
         closedListener.addListener(listener);
     }
 
-    public boolean addPage(Page page) {
-        boolean releaseAndStop;
-        SubscribableListener<Void> listenerToComplete = null;
-        synchronized (this) {
-            assert unblockListener.isDone() : "addPage called without subscriber demand";
-            unblockListener = new SubscribableListener<>();
-            releaseAndStop = cancelled || terminated();
-            if (releaseAndStop) {
-                listenerToComplete = unblockListener;
-            } else {
-                buffer.addLast(page);
-                bufferedRows += page.getPositionCount();
-                assert assertBufferInvariant();
-            }
-        }
-        if (releaseAndStop) {
-            page.releaseBlocks();
-            listenerToComplete.onResponse(null);
-            return false;
-        }
-        deliverPages();
-        return true;
+    public synchronized Producer registerProducer() {
+        outstandingProducers++;
+        return new Producer();
     }
 
-    public void pagesFinished() {
-        synchronized (this) {
-            pagesFinished = true;
+    public final class Producer {
+        private boolean finished = false;
+
+        private Producer() {}
+
+        public boolean addPage(Page page) {
+            boolean releaseAndStop;
+            synchronized (PageStreamPublisher.this) {
+                releaseAndStop = cancelled || terminated();
+                if (releaseAndStop == false) {
+                    buffer.addLast(page);
+                    bufferedRows += page.getPositionCount();
+                    assert assertBufferInvariant();
+                }
+            }
+            if (releaseAndStop) {
+                page.releaseBlocks();
+                return false;
+            }
+            deliverPages();
+            return true;
         }
-        deliverPages();
+
+        public void finish() {
+            boolean wasLast;
+            synchronized (PageStreamPublisher.this) {
+                if (finished) {
+                    return;
+                }
+                finished = true;
+                outstandingProducers--;
+                wasLast = (outstandingProducers == 0);
+                if (wasLast) {
+                    pagesFinished = true;
+                }
+            }
+            if (wasLast) {
+                deliverPages();
+            }
+        }
     }
 
     public void completeWithFooter(long tookMillis, List<String> warnings, boolean isPartial) {
@@ -205,13 +255,11 @@ public class PageStreamPublisher implements Flow.Publisher<Page> {
 
             @Override
             public void cancel() {
-                SubscribableListener<Void> listenerToComplete;
                 synchronized (PageStreamPublisher.this) {
                     cancelled = true;
                     releaseBuffer();
-                    listenerToComplete = unblockListener;
                 }
-                listenerToComplete.onResponse(null);
+                notifyWritable();
                 closedListener.onResponse(null);
             }
         };
@@ -268,7 +316,6 @@ public class PageStreamPublisher implements Flow.Publisher<Page> {
     private Step deliverOnce() {
         Action action;
         PendingDelivery pending;
-        SubscribableListener<Void> listenerToUnblock;
         Exception err = null;
         synchronized (this) {
             deliveryPending = false;
@@ -278,35 +325,31 @@ public class PageStreamPublisher implements Flow.Publisher<Page> {
             }
 
             if (subscriber == null) {
-                // subscribe() has not been called yet; a later request(n) will re-drive delivery.
                 return Step.RECHECK;
             }
 
             if (failure != null) {
-                err = failure; // capture while holding the monitor so it is safe to read outside
+                err = failure;
                 terminalSignalSent = true;
                 demand = 0;
                 releaseBuffer();
-                listenerToUnblock = unblockListener;
                 action = Action.SEND_ERROR;
                 pending = null;
             } else if (demand > 0 && bufferedRows >= pageSize) {
                 pending = takeRows(pageSize);
                 demand--;
                 action = Action.SEND_PAGE;
-                listenerToUnblock = null;
             } else if (demand > 0 && pagesFinished && bufferedRows > 0) {
                 pending = takeRows(bufferedRows);
                 demand--;
                 action = Action.SEND_PAGE;
-                listenerToUnblock = null;
             } else if (demand > 0 && pagesFinished && bufferedRows == 0 && footer != null) {
                 terminalSignalSent = true;
                 action = Action.SEND_COMPLETE;
                 pending = null;
-                listenerToUnblock = null;
             } else if (demand > 0) {
-                listenerToUnblock = unblockListener;
+                // Demand is outstanding but no page is ready yet (producers still active or buffer
+                // below page_size). Unblock all parked producers so they can add more pages.
                 action = Action.UNBLOCK;
                 pending = null;
             } else {
@@ -316,7 +359,7 @@ public class PageStreamPublisher implements Flow.Publisher<Page> {
 
         switch (action) {
             case SEND_ERROR -> {
-                listenerToUnblock.onResponse(null);
+                notifyWritable();
                 subscriber.onError(err);
                 return Step.STOP;
             }
@@ -325,18 +368,18 @@ public class PageStreamPublisher implements Flow.Publisher<Page> {
                 try {
                     page = buildPage(pending);
                 } catch (RuntimeException buildException) {
-                    SubscribableListener<Void> unblockToComplete = null;
+                    boolean shouldSendError = false;
                     synchronized (this) {
                         if (terminated() == false) {
                             failure = buildException;
                             terminalSignalSent = true;
                             demand = 0;
                             releaseBuffer();
-                            unblockToComplete = unblockListener;
+                            shouldSendError = true;
                         }
                     }
-                    if (unblockToComplete != null) {
-                        unblockToComplete.onResponse(null);
+                    if (shouldSendError) {
+                        notifyWritable();
                         subscriber.onError(buildException);
                     }
                     throw buildException;
@@ -365,9 +408,11 @@ public class PageStreamPublisher implements Flow.Publisher<Page> {
 
                 if (shouldSend == false) {
                     page.releaseBlocks();
+                    notifyWritable();
                     return Step.STOP;
                 }
                 subscriber.onNext(page);
+                notifyWritable();
                 return Step.CONTINUE;
             }
             case SEND_COMPLETE -> {
@@ -375,7 +420,7 @@ public class PageStreamPublisher implements Flow.Publisher<Page> {
                 return Step.STOP;
             }
             case UNBLOCK -> {
-                listenerToUnblock.onResponse(null);
+                notifyWritable();
                 return Step.RECHECK;
             }
             default -> throw new AssertionError("unexpected action: " + action);

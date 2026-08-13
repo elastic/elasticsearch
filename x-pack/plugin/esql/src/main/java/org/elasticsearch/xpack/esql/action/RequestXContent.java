@@ -220,7 +220,17 @@ final class RequestXContent {
 
     private static ObjectParser<EsqlQueryRequest, Void> objectParserStream(Supplier<EsqlQueryRequest> supplier) {
         ObjectParser<EsqlQueryRequest, Void> parser = new ObjectParser<>("esql/stream_query", false, supplier);
-        objectParserCommon(parser);
+        parser.declareString(EsqlQueryRequest::query, QUERY_FIELD);
+        parser.declareObject(EsqlQueryRequest::filter, (p, c) -> AbstractQueryBuilder.parseTopLevelQuery(p), FILTER_FIELD);
+        parser.declareBoolean(EsqlQueryRequest::acceptedPragmaRisks, ACCEPT_PRAGMA_RISKS);
+        parser.declareObject(
+            EsqlQueryRequest::pragmas,
+            (p, c) -> new QueryPragmas(Settings.builder().loadFromMap(p.map()).build()),
+            PRAGMA_FIELD
+        );
+        parser.declareField(EsqlQueryRequest::params, RequestXContent::parseParams, PARAMS_FIELD, VALUE_OBJECT_ARRAY);
+        parser.declareString((request, localeTag) -> request.locale(Locale.forLanguageTag(localeTag)), LOCALE_FIELD);
+        parser.declareField((p, r, c) -> new ParseTables(r, p).parseTables(), TABLES_FIELD, ObjectParser.ValueType.OBJECT);
         parser.declareInt(EsqlQueryRequest::pageSize, PAGE_SIZE_FIELD);
         return parser;
     }

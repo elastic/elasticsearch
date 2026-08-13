@@ -55,10 +55,11 @@ public class PageStreamPublisherTests extends ComputeTestCase {
     public void testDriverBlockedAfterDelivery() {
         int pageSize = 3;
         PageStreamPublisher publisher = new PageStreamPublisher(pageSize);
+        PageStreamPublisher.Producer producer = publisher.registerProducer();
         assertDriverBlocked(publisher);
         TestSubscriber subscriber = subscribeWithDemand(publisher);
         assertDriverUnblocked(publisher);
-        assertTrue("addPage must return true when publisher is active", publisher.addPage(makePageWithValues(0, pageSize)));
+        assertTrue("addPage must return true when publisher is active", producer.addPage(makePageWithValues(0, pageSize)));
 
         expectPage(subscriber, rows(0, pageSize));
         assertDriverBlocked(publisher);
@@ -70,35 +71,38 @@ public class PageStreamPublisherTests extends ComputeTestCase {
     public void testShortBufferUnblocksDriver() {
         int pageSize = 10;
         PageStreamPublisher publisher = new PageStreamPublisher(pageSize);
+        PageStreamPublisher.Producer producer = publisher.registerProducer();
         TestSubscriber subscriber = subscribeWithDemand(publisher);
-        publisher.addPage(makePageWithValues(0, pageSize - 1));
+        producer.addPage(makePageWithValues(0, pageSize - 1));
 
         expectNoPages(subscriber);
         assertDriverUnblocked(publisher);
 
-        finishStream(publisher);
+        finishStream(producer, publisher);
         expectPage(subscriber, rows(0, pageSize - 1));
     }
 
     public void testMergePathPartialConsumptionRemainder() {
         int pageSize = 3;
         PageStreamPublisher publisher = new PageStreamPublisher(pageSize);
+        PageStreamPublisher.Producer producer = publisher.registerProducer();
         TestSubscriber subscriber = subscribeWithDemand(publisher);
-        publisher.addPage(makePageWithValues(0, 2));
+        producer.addPage(makePageWithValues(0, 2));
         expectNoPages(subscriber);
-        publisher.addPage(makePageWithValues(2, 3));
+        producer.addPage(makePageWithValues(2, 3));
 
         expectPage(subscriber, rows(0, pageSize));
         subscriber.requestOne();
-        finishStream(publisher);
+        finishStream(producer, publisher);
         expectPage(subscriber, rows(pageSize, 2));
     }
 
     public void testSingleLargePageDrainedOneRowAtATime() {
         int rowCount = 8;
         PageStreamPublisher publisher = new PageStreamPublisher(1);
+        PageStreamPublisher.Producer producer = publisher.registerProducer();
         TestSubscriber subscriber = subscribeWithDemand(publisher);
-        publisher.addPage(makePageWithValues(0, rowCount));
+        producer.addPage(makePageWithValues(0, rowCount));
 
         for (int i = 0; i < rowCount; i++) {
             expectPage(subscriber, rows(i, 1));
@@ -108,7 +112,7 @@ public class PageStreamPublisherTests extends ComputeTestCase {
         }
 
         subscriber.requestOne();
-        finishStream(publisher);
+        finishStream(producer, publisher);
         assertTrue("stream must complete after all rows delivered", subscriber.completed);
     }
 
@@ -117,25 +121,28 @@ public class PageStreamPublisherTests extends ComputeTestCase {
 
         {
             PageStreamPublisher p = new PageStreamPublisher(pageSize);
+            PageStreamPublisher.Producer prod = p.registerProducer();
             TestSubscriber s = subscribeWithDemand(p);
-            p.addPage(makeNullPage(2));
+            prod.addPage(makeNullPage(2));
             expectNoPages(s);
-            p.addPage(makePageWithValues(0, 3));
+            prod.addPage(makePageWithValues(0, 3));
             expectPage(s, null, null, 0L, 1L, 2L);
         }
         {
             PageStreamPublisher p = new PageStreamPublisher(pageSize);
+            PageStreamPublisher.Producer prod = p.registerProducer();
             TestSubscriber s = subscribeWithDemand(p);
-            p.addPage(makePageWithValues(0, 3));
+            prod.addPage(makePageWithValues(0, 3));
             expectNoPages(s);
-            p.addPage(makeNullPage(2));
+            prod.addPage(makeNullPage(2));
             expectPage(s, 0L, 1L, 2L, null, null);
         }
         {
             PageStreamPublisher p = new PageStreamPublisher(pageSize);
+            PageStreamPublisher.Producer prod = p.registerProducer();
             TestSubscriber s = subscribeWithDemand(p);
-            p.addPage(makeNullPage(2));
-            p.addPage(makeNullPage(3));
+            prod.addPage(makeNullPage(2));
+            prod.addPage(makeNullPage(3));
             assertThat(s.receivedPages, hasSize(1));
             assertTrue("merge of all-null pages must produce all-null block", s.receivedPages.get(0).getBlock(0).areAllValuesNull());
             releasePages(s.receivedPages);
@@ -145,32 +152,34 @@ public class PageStreamPublisherTests extends ComputeTestCase {
     public void testMergeConstantNullWithPartialConsumptionRemainder() {
         int pageSize = 3;
         PageStreamPublisher publisher = new PageStreamPublisher(pageSize);
+        PageStreamPublisher.Producer producer = publisher.registerProducer();
         TestSubscriber subscriber = subscribeWithDemand(publisher);
 
-        publisher.addPage(makeNullPage(2));
-        publisher.addPage(makePageWithValues(0, 3));
+        producer.addPage(makeNullPage(2));
+        producer.addPage(makePageWithValues(0, 3));
 
         expectPage(subscriber, null, null, 0L);
         subscriber.requestOne();
-        finishStream(publisher);
+        finishStream(producer, publisher);
         expectPage(subscriber, 1L, 2L);
     }
 
     public void testMergePicksElementTypePerColumn() {
         int pageSize = 4;
         PageStreamPublisher publisher = new PageStreamPublisher(pageSize);
+        PageStreamPublisher.Producer producer = publisher.registerProducer();
         TestSubscriber subscriber = subscribeWithDemand(publisher);
 
         Block nullBlock1 = blockFactory().newConstantNullBlock(2);
         long[] vals1 = { 0L, 1L };
         Block longBlock1 = blockFactory().newLongArrayVector(vals1, 2).asBlock();
-        publisher.addPage(new Page(2, new Block[] { nullBlock1, longBlock1 }));
+        producer.addPage(new Page(2, new Block[] { nullBlock1, longBlock1 }));
         expectNoPages(subscriber);
 
         long[] vals2 = { 10L, 11L };
         Block longBlock2 = blockFactory().newLongArrayVector(vals2, 2).asBlock();
         Block nullBlock2 = blockFactory().newConstantNullBlock(2);
-        publisher.addPage(new Page(2, new Block[] { longBlock2, nullBlock2 }));
+        producer.addPage(new Page(2, new Block[] { longBlock2, nullBlock2 }));
 
         assertThat(subscriber.receivedPages, hasSize(1));
         Page chunk = subscriber.receivedPages.get(0);
@@ -185,20 +194,22 @@ public class PageStreamPublisherTests extends ComputeTestCase {
 
         {
             PageStreamPublisher p = new PageStreamPublisher(pageSize);
+            PageStreamPublisher.Producer prod = p.registerProducer();
             TestSubscriber s = subscribeWithDemand(p);
-            p.addPage(makeNullPage(5));
+            prod.addPage(makeNullPage(5));
             expectPage(s, null, null, null, null);
             s.requestOne();
-            p.addPage(makePageWithValues(0, 3));
+            prod.addPage(makePageWithValues(0, 3));
             expectPage(s, null, 0L, 1L, 2L);
         }
         {
             PageStreamPublisher p = new PageStreamPublisher(pageSize);
+            PageStreamPublisher.Producer prod = p.registerProducer();
             TestSubscriber s = subscribeWithDemand(p);
-            p.addPage(makePageWithValues(0, 5));
+            prod.addPage(makePageWithValues(0, 5));
             expectPage(s, rows(0, pageSize));
             s.requestOne();
-            p.addPage(makeNullPage(3));
+            prod.addPage(makeNullPage(3));
             expectPage(s, 4L, null, null, null);
         }
     }
@@ -208,13 +219,14 @@ public class PageStreamPublisherTests extends ComputeTestCase {
             {
                 int pageSize = 5;
                 PageStreamPublisher p = new PageStreamPublisher(pageSize);
+                PageStreamPublisher.Producer prod = p.registerProducer();
                 TestSubscriber s = subscribeWithDemand(p);
                 try {
-                    p.addPage(makePageWithValues(cranky, 0, 2));
-                    p.addPage(makePageWithValues(cranky, 2, 2));
-                    p.addPage(makePageWithValues(cranky, 4, 1));
+                    prod.addPage(makePageWithValues(cranky, 0, 2));
+                    prod.addPage(makePageWithValues(cranky, 2, 2));
+                    prod.addPage(makePageWithValues(cranky, 4, 1));
                     expectPage(s, rows(0, pageSize));
-                    finishStream(p);
+                    finishStream(prod, p);
                 } finally {
                     s.cancel();
                     releasePages(s.receivedPages);
@@ -223,12 +235,13 @@ public class PageStreamPublisherTests extends ComputeTestCase {
             {
                 int pageSize = 5;
                 PageStreamPublisher p = new PageStreamPublisher(pageSize);
+                PageStreamPublisher.Producer prod = p.registerProducer();
                 TestSubscriber s = subscribeWithDemand(p);
                 try {
-                    p.addPage(makeNullPage(cranky, 2));
-                    p.addPage(makePageWithValues(cranky, 0, 3));
+                    prod.addPage(makeNullPage(cranky, 2));
+                    prod.addPage(makePageWithValues(cranky, 0, 3));
                     expectPage(s, null, null, 0L, 1L, 2L);
-                    finishStream(p);
+                    finishStream(prod, p);
                 } finally {
                     s.cancel();
                     releasePages(s.receivedPages);
@@ -239,8 +252,9 @@ public class PageStreamPublisherTests extends ComputeTestCase {
 
     public void testFooter() {
         PageStreamPublisher publisher = new PageStreamPublisher(1024);
+        PageStreamPublisher.Producer producer = publisher.registerProducer();
         assertThat(publisher.footer(), nullValue());
-        publisher.pagesFinished();
+        producer.finish();
         publisher.completeWithFooter(42L, List.of("warn1", "warn2"), true);
         PageStreamPublisher.StreamFooter footer = publisher.footer();
         assertThat(footer, notNullValue());
@@ -252,8 +266,9 @@ public class PageStreamPublisherTests extends ComputeTestCase {
     public void testCompletionRequiresFooterAndDemand() {
         {
             PageStreamPublisher p = new PageStreamPublisher(1024);
+            PageStreamPublisher.Producer prod = p.registerProducer();
             TestSubscriber s = subscribe(p);
-            p.pagesFinished();
+            prod.finish();
             p.completeWithFooter(1L, List.of(), false);
             assertFalse("onComplete must not fire without demand", s.completed);
             s.requestOne();
@@ -261,8 +276,9 @@ public class PageStreamPublisherTests extends ComputeTestCase {
         }
         {
             PageStreamPublisher p = new PageStreamPublisher(1024);
+            PageStreamPublisher.Producer prod = p.registerProducer();
             TestSubscriber s = subscribeWithDemand(p);
-            p.pagesFinished();
+            prod.finish();
             assertFalse("onComplete must not fire without footer", s.completed);
             p.completeWithFooter(1L, List.of(), false);
             assertTrue("onComplete must fire once footer arrives", s.completed);
@@ -272,12 +288,13 @@ public class PageStreamPublisherTests extends ComputeTestCase {
     public void testCompletionOrdering() {
         int pageSize = 3;
         PageStreamPublisher publisher = new PageStreamPublisher(pageSize);
+        PageStreamPublisher.Producer producer = publisher.registerProducer();
         TestSubscriber subscriber = subscribeWithDemand(publisher);
-        publisher.addPage(makePageWithValues(0, 5));
+        producer.addPage(makePageWithValues(0, 5));
 
         expectPage(subscriber, rows(0, pageSize));
         assertFalse("onComplete must not fire before remainder is delivered", subscriber.completed);
-        finishStream(publisher);
+        finishStream(producer, publisher);
         subscriber.requestOne();
         expectPage(subscriber, rows(pageSize, 2));
         subscriber.requestOne();
@@ -288,8 +305,9 @@ public class PageStreamPublisherTests extends ComputeTestCase {
         {
             BlockFactory factory = blockFactory();
             PageStreamPublisher p = new PageStreamPublisher(1024);
+            PageStreamPublisher.Producer prod = p.registerProducer();
             TestSubscriber s = subscribeWithDemand(p);
-            p.addPage(makePageWithValues(factory, 0, 3));
+            prod.addPage(makePageWithValues(factory, 0, 3));
             Exception cause = new RuntimeException("boom");
             p.failStream(cause);
             assertThat(s.error, sameInstance(cause));
@@ -312,8 +330,9 @@ public class PageStreamPublisherTests extends ComputeTestCase {
         {
             int pageSize = 3;
             PageStreamPublisher p = new PageStreamPublisher(pageSize);
+            PageStreamPublisher.Producer prod = p.registerProducer();
             TestSubscriber s = subscribeWithDemand(p);
-            p.addPage(makePageWithValues(0, pageSize));
+            prod.addPage(makePageWithValues(0, pageSize));
             expectPage(s, rows(0, pageSize));
             Exception cause = new RuntimeException("compute failed after page delivery");
             p.failStream(cause);
@@ -327,14 +346,15 @@ public class PageStreamPublisherTests extends ComputeTestCase {
         ArmableBlockFactory factory = new ArmableBlockFactory(BlockFactory.builder(bigArrays).breaker(breaker));
         int pageSize = 5;
         PageStreamPublisher publisher = new PageStreamPublisher(pageSize);
+        PageStreamPublisher.Producer producer = publisher.registerProducer();
         TestSubscriber subscriber = subscribeWithDemand(publisher);
-        publisher.addPage(makePageWithValues(factory, 0, 2));
+        producer.addPage(makePageWithValues(factory, 0, 2));
         expectNoPages(subscriber);
 
         factory.throwOnNextLongBlockBuilder = true;
         CircuitBreakingException thrown = expectThrows(
             CircuitBreakingException.class,
-            () -> publisher.addPage(makePageWithValues(factory, 2, 3))
+            () -> producer.addPage(makePageWithValues(factory, 2, 3))
         );
         assertThat(subscriber.error, sameInstance(thrown));
         expectNoPages(subscriber);
@@ -359,8 +379,9 @@ public class PageStreamPublisherTests extends ComputeTestCase {
 
     public void testCompleteWithFooterAfterFailStreamDoesNotEmitOnComplete() {
         PageStreamPublisher publisher = new PageStreamPublisher(1024);
+        PageStreamPublisher.Producer producer = publisher.registerProducer();
         TestSubscriber subscriber = subscribeWithDemand(publisher);
-        publisher.pagesFinished();
+        producer.finish();
         publisher.failStream(new RuntimeException("fail"));
         publisher.completeWithFooter(0, List.of(), false);
 
@@ -372,9 +393,10 @@ public class PageStreamPublisherTests extends ComputeTestCase {
         BlockFactory factory = blockFactory();
         int pageSize = 2;
         PageStreamPublisher publisher = new PageStreamPublisher(pageSize);
+        PageStreamPublisher.Producer producer = publisher.registerProducer();
         TestSubscriber subscriber = subscribeWithDemand(publisher);
 
-        publisher.addPage(makePageWithValues(factory, 0, 5));
+        producer.addPage(makePageWithValues(factory, 0, 5));
         expectPage(subscriber, rows(0, pageSize));
         assertThat("remainder must still be breaker-resident before cancel", factory.breaker().getUsed(), greaterThan(0L));
 
@@ -382,13 +404,14 @@ public class PageStreamPublisherTests extends ComputeTestCase {
 
         assertThat("cancel must release all buffered rows, returning breaker to zero", factory.breaker().getUsed(), equalTo(0L));
         assertDriverUnblocked(publisher);
-        assertFalse("addPage must return false on a cancelled publisher", publisher.addPage(makePageWithValues(factory, 5, 1)));
+        assertFalse("addPage must return false on a cancelled publisher", producer.addPage(makePageWithValues(factory, 5, 1)));
     }
 
     public void testCancelSuppressesOnComplete() {
         PageStreamPublisher publisher = new PageStreamPublisher(1024);
+        PageStreamPublisher.Producer producer = publisher.registerProducer();
         TestSubscriber subscriber = subscribeWithDemand(publisher);
-        publisher.pagesFinished();
+        producer.finish();
         subscriber.cancel();
         publisher.completeWithFooter(0, List.of(), false);
 
@@ -398,9 +421,10 @@ public class PageStreamPublisherTests extends ComputeTestCase {
 
     public void testAddPageAfterTerminalStateReleasesBlocks() {
         PageStreamPublisher publisher = new PageStreamPublisher(1024);
+        PageStreamPublisher.Producer producer = publisher.registerProducer();
         TestSubscriber subscriber = subscribeWithDemand(publisher);
         publisher.failStream(new RuntimeException("terminal"));
-        assertFalse("addPage must return false after terminal state", publisher.addPage(makePageWithValues(0, 5)));
+        assertFalse("addPage must return false after terminal state", producer.addPage(makePageWithValues(0, 5)));
 
         expectNoPages(subscriber);
     }
@@ -408,19 +432,21 @@ public class PageStreamPublisherTests extends ComputeTestCase {
     public void testDemandAccumulationHonoursCredits() {
         {
             PageStreamPublisher p = new PageStreamPublisher(1);
+            PageStreamPublisher.Producer prod = p.registerProducer();
             TestSubscriber s = subscribe(p);
             s.requestN(2);
-            p.addPage(makePageWithValues(0, 3));
+            prod.addPage(makePageWithValues(0, 3));
             expectPages(s, rows(0, 1), rows(1, 1));
             s.requestOne();
             expectPage(s, rows(2, 1));
         }
         {
             PageStreamPublisher p = new PageStreamPublisher(1);
+            PageStreamPublisher.Producer prod = p.registerProducer();
             TestSubscriber s = subscribe(p);
             s.requestOne();
             s.requestOne();
-            p.addPage(makePageWithValues(0, 3));
+            prod.addPage(makePageWithValues(0, 3));
             expectPages(s, rows(0, 1), rows(1, 1));
             s.requestOne();
             expectPage(s, rows(2, 1));
@@ -429,26 +455,28 @@ public class PageStreamPublisherTests extends ComputeTestCase {
 
     public void testSurplusDemandUnblocksDriverWhenBufferRunsShort() {
         PageStreamPublisher publisher = new PageStreamPublisher(2);
+        PageStreamPublisher.Producer producer = publisher.registerProducer();
         TestSubscriber subscriber = subscribe(publisher);
 
         subscriber.requestN(2);
-        publisher.addPage(makePageWithValues(0, 3));
+        producer.addPage(makePageWithValues(0, 3));
 
         expectPage(subscriber, rows(0, 2));
         assertDriverUnblocked(publisher);
-        publisher.addPage(makePageWithValues(3, 1));
+        producer.addPage(makePageWithValues(3, 1));
         expectPage(subscriber, rows(2, 2));
     }
 
     public void testDemandSaturatesAtMaxValue() {
         PageStreamPublisher publisher = new PageStreamPublisher(1);
+        PageStreamPublisher.Producer producer = publisher.registerProducer();
         TestSubscriber subscriber = subscribe(publisher);
 
         subscriber.requestN(Long.MAX_VALUE);
         subscriber.requestN(Long.MAX_VALUE);
         int pageCount = 5;
         for (int i = 0; i < pageCount; i++) {
-            publisher.addPage(makePageWithValues(i, 1));
+            producer.addPage(makePageWithValues(i, 1));
         }
         expectPages(subscriber, rows(0, 1), rows(1, 1), rows(2, 1), rows(3, 1), rows(4, 1));
     }
@@ -467,10 +495,11 @@ public class PageStreamPublisherTests extends ComputeTestCase {
 
     public void testCancelFromInsideOnNextStopsDelivery() {
         PageStreamPublisher publisher = new PageStreamPublisher(1);
+        PageStreamPublisher.Producer producer = publisher.registerProducer();
         TestSubscriber subscriber = subscribe(publisher);
         subscriber.requestN(3);
         subscriber.onFirstPage = () -> subscriber.cancel();
-        publisher.addPage(makePageWithValues(0, 3));
+        producer.addPage(makePageWithValues(0, 3));
 
         expectPage(subscriber, rows(0, 1));
         assertDriverUnblocked(publisher);
@@ -478,11 +507,12 @@ public class PageStreamPublisherTests extends ComputeTestCase {
 
     public void testFailStreamFromInsideOnNextDeliversOnErrorOnce() {
         PageStreamPublisher publisher = new PageStreamPublisher(1);
+        PageStreamPublisher.Producer producer = publisher.registerProducer();
         TestSubscriber subscriber = subscribe(publisher);
         subscriber.requestN(3);
         Exception cause = new RuntimeException("re-entrant failure");
         subscriber.onFirstPage = () -> publisher.failStream(cause);
-        publisher.addPage(makePageWithValues(0, 3));
+        producer.addPage(makePageWithValues(0, 3));
 
         expectPage(subscriber, rows(0, 1));
         assertThat(subscriber.errorCount, equalTo(1));
@@ -492,23 +522,25 @@ public class PageStreamPublisherTests extends ComputeTestCase {
 
     public void testSynchronousRequestFromInsideOnNext() {
         PageStreamPublisher publisher = new PageStreamPublisher(1);
+        PageStreamPublisher.Producer producer = publisher.registerProducer();
         TestSubscriber subscriber = subscribe(publisher);
         subscriber.onFirstPage = subscriber::requestOne;
         subscriber.requestOne();
 
-        publisher.addPage(makePageWithValues(0, 3));
+        producer.addPage(makePageWithValues(0, 3));
         assertThat(subscriber.receivedPages, hasSize(2));
 
         subscriber.requestOne();
-        finishStream(publisher);
+        finishStream(producer, publisher);
         expectPages(subscriber, rows(0, 1), rows(1, 1), rows(2, 1));
     }
 
     public void testReentrantAddPageFromUnblockListener() {
         PageStreamPublisher publisher = new PageStreamPublisher(1);
+        PageStreamPublisher.Producer producer = publisher.registerProducer();
         TestSubscriber subscriber = subscribe(publisher);
         Page page = makePageWithValues(0, 1);
-        publisher.waitForWriting().listener().addListener(ActionListener.running(() -> publisher.addPage(page)));
+        publisher.waitForWriting().listener().addListener(ActionListener.running(() -> producer.addPage(page)));
 
         subscriber.requestOne();
         assertThat(subscriber.receivedPages, hasSize(1));
@@ -518,19 +550,21 @@ public class PageStreamPublisherTests extends ComputeTestCase {
 
     public void testCancellationDuringBuildPageReleasesBlocks() {
         PageStreamPublisher publisher = new PageStreamPublisher(5);
+        PageStreamPublisher.Producer producer = publisher.registerProducer();
         TestSubscriber subscriber = subscribe(publisher);
         subscriber.requestOne();
         subscriber.onFirstPage = subscriber::cancel;
 
-        publisher.addPage(makePageWithValues(0, 3));
-        publisher.addPage(makePageWithValues(3, 3));
-        finishStream(publisher);
+        producer.addPage(makePageWithValues(0, 3));
+        producer.addPage(makePageWithValues(3, 3));
+        finishStream(producer, publisher);
 
         releasePages(subscriber.receivedPages);
     }
 
     public void testConcurrentProducerAndDisruption() {
         final int pageSize = randomIntBetween(1, 5);
+        final int numProducers = randomIntBetween(1, 4);
         final int totalPages = randomIntBetween(5, 30);
         final int[] rowsPerPage = new int[totalPages];
         for (int i = 0; i < totalPages; i++) {
@@ -541,17 +575,32 @@ public class PageStreamPublisherTests extends ComputeTestCase {
         final BlockFactory factory = blockFactory();
         final PageStreamPublisher publisher = new PageStreamPublisher(pageSize);
 
+        List<PageStreamPublisher.Producer> producers = new ArrayList<>();
+        for (int i = 0; i < numProducers; i++) {
+            producers.add(publisher.registerProducer());
+        }
+
         TestSubscriber subscriber = subscribe(publisher);
         subscriber.releaseOnNext = true;
         subscriber.requestN(Long.MAX_VALUE);
 
-        final Runnable producerTask = () -> {
-            for (int i = 0; i < totalPages; i++) {
-                publisher.addPage(makePageWithValues(factory, (long) i * 1000, rowsPerPage[i]));
-            }
-            publisher.pagesFinished();
-            publisher.completeWithFooter(0, List.of(), false);
-        };
+        // Each producer handles a round-robin slice of the pages.
+        List<Runnable> producerTasks = new ArrayList<>();
+        for (int p = 0; p < numProducers; p++) {
+            final int producerIndex = p;
+            final PageStreamPublisher.Producer producer = producers.get(p);
+            producerTasks.add(() -> {
+                for (int i = producerIndex; i < totalPages; i += numProducers) {
+                    producer.addPage(makePageWithValues(factory, (long) i * 1000, rowsPerPage[i]));
+                }
+                producer.finish();
+                // The highest-indexed producer also calls completeWithFooter; scheduling order
+                // is non-deterministic, but SEND_COMPLETE requires pagesFinished regardless.
+                if (producerIndex == numProducers - 1) {
+                    publisher.completeWithFooter(0, List.of(), false);
+                }
+            });
+        }
 
         final Runnable disruptorTask = () -> {
             switch (disruptionType) {
@@ -562,13 +611,74 @@ public class PageStreamPublisherTests extends ComputeTestCase {
             }
         };
 
-        startInParallel(producerTask, disruptorTask);
+        Runnable[] allTasks = new Runnable[numProducers + 1];
+        producerTasks.toArray(allTasks);
+        allTasks[numProducers] = disruptorTask;
+        startInParallel(allTasks);
 
         int terminalCount = subscriber.errorCount + (subscriber.completed ? 1 : 0);
         assertTrue("at most one terminal signal expected", terminalCount <= 1);
         if (disruptionType == 0) {
             assertEquals("onComplete expected with no disruption", 1, terminalCount);
         }
+    }
+
+    /**
+     * Two producers share one publisher. After producer A consumes the outstanding demand,
+     * producer B's wait-for-writing gate must not be left dangling: it must complete once
+     * new demand is granted, and no {@link AssertionError} must escape.
+     */
+    public void testTwoProducersShareThePublisher() {
+        PageStreamPublisher publisher = new PageStreamPublisher(1);
+        PageStreamPublisher.Producer producer1 = publisher.registerProducer();
+        PageStreamPublisher.Producer producer2 = publisher.registerProducer();
+        TestSubscriber subscriber = subscribeWithDemand(publisher);
+
+        producer1.addPage(makePageWithValues(0, 1));
+        expectPage(subscriber, rows(0, 1));
+
+        assertDriverBlocked(publisher);
+
+        subscriber.requestOne();
+        assertDriverUnblocked(publisher);
+
+        producer2.addPage(makePageWithValues(1, 1));
+        expectPage(subscriber, rows(1, 1));
+
+        subscriber.requestOne();
+        producer1.finish();
+        producer2.finish();
+        publisher.completeWithFooter(0, List.of(), false);
+        assertTrue("stream must complete", subscriber.completed);
+    }
+
+    /**
+     * When producer A finishes while producer B is still active, the publisher must not flush
+     * a short chunk. The remainder-delivery path ({@code pagesFinished && bufferedRows > 0})
+     * may only fire once the last producer calls {@link PageStreamPublisher.Producer#finish()}.
+     */
+    public void testNoShortChunkWhileAnotherProducerIsActive() {
+        int pageSize = 10;
+        PageStreamPublisher publisher = new PageStreamPublisher(pageSize);
+        PageStreamPublisher.Producer producer1 = publisher.registerProducer();
+        PageStreamPublisher.Producer producer2 = publisher.registerProducer();
+        TestSubscriber subscriber = subscribeWithDemand(publisher);
+
+        // Producer 1 adds 2 rows and finishes, but producer 2 is still active.
+        producer1.addPage(makePageWithValues(0, 2));
+        producer1.finish();
+
+        // No chunk yet: pagesFinished is still false because producer 2 is live.
+        expectNoPages(subscriber);
+
+        // Producer 2 adds enough rows to fill the page.
+        producer2.addPage(makePageWithValues(2, 8));
+        expectPage(subscriber, rows(0, pageSize));
+
+        subscriber.requestOne();
+        producer2.finish();
+        publisher.completeWithFooter(0, List.of(), false);
+        assertTrue("stream must complete after all rows delivered", subscriber.completed);
     }
 
     private TestSubscriber subscribe(PageStreamPublisher publisher) {
@@ -584,8 +694,8 @@ public class PageStreamPublisherTests extends ComputeTestCase {
         return subscriber;
     }
 
-    private static void finishStream(PageStreamPublisher publisher) {
-        publisher.pagesFinished();
+    private static void finishStream(PageStreamPublisher.Producer producer, PageStreamPublisher publisher) {
+        producer.finish();
         publisher.completeWithFooter(0, List.of(), false);
     }
 

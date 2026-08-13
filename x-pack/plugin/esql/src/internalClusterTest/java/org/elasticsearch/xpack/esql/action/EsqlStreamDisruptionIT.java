@@ -251,14 +251,34 @@ public class EsqlStreamDisruptionIT extends AbstractEsqlIntegTestCase {
                 }
                 fail("stream did not reach line " + lineIndex + " within 60s; " + detail);
             }
+            Exception actionFailure = null;
             if (control != null) {
                 try {
                     whileSuspended.run();
+                } catch (Exception e) {
+                    actionFailure = e;
                 } finally {
                     control.requestInput();
                 }
             }
-            return future.get(2, TimeUnit.MINUTES);
+            // Always wait for the future on both success and failure paths so that executor.close()
+            // (ExecutorService.close() awaits termination with no timeout) returns promptly instead of
+            // hanging the suite until the JUnit deadline when whileSuspended threw.
+            StreamOutcome outcome;
+            try {
+                outcome = future.get(2, TimeUnit.MINUTES);
+            } catch (Exception getException) {
+                executor.shutdownNow();
+                if (actionFailure != null) {
+                    actionFailure.addSuppressed(getException);
+                    throw actionFailure;
+                }
+                throw getException;
+            }
+            if (actionFailure != null) {
+                throw actionFailure;
+            }
+            return outcome;
         }
     }
 
@@ -300,6 +320,48 @@ public class EsqlStreamDisruptionIT extends AbstractEsqlIntegTestCase {
             outcome.error(),
             outcome.transportFailure()
         );
+    }
+
+    /**
+     * Asserts, within a 60-second {@code assertBusy} budget, that the coordinator's {@code final}
+     * driver is currently parked on {@code streaming_page_consumer} backpressure. The task list is
+     * fetched only from {@link #coordinatingNode} (via {@code .setNodesIds}) so the observation itself
+     * never crosses the inter-node transport links and is not perturbed by any active disruption.
+     */
+    private void assertFinalDriverParkedOnConsumer() throws Exception {
+        assertBusy(() -> {
+            ListTasksResponse taskResp = client(coordinatingNode).admin()
+                .cluster()
+                .prepareListTasks()
+                .setActions(DriverTaskRunner.ACTION_NAME)
+                .setNodesIds(coordinatingNode)
+                .setDetailed(true)
+                .get();
+            assertThat("task list on coordinating node must have no node failures", taskResp.getNodeFailures(), empty());
+            DriverStatus finalDriver = taskResp.getTasks()
+                .stream()
+                .filter(t -> t.status() instanceof DriverStatus s && s.description().endsWith("final"))
+                .map(t -> (DriverStatus) t.status())
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("no 'final' driver task found; all tasks: " + taskResp.getTasks()));
+            assertThat(
+                "final driver must be ASYNC; status=" + finalDriver.status() + " sleeps=" + finalDriver.sleeps().counts(),
+                finalDriver.status(),
+                equalTo(DriverStatus.Status.ASYNC)
+            );
+            List<DriverSleeps.Sleep> lastSleeps = finalDriver.sleeps().last();
+            assertFalse("final driver has no recorded sleeps; sleeps=" + finalDriver.sleeps().counts(), lastSleeps.isEmpty());
+            DriverSleeps.Sleep currentSleep = lastSleeps.get(lastSleeps.size() - 1);
+            assertTrue("final driver must currently be sleeping; last sleep=" + currentSleep, currentSleep.isStillSleeping());
+            assertThat(
+                "final driver must be parked on streaming_page_consumer backpressure; reason="
+                    + currentSleep.reason()
+                    + " sleeps="
+                    + finalDriver.sleeps().counts(),
+                currentSleep.reason(),
+                containsString("streaming_page_consumer")
+            );
+        }, 60, TimeUnit.SECONDS);
     }
 
     public void testHappyPathOverRealHttp() throws Exception {
@@ -407,30 +469,18 @@ public class EsqlStreamDisruptionIT extends AbstractEsqlIntegTestCase {
             1,
             streamBody("FROM " + STREAM_INDEX + " | EVAL pad = REPEAT(\"x\", 2048) | LIMIT 1000", 2),
             () -> {
+                // Verify that the final driver has parked on streaming_page_consumer *before*
+                // starting the disruption. The network is healthy here, so pages can flow from
+                // data nodes and fill the publisher buffer until the suspended HTTP consumer
+                // provides back-pressure. Establishing this state first avoids the race where
+                // the disruption starves the exchange, causing the driver to park on "exchange
+                // empty" instead and the assertion to time out.
+                assertFinalDriverParkedOnConsumer();
                 delay.startDisrupting();
-                assertBusy(() -> {
-                    ListTasksResponse taskResp = clusterAdmin().prepareListTasks()
-                        .setActions(DriverTaskRunner.ACTION_NAME)
-                        .setDetailed(true)
-                        .get();
-                    assertThat("task list must have no node failures", taskResp.getNodeFailures(), empty());
-                    DriverStatus finalDriver = taskResp.getTasks()
-                        .stream()
-                        .filter(t -> t.status() instanceof DriverStatus s && s.description().endsWith("final"))
-                        .map(t -> (DriverStatus) t.status())
-                        .findFirst()
-                        .orElseThrow(() -> new AssertionError("no 'final' driver task found"));
-                    assertThat(finalDriver.status(), equalTo(DriverStatus.Status.ASYNC));
-                    List<DriverSleeps.Sleep> lastSleeps = finalDriver.sleeps().last();
-                    assertFalse("final driver has no recorded sleeps yet", lastSleeps.isEmpty());
-                    DriverSleeps.Sleep currentSleep = lastSleeps.get(lastSleeps.size() - 1);
-                    assertTrue("final driver must currently be sleeping", currentSleep.isStillSleeping());
-                    assertThat(
-                        "final driver must be parked on streaming_page_consumer backpressure",
-                        currentSleep.reason(),
-                        containsString("streaming_page_consumer")
-                    );
-                }, 10, TimeUnit.SECONDS);
+                // Verify the driver remains parked on streaming_page_consumer throughout the
+                // delay. The HTTP consumer is still suspended, so back-pressure holds; the
+                // exchange has buffered pages that continue to arrive (with the induced delay).
+                assertFinalDriverParkedOnConsumer();
             }
         );
 

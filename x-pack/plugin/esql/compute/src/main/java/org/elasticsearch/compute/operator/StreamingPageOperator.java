@@ -33,13 +33,15 @@ public class StreamingPageOperator extends SinkOperator {
     private static final String NAME = "StreamingPageOperator";
 
     private final PageStreamPublisher stream;
+    private final PageStreamPublisher.Producer producer;
     private final Function<Page, Page> alignment;
     private boolean finishCalled;
     private int pagesEmitted;
     private long rowsEmitted;
 
-    public StreamingPageOperator(PageStreamPublisher stream, Function<Page, Page> alignment) {
+    public StreamingPageOperator(PageStreamPublisher stream, PageStreamPublisher.Producer producer, Function<Page, Page> alignment) {
         this.stream = stream;
+        this.producer = producer;
         this.alignment = alignment;
     }
 
@@ -48,7 +50,7 @@ public class StreamingPageOperator extends SinkOperator {
         Page aligned = alignment.apply(page);
         pagesEmitted++;
         rowsEmitted += aligned.getPositionCount();
-        if (stream.addPage(aligned) == false) {
+        if (producer.addPage(aligned) == false) {
             // The publisher has been cancelled (e.g. the HTTP client disconnected) or terminated.
             // Treat this like a closed exchange sink: throw DriverEarlyTerminationException so the
             // driver tears the operator chain down cleanly, exactly as it does for "Exchange sink
@@ -74,7 +76,7 @@ public class StreamingPageOperator extends SinkOperator {
     @Override
     public void finish() {
         finishCalled = true;
-        stream.pagesFinished();
+        producer.finish();
     }
 
     @Override
@@ -99,7 +101,7 @@ public class StreamingPageOperator extends SinkOperator {
 
         @Override
         public SinkOperator get(DriverContext driverContext) {
-            return new StreamingPageOperator(stream, alignment);
+            return new StreamingPageOperator(stream, stream.registerProducer(), alignment);
         }
 
         @Override

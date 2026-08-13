@@ -225,11 +225,8 @@ public final class AsymmetricHashingQuantizer {
         float dotVecCent = ESVectorUtil.dotProduct(vector, centroid);
         float offset = dotVecCent - precomputed.centroidNormSq();
         float[] centroidProjected = precomputed.centroidProjected();
-        double correction = 0;
-        for (int j = 0; j < nDims; j++) {
-            correction = Math.fma(centroidProjected[j], xEnc[j], correction);
-        }
-        offset -= (float) (scale * correction);
+        float correction = ESVectorUtil.dotProduct(centroidProjected, xEnc);
+        offset -= scale * correction;
 
         return new EncodedVector(xEnc, scale, offset);
     }
@@ -340,25 +337,21 @@ public final class AsymmetricHashingQuantizer {
     }
 
     /** C = A @ B where A is flat (m x k), B is flat (k x n).
-     *  Uses row-broadcast accumulation for JIT auto-vectorization of the inner loop. */
+     *  Uses row-broadcast accumulation; each inner loop is a contiguous SIMD axpy. */
     private static float[] matMul(float[] a, float[] b, int m, int k, int n) {
         float[] c = new float[m * n];
         for (int i = 0; i < m; i++) {
             int aBase = i * k;
             int cBase = i * n;
             for (int l = 0; l < k; l++) {
-                float aVal = a[aBase + l];
-                int bBase = l * n;
-                for (int j = 0; j < n; j++) {
-                    c[cBase + j] = Math.fma(aVal, b[bBase + j], c[cBase + j]);
-                }
+                ESVectorUtil.linearCombination(a[aBase + l], b, l * n, c, cBase, n);
             }
         }
         return c;
     }
 
     /** C = A.T @ B where A is flat (m x k), B is flat (m x n), result is flat (k x n).
-     *  Uses row-broadcast accumulation for cache-friendly access patterns. */
+     *  Uses row-broadcast accumulation; each inner loop is a contiguous SIMD axpy. */
     private static float[] matMulTransposeA(float[] a, float[] b, int m, int k, int n) {
         float[] c = new float[k * n];
         // Accumulate by iterating over shared dimension (rows of A and B) in the outer loop.
@@ -367,11 +360,7 @@ public final class AsymmetricHashingQuantizer {
             int aBase = l * k;
             int bBase = l * n;
             for (int i = 0; i < k; i++) {
-                float aVal = a[aBase + i];
-                int cBase = i * n;
-                for (int j = 0; j < n; j++) {
-                    c[cBase + j] = Math.fma(aVal, b[bBase + j], c[cBase + j]);
-                }
+                ESVectorUtil.linearCombination(a[aBase + i], b, bBase, c, i * n, n);
             }
         }
         return c;

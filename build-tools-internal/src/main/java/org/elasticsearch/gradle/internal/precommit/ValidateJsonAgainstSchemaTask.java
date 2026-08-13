@@ -161,12 +161,7 @@ public class ValidateJsonAgainstSchemaTask extends DefaultTask {
         return factory.getSchema(jsonMapper.readTree(jsonSchemaOnDisk));
     }
 
-    private void maybeLogAndCollectError(
-        List<Error> messages,
-        Map<File, Set<String>> errors,
-        List<Problem> problems,
-        File file
-    ) {
+    private void maybeLogAndCollectError(List<Error> messages, Map<File, Set<String>> errors, List<Problem> problems, File file) {
         final String fileType = getFileType();
         for (Error message : messages) {
             getLogger().error("[validate {}][ERROR][{}][{}]", fileType, file.getName(), message.toString());

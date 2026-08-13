@@ -112,6 +112,9 @@ public class FieldExtractFusionCorpusInventoryTests extends ESTestCase {
     /** Commands that introduce a second source or need extra resolution the single-dataset analyzer does not carry. */
     private static final Pattern MULTI_SOURCE = Pattern.compile("\\b(JOIN|ENRICH|FORK)\\b", Pattern.CASE_INSENSITIVE);
 
+    /** How many representative rewritten queries to log per fallback bucket. */
+    private static final int MAX_SAMPLES_PER_REASON = 5;
+
     /**
      * Why a {@code field_extract} did not fuse. Each non-{@link #FUSED} value corresponds to one gate in
      * {@code PushExpressionsToFieldLoad#transformExpression}, in the order they are checked. Mirrors the enum in
@@ -164,6 +167,8 @@ public class FieldExtractFusionCorpusInventoryTests extends ESTestCase {
         int fused = 0;
         Map<Fusion, Integer> fallbackByReason = new EnumMap<>(Fusion.class);
         Map<Skip, Integer> skipByReason = new EnumMap<>(Skip.class);
+        // A few representative rewritten queries per fallback bucket, so each residual is directly inspectable.
+        Map<Fusion, List<String>> fallbackSamples = new EnumMap<>(Fusion.class);
         int measuredQueries = 0;
 
         for (CsvSpecReader.CsvTestCase testCase : loadAllCsvSpecTestCases()) {
@@ -204,11 +209,17 @@ public class FieldExtractFusionCorpusInventoryTests extends ESTestCase {
 
             Inventory inv = walk(dataNode, TEST_SEARCH_STATS);
             fused += inv.fused();
-            inv.fallbackByReason().forEach((reason, count) -> fallbackByReason.merge(reason, count, Integer::sum));
+            inv.fallbackByReason().forEach((reason, count) -> {
+                fallbackByReason.merge(reason, count, Integer::sum);
+                List<String> samples = fallbackSamples.computeIfAbsent(reason, k -> new ArrayList<>());
+                if (samples.size() < MAX_SAMPLES_PER_REASON) {
+                    samples.add(collapseWhitespace(rewrite.rewrittenQuery()));
+                }
+            });
             measuredQueries++;
         }
 
-        logReport(measuredQueries, fused, fallbackByReason, skipByReason);
+        logReport(measuredQueries, fused, fallbackByReason, skipByReason, fallbackSamples);
 
         assertThat("corpus dry run must plan at least some single-dataset queries", measuredQueries, greaterThan(0));
         assertThat("field_extract must fuse for at least some real corpus shapes", fused, greaterThan(0));
@@ -407,7 +418,13 @@ public class FieldExtractFusionCorpusInventoryTests extends ESTestCase {
         }
     }
 
-    private static void logReport(int measured, int fused, Map<Fusion, Integer> fallbackByReason, Map<Skip, Integer> skipByReason) {
+    private static void logReport(
+        int measured,
+        int fused,
+        Map<Fusion, Integer> fallbackByReason,
+        Map<Skip, Integer> skipByReason,
+        Map<Fusion, List<String>> fallbackSamples
+    ) {
         int fallback = fallbackByReason.values().stream().mapToInt(Integer::intValue).sum();
         StringBuilder report = new StringBuilder("field_extract corpus fusion inventory: ").append(measured)
             .append(" measured queries, ")
@@ -424,5 +441,16 @@ public class FieldExtractFusionCorpusInventoryTests extends ESTestCase {
         skipByReason.forEach((reason, count) -> stable.put(reason.name(), count));
         stable.forEach((reason, count) -> skips.append(": ").append(reason).append('=').append(count));
         logger.info(skips.toString());
+
+        // One log line per sampled fallback query, so each residual bucket is directly inspectable.
+        fallbackSamples.forEach((reason, samples) -> {
+            for (String sample : samples) {
+                logger.info("field_extract fallback sample [{}]: {}", reason, sample);
+            }
+        });
+    }
+
+    private static String collapseWhitespace(String query) {
+        return query.replaceAll("\\s+", " ").trim();
     }
 }

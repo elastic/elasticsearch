@@ -247,7 +247,7 @@ public class TransportUpdateAction extends HandledTransportAction<UpdateRequest,
                     new ActionListener<CreateIndexResponse>() {
                         @Override
                         public void onResponse(CreateIndexResponse result) {
-                            innerExecute(task, request, listener);
+                            innerExecute(request, listener);
                         }
 
                         @Override
@@ -255,7 +255,7 @@ public class TransportUpdateAction extends HandledTransportAction<UpdateRequest,
                             if (unwrapCause(e) instanceof ResourceAlreadyExistsException) {
                                 // we have the index, do it
                                 try {
-                                    innerExecute(task, request, listener);
+                                    innerExecute(request, listener);
                                 } catch (Exception inner) {
                                     inner.addSuppressed(e);
                                     listener.onFailure(inner);
@@ -267,11 +267,11 @@ public class TransportUpdateAction extends HandledTransportAction<UpdateRequest,
                     }
                 );
         } else {
-            innerExecute(task, request, listener);
+            innerExecute(request, listener);
         }
     }
 
-    private void innerExecute(final Task task, final UpdateRequest request, final ActionListener<UpdateResponse> listener) {
+    private void innerExecute(final UpdateRequest request, final ActionListener<UpdateResponse> listener) {
         new AsyncSingleAction(request, listener).start();
     }
 

@@ -68,6 +68,9 @@ import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.mockito.Mockito.mock;
 
+// This test suite mocks out a fair amount of TransportUpdateAction behaviour because it was ported from a more
+// more generic superclass (TransportInstancesSingleOperationActionTests) that only had a single subclass.
+// It deserves more coverage than it currently has.
 public class TransportUpdateActionTests extends ESTestCase {
 
     private static ThreadPool THREAD_POOL;
@@ -110,10 +113,6 @@ public class TransportUpdateActionTests extends ESTestCase {
                 ),
                 mock(NodeClient.class)
             );
-        }
-
-        public Map<ShardId, Object> getResults() {
-            return shards;
         }
 
         @Override

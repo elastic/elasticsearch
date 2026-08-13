@@ -57,9 +57,7 @@ public class UpdateRequest extends UntypedActionRequest
         WriteRequest<UpdateRequest>,
         ToXContentObject {
 
-    public static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueMinutes(1);
-
-    private TimeValue timeout = DEFAULT_TIMEOUT;
+    private TimeValue timeout = TimeValue.timeValueMinutes(1);
 
     private String index;
     // null means its not set, allows to explicitly direct a request to a specific shard
@@ -690,6 +688,7 @@ public class UpdateRequest extends UntypedActionRequest
         return this;
     }
 
+    @Override
     public String index() {
         return index;
     }
@@ -704,6 +703,7 @@ public class UpdateRequest extends UntypedActionRequest
         return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
     }
 
+    @Override
     public final UpdateRequest index(String index) {
         this.index = index;
         return this;

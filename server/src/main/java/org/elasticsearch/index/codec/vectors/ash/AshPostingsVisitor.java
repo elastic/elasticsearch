@@ -14,6 +14,7 @@ import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.index.codec.vectors.diskbbq.DocIdsWriter;
 import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader;
 import org.elasticsearch.index.codec.vectors.diskbbq.PostingMetadata;
@@ -22,7 +23,8 @@ import org.elasticsearch.simdvec.AsymmetricHashingScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
-import java.util.function.IntFunction;
+
+import org.elasticsearch.common.CheckedIntFunction;
 
 import static org.elasticsearch.simdvec.ES940OSQVectorsScorer.BULK_SIZE;
 
@@ -77,7 +79,7 @@ public class AshPostingsVisitor implements IVFVectorsReader.PostingVisitor {
     private final float[] query;
 
     // Centroid lookup: ordinal → float[] centroid vector (reads from centroid file)
-    private final IntFunction<float[]> centroidReader;
+    private final CheckedIntFunction<float[], IOException> centroidReader;
 
     // Precomputed query transform: queryTransformed = query @ W (raw projection, not centered)
     private final float[] queryTransformed;
@@ -128,7 +130,7 @@ public class AshPostingsVisitor implements IVFVectorsReader.PostingVisitor {
         Bits acceptDocs,
         int bitsPerDim,
         int queryBitsPerDim,
-        IntFunction<float[]> centroidReader
+        CheckedIntFunction<float[], IOException> centroidReader
     ) {
         this.indexInput = indexInput;
         this.acceptDocs = acceptDocs;
@@ -221,8 +223,8 @@ public class AshPostingsVisitor implements IVFVectorsReader.PostingVisitor {
                     + currentCentroidNormSq);
                 return 1 / (1 + Math.max(0, sqDist));
             };
-            case COSINE, DOT_PRODUCT -> (dot, corr, corrOff) -> (1 + dot) / 2;
-            case MAXIMUM_INNER_PRODUCT -> (dot, corr, corrOff) -> dot >= 0 ? dot + 1 : 1 / (1 - dot);
+            case COSINE, DOT_PRODUCT -> (dot, corr, corrOff) -> VectorUtil.normalizeToUnitInterval(dot);
+            case MAXIMUM_INNER_PRODUCT -> (dot, corr, corrOff) -> VectorUtil.scaleMaxInnerProductScore(dot);
         };
 
         this.bulkCodeBuf = new byte[BULK_SIZE * packedCodeBytes];

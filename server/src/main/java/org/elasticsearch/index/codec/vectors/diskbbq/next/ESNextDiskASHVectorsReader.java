@@ -35,7 +35,8 @@ import org.elasticsearch.search.vectors.ESAcceptDocs;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.IntFunction;
+
+import org.elasticsearch.common.CheckedIntFunction;
 
 /**
  * ASH-specific implementation of {@link IVFVectorsReader}. Scores posting lists using
@@ -242,13 +243,9 @@ public class ESNextDiskASHVectorsReader extends IVFVectorsReader<ESNextDiskASHVe
         long rawCentroidsOffset = centroidSlice.length() - (long) numCentroids * dimension * Float.BYTES;
         IndexInput centroidInput = centroidSlice.clone();
         float[] centroidBuf = new float[dimension];
-        IntFunction<float[]> centroidReader = (int ord) -> {
-            try {
-                centroidInput.seek(rawCentroidsOffset + (long) ord * dimension * Float.BYTES);
-                centroidInput.readFloats(centroidBuf, 0, dimension);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
+        CheckedIntFunction<float[], IOException> centroidReader = (int ord) -> {
+            centroidInput.seek(rawCentroidsOffset + (long) ord * dimension * Float.BYTES);
+            centroidInput.readFloats(centroidBuf, 0, dimension);
             return centroidBuf;
         };
         return new AshPostingsVisitor(

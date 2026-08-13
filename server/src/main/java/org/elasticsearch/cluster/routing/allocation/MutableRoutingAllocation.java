@@ -123,11 +123,9 @@ final class MutableRoutingAllocation extends RoutingAllocation {
     public void setSimulatedClusterInfo(ClusterInfo clusterInfo) {
         assert isSimulating : "Should be called only while simulating";
         this.clusterInfo = clusterInfo;
-        nodeMaxShardWriteLoadProportionCache.clear();
-    }
-
-    private void invalidateNodeMaxShardWriteLoadProportion(String nodeId) {
-        nodeMaxShardWriteLoadProportionCache.remove(nodeId);
+        // The proportions are derived from the RoutingNodes and the ClusterInfo,
+        // so they must be recomputed for the new ClusterInfo.
+        invalidateNodeMaxShardWriteLoadProportion();
     }
 
     /**
@@ -199,12 +197,12 @@ final class MutableRoutingAllocation extends RoutingAllocation {
 
         @Override
         public void shardStarted(ShardRouting initializingShard, ShardRouting startedShard) {
-            MutableRoutingAllocation.this.invalidateNodeMaxShardWriteLoadProportion(startedShard.currentNodeId());
+            invalidateNodeMaxShardWriteLoadProportion(startedShard.currentNodeId());
         }
 
         @Override
         public void relocationStarted(ShardRouting startedShard, ShardRouting targetRelocatingShard, String reason) {
-            MutableRoutingAllocation.this.invalidateNodeMaxShardWriteLoadProportion(startedShard.currentNodeId());
+            invalidateNodeMaxShardWriteLoadProportion(startedShard.currentNodeId());
         }
     }
 }

@@ -233,6 +233,14 @@ public abstract sealed class RoutingAllocation permits ImmutableRoutingAllocatio
         return true;
     }
 
+    protected void invalidateNodeMaxShardWriteLoadProportion() {
+        nodeMaxShardWriteLoadProportionCache.clear();
+    }
+
+    protected void invalidateNodeMaxShardWriteLoadProportion(String nodeId) {
+        nodeMaxShardWriteLoadProportionCache.remove(nodeId);
+    }
+
     public SnapshotShardSizeInfo snapshotShardSizeInfo() {
         return shardSizeInfo;
     }

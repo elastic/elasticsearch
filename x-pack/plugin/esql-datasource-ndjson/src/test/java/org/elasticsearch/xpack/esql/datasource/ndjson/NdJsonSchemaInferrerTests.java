@@ -168,6 +168,38 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
             """, field("timestamp", DataType.KEYWORD));
     }
 
+    /**
+     * A line that trips one of Jackson's {@code StreamReadConstraints} limits is skipped by the sampling pass
+     * exactly as a malformed line is, and the lines around it still shape the schema. Inference is best-effort
+     * and policy-independent: failing it would kill the query before {@code error_mode} could decide anything,
+     * even under {@code skip_row}. The bad line here carries a field the good lines do not, so the assertion
+     * fails if the sampler had actually consumed it.
+     */
+    public void testStreamConstraintViolationSkippedDuringInference() throws IOException {
+        String ndjson = "{\"name\": \"John\", \"age\": 30}\n"
+            + "{\"name\": \"Bad\", \"age\": "
+            + "1".repeat(1200)
+            + ", \"only_on_bad_line\": true}\n"
+            + "{\"name\": \"Jane\", \"age\": 25}\n";
+        // `age` comes back nullable because the abandoned line had already contributed `name` before the
+        // scanner threw, so `age` counts as unseen for that round. That is the pre-existing consequence of a
+        // partially-consumed line and is identical for an ordinary malformed line — the point here is that
+        // inference completes at all, and that `only_on_bad_line` never enters the schema.
+        check(ndjson, field("name", DataType.KEYWORD), field("age", DataType.INTEGER, true));
+    }
+
+    /** The same skip for the name-length limit, which trips in a different scanner call than the number limit. */
+    public void testOversizedFieldNameSkippedDuringInference() throws IOException {
+        String ndjson = "{\"name\": \"John\", \"age\": 30}\n"
+            + "{\""
+            + "n".repeat(60_000)
+            + "\": 1}\n"
+            + "{\"name\": \"Jane\", \"age\": 25}\n";
+        // The bad line contributes no field at all before throwing, so both columns are unseen for that round
+        // and come back nullable — again the pre-existing partially-consumed-line behavior, not a new effect.
+        check(ndjson, field("name", DataType.KEYWORD, true), field("age", DataType.INTEGER, true));
+    }
+
     private void check(String ndjson, Attribute... expected) throws IOException {
         try (ByteArrayInputStream inputStream = new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8))) {
             List<Attribute> result = NdJsonSchemaInferrer.inferSchema(inputStream, 100, null);

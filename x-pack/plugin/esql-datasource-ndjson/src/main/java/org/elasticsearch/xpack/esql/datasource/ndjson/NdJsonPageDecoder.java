@@ -10,8 +10,10 @@ package org.elasticsearch.xpack.esql.datasource.ndjson;
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.JsonToken;
 import com.fasterxml.jackson.core.exc.InputCoercionException;
+import com.fasterxml.jackson.core.exc.StreamConstraintsException;
 import com.fasterxml.jackson.core.io.JsonEOFException;
 
 import org.apache.lucene.document.InetAddressPoint;
@@ -443,7 +445,7 @@ public class NdJsonPageDecoder implements Closeable {
 
     /**
      * Buffered-bytes constructor for the streaming-parallel path: {@code data[offset .. offset+length)}
-     * is the entire input. Recovery from {@link JsonParseException} stays inside the byte array
+     * is the entire input. Recovery from a whole-line parse failure stays inside the byte array
      * (no buffered-bytes shuttling through {@link NdJsonUtils#moveToNextLine}) by scanning for the
      * next {@code '\n'} from the parser's current byte offset.
      */
@@ -749,8 +751,19 @@ public class NdJsonPageDecoder implements Closeable {
     /**
      * Whole-line JSON failures always drop the line. {@link ErrorPolicy.Mode#NULL_FIELD} is treated
      * like {@link ErrorPolicy.Mode#SKIP_ROW} here; per-field null-fill would require partial decode support.
+     * <p>
+     * Two Jackson failures belong to this class, which is why the parameter is their common supertype rather
+     * than {@link JsonParseException}: malformed JSON, and a {@link StreamConstraintsException} from a token
+     * that trips one of {@code StreamReadConstraints}' limits (an over-long number or field name, nesting past
+     * the depth cap). Both are raised by the token scanner, so neither reaches {@link BlockDecoder#coercionFailure}
+     * -- the per-cell sink, which needs a decoded value to attribute. A constraint violation frequently has no
+     * cell to attribute at all: the name-length limit trips on a field that may not even be projected, and the
+     * depth limit trips on structure rather than on a value. Dropping the line is therefore the only outcome
+     * available to every member of the class, and it matches how {@code CsvFormatReader} routes its own
+     * constraint violation (a field over {@code max_field_size}) through {@code onRowError} rather than
+     * {@code onFieldError}.
      */
-    private void onNdjsonLineParseError(JsonParseException e, long logicalRowIndex, String phaseLabel) {
+    private void onNdjsonLineParseError(JsonProcessingException e, long logicalRowIndex, String phaseLabel) {
         if (errorPolicy.isStrict()) {
             throw new EsqlIllegalArgumentException(e, "Malformed NDJSON [{}]: {}", phaseLabel, e.getOriginalMessage());
         }
@@ -936,8 +949,8 @@ public class NdJsonPageDecoder implements Closeable {
     }
 
     /**
-     * {@link ErrorPolicy.Mode#FAIL_FAST}: abort on the first {@link JsonParseException} on a line
-     * (no recovery, no scratch-row path).
+     * {@link ErrorPolicy.Mode#FAIL_FAST}: abort on the first whole-line parse failure
+     * (see {@link #onNdjsonLineParseError}) -- no recovery, no scratch-row path.
      */
     private Page decodePageFailFast(Block.Builder[] blockBuilders) throws IOException {
         int lineCount = 0;
@@ -946,7 +959,7 @@ public class NdJsonPageDecoder implements Closeable {
                 if (parser.nextToken() == null) {
                     break; // End of stream
                 }
-            } catch (JsonParseException e) {
+            } catch (JsonParseException | StreamConstraintsException e) {
                 totalRowCount++;
                 onNdjsonLineParseError(e, totalRowCount, "nextToken"); // FAIL_FAST: throws
             }
@@ -965,7 +978,7 @@ public class NdJsonPageDecoder implements Closeable {
 
             try {
                 decoder.decodeObject(parser, false);
-            } catch (JsonParseException e) {
+            } catch (JsonParseException | StreamConstraintsException e) {
                 onNdjsonLineParseError(e, totalRowCount, "decodeObject");
             }
 
@@ -1024,7 +1037,7 @@ public class NdJsonPageDecoder implements Closeable {
                 if (parser.nextToken() == null) {
                     break; // End of stream
                 }
-            } catch (JsonParseException e) {
+            } catch (JsonParseException | StreamConstraintsException e) {
                 totalRowCount++;
                 onNdjsonLineParseError(e, totalRowCount, "nextToken");
                 recoverFromParseException(parser);
@@ -1051,7 +1064,7 @@ public class NdJsonPageDecoder implements Closeable {
                 decoder.setupBuilders(rowScratch, 1);
                 try {
                     decoder.decodeObject(parser, false);
-                } catch (JsonParseException e) {
+                } catch (JsonParseException | StreamConstraintsException e) {
                     onNdjsonLineParseError(e, totalRowCount, "decodeObject");
                     recoverFromParseException(parser);
                     continue;

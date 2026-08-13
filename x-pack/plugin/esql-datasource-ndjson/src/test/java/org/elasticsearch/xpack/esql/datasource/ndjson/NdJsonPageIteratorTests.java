@@ -786,6 +786,44 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         assertTrue("Detail should mention the malformed row, got: " + warnings.get(1), warnings.get(1).contains("Malformed NDJSON"));
     }
 
+    /**
+     * End-to-end twin of {@link #testMalformedLineEmitsResponseWarningHeader} for a
+     * {@code StreamReadConstraints} violation, which reaches the same whole-line sink from the token scanner
+     * rather than from a decode arm. Exercised through {@code NdJsonFormatReader.read} so schema inference runs
+     * over the bad line too — before the fix, inference alone failed the read, so this never got as far as a
+     * warning. Asserts the surviving rows, not just the header, so a fix that warned but silently dropped the
+     * trailing record would still be caught.
+     */
+    public void testStreamConstraintViolationEmitsResponseWarningHeaderAndKeepsGoodRows() throws IOException {
+        String ndjson = "{\"id\":1}\n{\"id\":" + "1".repeat(1200) + "}\n{\"id\":3}\n";
+        var object = new BytesStorageObject("memory://constraint.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        List<Integer> ids = new ArrayList<>();
+        try (
+            var iterator = reader.read(
+                object,
+                FormatReadContext.builder().projectedColumns(List.of("id")).batchSize(100).errorPolicy(ErrorPolicy.LENIENT).build()
+            )
+        ) {
+            while (iterator.hasNext()) {
+                try (Page page = iterator.next()) {
+                    // The surviving values are 1 and 3, so inference types `id` as INTEGER.
+                    IntBlock block = page.getBlock(0);
+                    for (int i = 0; i < block.getPositionCount(); i++) {
+                        ids.add(block.getInt(i));
+                    }
+                }
+            }
+        }
+        assertEquals("the constraint-violating line is dropped, both good rows survive", List.of(1, 3), ids);
+        List<String> warnings = drainWarnings();
+        // 1 summary + 1 detail
+        assertEquals(2, warnings.size());
+        assertTrue("Summary should mention skip_row, got: " + warnings.get(0), warnings.get(0).contains("policy: skip_row"));
+        assertTrue("Detail should mention the malformed row, got: " + warnings.get(1), warnings.get(1).contains("Malformed NDJSON"));
+        assertTrue("Detail should carry Jackson's limit text, got: " + warnings.get(1), warnings.get(1).contains("Number value length"));
+    }
+
     public void testMalformedLinesOverflowEmitsCappedHeaders() throws IOException {
         // Mix valid and invalid lines so the SKIP_ROW path triggers more than MAX_ADDED_WARNINGS times.
         StringBuilder ndjson = new StringBuilder();

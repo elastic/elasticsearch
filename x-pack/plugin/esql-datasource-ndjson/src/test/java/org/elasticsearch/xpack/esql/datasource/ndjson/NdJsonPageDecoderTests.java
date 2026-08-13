@@ -947,6 +947,186 @@ public class NdJsonPageDecoderTests extends ESTestCase {
         assertThat(warnings.get(1), Matchers.containsString("notanumber"));
     }
 
+    // ---------------------------------------------------------------------------------------------
+    // StreamReadConstraints violations. Jackson enforces its read limits in the TOKEN SCANNER, so
+    // these never reach a decode arm or the per-cell coercionFailure sink — they belong to the
+    // whole-line class routed through onNdjsonLineParseError. See that method's javadoc for why
+    // null_field drops the line here instead of nulling a cell.
+    // ---------------------------------------------------------------------------------------------
+
+    /** A JSON number token longer than {@code StreamReadConstraints.getMaxNumberLength()} (1000). */
+    private static String oversizedNumberRecord() {
+        return "{\"v\":" + "1".repeat(1200) + "}";
+    }
+
+    /** A field name longer than {@code getMaxNameLength()} (50000), on a field that is NOT projected. */
+    private static String oversizedFieldNameRecord() {
+        return "{\"" + "n".repeat(60_000) + "\":1,\"v\":5}";
+    }
+
+    /** Array nesting deeper than {@code getMaxNestingDepth()} (1000). */
+    private static String excessiveNestingRecord() {
+        int depth = 1100;
+        return "{\"v\":" + "[".repeat(depth) + "1" + "]".repeat(depth) + "}";
+    }
+
+    /**
+     * fail_fast: an oversized number token aborts the read with the same actionable
+     * {@code Malformed NDJSON} contract every other whole-line failure uses, carrying Jackson's own
+     * limit text. Before the fix the raw {@code StreamConstraintsException} escaped {@code decodePage}
+     * entirely and was typed by {@code ExternalFailures.surface}, so {@code error_mode} never got a say
+     * on any mode.
+     */
+    public void testOversizedNumberTokenFailsFastUnderStrict() {
+        String ndjson = "{\"v\":1}\n" + oversizedNumberRecord() + "\n{\"v\":3}\n";
+        EsqlIllegalArgumentException e = expectThrows(
+            EsqlIllegalArgumentException.class,
+            () -> decodeOneColumn(ndjson, DataType.LONG, ErrorPolicy.STRICT)
+        );
+        assertThat(e.getMessage(), Matchers.containsString("Malformed NDJSON"));
+        assertThat(e.getMessage(), Matchers.containsString("Number value length"));
+    }
+
+    /** null_field: the offending line is dropped (not null-filled) and both good lines survive. */
+    public void testOversizedNumberTokenDropsLineUnderNullField() throws IOException {
+        assertConstraintViolationDropsLine(oversizedNumberRecord(), ErrorPolicy.PERMISSIVE, "Number value length (1200)");
+    }
+
+    /** skip_row: identical outcome to null_field — the whole-line class cannot null a cell. */
+    public void testOversizedNumberTokenDropsLineUnderSkipRow() throws IOException {
+        assertConstraintViolationDropsLine(oversizedNumberRecord(), ErrorPolicy.LENIENT, "Number value length (1200)");
+    }
+
+    /**
+     * The name-length limit trips on a field the query never projected, so there is no cell to null even
+     * in principle — the case that rules a per-cell treatment out for this class.
+     */
+    public void testOversizedFieldNameDropsLineUnderNullField() throws IOException {
+        assertConstraintViolationDropsLine(oversizedFieldNameRecord(), ErrorPolicy.PERMISSIVE, "Name length (60000)");
+    }
+
+    /** The depth limit trips on structure rather than on any value; same whole-line outcome. */
+    public void testExcessiveNestingDropsLineUnderSkipRow() throws IOException {
+        assertConstraintViolationDropsLine(excessiveNestingRecord(), ErrorPolicy.LENIENT, "Document nesting depth");
+    }
+
+    /** fail_fast on a non-number limit, pinning that the fix is class-level rather than number-specific. */
+    public void testExcessiveNestingFailsFastUnderStrict() {
+        String ndjson = "{\"v\":1}\n" + excessiveNestingRecord() + "\n";
+        EsqlIllegalArgumentException e = expectThrows(
+            EsqlIllegalArgumentException.class,
+            () -> decodeOneColumn(ndjson, DataType.LONG, ErrorPolicy.STRICT)
+        );
+        assertThat(e.getMessage(), Matchers.containsString("Malformed NDJSON"));
+        assertThat(e.getMessage(), Matchers.containsString("Document nesting depth"));
+    }
+
+    /**
+     * Recovery on the byte-array path re-anchors by scanning for the next line terminator from the failed
+     * parser's byte offset. That offset lands inside the bad line for a constraint violation, so the record
+     * that follows it must still decode — a resync that skipped it would lose good data silently.
+     */
+    public void testConstraintViolationRecoversOnByteArrayPath() throws IOException {
+        String ndjson = "{\"v\":1}\n" + oversizedNumberRecord() + "\n{\"v\":3}\n";
+        byte[] bytes = ndjson.getBytes(StandardCharsets.UTF_8);
+        List<String> warnings = new ArrayList<>();
+        try (
+            NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                bytes,
+                0,
+                bytes.length,
+                null,
+                List.of(attribute("v", DataType.LONG)),
+                null,
+                10,
+                blockFactory,
+                ErrorPolicy.PERMISSIVE,
+                "test://constraint-bytes",
+                new NdJsonReaderCounters(),
+                warnings::add
+            );
+            Page page = decoder.decodePage()
+        ) {
+            assertNotNull(page);
+            LongBlock block = page.getBlock(0);
+            assertEquals("the bad line is dropped, both good lines survive", 2, block.getPositionCount());
+            assertEquals(1L, block.getLong(0));
+            assertEquals(3L, block.getLong(1));
+        }
+        assertThat(warnings.get(1), Matchers.containsString("Number value length"));
+    }
+
+    /**
+     * The streaming path recovers through {@code NdJsonUtils.moveToNextLine} rather than by re-anchoring in a
+     * byte array. Two good lines follow the bad one so the assertion fails if recovery lands anywhere but the
+     * very next record.
+     */
+    public void testConstraintViolationRecoversOnStreamingPath() throws IOException {
+        String ndjson = "{\"v\":1}\n" + oversizedNumberRecord() + "\n{\"v\":3}\n{\"v\":4}\n";
+        try (Page page = decodeOneColumn(ndjson, DataType.LONG, ErrorPolicy.PERMISSIVE)) {
+            assertNotNull(page);
+            LongBlock block = page.getBlock(0);
+            assertEquals("the bad line is dropped, all three good lines survive", 3, block.getPositionCount());
+            assertEquals(1L, block.getLong(0));
+            assertEquals(3L, block.getLong(1));
+            assertEquals(4L, block.getLong(2));
+        }
+    }
+
+    /**
+     * A constraint violation is an ordinary member of the non-strict error budget, not a free pass: with
+     * {@code max_errors: 0} the first one trips the budget and fails the read.
+     */
+    public void testConstraintViolationCountsAgainstErrorBudget() {
+        String ndjson = "{\"v\":1}\n" + oversizedNumberRecord() + "\n{\"v\":3}\n";
+        ErrorPolicy noBudget = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, 0, 0.0, false);
+        EsqlIllegalArgumentException e = expectThrows(
+            EsqlIllegalArgumentException.class,
+            () -> decodeOneColumn(ndjson, DataType.LONG, noBudget)
+        );
+        assertThat(e.getMessage(), Matchers.containsString("NDJSON error budget exceeded"));
+    }
+
+    /**
+     * Shared body for the non-strict cases: one good line, the offending line, one good line. The offending
+     * line is dropped, both good lines decode, and the client sees SkipWarnings' summary plus a detail
+     * carrying Jackson's own limit text (the same passthrough {@code CsvFormatReader} does for its own
+     * constraint violation).
+     */
+    private void assertConstraintViolationDropsLine(String badRecord, ErrorPolicy policy, String expectedDetail) throws IOException {
+        String ndjson = "{\"v\":1}\n" + badRecord + "\n{\"v\":3}\n";
+        List<String> warnings = new ArrayList<>();
+        NdJsonReaderCounters counters = new NdJsonReaderCounters();
+        try (
+            NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
+                null,
+                List.of(attribute("v", DataType.LONG)),
+                null,
+                10,
+                blockFactory,
+                policy,
+                "test://constraint",
+                counters,
+                warnings::add
+            );
+            Page page = decoder.decodePage()
+        ) {
+            assertNotNull(page);
+            LongBlock block = page.getBlock(0);
+            assertEquals("the offending line is dropped, not null-filled", 2, block.getPositionCount());
+            assertFalse("a dropped line must not leave a null position behind", block.isNull(0));
+            assertFalse("a dropped line must not leave a null position behind", block.isNull(1));
+            assertEquals(1L, block.getLong(0));
+            assertEquals(3L, block.getLong(1));
+        }
+        // SkipWarnings.add() emits a one-time summary header on the first call, then the detail.
+        assertEquals("one summary + one detail warning for the dropped line", 2, warnings.size());
+        assertThat(warnings.get(1), Matchers.containsString("Malformed NDJSON"));
+        assertThat(warnings.get(1), Matchers.containsString(expectedDetail));
+        assertEquals("the dropped line is charged exactly once", 1L, counters.snapshot().parseErrors());
+    }
+
     /**
      * A coercion failure inside a nested array (array of arrays flattened) must not let the poison
      * escape past the inner END_ARRAY — otherwise the outer array's drain loop stops too early and

@@ -65,12 +65,6 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
     public static final String ORDER = "order";
     public static final String MAX_ANALYZED_OFFSET = "max_analyzed_offset";
 
-    // Accepted for Query DSL parity but only used by the FastVectorHighlighter, so they are no-ops for the unified
-    // highlighter that HIGHLIGHT always uses.
-    public static final String BOUNDARY_CHARS = "boundary_chars";
-    public static final String BOUNDARY_MAX_SCAN = "boundary_max_scan";
-    public static final String PHRASE_LIMIT = "phrase_limit";
-
     private static final List<String> VALID_OPTION_NAMES = List.of(
         PRE_TAGS,
         POST_TAGS,
@@ -80,12 +74,9 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
         ANALYZER,
         BOUNDARY_SCANNER,
         BOUNDARY_SCANNER_LOCALE,
-        BOUNDARY_CHARS,
-        BOUNDARY_MAX_SCAN,
         ORDER,
         NO_MATCH_SIZE,
-        MAX_ANALYZED_OFFSET,
-        PHRASE_LIMIT
+        MAX_ANALYZED_OFFSET
     );
 
     private final String prefix;

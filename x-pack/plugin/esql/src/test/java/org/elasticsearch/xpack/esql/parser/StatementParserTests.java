@@ -1330,9 +1330,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
             FROM foo | HIGHLIGHT "elasticsearch" ON title WITH {
               "pre_tags": ["<b>"], "post_tags": ["</b>"], "encoder": "html",
               "number_of_fragments": 2, "fragment_size": 150, "no_match_size": 100,
-              "boundary_scanner": "word", "boundary_scanner_locale": "en-US",
-              "boundary_chars": ".,!?", "boundary_max_scan": 10, "order": "score",
-              "analyzer": "standard", "max_analyzed_offset": 500, "phrase_limit": 64 }""");
+              "boundary_scanner": "word", "boundary_scanner_locale": "en-US", "order": "score",
+              "analyzer": "standard", "max_analyzed_offset": 500 }""");
         Highlight highlight = as(plan, Highlight.class);
         assertThat(highlight.options().keyFoldedMap().keySet(), equalTo(Set.copyOf(Highlight.validOptionNames())));
     }

@@ -32,6 +32,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -395,12 +396,12 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
      */
     public void testRestParamDefaultFailsClosed() throws IOException {
         Request request = new Request("POST", "/_query");
-        request.setJsonEntity("""
+        request.setJsonEntity(String.format(Locale.ROOT, """
             {
               "query": "FROM %s | KEEP id",
               "filter": { "wildcard": { "tags": { "value": "t*" } } }
             }
-            """.formatted(dataset));
+            """, dataset));
         ResponseException e = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
         assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("[wildcard]"));
@@ -412,12 +413,12 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
     public void testRestParamFalseExplicit() throws IOException {
         Request request = new Request("POST", "/_query");
         request.addParameter("allow_partial_dsl_filter", "false");
-        request.setJsonEntity("""
+        request.setJsonEntity(String.format(Locale.ROOT, """
             {
               "query": "FROM %s | KEEP id",
               "filter": { "wildcard": { "tags": { "value": "t*" } } }
             }
-            """.formatted(dataset));
+            """, dataset));
         ResponseException e = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
         assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("[wildcard]"));
@@ -431,12 +432,12 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
     public void testRestParamTrueAppliesPartially() throws IOException {
         Request request = new Request("POST", "/_query");
         request.addParameter("allow_partial_dsl_filter", "true");
-        request.setJsonEntity("""
+        request.setJsonEntity(String.format(Locale.ROOT, """
             {
               "query": "FROM %s | KEEP id",
               "filter": { "wildcard": { "tags": { "value": "t*" } } }
             }
-            """.formatted(dataset));
+            """, dataset));
         Response response = getRestClient().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         List<String> warnings = response.getWarnings();

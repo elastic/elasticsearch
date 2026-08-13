@@ -80,6 +80,25 @@ import java.util.function.Supplier;
  */
 public final class QueryDslTranslator {
 
+    /**
+     * A DSL clause that could not be translated — the specific offending {@link QueryBuilder} node and the construct
+     * name. Reported at leaf granularity: if {@code C OR D} fails because {@code D} is a wildcard, the clause is
+     * {@code D}, not {@code C OR D}.
+     */
+    public record UnsupportedClause(org.elasticsearch.index.query.QueryBuilder clause, String construct) {}
+
+    /**
+     * The result of a full translation. {@link #applied()} is the AND of all top-level conjuncts that translated
+     * successfully; {@link #unsupported()} lists every clause that could not be translated (leaf-level, all of them).
+     * A fully-supported filter has an empty {@link #unsupported()} and the same {@link #applied()} the old
+     * single-expression path produced.
+     */
+    public record TranslationResult(Expression applied, List<UnsupportedClause> unsupported) {
+        public boolean isComplete() {
+            return unsupported.isEmpty();
+        }
+    }
+
     private final Function<String, Expression> fieldBinder;
     private final Set<String> fieldNames;
     private final Configuration configuration;
@@ -103,9 +122,157 @@ public final class QueryDslTranslator {
         this.nowInMillis = configuration.absoluteStartedTimeInMillis();
     }
 
-    /** Translate a DSL query into an ES|QL boolean predicate. */
-    public Expression translate(QueryBuilder query) {
-        return dispatch(query);
+    /**
+     * Translate a DSL query into a {@link TranslationResult}. The translation is a collecting walk: every
+     * unsupported leaf is recorded in {@link TranslationResult#unsupported()} rather than thrown on the first miss.
+     * {@link TranslationResult#applied()} is the AND of the top-level conjuncts that translated fully; conjuncts
+     * containing any unsupported leaf are excluded from {@code applied} but their specific failures are still
+     * reported. A fully-supported filter returns an empty {@link TranslationResult#unsupported()} and the same
+     * expression the old single-return path would have produced.
+     */
+    public TranslationResult translate(QueryBuilder query) {
+        List<UnsupportedClause> unsupported = new ArrayList<>();
+        List<Expression> appliedConjuncts = new ArrayList<>();
+        if (query instanceof BoolQueryBuilder bool) {
+            // B1: catch parseBoolOptions failures but continue translating must/filter/mustNot arms —
+            // those are valid AND conjuncts regardless of the bool-level option that failed. requiredShould=null
+            // causes the should arm to be treated as non-required (conservative: safe when must/filter is present;
+            // for a should-only bool shouldIsRequired still becomes true via the hasMustOrFilter=false path).
+            Integer requiredShould = null;
+            try {
+                requiredShould = parseBoolOptions(bool);
+            } catch (TranslationUnsupportedException e) {
+                unsupported.add(new UnsupportedClause(bool, e.construct()));
+            }
+            for (QueryBuilder q : bool.must()) {
+                addConjunct(q, appliedConjuncts, unsupported);
+            }
+            for (QueryBuilder q : bool.filter()) {
+                addConjunct(q, appliedConjuncts, unsupported);
+            }
+            for (QueryBuilder q : bool.mustNot()) {
+                List<UnsupportedClause> armUnsupported = new ArrayList<>();
+                Expression e = collectingDispatch(q, armUnsupported);
+                if (armUnsupported.isEmpty()) {
+                    appliedConjuncts.add(new Not(Source.EMPTY, e));
+                } else {
+                    unsupported.addAll(armUnsupported);
+                }
+            }
+            if (bool.should().isEmpty() == false) {
+                boolean hasMustOrFilter = bool.must().isEmpty() == false || bool.filter().isEmpty() == false;
+                boolean shouldIsRequired = (requiredShould != null && requiredShould == 1) || hasMustOrFilter == false;
+                if (shouldIsRequired) {
+                    List<UnsupportedClause> shouldUnsupported = new ArrayList<>();
+                    List<Expression> disjuncts = new ArrayList<>();
+                    for (QueryBuilder q : bool.should()) {
+                        List<UnsupportedClause> armUnsupported = new ArrayList<>();
+                        Expression e = collectingDispatch(q, armUnsupported);
+                        if (armUnsupported.isEmpty()) {
+                            disjuncts.add(e);
+                        } else {
+                            shouldUnsupported.addAll(armUnsupported);
+                        }
+                    }
+                    if (shouldUnsupported.isEmpty()) {
+                        appliedConjuncts.add(orAll(disjuncts));
+                    } else {
+                        unsupported.addAll(shouldUnsupported);
+                        // B4: apply the partial OR (only the translated disjuncts) — narrower than the full OR,
+                        // but strictly better than dropping the group entirely (fewer false positives).
+                        if (disjuncts.isEmpty() == false) {
+                            appliedConjuncts.add(orAll(disjuncts));
+                        }
+                    }
+                }
+                // B2: non-required should arms are simply omitted from applied — their failures are not
+                // reported, because the filter is semantically complete without them.
+            }
+        } else {
+            addConjunct(query, appliedConjuncts, unsupported);
+        }
+        Expression applied = appliedConjuncts.isEmpty() ? Literal.TRUE : andAll(appliedConjuncts);
+        return new TranslationResult(applied, unsupported);
+    }
+
+    private void addConjunct(QueryBuilder q, List<Expression> appliedConjuncts, List<UnsupportedClause> unsupported) {
+        List<UnsupportedClause> conjunctUnsupported = new ArrayList<>();
+        Expression e = collectingDispatch(q, conjunctUnsupported);
+        if (conjunctUnsupported.isEmpty()) {
+            appliedConjuncts.add(e);
+        } else {
+            unsupported.addAll(conjunctUnsupported);
+        }
+    }
+
+    private Expression collectingDispatch(QueryBuilder query, List<UnsupportedClause> unsupported) {
+        if (query instanceof BoolQueryBuilder bool) {
+            return collectingBool(bool, unsupported);
+        }
+        try {
+            return dispatch(query);
+        } catch (TranslationUnsupportedException e) {
+            unsupported.add(new UnsupportedClause(query, e.construct()));
+            return null;
+        }
+    }
+
+    /**
+     * Collecting walk of a nested bool: translates all arms, accumulates every leaf failure into {@code unsupported},
+     * and returns the resulting expression — or {@code null} if any arm could not be translated. Unlike the top-level
+     * {@link #translate}, this does NOT split conjuncts: a nested bool is applied or dropped as a whole.
+     */
+    private Expression collectingBool(BoolQueryBuilder bool, List<UnsupportedClause> unsupported) {
+        Integer requiredShould;
+        try {
+            requiredShould = parseBoolOptions(bool);
+        } catch (TranslationUnsupportedException e) {
+            unsupported.add(new UnsupportedClause(bool, e.construct()));
+            return null;
+        }
+        boolean anyFailed = false;
+        List<Expression> conjuncts = new ArrayList<>();
+        for (QueryBuilder q : bool.must()) {
+            Expression e = collectingDispatch(q, unsupported);
+            if (e == null) anyFailed = true;
+            else conjuncts.add(e);
+        }
+        for (QueryBuilder q : bool.filter()) {
+            Expression e = collectingDispatch(q, unsupported);
+            if (e == null) anyFailed = true;
+            else conjuncts.add(e);
+        }
+        for (QueryBuilder q : bool.mustNot()) {
+            Expression e = collectingDispatch(q, unsupported);
+            if (e == null) anyFailed = true;
+            else conjuncts.add(new Not(Source.EMPTY, e));
+        }
+        if (bool.should().isEmpty() == false) {
+            boolean hasMustOrFilter = bool.must().isEmpty() == false || bool.filter().isEmpty() == false;
+            boolean shouldIsRequired = (requiredShould != null && requiredShould == 1) || hasMustOrFilter == false;
+            List<Expression> disjuncts = new ArrayList<>(bool.should().size());
+            boolean anyDisjunctFailed = false;
+            for (QueryBuilder q : bool.should()) {
+                // Non-required should failures are not propagated to the outer unsupported: the nested bool is
+                // semantically complete without the OR group, so the failure must not cause the conjunct to be
+                // dropped by the caller (addConjunct checks unsupported.isEmpty() to decide apply-vs-drop).
+                List<UnsupportedClause> armUnsupported = shouldIsRequired ? unsupported : new ArrayList<>();
+                Expression e = collectingDispatch(q, armUnsupported);
+                if (e == null) anyDisjunctFailed = true;
+                else disjuncts.add(e);
+            }
+            if (anyDisjunctFailed) {
+                if (shouldIsRequired) {
+                    anyFailed = true;
+                }
+                // Non-required should: OR group omitted; must/filter arms survive.
+            } else if (shouldIsRequired) {
+                conjuncts.add(orAll(disjuncts));
+            }
+        }
+        if (anyFailed) return null;
+        if (conjuncts.isEmpty()) return Literal.TRUE;
+        return andAll(conjuncts);
     }
 
     private Expression dispatch(QueryBuilder query) {
@@ -348,6 +515,14 @@ public final class QueryDslTranslator {
         return orAll(disjuncts);
     }
 
+    private static Expression andAll(List<Expression> conjuncts) {
+        Expression and = conjuncts.get(0);
+        for (int i = 1; i < conjuncts.size(); i++) {
+            and = new And(Source.EMPTY, and, conjuncts.get(i));
+        }
+        return and;
+    }
+
     /**
      * Fold disjuncts into a <em>balanced</em> {@code OR} tree. A left-leaning chain is one level deep per disjunct, and
      * a {@code terms} clause routinely carries hundreds of values — that is precisely what Lucene's terms query is built
@@ -418,7 +593,12 @@ public final class QueryDslTranslator {
         return checkedLeaf(field, new MvIntersects(Source.EMPTY, field, listLiteralFor(field, values)));
     }
 
-    private Expression bool(BoolQueryBuilder bool) {
+    /**
+     * Validates and extracts the bool-level options that affect translation. Returns the effective
+     * {@code requiredShould} value (null if not set). Throws {@link TranslationUnsupportedException} for any option
+     * outside the supported subset, so callers can catch it and record a single failure at the bool level.
+     */
+    private static Integer parseBoolOptions(BoolQueryBuilder bool) {
         // How many should-clauses must match. Only two values have a faithful image as a plain OR: 1 (at least one
         // should clause is required) and 0 (should is optional, so in a filter context it drops out). Anything else
         // ("2", "50%", ...) needs real n-of-m counting, which an OR cannot express.
@@ -437,7 +617,6 @@ public final class QueryDslTranslator {
                 throw new TranslationUnsupportedException("bool[minimum_should_match=" + msm + "]");
             }
         }
-
         // adjust_pure_negative=false makes a bool with ONLY must_not clauses match NOTHING (Lucene omits the implicit
         // match-all that the default true adds). We model the default; a pure-negative bool with the flag off would be a
         // silent over-match (we would emit NOT-of-the-excluded), so reject it. The flag has no effect in any other shape.
@@ -448,6 +627,11 @@ public final class QueryDslTranslator {
             && bool.should().isEmpty()) {
             throw new TranslationUnsupportedException("bool[adjust_pure_negative=false]");
         }
+        return requiredShould;
+    }
+
+    private Expression bool(BoolQueryBuilder bool) {
+        Integer requiredShould = parseBoolOptions(bool);
 
         // must/filter are conjuncts; each must_not child sits under a NOT; should folds to an OR (required per msm below).
         List<Expression> conjuncts = new ArrayList<>();
@@ -479,14 +663,7 @@ public final class QueryDslTranslator {
             }
         }
 
-        if (conjuncts.isEmpty()) {
-            return Literal.TRUE;
-        }
-        Expression and = conjuncts.get(0);
-        for (int i = 1; i < conjuncts.size(); i++) {
-            and = new And(Source.EMPTY, and, conjuncts.get(i));
-        }
-        return and;
+        return conjuncts.isEmpty() ? Literal.TRUE : andAll(conjuncts);
     }
 
     private Expression range(RangeQueryBuilder range) {

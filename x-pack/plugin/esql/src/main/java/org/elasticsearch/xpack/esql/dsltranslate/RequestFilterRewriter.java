@@ -11,10 +11,12 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -27,9 +29,11 @@ import java.util.List;
  * Extending the request filter to other source boundaries (a view, say) is a change of the target predicate here, not of
  * the mechanism. Index leaves keep their existing (pre-analysis) request-filter path and are not touched.
  *
- * <p>The translation is <em>fail-closed</em>: a construct outside the supported subset fails the whole query with a 400
- * ({@link IllegalArgumentException}) naming the construct, rather than silently applying a widened superset. A filter
- * that translates to a supported no-op ({@code match_all}) leaves the relation read unfiltered.
+ * <p>Translation is <em>fail-closed by default</em>: a construct outside the supported subset fails the whole query
+ * with a 400 ({@link VerificationException}) listing every offending clause, rather than silently applying a widened
+ * superset. With {@code allow_partial_dsl_filter=true} the translatable AND-conjuncts are applied and the rest are
+ * dropped with a {@link HeaderWarning}. A filter that translates to a supported no-op ({@code match_all}) leaves the
+ * relation read unfiltered.
  *
  * <p>The rewrite is <em>feature-flagged</em>. Applying the filter to datasets changes what an existing dataset query
  * returns — a filter that used to be dropped now selects rows, and DSL outside the supported subset now fails the
@@ -59,21 +63,26 @@ public final class RequestFilterRewriter {
     private RequestFilterRewriter() {}
 
     /**
-     * @param enabled        whether the feature is on (production passes {@link #REQUEST_FILTER_ON_DATASET_FEATURE_FLAG});
-     *                       when {@code false} the relation is read unfiltered with a warning. A parameter rather than a
-     *                       direct flag read so the disabled path is unit-testable.
-     * @param configuration  the query configuration — anchors {@code now} date math so a request filter over an
-     *                       external source resolves {@code "now-15m"} to the same instant the index path would, and
-     *                       supplies the locale for case-folding.
-     * @param minimumVersion the minimum transport version across the nodes this plan targets; below
-     *                       {@link #ESQL_REQUEST_FILTER_ON_DATASET} the rewrite is skipped (see the class javadoc).
+     * @param enabled               whether the feature is on (production passes
+     *                              {@link #REQUEST_FILTER_ON_DATASET_FEATURE_FLAG}); when {@code false} the relation
+     *                              is read unfiltered with a warning. A parameter rather than a direct flag read so
+     *                              the disabled path is unit-testable.
+     * @param configuration         the query configuration — anchors {@code now} date math so a request filter over
+     *                              an external source resolves {@code "now-15m"} to the same instant the index path
+     *                              would, and supplies the locale for case-folding.
+     * @param minimumVersion        the minimum transport version across the nodes this plan targets; below
+     *                              {@link #ESQL_REQUEST_FILTER_ON_DATASET} the rewrite is skipped (see the class
+     *                              javadoc).
+     * @param allowPartialDslFilter when {@code true}, unsupported DSL clauses are dropped with a warning rather than
+     *                              failing the query.
      */
     public static LogicalPlan rewrite(
         LogicalPlan analyzed,
         QueryBuilder requestFilter,
         boolean enabled,
         Configuration configuration,
-        TransportVersion minimumVersion
+        TransportVersion minimumVersion,
+        boolean allowPartialDslFilter
     ) {
         if (requestFilter == null) {
             return analyzed;
@@ -87,15 +96,51 @@ public final class RequestFilterRewriter {
             return analyzed;
         }
         // Target the dataset source relations; index leaves keep their existing (pre-analysis) request-filter path.
-        // Translation is fail-closed: an unsupported construct throws out of FilterRewriter and becomes a 400.
-        try {
-            return FilterRewriter.rewrite(analyzed, ExternalRelation.class::isInstance, requestFilter, configuration);
-        } catch (TranslationUnsupportedException e) {
-            throw new IllegalArgumentException(
-                "The request filter uses a Query DSL construct not supported on external datasets: [" + e.construct() + "]",
-                e
-            );
+        FilterRewriter.RewriteResult result = FilterRewriter.rewrite(
+            analyzed,
+            ExternalRelation.class::isInstance,
+            requestFilter,
+            configuration
+        );
+        if (result.isComplete() == false) {
+            if (allowPartialDslFilter) {
+                warnUnsupportedClauses(result.failures());
+            } else {
+                List<String> messages = new ArrayList<>(result.failures().size());
+                for (FilterRewriter.NodeFailure nf : result.failures()) {
+                    assert nf.node() instanceof ExternalRelation
+                        : "NodeFailure node must be ExternalRelation; predicate was ExternalRelation::isInstance";
+                    messages.add(
+                        "request filter clause uses ["
+                            + nf.clause().construct()
+                            + "], unsupported on dataset ["
+                            + name((ExternalRelation) nf.node())
+                            + "]"
+                    );
+                }
+                throw new VerificationException(String.join("\n", messages));
+            }
         }
+        return result.plan();
+    }
+
+    /** Warns about unsupported clauses dropped in partial mode, naming each construct and its dataset. */
+    private static void warnUnsupportedClauses(List<FilterRewriter.NodeFailure> failures) {
+        StringBuilder sb = new StringBuilder(
+            "The request filter was partially applied to external dataset(s): the following Query DSL constructs"
+                + " are not supported and were skipped:"
+        );
+        for (FilterRewriter.NodeFailure nf : failures) {
+            assert nf.node() instanceof ExternalRelation
+                : "NodeFailure node must be ExternalRelation; predicate was ExternalRelation::isInstance";
+            sb.append(" [")
+                .append(nf.clause().construct())
+                .append("] on dataset [")
+                .append(name((ExternalRelation) nf.node()))
+                .append("];");
+        }
+        sb.append(" use a WHERE clause to filter rows from external datasets instead");
+        HeaderWarning.addWarning(sb.toString());
     }
 
     /** Warns that the filter was not applied to the plan's dataset leaves, naming them, when there are any. */

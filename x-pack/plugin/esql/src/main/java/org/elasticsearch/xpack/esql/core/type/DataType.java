@@ -1300,6 +1300,8 @@ public enum DataType implements Writeable {
         /**
          * Development version for double_range field type support.
          */
-        public static final TransportVersion ESQL_DOUBLE_RANGE_UNDER_CONSTRUCTION = TransportVersion.fromName("esql_double_range_tech_preview");
+        public static final TransportVersion ESQL_DOUBLE_RANGE_UNDER_CONSTRUCTION = TransportVersion.fromName(
+            "esql_double_range_tech_preview"
+        );
     }
 }

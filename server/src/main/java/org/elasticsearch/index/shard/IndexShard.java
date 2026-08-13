@@ -3046,6 +3046,27 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
+    /**
+     * Activates throttling of merges if this is supported by the engine.
+     * Merge throttling means that new merges will not be executed while it is active and will be put in the backlog.
+     */
+    public void activateMergeThrottling() {
+        withEngine(engine -> {
+            engine.activateMergeThrottling();
+            return null;
+        });
+    }
+
+    /**
+     * Deactivates throttling of merges if this is supported by the engine.
+     */
+    public void deactivateMergeThrottling() {
+        withEngine(engine -> {
+            engine.deactivateMergeThrottling();
+            return null;
+        });
+    }
+
     private void handleRefreshException(Exception e) {
         if (e instanceof AlreadyClosedException) {
             // ignore

@@ -224,6 +224,15 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     }
 
     /**
+     * Returns true if scheduled merges should be put in the backlog instead of executed
+     * even if there is capacity to do so.
+     * This is intended to temporarily reduce the impact of merges on other parts of the system.
+     */
+    protected boolean shouldBacklogMerges() {
+        return false;
+    }
+
+    /**
      * Returns true if IO-throttling is enabled
      */
     protected boolean isAutoThrottle() {
@@ -330,9 +339,15 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
             return Schedule.ABORT;
         } else if (shouldSkipMerge()) {
             if (verbose()) {
-                message(String.format(Locale.ROOT, "skipping merge task %s", mergeTask));
+                message(String.format(Locale.ROOT, "skipping merge task %s due to shouldSkipMerge()", mergeTask));
             }
             return Schedule.ABORT;
+        } else if (shouldBacklogMerges()) {
+            if (verbose()) {
+                message(String.format(Locale.ROOT, "queuing merge task %s due to shouldBacklogMerges()", mergeTask));
+            }
+            backloggedMergeTasks.add(mergeTask);
+            return Schedule.BACKLOG;
         } else if (runningMergeTasks.size() < getMaxThreadCount()) {
             boolean added = runningMergeTasks.put(mergeTask.onGoingMerge.getMerge(), mergeTask) == null;
             assert added : "starting merge task [" + mergeTask + "] registered as already running";
@@ -468,7 +483,11 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         threadPoolMergeExecutorService.abortMergeTask(mergeTask);
     }
 
-    private synchronized void enqueueBackloggedTasks() {
+    protected final synchronized void enqueueBackloggedTasks() {
+        if (closed == false && shouldBacklogMerges()) {
+            // No reason to re-enqueue the tasks if we know they will be backlogged again.
+            return;
+        }
         int maxBackloggedTasksToEnqueue = getMaxThreadCount() - runningMergeTasks.size();
         // enqueue all backlogged tasks when closing, as the queue expects all backlogged tasks to always be enqueued back
         while (closed || maxBackloggedTasksToEnqueue-- > 0) {

@@ -1001,6 +1001,20 @@ public class IndexEngine extends InternalEngine {
     }
 
     @Override
+    public void activateMergeThrottling() {
+        if (getMergeScheduler() instanceof StatelessThreadPoolMergeScheduler scheduler) {
+            scheduler.activateMergeThrottling();
+        }
+    }
+
+    @Override
+    public void deactivateMergeThrottling() {
+        if (getMergeScheduler() instanceof StatelessThreadPoolMergeScheduler scheduler) {
+            scheduler.deactivateMergeThrottling();
+        }
+    }
+
+    @Override
     protected void notifyLastDocIdAndVersionLookup() {
         lastDocIdAndVersionLookupMillis.accumulateAndGet(engineConfig.getThreadPool().relativeTimeInMillis(), Math::max);
     }
@@ -1055,6 +1069,8 @@ public class IndexEngine extends InternalEngine {
     final class StatelessThreadPoolMergeScheduler extends org.elasticsearch.index.engine.ThreadPoolMergeScheduler {
         private final boolean prewarm;
 
+        private final AtomicBoolean throttlingActive;
+
         StatelessThreadPoolMergeScheduler(
             ShardId shardId,
             IndexSettings indexSettings,
@@ -1064,6 +1080,20 @@ public class IndexEngine extends InternalEngine {
         ) {
             super(shardId, indexSettings, threadPoolMergeExecutorService, mergeMemoryEstimateProvider, mergeMetrics);
             prewarm = MERGE_PREWARM.get(indexSettings.getSettings());
+            throttlingActive = new AtomicBoolean(false);
+        }
+
+        public void activateMergeThrottling() {
+            throttlingActive.compareAndSet(false, true);
+        }
+
+        public void deactivateMergeThrottling() {
+            if (throttlingActive.compareAndSet(true, false)) {
+                // It is possible that all active merges are currently in the backlog
+                // so we need to give the scheduler chance to execute them
+                // now that we are not throttling anymore.
+                enqueueBackloggedTasks();
+            }
         }
 
         @Override
@@ -1124,6 +1154,11 @@ public class IndexEngine extends InternalEngine {
         @Override
         protected boolean shouldSkipMerge() {
             return IndexEngine.this.shouldSkipMerge();
+        }
+
+        @Override
+        protected boolean shouldBacklogMerges() {
+            return throttlingActive.get();
         }
 
         @Override

@@ -2474,6 +2474,16 @@ public abstract class Engine implements Closeable {
     public abstract void resumeThrottling();
 
     /**
+     * Activates throttling of merges if the engine supports this functionality.
+     */
+    public void activateMergeThrottling() {}
+
+    /**
+     * Reverses a previous {@link #activateMergeThrottling()} call.
+     */
+    public void deactivateMergeThrottling() {}
+
+    /**
      * This method replays translog to restore the Lucene index which might be reverted previously.
      * This ensures that all acknowledged writes are restored correctly when this engine is promoted.
      *

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.stateless;
 
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -403,6 +404,33 @@ public class StatelessMergeIT extends AbstractStatelessPluginIntegTestCase {
             assertThat(queuedEstimated.getLast().getLong(), is(0L));
         });
 
+    }
+
+    public void testMergeThrottling() throws Exception {
+        String indexNode = startMasterAndIndexNode();
+
+        final String indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 0).build());
+
+        var indexShard = findIndexShard(resolveIndex(indexName), 0, indexNode);
+        indexShard.activateMergeThrottling();
+
+        for (int i = 0; i < 2; i++) {
+            indexDocs(indexName, randomIntBetween(10, 20));
+            refresh(indexName);
+        }
+
+        var mergeFuture = client().admin().indices().prepareForceMerge(indexName).setMaxNumSegments(1).execute();
+
+        var indexEngine = (IndexEngine) indexShard.getEngineOrNull();
+        assertBusy(() -> assertThat(indexEngine.hasQueuedOrRunningMerges(), is(true)));
+
+        assertThrows(ElasticsearchTimeoutException.class, () -> mergeFuture.actionGet(TimeValue.timeValueMillis(100)));
+
+        indexShard.deactivateMergeThrottling();
+        safeGet(mergeFuture);
+
+        assertThat(indexEngine.hasQueuedOrRunningMerges(), is(false));
     }
 
     public static void blockMergePool(ThreadPool threadPool, CountDownLatch finishLatch) {

@@ -621,14 +621,17 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
 
         var request = new UnifiedCompletionRequest(
             List.of(
-                new Message(
+                new UnifiedCompletionRequest.Message(
                     null,
                     "assistant",
                     null,
                     List.of(
-                        new ToolCall(
+                        new UnifiedCompletionRequest.ToolCall(
                             "call_1",
-                            new ToolCall.FunctionField("{\"indices\": [\"foo\", \"bar\"], \"size\": 10}", "get_index_mapping"),
+                            new UnifiedCompletionRequest.ToolCall.FunctionField(
+                                "{\"indices\": [\"foo\", \"bar\"], \"size\": 10}",
+                                "get_index_mapping"
+                            ),
                             "function"
                         )
                     )
@@ -644,10 +647,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
         );
 
         UnifiedChatInput unifiedChatInput = new UnifiedChatInput(request, true);
-        GoogleVertexAiUnifiedChatCompletionRequestEntity entity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(
-            unifiedChatInput,
-            emptyThinkingConfig
-        );
+        GoogleVertexAiUnifiedChatCompletionRequestEntity entity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(unifiedChatInput);
 
         XContentBuilder builder = JsonXContent.contentBuilder();
         entity.toXContent(builder, ToXContent.EMPTY_PARAMS);

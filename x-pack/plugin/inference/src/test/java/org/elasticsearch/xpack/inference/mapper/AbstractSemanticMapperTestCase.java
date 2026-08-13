@@ -35,7 +35,7 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.IndexOptions;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.inference.ChunkingSettings;
-import org.elasticsearch.inference.MinimalServiceSettings;
+import org.elasticsearch.inference.EndpointClusterState;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.license.License;
@@ -265,7 +265,7 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
             String fieldName = randomAlphaOfLengthBetween(5, 15);
             String oldInferenceId = randomAlphaOfLengthBetween(5, 15);
 
-            MinimalServiceSettings oldModelSettings = null;
+            EndpointClusterState oldModelSettings = null;
             if (randomBoolean()) {
                 oldModelSettings = createRandomModelSettings();
                 givenModelSettings(oldInferenceId, oldModelSettings);
@@ -277,7 +277,7 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
             assertSemanticField(mapperService, fieldName, false, oldModelSettings, null, null);
 
             String newInferenceId = randomValueOtherThan(oldInferenceId, () -> randomAlphaOfLengthBetween(5, 15));
-            MinimalServiceSettings newModelSettings = null;
+            EndpointClusterState newModelSettings = null;
             if (randomBoolean()) {
                 newModelSettings = createRandomModelSettings();
                 givenModelSettings(newInferenceId, newModelSettings);
@@ -296,7 +296,7 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
             final String oldInferenceId = randomAlphaOfLengthBetween(5, 15);
             final String newInferenceId = randomValueOtherThan(oldInferenceId, () -> randomAlphaOfLengthBetween(5, 15));
 
-            final MinimalServiceSettings previousModelSettings = createRandomModelSettings();
+            final EndpointClusterState previousModelSettings = createRandomModelSettings();
             givenModelSettings(oldInferenceId, previousModelSettings);
 
             final MapperService mapperService = createSemanticMapperService(
@@ -309,14 +309,14 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
 
             if (randomBoolean()) {
                 // Compatible: new endpoint has identical task type / dimensions / similarity / element type
-                MinimalServiceSettings newModelSettings = createCompatibleModelSettings(previousModelSettings);
+                EndpointClusterState newModelSettings = createCompatibleModelSettings(previousModelSettings);
                 givenModelSettings(newInferenceId, newModelSettings);
 
                 mergeRunner.run();
                 assertInferenceEndpoints(mapperService, fieldName, newInferenceId, newInferenceId);
                 assertSemanticField(mapperService, fieldName, true, newModelSettings, null, null);
             } else {
-                final MinimalServiceSettings incompatibleModelSettings = createIncompatibleModelSettings(previousModelSettings);
+                final EndpointClusterState incompatibleModelSettings = createIncompatibleModelSettings(previousModelSettings);
                 final String expectedErrorMessage;
                 if (incompatibleModelSettings == null) {
                     // Incompatible: new endpoint does not exist
@@ -361,11 +361,8 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
         return semanticMapping(fieldName, inferenceId, searchInferenceId, null, null, null);
     }
 
-    protected XContentBuilder semanticMapping(
-        String fieldName,
-        @Nullable String inferenceId,
-        @Nullable MinimalServiceSettings modelSettings
-    ) throws IOException {
+    protected XContentBuilder semanticMapping(String fieldName, @Nullable String inferenceId, @Nullable EndpointClusterState modelSettings)
+        throws IOException {
         return semanticMapping(fieldName, inferenceId, null, modelSettings, null, null);
     }
 
@@ -373,7 +370,7 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
         String fieldName,
         @Nullable String inferenceId,
         @Nullable String searchInferenceId,
-        @Nullable MinimalServiceSettings modelSettings,
+        @Nullable EndpointClusterState modelSettings,
         @Nullable ChunkingSettings chunkingSettings,
         @Nullable SemanticIndexOptions indexOptions
     ) throws IOException {
@@ -384,7 +381,7 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
         String fieldName,
         @Nullable String inferenceId,
         @Nullable String searchInferenceId,
-        @Nullable MinimalServiceSettings modelSettings,
+        @Nullable EndpointClusterState modelSettings,
         @Nullable ChunkingSettings chunkingSettings,
         @Nullable SemanticIndexOptions indexOptions,
         @Nullable CheckedConsumer<XContentBuilder, IOException> additionalFields
@@ -408,7 +405,7 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
         String fieldName,
         @Nullable String inferenceId,
         @Nullable String searchInferenceId,
-        @Nullable MinimalServiceSettings modelSettings,
+        @Nullable EndpointClusterState modelSettings,
         @Nullable ChunkingSettings chunkingSettings,
         @Nullable SemanticIndexOptions indexOptions
     ) throws IOException {
@@ -420,7 +417,7 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
         String fieldName,
         @Nullable String inferenceId,
         @Nullable String searchInferenceId,
-        @Nullable MinimalServiceSettings modelSettings,
+        @Nullable EndpointClusterState modelSettings,
         @Nullable ChunkingSettings chunkingSettings,
         @Nullable SemanticIndexOptions indexOptions,
         @Nullable CheckedConsumer<XContentBuilder, IOException> additionalFields
@@ -434,7 +431,7 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
             mappingBuilder.field(SEARCH_INFERENCE_ID_FIELD, searchInferenceId);
         }
         if (modelSettings != null) {
-            mappingBuilder.field(MODEL_SETTINGS_FIELD, modelSettings.getFilteredXContentObject());
+            mappingBuilder.field(MODEL_SETTINGS_FIELD, modelSettings, EndpointClusterState.withoutEndpointMetadata());
         }
         if (chunkingSettings != null) {
             mappingBuilder.field(CHUNKING_SETTINGS_FIELD, chunkingSettings);
@@ -507,12 +504,12 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
         return TestModel.createRandomInstance(randomFrom(supportedTaskTypes()));
     }
 
-    protected MinimalServiceSettings createRandomModelSettings() {
-        return new MinimalServiceSettings(createRandomSupportedModel());
+    protected EndpointClusterState createRandomModelSettings() {
+        return new EndpointClusterState(createRandomSupportedModel());
     }
 
-    protected MinimalServiceSettings createRandomModelSettings(TaskType taskType) {
-        return new MinimalServiceSettings(TestModel.createRandomInstance(taskType));
+    protected EndpointClusterState createRandomModelSettings(TaskType taskType) {
+        return new EndpointClusterState(TestModel.createRandomInstance(taskType));
     }
 
     protected T getSemanticFieldMapper(MapperService mapperService, String fieldName) {
@@ -530,7 +527,7 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
         MapperService mapperService,
         String fieldName,
         String inferenceId,
-        MinimalServiceSettings modelSettings
+        EndpointClusterState modelSettings
     ) throws IOException {
         SemanticTextField semanticTextField = new SemanticTextField(
             useLegacyFormat(),
@@ -572,7 +569,7 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
         MapperService mapperService,
         String fieldName,
         boolean modelSettingsSetOnFieldType,
-        @Nullable MinimalServiceSettings modelSettings,
+        @Nullable EndpointClusterState modelSettings,
         @Nullable ChunkingSettings expectedChunkingSettings,
         @Nullable SemanticIndexOptions expectedIndexOptions
     ) {
@@ -636,14 +633,14 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
     }
 
     /**
-     * Asserts the embeddings sub-mapper against the referenced {@link MinimalServiceSettings} and expected index options. The base
+     * Asserts the embeddings sub-mapper against the referenced {@link EndpointClusterState} and expected index options. The base
      * implementation covers the dense task types ({@code text_embedding}, {@code embedding}); {@code semantic_text} overrides this to
      * also cover {@code sparse_embedding}.
      */
     protected void assertEmbeddingsField(
         MapperService mapperService,
         FieldMapper embeddingsMapper,
-        MinimalServiceSettings modelSettings,
+        EndpointClusterState modelSettings,
         @Nullable SemanticIndexOptions expectedIndexOptions
     ) {
         IndexVersion indexVersion = mapperService.getIndexSettings().getIndexVersionCreated();
@@ -678,8 +675,8 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
         }
     }
 
-    protected void assertModelSettingsOnFieldType(U fieldType, MinimalServiceSettings modelSettings) {
-        MinimalServiceSettings actual = fieldType.getModelSettings();
+    protected void assertModelSettingsOnFieldType(U fieldType, EndpointClusterState modelSettings) {
+        EndpointClusterState actual = fieldType.getModelSettings();
         assertNotNull(actual);
 
         assertEquals(modelSettings.taskType(), actual.taskType());
@@ -704,7 +701,7 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
         assertEquals(expectedSearchInferenceId, semanticFieldType.getSearchInferenceId());
     }
 
-    protected SemanticIndexOptions getDefaultIndexOptions(MinimalServiceSettings modelSettings, MapperService mapperService) {
+    protected SemanticIndexOptions getDefaultIndexOptions(EndpointClusterState modelSettings, MapperService mapperService) {
         IndexVersion indexVersion = mapperService.getIndexSettings().getIndexVersionCreated();
         boolean experimentalFeatures = DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.get(mapperService.getIndexSettings().getSettings());
 
@@ -747,33 +744,27 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
     }
 
     protected DenseVectorFieldMapper.DenseVectorIndexOptions getExplicitDenseVectorIndexOptions(
-        MinimalServiceSettings modelSettings,
+        EndpointClusterState modelSettings,
         IndexVersion indexVersion
     ) {
         return null;
     }
 
-    protected void givenModelSettings(String inferenceId, MinimalServiceSettings modelSettings) {
-        when(globalModelRegistry.getMinimalServiceSettings(inferenceId)).thenReturn(modelSettings);
+    protected void givenModelSettings(String inferenceId, EndpointClusterState modelSettings) {
+        when(globalModelRegistry.getEndpointClusterState(inferenceId)).thenReturn(modelSettings);
     }
 
     /**
-     * Creates a {@link MinimalServiceSettings} that is compatible with {@code base} (same task type,
+     * Creates a {@link EndpointClusterState} that is compatible with {@code base} (same task type,
      * dimensions, similarity, and element type) but with a distinct service name. Compatible settings
      * can be substituted via an inference-ID update.
      */
-    protected MinimalServiceSettings createCompatibleModelSettings(MinimalServiceSettings base) {
-        return new MinimalServiceSettings(
-            randomAlphaOfLength(4),
-            base.taskType(),
-            base.dimensions(),
-            base.similarity(),
-            base.elementType()
-        );
+    protected EndpointClusterState createCompatibleModelSettings(EndpointClusterState base) {
+        return new EndpointClusterState(randomAlphaOfLength(4), base.taskType(), base.dimensions(), base.similarity(), base.elementType());
     }
 
     /**
-     * Creates a {@link MinimalServiceSettings} that is NOT compatible with {@code base}, choosing uniformly among the
+     * Creates a {@link EndpointClusterState} that is NOT compatible with {@code base}, choosing uniformly among the
      * applicable kinds of incompatibility: task type, dimensions, similarity, element type, or the endpoint not
      * existing. Setting-based perturbations (dimensions/similarity/element type) only apply to dense base models;
      * a sparse base model has null dimensions/similarity/element type, so only task-type and does-not-exist apply.
@@ -781,7 +772,7 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
      * @return new incompatible settings, or {@code null} to indicate the caller should NOT register an endpoint (the does-not-exist case).
      */
     @Nullable
-    protected MinimalServiceSettings createIncompatibleModelSettings(MinimalServiceSettings base) {
+    protected EndpointClusterState createIncompatibleModelSettings(EndpointClusterState base) {
         final DenseVectorFieldMapper.ElementType baseElementType = base.elementType();
 
         List<IncompatibilityKind> applicable = new ArrayList<>();
@@ -842,7 +833,7 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
             }
         }
 
-        return new MinimalServiceSettings(base.service(), taskType, dimensions, similarity, elementType);
+        return new EndpointClusterState(base.service(), taskType, dimensions, similarity, elementType);
     }
 
     protected static String randomFieldName(int numLevel) {

@@ -36,8 +36,8 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryRewriteContextTestUtils;
 import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.inference.EndpointClusterState;
 import org.elasticsearch.inference.InferenceResults;
-import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.WeightedToken;
@@ -90,7 +90,7 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
     private static ModelRegistry modelRegistry;
 
     protected static final String SPARSE_INFERENCE_ID = "sparse-inference-id";
-    protected static final MinimalServiceSettings SPARSE_INFERENCE_ID_SETTINGS = new MinimalServiceSettings(
+    protected static final EndpointClusterState SPARSE_INFERENCE_ID_SETTINGS = new EndpointClusterState(
         null,
         TaskType.SPARSE_EMBEDDING,
         null,
@@ -99,7 +99,7 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
     );
 
     protected static final String DENSE_INFERENCE_ID = "dense-inference-id";
-    protected static final MinimalServiceSettings DENSE_INFERENCE_ID_SETTINGS = new MinimalServiceSettings(
+    protected static final EndpointClusterState DENSE_INFERENCE_ID_SETTINGS = new EndpointClusterState(
         null,
         TaskType.TEXT_EMBEDDING,
         256,
@@ -108,7 +108,7 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
     );
 
     protected static final String EMBEDDING_INFERENCE_ID = "embedding-inference-id";
-    protected static final MinimalServiceSettings EMBEDDING_INFERENCE_ID_SETTINGS = new MinimalServiceSettings(
+    protected static final EndpointClusterState EMBEDDING_INFERENCE_ID_SETTINGS = new EndpointClusterState(
         null,
         TaskType.EMBEDDING,
         256,
@@ -116,7 +116,7 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
         DenseVectorFieldMapper.ElementType.FLOAT
     );
 
-    private static final Map<String, MinimalServiceSettings> INFERENCE_ENDPOINT_MAP = Map.of(
+    private static final Map<String, EndpointClusterState> INFERENCE_ENDPOINT_MAP = Map.of(
         SPARSE_INFERENCE_ID,
         SPARSE_INFERENCE_ID_SETTINGS,
         DENSE_INFERENCE_ID,
@@ -207,7 +207,7 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
 
     protected void ccsSerializationWithMinimizeRoundTripsFalseTestCase(TaskType taskType, String queryName) throws Exception {
         final String inferenceId;
-        final MinimalServiceSettings serviceSettings;
+        final EndpointClusterState serviceSettings;
         switch (taskType) {
             case SPARSE_EMBEDDING:
                 inferenceId = SPARSE_INFERENCE_ID;
@@ -574,7 +574,7 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
             for (var entry : semanticFields.entrySet()) {
                 String fieldName = entry.getKey();
                 String inferenceId = entry.getValue();
-                MinimalServiceSettings modelSettings = INFERENCE_ENDPOINT_MAP.get(inferenceId);
+                EndpointClusterState modelSettings = INFERENCE_ENDPOINT_MAP.get(inferenceId);
                 if (modelSettings == null) {
                     throw new IllegalArgumentException("No model settings for inference ID [" + inferenceId + "]");
                 }
@@ -759,12 +759,12 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
 
         doAnswer(i -> {
             String inferenceId = i.getArgument(0);
-            MinimalServiceSettings settings = INFERENCE_ENDPOINT_MAP.get(inferenceId);
+            EndpointClusterState settings = INFERENCE_ENDPOINT_MAP.get(inferenceId);
             if (settings == null) {
                 throw new ResourceNotFoundException(inferenceId + " does not exist");
             }
             return settings;
-        }).when(modelRegistry).getMinimalServiceSettings(anyString());
+        }).when(modelRegistry).getEndpointClusterState(anyString());
 
         return modelRegistry;
     }

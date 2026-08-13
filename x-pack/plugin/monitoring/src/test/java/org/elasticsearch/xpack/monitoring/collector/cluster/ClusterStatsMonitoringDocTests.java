@@ -98,10 +98,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
     private final boolean needToEnableTLS = randomBoolean();
     private final boolean apmIndicesExist = randomBoolean();
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initClusterStatsFields() throws Exception {
         clusterName = randomAlphaOfLength(5);
         version = randomAlphaOfLengthBetween(6, 32);
         clusterStatus = randomFrom(ClusterHealthStatus.values());

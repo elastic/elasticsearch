@@ -9,9 +9,6 @@
 
 package org.elasticsearch.columnar.numeric;
 
-import org.apache.lucene.store.DataInput;
-import org.apache.lucene.store.DataOutput;
-
 import java.io.IOException;
 
 /**
@@ -55,7 +52,7 @@ public final class SplitDeltaTransform implements BlockTransform {
 
     /** {@inheritDoc} */
     @Override
-    public boolean tryEncode(long[] block, int valueCount, DataOutput params) throws IOException {
+    public boolean tryEncode(long[] block, int valueCount, MetadataWriter params) throws IOException {
         if (valueCount < 4) {
             return false;
         }
@@ -86,7 +83,7 @@ public final class SplitDeltaTransform implements BlockTransform {
 
     /** {@inheritDoc} */
     @Override
-    public void decode(long[] block, int valueCount, DataInput params) throws IOException {
+    public void decode(long[] block, int valueCount, MetadataReader params) throws IOException {
         final int k = params.readVInt();
         for (int j = 0; j < k; j++) {
             splits[j] = params.readVInt();

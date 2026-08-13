@@ -199,17 +199,17 @@ public abstract sealed class RoutingAllocation permits ImmutableRoutingAllocatio
      * The result is cached per node per allocation pass; {@link MutableRoutingAllocation} invalidates entries as shard
      * state changes.
      */
-public double nodeMaxShardWriteLoadProportion(RoutingNode node) {
-    final String nodeId = node.nodeId();
-    final Double cached = nodeMaxShardWriteLoadProportionCache.get(nodeId);
-    if (cached != null) {
-        assert cachedNodeMaxShardWriteLoadProportionIsConsistent(node);
-        return cached;
+    public double nodeMaxShardWriteLoadProportion(RoutingNode node) {
+        final String nodeId = node.nodeId();
+        final Double cached = nodeMaxShardWriteLoadProportionCache.get(nodeId);
+        if (cached != null) {
+            assert cachedNodeMaxShardWriteLoadProportionIsConsistent(node, cached);
+            return cached;
+        }
+        final double value = computeNodeMaxShardWriteLoadProportion(node);
+        nodeMaxShardWriteLoadProportionCache.put(nodeId, value);
+        return value;
     }
-    final double value = computeNodeMaxShardWriteLoadProportion(node);
-    nodeMaxShardWriteLoadProportionCache.put(nodeId, value);
-    return value;
-}
 
     private double computeNodeMaxShardWriteLoadProportion(RoutingNode node) {
         final var shardWriteLoads = clusterInfo.getShardWriteLoads();
@@ -225,8 +225,7 @@ public double nodeMaxShardWriteLoadProportion(RoutingNode node) {
         return totalWriteLoad > 0.0 ? maxShardWriteLoad / totalWriteLoad : 0.0;
     }
 
-    private boolean cachedNodeMaxShardWriteLoadProportionIsConsistent(RoutingNode node) {
-        final double cached = nodeMaxShardWriteLoadProportionCache.get(node.nodeId());
+    private boolean cachedNodeMaxShardWriteLoadProportionIsConsistent(RoutingNode node, double cached) {
         final double computed = computeNodeMaxShardWriteLoadProportion(node);
         assert Math.abs(cached - computed) < 1e-9
             : "cached value differs from computed for node " + node.nodeId() + ": cached=" + cached + " computed=" + computed;

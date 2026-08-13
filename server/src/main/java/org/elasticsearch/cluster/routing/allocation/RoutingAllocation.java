@@ -229,12 +229,7 @@ public abstract sealed class RoutingAllocation permits ImmutableRoutingAllocatio
         final double cached = nodeMaxShardWriteLoadProportionCache.get(node.nodeId());
         final double computed = computeNodeMaxShardWriteLoadProportion(node);
         assert Math.abs(cached - computed) < 1e-9
-            : "cached value differs from computed for node "
-                + node.nodeId()
-                + ": cached="
-                + cached
-                + " computed="
-                + computed;
+            : "cached value differs from computed for node " + node.nodeId() + ": cached=" + cached + " computed=" + computed;
         return true;
     }
 

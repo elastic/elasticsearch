@@ -138,7 +138,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
 
     }
 
-    private static Map<String, String> jsonStringToMap(String jsonString) throws IOException {
+    private static Map<String, Object> jsonStringToMap(String jsonString) throws IOException {
         if (jsonString == null || jsonString.isEmpty()) {
             return null;
         }
@@ -149,7 +149,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
         try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, jsonString)) {
             XContentParser.Token token = parser.nextToken();
             ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
-            return parser.mapStrings();
+            return parser.map();
         }
     }
 

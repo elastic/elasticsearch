@@ -410,9 +410,14 @@ schema:
       description: "Apache log formatted timestamp"
     - name: "apache-error-log-timestamp"
       encoding_type: "%T"
-      # e.g Thu Oct 05 14:48:00 2023
+      # e.g Thu Oct 05 14:48:00.123 2023
       format: "$Day $Mon $DD $timeMS $YYYY"
       description: "Apache error log formatted timestamp"
+    - name: "asctime-timestamp"
+      encoding_type: "%T"
+      # e.g Fri Jun 14 15:16:01 2005  (C asctime()/ctime() and RFC-822-style date; no millis - like apache-error but $timeS)
+      format: "$Day $Mon $DD $timeS $YYYY"
+      description: "asctime/ctime formatted timestamp (Day Mon dd HH:mm:ss YYYY)"
     - name: "syslog-bsd-timestamp"
       encoding_type: "%T"
       # e.g Jun 14 15:16:01  (BSD / RFC-3164 syslog format; no year - year defaults on compute)

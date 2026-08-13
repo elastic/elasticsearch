@@ -766,6 +766,7 @@ public final class CharParser implements Parser {
                                 templateArguments.addLast(argument);
                             }
                         }
+                        resetMultiTokenState();
                         resetTokenState();
                         resetBuffers();
                     }

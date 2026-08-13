@@ -98,6 +98,13 @@ public class ParserTests extends ESTestCase {
         assertEquals("path a#b end", patternedMessage.toString());
     }
 
+    public void testEmbeddedMidLineTimestampCollapses() throws ParseException {
+        String message = "connection at Jun 14 15:16:01 done";
+        List<Argument<?>> parsedArguments = parser.parse(message);
+        Parser.constructPattern(message, parsedArguments, patternedMessage, true);
+        assertEquals("connection at %T done", patternedMessage.toString());
+    }
+
     public void testSimpleIpAndNumber() throws ParseException {
         String messageWithIpAndNumber = "Response from 127.0.0.1 took 2000 ms";
         List<Argument<?>> parsedArguments = parser.parse(messageWithIpAndNumber);
@@ -296,6 +303,15 @@ public class ParserTests extends ESTestCase {
         assertEquals("%T combo x", patternedMessage.toString());
         assertThat(parsedArguments.getFirst(), instanceOf(Timestamp.class));
         assertEquals(962410888000L, ((Timestamp) parsedArguments.getFirst()).getTimestampMillis()); // 2000-07-01T00:21:28Z
+    }
+
+    public void testAsctimeDateTimeTimestamp() throws ParseException {
+        String message = "Fri Jun 14 15:16:01 2005 x";
+        List<Argument<?>> parsedArguments = parser.parse(message);
+        Parser.constructPattern(message, parsedArguments, patternedMessage, true);
+        assertEquals("%T x", patternedMessage.toString());
+        assertThat(parsedArguments.getFirst(), instanceOf(Timestamp.class));
+        assertEquals(1118762161000L, ((Timestamp) parsedArguments.getFirst()).getTimestampMillis()); // 2005-06-14T15:16:01Z
     }
 
     public void testSyslogBsdTimestampLeapDay() throws ParseException {
@@ -588,9 +604,12 @@ public class ParserTests extends ESTestCase {
     }
 
     public void testApacheErrorLogTimestamp() throws ParseException {
-        String message = "[Thu Oct 05 14:48:00.123 2023] [info] [pid 9] core.c(4739): [client 172.17.0.1:50764] AH00128: File does not "
-            + "exist: /usr/local/apache2/htdocs/favicon.ico.";
-        // todo - timestamp with NA component (day of week) not yet supported as well as IP4V address
+        String message = "[Thu Oct 05 14:48:00.123 2023] closing";
+        List<Argument<?>> parsedArguments = parser.parse(message);
+        Parser.constructPattern(message, parsedArguments, patternedMessage, true);
+        assertEquals("[%T] closing", patternedMessage.toString());
+        assertThat(parsedArguments.getFirst(), instanceOf(Timestamp.class));
+        assertEquals(1696517280123L, ((Timestamp) parsedArguments.getFirst()).getTimestampMillis()); // 2023-10-05T14:48:00.123Z
     }
 
     public void testLoggingLibrariesDatetimeTimestamp() throws ParseException {

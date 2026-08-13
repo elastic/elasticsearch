@@ -990,7 +990,6 @@ public class SchemaCompiler {
         org.elasticsearch.xpack.logsdb.patternedtext.charparser.schema.SubTokenType[] subTokenTypes = format.getSubTokenTypes();
         char[] delimiters = format.getSubTokenDelimiters();
 
-        int appendedComponents = 0;
         for (int i = 0; i < subTokenTypes.length; i++) {
             org.elasticsearch.xpack.logsdb.patternedtext.charparser.schema.SubTokenType subToken = subTokenTypes[i];
             TimestampComponentType componentType = subToken.getTimestampComponentType();
@@ -1000,11 +999,10 @@ public class SchemaCompiler {
                 if (i < delimiters.length) {
                     appendDelimiter(tokenJavaTimeFormat, delimiters[i]);
                 }
-                appendedComponents++;
             }
         }
         javaTimeFormat.append(tokenJavaTimeFormat);
-        return appendedComponents;
+        return subTokenTypes.length;
     }
 
     private static void appendDelimiter(StringBuilder builder, char delimiter) {

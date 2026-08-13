@@ -22,9 +22,11 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
+import org.elasticsearch.xpack.core.security.support.ManagedServiceAccountIdValidator;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPrivilegesService;
 
 import java.util.ArrayList;
@@ -47,6 +49,7 @@ class AuthenticatorChain {
     private final AnonymousUser anonymousUser;
     private final boolean isAnonymousUserEnabled;
     private final AuthenticationContextSerializer authenticationSerializer;
+    private final ServiceAccountService serviceAccountService;
     private final RealmsAuthenticator realmsAuthenticator;
     private final List<Authenticator> allAuthenticators;
 
@@ -56,6 +59,7 @@ class AuthenticatorChain {
         AnonymousUser anonymousUser,
         AuthenticationContextSerializer authenticationSerializer,
         PluggableAuthenticatorChain pluggableAuthenticatorChain,
+        ServiceAccountService serviceAccountService,
         ServiceAccountAuthenticator serviceAccountAuthenticator,
         OAuth2TokenAuthenticator oAuth2TokenAuthenticator,
         ApiKeyAuthenticator apiKeyAuthenticator,
@@ -67,6 +71,7 @@ class AuthenticatorChain {
         this.anonymousUser = anonymousUser;
         this.isAnonymousUserEnabled = AnonymousUser.isAnonymousEnabled(settings);
         this.authenticationSerializer = authenticationSerializer;
+        this.serviceAccountService = serviceAccountService;
         this.realmsAuthenticator = realmsAuthenticator;
 
         List<Authenticator> authenticators = new ArrayList<>();
@@ -211,6 +216,24 @@ class AuthenticatorChain {
         if (false == authentication.supportsRunAs(anonymousUser)) {
             logger.info("ignore run-as header since it is currently not supported for authentication [{}]", authentication);
             finishAuthentication(context, authentication, listener);
+            return;
+        }
+
+        if (ManagedServiceAccountIdValidator.validatePrincipal(runAsUsername) == null) {
+            serviceAccountService.findManagedAccountForRunAs(runAsUsername, listener.delegateFailureAndWrap((l, user) -> {
+                final Authentication finalAuth;
+                if (user == null) {
+                    logger.debug(
+                        "Cannot find run-as managed service account [{}] for authenticated user [{}]",
+                        runAsUsername,
+                        authentication.getAuthenticatingSubject().getUser().principal()
+                    );
+                    finalAuth = authentication.runAs(new User(runAsUsername, null, null, null, Map.of(), true), null);
+                } else {
+                    finalAuth = authentication.runAsManagedServiceAccount(user);
+                }
+                finishAuthentication(context, finalAuth, l);
+            }));
             return;
         }
 

@@ -220,6 +220,7 @@ public class ServiceAccountService {
         managedServiceAccountStore.putAccount(
             request.getAccountId(),
             request.getRoles(),
+            request.getRunAsFrom(),
             request.isEnabled(),
             request.getRefreshPolicy(),
             ActionListener.wrap(
@@ -329,6 +330,18 @@ public class ServiceAccountService {
         findIndexTokens(accountId, listener);
     }
 
+    /**
+     * Lookup a managed service account for use as a run-as target. Returns {@code null} when the
+     * name is not a managed-account principal, the store is unavailable, or no such account exists.
+     */
+    public void findManagedAccountForRunAs(String principal, ActionListener<User> listener) {
+        if (managedServiceAccountStore == null || ManagedServiceAccountIdValidator.validatePrincipal(principal) != null) {
+            listener.onResponse(null);
+            return;
+        }
+        managedServiceAccountStore.getByPrincipal(principal, listener.map(account -> account == null ? null : account.asUser()));
+    }
+
     public void getManagedAccountInfos(
         @Nullable String namespace,
         @Nullable String serviceName,
@@ -344,7 +357,14 @@ public class ServiceAccountService {
             ActionListener.wrap(
                 accounts -> listener.onResponse(
                     accounts.stream()
-                        .map(account -> ServiceAccountInfo.managed(account.id().asPrincipal(), account.roles(), account.enabled()))
+                        .map(
+                            account -> ServiceAccountInfo.managed(
+                                account.id().asPrincipal(),
+                                account.roles(),
+                                account.runAsFrom(),
+                                account.enabled()
+                            )
+                        )
                         .sorted(java.util.Comparator.comparing(ServiceAccountInfo::getPrincipal))
                         .toList()
                 ),

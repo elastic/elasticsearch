@@ -424,6 +424,23 @@ public final class Authentication implements ToXContentObject {
         );
     }
 
+    /**
+     * Impersonate a managed service account. The lookup realm is the synthetic {@code _service_account}
+     * realm; unlike {@link #runAs(User, RealmRef)} this is an allowed synthetic lookup realm for this path.
+     */
+    public Authentication runAsManagedServiceAccount(User runAs) {
+        assert supportsRunAs(null);
+        assert Boolean.TRUE.equals(runAs.metadata().get(ServiceAccountSettings.MANAGED_SERVICE_ACCOUNT_FIELD))
+            : "run-as target must be a managed service account";
+        Objects.requireNonNull(runAs);
+        final String nodeName = authenticatingSubject.getRealm().getNodeName();
+        return new Authentication(
+            new Subject(runAs, newServiceAccountRealmRef(nodeName), getEffectiveSubject().getTransportVersion(), Map.of()),
+            authenticatingSubject,
+            type
+        );
+    }
+
     /** Returns a new {@code Authentication} for tokens created by the current {@code Authentication}, which is used when
      * authenticating using the token credential.
      */
@@ -577,10 +594,9 @@ public final class Authentication implements ToXContentObject {
             return false;
         }
 
-        // We may allow service account to run-as in the future, but for now no service account requires it
-        if (isServiceAccount()) {
-            return false;
-        }
+        // Service accounts may initiate run-as of a managed service account. Authorization still requires
+        // the run_as_managed_service_account privilege and target-side run_as_from consent.
+        // (The previous unconditional false is what blocked this path.)
 
         // Real run-as for cross cluster access could happen on the querying cluster side, but not on the fulfilling cluster. Since the
         // authentication instance corresponds to the fulfilling-cluster-side view, run-as is not supported
@@ -787,7 +803,7 @@ public final class Authentication implements ToXContentObject {
         builder.array(User.Fields.ROLES.getPreferredName(), user.roles());
         builder.field(User.Fields.FULL_NAME.getPreferredName(), user.fullName());
         builder.field(User.Fields.EMAIL.getPreferredName(), user.email());
-        if (isServiceAccount()) {
+        if (isServiceAccount() && false == isRunAs()) {
             final String tokenName = (String) metadata.get(ServiceAccountSettings.TOKEN_NAME_FIELD);
             assert tokenName != null : "token name cannot be null";
             final String tokenSource = (String) metadata.get(ServiceAccountSettings.TOKEN_SOURCE_FIELD);
@@ -803,7 +819,7 @@ public final class Authentication implements ToXContentObject {
                     CredentialManagedBy.ELASTICSEARCH.getDisplayName()
                 )
             );
-        } else if (getAuthenticationType() == AuthenticationType.TOKEN) {
+        } else if (getAuthenticationType() == AuthenticationType.TOKEN && false == isRunAs()) {
             String managedBy = (String) metadata.get("managed_by");
             if (managedBy != null) {
                 builder.field(User.Fields.TOKEN.getPreferredName(), Map.of("managed_by", managedBy));
@@ -1047,10 +1063,14 @@ public final class Authentication implements ToXContentObject {
         checkNoInternalUser(authenticatingSubject, "Token");
         if (Subject.Type.SERVICE_ACCOUNT == authenticatingSubject.getType()) {
             checkNoDomain(authenticatingRealm, "Service account");
-            if (false == isManagedServiceAccount()) {
+            if (false == Boolean.TRUE.equals(
+                authenticatingSubject.getUser().metadata().get(ServiceAccountSettings.MANAGED_SERVICE_ACCOUNT_FIELD)
+            )) {
                 checkNoRole(authenticatingSubject, "Service account");
             }
-            checkNoRunAs(this, "Service account");
+            if (isRunAs()) {
+                checkRunAsConsistency(effectiveSubject, authenticatingSubject);
+            }
         } else {
             if (Subject.Type.API_KEY == authenticatingSubject.getType()) {
                 checkConsistencyForApiKeyAuthenticatingSubject("API key token");
@@ -1071,14 +1091,26 @@ public final class Authentication implements ToXContentObject {
                 )
             );
         }
-        if (Subject.Type.USER != effectiveSubject.getType()) {
+        if (Subject.Type.SERVICE_ACCOUNT == effectiveSubject.getType()) {
+            if (false == Boolean.TRUE.equals(
+                effectiveSubject.getUser().metadata().get(ServiceAccountSettings.MANAGED_SERVICE_ACCOUNT_FIELD)
+            )) {
+                throw new IllegalArgumentException("Run-as service account subject must be a managed service account");
+            }
+            if (effectiveSubject.getRealm() == null
+                || false == ServiceAccountSettings.REALM_TYPE.equals(effectiveSubject.getRealm().getType())) {
+                throw new IllegalArgumentException("Run-as managed service account must be looked up in the service account realm");
+            }
+        } else if (Subject.Type.USER != effectiveSubject.getType()) {
             throw new IllegalArgumentException(Strings.format("Run-as subject type cannot be [%s]", effectiveSubject.getType()));
         }
         if (false == effectiveSubject.getMetadata().isEmpty()) {
             throw new IllegalArgumentException("Run-as subject must have empty metadata");
         }
         // assert here because it does not hold for custom realm
-        assert false == hasSyntheticRealmNameOrType(effectiveSubject.getRealm()) : "run-as subject cannot be from a synthetic realm";
+        // The service account realm is synthetic; it is the legitimate lookup realm for managed-account run-as.
+        assert Subject.Type.SERVICE_ACCOUNT == effectiveSubject.getType()
+            || false == hasSyntheticRealmNameOrType(effectiveSubject.getRealm()) : "run-as subject cannot be from a synthetic realm";
     }
 
     private void checkConsistencyForApiKeyAuthenticatingSubject(String prefixMessage) {

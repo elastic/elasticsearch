@@ -169,6 +169,10 @@ When creating roles, refer to this page for a complete list of available privile
 :   All security-related operations on {{es}} service accounts including [Get service accounts](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-get-service-accounts), [Create service account tokens](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-create-service-token), [Delete service account token](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-delete-service-token), and [Get service account credentials](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-get-service-credentials).
 
 
+`run_as_managed_service_account` {applies_to}`serverless: unavailable`
+:   Privilege to initiate run-as of a managed service account. The target account must also list the authenticating principal in its `run_as_from` allowlist. Granted to the `kibana_system` role (and therefore the `elastic/kibana` service account).
+
+
 `manage_slm` {applies_to}`serverless: unavailable` {applies_to}`stack: deprecated 8.15`
 :   All {{slm}} ({{slm-init}}) actions, including creating and updating policies and starting and stopping {{slm-init}}. It also grants the permission to start and stop {{Ilm}}, using the [ILM start](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ilm-start) and [ILM stop](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ilm-stop) APIs.
 

@@ -490,6 +490,12 @@ public class SecuritySystemIndices {
                     builder.field("type", "keyword");
                     builder.endObject();
 
+                    if (mappingVersion.onOrAfter(SecurityMainIndexMappingVersion.ADD_MANAGED_SERVICE_ACCOUNT_RUN_AS_FROM)) {
+                        builder.startObject("run_as_from");
+                        builder.field("type", "keyword");
+                        builder.endObject();
+                    }
+
                     builder.startObject("doc_type");
                     builder.field("type", "keyword");
                     builder.endObject();
@@ -1131,6 +1137,11 @@ public class SecuritySystemIndices {
          * Mapping for {@code global.data_source} configurable cluster privilege on roles.
          */
         ADD_ESQL_GLOBAL_DATASOURCE_PRIVILEGE(5),
+
+        /**
+         * Mapping for {@code run_as_from} on managed service account documents.
+         */
+        ADD_MANAGED_SERVICE_ACCOUNT_RUN_AS_FROM(6),
 
         ;
 

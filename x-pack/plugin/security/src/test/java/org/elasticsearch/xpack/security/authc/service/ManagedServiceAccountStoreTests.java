@@ -50,6 +50,7 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_T
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -180,6 +181,27 @@ public class ManagedServiceAccountStoreTests extends ESTestCase {
     public void testParseAccountDocumentRejectsMissingRolesField() throws Exception {
         final Map<String, Object> source = validAccountDocument(PRINCIPAL, List.of(ROLE_A), true);
         source.remove("roles");
+        assertThat(loadAccountFromSource(PRINCIPAL, source), nullValue());
+    }
+
+    public void testParseAccountDocumentMissingRunAsFromDefaultsEmpty() throws Exception {
+        final Map<String, Object> source = validAccountDocument(PRINCIPAL, List.of(ROLE_A), true);
+        final ManagedServiceAccount account = loadAccountFromSource(PRINCIPAL, source);
+        assertThat(account, notNullValue());
+        assertThat(account.runAsFrom(), empty());
+    }
+
+    public void testParseAccountDocumentReadsRunAsFrom() throws Exception {
+        final Map<String, Object> source = validAccountDocument(PRINCIPAL, List.of(ROLE_A), true);
+        source.put("run_as_from", List.of("elastic/kibana"));
+        final ManagedServiceAccount account = loadAccountFromSource(PRINCIPAL, source);
+        assertThat(account, notNullValue());
+        assertThat(account.runAsFrom(), equalTo(List.of("elastic/kibana")));
+    }
+
+    public void testParseAccountDocumentRejectsWildcardRunAsFrom() throws Exception {
+        final Map<String, Object> source = validAccountDocument(PRINCIPAL, List.of(ROLE_A), true);
+        source.put("run_as_from", List.of("*"));
         assertThat(loadAccountFromSource(PRINCIPAL, source), nullValue());
     }
 

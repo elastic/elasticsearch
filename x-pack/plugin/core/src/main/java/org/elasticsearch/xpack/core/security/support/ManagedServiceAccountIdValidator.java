@@ -45,6 +45,27 @@ public final class ManagedServiceAccountIdValidator {
         return validateComponent(serviceName, "service name");
     }
 
+    /**
+     * Validates a {@code run_as_from} entry: an exact principal name, not a pattern.
+     * Native usernames and service-account principals ({@code namespace/service}) are both allowed;
+     * {@code *} is rejected so the field cannot recreate a wildcard impersonation grant.
+     */
+    public static String validateRunAsFromPrincipal(String principal) {
+        if (Strings.isNullOrEmpty(principal)) {
+            return "run_as_from principal must not be empty";
+        }
+        if (principal.equals(principal.trim()) == false) {
+            return "run_as_from principal must not have leading or trailing whitespace";
+        }
+        if (principal.indexOf('*') >= 0) {
+            return "run_as_from does not allow wildcard patterns; use exact principals";
+        }
+        if (principal.length() > MAX_PRINCIPAL_LENGTH) {
+            return "run_as_from principal must be no more than " + MAX_PRINCIPAL_LENGTH + " characters";
+        }
+        return null;
+    }
+
     public static String validatePrincipal(String principal) {
         final int split = principal.indexOf('/');
         if (split == -1) {

@@ -14,6 +14,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import java.io.IOException;
 import java.util.List;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -30,8 +31,34 @@ public class PutManagedServiceAccountRequestTests extends ESTestCase {
             assertThat(request.getNamespace(), equalTo("my-team"));
             assertThat(request.getServiceName(), equalTo("worker"));
             assertThat(request.getRoles(), equalTo(List.of("role-a", "role-b")));
+            assertThat(request.getRunAsFrom(), equalTo(List.of()));
             assertThat(request.isEnabled(), is(false));
         }
+    }
+
+    public void testParseRequestWithRunAsFrom() throws IOException {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, """
+            {
+              "roles": ["role-a"],
+              "run_as_from": ["elastic/kibana"]
+            }
+            """)) {
+            final PutManagedServiceAccountRequest request = PutManagedServiceAccountRequest.parse("my-team", "worker", parser);
+            assertThat(request.getRoles(), equalTo(List.of("role-a")));
+            assertThat(request.getRunAsFrom(), equalTo(List.of("elastic/kibana")));
+            assertThat(request.isEnabled(), is(true));
+        }
+    }
+
+    public void testValidateRejectsWildcardRunAsFrom() {
+        final PutManagedServiceAccountRequest request = new PutManagedServiceAccountRequest(
+            "my-team",
+            "worker",
+            List.of("role-a"),
+            List.of("*"),
+            true
+        );
+        assertThat(request.validate().validationErrors().toString(), containsString("wildcard"));
     }
 
     public void testParseRequestWithRolesOnlyDefaultsEnabledTrue() throws IOException {

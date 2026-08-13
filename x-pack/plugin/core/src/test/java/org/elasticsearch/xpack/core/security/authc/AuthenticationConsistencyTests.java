@@ -335,11 +335,11 @@ public class AuthenticationConsistencyTests extends ESTestCase {
                 )
             ),
             entry(
-                "Service account authentication cannot run-as other user",
+                "Run-as service account subject must be a managed service account",
                 encodeAuthentication(
-                    new Subject(userBar, realm2),
                     new Subject(userFoo, Authentication.RealmRef.newServiceAccountRealmRef("node")),
-                    Authentication.AuthenticationType.TOKEN
+                    new Subject(userBar, realm1),
+                    Authentication.AuthenticationType.REALM
                 )
             ),
             entry(

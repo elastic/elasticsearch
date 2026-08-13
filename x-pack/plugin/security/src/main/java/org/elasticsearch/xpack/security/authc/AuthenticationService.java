@@ -116,6 +116,7 @@ public class AuthenticationService {
             anonymousUser,
             new AuthenticationContextSerializer(),
             pluggableAuthenticatorChain,
+            serviceAccountService,
             new ServiceAccountAuthenticator(serviceAccountService, nodeName, meterRegistry),
             new OAuth2TokenAuthenticator(tokenService, meterRegistry),
             new ApiKeyAuthenticator(apiKeyService, nodeName, meterRegistry),

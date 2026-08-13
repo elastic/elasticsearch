@@ -64,6 +64,34 @@ teardown:
         name: "managed_yaml_api_key"
         ignore: 404
 
+  - do:
+      security.delete_service_token:
+        namespace: elastic
+        service: kibana
+        name: yaml-runas-kibana
+        ignore: 404
+
+  - do:
+      security.delete_managed_service_account:
+        namespace: yaml_poc
+        service: runas_worker
+        force: true
+        ignore: 404
+
+  - do:
+      security.delete_managed_service_account:
+        namespace: yaml_poc
+        service: no_consent
+        force: true
+        ignore: 404
+
+  - do:
+      security.delete_managed_service_account:
+        namespace: yaml_poc
+        service: runas_wildcard
+        force: true
+        ignore: 404
+
 ---
 "Test managed service accounts lifecycle":
   - do:
@@ -105,6 +133,7 @@ teardown:
       "yaml_poc/worker_1":
         managed_by: user
         roles: ["managed_yaml_monitor"]
+        run_as_from: []
         enabled: true
 
   # requests scoped to a namespace default to managed_by=elastic,user;
@@ -225,3 +254,79 @@ teardown:
         Authorization: Bearer ${managed_service_token_recreated}
       security.authenticate: {}
   - match: { username: "yaml_poc/worker_1" }
+
+---
+"Test run-as of a managed service account requires run_as_from consent":
+  - do:
+      security.put_managed_service_account:
+        namespace: yaml_poc
+        service: runas_worker
+        body: >
+          {
+            "roles": ["managed_yaml_monitor"],
+            "run_as_from": ["elastic/kibana"]
+          }
+  - match: { created: true }
+
+  - do:
+      security.get_service_accounts:
+        namespace: yaml_poc
+        service: runas_worker
+  - match:
+      "yaml_poc/runas_worker":
+        managed_by: user
+        roles: ["managed_yaml_monitor"]
+        run_as_from: ["elastic/kibana"]
+        enabled: true
+
+  - do:
+      security.create_service_token:
+        namespace: elastic
+        service: kibana
+        name: yaml-runas-kibana
+  - set: { "token.value": yaml_kibana_token }
+
+  - do:
+      headers:
+        Authorization: Bearer ${yaml_kibana_token}
+        es-security-runas-user: yaml_poc/runas_worker
+      security.authenticate: {}
+  - match: { username: "yaml_poc/runas_worker" }
+  - match: { roles: ["managed_yaml_monitor"] }
+  - match: { metadata._managed_service_account: true }
+
+  - do:
+      catch: forbidden
+      headers:
+        Authorization: Bearer ${yaml_kibana_token}
+        es-security-runas-user: yaml_poc/no_consent
+      security.authenticate: {}
+
+  - do:
+      security.put_managed_service_account:
+        namespace: yaml_poc
+        service: no_consent
+        body: >
+          {
+            "roles": ["managed_yaml_monitor"]
+          }
+  - match: { created: true }
+
+  - do:
+      catch: forbidden
+      headers:
+        Authorization: Bearer ${yaml_kibana_token}
+        es-security-runas-user: yaml_poc/no_consent
+      security.authenticate: {}
+
+  - do:
+      catch: bad_request
+      security.put_managed_service_account:
+        namespace: yaml_poc
+        service: runas_wildcard
+        body: >
+          {
+            "roles": ["managed_yaml_monitor"],
+            "run_as_from": ["*"]
+          }
+

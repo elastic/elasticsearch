@@ -56,6 +56,11 @@ public class ManagedServiceAccountPrivilegeTests extends ESTestCase {
                 .check(DeleteManagedServiceAccountTokenAction.NAME, request, authentication),
             is(false)
         );
+        assertThat(
+            ClusterPrivilegeResolver.MANAGE_SERVICE_ACCOUNT.permission()
+                .check(ClusterPrivilegeResolver.RUN_AS_MANAGED_SERVICE_ACCOUNT_ACTION, request, authentication),
+            is(false)
+        );
     }
 
     public void testManagedActionsAreGrantedByManageSecurity() {
@@ -77,6 +82,16 @@ public class ManagedServiceAccountPrivilegeTests extends ESTestCase {
         assertThat(
             ClusterPrivilegeResolver.MANAGE_SECURITY.permission()
                 .check(DeleteManagedServiceAccountTokenAction.NAME, request, authentication),
+            is(true)
+        );
+        assertThat(
+            ClusterPrivilegeResolver.MANAGE_SECURITY.permission()
+                .check(ClusterPrivilegeResolver.RUN_AS_MANAGED_SERVICE_ACCOUNT_ACTION, request, authentication),
+            is(true)
+        );
+        assertThat(
+            ClusterPrivilegeResolver.RUN_AS_MANAGED_SERVICE_ACCOUNT.permission()
+                .check(ClusterPrivilegeResolver.RUN_AS_MANAGED_SERVICE_ACCOUNT_ACTION, request, authentication),
             is(true)
         );
     }

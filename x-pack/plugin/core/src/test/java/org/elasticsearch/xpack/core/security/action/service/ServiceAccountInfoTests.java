@@ -30,6 +30,7 @@ public class ServiceAccountInfoTests extends AbstractWireSerializingTestCase<Ser
             return ServiceAccountInfo.managed(
                 principal,
                 randomSubsetOf(randomIntBetween(0, 3), "role-a", "role-b", "role-c"),
+                randomBoolean() ? List.of() : List.of("elastic/kibana"),
                 randomBoolean()
             );
         }
@@ -40,7 +41,7 @@ public class ServiceAccountInfoTests extends AbstractWireSerializingTestCase<Ser
         if (instance.isManaged()) {
             return ServiceAccountInfo.builtIn(instance.getPrincipal(), randomRoleDescriptor(instance.getPrincipal()));
         } else {
-            return ServiceAccountInfo.managed(instance.getPrincipal(), List.of("mutated-role"), true);
+            return ServiceAccountInfo.managed(instance.getPrincipal(), List.of("mutated-role"), List.of(), true);
         }
     }
 

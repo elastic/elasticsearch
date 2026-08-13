@@ -20,19 +20,25 @@ final class ManagedServiceAccount implements ServiceAccount {
 
     private final ServiceAccount.ServiceAccountId id;
     private final List<String> roles;
+    private final List<String> runAsFrom;
     private final boolean enabled;
     private final User user;
 
     ManagedServiceAccount(ServiceAccount.ServiceAccountId id, List<String> roles, boolean enabled) {
+        this(id, roles, List.of(), enabled);
+    }
+
+    ManagedServiceAccount(ServiceAccount.ServiceAccountId id, List<String> roles, List<String> runAsFrom, boolean enabled) {
         this.id = Objects.requireNonNull(id, "service account id cannot be null");
         this.roles = List.copyOf(Objects.requireNonNull(roles, "roles cannot be null"));
+        this.runAsFrom = List.copyOf(Objects.requireNonNull(runAsFrom, "run_as_from cannot be null"));
         this.enabled = enabled;
         this.user = new User(
             id.asPrincipal(),
             roles.toArray(String[]::new),
             "Managed service account - " + id,
             null,
-            Map.of(ServiceAccountSettings.MANAGED_SERVICE_ACCOUNT_FIELD, true),
+            Map.of(ServiceAccountSettings.MANAGED_SERVICE_ACCOUNT_FIELD, true, ServiceAccountSettings.RUN_AS_FROM_FIELD, this.runAsFrom),
             enabled
         );
     }
@@ -51,6 +57,10 @@ final class ManagedServiceAccount implements ServiceAccount {
         return roles;
     }
 
+    List<String> runAsFrom() {
+        return runAsFrom;
+    }
+
     boolean enabled() {
         return enabled;
     }
@@ -62,6 +72,6 @@ final class ManagedServiceAccount implements ServiceAccount {
 
     @Override
     public String toString() {
-        return "ManagedServiceAccount{" + "id=" + id + ", roles=" + roles + ", enabled=" + enabled + '}';
+        return "ManagedServiceAccount{" + "id=" + id + ", roles=" + roles + ", runAsFrom=" + runAsFrom + ", enabled=" + enabled + '}';
     }
 }

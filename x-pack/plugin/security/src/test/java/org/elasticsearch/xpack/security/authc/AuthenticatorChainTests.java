@@ -29,17 +29,20 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.Realm;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountToken;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authc.support.BearerToken;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPrivilegesService;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
@@ -67,6 +70,7 @@ public class AuthenticatorChainTests extends ESTestCase {
     private AnonymousUser anonymousUser;
     private AuthenticationContextSerializer authenticationContextSerializer;
     private ServiceAccountAuthenticator serviceAccountAuthenticator;
+    private ServiceAccountService serviceAccountService;
     private OAuth2TokenAuthenticator oAuth2TokenAuthenticator;
     private ApiKeyAuthenticator apiKeyAuthenticator;
     private RealmsAuthenticator realmsAuthenticator;
@@ -90,6 +94,7 @@ public class AuthenticatorChainTests extends ESTestCase {
 
         authenticationContextSerializer = mock(AuthenticationContextSerializer.class);
         serviceAccountAuthenticator = mock(ServiceAccountAuthenticator.class);
+        serviceAccountService = mock(ServiceAccountService.class);
         oAuth2TokenAuthenticator = mock(OAuth2TokenAuthenticator.class);
         apiKeyAuthenticator = mock(ApiKeyAuthenticator.class);
         realmsAuthenticator = mock(RealmsAuthenticator.class);
@@ -106,6 +111,7 @@ public class AuthenticatorChainTests extends ESTestCase {
             anonymousUser,
             authenticationContextSerializer,
             pluggableAuthenticatorChain,
+            serviceAccountService,
             serviceAccountAuthenticator,
             oAuth2TokenAuthenticator,
             apiKeyAuthenticator,
@@ -475,11 +481,74 @@ public class AuthenticatorChainTests extends ESTestCase {
         authenticatorChain.maybeLookupRunAsUser(context, authentication, future);
         future.actionGet();
         verify(realmsAuthenticator).lookupRunAsUser(eq(context), eq(authentication), any());
+        verify(serviceAccountService, never()).findManagedAccountForRunAs(any(), any());
+    }
+
+    public void testMaybeLookupRunAsManagedServiceAccount() {
+        final Authentication authentication = AuthenticationTestHelper.builder().serviceAccount().build();
+        final String runAsUsername = "acme/worker";
+        threadContext.putHeader(AuthenticationServiceField.RUN_AS_USER_HEADER, runAsUsername);
+
+        final User managedUser = new User(
+            runAsUsername,
+            new String[] { "monitor" },
+            "Managed service account - " + runAsUsername,
+            null,
+            Map.of(
+                ServiceAccountSettings.MANAGED_SERVICE_ACCOUNT_FIELD,
+                true,
+                ServiceAccountSettings.RUN_AS_FROM_FIELD,
+                List.of("elastic/kibana")
+            ),
+            true
+        );
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            final ActionListener<User> listener = (ActionListener<User>) invocation.getArguments()[1];
+            listener.onResponse(managedUser);
+            return null;
+        }).when(serviceAccountService).findManagedAccountForRunAs(eq(runAsUsername), any());
+
+        final AuthenticationService.AuditableRequest auditableRequest = mock(AuthenticationService.AuditableRequest.class);
+        final Authenticator.Context context = new Authenticator.Context(threadContext, auditableRequest, null, true, realms);
+        final PlainActionFuture<Authentication> future = new PlainActionFuture<>();
+        authenticatorChain.maybeLookupRunAsUser(context, authentication, future);
+        final Authentication result = future.actionGet();
+        assertThat(result.isRunAs(), is(true));
+        assertThat(result.isManagedServiceAccount(), is(true));
+        assertThat(result.getEffectiveSubject().getUser().principal(), equalTo(runAsUsername));
+        assertThat(
+            result.getAuthenticatingSubject().getUser().principal(),
+            equalTo(authentication.getAuthenticatingSubject().getUser().principal())
+        );
+        verify(serviceAccountService).findManagedAccountForRunAs(eq(runAsUsername), any());
+        verify(realmsAuthenticator, never()).lookupRunAsUser(any(), any(), any());
+    }
+
+    public void testMaybeLookupRunAsManagedServiceAccountMissingCreatesFailedRunAs() {
+        final Authentication authentication = AuthenticationTestHelper.builder().serviceAccount().build();
+        final String runAsUsername = "acme/missing";
+        threadContext.putHeader(AuthenticationServiceField.RUN_AS_USER_HEADER, runAsUsername);
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            final ActionListener<User> listener = (ActionListener<User>) invocation.getArguments()[1];
+            listener.onResponse(null);
+            return null;
+        }).when(serviceAccountService).findManagedAccountForRunAs(eq(runAsUsername), any());
+
+        final AuthenticationService.AuditableRequest auditableRequest = mock(AuthenticationService.AuditableRequest.class);
+        final Authenticator.Context context = new Authenticator.Context(threadContext, auditableRequest, null, true, realms);
+        final PlainActionFuture<Authentication> future = new PlainActionFuture<>();
+        authenticatorChain.maybeLookupRunAsUser(context, authentication, future);
+        final Authentication result = future.actionGet();
+        assertThat(result.isRunAs(), is(true));
+        assertThat(result.isFailedRunAs(), is(true));
+        assertThat(result.getEffectiveSubject().getUser().principal(), equalTo(runAsUsername));
+        verify(realmsAuthenticator, never()).lookupRunAsUser(any(), any(), any());
     }
 
     public void testRunAsIsIgnoredForUnsupportedAuthenticationTypes() throws IllegalAccessException {
         final Authentication authentication = randomFrom(
-            AuthenticationTestHelper.builder().serviceAccount().build(),
             AuthenticationTestHelper.builder().anonymous(anonymousUser).build(),
             AuthenticationTestHelper.builder().anonymous(anonymousUser).build().token(),
             AuthenticationTestHelper.builder().internal().build(),

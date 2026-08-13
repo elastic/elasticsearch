@@ -596,7 +596,7 @@ public class AuthenticationTests extends ESTestCase {
             assertThat(test.isAssignedToDomain(), is(false));
             assertThat(test.getDomain(), nullValue());
         }
-        // service account cannot run-as
+        // service account authentication is not assigned to a realm domain
         test = randomServiceAccountAuthentication();
         assertThat(test.isAssignedToDomain(), is(false));
         assertThat(test.getDomain(), nullValue());
@@ -764,8 +764,8 @@ public class AuthenticationTests extends ESTestCase {
         // But not when it already run-as another user
         assertThat(AuthenticationTestHelper.builder().apiKey().runAs().build().supportsRunAs(anonymousUser), is(false));
 
-        // Service account cannot run-as
-        assertThat(AuthenticationTestHelper.builder().serviceAccount().build().supportsRunAs(anonymousUser), is(false));
+        // Service account can run-as (authorization still requires run_as_managed_service_account + target consent)
+        assertThat(AuthenticationTestHelper.builder().serviceAccount().build().supportsRunAs(anonymousUser), is(true));
 
         // internal user cannot run-as
         assertThat(AuthenticationTestHelper.builder().internal().build().supportsRunAs(anonymousUser), is(false));
@@ -779,6 +779,50 @@ public class AuthenticationTests extends ESTestCase {
 
         // Cloud API key cannot run-as
         assertThat(AuthenticationTestHelper.randomCloudApiKeyAuthentication().supportsRunAs(anonymousUser), is(false));
+    }
+
+    public void testRunAsManagedServiceAccount() throws IOException {
+        final User kibanaUser = new User(
+            "elastic/kibana",
+            new String[0],
+            "Service account - elastic/kibana",
+            null,
+            Map.of(ServiceAccountSettings.BUILTIN_SERVICE_ACCOUNT_FIELD, true),
+            true
+        );
+        final Authentication kibana = Authentication.newServiceAccountAuthentication(kibanaUser, "node-1", Map.of());
+        final User managedUser = new User(
+            "acme/worker",
+            new String[] { "monitor_role" },
+            "Managed service account - acme/worker",
+            null,
+            Map.of(
+                ServiceAccountSettings.MANAGED_SERVICE_ACCOUNT_FIELD,
+                true,
+                ServiceAccountSettings.RUN_AS_FROM_FIELD,
+                java.util.List.of("elastic/kibana")
+            ),
+            true
+        );
+        final Authentication runAs = kibana.runAsManagedServiceAccount(managedUser);
+        assertThat(runAs.isRunAs(), is(true));
+        assertThat(runAs.isManagedServiceAccount(), is(true));
+        assertThat(runAs.getAuthenticatingSubject().getUser().principal(), equalTo("elastic/kibana"));
+        assertThat(runAs.getEffectiveSubject().getUser().principal(), equalTo("acme/worker"));
+        assertThat(runAs.getEffectiveSubject().getType(), equalTo(Subject.Type.SERVICE_ACCOUNT));
+        assertThat(runAs.supportsRunAs(null), is(false));
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            runAs.writeTo(out);
+            try (StreamInput in = out.bytes().streamInput()) {
+                assertThat(new Authentication(in), equalTo(runAs));
+            }
+        }
+
+        runWithAuthenticationToXContent(runAs, m -> {
+            assertThat(m.get("username"), equalTo("acme/worker"));
+            assertThat(m, not(hasKey("token")));
+        });
     }
 
     private void assertCanAccessResources(Authentication authentication0, Authentication authentication1) {

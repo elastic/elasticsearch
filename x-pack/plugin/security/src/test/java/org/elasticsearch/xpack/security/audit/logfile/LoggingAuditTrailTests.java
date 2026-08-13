@@ -1673,7 +1673,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
 
         final String expectedPutManagedServiceAccountAuditEventString = Strings.format(
             """
-                "put":{"managed_service_account":{"namespace":"%s","service":"%s","roles":%s,"enabled":%s}}""",
+                "put":{"managed_service_account":{"namespace":"%s","service":"%s","roles":%s,"run_as_from":[],"enabled":%s}}""",
             namespace,
             serviceName,
             expectedAccountRolesJson,

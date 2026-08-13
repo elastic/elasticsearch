@@ -68,6 +68,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication.Authentication
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField;
 import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
@@ -94,6 +95,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.support.StringMatcher;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.sql.SqlAsyncActionNames;
 import org.elasticsearch.xpack.security.action.user.TransportChangePasswordAction;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
@@ -191,14 +193,40 @@ public class RBACEngine implements AuthorizationEngine {
     public void authorizeRunAs(RequestInfo requestInfo, AuthorizationInfo authorizationInfo, ActionListener<AuthorizationResult> listener) {
         if (authorizationInfo instanceof RBACAuthorizationInfo) {
             final Role role = ((RBACAuthorizationInfo) authorizationInfo).getAuthenticatedUserAuthorizationInfo().getRole();
-            listener.onResponse(
-                new AuthorizationResult(role.checkRunAs(requestInfo.getAuthentication().getEffectiveSubject().getUser().principal()))
-            );
+            final Authentication authentication = requestInfo.getAuthentication();
+            listener.onResponse(new AuthorizationResult(checkRunAs(role, authentication, requestInfo.getRequest())));
         } else {
             listener.onFailure(
                 new IllegalArgumentException("unsupported authorization info:" + authorizationInfo.getClass().getSimpleName())
             );
         }
+    }
+
+    private static boolean checkRunAs(Role callerRole, Authentication authentication, TransportRequest request) {
+        if (authentication.isManagedServiceAccount()) {
+            if (authentication.getEffectiveSubject().getUser().enabled() == false) {
+                return false;
+            }
+            final boolean hasCapability = callerRole.checkClusterAction(
+                ClusterPrivilegeResolver.RUN_AS_MANAGED_SERVICE_ACCOUNT_ACTION,
+                request,
+                authentication
+            );
+            return hasCapability
+                && allowsRunAsFrom(
+                    authentication.getEffectiveSubject().getUser(),
+                    authentication.getAuthenticatingSubject().getUser().principal()
+                );
+        }
+        return callerRole.checkRunAs(authentication.getEffectiveSubject().getUser().principal());
+    }
+
+    private static boolean allowsRunAsFrom(User target, String authenticatingPrincipal) {
+        final Object raw = target.metadata().get(ServiceAccountSettings.RUN_AS_FROM_FIELD);
+        if (raw instanceof List<?> principals) {
+            return principals.contains(authenticatingPrincipal);
+        }
+        return false;
     }
 
     @Override

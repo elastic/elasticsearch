@@ -107,6 +107,7 @@ import org.elasticsearch.xpack.core.security.audit.AuditLogCustomizer;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
+import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
@@ -1567,6 +1568,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 .field("namespace", putManagedServiceAccountRequest.getNamespace())
                 .field("service", putManagedServiceAccountRequest.getServiceName())
                 .array("roles", putManagedServiceAccountRequest.getRoles().toArray(String[]::new))
+                .array("run_as_from", putManagedServiceAccountRequest.getRunAsFrom().toArray(String[]::new))
                 .field("enabled", putManagedServiceAccountRequest.isEnabled())
                 .endObject() // managed_service_account
                 .endObject();
@@ -1838,7 +1840,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 }
             }
             // TODO: service token info is logged in a separate authentication field (#84394)
-            if (authentication.isServiceAccount()) {
+            if (authentication.getAuthenticatingSubject().getType() == Subject.Type.SERVICE_ACCOUNT) {
                 logEntry.with(
                     SERVICE_TOKEN_NAME_FIELD_NAME,
                     (String) authentication.getAuthenticatingSubject().getMetadata().get(TOKEN_NAME_FIELD)

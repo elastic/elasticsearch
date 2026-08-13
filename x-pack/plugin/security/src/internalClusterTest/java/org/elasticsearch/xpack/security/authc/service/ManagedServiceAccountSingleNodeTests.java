@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.service.CreateManagedServiceAccountTokenAction;
+import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenRequest;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenResponse;
 import org.elasticsearch.xpack.core.security.action.service.DeleteManagedServiceAccountAction;
@@ -41,6 +42,7 @@ import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.junit.Before;
@@ -294,6 +296,67 @@ public class ManagedServiceAccountSingleNodeTests extends SecuritySingleNodeTest
         authenticate(newBearer.toString());
     }
 
+    public void testKibanaRunAsManagedAccountRequiresConsent() {
+        final PutManagedServiceAccountResponse consented = securityAdminClient().execute(
+            PutManagedServiceAccountAction.INSTANCE,
+            new PutManagedServiceAccountRequest(
+                NAMESPACE,
+                serviceName,
+                java.util.List.of(MONITOR_ROLE),
+                java.util.List.of("elastic/kibana"),
+                true
+            )
+        ).actionGet();
+        assertThat(consented.getResult(), equalTo(PutManagedServiceAccountResponse.Result.CREATED));
+
+        final GetServiceAccountResponse getResponse = securityAdminClient().execute(
+            GetServiceAccountAction.INSTANCE,
+            new GetServiceAccountRequest(NAMESPACE, serviceName, EnumSet.of(ServiceAccountManagedBy.USER))
+        ).actionGet();
+        final ServiceAccountInfo info = Arrays.stream(getResponse.getServiceAccountInfos())
+            .filter(i -> principal.equals(i.getPrincipal()))
+            .findFirst()
+            .orElseThrow();
+        assertThat(info.getRunAsFrom(), equalTo(java.util.List.of("elastic/kibana")));
+
+        final SecureString kibanaToken = securityAdminClient().execute(
+            CreateServiceAccountTokenAction.INSTANCE,
+            new CreateServiceAccountTokenRequest("elastic", "kibana", "runas-token")
+        ).actionGet().getValue();
+
+        final Authentication runAsAuth = authenticateWithRunAs(kibanaToken.toString(), principal);
+        assertThat(runAsAuth.isRunAs(), is(true));
+        assertThat(runAsAuth.isManagedServiceAccount(), is(true));
+        assertThat(runAsAuth.getAuthenticatingSubject().getUser().principal(), equalTo("elastic/kibana"));
+        assertThat(runAsAuth.getEffectiveSubject().getUser().principal(), equalTo(principal));
+        assertThat(runAsAuth.getEffectiveSubject().getUser().roles(), arrayContainingInAnyOrder(MONITOR_ROLE));
+
+        final String noConsentName = "no-consent-" + randomAlphaOfLengthBetween(4, 8).toLowerCase(java.util.Locale.ROOT);
+        securityAdminClient().execute(
+            PutManagedServiceAccountAction.INSTANCE,
+            new PutManagedServiceAccountRequest(NAMESPACE, noConsentName, java.util.List.of(MONITOR_ROLE), true)
+        ).actionGet();
+
+        final ElasticsearchSecurityException denied = expectThrows(
+            ElasticsearchSecurityException.class,
+            () -> authenticateWithRunAs(kibanaToken.toString(), NAMESPACE + "/" + noConsentName)
+        );
+        assertThat(denied.status(), equalTo(RestStatus.FORBIDDEN));
+
+        final ElasticsearchSecurityException adminDenied = expectThrows(
+            ElasticsearchSecurityException.class,
+            () -> client().filterWithHeader(
+                Map.of(
+                    "Authorization",
+                    basicAuthHeaderValue(SECURITY_ADMIN, new SecureString(TEST_PASSWORD.toCharArray())),
+                    AuthenticationServiceField.RUN_AS_USER_HEADER,
+                    principal
+                )
+            ).execute(AuthenticateAction.INSTANCE, AuthenticateRequest.INSTANCE).actionGet()
+        );
+        assertThat(adminDenied.status(), equalTo(RestStatus.FORBIDDEN));
+    }
+
     private Client securityAdminClient() {
         return client().filterWithHeader(
             Map.of("Authorization", basicAuthHeaderValue(SECURITY_ADMIN, new SecureString(TEST_PASSWORD.toCharArray())))
@@ -334,6 +397,13 @@ public class ManagedServiceAccountSingleNodeTests extends SecuritySingleNodeTest
             AuthenticateAction.INSTANCE,
             AuthenticateRequest.INSTANCE
         ).actionGet();
+        return authenticateResponse.authentication();
+    }
+
+    private Authentication authenticateWithRunAs(String bearerString, String runAsPrincipal) {
+        final AuthenticateResponse authenticateResponse = client().filterWithHeader(
+            Map.of("Authorization", "Bearer " + bearerString, AuthenticationServiceField.RUN_AS_USER_HEADER, runAsPrincipal)
+        ).execute(AuthenticateAction.INSTANCE, AuthenticateRequest.INSTANCE).actionGet();
         return authenticateResponse.authentication();
     }
 

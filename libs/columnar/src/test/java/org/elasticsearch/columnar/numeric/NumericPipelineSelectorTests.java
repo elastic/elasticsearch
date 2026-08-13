@@ -164,8 +164,7 @@ public class NumericPipelineSelectorTests extends ESTestCase {
             try (IndexOutput out = dir.createOutput("num.cnd", IOContext.DEFAULT)) {
                 ColumnarCodecUtil.writeHeader(out, "ColumNARData", FormatVersion.CURRENT, segmentId, "");
                 final int blockSize = randomValidBlockSize();
-                final NumericPipeline pipeline = selector.select(fieldName, ColumnarFieldType.LONG)
-                    .build(blockSize);
+                final NumericPipeline pipeline = selector.select(fieldName, ColumnarFieldType.LONG).build(blockSize);
                 written = NumericColumnWriter.write(
                     values.length,
                     values.length,

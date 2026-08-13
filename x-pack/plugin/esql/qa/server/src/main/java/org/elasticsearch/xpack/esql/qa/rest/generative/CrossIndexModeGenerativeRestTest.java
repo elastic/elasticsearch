@@ -12,8 +12,6 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.generator.Column;
-import org.elasticsearch.xpack.esql.generator.LookupIdx;
-import org.elasticsearch.xpack.esql.generator.LookupIdxColumn;
 import org.elasticsearch.xpack.esql.generator.QueryExecuted;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 import org.elasticsearch.xpack.esql.generator.command.source.DualModeFromGenerator;
@@ -426,7 +424,7 @@ public abstract class CrossIndexModeGenerativeRestTest extends GenerativeRestTes
     @After
     public void logValueComparisonCount() {
         if (valueComparedSteps == 0) {
-            logger.warn(
+            logger.debug(
                 "Cross-mode: no pipeline steps were value-compared this run (valueComparedSteps=0). "
                     + "The determinism gate may be closing too early — check updateDeterminismGate()."
             );
@@ -935,26 +933,4 @@ public abstract class CrossIndexModeGenerativeRestTest extends GenerativeRestTes
         });
     }
 
-    // -----------------------------------------------------------------------------------------
-    // Lookup indices — same as the base class but documented here for clarity.
-    // The lookup indices are shared (unprefixed) between both sides; they are loaded once by
-    // the parent's @Before setup() as part of the canonical CSV dataset.
-    // -----------------------------------------------------------------------------------------
-
-    @Override
-    protected List<LookupIdx> lookupIndices() {
-        List<LookupIdx> result = new ArrayList<>();
-        result.add(new LookupIdx("languages_lookup", List.of(new LookupIdxColumn("language_code", "integer"))));
-        result.add(new LookupIdx("message_types_lookup", List.of(new LookupIdxColumn("message", "keyword"))));
-        List<LookupIdxColumn> multiKeys = List.of(
-            new LookupIdxColumn("id_int", "integer"),
-            new LookupIdxColumn("name_str", "keyword"),
-            new LookupIdxColumn("is_active_bool", "boolean"),
-            new LookupIdxColumn("ip_addr", "ip"),
-            new LookupIdxColumn("other1", "keyword"),
-            new LookupIdxColumn("other2", "integer")
-        );
-        result.add(new LookupIdx("multi_column_joinable_lookup", multiKeys));
-        return result;
-    }
 }

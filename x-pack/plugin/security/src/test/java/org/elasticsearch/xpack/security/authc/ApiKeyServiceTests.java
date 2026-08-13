@@ -2868,10 +2868,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         final Authentication authentication = AuthenticationTestHelper.randomCloudServiceAccountAuthentication();
         final CreateApiKeyRequest createApiKeyRequest = randomBoolean()
             ? new CreateApiKeyRequest(randomAlphaOfLengthBetween(3, 8), null, null)
-            : CreateCrossClusterApiKeyRequest.withNameAndAccess(
-                randomAlphaOfLengthBetween(3, 8),
-                randomCrossClusterApiKeyAccessField()
-            );
+            : CreateCrossClusterApiKeyRequest.withNameAndAccess(randomAlphaOfLengthBetween(3, 8), randomCrossClusterApiKeyAccessField());
         ApiKeyService service = createApiKeyService(Settings.EMPTY);
         final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
         service.createApiKey(authentication, createApiKeyRequest, Set.of(), future);

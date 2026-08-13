@@ -613,16 +613,16 @@ public class AzureStorageServiceTests extends ESTestCase {
         }
     }
 
-    public void testClusterReloadEvictsDropsMissingProviders() throws IOException {
+    public void testClusterReloadEvictsMissingProviders() throws IOException {
         final var secureSettings = new MockSecureSettings();
-        secureSettings.setString("azure.client.azure1.account", "account1");
-        secureSettings.setString("azure.client.azure1.key", encodeKey("key1"));
-        secureSettings.setString("azure.client.azure2.account", "account2");
-        secureSettings.setString("azure.client.azure2.key", encodeKey("key2"));
+        secureSettings.setString("azure.client.clientName1.account", "account1");
+        secureSettings.setString("azure.client.clientName1.key", encodeKey("key1"));
+        secureSettings.setString("azure.client.clientName2.account", "account2");
+        secureSettings.setString("azure.client.clientName2.key", encodeKey("key2"));
         final var initialSettings = Settings.builder()
             .setSecureSettings(secureSettings)
-            .put("azure.client.azure1.max_connections", 5)
-            .put("azure.client.azure2.max_connections", 10)
+            .put("azure.client.clientName1.max_connections", 5)
+            .put("azure.client.clientName2.max_connections", 10)
             .build();
 
         try (var plugin = pluginWithSettingsValidation(initialSettings)) {
@@ -630,16 +630,15 @@ public class AzureStorageServiceTests extends ESTestCase {
 
             AzureConnectionProviderReference ref1, ref2;
             try (
-                var client1 = service.client(null, "azure1", LocationMode.PRIMARY_ONLY, randomFrom(OperationPurpose.values()));
-                var client2 = service.client(null, "azure2", LocationMode.PRIMARY_ONLY, randomFrom(OperationPurpose.values()))
+                var client1 = service.client(null, "clientName1", LocationMode.PRIMARY_ONLY, randomFrom(OperationPurpose.values()));
+                var client2 = service.client(null, "clientName2", LocationMode.PRIMARY_ONLY, randomFrom(OperationPurpose.values()))
             ) {
 
                 final var clientSettings = AzureStorageSettings.load(initialSettings);
-                final var settings1 = clientSettings.get("azure1");
-                final var settings2 = clientSettings.get("azure2");
+                final var settings2 = clientSettings.get("clientName2");
 
-                final var key1 = new AzureClientProvider.ConnectionProviderKey(ProjectId.DEFAULT, "azure1", settings1);
-                final var key2 = new AzureClientProvider.ConnectionProviderKey(ProjectId.DEFAULT, "azure2", settings2);
+                final var key1 = new AzureClientProvider.ConnectionProviderKey(ProjectId.DEFAULT, "clientName1", "account1");
+                final var key2 = new AzureClientProvider.ConnectionProviderKey(ProjectId.DEFAULT, "clientName2", "account2");
 
                 ref1 = service.getConnectionProvidersCache().get(key1);
                 ref2 = service.getConnectionProvidersCache().get(key2);
@@ -651,12 +650,12 @@ public class AzureStorageServiceTests extends ESTestCase {
                 // we change the cluster storage settings by changing the account name of client "azure1" and hence we'll end up with a new
                 // connection provider for this client
                 final var newSecureSettings = new MockSecureSettings();
-                newSecureSettings.setString("azure.client.azure1.account", "newAccount");
-                newSecureSettings.setString("azure.client.azure1.key", encodeKey("key"));
+                newSecureSettings.setString("azure.client.clientName1.account", "newAccount");
+                newSecureSettings.setString("azure.client.clientName1.key", encodeKey("key"));
                 final var newRawSettings = Settings.builder().setSecureSettings(newSecureSettings).build();
-                final var newSettings1 = AzureStorageSettings.load(newRawSettings).get("azure1");
+                final var newSettings1 = AzureStorageSettings.load(newRawSettings).get("clientName1");
 
-                service.refreshClusterClientSettings(Map.of("azure1", newSettings1, "azure2", settings2));
+                service.refreshClusterClientSettings(Map.of("clientName1", newSettings1, "clientName2", settings2));
                 assertNull(service.getConnectionProvidersCache().get(key1)); // the previous client does not exist in the cache anymore
                 assertEquals(1, ref1.refCount());  // 1 from the open client (it was removed from the cache)
 

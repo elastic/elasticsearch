@@ -201,6 +201,10 @@ final class AzureStorageSettings {
         }
     }
 
+    public String getAccount() {
+        return account;
+    }
+
     public String getEndpointSuffix() {
         return endpointSuffix;
     }

@@ -132,16 +132,18 @@ public class AzureClientProviderTests extends ESTestCase {
     }
 
     public void testFallsBackToDefaultMaxConnections() {
-        final int defaultMaxConnections = randomIntBetween(1, 200);
-        final String clientName = "azure";
-        var storageSettings = createStorageSettings(
-            "azure",
+        final var defaultMaxConnections = randomIntBetween(1, 200);
+        final var clientName = "someClientName";
+        final var account = "someAccount";
+        final var storageSettings = createStorageSettings(
+            clientName,
+            account,
             Settings.builder().put("repository.azure.http_client.max_open_connections", defaultMaxConnections)
         );
 
         createClient(clientName, storageSettings);
 
-        AzureClientProvider.ConnectionProviderKey key = new AzureClientProvider.ConnectionProviderKey(null, clientName, storageSettings);
+        final var key = new AzureClientProvider.ConnectionProviderKey(null, clientName, account);
         assertEquals(
             defaultMaxConnections,
             azureClientProvider.getConnectionProvidersCache().get(key).connectionProvider().maxConnections()
@@ -149,11 +151,13 @@ public class AzureClientProviderTests extends ESTestCase {
     }
 
     public void testPerClientMaxConnectionsTakePrecedenceOverDefault() {
-        final int defaultMaxConnections = randomIntBetween(1, 200);
+        final var defaultMaxConnections = randomIntBetween(1, 200);
         final int perClientMaxConnections = randomValueOtherThan(defaultMaxConnections, () -> randomIntBetween(1, 200));
-        final String clientName = "azure";
-        var storageSettings = createStorageSettings(
-            "azure",
+        final var clientName = "someClientName";
+        final var account = "someAccount";
+        final var storageSettings = createStorageSettings(
+            clientName,
+            account,
             Settings.builder()
                 .put("repository.azure.http_client.max_open_connections", defaultMaxConnections)
                 .put(Strings.format("azure.client.%s.max_connections", clientName), perClientMaxConnections)
@@ -161,7 +165,7 @@ public class AzureClientProviderTests extends ESTestCase {
 
         createClient(clientName, storageSettings);
 
-        AzureClientProvider.ConnectionProviderKey key = new AzureClientProvider.ConnectionProviderKey(null, clientName, storageSettings);
+        final var key = new AzureClientProvider.ConnectionProviderKey(null, clientName, account);
         assertEquals(
             perClientMaxConnections,
             azureClientProvider.getConnectionProvidersCache().get(key).connectionProvider().maxConnections()
@@ -169,10 +173,11 @@ public class AzureClientProviderTests extends ESTestCase {
     }
 
     public void testSameClientSameConnectionProvider() {
-        final var clientName = "azure";
-        final int maxConnections = randomIntBetween(1, 200);
-        final var storageSettings = createStorageSettings(clientName, maxConnections);
-        final var key = new AzureClientProvider.ConnectionProviderKey(null, clientName, storageSettings);
+        final var clientName = "someClientName";
+        final var account = "someAccount";
+        final var maxConnections = randomIntBetween(1, 200);
+        final var storageSettings = createStorageSettings(clientName, account, maxConnections);
+        final var key = new AzureClientProvider.ConnectionProviderKey(null, clientName, account);
 
         var ref = azureClientProvider.getConnectionProvidersCache().get(key);
         assertNull(ref);
@@ -183,9 +188,10 @@ public class AzureClientProviderTests extends ESTestCase {
             var connectionProvider = ref.connectionProvider();
             assertEquals(2, ref.refCount()); // 2 = (1 from being in the cache + 1 from the client)
 
-            var sameClientName = new String(clientName);
-            var sameStorageSettings = createStorageSettings(sameClientName, maxConnections);
-            var sameKey = new AzureClientProvider.ConnectionProviderKey(null, sameClientName, sameStorageSettings);
+            final var sameClientName = new String(clientName);
+            final var sameAccountName = new String(account);
+            final var sameStorageSettings = createStorageSettings(sameClientName, account, maxConnections);
+            final var sameKey = new AzureClientProvider.ConnectionProviderKey(null, sameClientName, sameAccountName);
             try (var client2 = createClient(sameClientName, sameStorageSettings)) {
                 ref = azureClientProvider.getConnectionProvidersCache().get(sameKey);
                 var sameConnectionProvider = ref.connectionProvider();
@@ -198,10 +204,11 @@ public class AzureClientProviderTests extends ESTestCase {
     }
 
     public void testDifferentClientsDifferentConnectionProviders() {
-        final var clientName = "azure";
-        final int maxConnections = randomIntBetween(1, 200);
-        final var storageSettings = createStorageSettings(clientName, maxConnections);
-        final var key = new AzureClientProvider.ConnectionProviderKey(null, clientName, storageSettings);
+        final var clientName = "someClientName";
+        final var account = "someAccount";
+        final var maxConnections = randomIntBetween(1, 200);
+        final var storageSettings = createStorageSettings(clientName, account, maxConnections);
+        final var key = new AzureClientProvider.ConnectionProviderKey(null, clientName, account);
 
         var ref = azureClientProvider.getConnectionProvidersCache().get(key);
         assertNull(ref);
@@ -211,8 +218,8 @@ public class AzureClientProviderTests extends ESTestCase {
             assertNotNull(ref);
             assertEquals(2, ref.refCount()); // 2 = (1 from being in the cache + 1 from the client)
 
-            final var otherClientName = "otherAzure";
-            final var otherKey = new AzureClientProvider.ConnectionProviderKey(null, otherClientName, storageSettings);
+            final var otherClientName = "otherClientName";
+            final var otherKey = new AzureClientProvider.ConnectionProviderKey(null, otherClientName, account);
 
             try (var otherClient = createClient(otherClientName, storageSettings)) {
                 final var otherRef = azureClientProvider.getConnectionProvidersCache().get(otherKey);
@@ -222,12 +229,14 @@ public class AzureClientProviderTests extends ESTestCase {
                 assertNotSame(ref.connectionProvider(), otherRef.connectionProvider());
             }
 
-            // get a different client by having different storage settings, i.e, `maxConnections` is different
+            // get a different client by changing the account name
+            final var otherAccountName = "otherAccount";
             final var otherStorageSettings = createStorageSettings(
                 clientName,
-                randomValueOtherThan(maxConnections, () -> randomIntBetween(1, 200))
+                otherAccountName,
+                maxConnections
             );
-            final var otherKey2 = new AzureClientProvider.ConnectionProviderKey(null, clientName, otherStorageSettings);
+            final var otherKey2 = new AzureClientProvider.ConnectionProviderKey(null, clientName, otherAccountName);
             try (var otherClient2 = createClient(clientName, otherStorageSettings)) {
                 final var otherRef = azureClientProvider.getConnectionProvidersCache().get(otherKey2);
                 assertNotNull(otherRef);
@@ -240,9 +249,10 @@ public class AzureClientProviderTests extends ESTestCase {
     }
 
     public void testDisposeLaterIsTriggeredWhenProviderIsNotReferenced() {
-        final var clientName = "azure";
-        final int maxConnections = randomIntBetween(1, 200);
-        final var storageSettings = createStorageSettings(clientName, maxConnections);
+        final var clientName = "someClientName";
+        final var account = "someAccount";
+        final var maxConnections = randomIntBetween(1, 200);
+        final var storageSettings = createStorageSettings(clientName, account, maxConnections);
 
         class RecordingAzureClientProvider extends AzureClientProvider {
             final AtomicBoolean calledDisposeLater = new AtomicBoolean();
@@ -268,7 +278,7 @@ public class AzureClientProviderTests extends ESTestCase {
             }
 
             @Override
-            ConnectionProvider buildConnectionProvider(ConnectionProviderKey key) {
+            ConnectionProvider buildConnectionProvider(int maxConnections) {
                 return new ConnectionProvider() {
                     @Override
                     public Mono<? extends Connection> acquire(
@@ -297,7 +307,7 @@ public class AzureClientProviderTests extends ESTestCase {
 
         assertFalse(recordingAzureClientProvider.getCalledDisposeLater());
 
-        final var key = new AzureClientProvider.ConnectionProviderKey(null, clientName, storageSettings);
+        final var key = new AzureClientProvider.ConnectionProviderKey(null, clientName, account);
 
         try (var client = createClient(recordingAzureClientProvider, clientName, storageSettings)) {
             assertFalse(recordingAzureClientProvider.getCalledDisposeLater());
@@ -312,9 +322,9 @@ public class AzureClientProviderTests extends ESTestCase {
         return Base64.getEncoder().encodeToString(value.getBytes(StandardCharsets.UTF_8));
     }
 
-    private AzureStorageSettings createStorageSettings(String clientName, Settings.Builder builder) {
+    private AzureStorageSettings createStorageSettings(String clientName, String account, Settings.Builder builder) {
         final MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString(Strings.format("azure.client.%s.account", clientName), "account");
+        secureSettings.setString(Strings.format("azure.client.%s.account", clientName), account);
         secureSettings.setString(Strings.format("azure.client.%s.key", clientName), encodeKey("key"));
 
         final Settings settings = builder.setSecureSettings(secureSettings).build();
@@ -325,9 +335,10 @@ public class AzureClientProviderTests extends ESTestCase {
         return storageSettings;
     }
 
-    private AzureStorageSettings createStorageSettings(String clientName, int perClientMaxConnections) {
+    private AzureStorageSettings createStorageSettings(String clientName, String account, int perClientMaxConnections) {
         return createStorageSettings(
             clientName,
+            account,
             Settings.builder().put(Strings.format("azure.client.%s.max_connections", clientName), perClientMaxConnections)
         );
     }

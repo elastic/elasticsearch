@@ -26,9 +26,9 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * Implicitly grants read access to AI Index ({@code ai-index-*}) for users whose roles include a
+ * Implicitly grants read access to AI indices ({@code ai-index-*}) for users whose roles include a
  * Kibana application privilege grant carrying at least one {@code ai_index:} action.
- * <p>
+ *
  * AI Index documents carry composite scoped-privileges in {@code permissions.kibana.privileges.name}
  * that bind a space and a privilege action together (e.g. {@code "marketing|ai_index:dashboard/read"}).
  * The wildcard resource ({@code *}) is treated as a literal space component, producing tokens like
@@ -36,30 +36,21 @@ import java.util.stream.Collectors;
  * document requires is pre-computed and stored in {@code permissions.kibana.privileges.count}. A
  * document with no {@code permissions.kibana.privileges.name} field is a public document, visible to
  * every user this provider grants an implicit privilege to.
- * <p>
- * Only actions in the {@code ai_index:} namespace participate. That namespace is owned by AI Index,
- * mirroring the way {@code saved_object:} actions are owned by saved-objects authz: a grant that
- * carries no {@code ai_index:} action does not unlock AI Index at all, and no implicit privilege is
- * returned for it. Consequently a user whose Kibana grants contain only, say, {@code saved_object:}
- * or {@code api:} actions sees no AI Index documents — not even public ones.
- * <p>
+ *
  * The provider builds the user's scoped-privilege set from the cross-product of their space IDs and
- * {@code ai_index:} action strings across all matching grants. For each resource the user belongs to
- * and each such action they hold in that resource, one composite scoped privilege
+ * {@code ai_index:} action strings across all matching grants. For each resource (space) the user belongs to
+ * and each such action they hold in that resource (space), one composite scoped privilege
  * {@code "<spaceId>|<action>"} is emitted. The DLS query then uses a {@code terms_set} query requiring
  * that every scoped privilege listed on the document is present in the user's held set
  * ({@code minimum_should_match_field: permissions.kibana.privileges.count}).
  * <p>
  * Whenever the provider does grant, it always builds a DLS query — the wildcard resource ({@code *}) flows through
  * {@link #buildScopedPrivileges} as a literal space component rather than short-circuiting to
- * unrestricted access. The DLS query:
- * <ul>
- *   <li>Allows documents that have no {@code permissions.kibana.privileges.name} field (public
- *       documents).</li>
- *   <li>Allows documents whose entire {@code permissions.kibana.privileges.name} set is a subset of
- *       the user's held composite scoped privileges (enforced via {@code terms_set} with
- *       {@code minimum_should_match_field: permissions.kibana.privileges.count}).</li>
- * </ul>
+ * unrestricted access. The DLS query allows:
+ * - documents that have no {@code permissions.kibana.privileges.name} field (public documents)
+ * - documents whose *entire* {@code permissions.kibana.privileges.name} set is a subset of
+ *   the user's held composite scoped privileges (enforced via {@code terms_set} with
+ *   {@code minimum_should_match_field: permissions.kibana.privileges.count}).
  */
 public class AiIndexImplicitPrivilegesProvider implements ImplicitPrivilegesProvider {
 
@@ -103,14 +94,11 @@ public class AiIndexImplicitPrivilegesProvider implements ImplicitPrivilegesProv
     /**
      * Collects the union of resources mapped to their {@code ai_index:} action strings from every
      * resolved application-privilege grant that targets the Kibana application.
-     * <p>
+     *
      * The action strings (from {@link ApplicationPrivilege#getPatterns()}) are filtered down to the
-     * {@code ai_index:} namespace before they populate the {@code terms_set} DLS clause. Actions from
-     * other namespaces are deliberately dropped: they belong to the subsystems that own them, and
-     * carrying them here would both bind AI Index visibility to unrelated authz decisions and inflate
-     * the DLS query with terms no AI Index document ever references. A grant that contributes no
-     * {@code ai_index:} action is skipped entirely, so it cannot open up AI Index on its own.
-     * <p>
+     * {@code ai_index:} namespace before they populate the {@code terms_set} DLS clause.
+     * A grant that contributes no {@code ai_index:} action is skipped entirely, so it cannot open up AI Index on its own.
+     *
      * Returns a map from each resource string (e.g. {@code "space:marketing"} or {@code "*"}) to
      * the set of action strings held under that resource. Resources across multiple grants for the
      * same resource are unioned.
@@ -171,17 +159,14 @@ public class AiIndexImplicitPrivilegesProvider implements ImplicitPrivilegesProv
     /**
      * Builds the DLS query that gates AI Index document visibility by composite scoped privileges
      * stored in {@code permissions.kibana.privileges.name}.
-     * <p>
+     *
      * The query structure is a top-level {@code bool/should} with two branches:
-     * <ol>
-     *   <li>Public-document branch: {@code bool/must_not exists permissions.kibana.privileges.name}
-     *       — matches documents that carry no scoped-privilege requirements (publicly visible to
-     *       all authenticated users).</li>
-     *   <li>Scoped-privilege-match branch: {@code terms_set} on
-     *       {@code permissions.kibana.privileges.name} requiring the document's full scoped-privilege
-     *       set to be a subset of the user's held scoped privileges, enforced via
-     *       {@code minimum_should_match_field: permissions.kibana.privileges.count}.</li>
-     * </ol>
+     * - Public-document branch: {@code bool/must_not exists permissions.kibana.privileges.name} matches
+     *   documents that carry no scoped-privilege requirements (publicly visible to all authenticated users).
+     * - Scoped-privilege-match branch: {@code terms_set} on
+     *   {@code permissions.kibana.privileges.name} requiring the document's full scoped-privilege
+     *   set to be a subset of the user's held scoped privileges, enforced via
+     *   {@code minimum_should_match_field: permissions.kibana.privileges.count}.
      */
     static String buildDlsQuery(Set<String> scopedPrivileges) {
         return Strings.toString(

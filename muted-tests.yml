@@ -601,10 +601,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.RestEsqlIT
   method: testAutoPartitioning {SYNC}
   issue: https://github.com/elastic/elasticsearch/issues/156243
-<<<<<<< HEAD
-=======
-
->>>>>>> nik9000/esql_keepwarnings
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecBucketIncludeEmptyBucketsIT
   method: test {csv-spec:bucket_include_empty_buckets.Large number of buckets doesn't OOM - stats}
   issue: https://github.com/elastic/elasticsearch/issues/156356

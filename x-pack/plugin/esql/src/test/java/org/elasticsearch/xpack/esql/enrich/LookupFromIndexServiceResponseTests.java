@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -26,10 +27,12 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.test.RandomBlock;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.junit.After;
 
 import java.io.EOFException;
@@ -37,7 +40,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -318,6 +324,71 @@ public class LookupFromIndexServiceResponseTests extends AbstractWireSerializing
                 EOFException.class,
                 () -> new LookupFromIndexService.LookupResponse(in, blockFactory(), new ThreadContext(Settings.EMPTY))
             );
+        }
+    }
+
+    /**
+     * The BWC branch in the LookupResponse constructor reads warnings from the thread context
+     * when deserializing from an old node. It must <em>take</em> them (removing them) rather
+     * than just reading, otherwise they also travel as response headers and get duplicated.
+     * We verify by deserializing twice on the same thread context — the second read should
+     * get no warnings.
+     */
+    public void testBwcReadTakesWarningsFromThreadContext() throws IOException {
+        TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(DriverCompletionInfo.ESQL_DRIVER_WARNINGS);
+        BlockFactory senderFactory = blockFactory();
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+
+        // Serialize at the old version — warnings won't be on the wire
+        LookupFromIndexService.LookupResponse original = new LookupFromIndexService.LookupResponse(
+            List.of(randomPage(senderFactory)),
+            senderFactory,
+            null,
+            0L,
+            List.of("some warning", "another warning")
+        );
+        BytesReference wireBytes;
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(oldVersion);
+            original.writeTo(out);
+            wireBytes = out.bytes();
+        } finally {
+            original.decRef();
+        }
+
+        // Simulate transport depositing warnings into thread context
+        threadContext.addResponseHeader("Warning", HeaderWarning.formatWarning("some warning"));
+        threadContext.addResponseHeader("Warning", HeaderWarning.formatWarning("another warning"));
+
+        // First deserialization should eat the warnings from thread context
+        BlockFactory firstFactory = blockFactory();
+        LookupFromIndexService.LookupResponse first;
+        try (StreamInput in = new NamedWriteableAwareStreamInput(wireBytes.streamInput(), new NamedWriteableRegistry(List.of()))) {
+            in.setTransportVersion(oldVersion);
+            first = new LookupFromIndexService.LookupResponse(in, firstFactory, threadContext);
+        }
+        try {
+            assertThat(first.warnings(), hasSize(2));
+            assertThat(first.warnings(), contains("some warning", "another warning"));
+        } finally {
+            first.decRef();
+        }
+
+        // A second deserialization on the same thread context should get no warnings
+        BlockFactory secondFactory = blockFactory();
+        LookupFromIndexService.LookupResponse second;
+        try (StreamInput in = new NamedWriteableAwareStreamInput(wireBytes.streamInput(), new NamedWriteableRegistry(List.of()))) {
+            in.setTransportVersion(oldVersion);
+            second = new LookupFromIndexService.LookupResponse(in, secondFactory, threadContext);
+        }
+        try {
+            assertThat(
+                "first read must eat warnings so a second read on the same thread context does not duplicate them",
+                second.warnings(),
+                empty()
+            );
+        } finally {
+            second.decRef();
         }
     }
 

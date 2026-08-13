@@ -302,8 +302,7 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
                 // Old nodes send warnings as transport response headers; the transport layer has already
                 // deposited them into the current thread's context before this constructor is called.
                 // Parse the RFC 7234 warning format to extract the plain warning text.
-                this.warnings = threadContext.getResponseHeaders()
-                    .getOrDefault("Warning", List.of())
+                this.warnings = threadContext.takeResponseHeaders("Warning")
                     .stream()
                     .map(s -> HeaderWarning.extractWarningValueFromWarningHeader(s, false))
                     .toList();

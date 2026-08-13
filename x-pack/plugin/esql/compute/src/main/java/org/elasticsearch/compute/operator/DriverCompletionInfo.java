@@ -306,7 +306,7 @@ public record DriverCompletionInfo(
         if (in.getTransportVersion().supports(ESQL_DRIVER_WARNINGS)) {
             warnings = Collections.unmodifiableSet(in.readCollection(LinkedHashSet::new, (stream, set) -> set.add(stream.readString())));
         } else {
-            List<String> headerWarnings = threadContext.getResponseHeaders().getOrDefault("Warning", List.of());
+            List<String> headerWarnings = threadContext.takeResponseHeaders("Warning");
             if (headerWarnings.isEmpty()) {
                 warnings = Set.of();
             } else {

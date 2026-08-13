@@ -902,3 +902,6 @@ tests:
 - class: org.elasticsearch.index.codec.vectors.ash.AsymmetricHashingQuantizerTests
   method: testScoreReconstructsDotProduct
   issue: https://github.com/elastic/elasticsearch/issues/156705
+- class: org.elasticsearch.index.codec.vectors.ash.AsymmetricHashingQuantizerTests
+  method: testFullPipelineRandomMethod
+  issue: https://github.com/elastic/elasticsearch/issues/156706

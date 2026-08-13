@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasource.ndjson;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.BigArrays;
@@ -22,7 +23,9 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.datasources.CountingBreaker;
@@ -1114,6 +1117,42 @@ public class NdJsonPageDecoderTests extends ESTestCase {
                 ParsingException.class,
                 () -> decodeOneColumn(oversized, DataType.LONG, new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, 0, 0.0, false))
             ).status()
+        );
+    }
+
+    /**
+     * The fail-fast loop guards two call sites: the {@code nextToken} that opens a record, and {@code
+     * decodeObject}. Every other strict test here lands on the second. A bare oversized token on its own line —
+     * no enclosing object — is scanned by the record-opening {@code nextToken}, so this is the only test that
+     * exercises the first. The {@code [nextToken]} phase label in the message is what proves which site ran; a
+     * violation routed through {@code decodeObject} would read {@code [decodeObject]} instead.
+     */
+    public void testConstraintViolationOnRecordOpeningTokenFailsFastUnderStrict() {
+        String ndjson = "{\"v\":1}\n" + "1".repeat(1200) + "\n";
+        ParsingException e = expectThrows(ParsingException.class, () -> decodeOneColumn(ndjson, DataType.LONG, ErrorPolicy.STRICT));
+        assertThat(e.getMessage(), Matchers.containsString("Malformed NDJSON [nextToken]"));
+        assertThat(e.getMessage(), Matchers.containsString("Number value length"));
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
+    }
+
+    /**
+     * The four strict failures a user's data can cause answer 400; the reader's own invariant failures answer
+     * 500, so a real bug in our code still pages someone. The two invariant throws ("lenient scratch builders
+     * missing after ensureLenientScratchBuffers") are defensive and unreachable without bytecode manipulation —
+     * {@code ensureLenientScratchBuffers} reallocates anything a test could null — so they cannot be triggered
+     * here. What is pinnable, and what the split actually rests on, is that the two exception families keep
+     * their statuses. If someone retyped the invariant throws "for consistency", this fails.
+     */
+    public void testTheClientServerSplitHoldsAtTheTypeLevel() {
+        assertEquals(
+            "reader invariant failures must stay server-class",
+            RestStatus.INTERNAL_SERVER_ERROR,
+            ExceptionsHelper.status(new EsqlIllegalArgumentException("lenient scratch builders missing"))
+        );
+        assertEquals(
+            "user-data failures must be client-class",
+            RestStatus.BAD_REQUEST,
+            ExceptionsHelper.status(new ParsingException(Source.EMPTY, "{}", "malformed"))
         );
     }
 

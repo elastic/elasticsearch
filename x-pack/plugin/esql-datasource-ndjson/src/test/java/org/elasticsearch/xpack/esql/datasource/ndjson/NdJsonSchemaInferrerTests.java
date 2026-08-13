@@ -188,6 +188,18 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
         check(ndjson, field("name", DataType.KEYWORD), field("age", DataType.INTEGER, true));
     }
 
+    /**
+     * The sampling loop guards two call sites, and the two tests around this one both land on
+     * {@code inferObjectSchema}. A bare oversized token on its own line is scanned by the {@code nextToken}
+     * that opens a record, which is the other one. That arm {@code continue}s before the mark-unseen-nullable
+     * sweep, so unlike its siblings the surviving columns stay non-nullable — which is also what proves the
+     * skipped line was abandoned at the top of the loop rather than part-way through a record.
+     */
+    public void testConstraintViolationOnRecordOpeningTokenSkippedDuringInference() throws IOException {
+        String ndjson = "{\"name\": \"John\", \"age\": 30}\n" + "1".repeat(1200) + "\n{\"name\": \"Jane\", \"age\": 25}\n";
+        check(ndjson, field("name", DataType.KEYWORD), field("age", DataType.INTEGER));
+    }
+
     /** The same skip for the name-length limit, which trips in a different scanner call than the number limit. */
     public void testOversizedFieldNameSkippedDuringInference() throws IOException {
         String ndjson = "{\"name\": \"John\", \"age\": 30}\n"

@@ -40,6 +40,7 @@ import org.elasticsearch.common.io.stream.CountingStreamOutput;
 import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -73,6 +74,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.IntPredicate;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.lucene.Lucene.writeExplanation;
@@ -551,6 +553,29 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         assertThat(deepBytes - shallowBytes, equalTo(expectedFrameDelta));
     }
 
+    public void testEstimateFailureBytesIncludesShardFailures() {
+        RuntimeException bare = new RuntimeException("bare failure, no shard detail");
+        long bareBytes = TransportMultiSearchAction.estimateFailureBytes(bare);
+
+        SearchPhaseExecutionException fewFailures = searchPhaseExecutionExceptionWithShardFailures(4);
+        long fewFailuresBytes = TransportMultiSearchAction.estimateFailureBytes(fewFailures);
+        assertThat(fewFailuresBytes, greaterThan(bareBytes));
+
+        SearchPhaseExecutionException manyFailures = searchPhaseExecutionExceptionWithShardFailures(28);
+        long manyFailuresBytes = TransportMultiSearchAction.estimateFailureBytes(manyFailures);
+        assertThat("estimate should scale with shard failure count", manyFailuresBytes, greaterThan(fewFailuresBytes));
+    }
+
+    public void testEstimateFailureBytesIsAtLeastActualHeap() {
+        SearchPhaseExecutionException failure = searchPhaseExecutionExceptionWithShardFailures(5);
+        long estimate = TransportMultiSearchAction.estimateFailureBytes(failure);
+        long measured = RamUsageEstimator.sizeOfObject(failure);
+        assertTrue(
+            "estimateFailureBytes (" + estimate + ") must not under-count RamUsageEstimator (" + measured + ")",
+            estimate >= measured
+        );
+    }
+
     public void testEstimateSuggest() throws Exception {
         TermSuggestion termSuggestion = new TermSuggestion("my-suggest", 5, SortBy.SCORE);
         // Suggest sorts the list in-place, so it must be mutable.
@@ -735,13 +760,21 @@ public class TransportMultiSearchActionTests extends ESTestCase {
 
     public void testBreakerReleasedOnSubSearchFailure() throws Exception {
         TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1);
-        AtomicInteger call = new AtomicInteger();
+        Exception failure = searchPhaseExecutionExceptionWithShardFailures(5);
+        long failureBytes = TransportMultiSearchAction.estimateFailureBytes(failure);
         SearchResponse emptyResponse = SearchResponse.emptyResponseBuilder().tookInMillis(1L).build();
         try {
             long perResponseBytes = TransportMultiSearchAction.estimateActualBytes(emptyResponse);
-            runMsearchWithBreaker(breaker, 2, () -> SearchResponse.emptyResponseBuilder().tookInMillis(1L).build(), call);
+            runMsearchWithBreaker(
+                breaker,
+                2,
+                () -> SearchResponse.emptyResponseBuilder().tookInMillis(1L).build(),
+                index -> index == 0,
+                () -> failure,
+                null
+            );
             assertThat(breaker.getUsed(), equalTo(0L));
-            assertThat(breaker.totalReserved(), equalTo(perResponseBytes));
+            assertThat(breaker.totalReserved(), equalTo(perResponseBytes + failureBytes));
         } finally {
             emptyResponse.decRef();
         }
@@ -840,6 +873,115 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         assertThat(breaker.getUsed(), equalTo(0L));
     }
 
+    public void testBreakerAccountsFailureItems() throws Exception {
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1);
+        int numRequests = 4;
+        MultiSearchResponse.Item[] items = new MultiSearchResponse.Item[numRequests];
+        AtomicLong usedWhilePending = new AtomicLong(-1);
+        runMsearchWithBreaker(
+            breaker,
+            numRequests,
+            () -> SearchResponse.emptyResponseBuilder().tookInMillis(1L).build(),
+            index -> true,
+            () -> searchPhaseExecutionExceptionWithShardFailures(3),
+            captured -> {
+                System.arraycopy(captured, 0, items, 0, numRequests);
+                usedWhilePending.set(breaker.getUsed());
+            }
+        );
+        long expectedTotal = 0;
+        for (MultiSearchResponse.Item item : items) {
+            assertTrue(item.isFailure());
+            expectedTotal += TransportMultiSearchAction.estimateFailureBytes(item.getFailure());
+        }
+        assertThat(usedWhilePending.get(), equalTo(expectedTotal));
+        assertThat(breaker.getUsed(), equalTo(0L));
+        assertThat(breaker.totalReserved(), equalTo(expectedTotal));
+    }
+
+    public void testBreakerAccountsCircuitBreakingFailureItem() throws Exception {
+        int tripOn = 2;
+        int numRequests = 3;
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(tripOn);
+        SearchResponse emptyResponse = SearchResponse.emptyResponseBuilder().tookInMillis(1L).build();
+        long perResponseBytes;
+        try {
+            perResponseBytes = TransportMultiSearchAction.estimateActualBytes(emptyResponse);
+        } finally {
+            emptyResponse.decRef();
+        }
+        MultiSearchResponse.Item[] items = new MultiSearchResponse.Item[numRequests];
+        AtomicLong usedWhilePending = new AtomicLong(-1);
+        runMsearchWithBreaker(
+            breaker,
+            numRequests,
+            () -> SearchResponse.emptyResponseBuilder().tookInMillis(1L).build(),
+            null,
+            null,
+            captured -> {
+                System.arraycopy(captured, 0, items, 0, numRequests);
+                usedWhilePending.set(breaker.getUsed());
+            }
+        );
+        assertTrue(items[1].isFailure());
+        assertThat(items[1].getFailure(), instanceOf(CircuitBreakingException.class));
+        long cbeItemBytes = TransportMultiSearchAction.estimateFailureBytes(items[1].getFailure());
+
+        assertThat(usedWhilePending.get(), equalTo(2 * perResponseBytes + cbeItemBytes));
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    public void testAllSubSearchesFailStillTripsBreaker() throws Exception {
+        int numRequests = 20;
+        long byteLimit = 2048L;
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(byteLimit);
+        MultiSearchResponse.Item[] items = new MultiSearchResponse.Item[numRequests];
+        runMsearchWithBreaker(
+            breaker,
+            numRequests,
+            () -> SearchResponse.emptyResponseBuilder().tookInMillis(1L).build(),
+            index -> true,
+            () -> searchPhaseExecutionExceptionWithShardFailures(10),
+            captured -> System.arraycopy(captured, 0, items, 0, numRequests)
+        );
+
+        boolean anyTrimmed = false;
+        for (MultiSearchResponse.Item item : items) {
+            assertTrue(item.isFailure());
+            if (item.getFailure() instanceof SearchPhaseExecutionException spee && spee.shardFailures().length == 1) {
+                anyTrimmed = true;
+            }
+        }
+
+        assertTrue("expected at least one failure item to be trimmed to a single shard failure", anyTrimmed);
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    public void testTrimmedFailurePreservesStatus() {
+        ShardSearchFailure[] failures = new ShardSearchFailure[3];
+        for (int i = 0; i < failures.length; i++) {
+            failures[i] = new ShardSearchFailure(new EsRejectedExecutionException("rejected execution " + i));
+        }
+        SearchPhaseExecutionException original = new SearchPhaseExecutionException("query", "all shards failed", failures);
+        assertThat(original.status().getStatus(), equalTo(429));
+
+        Exception trimmed = TransportMultiSearchAction.trimFailure(original);
+        assertThat(trimmed, instanceOf(SearchPhaseExecutionException.class));
+        SearchPhaseExecutionException trimmedSpee = (SearchPhaseExecutionException) trimmed;
+        assertThat(trimmedSpee.shardFailures().length, equalTo(1));
+        assertThat(trimmedSpee.status(), equalTo(original.status()));
+
+        assertSame(trimmedSpee, TransportMultiSearchAction.trimFailure(trimmedSpee));
+    }
+
+    private static SearchPhaseExecutionException searchPhaseExecutionExceptionWithShardFailures(int numShardFailures) {
+        ShardSearchFailure[] failures = new ShardSearchFailure[numShardFailures];
+        for (int i = 0; i < numShardFailures; i++) {
+            failures[i] = new ShardSearchFailure(new RuntimeException("simulated shard failure " + i));
+        }
+        return new SearchPhaseExecutionException("query", "all shards failed", failures);
+    }
+
     private static SearchResponse responseWithHits(SearchHit... hits) {
         SearchHits searchHits = new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 1f);
         SearchResponse response = SearchResponseUtils.response(searchHits).build();
@@ -849,23 +991,25 @@ public class TransportMultiSearchActionTests extends ESTestCase {
 
     private void runMsearchWithBreaker(TrackingCircuitBreaker breaker, int numRequests, Supplier<SearchResponse> responseSupplier)
         throws Exception {
-        runMsearchWithBreaker(breaker, numRequests, responseSupplier, null, null);
+        runMsearchWithBreaker(breaker, numRequests, responseSupplier, null, null, null);
     }
 
     private void runMsearchWithBreaker(
         TrackingCircuitBreaker breaker,
         int numRequests,
         Supplier<SearchResponse> responseSupplier,
-        AtomicInteger failFirstSearch
+        IntPredicate failSearch,
+        Consumer<MultiSearchResponse.Item[]> responseItemsConsumer
     ) throws Exception {
-        runMsearchWithBreaker(breaker, numRequests, responseSupplier, failFirstSearch, null);
+        runMsearchWithBreaker(breaker, numRequests, responseSupplier, failSearch, null, responseItemsConsumer);
     }
 
     private void runMsearchWithBreaker(
         TrackingCircuitBreaker breaker,
         int numRequests,
         Supplier<SearchResponse> responseSupplier,
-        AtomicInteger failFirstSearch,
+        IntPredicate failSearch,
+        Supplier<Exception> failureSupplier,
         Consumer<MultiSearchResponse.Item[]> responseItemsConsumer
     ) throws Exception {
         Settings settings = Settings.builder().put("node.name", "msearch-breaker-test").build();
@@ -891,11 +1035,13 @@ public class TransportMultiSearchActionTests extends ESTestCase {
             for (int i = 0; i < numRequests; i++) {
                 multiSearchRequest.add(new SearchRequest());
             }
+            AtomicInteger callIndex = new AtomicInteger();
             NodeClient client = new NodeClient(settings, threadPool, TestProjectResolvers.alwaysThrow()) {
                 @Override
                 public void search(SearchRequest request, ActionListener<SearchResponse> listener) {
-                    if (failFirstSearch != null && failFirstSearch.getAndIncrement() == 0) {
-                        listener.onFailure(new RuntimeException("simulated failure"));
+                    if (failSearch != null && failSearch.test(callIndex.getAndIncrement())) {
+                        Exception failure = failureSupplier != null ? failureSupplier.get() : new RuntimeException("simulated failure");
+                        listener.onFailure(failure);
                         return;
                     }
                     SearchResponse response = responseSupplier.get();
@@ -939,18 +1085,29 @@ public class TransportMultiSearchActionTests extends ESTestCase {
     private static final class TrackingCircuitBreaker implements CircuitBreaker {
         private final AtomicLong used = new AtomicLong();
         private final AtomicLong totalReserved = new AtomicLong();
+        private final AtomicLong totalWithoutBreaking = new AtomicLong();
         private final AtomicInteger reservationCalls = new AtomicInteger();
         private final int tripOnCall;
+        private final long byteLimit;
 
         private final RuntimeException reservationRuntimeException;
 
         TrackingCircuitBreaker(int tripOnCall) {
-            this(tripOnCall, null);
+            this(tripOnCall, null, -1L);
         }
 
         TrackingCircuitBreaker(int tripOnCall, RuntimeException reservationRuntimeException) {
+            this(tripOnCall, reservationRuntimeException, -1L);
+        }
+
+        TrackingCircuitBreaker(long byteLimit) {
+            this(-1, null, byteLimit);
+        }
+
+        private TrackingCircuitBreaker(int tripOnCall, RuntimeException reservationRuntimeException, long byteLimit) {
             this.tripOnCall = tripOnCall;
             this.reservationRuntimeException = reservationRuntimeException;
+            this.byteLimit = byteLimit;
         }
 
         @Override
@@ -964,6 +1121,9 @@ public class TransportMultiSearchActionTests extends ESTestCase {
             if (tripOnCall >= 0 && reservationCalls.incrementAndGet() == tripOnCall) {
                 throw new CircuitBreakingException("tripped", getDurability());
             }
+            if (byteLimit >= 0 && used.get() + bytes > byteLimit) {
+                throw new CircuitBreakingException("tripped", getDurability());
+            }
             used.addAndGet(bytes);
             totalReserved.addAndGet(bytes);
         }
@@ -971,6 +1131,9 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         @Override
         public void addWithoutBreaking(long bytes) {
             used.addAndGet(bytes);
+            if (bytes > 0) {
+                totalWithoutBreaking.addAndGet(bytes);
+            }
         }
 
         @Override

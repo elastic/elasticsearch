@@ -23,9 +23,6 @@ stack: ga 9.5.1
 There are no deprecations associated with this release.
 
 ## 9.4.5 [elasticsearch-9.4.5-deprecations]
-```{applies_to}
-stack: ga 9.4.5
-```
 
 There are no deprecations associated with this release.
 

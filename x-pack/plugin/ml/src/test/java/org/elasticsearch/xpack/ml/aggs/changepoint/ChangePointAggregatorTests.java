@@ -17,6 +17,7 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -494,7 +495,7 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
 
     private static String changePointExplanationMessage(ChangeType changeType, double[] bucketValues) {
         if (changeType.changePoint() >= 0) {
-            return String.format(
+            return Strings.format(
                 "Found a \"%s\" at values[%d] (%s), where values=%s",
                 changeType.getName(),
                 changeType.changePoint(),

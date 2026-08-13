@@ -46,7 +46,7 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMinBytesRefsFro
 import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMinBytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesRangeQuery;
-import org.elasticsearch.lucene.queries.SortedSetDocValuesRangeQuery;
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.elasticsearch.script.IpFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
@@ -479,7 +479,7 @@ public class IpFieldMapper extends FieldMapper {
             if (usesBinaryDocValues) {
                 return new ScanningBinaryDocValuesRangeQuery(field, lower, upper, arrayOrderInlineNull);
             } else {
-                return SortedSetDocValuesRangeQuery.newSlowRangeQuery(field, lower, upper, true, true);
+                return SortedSetDocValuesField.newSlowRangeQuery(field, lower, upper, true, true);
             }
         }
 

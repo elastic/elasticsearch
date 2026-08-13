@@ -7,15 +7,15 @@
     },
     {
       "branch" : "9.5",
-      "version" : "9.5.1"
+      "version" : "9.5.2"
     },
     {
       "branch" : "9.4",
-      "version" : "9.4.5"
+      "version" : "9.4.6"
     },
     {
       "branch" : "8.19",
-      "version" : "8.19.20"
+      "version" : "8.19.21"
     }
   ]
 }

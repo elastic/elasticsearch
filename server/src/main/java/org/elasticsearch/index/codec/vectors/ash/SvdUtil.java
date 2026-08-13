@@ -308,7 +308,7 @@ final class SvdUtil {
 
     /**
      * Computes the top-k right singular vectors of matrix A (m x n) using power iteration
-     * on the Gram matrix A^T A with deflation. Much faster than full SVD when k is small.
+     * on the Gram matrix A^T A. Much faster than full SVD when k is small.
      *
      * @param a   matrix in row-major order, length m*n
      * @param m   number of rows
@@ -346,6 +346,30 @@ final class SvdUtil {
         }
 
         // Convert columns of V to rows for return format (k x n)
+        return transposeMatrix(v, n, k);
+    }
+
+    private static float[] topKEigenvectorsGramTranspose(float[] a, int m, int n, int k, long seed) {
+        // A is (m x n) with m < n. Block power iteration on A A^T (m x m).
+        // U = random (m x k), iterate: U <- A (A^T U), then QR-orthogonalize.
+        // After convergence, recover right singular vectors: V = A^T U, normalize columns.
+        int iters = 20;
+
+        float[] u = randomGaussians(new Random(seed), m * k);
+        qrOrthogonalize(u, m, k);
+
+        for (int iter = 0; iter < iters; iter++) {
+            float[] w = matrixMultiplyTA(a, u, m, n, k);   // W = A^T @ U (n x k)
+            float[] uNew = matrixMultiply(a, w, m, n, k);  // U_new = A @ W (m x k)
+            qrOrthogonalize(uNew, m, k);
+            u = uNew;
+        }
+
+        // Recover right singular vectors: V = A^T U (n x k), normalize each column
+        float[] v = matrixMultiplyTA(a, u, m, n, k);
+        for (int j = 0; j < k; j++) {
+            normalizeColumn(v, j, k, n);
+        }
         return transposeMatrix(v, n, k);
     }
 
@@ -454,49 +478,5 @@ final class SvdUtil {
             }
             normalizeColumn(v, j, k, n);
         }
-    }
-
-    private static float[] topKEigenvectorsGramTranspose(float[] a, int m, int n, int k, long seed) {
-        // A is (m x n) with m < n. Find top-k eigenvectors of A A^T (m x m), then transform.
-        // u_i = eigenvector of A A^T => v_i = A^T u_i / sigma_i (right singular vector)
-        float[] result = new float[k * n];
-        Random rng = new Random(seed);
-        float[][] deflated = new float[k][];
-        int found = 0;
-
-        for (int vec = 0; vec < k; vec++) {
-            // Random initial vector (m-dimensional)
-            float[] u = randomGaussians(rng, m);
-            ESVectorUtil.l2Normalize(u);
-
-            // Power iteration on A A^T: u <- A (A^T u) / ||...||
-            for (int iter = 0; iter < 100; iter++) {
-                // w = A^T u (n-dimensional): row-broadcast so A is read contiguously
-                float[] w = new float[n];
-                for (int i = 0; i < m; i++) {
-                    ESVectorUtil.linearCombination(u[i], a, i * n, w, 0, n);
-                }
-                // u_new = A w (m-dimensional)
-                float[] uNew = matrixVectorMultiply(a, m, n, w);
-                // Deflate
-                for (int d = 0; d < found; d++) {
-                    float dot = ESVectorUtil.dotProduct(uNew, deflated[d]);
-                    ESVectorUtil.linearCombination(-dot, deflated[d], uNew);
-                }
-                ESVectorUtil.l2Normalize(uNew);
-                u = uNew;
-            }
-            deflated[found] = u;
-            found++;
-
-            // Recover right singular vector: v = A^T u, then normalize; row-broadcast so A is read contiguously
-            float[] sv = new float[n];
-            for (int i = 0; i < m; i++) {
-                ESVectorUtil.linearCombination(u[i], a, i * n, sv, 0, n);
-            }
-            ESVectorUtil.l2Normalize(sv);
-            System.arraycopy(sv, 0, result, vec * n, n);
-        }
-        return result;
     }
 }

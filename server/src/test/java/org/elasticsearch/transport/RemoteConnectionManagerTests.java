@@ -21,7 +21,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteConnectionManager.ProxyConnection;
-import org.elasticsearch.transport.RemoteConnectionManager.RemoteClusterProjectInfo;
+import org.elasticsearch.transport.RemoteConnectionManager.RemoteConnectionInfo;
 import org.junit.Before;
 import org.mockito.Mockito;
 
@@ -166,7 +166,7 @@ public class RemoteConnectionManagerTests extends ESTestCase {
         when(credentialsResolver.resolveCredentials(clusterAlias)).thenReturn(new SecureString(randomAlphaOfLength(42)));
         final Transport.Connection wrappedConnection = RemoteConnectionManager.wrapConnectionWithRemoteClusterInfo(
             connection,
-            new RemoteClusterProjectInfo(randomProjectIdOrDefault(), randomProjectIdOrDefault(), clusterAlias),
+            new RemoteConnectionInfo(randomProjectIdOrDefault(), randomProjectIdOrDefault(), clusterAlias),
             credentialsResolver
         );
         final long requestId = randomLong();
@@ -195,7 +195,7 @@ public class RemoteConnectionManagerTests extends ESTestCase {
         when(credentialsResolver.resolveCredentials(clusterAlias)).thenReturn(credentials, (SecureString) null);
         final Transport.Connection wrappedConnection = RemoteConnectionManager.wrapConnectionWithRemoteClusterInfo(
             connection,
-            new RemoteClusterProjectInfo(randomProjectIdOrDefault(), randomProjectIdOrDefault(), clusterAlias),
+            new RemoteConnectionInfo(randomProjectIdOrDefault(), randomProjectIdOrDefault(), clusterAlias),
             credentialsResolver
         );
 
@@ -215,16 +215,16 @@ public class RemoteConnectionManagerTests extends ESTestCase {
         final ProjectId linkedProjectId = randomUniqueProjectId();
         final Transport.Connection wrappedConnection = RemoteConnectionManager.wrapConnectionWithRemoteClusterInfo(
             connection,
-            new RemoteClusterProjectInfo(originProjectId, linkedProjectId, clusterAlias),
+            new RemoteConnectionInfo(originProjectId, linkedProjectId, clusterAlias),
             credentialsResolver
         );
         assertThat(
             RemoteConnectionManager.resolveRemoteClusterProjectInfo(wrappedConnection),
             isPresentWith(
                 allOf(
-                    transformedMatch("origin project id", RemoteClusterProjectInfo::originProjectId, equalTo(originProjectId)),
-                    transformedMatch("linked project id", RemoteClusterProjectInfo::linkedProjectId, equalTo(linkedProjectId)),
-                    transformedMatch("linked cluster alias", RemoteClusterProjectInfo::linkedClusterAlias, equalTo(clusterAlias))
+                    transformedMatch("origin project id", RemoteConnectionInfo::originProjectId, equalTo(originProjectId)),
+                    transformedMatch("linked project id", RemoteConnectionInfo::linkedProjectId, equalTo(linkedProjectId)),
+                    transformedMatch("linked cluster alias", RemoteConnectionInfo::linkedClusterAlias, equalTo(clusterAlias))
                 )
             )
         );
@@ -233,16 +233,16 @@ public class RemoteConnectionManagerTests extends ESTestCase {
         // The default linked project ID stands in for "no linked project" (e.g. non-CPS remote clusters)
         final Transport.Connection defaultProjectConnection = RemoteConnectionManager.wrapConnectionWithRemoteClusterInfo(
             connection,
-            new RemoteClusterProjectInfo(ProjectId.DEFAULT, ProjectId.DEFAULT, clusterAlias),
+            new RemoteConnectionInfo(ProjectId.DEFAULT, ProjectId.DEFAULT, clusterAlias),
             credentialsResolver
         );
         assertThat(
             RemoteConnectionManager.resolveRemoteClusterProjectInfo(defaultProjectConnection),
             isPresentWith(
                 allOf(
-                    transformedMatch("origin project id", RemoteClusterProjectInfo::originProjectId, equalTo(ProjectId.DEFAULT)),
-                    transformedMatch("linked project id", RemoteClusterProjectInfo::linkedProjectId, equalTo(ProjectId.DEFAULT)),
-                    transformedMatch("linked cluster alias", RemoteClusterProjectInfo::linkedClusterAlias, equalTo(clusterAlias))
+                    transformedMatch("origin project id", RemoteConnectionInfo::originProjectId, equalTo(ProjectId.DEFAULT)),
+                    transformedMatch("linked project id", RemoteConnectionInfo::linkedProjectId, equalTo(ProjectId.DEFAULT)),
+                    transformedMatch("linked cluster alias", RemoteConnectionInfo::linkedClusterAlias, equalTo(clusterAlias))
                 )
             )
         );

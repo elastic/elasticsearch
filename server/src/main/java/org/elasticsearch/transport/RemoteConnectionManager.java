@@ -39,8 +39,7 @@ public class RemoteConnectionManager implements ConnectionManager {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RemoteConnectionManager.class);
 
-    private final String clusterAlias;
-    private final RemoteClusterProjectInfo remoteClusterProjectInfo;
+    private final RemoteConnectionInfo remoteConnectionInfo;
     private final RemoteClusterCredentialsManager credentialsManager;
     private final ConnectionManager delegate;
     private final AtomicLong counter = new AtomicLong();
@@ -57,8 +56,7 @@ public class RemoteConnectionManager implements ConnectionManager {
         RemoteClusterCredentialsManager credentialsManager,
         ConnectionManager delegate
     ) {
-        this.clusterAlias = clusterAlias;
-        this.remoteClusterProjectInfo = new RemoteClusterProjectInfo(originProjectId, linkedProjectId, clusterAlias);
+        this.remoteConnectionInfo = new RemoteConnectionInfo(originProjectId, linkedProjectId, clusterAlias);
         this.credentialsManager = credentialsManager;
         this.delegate = delegate;
         this.delegate.addListener(new TransportConnectionListener() {
@@ -67,9 +65,7 @@ public class RemoteConnectionManager implements ConnectionManager {
                 addConnectedNode(node);
                 try {
                     // called when a node is successfully connected through a proxy connection
-                    maybeLogDeprecationWarning(
-                        wrapConnectionWithRemoteClusterInfo(connection, remoteClusterProjectInfo, credentialsManager)
-                    );
+                    maybeLogDeprecationWarning(wrapConnectionWithRemoteClusterInfo(connection, remoteConnectionInfo, credentialsManager));
                 } catch (Exception e) {
                     logger.warn("Failed to log deprecation warning.", e);
                 }
@@ -86,8 +82,8 @@ public class RemoteConnectionManager implements ConnectionManager {
         return credentialsManager;
     }
 
-    RemoteClusterProjectInfo getRemoteClusterProjectInfo() {
-        return remoteClusterProjectInfo;
+    RemoteConnectionInfo getRemoteClusterProjectInfo() {
+        return remoteConnectionInfo;
     }
 
     /**
@@ -135,9 +131,7 @@ public class RemoteConnectionManager implements ConnectionManager {
             profile,
             listener.delegateFailureAndWrap(
                 (l, connection) -> l.onResponse(
-                    maybeLogDeprecationWarning(
-                        wrapConnectionWithRemoteClusterInfo(connection, remoteClusterProjectInfo, credentialsManager)
-                    )
+                    maybeLogDeprecationWarning(wrapConnectionWithRemoteClusterInfo(connection, remoteConnectionInfo, credentialsManager))
                 )
             )
         );
@@ -203,7 +197,7 @@ public class RemoteConnectionManager implements ConnectionManager {
                 // Ignore. We will try the next one until all are exhausted.
             }
         }
-        throw new ConnectTransportException(null, "Unable to connect to [" + clusterAlias + "]");
+        throw new ConnectTransportException(null, "Unable to connect to [" + remoteConnectionInfo.linkedClusterAlias() + "]");
     }
 
     @Override
@@ -234,7 +228,7 @@ public class RemoteConnectionManager implements ConnectionManager {
      * @return a cluster alias if the connection target a node in the remote cluster, otherwise an empty result
      */
     public static Optional<String> resolveRemoteClusterAlias(Transport.Connection connection) {
-        return resolveRemoteClusterProjectInfo(connection).map(RemoteClusterProjectInfo::linkedClusterAlias);
+        return resolveRemoteClusterProjectInfo(connection).map(RemoteConnectionInfo::linkedClusterAlias);
     }
 
     public record RemoteClusterAliasWithCredentials(String clusterAlias, @Nullable SecureString credentials) {
@@ -268,17 +262,17 @@ public class RemoteConnectionManager implements ConnectionManager {
      * @param connection the transport connection for which to resolve a linked project ID
      * @return the remote cluster information if the connection targets a node in a remote cluster, otherwise an empty result
      */
-    public static Optional<RemoteClusterProjectInfo> resolveRemoteClusterProjectInfo(Transport.Connection connection) {
+    public static Optional<RemoteConnectionInfo> resolveRemoteClusterProjectInfo(Transport.Connection connection) {
         Transport.Connection unwrapped = TransportService.unwrapConnection(connection);
         if (unwrapped instanceof InternalRemoteConnection remoteConnection) {
-            return Optional.of(remoteConnection.remoteClusterProjectInfo);
+            return Optional.of(remoteConnection.remoteConnectionInfo);
         }
         return Optional.empty();
     }
 
     private Transport.Connection getConnectionInternal(DiscoveryNode node) throws NodeNotConnectedException {
         Transport.Connection connection = delegate.getConnection(node);
-        return wrapConnectionWithRemoteClusterInfo(connection, remoteClusterProjectInfo, credentialsManager);
+        return wrapConnectionWithRemoteClusterInfo(connection, remoteConnectionInfo, credentialsManager);
     }
 
     private synchronized void addConnectedNode(DiscoveryNode addedNode) {
@@ -308,7 +302,7 @@ public class RemoteConnectionManager implements ConnectionManager {
      * @param linkedProjectId The projectId of the linked cluster. May be {@link ProjectId#DEFAULT}.
      * @param linkedClusterAlias The linked cluster alias.
      */
-    public record RemoteClusterProjectInfo(ProjectId originProjectId, ProjectId linkedProjectId, String linkedClusterAlias) {}
+    public record RemoteConnectionInfo(ProjectId originProjectId, ProjectId linkedProjectId, String linkedClusterAlias) {}
 
     static final class ProxyConnection implements Transport.Connection {
         private final Transport.Connection connection;
@@ -396,25 +390,25 @@ public class RemoteConnectionManager implements ConnectionManager {
 
         private static final Logger logger = LogManager.getLogger(InternalRemoteConnection.class);
         private final Transport.Connection connection;
-        private final RemoteClusterProjectInfo remoteClusterProjectInfo;
+        private final RemoteConnectionInfo remoteConnectionInfo;
         @Nullable
         private final SecureString clusterCredentials;
 
         private InternalRemoteConnection(
             Transport.Connection connection,
-            RemoteClusterProjectInfo remoteClusterProjectInfo,
+            RemoteConnectionInfo remoteConnectionInfo,
             @Nullable SecureString clusterCredentials
         ) {
             assert false == connection instanceof InternalRemoteConnection : "should not double wrap";
             assert false == connection instanceof ProxyConnection
                 : "proxy connection should wrap internal remote connection, not the other way around";
             this.connection = Objects.requireNonNull(connection);
-            this.remoteClusterProjectInfo = remoteClusterProjectInfo;
+            this.remoteConnectionInfo = remoteConnectionInfo;
             this.clusterCredentials = clusterCredentials;
         }
 
         String getClusterAlias() {
-            return remoteClusterProjectInfo.linkedClusterAlias();
+            return remoteConnectionInfo.linkedClusterAlias();
         }
 
         @Nullable
@@ -435,7 +429,7 @@ public class RemoteConnectionManager implements ConnectionManager {
                 logger.trace(
                     "sending remote cluster specific handshake to node [{}] of remote cluster [{}]",
                     getNode(),
-                    remoteClusterProjectInfo.linkedClusterAlias()
+                    remoteConnectionInfo.linkedClusterAlias()
                 );
                 effectiveAction = REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME;
             } else {
@@ -502,13 +496,13 @@ public class RemoteConnectionManager implements ConnectionManager {
 
     static InternalRemoteConnection wrapConnectionWithRemoteClusterInfo(
         Transport.Connection connection,
-        RemoteClusterProjectInfo remoteClusterProjectInfo,
+        RemoteConnectionInfo remoteConnectionInfo,
         RemoteClusterCredentialsManager credentialsManager
     ) {
         return new InternalRemoteConnection(
             connection,
-            remoteClusterProjectInfo,
-            credentialsManager.resolveCredentials(remoteClusterProjectInfo.linkedClusterAlias())
+            remoteConnectionInfo,
+            credentialsManager.resolveCredentials(remoteConnectionInfo.linkedClusterAlias())
         );
     }
 }

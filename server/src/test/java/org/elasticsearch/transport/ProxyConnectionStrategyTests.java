@@ -32,7 +32,7 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteConnectionManager.RemoteClusterProjectInfo;
+import org.elasticsearch.transport.RemoteConnectionManager.RemoteConnectionInfo;
 import org.junit.After;
 
 import java.util.Arrays;
@@ -130,7 +130,7 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
                     final Optional<String> optionalClusterAlias = RemoteConnectionManager.resolveRemoteClusterAlias(connection);
                     assertTrue(optionalClusterAlias.isPresent());
                     assertEquals(clusterAlias, optionalClusterAlias.get());
-                    final Optional<RemoteClusterProjectInfo> optionalRemoteClusterProjectInfo = RemoteConnectionManager
+                    final Optional<RemoteConnectionInfo> optionalRemoteClusterProjectInfo = RemoteConnectionManager
                         .resolveRemoteClusterProjectInfo(connection);
                     assertTrue(optionalRemoteClusterProjectInfo.isPresent());
                     assertEquals(originProjectId, optionalRemoteClusterProjectInfo.get().originProjectId());

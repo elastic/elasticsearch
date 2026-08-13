@@ -58,6 +58,26 @@ public class KibanaPluginTests extends ESTestCase {
     public void testWorkflowsSystemIndexDescriptorCoversOtherWorkflowsIndices() {
         assertTrue(KibanaPlugin.WORKFLOWS_INDEX_DESCRIPTOR.matchesIndexPattern(".workflows-internal"));
         assertTrue(KibanaPlugin.WORKFLOWS_INDEX_DESCRIPTOR.matchesIndexPattern(".workflows-state"));
+        assertTrue(KibanaPlugin.WORKFLOWS_INDEX_DESCRIPTOR.matchesIndexPattern(".workflows-workflows"));
+    }
+
+    public void testWorkflowsExecutionIndicesAreNotSystemIndices() {
+        // Regression guard for the pattern carve-out. Both indices must be excluded from the
+        // system-index descriptor so KibanaWorkflowsImplicitPrivilegesProvider can grant read
+        // access to ordinary users. Listing only '-executions*' is not enough: the alternation
+        // is prefix-anchored against the tail, so '-executions*' does not match
+        // '.workflows-step-executions' (tail = '-step-executions').
+        var indexDescriptors = new KibanaPlugin().getSystemIndexDescriptors(Settings.EMPTY);
+        assertFalse(
+            "'.workflows-executions' must not be a system index after the carve-out",
+            indexDescriptors.stream().anyMatch(d -> d.matchesIndexPattern(".workflows-executions"))
+        );
+        assertFalse(
+            "'.workflows-step-executions' must not be a system index after the carve-out",
+            indexDescriptors.stream().anyMatch(d -> d.matchesIndexPattern(".workflows-step-executions"))
+        );
+        // Sanity-check: the workflows system descriptor still covers the non-execution indices.
+        assertTrue(KibanaPlugin.WORKFLOWS_INDEX_DESCRIPTOR.matchesIndexPattern(".workflows-internal"));
     }
 
     public void testKibanaSystemIndexDescriptorStillCoversKibanaSavedObjects() {

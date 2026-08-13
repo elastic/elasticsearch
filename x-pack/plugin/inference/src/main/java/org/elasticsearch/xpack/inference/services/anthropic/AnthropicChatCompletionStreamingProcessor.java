@@ -181,7 +181,7 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
             case MESSAGE_DELTA_EVENT_TYPE:
                 return parseObjects(parserConfig, event.data(), this::parseMessageDelta);
             case MESSAGE_STOP_EVENT_TYPE:
-                return buildMessageStopChunk();
+                return buildMessageStop();
             case null, default:
                 logger.debug("Unknown event type [{}].", event.type());
                 return Stream.empty();
@@ -486,7 +486,7 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
      * Builds a usage-only chunk from accumulated state, emitted on message_stop.
      * Usage is emitted once here rather than at message_start/message_delta to avoid double-counting.
      */
-    private Stream<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> buildMessageStopChunk() {
+    private Stream<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> buildMessageStop() {
         var promptTokens = inputTokens + cacheReadTokens + cacheCreationTokens;
         var totalTokens = promptTokens + outputTokens;
         Integer cachedTokens = cacheReadTokens > 0 ? cacheReadTokens : null;

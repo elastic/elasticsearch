@@ -24,6 +24,7 @@ import java.util.regex.Pattern;
 import static org.elasticsearch.packaging.util.docker.Docker.runContainer;
 import static org.elasticsearch.packaging.util.docker.DockerRun.builder;
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.junit.Assume.assumeTrue;
 
 /**
  * Packaging tests that verify native libraries load and function correctly on each supported platform.
@@ -175,19 +176,21 @@ public class NativeLibraryTests extends PackagingTestCase {
      * operations. If the native library cannot be loaded (e.g. due to a glibc version incompatibility),
      * the node logs a warning instead of the success message.
      * <p>
-     * On Linux and macOS (where the native Rust library is supported), this test asserts that the
-     * {@code "Loaded parquet-rs native library"} log line is present, confirming the library loaded
-     * without error.
+     * This test asserts that the {@code "Loaded parquet-rs native library"} log line is present,
+     * confirming the library loaded without error. Currently a log-line check is the simplest
+     * verification because there is no REST-accessible API that directly exercises the Panama FFI
+     * functions ({@code getStatistics}, {@code getSchemaFFI}). If the library loading moves into
+     * the ES|QL module, this test should be updated to invoke it through a query instead.
      */
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/156597")
     public void test40ParquetRsNativeLibrary() throws Exception {
+        assumeTrue("parquet-rs native library is only supported on Linux and macOS", Platforms.LINUX || Platforms.DARWIN);
+
         configureAndStart(SECURITY_DISABLED_SETTINGS);
 
         try {
-            if (Platforms.LINUX || Platforms.DARWIN) {
-                String logs = getElasticsearchLogs();
-                assertThat(logs, containsString("Loaded parquet-rs native library"));
-            }
+            String logs = getElasticsearchLogs();
+            assertThat(logs, containsString("Loaded parquet-rs native library"));
         } finally {
             stopElasticsearch();
         }

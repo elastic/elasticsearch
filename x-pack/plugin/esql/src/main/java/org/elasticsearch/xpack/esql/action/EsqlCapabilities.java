@@ -3740,6 +3740,11 @@ public class EsqlCapabilities {
          */
         PER_AGGREGATE_WINDOWS,
 
+        /**
+         * KNN function support for runtime expressions, not just ES mapped fields.
+         */
+        KNN_SUPPORT_RUNTIME_FIELD(Build.current().isSnapshot()),
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

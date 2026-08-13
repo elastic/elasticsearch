@@ -1501,6 +1501,17 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         assertThat(Expressions.names(plan.output()), equalTo(List.of("name", "x", UnmappedFieldsAttribute.ATTRIBUTE_NAME)));
     }
 
+    public void testLoadAllModeRejectsStatsCombinedWithInlineStats() {
+        test().statementError(
+            setUnmappedLoadAll("FROM test | INLINE STATS c = COUNT(*) | STATS s = SUM(c)"),
+            containsString("[STATS] is not supported yet")
+        );
+        test().statementError(
+            setUnmappedLoadAll("FROM test | STATS c = COUNT(*) | INLINE STATS m = MAX(c)"),
+            containsString("[STATS] is not supported yet")
+        );
+    }
+
     /**
      * PROMQL is rewritten into a TS aggregate before verification, so LOAD_ALL rejects it via the shared load-mode check - which names
      * the mode the user asked for - as well as via the allow-list.

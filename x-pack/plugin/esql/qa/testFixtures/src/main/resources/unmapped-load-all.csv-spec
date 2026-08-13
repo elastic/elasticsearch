@@ -471,7 +471,6 @@ n:integer
 ################
 
 doesNotLoadUnmappedFieldsInlineStats
-required_capability: optional_fields_load_all
 required_capability: optional_fields_load_all_inline_stats
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -488,7 +487,6 @@ FROM partial_mapping_sample_data
 ;
 
 doesNotLoadUnmappedFieldsInlineStatsNoGrouping
-required_capability: optional_fields_load_all
 required_capability: optional_fields_load_all_inline_stats
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -505,7 +503,6 @@ FROM partial_mapping_sample_data
 ;
 
 inlineStatsByUnmappedFieldExistsInSource
-required_capability: optional_fields_load_all
 required_capability: optional_fields_load_all_inline_stats
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -524,7 +521,6 @@ FROM partial_mapping_sample_data
 ;
 
 inlineStatsByUnmappedFieldWithExpansion
-required_capability: optional_fields_load_all
 required_capability: optional_fields_load_all_inline_stats
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -542,7 +538,6 @@ FROM partial_mapping_sample_data
 ;
 
 inlineStatsAggAliasShadowsUnmappedField
-required_capability: optional_fields_load_all
 required_capability: optional_fields_load_all_inline_stats
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -559,7 +554,6 @@ FROM partial_mapping_sample_data
 ;
 
 inlineStatsByAliasShadowsUnmappedField
-required_capability: optional_fields_load_all
 required_capability: optional_fields_load_all_inline_stats
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -573,6 +567,108 @@ FROM partial_mapping_sample_data
 2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 1      | Connected to 10.1.0.1!   | 1                     | a                       | 1756468
 2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | 3      | Connection error?        | 2                     | b                       | 5033756
 2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | 3      | Connection error?        | 3                     | c                       | 8268154
+;
+
+twoInlineStats
+required_capability: optional_fields_load_all_inline_stats
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| INLINE STATS max_duration = MAX(event_duration)
+| INLINE STATS count = COUNT(*) BY message
+| SORT @timestamp DESC
+| LIMIT 3
+;
+
+@timestamp:datetime      | client_ip:ip | event_duration:long | max_duration:long | count:long | message:keyword        | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | 8268152           | 1          | Connected to 10.1.0.1! | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | 8268152           | 3          | Connection error?      | 2                     | b                       | 5033756                         | Disconnection error
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | 8268152           | 3          | Connection error?      | 3                     | c                       | 8268154                         | Disconnection error
+;
+
+inlineStatsDoubleShadowing
+required_capability: optional_fields_load_all_inline_stats
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| INLINE STATS event_duration = MIN(event_duration) BY message
+| INLINE STATS event_duration = MAX(event_duration) BY message
+| SORT @timestamp DESC
+| LIMIT 3
+;
+
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 725447              | Connection error?      | 2                     | b                       | 5033756                         | Disconnection error
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 725447              | Connection error?      | 3                     | c                       | 8268154                         | Disconnection error
+;
+
+inlineStatsEvalShadowsAgg
+required_capability: optional_fields_load_all_inline_stats
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| INLINE STATS max_duration = MAX(event_duration)
+| EVAL max_duration = event_duration
+| SORT @timestamp DESC
+| LIMIT 3
+;
+
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | max_duration:long | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 1756466           | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | 5033754           | 2                     | b                       | 5033756                         | Disconnection error
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | 8268152           | 3                     | c                       | 8268154                         | Disconnection error
+;
+
+inlineStatsDropAggKeepsExpansion
+required_capability: optional_fields_load_all_inline_stats
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| INLINE STATS max_duration = MAX(event_duration)
+| DROP max_duration
+| SORT @timestamp DESC
+| LIMIT 3
+;
+
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | 2                     | b                       | 5033756                         | Disconnection error
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | 3                     | c                       | 8268154                         | Disconnection error
+;
+
+inlineStatsPrunedByLaterInlineStats
+required_capability: optional_fields_load_all_inline_stats
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| INLINE STATS max_duration = MAX(event_duration)
+| INLINE STATS max_duration = MIN(event_duration)
+| SORT @timestamp DESC
+| LIMIT 3
+;
+
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | max_duration:long | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 725447            | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | 725447            | 2                     | b                       | 5033756                         | Disconnection error
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | 725447            | 3                     | c                       | 8268154                         | Disconnection error
+;
+
+inlineStatsPrunedByKeepPattern
+required_capability: optional_fields_load_all_inline_stats
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| INLINE STATS agg_count = COUNT(*) BY message
+| KEEP @timestamp, client_ip, event_duration, message, unmapped*
+| SORT @timestamp DESC
+| LIMIT 3
+;
+
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | a                       | 1756468                         | Disconnected from 10.1.0.1
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | b                       | 5033756                         | Disconnection error
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | c                       | 8268154                         | Disconnection error
 ;
 
 ####################################################################

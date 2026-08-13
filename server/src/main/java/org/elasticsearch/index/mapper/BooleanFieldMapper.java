@@ -597,6 +597,11 @@ public class BooleanFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected boolean nullIsAbsent() {
+        return nullValue == null;
+    }
+
+    @Override
     protected DocValuesParameter.Values.OnFailure onFailureBehavior() {
         return docValuesParameters.onFailure();
     }

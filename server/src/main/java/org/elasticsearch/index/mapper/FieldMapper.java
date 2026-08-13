@@ -336,7 +336,12 @@ public abstract class FieldMapper extends Mapper {
                 throwIndexingWithScriptParam();
             }
             if (isSingleValueEnforced()) {
-                redirectedToFailureColumn = context.enforceSingleValue(fullPath(), onFailureBehavior());
+                // A null token that would be silently discarded (no null_value configured) contributes
+                // nothing to the document and must not consume the single-value slot.
+                boolean isAbsentNull = context.parser().currentToken() == XContentParser.Token.VALUE_NULL && nullIsAbsent();
+                if (isAbsentNull == false) {
+                    redirectedToFailureColumn = context.enforceSingleValue(fullPath(), onFailureBehavior());
+                }
             }
             if (redirectedToFailureColumn == false) {
                 if (isNullable() == false && context.parser().currentToken().isValue()) {
@@ -450,6 +455,17 @@ public abstract class FieldMapper extends Mapper {
      */
     protected DocValuesParameter.Values.OnFailure onFailureBehavior() {
         return DocValuesParameter.Values.OnFailure.FAIL;
+    }
+
+    /**
+     * Whether a {@code null} token is treated as absent (silently discarded) by this mapper. When {@code true}, a leading
+     * null does not consume the single-value slot enforced by {@link #isSingleValueEnforced()}, so {@code [null, "val"]}
+     * behaves identically to {@code ["val"]}. Defaults to {@code true}; override in mappers that expose {@code null_value}
+     * to return {@code false} when a {@code null_value} is configured (making the null produce a real indexed value that
+     * should count toward the single-value constraint).
+     */
+    protected boolean nullIsAbsent() {
+        return true;
     }
 
     /**

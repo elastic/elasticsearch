@@ -1198,35 +1198,24 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     /**
-     * null still counts as a value, so the second value is rejected.
+     * A null with no {@code null_value} configured is silently discarded and does not consume the single-value slot,
+     * so {@code [null, "val"]} is treated identically to {@code ["val"]} — no violation.
      */
-    public void testMultiValueFalseRejectsNullThenValue() throws IOException {
+    public void testMultiValueFalseAcceptsNullThenValue() throws IOException {
         DocumentMapper mapper = createColumnarModeDocumentMapper(
             fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("multi_value", false).endObject())
         );
-        DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> {
-            b.startArray("field").nullValue().value(randomAlphanumericOfLength(5)).endArray();
-        })));
-        assertThat(
-            e.getCause().getMessage(),
-            containsString("configured with [multi_value=false] but encountered multiple values in the same document")
-        );
+        mapper.parse(source(b -> b.startArray("field").nullValue().value(randomAlphanumericOfLength(5)).endArray()));
     }
 
     /**
-     * Mirror of {@link #testMultiValueFalseRejectsNullThenValue} with the order reversed: first value is non-null, second is null.
+     * Mirror of {@link #testMultiValueFalseAcceptsNullThenValue} with the order reversed: first value is non-null, second is null.
      */
-    public void testMultiValueFalseRejectsValueThenNull() throws IOException {
+    public void testMultiValueFalseAcceptsValueThenNull() throws IOException {
         DocumentMapper mapper = createColumnarModeDocumentMapper(
             fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("multi_value", false).endObject())
         );
-        DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> {
-            b.startArray("field").value(randomAlphanumericOfLength(5)).nullValue().endArray();
-        })));
-        assertThat(
-            e.getCause().getMessage(),
-            containsString("configured with [multi_value=false] but encountered multiple values in the same document")
-        );
+        mapper.parse(source(b -> b.startArray("field").value(randomAlphanumericOfLength(5)).nullValue().endArray()));
     }
 
     public void testMultiValueFalseAcceptsSingleNull() throws IOException {

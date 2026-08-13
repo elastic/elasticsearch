@@ -39,10 +39,7 @@ public class MemorySizeValueTests extends ESTestCase {
     }
 
     public void testZeroPercentThrows() {
-        expectThrows(
-            ElasticsearchParseException.class,
-            () -> MemorySizeValue.parseBytesSizeValueOrDirectMemoryRatio("0%", "setting.name")
-        );
+        expectThrows(ElasticsearchParseException.class, () -> MemorySizeValue.parseBytesSizeValueOrDirectMemoryRatio("0%", "setting.name"));
     }
 
     public void testHundredPercentReturnsFullNativeMemoryBase() {

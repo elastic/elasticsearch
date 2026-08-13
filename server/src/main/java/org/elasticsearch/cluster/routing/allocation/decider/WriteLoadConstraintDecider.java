@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardMovementWriteLoadSimulator;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.common.FrequencyCappedAction;
@@ -30,7 +29,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.List;
 import java.util.Map;
-import java.util.function.DoubleSupplier;
 
 /**
  * Decides whether shards can be allocated to cluster nodes, or can remain on cluster nodes, based on the target node's current write thread
@@ -209,23 +207,14 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
             // it with a shard move is useless: the node that receives the shard will hotspot instead, and an important
             // shard will be unavailable briefly when it moves.
             //
-            // The maxShardWriteLoadProportion is computed only for hot-spotting nodes, and cached within cluster info so it
+            // The maxShardWriteLoadProportion is computed only for hot-spotting nodes, and cached within the routing allocation so it
             // is only computed once per balancing round.
             final double maxShardWriteLoadThreshold = writeLoadConstraintSettings.getHotspotMaxShardWriteLoadProportionThreshold();
-            final DoubleSupplier maxShardWriteLoadProportion = () -> allocation.clusterInfo()
-                .nodeMaxShardWriteLoadProportion(
-                    node.nodeId(),
-                    // compute cache entry if absent
-                    () -> {
-                        final var shardIds = node.shardsWithState(ShardRoutingState.STARTED).map(ShardRouting::shardId).toList();
-                        return maxShardWriteLoadProportion(shardIds, allocation.clusterInfo().getShardWriteLoads());
-                    }
-                );
 
             // check that the threshold comparison is enabled (not 0.0) before computing the maxShardWriteLoadProportion
             final double maxShardWriteLoadProportionCalculated = maxShardWriteLoadThreshold == 0.0
                 ? Double.NaN
-                : maxShardWriteLoadProportion.getAsDouble();
+                : allocation.nodeMaxShardWriteLoadProportion(node);
             if (maxShardWriteLoadThreshold == 0.0
                 || maxShardWriteLoadProportionIsHigh(maxShardWriteLoadProportionCalculated, maxShardWriteLoadThreshold) == false) {
                 if (logger.isDebugEnabled() || allocation.debugDecision()) {

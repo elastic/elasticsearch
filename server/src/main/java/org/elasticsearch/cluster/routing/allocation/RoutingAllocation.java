@@ -9,6 +9,8 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import com.carrotsearch.hppc.ObjectDoubleHashMap;
+
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
@@ -53,6 +55,9 @@ public abstract sealed class RoutingAllocation permits ImmutableRoutingAllocatio
     protected ClusterInfo clusterInfo;
 
     protected final SnapshotShardSizeInfo shardSizeInfo;
+
+    // Lazily populated; MutableRoutingAllocation invalidates entries when shard state changes.
+    final ObjectDoubleHashMap<String> nodeMaxShardWriteLoadProportionCache = new ObjectDoubleHashMap<>();
 
     private Map<ShardId, Set<String>> ignoredShardToNodes = null;
 
@@ -188,6 +193,49 @@ public abstract sealed class RoutingAllocation permits ImmutableRoutingAllocatio
 
     public ClusterInfo clusterInfo() {
         return clusterInfo;
+    }
+
+    /**
+     * Returns the proportion of total write load on the given node attributable to its most write-heavy started shard.
+     * The result is cached per node per allocation pass; {@link MutableRoutingAllocation} invalidates entries as shard
+     * state changes.
+     */
+    public double nodeMaxShardWriteLoadProportion(RoutingNode node) {
+        String nodeId = node.nodeId();
+        if (nodeMaxShardWriteLoadProportionCache.containsKey(nodeId)) {
+            assert cachedNodeMaxShardWriteLoadProportionIsConsistent(node);
+            return nodeMaxShardWriteLoadProportionCache.get(nodeId);
+        }
+        double value = computeNodeMaxShardWriteLoadProportion(node);
+        nodeMaxShardWriteLoadProportionCache.put(nodeId, value);
+        return value;
+    }
+
+    private double computeNodeMaxShardWriteLoadProportion(RoutingNode node) {
+        final var shardWriteLoads = clusterInfo.getShardWriteLoads();
+        double totalWriteLoad = 0.0;
+        double maxShardWriteLoad = 0.0;
+        for (ShardRouting shard : node.started()) {
+            double load = shardWriteLoads.getOrDefault(shard.shardId(), 0.0);
+            totalWriteLoad += load;
+            if (load > maxShardWriteLoad) {
+                maxShardWriteLoad = load;
+            }
+        }
+        return totalWriteLoad > 0.0 ? maxShardWriteLoad / totalWriteLoad : 0.0;
+    }
+
+    private boolean cachedNodeMaxShardWriteLoadProportionIsConsistent(RoutingNode node) {
+        final double cached = nodeMaxShardWriteLoadProportionCache.get(node.nodeId());
+        final double computed = computeNodeMaxShardWriteLoadProportion(node);
+        assert Math.abs(cached - computed) < 1e-9
+            : "cached value differs from computed for node "
+                + node.nodeId()
+                + ": cached="
+                + cached
+                + " computed="
+                + computed;
+        return true;
     }
 
     public SnapshotShardSizeInfo snapshotShardSizeInfo() {

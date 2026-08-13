@@ -123,6 +123,11 @@ final class MutableRoutingAllocation extends RoutingAllocation {
     public void setSimulatedClusterInfo(ClusterInfo clusterInfo) {
         assert isSimulating : "Should be called only while simulating";
         this.clusterInfo = clusterInfo;
+        nodeMaxShardWriteLoadProportionCache.clear();
+    }
+
+    private void invalidateNodeMaxShardWriteLoadProportion(String nodeId) {
+        nodeMaxShardWriteLoadProportionCache.remove(nodeId);
     }
 
     /**
@@ -185,17 +190,21 @@ final class MutableRoutingAllocation extends RoutingAllocation {
     /**
      * Whenever a shard moves in or out of {@link org.elasticsearch.cluster.routing.ShardRoutingState#STARTED}, we invalidate any
      * cached max write-load proportion values for the affected node(s)
+     * <p>
+     * Note that there are other transitions which would affect this number
+     * (e.g., shard failures, relocation failures), but they don't occur in
+     * desired balance computation or reconciliation, so we don't handle them.
      */
     private class MaxWriteLoadProportionCacheInvalidator implements RoutingChangesObserver {
 
         @Override
         public void shardStarted(ShardRouting initializingShard, ShardRouting startedShard) {
-            clusterInfo.invalidateNodeMaxShardWriteLoadProportion(startedShard.currentNodeId());
+            MutableRoutingAllocation.this.invalidateNodeMaxShardWriteLoadProportion(startedShard.currentNodeId());
         }
 
         @Override
         public void relocationStarted(ShardRouting startedShard, ShardRouting targetRelocatingShard, String reason) {
-            clusterInfo.invalidateNodeMaxShardWriteLoadProportion(startedShard.currentNodeId());
+            MutableRoutingAllocation.this.invalidateNodeMaxShardWriteLoadProportion(startedShard.currentNodeId());
         }
     }
 }

@@ -16,9 +16,8 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.greaterThan;
 
 /**
- * The plain multi-field reproducer from {@code #152322}: a sub-field ({@code my_field.analyzed}: text vs keyword across two
- * indices) is stored as a coordinator-only conflict inside its healthy {@code keyword} parent's properties. A non-{@code TS}
- * {@code FROM} query that keeps the parent must not crash when the parent is serialized to a remote data node.
+ * A keyword multi-field whose sub-field conflicts (text vs keyword) across indices must not crash when its healthy
+ * parent serializes to a remote data node.
  */
 public class ConflictedMultifieldTransportIT extends AbstractEsqlIntegTestCase {
 

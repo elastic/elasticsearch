@@ -3481,11 +3481,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         /**
-         * ESQL reads a shipped field itself, never its sub-fields - except a {@code text} field's exact keyword sub-field, which
-         * pushdown of sorts, equality and string predicates resolves through {@code properties} on the data node. Keep only that
-         * (itself stripped, so a conflict nested under it cannot reach transport either) and drop every other sub-field. Dropping
-         * everything else also removes a coordinator-only conflict field ({@link TypeConflictedField}, {@link InvalidMappedTsField})
-         * that would throw when its healthy parent serializes - including a conflicted exact sub-field, which is not exact anyway.
+         * Sub-fields aren't needed once the field ships, and a conflict nested in a healthy parent throws on serialize,
+         * so drop them - except a {@code text} field's exact keyword sub-field, which pushdown still resolves through
+         * {@code properties} on the data node.
          */
         private static EsField stripSubfields(EsField field) {
             Map<String, EsField> properties = field.getProperties();

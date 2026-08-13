@@ -9,6 +9,7 @@
 
 package org.elasticsearch.benchmark.xcontent;
 
+import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.xcontent.XContentParser;
@@ -30,6 +31,9 @@ import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -37,63 +41,77 @@ import java.util.concurrent.TimeUnit;
  * that stress different parts of a parser implementation: pure tokenization, field-name handling, string value
  * materialization, number value materialization, and full materialization into a {@code Map}.
  * <p>
- * The point of the decomposition is attribution. A change to the tokenizer, to field-name interning, or to string
- * decoding shows up in a different subset of these methods, and an aggregate "parse a document" number cannot tell
- * them apart.
+ * Decomposition makes it easier to pinpoint a hot-spot: the tokenizer, field-name interning, string
+ * decoding, etc.
  * <p>
- * Each {@code @Benchmark} method performs <b>exactly one</b> parse of exactly one document, so there is deliberately
- * no {@code @OperationsPerInvocation} here. An earlier version of this benchmark carried
- * {@code @OperationsPerInvocation(25000)} on a single-parse method, which made every absolute number it produced
- * 25,000 times too fast and invalidated a whole investigation. If a future method genuinely loops N times, the
- * annotation must be added with the real N; otherwise it must stay absent.
+ * Each {@code @Benchmark} method parses all documents in the corpus exactly once per invocation, so there is
+ * deliberately no {@code @OperationsPerInvocation} here.
  * <p>
  * The corpus is selected with the {@code source} {@code @Param}; see {@code README.txt} next to the resource files
- * for what each document is meant to exercise. Because the documents differ in size, the primary {@code ns/op} score
- * is not comparable across values of {@code source}: use the {@code bytes} auxiliary counter instead. In
- * {@link Mode#AverageTime} JMH divides elapsed time by the counter, so that column reads as
+ * for what each document is meant to exercise. A value not matching a classpath resource is treated as a filesystem
+ * path and loaded as NDJSON (one JSON object per line). Because the documents differ in size, the primary
+ * {@code ns/op} score is not comparable across values of {@code source}, so it uses the {@code bytes} auxiliary
+ * counter instead: JMH divides elapsed time by the counter, so that column reads as
  * <b>nanoseconds per source byte</b> — lower is better, and it is directly comparable across documents of different
- * sizes. (In a throughput mode the same counter would read as bytes/sec.)
+ * sizes. In a throughput mode the same counter would read as bytes/sec.
+ * <p>
+ * The {@code mode} {@code @Param} controls how an NDJSON file is parsed. {@code split} creates one
+ * {@link XContentParser} per document; {@code stream} creates one parser for the whole file and drains it
+ * with {@link XContentParser#nextToken()}. For the committed single-document classpath corpus the two modes
+ * are equivalent. {@code parseToMap} does not support {@code stream} and throws if that combination is selected.
  * <p>
  * Three forks are deliberate: a single fork cannot capture run-to-run JVM variance (JIT decisions, code layout and
  * GC ergonomics differ between launches), and this benchmark exists to support A/B comparisons where that variance
- * would otherwise be mistaken for signal. Iterations are shortened to two seconds from JMH's ten-second default.
- * <p>
- * The full matrix is five methods over six documents at three forks, which still takes roughly three quarters of an
- * hour. When iterating, narrow it — e.g.
- * {@code run --args 'JsonParserBenchmark.parseStrings -psource=monitor_cluster_stats.json'}.
+ * would otherwise be mistaken for signal. Measurement iterations are shortened to one second from JMH's ten-second
+ * default; warmup remains at two.
  * <p>
  * The warmup budget (5 iterations x 2s = 10s per fork) is adequate for Jackson. It may not be for a Vector API
  * implementation, which needs C2 to intrinsify before it reaches steady state. When such an implementation is added,
  * verify convergence by inspecting the individual warmup iterations ({@code -v EXTRA}) rather than assuming.
- * <p>
- * Complementary to {@link OptimizedTextBenchmark}, which measures end-to-end indexing of {@code match_only_text}
- * through {@code MapperService}. That one includes mapping and field construction; this one isolates the parser.
- * Neither subsumes the other.
  */
 @Fork(3)
 @Warmup(iterations = 5, time = 2, timeUnit = TimeUnit.SECONDS)
-@Measurement(iterations = 10, time = 2, timeUnit = TimeUnit.SECONDS)
+@Measurement(iterations = 5, time = 1, timeUnit = TimeUnit.SECONDS)
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
 @State(Scope.Thread)
 public class JsonParserBenchmark {
 
-    @Param(
-        {
-            "small_log_doc.json",
-            "flat_log_batch.json",
-            "escaped_unicode.json",
-            "monitor_cluster_stats.json",
-            "monitor_index_stats.json",
-            "monitor_node_stats.json" }
-    )
+    static {
+        Utils.configureBenchmarkLogging();
+    }
+
+    @Param({ "small_log_doc.json", "flat_log_batch.json", "escaped_unicode.json", "monitor_cluster_stats.json" })
     public String source;
 
-    private byte[] sourceBytes;
+    @Param({ "split" })
+    public String mode;
+
+    /**
+     * The corpus to parse. In {@code split} mode each element is one JSON document. In {@code stream} mode the single
+     * element is the entire file; the token-loop methods drain it in one pass without recreating the parser between
+     * documents.
+     */
+    byte[][] docs;
 
     @Setup(Level.Trial)
     public void setup() throws IOException {
-        sourceBytes = BytesReference.toBytes(Streams.readFully(JsonParserBenchmark.class.getResourceAsStream(source)));
+        if (Files.exists(Path.of(source))) {
+            if (mode.equals("split")) {
+                try (var lines = Files.lines(Path.of(source))) {
+                    docs = lines.filter(l -> l.isBlank() == false).map(l -> l.getBytes(StandardCharsets.UTF_8)).toArray(byte[][]::new);
+                }
+            } else {
+                docs = new byte[][] { Files.readAllBytes(Path.of(source)) };
+            }
+        } else {
+            try (var in = JsonParserBenchmark.class.getResourceAsStream(source)) {
+                if (in == null) {
+                    throw new IllegalArgumentException(source + " is not a valid source");
+                }
+                docs = new byte[][] { BytesReference.toBytes(Streams.readFully(in)) };
+            }
+        }
     }
 
     /**
@@ -113,59 +131,57 @@ public class JsonParserBenchmark {
         }
     }
 
-    /**
-     * The single place a parser is created. Step 3 of the SIMD JSON investigation adds a {@code @Param} over the
-     * parser implementation so that alternatives are measured in the same fork as the baseline; keeping creation
-     * here makes that a one-line change instead of a five-method edit.
-     * <p>
-     * Parsing is from a {@code byte[]}, not from an {@code InputStream}: the stream overload forces any
-     * implementation that needs the whole document in memory to buffer it first, a whole-document copy that Jackson
-     * does not pay and that would silently bias a comparison. The {@code byte[]} overload is also the one that
-     * reaches {@code ESUTF8StreamJsonParser}, which is what production ingest runs on.
-     */
-    private XContentParser createParser() throws IOException {
-        return XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, sourceBytes, 0, sourceBytes.length);
+    private XContentParser createParser(byte[] data) throws IOException {
+        return XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, data, 0, data.length);
     }
 
     /**
-     * Full materialization into an ordered {@code Map}. The pattern the original version of this benchmark measured.
+     * Full materialization into an ordered {@code Map}. Not supported in {@code stream} mode: a single parser
+     * over an NDJSON file would stop after the first document.
      */
     @Benchmark
     public void parseToMap(Blackhole bh, ByteCounter counter) throws IOException {
-        counter.bytes += sourceBytes.length;
-        try (XContentParser parser = createParser()) {
-            bh.consume(parser.mapOrdered());
-        }
-    }
-
-    /**
-     * Tokenization only, materializing no values. Isolates the cost of finding token boundaries from the cost of
-     * turning them into Java objects, which is the axis a SIMD stage1 actually changes.
-     */
-    @Benchmark
-    public void parseTokensOnly(Blackhole bh, ByteCounter counter) throws IOException {
-        counter.bytes += sourceBytes.length;
-        try (XContentParser parser = createParser()) {
-            XContentParser.Token token;
-            while ((token = parser.nextToken()) != null) {
-                bh.consume(token);
+        if (mode.equals("stream")) throw new UnsupportedOperationException();
+        for (byte[] doc : docs) {
+            counter.bytes += doc.length;
+            try (XContentParser parser = createParser(doc)) {
+                bh.consume(parser.mapOrdered());
             }
         }
     }
 
     /**
-     * Field names only. Roughly half the tokens of a typical Elasticsearch document are field names, and Jackson
-     * runs them through a {@code ByteQuadsCanonicalizer} symbol table so that a repeated key is interned rather than
-     * re-decoded. A parser without an equivalent pays full decode cost per occurrence, which only this method shows.
+     * Tokenization only, materializing no values. Isolates the cost of finding token boundaries from the cost of
+     * turning them into Java objects.
+     */
+    @Benchmark
+    public void parseTokensOnly(Blackhole bh, ByteCounter counter) throws IOException {
+        for (byte[] doc : docs) {
+            counter.bytes += doc.length;
+            try (XContentParser parser = createParser(doc)) {
+                XContentParser.Token token;
+                while ((token = parser.nextToken()) != null) {
+                    bh.consume(token);
+                }
+            }
+        }
+    }
+
+    /**
+     * Field names only. Roughly half the tokens of a typical Elasticsearch document are field names. A "smart"
+     * parser could treat them differently (e.g. runs them through a symbol table - see {@code ByteQuadsCanonicalizer})
+     * so that a repeated key is interned. This benchmark exercises that.
      */
     @Benchmark
     public void parseFieldNames(Blackhole bh, ByteCounter counter) throws IOException {
-        counter.bytes += sourceBytes.length;
-        try (XContentParser parser = createParser()) {
-            XContentParser.Token token;
-            while ((token = parser.nextToken()) != null) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    bh.consume(parser.currentName());
+        for (byte[] doc : docs) {
+            counter.bytes += doc.length;
+            try (XContentParser parser = createParser(doc)) {
+                XContentParser.Token token;
+                while ((token = parser.nextToken()) != null) {
+                    if (token == XContentParser.Token.FIELD_NAME) {
+                        bh.consume(parser.currentName());
+                    }
                 }
             }
         }
@@ -173,18 +189,20 @@ public class JsonParserBenchmark {
 
     /**
      * String values via {@link XContentParser#optimizedText()}, not {@code text()}. The optimized accessor is the one
-     * ingest uses ({@code KeywordFieldMapper} calls {@code optimizedTextOrNull()}); it hands back a view over the
-     * parser's input buffer with no copy and no UTF-16 decode. Measuring {@code text()} would establish a baseline
-     * slower than production and overstate any alternative implementation's win.
+     * ingest uses ({@code KeywordFieldMapper} calls {@code optimizedTextOrNull()}); implementations should provide
+     * optimized access to text, as the name of the function implies, for "simple" UTF-8 strings. For example,
+     * handing back a view over the parser's input buffer with no copy and no UTF-16 decode.
      */
     @Benchmark
     public void parseStrings(Blackhole bh, ByteCounter counter) throws IOException {
-        counter.bytes += sourceBytes.length;
-        try (XContentParser parser = createParser()) {
-            XContentParser.Token token;
-            while ((token = parser.nextToken()) != null) {
-                if (token == XContentParser.Token.VALUE_STRING) {
-                    bh.consume(parser.optimizedText());
+        for (byte[] doc : docs) {
+            counter.bytes += doc.length;
+            try (XContentParser parser = createParser(doc)) {
+                XContentParser.Token token;
+                while ((token = parser.nextToken()) != null) {
+                    if (token == XContentParser.Token.VALUE_STRING) {
+                        bh.consume(parser.optimizedText());
+                    }
                 }
             }
         }
@@ -195,13 +213,15 @@ public class JsonParserBenchmark {
      */
     @Benchmark
     public void parseNumbers(Blackhole bh, ByteCounter counter) throws IOException {
-        counter.bytes += sourceBytes.length;
-        try (XContentParser parser = createParser()) {
-            XContentParser.Token token;
-            while ((token = parser.nextToken()) != null) {
-                if (token == XContentParser.Token.VALUE_NUMBER) {
-                    bh.consume(parser.numberType());
-                    bh.consume(parser.numberValue());
+        for (byte[] doc : docs) {
+            counter.bytes += doc.length;
+            try (XContentParser parser = createParser(doc)) {
+                XContentParser.Token token;
+                while ((token = parser.nextToken()) != null) {
+                    if (token == XContentParser.Token.VALUE_NUMBER) {
+                        bh.consume(parser.numberType());
+                        bh.consume(parser.numberValue());
+                    }
                 }
             }
         }

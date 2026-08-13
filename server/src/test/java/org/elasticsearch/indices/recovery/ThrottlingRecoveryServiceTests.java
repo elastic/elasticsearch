@@ -494,7 +494,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         int highIndexPriority = randomIntBetween(10, 100);
         int lowIndexPriority = randomIntBetween(5, highIndexPriority - 1);
         long newCreationDate = randomMillisUpToYear9999();
-        long oldCreationDate = randomLongBetween(1, newCreationDate - 1);
+        long oldCreationDate = randomLongBetween(0, newCreationDate - 1);
         // The first level of ordering is by RecoveryPriority:
         List<TestRecovery> orderedRecoveries = Stream.of(ShardRouting.RecoveryPriority.values())
             // Exclude UNKNOWN as we shouldn't ever see that in the cluster state:
@@ -1508,7 +1508,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             .withRecoveryPriority(recoveryPriority)
             .withRelocatingNodeId(relocatingNodeId)
             .build();
-        return new RecoveryState(routing, sourceNode, targetNode);
+        return new RecoveryState(routing, targetNode, sourceNode);
     }
 
     private static RecoveryState newRecoveryState(ShardId shardId) {
@@ -1537,7 +1537,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                 );
             }
         );
-        return new RecoveryState(routing, sourceNode, targetNode);
+        return new RecoveryState(routing, targetNode, sourceNode);
     }
 
     private static IndexMetadata newIndexMetadata() {

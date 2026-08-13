@@ -62,6 +62,18 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
     }
 
     /**
+     * A number token past the reader's number-length limit is rejected while the token is scanned, one step
+     * earlier than any value read, so it used to escape inference's malformed-line handling and fail the query
+     * during sampling — before decoding, regardless of error_mode (elastic/esql-planning#1159). The line must be
+     * skipped like any other unusable one, leaving the type to the records that can be read. {@code age} comes
+     * back nullable because the skipped line still counts as a round in which the field was absent.
+     */
+    public void testIgnoreOversizedNumberToken() throws IOException {
+        String oversized = "1".repeat(NdJsonUtils.JSON_FACTORY.streamReadConstraints().getMaxNumberLength() + 1);
+        check("{\"age\": 30}\n{\"age\": " + oversized + "}\n{\"age\": 25}\n", field("age", DataType.INTEGER, true));
+    }
+
+    /**
      * Test case: check line ending variations
      */
     public void testLineEndingVariations() throws IOException {

@@ -752,11 +752,15 @@ public class NdJsonPageDecoderTests extends ESTestCase {
     }
 
     private Page decodeOneColumn(String ndjson, DataType type, ErrorPolicy policy) throws IOException {
+        return decodeColumns(ndjson, policy, attribute("v", type));
+    }
+
+    private Page decodeColumns(String ndjson, ErrorPolicy policy, Attribute... attributes) throws IOException {
         try (
             NdJsonPageDecoder decoder = new NdJsonPageDecoder(
                 new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
                 null,
-                List.of(attribute("v", type)),
+                List.of(attributes),
                 null,
                 10,
                 blockFactory,
@@ -1283,4 +1287,77 @@ public class NdJsonPageDecoderTests extends ESTestCase {
         assertFalse("expected skip_row warnings for the poisoned record", warnings.isEmpty());
         assertScratchIsRecordSized(breaker, 2);
     }
+
+    // --- oversized number tokens (Jackson's StreamReadConstraints number-length limit) ---
+
+    private static final int MAX_NUMBER_LENGTH = NdJsonUtils.JSON_FACTORY.streamReadConstraints().getMaxNumberLength();
+
+    private static final String OVERSIZED_NUMBER = "1".repeat(MAX_NUMBER_LENGTH + 1);
+
+    private record OversizedFixture(String description, String ndjson) {}
+
+    /** Reproducer for https://github.com/elastic/esql-planning/issues/1159. */
+    public void testOversizedNumberFailsFast() {
+        EsqlIllegalArgumentException e = expectThrows(
+            EsqlIllegalArgumentException.class,
+            () -> decodeOneColumn("{\"v\":1}\n{\"v\":" + OVERSIZED_NUMBER + "}\n{\"v\":2}\n", DataType.LONG, ErrorPolicy.STRICT)
+        );
+        assertThat(e.getMessage(), Matchers.startsWith("Oversized NDJSON [decodeObject]: "));
+        assertThat(e.getMessage(), Matchers.containsString("StreamReadConstraints.getMaxNumberLength()"));
+        assertThat(
+            e.getMessage(),
+            Matchers.endsWith("; set error_mode=skip_row (or null_field) to drop the record and warn instead of failing")
+        );
+    }
+
+    public void testOversizedNumberDropsRecord() throws IOException {
+        var oversizedFixtures = List.of(
+            new OversizedFixture("a projected field's value", "{\"v\":9,\"w\":" + OVERSIZED_NUMBER + "}"),
+            new OversizedFixture("an unprojected field's value", "{\"v\":9,\"w\":9,\"other\":" + OVERSIZED_NUMBER + "}"),
+            new OversizedFixture("an element inside an array", "{\"v\":9,\"w\":[9," + OVERSIZED_NUMBER + "]}")
+        );
+        for (OversizedFixture fixture : oversizedFixtures) {
+            for (ErrorPolicy policy : List.of(ErrorPolicy.LENIENT, ErrorPolicy.PERMISSIVE)) {
+                String context = fixture.description() + " under " + policy.modeName();
+                String ndjson = "{\"v\":1,\"w\":1}\n" + fixture.ndjson() + "\n{\"v\":2,\"w\":2}\n";
+                try (Page page = decodeColumns(ndjson, policy, attribute("v", DataType.LONG), attribute("w", DataType.LONG))) {
+                    assertGoodRowsSurvived(context + ", column v", page.getBlock(0));
+                    assertGoodRowsSurvived(context + ", column w", page.getBlock(1));
+                }
+                assertThat(context, drainWarnings(), Matchers.hasItem(Matchers.containsString(OVERSIZED_ROW_2_WARNING)));
+            }
+        }
+    }
+
+    public void testOversizedNumberDropsRecordForAKeywordColumn() throws IOException {
+        String ndjson = "{\"v\":\"a\"}\n{\"v\":" + OVERSIZED_NUMBER + "}\n{\"v\":\"b\"}\n";
+        try (Page page = decodeOneColumn(ndjson, DataType.KEYWORD, ErrorPolicy.LENIENT)) {
+            BytesRefBlock block = page.getBlock(0);
+            assertEquals(2, block.getPositionCount());
+            BytesRef scratch = new BytesRef();
+            assertEquals(new BytesRef("a"), BytesRef.deepCopyOf(block.getBytesRef(0, scratch)));
+            assertEquals(new BytesRef("b"), BytesRef.deepCopyOf(block.getBytesRef(1, scratch)));
+        }
+        assertThat(drainWarnings(), Matchers.hasItem(Matchers.containsString(OVERSIZED_ROW_2_WARNING)));
+    }
+
+    public void testLargestTokenizableNumberIsStillAPerCellFailure() throws IOException {
+        String ndjson = "{\"v\":1}\n{\"v\":" + "1".repeat(MAX_NUMBER_LENGTH) + "}\n{\"v\":2}\n";
+        try (Page page = decodeOneColumn(ndjson, DataType.LONG, ErrorPolicy.PERMISSIVE)) {
+            LongBlock block = page.getBlock(0);
+            assertEquals("the record is kept, not dropped", 3, block.getPositionCount());
+            assertEquals(1L, block.getLong(block.getFirstValueIndex(0)));
+            assertTrue("the out-of-range value nulls its own cell", block.isNull(1));
+            assertEquals(2L, block.getLong(block.getFirstValueIndex(2)));
+        }
+        drainWarnings();
+    }
+
+    private static void assertGoodRowsSurvived(String context, LongBlock block) {
+        assertThat(context, block.getPositionCount(), Matchers.equalTo(2));
+        assertThat(context, block.getLong(block.getFirstValueIndex(0)), Matchers.equalTo(1L));
+        assertThat(context, block.getLong(block.getFirstValueIndex(1)), Matchers.equalTo(2L));
+    }
+
+    private static final String OVERSIZED_ROW_2_WARNING = "Oversized NDJSON at logical row [2] (decodeObject): ";
 }

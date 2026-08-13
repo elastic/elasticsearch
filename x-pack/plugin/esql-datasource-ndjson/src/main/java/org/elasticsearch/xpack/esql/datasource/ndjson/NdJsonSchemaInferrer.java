@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasource.ndjson;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
+import com.fasterxml.jackson.core.exc.StreamConstraintsException;
 
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.logging.LogManager;
@@ -84,13 +85,13 @@ public class NdJsonSchemaInferrer {
                     if (parser.nextToken() == null) {
                         break; // End of stream
                     }
-                } catch (JsonParseException e) {
+                } catch (JsonParseException | StreamConstraintsException e) {
                     // Schema inference is a best-effort sampling pass: malformed lines here are
                     // safe to skip because every such line will be re-encountered during the
                     // actual slice read (see NdJsonPageIterator), where the configured
                     // ErrorPolicy decides whether to log/fail. Logging at debug avoids noisy
                     // duplicate reports of the same issue.
-                    logger.debug("Malformed NDJSON at line {}: {}", lineCount, e);
+                    logger.debug("Unparseable NDJSON at line {}: {}", lineCount, e);
                     inputStream = NdJsonUtils.moveToNextLine(parser, inputStream);
                     parser = NdJsonUtils.JSON_FACTORY.createParser(inputStream);
                     continue;
@@ -99,9 +100,9 @@ public class NdJsonSchemaInferrer {
                 try {
                     inferObjectSchema(parser, root);
                     lineCount++;
-                } catch (JsonParseException e) {
+                } catch (JsonParseException | StreamConstraintsException e) {
                     // See comment above: deferred to the slice read for policy-driven handling.
-                    logger.debug("Malformed NDJSON at line {}: {}", lineCount, e);
+                    logger.debug("Unparseable NDJSON at line {}: {}", lineCount, e);
                     inputStream = NdJsonUtils.moveToNextLine(parser, inputStream);
                     parser = NdJsonUtils.JSON_FACTORY.createParser(inputStream);
                 }

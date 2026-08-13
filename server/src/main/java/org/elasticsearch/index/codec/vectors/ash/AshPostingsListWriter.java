@@ -170,7 +170,7 @@ public class AshPostingsListWriter {
         for (int c = 0; c < nClusters; c++) {
             float[] centroid = centroidSupplier.centroid(c);
             // Precompute centroid projection + norm once per posting list
-            AsymmetricHashingQuantizer.PrecomputedCentroid precomputed = AsymmetricHashingQuantizer.precomputeCentroid(centroid, wT);
+            AsymmetricHashingQuantizer.VectorAndNorm precomputed = AsymmetricHashingQuantizer.precomputeCentroid(centroid, wT);
             int[] cluster = assignmentsByCluster[c];
             long offset = postingsOutput.alignFilePointer(Float.BYTES) - fileOffset;
             offsets.add(offset);

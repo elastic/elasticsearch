@@ -765,7 +765,16 @@ public class NdJsonPageDecoder implements Closeable {
      */
     private void onNdjsonLineParseError(JsonProcessingException e, long logicalRowIndex, String phaseLabel) {
         if (errorPolicy.isStrict()) {
-            throw new EsqlIllegalArgumentException(e, "Malformed NDJSON [{}]: {}", phaseLabel, e.getOriginalMessage());
+            // Mirrors the remedy hint coercionFailure and CsvFormatReader.onRowErrorImpl already give, phrased for
+            // a whole-line failure: both non-strict modes drop the line here, so neither is "null-fill" the way it
+            // is for a per-cell failure. It earns its place most on the constraint violations this method now
+            // handles, where the record is well-formed JSON that merely exceeds a parser limit.
+            throw new EsqlIllegalArgumentException(
+                e,
+                "Malformed NDJSON [{}]: {}; set error_mode=skip_row (or null_field) to skip the line and warn instead of failing",
+                phaseLabel,
+                e.getOriginalMessage()
+            );
         }
         errorCount++;
         skipWarnings.add(

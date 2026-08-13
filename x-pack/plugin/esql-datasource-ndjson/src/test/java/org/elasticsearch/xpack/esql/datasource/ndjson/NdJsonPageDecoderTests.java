@@ -1088,6 +1088,61 @@ public class NdJsonPageDecoderTests extends ESTestCase {
     }
 
     /**
+     * The limit is a cliff, and this pins which side of it does what. A number that overflows {@code long} but
+     * stays under {@code getMaxNumberLength()} is scanned successfully and fails per CELL — the row survives with
+     * that one column null. One digit past the limit the scanner never yields the token at all, so the whole line
+     * goes. Same column, same {@code error_mode}, two different outcomes; a reader hitting the second case should
+     * not be surprised into thinking the first case was in play.
+     */
+    public void testNumberLengthLimitIsTheBoundaryBetweenPerCellAndPerLine() throws IOException {
+        String underLimit = "9".repeat(999);
+        String overLimit = "9".repeat(1001);
+
+        try (Page page = decodeOneColumn("{\"v\":" + underLimit + "}\n{\"v\":7}\n", DataType.LONG, ErrorPolicy.PERMISSIVE)) {
+            LongBlock block = page.getBlock(0);
+            assertEquals("under the limit the row survives with a null cell", 2, block.getPositionCount());
+            assertTrue("the over-long-but-scannable number nulls its cell", block.isNull(0));
+            assertEquals(7L, block.getLong(1));
+        }
+
+        try (Page page = decodeOneColumn("{\"v\":" + overLimit + "}\n{\"v\":7}\n", DataType.LONG, ErrorPolicy.PERMISSIVE)) {
+            LongBlock block = page.getBlock(0);
+            assertEquals("past the limit the whole line goes", 1, block.getPositionCount());
+            assertEquals(7L, block.getLong(0));
+        }
+    }
+
+    /**
+     * The decode loops catch the constraint violation at two sites: around {@code decodeObject}, and around the
+     * {@code nextToken} that opens a record. A bare oversized scalar on its own line — no enclosing object — trips
+     * the second one, which every other test here leaves unexercised.
+     * <p>
+     * Asserted differentially against a bare scalar that is perfectly VALID, because recovery from a bare
+     * (non-object) top-level record overshoots and swallows the line after it. That overshoot is pre-existing and
+     * has nothing to do with constraints — the valid scalar loses its successor identically — so this pins the two
+     * as equivalent rather than blessing the overshoot as correct. A future fix to bare-record recovery should make
+     * both arms keep the trailing row, and this test will then fail as a pair, which is the intent.
+     */
+    public void testConstraintViolationOnRecordOpeningTokenMatchesBareScalarRecovery() throws IOException {
+        String oversized = "{\"v\":1}\n" + "1".repeat(1200) + "\n{\"v\":3}\n";
+        String validBareScalar = "{\"v\":1}\n12345\n{\"v\":3}\n";
+
+        try (
+            Page constraintPage = decodeOneColumn(oversized, DataType.LONG, ErrorPolicy.PERMISSIVE);
+            Page baselinePage = decodeOneColumn(validBareScalar, DataType.LONG, ErrorPolicy.PERMISSIVE)
+        ) {
+            LongBlock constraintBlock = constraintPage.getBlock(0);
+            LongBlock baselineBlock = baselinePage.getBlock(0);
+            assertEquals(
+                "an oversized bare token must recover exactly as a valid bare scalar does",
+                baselineBlock.getPositionCount(),
+                constraintBlock.getPositionCount()
+            );
+            assertEquals(1L, constraintBlock.getLong(0));
+        }
+    }
+
+    /**
      * Shared body for the non-strict cases: one good line, the offending line, one good line. The offending
      * line is dropped, both good lines decode, and the client sees SkipWarnings' summary plus a detail
      * carrying Jackson's own limit text (the same passthrough {@code CsvFormatReader} does for its own

@@ -10,6 +10,7 @@
 package org.elasticsearch.search.fetch.chunk;
 
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
@@ -43,6 +44,13 @@ import java.util.function.LongConsumer;
 class FetchPhaseResponseStream extends AbstractRefCounted {
 
     private static final Logger logger = LogManager.getLogger(FetchPhaseResponseStream.class);
+
+    /**
+     * Label used for both the per-chunk accumulation admits here and the embedded-last-chunk admit in
+     * {@link TransportFetchPhaseCoordinationAction}, so all chunked-fetch coordination memory is tracked under a
+     * single {@code fetch} sub-category.
+     */
+    static final String FETCH_CHUNK_BREAKER_LABEL = ChildMemoryCircuitBreaker.CATEGORY_FETCH + "[chunk]";
 
     private final int shardIndex;
     private final int expectedTotalDocs;
@@ -97,10 +105,9 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
     void writeChunk(FetchPhaseResponseChunk chunk, Releasable releasable) {
         boolean success = false;
         try {
-            // Track memory usage
-            long bytesSize = chunk.getBytesLength();
-            circuitBreaker.addEstimateBytesAndMaybeBreak(bytesSize, "fetch_chunk_accumulation");
-            totalBreakerBytes.addAndGet(bytesSize);
+            long estimatedRetainedBytes = chunk.estimatedRetainedBytes();
+            circuitBreaker.addEstimateBytesAndMaybeBreak(estimatedRetainedBytes, FETCH_CHUNK_BREAKER_LABEL);
+            totalBreakerBytes.addAndGet(estimatedRetainedBytes);
 
             chunk.consumeHits((position, hit) -> queue.add(new SequencedHit(hit, position)));
 
@@ -185,7 +192,7 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
     /**
      * Tracks circuit breaker bytes without checking. Used when coordinator processes the embedded last chunk.
      */
-    void trackBreakerBytes(int bytes) {
+    void trackBreakerBytes(long bytes) {
         totalBreakerBytes.addAndGet(bytes);
     }
 
@@ -210,7 +217,7 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
 
         // Release circuit breaker bytes added during accumulation when hits are released from memory
         if (totalBreakerBytes.get() > 0) {
-            circuitBreaker.addWithoutBreaking(-totalBreakerBytes.get());
+            circuitBreaker.addWithoutBreaking(-totalBreakerBytes.get(), FETCH_CHUNK_BREAKER_LABEL);
             if (logger.isDebugEnabled()) {
                 logger.debug(
                     "Released [{}] breaker bytes for shard [{}], used breaker bytes [{}]",

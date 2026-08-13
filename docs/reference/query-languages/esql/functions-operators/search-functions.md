@@ -38,6 +38,9 @@ such as computed columns produced by `EVAL` or `STATS`.
 When an expression is not indexed, the search evaluates by scanning values,
 which may be slower than searching an indexed field.
 
+{applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
+[`MATCH_PHRASE`](/reference/query-languages/esql/functions-operators/search-functions/match_phrase.md) supports searching `text` and `keyword` expressions in the same way.
+
 See [full text search limitations](/reference/query-languages/esql/limitations.md#esql-limitations-full-text-search)
 for information on the limitations of full text search.
 

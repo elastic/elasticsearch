@@ -14,11 +14,6 @@ import java.util.List;
 
 public class CompositeFunctionGeneratorTests extends ESTestCase {
 
-    public void testCompositeExpressionReturnsNullWhenNoColumnsMatch() {
-        // No columns of any type — leaf() cannot find a field, so the result should be null
-        assertNull(CompositeFunctionGenerator.compositeExpression(List.of(), false, "integer", 2));
-    }
-
     public void testCompositeExpressionWithMatchingColumn() {
         List<Column> columns = List.of(new Column("x", "integer", List.of("integer")));
         // With an integer column and depth >= 1, a result is expected (either a plain field or a function call)

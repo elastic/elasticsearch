@@ -80,7 +80,7 @@ c:long
 // which read the local bracket-MV employees.csv when {{employees}} is resolved.
 //
 // SISTER FILE: external-multivalue.csv-spec at esql:qa:testFixtures carries the identical
-// 9 query shapes WITHOUT the multi_value_syntax opt-in, for the non-CSV format ITs (Parquet,
+// employees query shapes WITHOUT the multi_value_syntax opt-in, for the non-CSV format ITs (Parquet,
 // ORC, NDJSON, Parquet-rs, ExternalDistributedSpecIT) which decode arrays natively. When
 // adding / changing a query here, mirror it there (or vice versa).
 
@@ -213,6 +213,59 @@ FROM employees_brackets
 
 emp_no:integer | job_positions:keyword
 10001          | [Senior Python Developer, Accountant]
+;
+
+// mv_like / mv_rlike over a dataset: FROM <dataset> has no Lucene index, so the predicate runs on the
+// compute-engine evaluator — the path these functions take in production for datasets. The any-value
+// reduction must agree with the index-backed mvLikeField/mvRLikeField tests over the identical data.
+mvLikeFromDataset
+required_capability: fn_mv_like
+required_capability: dataset_in_from_command
+dataset: employees_brackets: "{{employees}}" WITH {"multi_value_syntax": "brackets"}
+
+FROM employees_brackets
+| WHERE emp_no <= 10002 AND mv_like(job_positions, "Senior*")
+| KEEP emp_no
+| SORT emp_no
+;
+
+emp_no:integer
+10001
+10002
+;
+
+// The two-valued contract on the dataset path: emp 10003 has no job_positions, so mv_like is false (never
+// null) and NOT includes it; emp 10004's values are all non-Senior, so NOT includes it too.
+mvLikeNotFromDataset
+required_capability: fn_mv_like
+required_capability: dataset_in_from_command
+dataset: employees_brackets: "{{employees}}" WITH {"multi_value_syntax": "brackets"}
+
+FROM employees_brackets
+| WHERE emp_no <= 10004 AND NOT mv_like(job_positions, "Senior*")
+| KEEP emp_no
+| SORT emp_no
+;
+
+emp_no:integer
+10003
+10004
+;
+
+mvRLikeFromDataset
+required_capability: fn_mv_rlike
+required_capability: dataset_in_from_command
+dataset: employees_brackets: "{{employees}}" WITH {"multi_value_syntax": "brackets"}
+
+FROM employees_brackets
+| WHERE emp_no <= 10004 AND mv_rlike(job_positions, "Senior.*")
+| KEEP emp_no
+| SORT emp_no
+;
+
+emp_no:integer
+10001
+10002
 ;
 
 // TRANGE and TBUCKET require @timestamp; RENAME hire_date to @timestamp for these tests.

@@ -6,6 +6,9 @@
  */
 package org.elasticsearch.xpack.core.security.audit;
 
+import org.apache.logging.log4j.message.MapMessage;
+import org.apache.logging.log4j.message.Message;
+
 /**
  * Extension point for customizing how {@code LoggingAuditTrail} processes events.
  * <p>
@@ -29,20 +32,22 @@ public interface AuditLogCustomizer {
     }
 
     /**
-     * Reads and/or mutates the fields of an audit event that is about to be written.
+     * Returns the message to write for an audit event that is about to be logged.
      * <p>
-     * Invoked by {@code LoggingAuditTrail} as the last step of building an entry, so all standard fields are already populated and
-     * may be read or overwritten. Only called for events that were not dropped by {@link #suppress(AuditEventContext)}.
+     * Invoked by {@code LoggingAuditTrail} as the last step of building an entry, so all standard fields are already populated, and
+     * only for events that were not dropped by {@link #suppress(AuditEventContext)}. An implementation may return the entry as-is
+     * or build a different message: only what it returns is logged.
      *
      * @param ctx   read-only context describing the event
-     * @param entry the mutable entry to enrich
+     * @param entry the entry built for this event
+     * @return the message to log
      */
-    default void enrich(AuditEventContext ctx, AuditEntry entry) {
-        // no-op
+    default Message rewrite(AuditEventContext ctx, MapMessage<?, ?> entry) {
+        return entry;
     }
 
     /**
-     * A customizer that suppresses nothing and enriches nothing, preserving the default audit behavior.
+     * A customizer that suppresses nothing and rewrites nothing, preserving the default audit behavior.
      */
     AuditLogCustomizer NOOP = new AuditLogCustomizer() {};
 }

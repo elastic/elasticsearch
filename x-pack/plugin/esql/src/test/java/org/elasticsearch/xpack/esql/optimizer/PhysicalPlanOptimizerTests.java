@@ -24,6 +24,7 @@ import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.compute.operator.topn.GroupedTopNOperator;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.geometry.Circle;
@@ -108,6 +109,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
@@ -3703,7 +3705,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             IndexMode.STANDARD,
             Map.of(),
             Map.of(),
-            index.indexNameWithModes(),
+            index.indexProperties(),
             esField.stream().map(field -> (Attribute) new FieldAttribute(Source.EMPTY, null, null, field.getName(), field)).toList()
         );
         Attribute some_field1 = relation.output().get(0);
@@ -9849,7 +9851,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 EmptyIndexedByShardId.instance(),
                 null,
                 PlannerSettings.DEFAULTS,
-                () -> 0L
+                () -> 0L,
+                QueryWarnings.EMIT
             ),
             null,  // OperatorFactoryRegistry - not needed for these tests
             null,  // parallelWorkerExecutor - not needed for these tests
@@ -10087,7 +10090,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             IndexMode.TIME_SERIES,
             Map.of(),
             Map.of(),
-            Map.of("k8s", IndexMode.TIME_SERIES),
+            Map.of("k8s", new IndexProperties(IndexMode.TIME_SERIES, 0)),
             List.of()
         );
         MetricsInfo metricsInfo = new MetricsInfo(Source.EMPTY, esRelation);
@@ -10112,7 +10115,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             IndexMode.TIME_SERIES,
             Map.of(),
             Map.of(),
-            Map.of("k8s", IndexMode.TIME_SERIES),
+            Map.of("k8s", new IndexProperties(IndexMode.TIME_SERIES, 0)),
             List.of()
         );
         TsInfo tsInfo = new TsInfo(Source.EMPTY, esRelation);

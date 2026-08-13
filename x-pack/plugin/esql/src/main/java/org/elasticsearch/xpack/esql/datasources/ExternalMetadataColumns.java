@@ -52,7 +52,7 @@ public final class ExternalMetadataColumns {
     public static final String INDEX_MODE = "_index_mode";
     public static final String TSID = MetadataAttribute.TSID_FIELD;
     public static final String SIZE = MetadataAttribute.SIZE;
-    public static final String SLICE = SliceIndexing.PARAM_NAME;
+    public static final String SLICE = SliceIndexing.FIELD_NAME;
 
     /**
      * Names of standard metadata columns that are materialised by the producer-side

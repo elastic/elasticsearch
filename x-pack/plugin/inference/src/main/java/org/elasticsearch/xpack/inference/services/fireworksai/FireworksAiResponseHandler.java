@@ -26,31 +26,27 @@ public class FireworksAiResponseHandler extends BaseResponseHandler {
     }
 
     @Override
-    protected void checkForFailureStatusCode(OutboundRequest outboundRequest, HttpResult result) throws RetryException {
-        if (result.isSuccessfulResponse()) {
-            return;
-        }
-
+    public RetryException buildFailureStatusCodeException(OutboundRequest outboundRequest, HttpResult result) {
         // Handle error status codes
         int statusCode = result.response().getStatusLine().getStatusCode();
         if (statusCode == 500) {
             // 500 errors are retryable (temporary server issues)
-            throw new RetryException(true, buildError(SERVER_ERROR, outboundRequest, result));
+            return new RetryException(true, buildError(SERVER_ERROR, outboundRequest, result));
         } else if (statusCode > 500) {
             // 501+ errors are generally not retryable
-            throw new RetryException(false, buildError(SERVER_ERROR, outboundRequest, result));
+            return new RetryException(false, buildError(SERVER_ERROR, outboundRequest, result));
         } else if (statusCode == 429) {
             // Rate limit - retryable after backoff
-            throw new RetryException(true, buildError(RATE_LIMIT, outboundRequest, result));
+            return new RetryException(true, buildError(RATE_LIMIT, outboundRequest, result));
         } else if (statusCode == 401) {
             // Authentication error - not retryable
-            throw new RetryException(false, buildError(AUTHENTICATION, outboundRequest, result));
+            return new RetryException(false, buildError(AUTHENTICATION, outboundRequest, result));
         } else if (statusCode >= 300 && statusCode < 400) {
             // Redirection - not retryable
-            throw new RetryException(false, buildError(REDIRECTION, outboundRequest, result));
+            return new RetryException(false, buildError(REDIRECTION, outboundRequest, result));
         } else {
             // Other 4xx errors - not retryable
-            throw new RetryException(false, buildError(UNSUCCESSFUL, outboundRequest, result));
+            return new RetryException(false, buildError(UNSUCCESSFUL, outboundRequest, result));
         }
     }
 }

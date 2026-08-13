@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.FileSetFingerprint;
+import org.elasticsearch.xpack.esql.datasources.HivePartitionDetector;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
@@ -2203,7 +2204,6 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
     private static FileList testHiveGenericFileList() {
         Instant now = Instant.now();
         List<StorageEntry> entries = new ArrayList<>();
-        Map<StoragePath, Map<String, Object>> filePartitions = new LinkedHashMap<>();
 
         String[] years = { "2024", "2025" };
         String[] months = { "01", "06", "12" };
@@ -2215,20 +2215,14 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
                         "s3://bucket/data/year=" + year + "/month=" + month + "/part-" + Strings.format("%05d", fileIdx) + ".parquet"
                     );
                     entries.add(new StorageEntry(path, 1024L * (fileIdx + 1), now));
-                    Map<String, Object> pv = new LinkedHashMap<>();
-                    pv.put("year", year);
-                    pv.put("month", month);
-                    filePartitions.put(path, pv);
                     fileIdx++;
                 }
             }
         }
 
-        Map<String, DataType> partitionColumns = new LinkedHashMap<>();
-        partitionColumns.put("year", DataType.KEYWORD);
-        partitionColumns.put("month", DataType.KEYWORD);
-        PartitionMetadata pm = new PartitionMetadata(partitionColumns, filePartitions);
-
+        // Detect partitions the way production does, so the fixture exercises the real typing and
+        // percent-decoding rather than the on-disk spelling a hand-built PartitionMetadata would carry.
+        PartitionMetadata pm = HivePartitionDetector.INSTANCE.detect(entries, Map.of());
         return GlobExpander.fileListOf(entries, "s3://bucket/data/*" + "*/*.parquet", pm);
     }
 }

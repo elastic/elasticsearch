@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -621,38 +622,6 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         );
     }
 
-    // -- IN subquery nested in WHERE expressions --
-
-    /**
-     * Verifies that an IN subquery nested inside a CASE function in WHERE is rejected.
-     * The analyzer cannot extract InSubquery from inside a function call.
-     */
-    public void testRejectsInSubqueryInCaseFunctionInWhere() {
-        errorInSubquery(
-            """
-                FROM employees
-                | WHERE CASE(emp_no IN (FROM employees | KEEP emp_no), true, false)
-                """,
-            containsString(
-                "IN subquery is not supported within other expressions [CASE(emp_no IN (FROM employees | KEEP emp_no), true, false)]"
-            )
-        );
-    }
-
-    /**
-     * Verifies that an IN subquery wrapped in IS NOT NULL in WHERE is rejected.
-     * The analyzer cannot extract InSubquery from inside IS NULL expressions.
-     */
-    public void testRejectsInSubqueryInIsNullInWhere() {
-        errorInSubquery(
-            """
-                FROM employees
-                | WHERE (emp_no IN (FROM employees | KEEP emp_no)) IS NOT NULL
-                """,
-            containsString("IN subquery is not supported within other expressions [(emp_no IN (FROM employees | KEEP emp_no)) IS NOT NULL]")
-        );
-    }
-
     @Override
     protected List<String> filteredWarnings() {
         return withDefaultLimitWarning(super.filteredWarnings());
@@ -699,7 +668,12 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         EsIndex index = new EsIndex(
             "union_index*",
             Map.of("id", idField, "name", nameField),
-            Map.of("union_index_1", IndexMode.STANDARD, "union_index_2", IndexMode.STANDARD),
+            Map.of(
+                "union_index_1",
+                new IndexProperties(IndexMode.STANDARD, 0),
+                "union_index_2",
+                new IndexProperties(IndexMode.STANDARD, 0)
+            ),
             Map.of(),
             Map.of()
         );

@@ -281,6 +281,7 @@ c:long
 
 
 dedupBasicForDocs
+skip_flattened_rewrite: junk_injection_breaks_result_shape
 required_capability: dedup_command
 
 // tag::dedupBasicForDocs[]
@@ -301,6 +302,7 @@ M
 
 
 dedupMultipleColumnsForDocs
+skip_flattened_rewrite: junk_injection_breaks_result_shape
 required_capability: dedup_command
 
 // tag::dedupMultipleColumnsForDocs[]

@@ -45,9 +45,14 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues {
         if (values.length < count) {
             values = new BytesRef[ArrayUtil.oversize(count, Integer.BYTES)];
         }
-        // Correct while columns are single-valued: a PLAIN column hands back one reused BytesRef, so
-        // collecting several ordinals here would alias them onto the last value. Multi-valued support has to
-        // copy each value out, or encode straight into the payload as it walks the ordinals.
+        // A PLAIN column hands back one reused BytesRef, so collecting several ordinals before encoding
+        // would alias them all onto the last value. Columns are single-valued today, which makes that
+        // unreachable; this assert is the tripwire for whoever turns multi-valued columns on.
+        assert count == 1
+            : "multi-valued string column reached binaryValue with "
+                + count
+                + " values: copy each value out of the reader (a PLAIN column reuses one BytesRef across "
+                + "calls), or encode into the payload while walking the ordinals";
         for (int i = 0; i < count; i++) {
             values[i] = reader.valueForOrdinal(first + i);
         }

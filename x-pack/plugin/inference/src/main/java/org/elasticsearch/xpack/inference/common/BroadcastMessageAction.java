@@ -32,6 +32,7 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Broadcasts a {@link Writeable} to all nodes and responds with an empty object.
@@ -56,7 +57,7 @@ public abstract class BroadcastMessageAction<Message extends Writeable> extends 
             clusterService,
             transportService,
             actionFilters,
-            in -> new NodeRequest<>(messageReader.read(in)),
+            in -> new NodeRequest<>(in, messageReader),
             clusterService.threadPool().executor(ThreadPool.Names.MANAGEMENT)
         );
     }
@@ -121,13 +122,45 @@ public abstract class BroadcastMessageAction<Message extends Writeable> extends 
     public static class NodeRequest<Message extends Writeable> extends AbstractTransportRequest {
         private final Message message;
 
-        private NodeRequest(Message message) {
+        NodeRequest(Message message) {
             this.message = message;
+        }
+
+        NodeRequest(StreamInput in, Writeable.Reader<Message> messageReader) throws IOException {
+            super(in);
+            this.message = messageReader.read(in);
+        }
+
+        Message message() {
+            return message;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            message.writeTo(out);
         }
 
         @Override
         public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
             return new CancellableTask(id, type, action, "broadcasted message to an individual node", parentTaskId, headers);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            NodeRequest<?> other = (NodeRequest<?>) o;
+            return Objects.equals(message, other.message) && Objects.equals(getParentTask(), other.getParentTask());
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(message, getParentTask());
         }
     }
 

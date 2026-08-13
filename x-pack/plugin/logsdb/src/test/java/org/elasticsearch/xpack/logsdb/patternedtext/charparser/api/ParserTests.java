@@ -286,6 +286,18 @@ public class ParserTests extends ESTestCase {
         assertEquals(946684800000L, ((Timestamp) parsedArguments.getFirst()).getTimestampMillis()); // 2000-01-01T00:00:00Z
     }
 
+    public void testSyslogBsdPaddedDayTimestamp() throws ParseException {
+        // BSD/RFC-3164 space-pads single-digit days to width 2, so a single-digit day has TWO spaces before it
+        // ("Jul  1"). The extra space produces an empty token that must be absorbed so it still collapses to %T,
+        // exactly like the two-digit-day form "Jun 14". The %T must span the actual padded text (both spaces).
+        String message = "Jul  1 00:21:28 combo x";
+        List<Argument<?>> parsedArguments = parser.parse(message);
+        Parser.constructPattern(message, parsedArguments, patternedMessage, true);
+        assertEquals("%T combo x", patternedMessage.toString());
+        assertThat(parsedArguments.getFirst(), instanceOf(Timestamp.class));
+        assertEquals(962410888000L, ((Timestamp) parsedArguments.getFirst()).getTimestampMillis()); // 2000-07-01T00:21:28Z
+    }
+
     public void testSyslogBsdTimestampLeapDay() throws ParseException {
         // Feb 29 is only a valid date because the defaulted year (2000) is a leap year - guards against a
         // non-leap default that would throw DateTimeException and silently drop the timestamp.

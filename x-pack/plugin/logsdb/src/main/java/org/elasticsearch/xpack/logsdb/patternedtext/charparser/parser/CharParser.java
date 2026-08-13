@@ -484,6 +484,18 @@ public final class CharParser implements Parser {
                     boolean finalizeMultiToken = false;
                     if (charType == TOKEN_DELIMITER_CHAR_CODE || charType == LINE_END_CODE) {
                         int currentTokenLength = currentSubTokenEndIndex - currentTokenStartIndex;
+                        if (currentTokenLength == 0
+                            && charType == TOKEN_DELIMITER_CHAR_CODE
+                            && bufferedTokensIndex >= 0
+                            && currentMultiTokenBitmask != 0) {
+                            // Absorb empty tokens cause by consecutive token-delimiters: skip them token without breaking the
+                            // multi-token and without counting an extra delimiter part, so the following real token continues
+                            // the multi-token. The extra delimiter char stays inside the multi-token's contiguous span, so the emitted %T
+                            // reconstructs over the actual padding.
+                            resetSubTokenState();
+                            resetTokenState();
+                            break;
+                        }
                         if (currentTokenLength == 0) {
                             // empty tokens (consecutive white spaces) should have a zero bitmask, so we must change from the default
                             // non-zero

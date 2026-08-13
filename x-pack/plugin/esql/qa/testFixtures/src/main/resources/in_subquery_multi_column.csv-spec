@@ -683,63 +683,130 @@ max_bytes:long | cluster:keyword
 
 // ======== multi-valued field patterns ========
 
-multiColumnInSubqueryWithOneMultiValuedFieldWithMvExpand
+multiColumnInSubqueryWithOneMultiValuedFieldWithMvExpandOnBothSides
 required_capability: where_in_subquery_without_view
 required_capability: where_in_multi_column_subquery
 
+// neither left nor right join key have multi-valued field after mv_expand, expect no warning for multi-value
 FROM employees
 | MV_EXPAND job_positions
 | WHERE (emp_no, job_positions) IN (FROM employees
                                     | MV_EXPAND job_positions
-                                    | WHERE emp_no == 10001
                                     | KEEP emp_no, job_positions)
 | KEEP emp_no, job_positions
 | SORT emp_no, job_positions
+| LIMIT 5
 ;
 
 emp_no:integer | job_positions:keyword
 10001          | Accountant
 10001          | Senior Python Developer
+10002          | Senior Team Lead
+10004          | Head Human Resources
+10004          | Reporting Analyst
+;
+
+multiColumnInSubqueryWithOneMultiValuedFieldWithMvExpandOnLeftSide
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+
+// left join key has no multi-valued field after mv_expand, right join key does have multi-valued field, expect warning for multi-value
+FROM employees
+| MV_EXPAND job_positions
+| WHERE (emp_no, job_positions) IN (FROM employees | KEEP emp_no, job_positions)
+| KEEP emp_no, job_positions
+| SORT emp_no, job_positions
+| LIMIT 5
+;
+
+warningRegex:.*evaluation of \[\(emp_no, job_positions\) IN \(FROM .*employees.*\|.*KEEP emp_no, job_positions.*\)\] failed.*
+warningRegex:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+
+emp_no:integer | job_positions:keyword
+10002          | Senior Team Lead
+10013          | Reporting Analyst
+10018          | Junior Developer
+10019          | Purchase Manager
+10020          | Tech Lead
+;
+
+multiColumnInSubqueryWithOneMultiValuedFieldWithMvExpandOnRightSide
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+
+// left join key has multi-valued field, right join key has no multi-valued field after mv_expand, expect warning for multi-value
+FROM employees
+| WHERE (emp_no, job_positions) IN (FROM employees
+                                    | MV_EXPAND job_positions
+                                    | KEEP emp_no, job_positions)
+| KEEP emp_no, job_positions
+| SORT emp_no
+| LIMIT 5
+;
+
+warningRegex:.*evaluation of \[\(emp_no, job_positions\) IN \(FROM .*employees.*\|.*KEEP emp_no, job_positions.*\)\] failed.*
+warningRegex:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+
+emp_no:integer | job_positions:keyword
+10002          | Senior Team Lead
+10013          | Reporting Analyst
+10018          | Junior Developer
+10019          | Purchase Manager
+10020          | Tech Lead
 ;
 
 multiColumnInSubqueryWithOneMultiValuedFieldWithoutMvExpand
 required_capability: where_in_subquery_without_view
 required_capability: where_in_multi_column_subquery
 
+// both left and right sides join keys have multi-valued fields, expect warning for multi-value
 FROM employees
-| WHERE (emp_no, job_positions) IN (FROM employees
-                                    | WHERE salary > 60000
-                                    | KEEP emp_no, job_positions)
-| KEEP emp_no, job_positions, salary
+| WHERE (emp_no, job_positions) IN (FROM employees | KEEP emp_no, job_positions)
+| KEEP emp_no, job_positions
 | SORT emp_no
+| LIMIT 5
 ;
 
 warningRegex:.*evaluation of \[\(emp_no, job_positions\) IN \(FROM .*employees.*\|.*KEEP emp_no, job_positions.*\)\] failed.*
 warningRegex:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
 
-emp_no:integer | job_positions:keyword      | salary:integer
-10019          | Purchase Manager           | 73717
-10021          | Support Engineer           | 60408
-10024          | Junior Developer           | 64675
-10027          | Senior Python Developer    | 73851
-10036          | Senior Python Developer    | 60781
-10054          | Principal Support Engineer | 65367
-10086          | Senior Python Developer    | 68547
-10100          | Purchase Manager           | 68431
+emp_no:integer | job_positions:keyword
+10002          | Senior Team Lead
+10013          | Reporting Analyst
+10018          | Junior Developer
+10019          | Purchase Manager
+10020          | Tech Lead        
 ;
 
-multiColumnInSubqueryWithTwoMultiValuedFieldsWithMvExpand
+multiColumnInSubqueryWithOneMultiValuedFieldWithoutMvExpandWithStats
 required_capability: where_in_subquery_without_view
 required_capability: where_in_multi_column_subquery
 
+// both left and right sides join keys have multi-valued fields, expect warning for multi-value
+FROM employees
+| WHERE (emp_no, job_positions) IN (FROM employees | KEEP emp_no, job_positions)
+| STATS cnt = COUNT(*)
+;
+
+warningRegex:.*evaluation of \[\(emp_no, job_positions\) IN \(FROM .*employees.*\|.*KEEP emp_no, job_positions.*\)\] failed.*
+warningRegex:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+
+cnt:long
+27     
+;
+
+multiColumnInSubqueryWithTwoMultiValuedFieldsWithMvExpandOnBothSides
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+
+// neither left nor right join key have multi-valued field after mv_expand, expect no warning for multi-value
 FROM employees
 | MV_EXPAND job_positions
 | MV_EXPAND is_rehired
-| WHERE (job_positions, is_rehired) IN (FROM employees
-                                        | MV_EXPAND job_positions
-                                        | MV_EXPAND is_rehired
-                                        | WHERE emp_no == 10001
-                                        | KEEP job_positions, is_rehired)
+| WHERE (emp_no, job_positions, is_rehired) IN (FROM employees
+                                                | MV_EXPAND job_positions
+                                                | MV_EXPAND is_rehired
+                                                | KEEP emp_no, job_positions, is_rehired)
 | KEEP emp_no, job_positions, is_rehired
 | SORT emp_no, job_positions, is_rehired
 | LIMIT 5
@@ -750,22 +817,25 @@ emp_no:integer | job_positions:keyword   | is_rehired:boolean
 10001          | Accountant              | true
 10001          | Senior Python Developer | false
 10001          | Senior Python Developer | true
-10008          | Senior Python Developer | false
+10002          | Senior Team Lead        | false
 ;
 
-multiColumnInSubqueryWithTwoMultiValuedFieldsWithoutMvExpand
-skip_flattened_rewrite: test infrastructure has limitation on multi-column IN subquery with mixed keyword and non-keyword column
+multiColumnInSubqueryWithTwoMultiValuedFieldsWithMvExpandOnLeftSide
 required_capability: where_in_subquery_without_view
 required_capability: where_in_multi_column_subquery
+skip_flattened_rewrite: test infrastructure has limitation on multi-column IN subquery with mixed keyword and non-keyword column
 
+// left join key has no multi-valued field after mv_expand, right join key does have multi-valued field, expect warning for multi-value
 FROM employees
-| WHERE (job_positions, is_rehired) IN (FROM employees | KEEP job_positions, is_rehired)
+| MV_EXPAND job_positions
+| MV_EXPAND is_rehired
+| WHERE (emp_no, job_positions, is_rehired) IN (FROM employees | KEEP emp_no, job_positions, is_rehired)
 | KEEP emp_no, job_positions, is_rehired
-| SORT emp_no
+| SORT emp_no, job_positions, is_rehired
 | LIMIT 5
 ;
 
-warningRegex:.*evaluation of \[\(job_positions, is_rehired\) IN \(FROM .*employees.*\|.*KEEP job_positions, is_rehired.*\)\] failed.*
+warningRegex:.*evaluation of \[\(emp_no, job_positions, is_rehired\) IN \(FROM .*employees.*\|.*KEEP emp_no, job_positions, is_rehired.*\)\] failed.*
 warningRegex:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
 
 emp_no:integer | job_positions:keyword      | is_rehired:boolean
@@ -776,10 +846,61 @@ emp_no:integer | job_positions:keyword      | is_rehired:boolean
 10082          | Principal Support Engineer | false
 ;
 
-multiColumnNotInSubqueryWithMultiValuedFieldWithMvExpand
+multiColumnInSubqueryWithTwoMultiValuedFieldsWithMvExpandOnRightSide
 required_capability: where_in_subquery_without_view
 required_capability: where_in_multi_column_subquery
 
+// left join key has multi-valued field, right join key has no multi-valued field after mv_expand, expect warning for multi-value
+FROM employees
+| WHERE (emp_no, job_positions, is_rehired) IN (FROM employees
+                                                | MV_EXPAND job_positions
+                                                | MV_EXPAND is_rehired
+                                                | KEEP emp_no, job_positions, is_rehired)
+| KEEP emp_no, job_positions, is_rehired
+| SORT emp_no, job_positions, is_rehired
+| LIMIT 5
+;
+
+warningRegex:.*evaluation of \[\(emp_no, job_positions, is_rehired\) IN \(FROM .*employees.*\|.*KEEP emp_no, job_positions, is_rehired.*\)\] failed.*
+warningRegex:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+
+emp_no:integer | job_positions:keyword      | is_rehired:boolean
+10021          | Support Engineer           | true
+10027          | Senior Python Developer    | false
+10068          | Architect                  | true
+10075          | Purchase Manager           | true
+10082          | Principal Support Engineer | false
+;
+
+multiColumnInSubqueryWithTwoMultiValuedFieldsWithoutMvExpand
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+skip_flattened_rewrite: test infrastructure has limitation on multi-column IN subquery with mixed keyword and non-keyword column
+
+// both left and right sides join keys have multi-valued fields, expect warning for multi-value
+FROM employees
+| WHERE (emp_no, job_positions, is_rehired) IN (FROM employees | KEEP emp_no, job_positions, is_rehired)
+| KEEP emp_no, job_positions, is_rehired
+| SORT emp_no
+| LIMIT 5
+;
+
+warningRegex:.*evaluation of \[\(emp_no, job_positions, is_rehired\) IN \(FROM .*employees.*\|.*KEEP emp_no, job_positions, is_rehired.*\)\] failed.*
+warningRegex:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+
+emp_no:integer | job_positions:keyword      | is_rehired:boolean
+10021          | Support Engineer           | true
+10027          | Senior Python Developer    | false
+10068          | Architect                  | true
+10075          | Purchase Manager           | true
+10082          | Principal Support Engineer | false
+;
+
+multiColumnNotInSubqueryWithMultiValuedFieldWithMvExpandOnBothSides
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+
+// neither left nor right join key have multi-valued field after mv_expand, expect no warning for multi-value
 FROM employees
 | MV_EXPAND job_positions
 | WHERE (emp_no, job_positions) NOT IN (FROM employees
@@ -802,12 +923,69 @@ emp_no:integer | job_positions:keyword      | salary:integer
 10092          | Junior Developer           | 25976
 ;
 
+multiColumnNotInSubqueryWithMultiValuedFieldWithMvExpandOnLeftSide
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+
+// left join key has no multi-valued field after mv_expand, right join key does have multi-valued field, expect warning for multi-value
+FROM employees
+| MV_EXPAND job_positions
+| WHERE (emp_no, job_positions) NOT IN (FROM employees
+                                        | WHERE salary > 27000
+                                        | KEEP emp_no, job_positions)
+| KEEP emp_no, job_positions, salary
+| SORT emp_no, job_positions
+| LIMIT 10
+;
+
+warningRegex:.*evaluation of \[\(emp_no, job_positions\) NOT IN \(FROM .*employees.*\|.*WHERE salary > 27000.*\|.*KEEP emp_no, job_positions.*\)\] failed.*
+warningRegex:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+
+emp_no:integer | job_positions:keyword      | salary:integer
+10015          | Head Human Resources       | 25324
+10015          | Junior Developer           | 25324
+10015          | Principal Support Engineer | 25324
+10015          | Support Engineer           | 25324
+10035          | Data Scientist             | 25945
+10035          | Senior Python Developer    | 25945
+10048          | Internship                 | 26436
+10092          | Accountant                 | 25976
+10092          | Junior Developer           | 25976
+;
+
+multiColumnNotInSubqueryWithMultiValuedFieldWithMvExpandOnRightSide
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+
+// left join key has multi-valued field, right join key has no multi-valued field after mv_expand, expect warning for multi-value
+FROM employees
+| WHERE (emp_no, job_positions) NOT IN (FROM employees
+                                        | WHERE salary > 27000
+                                        | MV_EXPAND job_positions
+                                        | KEEP emp_no, job_positions)
+| KEEP emp_no, job_positions, salary
+| SORT emp_no, job_positions
+;
+
+warningRegex:.*evaluation of \[\(emp_no, job_positions\) NOT IN \(FROM .*employees.*\|.*WHERE salary > 27000.*\|.*KEEP emp_no, job_positions.*\)\] failed.*
+warningRegex:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+
+emp_no:integer | job_positions:keyword                                                                  | salary:integer
+10015          | [Head Human Resources, Junior Developer, Principal Support Engineer, Support Engineer] | 25324
+10035          | [Data Scientist, Senior Python Developer]                                              | 25945
+10048          | Internship                                                                             | 26436
+10092          | [Accountant, Junior Developer]                                                         | 25976
+;
+
 multiColumnNotInSubqueryWithMultiValuedFieldWithoutMvExpand
 required_capability: where_in_subquery_without_view
 required_capability: where_in_multi_column_subquery
 
+// both left and right sides join keys have multi-valued fields, expect warning for multi-value
 FROM employees
-| WHERE (emp_no, job_positions) NOT IN (FROM employees | WHERE salary > 27000 | KEEP emp_no, job_positions)
+| WHERE (emp_no, job_positions) NOT IN (FROM employees
+                                        | WHERE salary > 27000
+                                        | KEEP emp_no, job_positions)
 | STATS cnt = COUNT(*)
 ;
 
@@ -815,5 +993,56 @@ warningRegex:.*evaluation of \[\(emp_no, job_positions\) NOT IN \(FROM .*employe
 warningRegex:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
 
 cnt:long
-1
+4
+;
+
+multiColumnInSubqueryMarkJoinWithMultiValuedOrEquals
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+
+// OR forces MarkJoin. The NULL-containing (10001, NULL) tuple must not turn definite mismatches into NULL marks. Expect warning for multi-value.
+FROM employees
+| WHERE (emp_no, job_positions) IN (FROM employees
+                                    | WHERE salary > 27000
+                                    | SORT emp_no
+                                    | LIMIT 2
+                                    | KEEP emp_no, job_positions)
+    OR emp_no == 10001
+| KEEP emp_no, job_positions
+| SORT emp_no
+| LIMIT 2
+;
+
+warningRegex:.*evaluation of .*failed.*
+warningRegex:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+
+emp_no:integer | job_positions:keyword
+10001          | [Accountant, Senior Python Developer]
+10002          | Senior Team Lead
+;
+
+multiColumnNotInSubqueryMarkJoinWithMultiValuedOrEquals
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+
+// OR forces MarkJoin for NOT IN as well. The exact non-NULL tuple (10002, Senior Team Lead) is excluded. Expect warning for multi-value.
+FROM employees
+| WHERE (emp_no, job_positions) NOT IN (FROM employees
+                                        | WHERE salary > 27000
+                                        | SORT emp_no
+                                        | LIMIT 2
+                                        | KEEP emp_no, job_positions)
+    OR emp_no == 10001
+| KEEP emp_no, job_positions
+| SORT emp_no
+| LIMIT 3
+;
+
+warningRegex:.*evaluation of .*failed.*
+warningRegex:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+
+emp_no:integer | job_positions:keyword
+10001          | [Accountant, Senior Python Developer]
+10003          | null
+10004          | [Head Human Resources, Reporting Analyst, Support Engineer, Tech Lead]
 ;

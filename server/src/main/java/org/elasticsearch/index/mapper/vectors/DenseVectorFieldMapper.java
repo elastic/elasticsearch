@@ -29,6 +29,7 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.queries.function.FunctionScoreQuery;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
@@ -38,6 +39,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -2153,15 +2155,25 @@ public class DenseVectorFieldMapper extends FieldMapper {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support term queries");
         }
 
-        public Query createExactKnnQuery(VectorData queryVector, Float vectorSimilarity) {
+        /**
+         * Builds an exact (brute-force) kNN query, that requires an index to exist. Whether it scores against the
+         * quantized or the full-precision vectors follows whether rescoring is needed: rescoring means the approximate
+         * path produces full-precision scores, so this query uses full-precision vectors too; otherwise both stay
+         * quantized. That keeps callers such as {@code inner_hits} in the same score domain as the query phase.
+         *
+         * @param oversample the query-time {@code rescore_vector.oversample} override, or {@code null} to use whatever
+         *                   the field's index options specify
+         */
+        public Query createExactKnnQuery(VectorData queryVector, Float vectorSimilarity, @Nullable Float oversample) {
             if (isIndexed() == false) {
                 throw new IllegalArgumentException(
                     "to perform knn search on field [" + name() + "], its mapping must have [index] set to [true]"
                 );
             }
             Query knnQuery = switch (elementType) {
+                // Only float vectors are ever quantized, so the byte and bit paths always score against the indexed values.
                 case BYTE -> createExactKnnByteQuery(queryVector.asByteVector());
-                case FLOAT -> createExactKnnFloatQuery(queryVector.asFloatVector());
+                case FLOAT -> createExactKnnFloatQuery(queryVector.asFloatVector(), needsRescore(effectiveOversample(oversample)) == false);
                 case BIT -> createExactKnnBitQuery(queryVector.asByteVector());
             };
             if (vectorSimilarity != null) {
@@ -2184,7 +2196,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return new DenseVectorQuery.Bytes(queryVector, name());
         }
 
-        private Query createExactKnnFloatQuery(float[] queryVector) {
+        /**
+         * @param useQuantized whether to score against the quantized vectors. When false, scoring goes through the same
+         *                     {@link VectorSimilarityFloatValueSource} the query phase rescores with, so the exact and
+         *                     approximate paths produce identical scores rather than merely comparable ones.
+         */
+        private Query createExactKnnFloatQuery(float[] queryVector, boolean useQuantized) {
             elementType.checkDimensions(dims, queryVector.length);
             elementType.checkVectorBounds(queryVector);
             if (similarity == VectorSimilarity.DOT_PRODUCT || similarity == VectorSimilarity.COSINE) {
@@ -2200,7 +2217,20 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     }
                 }
             }
-            return new DenseVectorQuery.Floats(queryVector, name());
+            DenseVectorQuery.Floats exactQuery = new DenseVectorQuery.Floats(queryVector, name());
+            if (useQuantized) {
+                return exactQuery;
+            }
+            // Iterate the same docs as before, but take the score from the full-precision vectors. The value source
+            // needs no scores from its inner query, so the codec-bound scorer is never invoked.
+            return new FunctionScoreQuery(
+                exactQuery,
+                new VectorSimilarityFloatValueSource(
+                    name(),
+                    queryVector,
+                    similarity.vectorSimilarityFunction(indexVersionCreated, ElementType.FLOAT)
+                )
+            );
         }
 
         public Query createKnnQuery(
@@ -2237,6 +2267,19 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         private boolean needsRescore(Float rescoreOversample) {
             return rescoreOversample != null && rescoreOversample > 0 && isQuantized();
+        }
+
+        /**
+         * Resolves the oversample the approximate path would apply: the query-time override when given, otherwise the
+         * value configured on the field's index options. Mirrors the resolution in {@link #createKnnFloatQuery}.
+         */
+        private Float effectiveOversample(@Nullable Float queryOversample) {
+            if (queryOversample != null) {
+                return queryOversample;
+            }
+            return indexOptions instanceof QuantizedIndexOptions quantizedIndexOptions && quantizedIndexOptions.rescoreVector != null
+                ? quantizedIndexOptions.rescoreVector.oversample
+                : null;
         }
 
         private boolean isQuantized() {
@@ -2320,12 +2363,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             int adjustedK = k;
             // By default utilize the quantized oversample is configured
             // allow the user provided at query time overwrite
-            Float oversample = queryOversample;
-            if (oversample == null
-                && indexOptions instanceof QuantizedIndexOptions quantizedIndexOptions
-                && quantizedIndexOptions.rescoreVector != null) {
-                oversample = quantizedIndexOptions.rescoreVector.oversample;
-            }
+            Float oversample = effectiveOversample(queryOversample);
             boolean rescore = needsRescore(oversample);
             if (rescore) {
                 // Will get k * oversample for rescoring, and get the top k

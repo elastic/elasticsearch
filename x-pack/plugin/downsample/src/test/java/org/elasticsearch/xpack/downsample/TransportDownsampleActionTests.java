@@ -139,8 +139,7 @@ public class TransportDownsampleActionTests extends ESTestCase {
     private IndicesAdminClient indicesAdminClient;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initMocks() throws Exception {
         mocks = MockitoAnnotations.openMocks(this);
         action = new TransportDownsampleAction(
             client,
@@ -211,8 +210,7 @@ public class TransportDownsampleActionTests extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void closeMocks() throws Exception {
         mocks.close();
     }
 

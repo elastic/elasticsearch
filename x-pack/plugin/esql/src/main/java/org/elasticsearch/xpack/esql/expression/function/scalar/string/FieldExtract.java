@@ -116,6 +116,25 @@ public class FieldExtract extends EsqlScalarFunction implements BlockLoaderExpre
             Inside a multi-value sub-field, JSON object elements are likewise absent from the flat storage and are
             skipped; nested JSON arrays are flattened recursively so all scalar leaves end up in the resulting
             multi-value block.""",
+        appendix = """
+            ::::{note}
+            `FIELD_EXTRACT` reads values from the `flattened` field's doc values, so its results differ from a
+            plain `keyword` field in two ways that are intrinsic to the [`flattened` mapping
+            type](/reference/elasticsearch/mapping-reference/flattened.md), not to the function:
+
+            * **Multi-valued results are sorted and de-duplicated.** When the extracted sub-field holds more than
+              one value, they are returned as a sorted, de-duplicated `keyword` set: the original document order
+              is not preserved and repeated values are collapsed. This matches how `flattened` [stores leaf
+              arrays](/reference/elasticsearch/mapping-reference/flattened.md#flattened-preserve-leaf-arrays). Use
+              [`MV_SORT`](/reference/query-languages/esql/functions-operators/mv-functions/mv_sort.md) if you need
+              a defined order downstream.
+            * **Every value is a `keyword`.** Regardless of the original JSON type, extracted values are untyped
+              keywords with no numeric, date, or IP typing and no full-text analysis. For typed comparisons (for
+              example a numeric range) or full-text `MATCH` on a specific sub-key, map that key as a typed
+              sub-field through the flattened field's
+              [`properties`](/reference/elasticsearch/mapping-reference/flattened.md#flattened-properties) and
+              reference the typed sub-field directly rather than using `FIELD_EXTRACT`.
+            ::::""",
         examples = @Example(file = "field_extract", tag = "field_extract_host_name")
     )
     public FieldExtract(

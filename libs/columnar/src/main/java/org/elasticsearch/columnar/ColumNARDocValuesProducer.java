@@ -91,7 +91,7 @@ final class ColumNARDocValuesProducer extends DocValuesProducer {
                 state.segmentInfo.getId(),
                 state.segmentSuffix
             );
-            if (metaVersion.matches(dataVersion) == false) {
+            if (metaVersion.equals(dataVersion) == false) {
                 throw new CorruptIndexException(
                     "Format versions mismatch: meta=" + metaVersion.version() + ", data=" + dataVersion.version(),
                     data

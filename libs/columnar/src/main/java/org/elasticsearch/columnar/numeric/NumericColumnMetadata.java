@@ -178,7 +178,7 @@ public record NumericColumnMetadata(
      *
      * <p>{@code formatVersion} is the on-disk version returned by
      * {@link org.elasticsearch.columnar.substrate.ColumnarCodecUtil#checkHeader}; it has already
-     * been validated to be in {@code [MIN_SUPPORTED, CURRENT]}. When a future version adds a field
+     * been validated to be in {@code [BASELINE, CURRENT]}. When a future version adds a field
      * to this layout, gate the read on a {@code VERSION_*} constant from
      * {@link org.elasticsearch.columnar.FormatVersion}:
      * <pre>{@code

@@ -2032,7 +2032,10 @@ public class SharedBlobCacheWarmingService {
 
             @Override
             public void onFailure(Exception e) {
-                deque();
+                if (deque() == false) {
+                    // onResponse already ran and incremented running, but threw before invoking its listener
+                    runningBccBlobsMetric.add(-1, bccSizeAttributes);
+                }
                 logger.warn(
                     () -> format("%s %s failed to warm blob %s %s", warmingRun.shardId(), warmingRun.type(), blobFile, byteRangeToWarm),
                     e

@@ -895,3 +895,5 @@ tests:
 - class: org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettingsTests
   method: testBwcSerialization
   issue: https://github.com/elastic/elasticsearch/issues/156702
+- class: org.elasticsearch.xpack.inference.services.elastic.ccm.CCMModelTests
+  issue: https://github.com/elastic/elasticsearch/issues/156703

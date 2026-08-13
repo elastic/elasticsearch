@@ -14,7 +14,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.sourcebatch.LeafSink;
 import org.elasticsearch.sourcebatch.SourceBatchEncodeHelper;
 import org.elasticsearch.sourcebatch.SourceBatchEncoder;
@@ -57,20 +56,22 @@ public final class EscfEncoder implements SourceBatchEncoder {
     @Override
     public void parseToScratch(BytesReference source, XContentType xContentType, LeafSink sink) throws IOException {
         EscfRowBuffer row = backend.beginRow();
-        BytesReference sourceToParse = source;
-        Releasable releasable = Releasables.NO_OP;
-        if (source.hasArray() == false && source.length() <= recycler.pageSize()) {
-            Recycler.V<BytesRef> obtained = recycler.obtain();
-            releasable = obtained;
-            sourceToParse = BytesReference.copyTo(source, obtained.v());
-        }
-        try (
-            Releasable toClose = releasable;
-            XContentParser parser = XContentHelper.createParserNotCompressed(XContentParserConfiguration.EMPTY, sourceToParse, xContentType)
-        ) {
-            parser.allowDuplicateKeys(true);
-            parser.nextToken(); // START_OBJECT
-            flattenObject(row, parser, parser.nextToken(), sink);
+        // Obtain a scratch page before the try so we can open the TWR immediately. Java TWR
+        // tolerates a null resource, so this stays a single branch rather than two try blocks.
+        Recycler.V<BytesRef> page = source.hasArray() == false && source.length() <= recycler.pageSize() ? recycler.obtain() : null;
+        try (Releasable toClose = page) {
+            BytesReference sourceToParse = page == null ? source : BytesReference.copyTo(source, page.v());
+            try (
+                XContentParser parser = XContentHelper.createParserNotCompressed(
+                    XContentParserConfiguration.EMPTY,
+                    sourceToParse,
+                    xContentType
+                )
+            ) {
+                parser.allowDuplicateKeys(true);
+                parser.nextToken(); // START_OBJECT
+                flattenObject(row, parser, parser.nextToken(), sink);
+            }
         }
         row.finishRow();
     }

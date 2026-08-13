@@ -47,6 +47,7 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.dlm.TimeSeriesEligibleWriteWindowLocator;
@@ -107,6 +108,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
     private final OriginSettingClient rolloverClient;
     private final FailureStoreMetrics failureStoreMetrics;
     private final DataStreamFailureStoreSettings dataStreamFailureStoreSettings;
+    private final PageCacheRecycler pageCacheRecycler;
     private final TimeSeriesEligibleWriteWindowLocator timeSeriesEligibleWriteWindowLocator;
     private final DataStreamGlobalRetentionSettings dataStreamGlobalRetentionSettings;
     private volatile boolean pastTsdbIndexCreationEnabled;
@@ -127,7 +129,8 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         DataStreamFailureStoreSettings dataStreamFailureStoreSettings,
         FeatureService featureService,
         TimeSeriesEligibleWriteWindowLocator timeSeriesEligibleWriteWindowLocator,
-        DataStreamGlobalRetentionSettings dataStreamGlobalRetentionSettings
+        DataStreamGlobalRetentionSettings dataStreamGlobalRetentionSettings,
+        PageCacheRecycler pageCacheRecycler
     ) {
         this(
             threadPool,
@@ -145,7 +148,8 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             dataStreamFailureStoreSettings,
             featureService,
             timeSeriesEligibleWriteWindowLocator,
-            dataStreamGlobalRetentionSettings
+            dataStreamGlobalRetentionSettings,
+            pageCacheRecycler
         );
     }
 
@@ -165,7 +169,8 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         DataStreamFailureStoreSettings dataStreamFailureStoreSettings,
         FeatureService featureService,
         TimeSeriesEligibleWriteWindowLocator timeSeriesEligibleWriteWindowLocator,
-        DataStreamGlobalRetentionSettings dataStreamGlobalRetentionSettings
+        DataStreamGlobalRetentionSettings dataStreamGlobalRetentionSettings,
+        PageCacheRecycler pageCacheRecycler
     ) {
         super(
             TYPE,
@@ -182,6 +187,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             featureService
         );
         this.dataStreamFailureStoreSettings = dataStreamFailureStoreSettings;
+        this.pageCacheRecycler = pageCacheRecycler;
         Objects.requireNonNull(relativeTimeProvider);
         this.client = client;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
@@ -863,6 +869,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             threadPool,
             executor,
             clusterService,
+            pageCacheRecycler,
             bulkRequest,
             client,
             responses,

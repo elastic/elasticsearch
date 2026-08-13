@@ -16,6 +16,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.routing.RoutingExtractor;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.eirf.EirfEncoder;
 import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.Index;
@@ -23,6 +24,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.sourcebatch.LeafSink;
 import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.sourcebatch.SourceBatchEncoder;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.ArrayList;
@@ -67,6 +69,11 @@ final class BulkBatchEncoders implements Releasable {
 
     /** Sentinel returned from {@link #tryEncodeAndRoute} when the item cannot be EIRF-encoded. */
     static final int NOT_BATCHABLE = -1;
+    private final BytesRefRecycler recycler;
+
+    BulkBatchEncoders(BytesRefRecycler recycler) {
+        this.recycler = recycler;
+    }
 
     private static final class IndexState {
         final SourceBatchEncoder encoder;
@@ -141,7 +148,7 @@ final class BulkBatchEncoders implements Releasable {
         }
         IndexState state = indexStates.computeIfAbsent(
             concreteIndex,
-            idx -> new IndexState(new EscfEncoder(), indexRouting.newRoutingExtractor())
+            idx -> new IndexState(new EscfEncoder(recycler), indexRouting.newRoutingExtractor())
         );
         if (state.extractor != null) {
             state.extractor.reset();
@@ -180,27 +187,37 @@ final class BulkBatchEncoders implements Releasable {
      * Build the EIRF batch for every shard that received committed rows, set the EIRF row reference
      * on each item routed there (replacing inline source bytes with a row reference), and return
      * the resulting batches keyed by ShardId. Returns an empty map when {@link #disabled()} is true.
+     *
+     * <p>If building throws, all batches produced so far are released before propagating.
      */
     Map<ShardId, SourceBatch> finalizeBatches() {
-        if (disabled) {
+        if (disabled || closed) {
             return Collections.emptyMap();
         }
         Map<ShardId, SourceBatch> batchesByShard = new HashMap<>();
-        for (IndexState state : indexStates.values()) {
-            for (Map.Entry<ShardId, List<PendingAttachment>> entry : state.pendingByShard.entrySet()) {
-                List<PendingAttachment> pending = entry.getValue();
-                if (pending.isEmpty()) {
-                    continue;
-                }
-                ShardId shardId = entry.getKey();
-                SourceBatch batch = state.encoder.buildPartition(shardId.getId());
-                batchesByShard.put(shardId, batch);
-                for (PendingAttachment attachment : pending) {
-                    attachment.indexRequest.indexSource().setSourceRow(batch, attachment.rowIndex);
+        boolean success = false;
+        try {
+            for (IndexState state : indexStates.values()) {
+                for (Map.Entry<ShardId, List<PendingAttachment>> entry : state.pendingByShard.entrySet()) {
+                    List<PendingAttachment> pending = entry.getValue();
+                    if (pending.isEmpty()) {
+                        continue;
+                    }
+                    ShardId shardId = entry.getKey();
+                    SourceBatch batch = state.encoder.buildPartition(shardId.getId());
+                    batchesByShard.put(shardId, batch);
+                    for (PendingAttachment attachment : pending) {
+                        attachment.indexRequest.indexSource().setSourceRow(batch, attachment.rowIndex);
+                    }
                 }
             }
+            success = true;
+            return batchesByShard;
+        } finally {
+            if (success == false) {
+                Releasables.close(batchesByShard.values());
+            }
         }
-        return batchesByShard;
     }
 
     @Override

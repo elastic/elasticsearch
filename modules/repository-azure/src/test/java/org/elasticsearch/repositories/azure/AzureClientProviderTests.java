@@ -231,11 +231,7 @@ public class AzureClientProviderTests extends ESTestCase {
 
             // get a different client by changing the account name
             final var otherAccountName = "otherAccount";
-            final var otherStorageSettings = createStorageSettings(
-                clientName,
-                otherAccountName,
-                maxConnections
-            );
+            final var otherStorageSettings = createStorageSettings(clientName, otherAccountName, maxConnections);
             final var otherKey2 = new AzureClientProvider.ConnectionProviderKey(null, clientName, otherAccountName);
             try (var otherClient2 = createClient(clientName, otherStorageSettings)) {
                 final var otherRef = azureClientProvider.getConnectionProvidersCache().get(otherKey2);

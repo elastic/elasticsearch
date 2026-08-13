@@ -297,7 +297,7 @@ abstract class AbstractGradleFuncTest extends Specification {
     void withVersionCatalogue() {
         file('build.versions.toml') << '''\
 [libraries]
-checkstyle = "com.puppycrawl.tools:checkstyle:11.1"
+checkstyle = "com.puppycrawl.tools:checkstyle:13.10"
 '''
         settingsFile << '''
             dependencyResolutionManagement {

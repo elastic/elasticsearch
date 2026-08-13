@@ -892,3 +892,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlOldCoordinatorSpecDateIT
   method: test {csv-spec:date.dateDiffUnitFromField}
   issue: https://github.com/elastic/elasticsearch/issues/156698
+- class: org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettingsTests
+  method: testBwcSerialization
+  issue: https://github.com/elastic/elasticsearch/issues/156702

@@ -824,6 +824,40 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         assertTrue("Detail should carry Jackson's limit text, got: " + warnings.get(1), warnings.get(1).contains("Number value length"));
     }
 
+    /**
+     * The decoder-level test pins {@code status()} on the exception at its throw site; this pins what a caller
+     * actually observes, one layer out, where the exception has crossed {@code NdJsonPageIterator.hasNext} and
+     * could in principle have been re-wrapped. It asserts through {@link ExceptionsHelper#status} — the helper
+     * the REST layer itself uses — rather than calling {@code status()} on a known type, so it stays honest if
+     * the thrown type changes again.
+     * <p>
+     * Both arms matter. A malformed line is the long-standing whole-line failure; an over-limit token is the
+     * class this PR routed into it. Both are the user's data, so both must answer 400 and not the 500 that the
+     * {@code QlServerException} family would have produced.
+     */
+    public void testStrictReadFailuresSurfaceAsBadRequestThroughTheIterator() throws IOException {
+        assertStrictReadFailureStatus("{\"id\":1}\n{{{not-an-object\n", "malformed line");
+        assertStrictReadFailureStatus("{\"id\":1}\n{\"id\":" + "1".repeat(1200) + "}\n", "over-limit token");
+    }
+
+    private void assertStrictReadFailureStatus(String ndjson, String what) throws IOException {
+        var object = new BytesStorageObject("memory://status.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        try (
+            var iterator = reader.read(
+                object,
+                FormatReadContext.builder().projectedColumns(List.of("id")).batchSize(100).errorPolicy(ErrorPolicy.STRICT).build()
+            )
+        ) {
+            Exception e = expectThrows(Exception.class, () -> {
+                while (iterator.hasNext()) {
+                    iterator.next().releaseBlocks();
+                }
+            });
+            assertEquals(what + " must surface as a client error, not a server error", RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
+        }
+    }
+
     public void testMalformedLinesOverflowEmitsCappedHeaders() throws IOException {
         // Mix valid and invalid lines so the SKIP_ROW path triggers more than MAX_ADDED_WARNINGS times.
         StringBuilder ndjson = new StringBuilder();

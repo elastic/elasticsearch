@@ -450,7 +450,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             for (int i = 0; i < dims; i++) {
                 queryVector[i] = randomFloat();
             }
-            Query query = field.createIndexedExactKnnQuery(VectorData.fromFloats(queryVector), null);
+            Query query = field.createIndexedExactKnnQuery(VectorData.fromFloats(queryVector), null, null);
             assertThat(query, instanceOf(DenseVectorQuery.Floats.class));
         }
         {
@@ -469,7 +469,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             for (int i = 0; i < dims; i++) {
                 queryVector[i] = randomByte();
             }
-            Query query = field.createIndexedExactKnnQuery(VectorData.fromBytes(queryVector), null);
+            Query query = field.createIndexedExactKnnQuery(VectorData.fromBytes(queryVector), null, null);
             assertThat(query, instanceOf(DenseVectorQuery.Bytes.class));
         }
     }
@@ -507,7 +507,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         // The exact-knn entry point used by ExactKnnQueryBuilder/inner-hits still requires an indexed field.
         IllegalArgumentException requiresIndexed = expectThrows(
             IllegalArgumentException.class,
-            () -> field.createIndexedExactKnnQuery(VectorData.fromFloats(queryVector), null)
+            () -> field.createIndexedExactKnnQuery(VectorData.fromFloats(queryVector), null, null)
         );
         assertThat(requiresIndexed.getMessage(), containsString("its mapping must have [index] set to [true]"));
 

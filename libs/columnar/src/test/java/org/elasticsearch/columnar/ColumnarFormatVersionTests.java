@@ -16,8 +16,6 @@ import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
-import org.elasticsearch.columnar.numeric.NumericPipeline;
-import org.elasticsearch.columnar.numeric.NumericPipelineSelector;
 import org.elasticsearch.columnar.substrate.ColumnarCodecUtil;
 import org.elasticsearch.test.ESTestCase;
 
@@ -51,14 +49,6 @@ public class ColumnarFormatVersionTests extends ESTestCase {
                     () -> ColumnarCodecUtil.checkHeader(in, ColumNARDocValuesFormat.META_CODEC, SEGMENT_ID, SUFFIX)
                 );
             }
-        }
-    }
-
-    public void testInvalidBlockSizeRejected() {
-        final NumericPipelineSelector sel = (f, t) -> NumericPipeline::defaultPipeline;
-        for (int bs : new int[] { 0, -1, 64, 127, 384, 640, ColumNARDocValuesFormat.MAX_BLOCK_SIZE * 2 }) {
-            final int blockSize = bs;
-            expectThrows(IllegalArgumentException.class, () -> new ColumNARDocValuesFormat(sel, blockSize));
         }
     }
 

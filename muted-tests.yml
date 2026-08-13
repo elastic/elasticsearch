@@ -899,3 +899,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/156703
 - class: org.elasticsearch.xpack.esql.datasource.grpc.AsyncConnectorFactoryFlightTests
   issue: https://github.com/elastic/elasticsearch/issues/156704
+- class: org.elasticsearch.index.codec.vectors.ash.AsymmetricHashingQuantizerTests
+  method: testScoreReconstructsDotProduct
+  issue: https://github.com/elastic/elasticsearch/issues/156705

@@ -29,6 +29,7 @@ import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.persistent.PersistentTaskLifecycleManager;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SharedComponentRegistry;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
@@ -73,5 +74,6 @@ public record PluginServiceInstances(
     CrossProjectModeDecider crossProjectModeDecider,
     PersistentTaskLifecycleManager taskLifecycleManager,
     DataStreamLifecycleErrorStore dlmErrorStore,
-    IpLocationService ipLocationService
+    IpLocationService ipLocationService,
+    SharedComponentRegistry sharedComponents
 ) implements Plugin.PluginServices {}

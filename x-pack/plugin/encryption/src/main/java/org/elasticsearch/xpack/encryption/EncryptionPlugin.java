@@ -28,7 +28,6 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.encryption.spi.EncryptedDataHandler;
 import org.elasticsearch.xpack.encryption.spi.EncryptedDataHandlerProvider;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
-import org.elasticsearch.xpack.encryption.spi.EncryptionServiceRegistry;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -56,9 +55,6 @@ public class EncryptionPlugin extends Plugin implements ActionPlugin, Extensible
 
     public EncryptionPlugin(Settings settings) {
         this.pekSettings = ProjectEncryptionKeyPasswordSettings.cloneSettings(settings);
-        // Clear any service left in the registry by a previously constructed plugin instance (e.g. a prior node in the same test JVM),
-        // so this node's createComponents publishes into a clean slot.
-        EncryptionServiceRegistry.reset();
     }
 
     @Override
@@ -78,7 +74,7 @@ public class EncryptionPlugin extends Plugin implements ActionPlugin, Extensible
             pekService::state,
             pekService::isEncryptionRequired
         );
-        EncryptionServiceRegistry.setEncryptionService(encryptionService);
+        services.sharedComponents().register(EncryptionService.class, encryptionService);
         List<EncryptedDataHandler<?>> handlers = encryptedDataHandlerProviders.stream().flatMap(p -> p.getHandlers().stream()).toList();
         EncryptedDataHandlerRegistry handlerRegistry = new EncryptedDataHandlerRegistry(handlers);
         KeyRotationCoordinator coordinator = KeyRotationCoordinator.create(

@@ -2200,7 +2200,9 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
         final long primaryTerm = randomLongBetween(1, 42);
         final long regionSizeInBytes = SharedBytes.PAGE_SIZE;
         final long cacheSizeBytes = ByteSizeValue.ofMb(9).getBytes();
-        final int numBlobs = randomIntBetween(1, 4);
+        final int numBlobs = randomIntBetween(2, 5);
+        final var capturedTasks = new ArrayList<AbstractWarmingTask>();
+        final var readBlocker = new CountDownLatch(1);
         RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
         try (
             var fakeNode = new FakeStatelessNode(
@@ -2235,7 +2237,13 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                         telemetryProvider(recordingMeterRegistry),
                         clusterSettings,
                         warmingRatioProvider
-                    );
+                    ) {
+                        // Capture tasks instead of submitting them so we control exactly when each starts.
+                        @Override
+                        protected void scheduleWarmingTask(AbstractWarmingTask task) {
+                            capturedTasks.add(task);
+                        }
+                    };
                 }
 
                 @Override
@@ -2273,7 +2281,21 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
 
                 @Override
                 public BlobContainer wrapBlobContainer(BlobPath path, BlobContainer innerContainer) {
-                    return FakeStatelessNode.syntheticBytesContainer(innerContainer);
+                    // Stall every readBlob until readBlocker is released so that tasks remain in
+                    // the running state long enough for us to assert the non-zero counter value.
+                    return new FilterBlobContainer(FakeStatelessNode.syntheticBytesContainer(innerContainer)) {
+                        @Override
+                        public InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length)
+                            throws IOException {
+                            safeAwait(readBlocker);
+                            return super.readBlob(purpose, blobName, position, length);
+                        }
+
+                        @Override
+                        protected BlobContainer wrapChild(BlobContainer child) {
+                            return child;
+                        }
+                    };
                 }
             }
         ) {
@@ -2294,35 +2316,71 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
 
             PlainActionFuture<Void> warmListener = new PlainActionFuture<>();
             fakeNode.warmingService.warmBlobOffsets(indexShard, fakeNode.searchDirectory, warmTargets, warmListener);
+
+            // warmBlobOffsets schedules tasks synchronously, so all numBlobs tasks are already captured.
+            // No task has started yet: enqueued == numBlobs, running == 0.
+            int enqueuedCount = numBlobs;
+            assertThat(capturedTasks.size(), equalTo(enqueuedCount));
+            assertThat(
+                "enqueued must equal number of blobs before any task starts",
+                measurementsTotal(recordingMeterRegistry, InstrumentType.LONG_UP_DOWN_COUNTER,
+                    SharedBlobCacheWarmingService.BLOB_CACHE_WARMING_BCC_BLOBS_ENQUEUED_CURRENT_METRIC),
+                equalTo((long) enqueuedCount)
+            );
+
+            // Execute the captured tasks. onResponse calls deque() synchronously (enqueued-=1, running+=1),
+            // then dispatches the actual reads asynchronously. readBlocker keeps those reads stalled,
+            // so the running counter stays elevated until we release it.
+            int runningCount = 0;
+            for (var task : capturedTasks) {
+                task.onResponse(() -> {});
+                assertThat(
+                    measurementsTotal(
+                        recordingMeterRegistry,
+                        InstrumentType.LONG_UP_DOWN_COUNTER,
+                        SharedBlobCacheWarmingService.BLOB_CACHE_WARMING_BCC_BLOBS_RUNNING_CURRENT_METRIC
+                    ),
+                    equalTo((long) ++runningCount)
+                );
+                assertThat(
+                    "enqueued must equal number of blobs before any task starts",
+                    measurementsTotal(recordingMeterRegistry, InstrumentType.LONG_UP_DOWN_COUNTER,
+                        SharedBlobCacheWarmingService.BLOB_CACHE_WARMING_BCC_BLOBS_ENQUEUED_CURRENT_METRIC),
+                    equalTo((long) --enqueuedCount)
+                );
+            }
+
+            // Unblock all reads; tasks complete and counters return to zero.
+            readBlocker.countDown();
             safeGet(warmListener);
 
-            long enqueuedSum = recordingMeterRegistry.getRecorder()
-                .getMeasurements(
-                    InstrumentType.LONG_UP_DOWN_COUNTER,
-                    SharedBlobCacheWarmingService.BLOB_CACHE_WARMING_BCC_BLOBS_ENQUEUED_CURRENT_METRIC
-                )
-                .stream()
-                .mapToLong(Measurement::getLong)
-                .sum();
-            assertThat("enqueued counter must return to zero after all tasks complete", enqueuedSum, equalTo(0L));
-
-            long runningSum = recordingMeterRegistry.getRecorder()
-                .getMeasurements(
-                    InstrumentType.LONG_UP_DOWN_COUNTER,
-                    SharedBlobCacheWarmingService.BLOB_CACHE_WARMING_BCC_BLOBS_RUNNING_CURRENT_METRIC
-                )
-                .stream()
-                .mapToLong(Measurement::getLong)
-                .sum();
-            assertThat("running counter must return to zero after all tasks complete", runningSum, equalTo(0L));
-
-            long doneTotal = recordingMeterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_COUNTER, SharedBlobCacheWarmingService.BLOB_CACHE_WARMING_BCC_BLOBS_DONE_TOTAL_METRIC)
-                .stream()
-                .mapToLong(Measurement::getLong)
-                .sum();
-            assertThat("done counter must equal the number of warmed blobs", doneTotal, equalTo((long) numBlobs));
+            assertThat(
+                "enqueued must return to zero after all tasks complete",
+                measurementsTotal(recordingMeterRegistry, InstrumentType.LONG_UP_DOWN_COUNTER,
+                    SharedBlobCacheWarmingService.BLOB_CACHE_WARMING_BCC_BLOBS_ENQUEUED_CURRENT_METRIC),
+                equalTo(0L)
+            );
+            assertThat(
+                "running must return to zero after all tasks complete",
+                measurementsTotal(recordingMeterRegistry, InstrumentType.LONG_UP_DOWN_COUNTER,
+                    SharedBlobCacheWarmingService.BLOB_CACHE_WARMING_BCC_BLOBS_RUNNING_CURRENT_METRIC),
+                equalTo(0L)
+            );
+            assertThat(
+                "done counter must equal the number of warmed blobs",
+                recordingMeterRegistry.getRecorder()
+                    .getMeasurements(InstrumentType.LONG_COUNTER,
+                        SharedBlobCacheWarmingService.BLOB_CACHE_WARMING_BCC_BLOBS_DONE_TOTAL_METRIC)
+                    .stream()
+                    .mapToLong(Measurement::getLong)
+                    .sum(),
+                equalTo((long) numBlobs)
+            );
         }
+    }
+
+    private static long measurementsTotal(RecordingMeterRegistry registry, InstrumentType type, String name) {
+        return registry.getRecorder().getMeasurements(type, name).stream().mapToLong(Measurement::getLong).sum();
     }
 
     public void testShardRecoveryWarmingPropagatesTimestamp() throws Exception {

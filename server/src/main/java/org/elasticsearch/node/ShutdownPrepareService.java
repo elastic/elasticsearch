@@ -179,16 +179,27 @@ public class ShutdownPrepareService {
         }
     }
 
-    /// The polling interval used by [#awaitTasksComplete]. Chosen to allow short response times, but (since checking the tasks list is
-    /// relatively expensive) not so short that we waste CPU time we could be spending on finishing those tasks.
+    /// The polling interval used by [#awaitTasksCompleteInternal]. Chosen to allow short response times, but (since checking the tasks list
+    /// is relatively expensive) not so short that we waste CPU time we could be spending on finishing those tasks.
     static final TimeValue AWAIT_TASKS_POLL_INTERVAL = TimeValue.timeValueMillis(500);
 
     // exists and package-private for testing
-    static class Sleeper {
+    protected static class Sleeper {
 
         void sleep(TimeValue interval) throws InterruptedException {
             Thread.sleep(interval.millis());
         }
+    }
+
+    protected boolean awaitTasksComplete(
+        TimeValue timeout,
+        Sleeper sleeper,
+        String taskName,
+        TaskManager taskManager,
+        @Nullable Consumer<Task> taskNotifier,
+        @Nullable Consumer<List<Task>> onTimeout
+    ) {
+        return awaitTasksCompleteInternal(timeout, sleeper, taskName, taskManager, taskNotifier, onTimeout);
     }
 
     /// Repeatedly polls the `taskManager` to list tasks whose action name is `taskName`, invoking `sleeper` to sleep for
@@ -196,7 +207,7 @@ public class ShutdownPrepareService {
     /// `timeout`. Invokes `taskNotifier` exactly once for each matching task encountered. Returns true if it found no matching tasks, false
     /// if it timed out or was interrupted.
     // package-private for testing
-    static boolean awaitTasksComplete(
+    static boolean awaitTasksCompleteInternal(
         TimeValue timeout,
         Sleeper sleeper,
         String taskName,

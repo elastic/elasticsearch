@@ -62,8 +62,7 @@ public class TransportGetCheckpointNodeActionTests extends ESTestCase {
     private Set<ShardId> shards;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initCheckpointNodeActionTestDeps() throws Exception {
         ClusterService clusterService = new ClusterService(
             Settings.builder().put("node.name", NODE_NAME).build(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),

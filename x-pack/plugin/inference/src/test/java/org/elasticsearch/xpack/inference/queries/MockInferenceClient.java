@@ -12,8 +12,8 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.internal.RemoteClusterClient;
+import org.elasticsearch.inference.EndpointClusterState;
 import org.elasticsearch.inference.InferenceResults;
-import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.client.NoOpClient;
@@ -33,13 +33,13 @@ import java.util.Map;
 import java.util.concurrent.Executor;
 
 public class MockInferenceClient extends NoOpClient {
-    private final Map<String, MinimalServiceSettings> inferenceEndpoints;
+    private final Map<String, EndpointClusterState> inferenceEndpoints;
     private final MockInferenceGenerator inferenceGenerator;
     private final Map<String, MockInferenceRemoteClusterClient> remoteClusterClients;
 
     public MockInferenceClient(
         ThreadPool threadPool,
-        Map<String, MinimalServiceSettings> inferenceEndpoints,
+        Map<String, EndpointClusterState> inferenceEndpoints,
         Map<String, MockInferenceRemoteClusterClient.RemoteClusterConfig> remoteClusterConfigs
     ) {
         super(threadPool);
@@ -58,7 +58,7 @@ public class MockInferenceClient extends NoOpClient {
             @SuppressWarnings("unchecked")
             ActionListener<GetInferenceModelAction.Response> getModelListener = (ActionListener<GetInferenceModelAction.Response>) listener;
             String inferenceId = getModelRequest.getInferenceEntityId();
-            MinimalServiceSettings settings = inferenceEndpoints.get(inferenceId);
+            EndpointClusterState settings = inferenceEndpoints.get(inferenceId);
             if (settings == null) {
                 getModelListener.onFailure(new IllegalArgumentException("Inference endpoint [" + inferenceId + "] does not exist"));
             } else {
@@ -74,7 +74,7 @@ public class MockInferenceClient extends NoOpClient {
             @SuppressWarnings("unchecked")
             ActionListener<InferenceAction.Response> inferenceListener = (ActionListener<InferenceAction.Response>) listener;
             String inferenceId = embeddingRequest.getInferenceEntityId();
-            MinimalServiceSettings settings = inferenceEndpoints.get(inferenceId);
+            EndpointClusterState settings = inferenceEndpoints.get(inferenceId);
             if (settings != null && settings.taskType().isAnyOrSame(TaskType.EMBEDDING) == false) {
                 inferenceListener.onFailure(
                     new IllegalArgumentException(
@@ -95,7 +95,7 @@ public class MockInferenceClient extends NoOpClient {
             @SuppressWarnings("unchecked")
             ActionListener<InferenceAction.Response> inferenceListener = (ActionListener<InferenceAction.Response>) listener;
             String inferenceId = inferenceRequest.getInferenceEntityId();
-            MinimalServiceSettings settings = inferenceEndpoints.get(inferenceId);
+            EndpointClusterState settings = inferenceEndpoints.get(inferenceId);
             if (settings != null && settings.taskType() != TaskType.SPARSE_EMBEDDING && settings.taskType() != TaskType.TEXT_EMBEDDING) {
                 inferenceListener.onFailure(
                     new IllegalArgumentException(
@@ -114,7 +114,7 @@ public class MockInferenceClient extends NoOpClient {
             ActionListener<InferModelAction.Response> inferenceListener = (ActionListener<InferModelAction.Response>) listener;
 
             String inferenceId = inferenceRequest.getModelId();
-            MinimalServiceSettings settings = inferenceEndpoints.get(inferenceId);
+            EndpointClusterState settings = inferenceEndpoints.get(inferenceId);
             if (settings != null && settings.taskType() != TaskType.TEXT_EMBEDDING && settings.taskType() != TaskType.SPARSE_EMBEDDING) {
                 inferenceListener.onFailure(
                     new IllegalArgumentException(

@@ -49,10 +49,8 @@ public class IndexRecoveryMonitoringDocTests extends BaseMonitoringDocTestCase<I
 
     private RecoveryResponse mockRecoveryResponse;
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initRecoveryResponseMock() throws Exception {
         mockRecoveryResponse = mock(RecoveryResponse.class);
     }
 
@@ -162,6 +160,7 @@ public class IndexRecoveryMonitoringDocTests extends BaseMonitoringDocTestCase<I
                     "type": "PEER",
                     "stage": "INIT",
                     "primary": false,
+                    "priority": "UNASSIGNED_EXPECTED",
                     "start_time_in_millis": %s,
                     "stop_time_in_millis": %s,
                     "total_time_in_millis": %s,

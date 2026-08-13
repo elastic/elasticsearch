@@ -1,6 +1,0 @@
-area: Vector Search
-issues:
- - 155568
-pr: 155630
-summary: Fix `EUCLIDEAN` score clamping order in the BBQ vector scorer
-type: bug

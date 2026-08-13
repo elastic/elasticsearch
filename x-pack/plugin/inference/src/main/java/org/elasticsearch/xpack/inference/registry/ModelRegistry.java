@@ -54,9 +54,9 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
+import org.elasticsearch.inference.EndpointClusterState;
 import org.elasticsearch.inference.InferenceIndexDocTypeField;
 import org.elasticsearch.inference.InferenceService;
-import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
@@ -118,7 +118,7 @@ import static org.elasticsearch.core.Strings.format;
  * default configurations to the index during reads.
  *
  * <p><strong>Minimal Service Settings in Cluster State:</strong></p>
- * The cluster state is updated with the {@link MinimalServiceSettings} for all registered models,
+ * The cluster state is updated with the {@link EndpointClusterState} for all registered models,
  * ensuring these settings are readily accessible to consumers without requiring an asynchronous call
  * to retrieve the full model configurations.
  *
@@ -245,7 +245,7 @@ public class ModelRegistry implements ClusterStateListener {
     }
 
     /**
-     * Retrieves the {@link MinimalServiceSettings} associated with the specified {@code inferenceEntityIds}
+     * Retrieves the {@link EndpointClusterState} associated with the specified {@code inferenceEntityIds}
      * and returns them as a map keyed on the inference entity id.
      *
      * If any of the {@code inferenceEntityIds} is not found, the method behaves as follows:
@@ -259,10 +259,10 @@ public class ModelRegistry implements ClusterStateListener {
      * @param inferenceEntityIds the unique identifiers for the inference entities.
      * @param throwIfAnyNotFound whether to throw a {@link ResourceNotFoundException} if any of the ids is guaranteed to not exist
      *                          in the cluster.
-     * @return a {@link Map<String, MinimalServiceSettings>} with the associated settings by inference entity ID.
+     * @return a {@link Map<String, EndpointClusterState>} with the associated settings by inference entity ID.
      * @throws ResourceNotFoundException if any of the ids is guaranteed to not exist in the cluster and {@code throwIfAnyNotFound} is true.
      */
-    public Map<String, MinimalServiceSettings> getMinimalServiceSettings(Set<String> inferenceEntityIds, boolean throwIfAnyNotFound)
+    public Map<String, EndpointClusterState> getEndpointClusterState(Set<String> inferenceEntityIds, boolean throwIfAnyNotFound)
         throws ResourceNotFoundException {
         if (lastMetadata.get() == null) {
             throw new IllegalStateException("initial cluster state not set yet");
@@ -270,7 +270,7 @@ public class ModelRegistry implements ClusterStateListener {
         var project = lastMetadata.get().getProject(ProjectId.DEFAULT);
         var state = ModelRegistryClusterStateMetadata.fromState(project);
 
-        Map<String, MinimalServiceSettings> settingsById = new HashMap<>();
+        Map<String, EndpointClusterState> settingsById = new HashMap<>();
         for (var inferenceEntityId : inferenceEntityIds) {
             var config = defaultConfigIds.get(inferenceEntityId);
             if (config != null) {
@@ -278,7 +278,7 @@ public class ModelRegistry implements ClusterStateListener {
                 continue;
             }
 
-            var existing = state.getMinimalServiceSettings(inferenceEntityId);
+            var existing = state.getEndpointClusterState(inferenceEntityId);
             if (existing == null && state.isUpgraded() && throwIfAnyNotFound) {
                 throw new ResourceNotFoundException(inferenceEntityId + " does not exist in this cluster.");
             }
@@ -290,7 +290,7 @@ public class ModelRegistry implements ClusterStateListener {
     }
 
     /**
-     * Retrieves the {@link MinimalServiceSettings} associated with the specified {@code inferenceEntityId}.
+     * Retrieves the {@link EndpointClusterState} associated with the specified {@code inferenceEntityId}.
      *
      * If the {@code inferenceEntityId} is not found, the method behaves as follows:
      * <ul>
@@ -299,11 +299,11 @@ public class ModelRegistry implements ClusterStateListener {
      * </ul>
      *
      * @param inferenceEntityId the unique identifier for the inference entity.
-     * @return the {@link MinimalServiceSettings} associated with the provided ID, or {@code null} if unavailable locally.
+     * @return the {@link EndpointClusterState} associated with the provided ID, or {@code null} if unavailable locally.
      * @throws ResourceNotFoundException if the specified id is guaranteed to not exist in the cluster.
      */
-    public MinimalServiceSettings getMinimalServiceSettings(String inferenceEntityId) throws ResourceNotFoundException {
-        return getMinimalServiceSettings(Set.of(inferenceEntityId), true).get(inferenceEntityId);
+    public EndpointClusterState getEndpointClusterState(String inferenceEntityId) throws ResourceNotFoundException {
+        return getEndpointClusterState(Set.of(inferenceEntityId), true).get(inferenceEntityId);
     }
 
     public Set<String> getInferenceIds() {
@@ -1059,7 +1059,7 @@ public class ModelRegistry implements ClusterStateListener {
                     .map(
                         model -> new ModelRegistryMetadataTask.ModelAndSettings(
                             model.getInferenceEntityId(),
-                            new MinimalServiceSettings(model)
+                            new EndpointClusterState(model)
                         )
                     )
                     .toList(),
@@ -1301,13 +1301,13 @@ public class ModelRegistry implements ClusterStateListener {
             new ActionListener<>() {
                 @Override
                 public void onResponse(GetInferenceModelAction.Response response) {
-                    Map<String, MinimalServiceSettings> map = new HashMap<>();
+                    Map<String, EndpointClusterState> map = new HashMap<>();
                     for (var model : response.getEndpoints()) {
                         // ignore default models
                         if (defaultConfigIds.containsKey(model.getInferenceEntityId()) == false) {
                             map.put(
                                 model.getInferenceEntityId(),
-                                new MinimalServiceSettings(
+                                new EndpointClusterState(
                                     model.getService(),
                                     model.getTaskType(),
                                     model.getServiceSettings().dimensions(),

@@ -38,6 +38,9 @@ import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.dissect.DissectParser;
+import org.elasticsearch.grok.Grok;
+import org.elasticsearch.grok.GrokBuiltinPatterns;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
@@ -70,6 +73,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.PrimitiveIterator;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -117,6 +121,15 @@ import java.util.stream.IntStream;
  * At {@code subFields=100} the fallback is ~350x the fused read (~81 ns, flat in width) and the gap widens
  * linearly, so GA effort should widen the set of query shapes that hit the fused path rather than optimize
  * the parse. See the profiling recipes below to reproduce and attribute these numbers.
+ *
+ * <h2>Consumer invariance (DISSECT / GROK)</h2>
+ * The {@code consumer} parameter runs a real downstream parser on each extracted value, modeling the commands that
+ * consume a {@code field_extract(...)} input once it is fused into their load. The fused-vs-fallback gap is unchanged
+ * by the consumer because the parser runs identically on both paths &mdash; e.g. under {@code consumer=dissect} at
+ * {@code subFields=100}, {@code keyed_fused} is ~144 ns/op while {@code root_then_evaluator} is ~32,000 ns/op
+ * (~225x). The parser adds a flat per-row surcharge (~60 ns here) to <em>both</em> paths, so widening the set of
+ * shapes that reach the fused path &mdash; such as {@code DISSECT}/{@code GROK} over a flattened field &mdash; wins
+ * the whole reconstruction gap per row, regardless of what consumes the value.
  *
  * <h2>Running and profiling</h2>
  * Everything inside {@code --args '...'} is passed straight to JMH. During profiling add
@@ -187,7 +200,20 @@ public class FlattenedFieldExtractBenchmark {
 
     private static final String[] SUPPORTED_LAYOUTS = new String[] { "in_order", "shuffled" };
     private static final String[] SUPPORTED_PATHS = new String[] { "keyed_fused", "root_then_evaluator", "root_only" };
+    private static final String[] SUPPORTED_CONSUMERS = new String[] { "sum", "dissect", "grok" };
     private static final int[] SUPPORTED_SUB_FIELDS = new int[] { 5, 20, 100 };
+
+    /**
+     * Downstream consumers applied to the extracted keyword value. The point is that the consumer runs
+     * <em>identically</em> whether the value arrived via the fused keyed loader ({@code keyed_fused}) or via the
+     * root-load-then-reparse fallback ({@code root_then_evaluator}): {@code dissect}/{@code grok} model the
+     * {@code DISSECT}/{@code GROK} commands that consume a {@code field_extract(...)} input, so the fused-vs-fallback
+     * gap this benchmark reports is exactly the per-row win those commands gain from fusion. Each pattern captures the
+     * whole integer token into {@code v}, so every consumer yields the same order-independent checksum and the existing
+     * self-test validates them all for free.
+     */
+    private static final DissectParser DISSECT_PARSER = new DissectParser("%{v}", "");
+    private static final Grok GROK = new Grok(GrokBuiltinPatterns.get(true), "%{NUMBER:v}", w -> {});
 
     private static final int BLOCK_LENGTH = 16 * 1024;
     private static final int INDEX_SIZE = 5 * BLOCK_LENGTH;
@@ -233,12 +259,18 @@ public class FlattenedFieldExtractBenchmark {
                     for (String layout : SUPPORTED_LAYOUTS) {
                         benchmark.layout = layout;
                         benchmark.setupPages();
-                        for (String path : SUPPORTED_PATHS) {
-                            benchmark.path = path;
-                            try {
-                                benchmark.benchmark();
-                            } catch (Exception e) {
-                                throw new AssertionError("error initializing [" + layout + "/" + path + "/" + subFields + "]", e);
+                        for (String consumer : SUPPORTED_CONSUMERS) {
+                            benchmark.consumer = consumer;
+                            for (String path : SUPPORTED_PATHS) {
+                                benchmark.path = path;
+                                try {
+                                    benchmark.benchmark();
+                                } catch (Exception e) {
+                                    throw new AssertionError(
+                                        "error initializing [" + layout + "/" + path + "/" + consumer + "/" + subFields + "]",
+                                        e
+                                    );
+                                }
                             }
                         }
                     }
@@ -261,6 +293,14 @@ public class FlattenedFieldExtractBenchmark {
 
     @Param({ "keyed_fused", "root_then_evaluator", "root_only" })
     public String path;
+
+    /**
+     * Downstream work applied to each extracted value. {@code sum} is the bare loader-cost baseline; {@code dissect}
+     * and {@code grok} run the real {@code DISSECT}/{@code GROK} parsers, mirroring the commands that now fuse a
+     * {@code field_extract(...)} input. Ignored by {@code root_only}, which extracts no value.
+     */
+    @Param({ "sum", "dissect", "grok" })
+    public String consumer;
 
     @Param({ "5", "20", "100" })
     public int subFields;
@@ -347,15 +387,41 @@ public class FlattenedFieldExtractBenchmark {
      * Sums the integer value at every position of a single-valued keyword block. Used by the fused path,
      * whose loader emits the extracted sub-key directly.
      */
-    private static long sumSingleValued(BytesRefBlock block, BytesRef scratch) {
+    private long sumSingleValued(BytesRefBlock block, BytesRef scratch) {
         long sum = 0;
         for (int p = 0; p < block.getPositionCount(); p++) {
             if (block.isNull(p)) {
                 throw new AssertionError("unexpected null at position [" + p + "]");
             }
-            sum += Integer.parseInt(block.getBytesRef(block.getFirstValueIndex(p), scratch).utf8ToString());
+            sum += consume(block.getBytesRef(block.getFirstValueIndex(p), scratch).utf8ToString());
         }
         return sum;
+    }
+
+    /**
+     * Applies the selected {@link #consumer} to one extracted value and returns the integer it carries. Every
+     * consumer captures the whole token into {@code v}, so the returned value is identical across consumers and the
+     * per-row cost difference is purely the parser's. Shared by the fused and fallback extract paths so the consumer
+     * is provably invariant to how the value was loaded.
+     */
+    private long consume(String value) {
+        switch (consumer) {
+            case "sum" -> {
+                return Integer.parseInt(value);
+            }
+            case "dissect" -> {
+                Map<String, String> captures = DISSECT_PARSER.parse(value);
+                return Integer.parseInt(captures.get("v"));
+            }
+            case "grok" -> {
+                Map<String, Object> captures = GROK.captures(value);
+                if (captures == null) {
+                    throw new AssertionError("grok pattern did not match [" + value + "]");
+                }
+                return Integer.parseInt(captures.get("v").toString());
+            }
+            default -> throw new IllegalArgumentException("unsupported consumer [" + consumer + "]");
+        }
     }
 
     /**
@@ -375,7 +441,7 @@ public class FlattenedFieldExtractBenchmark {
                     if (extracted.isNull(p)) {
                         throw new AssertionError("unexpected null at position [" + p + "]");
                     }
-                    sum += Integer.parseInt(extracted.getBytesRef(extracted.getFirstValueIndex(p), valueScratch).utf8ToString());
+                    sum += consume(extracted.getBytesRef(extracted.getFirstValueIndex(p), valueScratch).utf8ToString());
                 }
             }
         }

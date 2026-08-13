@@ -134,12 +134,15 @@ tests:
 - class: org.elasticsearch.xpack.esql.spatial.SpatialPushDownGeoShapeIT
   method: testQuantizedXY
   issue: https://github.com/elastic/elasticsearch/issues/156084
-- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
-  method: test {yaml=search.vectors/100_knn_nested_search/nested kNN search inner_hits & boosting}
-  issue: https://github.com/elastic/elasticsearch/issues/156227
 - class: org.elasticsearch.xpack.transform.integration.continuous.TransformContinuousIT
   method: testContinuousEvents
   issue: https://github.com/elastic/elasticsearch/issues/153782
+- class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobContainerStatsTests
+  method: testResumableWrite
+  issue: https://github.com/elastic/elasticsearch/issues/156513
+- class: org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocatorTests
+  method: testSimulateStartedShardsWithinASingleClusterInfoPolling
+  issue: https://github.com/elastic/elasticsearch/issues/156626
 
 # Examples:
 #

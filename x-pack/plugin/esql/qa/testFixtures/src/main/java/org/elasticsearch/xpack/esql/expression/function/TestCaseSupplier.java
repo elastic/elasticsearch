@@ -976,6 +976,25 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         }
     }
 
+    public static void forUnaryDoubleRange(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        Function<DoubleRangeBlockBuilder.DoubleRange, Object> expectedValue,
+        List<String> warnings
+    ) {
+        if (DataType.DOUBLE_RANGE.supportedVersion().supportedLocally()) {
+            unary(
+                suppliers,
+                expectedEvaluatorToString,
+                doubleRangeCases(),
+                expectedType,
+                v -> expectedValue.apply((DoubleRangeBlockBuilder.DoubleRange) v),
+                warnings
+            );
+        }
+    }
+
     public static void forUnaryExponentialHistogram(
         List<TestCaseSupplier> suppliers,
         String expectedEvaluatorToString,

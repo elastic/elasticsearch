@@ -75,13 +75,8 @@ public final class UnmappedFieldsPattern implements NamedWriteable {
     /**
      * The pattern of a {@code KEEP} command, computed from the projection list it was written with.
      *
-     * <p>All projection terms from this single {@code KEEP} form one OR group: a source field survives if it
-     * matches any listed term. An explicitly named term is included just like a wildcard is; a name that turns
-     * out to be an already-visible column is filtered out downstream anyway, because
-     * {@code DetermineUnmappedFieldsToKeep} excludes every {@code EsRelation.output()} name — which covers both
-     * mapped columns and the fields {@code ResolveUnmapped} demand-loads for explicit references.
-     *
-     * <p>An empty include list — a {@code KEEP} listing nothing at all — keeps no unmapped source field.
+     * <p>Wildcard terms from this single {@code KEEP} form one OR group: a source field survives if it matches any listed
+     * pattern. An all-literal {@code KEEP} therefore yields {@link #NONE}.
      */
     public static UnmappedFieldsPattern forKeep(List<? extends NamedExpression> projections) {
         List<String> includes = new ArrayList<>();
@@ -91,7 +86,8 @@ public final class UnmappedFieldsPattern implements NamedWriteable {
                     return ALL;
                 }
                 case UnresolvedNamePattern unp -> includes.add(unp.pattern());
-                case UnresolvedAttribute ua -> includes.add(ua.name());
+                case UnresolvedAttribute ignored -> {
+                }
                 default -> throw new IllegalStateException("Unsupported KEEP projection [" + proj + "]");
             }
         }

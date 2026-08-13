@@ -333,6 +333,11 @@ public final class AstKeywordFieldRewriter {
         return sb.toString();
     }
 
+    /** Builds an {@code EVAL} command that can be inserted immediately before another command. */
+    private static String evalBeforeCommand(List<String> fields, String wrapperSubKey) {
+        return evalRecovery(fields, wrapperSubKey).substring(3) + "\n| ";
+    }
+
     /** Returns {@code field_extract(<inner>, "<wrapperSubKey>")}. */
     private static String extractCall(String inner, String wrapperSubKey) {
         return FIELD_EXTRACT_FUNCTION + "(" + inner + ", \"" + wrapperSubKey + "\")";
@@ -929,8 +934,9 @@ public final class AstKeywordFieldRewriter {
         /**
          * Rewrites the subquery of an {@code IN (subquery)} expression with a scope freshly resolved
          * from the subquery's own text (its {@code FROM} may reference a different dataset than the
-         * outer query) and appends a tail-end {@code EVAL} (no {@code KEEP}) so its projected column
-         * reaches the outer comparison as {@code keyword}. The outer left-hand side is rebound to
+         * outer query) and appends an {@code EVAL} before a terminal {@code KEEP}, when present,
+         * so its projected columns reach the outer comparison as {@code keyword} without changing
+         * their order. The outer left-hand side is rebound to
          * {@code keyword} separately by {@link #hoistBeforeCommand}, so both sides agree on type.
          */
         private void processInSubquery(LogicalPlan subquery) {
@@ -948,8 +954,17 @@ public final class AstKeywordFieldRewriter {
             }
             List<String> recoverable = new ArrayList<>(endScope);
             recoverable.sort(Comparator.naturalOrder());
-            int at = startOffset(subquery.source()) + subquery.source().text().length();
-            addEdit(at, at, evalRecovery(recoverable, wrapperSubKey));
+            if (subquery instanceof Keep keep && spanMatches(keep.source())) {
+                // A terminal KEEP fixes the tuple's column order. Appending EVAL after it would
+                // append the recovered flattened field to the end, e.g. turning
+                // (emp_no, job_positions, is_rehired) into (emp_no, is_rehired, job_positions).
+                // Insert before KEEP so the projection retains the order declared by the subquery.
+                int at = startOffset(keep.source());
+                addEdit(at, at, evalBeforeCommand(recoverable, wrapperSubKey));
+            } else {
+                int at = startOffset(subquery.source()) + subquery.source().text().length();
+                addEdit(at, at, evalRecovery(recoverable, wrapperSubKey));
+            }
             rewrittenNames.addAll(recoverable);
         }
 

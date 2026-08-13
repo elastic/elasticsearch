@@ -823,8 +823,6 @@ emp_no:integer | job_positions:keyword   | is_rehired:boolean
 multiColumnInSubqueryWithTwoMultiValuedFieldsWithMvExpandOnLeftSide
 required_capability: where_in_subquery_without_view
 required_capability: where_in_multi_column_subquery
-skip_flattened_rewrite: test infrastructure has limitation on multi-column IN subquery with mixed keyword and non-keyword column
-
 // left join key has no multi-valued field after mv_expand, right join key does have multi-valued field, expect warning for multi-value
 FROM employees
 | MV_EXPAND job_positions
@@ -875,8 +873,6 @@ emp_no:integer | job_positions:keyword      | is_rehired:boolean
 multiColumnInSubqueryWithTwoMultiValuedFieldsWithoutMvExpand
 required_capability: where_in_subquery_without_view
 required_capability: where_in_multi_column_subquery
-skip_flattened_rewrite: test infrastructure has limitation on multi-column IN subquery with mixed keyword and non-keyword column
-
 // both left and right sides join keys have multi-valued fields, expect warning for multi-value
 FROM employees
 | WHERE (emp_no, job_positions, is_rehired) IN (FROM employees | KEEP emp_no, job_positions, is_rehired)

@@ -335,24 +335,27 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         boolean isUnsupported = attr.dataType() == DataType.UNSUPPORTED;
         UnionTypeEsField unionTypes = findUnionTypes(attr);
         if (unionTypes == null) {
-            if (isUnsupported == false
+            // If the shard's mapping disagrees with the type the query was planned with (a mapping update landed between field-caps
+            // resolution and execution here), the block loader would emit blocks of the wrong type and trip the sanity check in
+            // ValuesSourceReaderOperator. Detect it up front and fail with a descriptive, retryable 409 instead. Kept narrow so
+            // genuine planner bugs still surface via the sanity check.
+            if (
+                // unsupported fields load as nulls, the shard mapping is irrelevant
+                isUnsupported == false
+                // with a pushed-down function, the block type is the function's output, not the field's
                 && functionConfig == null
+                // only real index fields have a shard mapping to compare against
                 && attr instanceof FieldAttribute fa
+                // LOAD-mode marker reads _source by design
                 && fa.field() instanceof PotentiallyUnmappedKeywordEsField == false) {
                 MappedFieldType mft = shardContext.fieldType(fieldName);
+                // null means unmapped on this shard: loads as nulls, which is always accepted
                 if (mft != null) {
                     DataType shardType = EsqlDataTypeRegistry.INSTANCE.fromEs(mft.familyTypeName(), mft.getMetricType());
+                    // widenSmallNumeric: byte/short/integer (and half_float/float/double) share block types, so they never mismatch
                     if (shardType.widenSmallNumeric() != fa.dataType().widenSmallNumeric()) {
-                        // The shard's mapping does not agree with the type the query was planned with, and no union-types converter
-                        // was attached. This happens when a mapping update (e.g. a dynamically mapped field) lands between field-caps
-                        // resolution on the coordinator and execution on this shard: the block loader would produce blocks of the
-                        // shard's type and trip the generic sanity check in ValuesSourceReaderOperator. Fail up front with an error
-                        // that explains the mismatch instead. Deliberately narrow (same-family types and converted union types pass
-                        // through), so genuine planner bugs still surface via the sanity check rather than being masked here.
-                        // 409 CONFLICT: the server did nothing wrong, the query raced against a concurrent mapping update
-                        // and retrying it resolves the conflict.
-                        // Report the mapper's own type name: it stays accurate even when ES|QL cannot model the mapped type
-                        // (where shardType would just say "unsupported") and is more precise than the family name.
+                        // Report mft.typeName(): exact, and meaningful even for types ES|QL cannot model (where shardType
+                        // would just say "unsupported")
                         throw new ElasticsearchStatusException(
                             "field [{}] was resolved as type [{}] when the query started, but is mapped as incompatible type [{}] "
                                 + "in index [{}]; the field was probably mapped concurrently with this query; retrying the query may help",

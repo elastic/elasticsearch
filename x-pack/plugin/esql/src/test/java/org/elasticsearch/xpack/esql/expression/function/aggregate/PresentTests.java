@@ -45,7 +45,7 @@ public class PresentTests extends AbstractAggregationTestCase {
         FunctionAppliesTo flattenedPreviewAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.5.0", "", false);
         FunctionAppliesTo dateRangeAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.5.0", "", false);
         FunctionAppliesTo doubleRangeAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.6.0", "", false);
-        List<TestCaseSupplier.TypedDataSupplier> doubleRangeCases = EsqlCapabilities.Cap.DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V8.isEnabled()
+        List<TestCaseSupplier.TypedDataSupplier> doubleRangeCases = EsqlCapabilities.Cap.DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V10.isEnabled()
             ? MultiRowTestCaseSupplier.doubleRangeCases(1, 1000).stream().map(s -> s.withAppliesTo(doubleRangeAppliesTo)).toList()
             : List.of();
 
@@ -112,7 +112,7 @@ public class PresentTests extends AbstractAggregationTestCase {
             DataType.EXPONENTIAL_HISTOGRAM,
             DataType.TDIGEST
         );
-        if (EsqlCapabilities.Cap.DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V8.isEnabled()) {
+        if (EsqlCapabilities.Cap.DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V10.isEnabled()) {
             types = Stream.concat(types.stream(), Stream.of(DataType.DOUBLE_RANGE)).toList();
         }
         for (var dataType : types) {

@@ -1,5 +1,0 @@
-area: FIPS
-issues: []
-pr: 155937
-summary: Update Bouncy Castle FIPS TLS libraries
-type: upgrade

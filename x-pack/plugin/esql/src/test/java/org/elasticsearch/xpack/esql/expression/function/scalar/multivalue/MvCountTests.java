@@ -46,7 +46,7 @@ public class MvCountTests extends AbstractMultivalueFunctionTestCase {
         dateTimes(cases, "mv_count", "MvCount", DataType.INTEGER, (size, values) -> equalTo(Math.toIntExact(values.count())));
         dateNanos(cases, "mv_count", "MvCount", DataType.INTEGER, (size, values) -> equalTo(Math.toIntExact(values.count())));
         dateRanges(cases);
-        if (EsqlCapabilities.Cap.DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V8.isEnabled()) {
+        if (EsqlCapabilities.Cap.DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V10.isEnabled()) {
             doubleRanges(cases);
         }
         geoPoints(cases, "mv_count", "MvCount", DataType.INTEGER, (size, values) -> equalTo(Math.toIntExact(values.count())));

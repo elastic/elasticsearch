@@ -129,6 +129,9 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<EsqlResolveF
     }
 
     private void doResolve(Task task, EsqlResolveFieldsRequest request, ActionListener<EsqlResolveFieldsResponse> listener) {
+
+        long nowInMillis = Objects.requireNonNullElseGet(request.fieldCapsRequest().nowInMillis(), System::currentTimeMillis);
+
         final var minTransportVersion = new AtomicReference<>(clusterService.state().getMinTransportVersion());
         final ProjectState projectState = projectResolver.getProjectState(clusterService.state());
 
@@ -191,7 +194,7 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<EsqlResolveF
                                     clusterAlias,
                                     request.fieldCapsRequest(),
                                     indices,
-                                    0, // TODO current time
+                                    nowInMillis,
                                     resolveCrossProject
                                 )
                             );

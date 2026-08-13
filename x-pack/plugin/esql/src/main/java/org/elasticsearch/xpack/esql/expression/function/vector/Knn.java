@@ -7,9 +7,13 @@
 
 package org.elasticsearch.xpack.esql.expression.function.vector;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.vectors.ExactKnnQueryBuilder;
 import org.elasticsearch.search.vectors.VectorData;
@@ -20,6 +24,7 @@ import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
@@ -36,11 +41,14 @@ import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Options;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.SingleFieldFullTextFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.querydsl.query.KnnQuery;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -66,11 +74,15 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 public class Knn extends SingleFieldFullTextFunction implements OptionalArgument, VectorFunction, PostOptimizationVerificationAware {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Knn", Knn::readFrom);
-    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Knn.class).ternary(Knn::new).name("knn");
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Knn.class)
+        .ternaryConfig(Knn::new)
+        .snapshotCapabilities("runtime_field")
+        .name("knn");
 
     private final Integer implicitK;
     // Expressions to be used as prefilters in knn query
     private final List<Expression> filterExpressions;
+    private final Configuration configuration;
 
     public static final String MIN_CANDIDATES_OPTION = "min_candidates";
 
@@ -163,9 +175,10 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
             description = "(Optional) kNN additional options as <<esql-function-named-params,function named parameters>>."
                 + " See [knn query](/reference/query-languages/query-dsl/query-dsl-knn-query.md) for more information.",
             optional = true
-        ) Expression options
+        ) Expression options,
+        Configuration configuration
     ) {
-        this(source, field, query, options, null, null, List.of());
+        this(source, field, query, options, null, null, List.of(), configuration);
     }
 
     public Knn(
@@ -175,11 +188,13 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
         Expression options,
         Integer implicitK,
         QueryBuilder queryBuilder,
-        List<Expression> filterExpressions
+        List<Expression> filterExpressions,
+        Configuration configuration
     ) {
         super(source, field, query, options, expressionList(field, query, options), queryBuilder);
         this.implicitK = implicitK;
         this.filterExpressions = filterExpressions;
+        this.configuration = configuration;
     }
 
     private static List<Expression> expressionList(Expression field, Expression query, Expression options) {
@@ -202,7 +217,7 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
 
     public Knn withImplicitK(Integer k) {
         Check.notNull(k, "k must not be null");
-        return new Knn(source(), field(), query(), options(), k, queryBuilder(), filterExpressions());
+        return new Knn(source(), field(), query(), options(), k, queryBuilder(), filterExpressions(), configuration);
     }
 
     public List<Number> queryAsObject() {
@@ -218,11 +233,33 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
 
     @Override
     public Expression replaceQueryBuilder(QueryBuilder queryBuilder) {
-        return new Knn(source(), field(), query(), options(), implicitK(), queryBuilder, filterExpressions());
+        return new Knn(source(), field(), query(), options(), implicitK(), queryBuilder, filterExpressions(), configuration);
+    }
+
+    @Override
+    public boolean isRuntimeSearch() {
+        if (false == (Build.current().isSnapshot() && configuration.pragmas().runtimeKnnSearch())) {
+            return false;
+        }
+        FieldAttribute fieldAttribute = fieldAsFieldAttribute();
+        if (fieldAttribute == null) {
+            // This isn't a field in the index OR a pushed block loader
+            return true;
+        }
+
+        if (fieldAttribute.isPotentiallyUnmapped()) {
+            // A potentially unmapped field cannot be pushed down: the Lucene query would silently miss the rows of the
+            // indices where the field is unmapped, so it is matched at runtime instead.
+            return true;
+        }
+        return false;
     }
 
     @Override
     public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
+        if (isRuntimeSearch()) {
+            return Translatable.NO;
+        }
         Translatable translatable = super.translatable(pushdownPredicates);
         // We need to check whether filter expressions are translatable as well
         for (Expression filterExpression : filterExpressions()) {
@@ -230,6 +267,69 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
         }
 
         return translatable;
+    }
+
+    @Override
+    protected void fieldVerifier(
+        LogicalPlan plan,
+        FullTextFunction function,
+        Expression field,
+        @Nullable AnalysisRegistry analysisRegistry,
+        Failures failures
+    ) {
+        super.fieldVerifier(plan, function, field, analysisRegistry, failures);
+        if (isRuntimeSearch() == false) {
+            return;
+        }
+
+        if (field.dataType() != DENSE_VECTOR) {
+            failures.add(
+                Failure.fail(
+                    query(),
+                    "[KNN] cannot operate on [{}] of type [{}]; a non-index-mapped field must be a dense_vector expression",
+                    field.sourceText(),
+                    field.dataType().typeName()
+                )
+            );
+        }
+        // The query value can only be converted to the field's runtime type once it has been folded down to a
+        // Literal; if it hasn't yet (e.g. pre-optimization), this check is skipped here and retried once
+        // postOptimizationPlanVerification runs.
+        // TODO: this may be dead code
+        if (query() instanceof Literal) {
+            if (query().dataType() != DENSE_VECTOR) {
+                failures.add(
+                    Failure.fail(
+                        query(),
+                        "[KNN] cannot operate on [{}] of type [{}]; a non-index-mapped field must be a dense_vector expression",
+                        query().sourceText(),
+                        query().dataType().typeName()
+                    )
+                );
+            }
+        }
+
+        if (options() != null) {
+            failures.add(
+                Failure.fail(
+                    field,
+                    "Options are currently not supported for [KNN] function call on non-index-mapped field [{}]",
+                    field.sourceText()
+                )
+            );
+        }
+    }
+
+    @Override
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+        if (false == isRuntimeSearch()) {
+            return super.toEvaluator(toEvaluator);
+        }
+        if (dataType() != DENSE_VECTOR) {
+            throw EsqlIllegalArgumentException.illegalDataType(field.dataType());
+        }
+        // TODO: implement a runtime evaluator for knn function
+        throw new UnsupportedOperationException("Runtime KNN evaluator is not yet implemented");
     }
 
     @Override
@@ -269,7 +369,7 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
     }
 
     public Expression withFilters(List<Expression> filterExpressions) {
-        return new Knn(source(), field(), query(), options(), implicitK(), queryBuilder(), filterExpressions);
+        return new Knn(source(), field(), query(), options(), implicitK(), queryBuilder(), filterExpressions, configuration);
     }
 
     private Map<String, Object> queryOptions() throws InvalidArgumentException {
@@ -310,13 +410,24 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
             newChildren.size() > 2 ? newChildren.get(2) : null,
             implicitK(),
             queryBuilder(),
-            filterExpressions()
+            filterExpressions(),
+            configuration
         );
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Knn::new, field(), query(), options(), implicitK(), queryBuilder(), filterExpressions());
+        return NodeInfo.create(
+            this,
+            Knn::new,
+            field(),
+            query(),
+            options(),
+            implicitK(),
+            queryBuilder(),
+            filterExpressions(),
+            configuration
+        );
     }
 
     @Override
@@ -334,7 +445,8 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
             ? in.readOptionalNamedWriteable(Expression.class)
             : null;
         Integer implicitK = in.getTransportVersion().supports(ESQL_OPTIONS_FOR_SEARCH_FUNCTIONS) ? in.readOptionalInt() : null;
-        return new Knn(source, field, query, options, implicitK, queryBuilder, filterExpressions);
+        Configuration configuration = ((PlanStreamInput) in).configuration();
+        return new Knn(source, field, query, options, implicitK, queryBuilder, filterExpressions, configuration);
     }
 
     @Override

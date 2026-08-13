@@ -190,6 +190,11 @@ public final class QueryPragmas implements Writeable {
      */
     public static final Setting<Integer> MIN_DOCS_PER_SLICE = Setting.intSetting("min_docs_per_slice", -1, -1);
 
+    /**
+     *  When {@code true}, it allows KNN function to be used with expressions that are not indexed fields.
+     */
+    public static final Setting<Boolean> RUNTIME_KNN_SEARCH = Setting.boolSetting("runtime_knn_search", false);
+
     public static final QueryPragmas EMPTY = new QueryPragmas(Settings.EMPTY);
 
     public static final List<String> VALID_PRAGMA_NAMES = Stream.of(
@@ -214,7 +219,9 @@ public final class QueryPragmas implements Writeable {
         MAX_CONCURRENT_OPEN_SEGMENTS,
         MAX_RECORD_SIZE,
         FORCE_DOC_SEQUENCE,
-        PlannerSettings.TIME_SERIES_TARGET_CHUNK_ROWS
+        PlannerSettings.TIME_SERIES_TARGET_CHUNK_ROWS,
+        RUNTIME_KNN_SEARCH
+
     ).map(Setting::getKey).toList();
 
     private final Settings settings;
@@ -414,6 +421,13 @@ public final class QueryPragmas implements Writeable {
     public int minDocsPerSlice(int defaultMinDocsPerSlice) {
         int override = MIN_DOCS_PER_SLICE.get(settings);
         return override > 0 ? override : defaultMinDocsPerSlice;
+    }
+
+    /**
+     * When {@code true}, it allows KNN function to be used with expressions that are not indexed fields.
+     */
+    public boolean runtimeKnnSearch() {
+        return RUNTIME_KNN_SEARCH.get(settings);
     }
 
     public boolean isEmpty() {

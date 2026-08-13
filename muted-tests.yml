@@ -451,3 +451,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeRandomMappingIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/156415
+- class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
+  method: testReindexTaskFinishesBeforeNodeShutsDown
+  issue: https://github.com/elastic/elasticsearch/issues/156630

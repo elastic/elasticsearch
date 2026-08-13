@@ -61,7 +61,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator.indicesOptionsForCrossProjectFanout;
@@ -132,7 +131,6 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<EsqlResolveF
 
         long nowInMillis = Objects.requireNonNullElseGet(request.fieldCapsRequest().nowInMillis(), System::currentTimeMillis);
 
-        final var minTransportVersion = new AtomicReference<>(clusterService.state().getMinTransportVersion());
         final ProjectState projectState = projectResolver.getProjectState(clusterService.state());
 
         // TODO request filter
@@ -150,7 +148,7 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<EsqlResolveF
             );
         final OriginalIndices localIndices = remoteIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
 
-        var response = new EsqlResolveFieldsResponseBuilder(minTransportVersion.get());
+        var response = new EsqlResolveFieldsResponseBuilder(clusterService.state().getMinTransportVersion());
         try (var resultListener = new RefCountingListener(listener.delegateFailure((l, r) -> l.onResponse(response.build())))) {
             // local resolutions
             if (localIndices != null) {
@@ -159,21 +157,24 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<EsqlResolveF
                 if (request.fieldCapsRequest().clusterAlias() != null) {
                     // validate no remote resources
                     var views = qualifyIndexAbstraction(request.fieldCapsRequest().clusterAlias(), abstractions.views);
-                    var datasets = qualifyIndexAbstraction(request.fieldCapsRequest().clusterAlias(), abstractions.views);
+                    var datasets = qualifyIndexAbstraction(request.fieldCapsRequest().clusterAlias(), abstractions.datasets);
 
                     if (!views.isEmpty() && !datasets.isEmpty()) {
-                        throw new RemoteResourceNotSupportedException(views, datasets);
+                        resultListener.acquire().onFailure(new RemoteResourceNotSupportedException(views, datasets));
+                        return;
                     } else if (!views.isEmpty()) {
-                        throw new RemoteViewNotSupportedException(views);
+                        resultListener.acquire().onFailure(new RemoteViewNotSupportedException(views));
+                        return;
                     } else if (!datasets.isEmpty()) {
-                        throw new RemoteDatasetNotSupportedException(datasets);
+                        resultListener.acquire().onFailure(new RemoteDatasetNotSupportedException(datasets));
+                        return;
                     }
                 }
 
                 response.resolvedLocally = abstractions.expressions;
                 resolveConcreteIndices(request, abstractions.indices, response, resultListener);
-                // TODO resolve views
-                // TODO resolve datasets
+                // TODO resolve views fields
+                // TODO resolve datasets fields
             }
 
             // remote resolutions
@@ -211,8 +212,6 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<EsqlResolveF
                         })
                     );
             }
-        } catch (Exception e) {
-            listener.onFailure(e);
         }
     }
 

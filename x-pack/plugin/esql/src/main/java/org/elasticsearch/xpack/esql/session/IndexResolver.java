@@ -84,6 +84,10 @@ public class IndexResolver {
         .gatekeeperOptions(
             IndicesOptions.GatekeeperOptions.builder().ignoreThrottled(true).allowClosedIndices(true).allowAliasToMultipleIndices(true)
         )
+        .indexAbstractionOptions(
+            // TODO make configurable depending on Federation.isAvailable(clusterService.getSettings())
+            IndicesOptions.IndexAbstractionOptions.builder().resolveAliases(true).resolveViews(true).resolveDatasets(true).build()
+        )
         .build();
 
     /**

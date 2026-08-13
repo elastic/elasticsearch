@@ -22,7 +22,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.EndpointClusterState;
 import org.elasticsearch.inference.Model;
-import org.elasticsearch.inference.metadata.EndpointMetadata;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -167,8 +166,9 @@ public class TransportRefreshAuthorizedEndpointsAction extends HandledTransportA
             return true;
         }
 
-        EndpointMetadata existingMetadata = existingEndpoint.endpointMetadata();
-        if (existingMetadata.fingerprintMatches(newEndpoint.getConfigurations().getEndpointMetadataOrEmpty()) == false) {
+        var existingInternal = existingEndpoint.endpointMetadataClusterState().internal();
+        var newInternal = newEndpoint.getConfigurations().getEndpointMetadataOrEmpty().internal();
+        if (existingInternal.fingerprintMatches(newInternal) == false) {
             logger.debug(
                 () -> Strings.format(
                     "[%s] selected for persistence, because its fingerprint has changed",
@@ -177,7 +177,7 @@ public class TransportRefreshAuthorizedEndpointsAction extends HandledTransportA
             );
             return true;
         }
-        if (newEndpoint.getConfigurations().getEndpointMetadataOrEmpty().hasNewerVersionThan(existingMetadata)) {
+        if (newInternal.isNewerThan(existingInternal)) {
             logger.debug(
                 () -> Strings.format("[%s] selected for persistence, because its version is higher", newEndpoint.getInferenceEntityId())
             );

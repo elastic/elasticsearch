@@ -39,7 +39,7 @@ public class EndpointMetadataTests extends AbstractBWCSerializationTestCase<Endp
         true
     );
 
-    private static final String NON_EMPTY_ENDPOINT_METADATA_JSON = """
+    static final String NON_EMPTY_ENDPOINT_METADATA_JSON = """
         {
           "heuristics": {
             "properties": ["heuristic1", "heuristic2"],

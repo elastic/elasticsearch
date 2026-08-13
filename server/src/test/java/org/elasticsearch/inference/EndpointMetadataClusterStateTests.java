@@ -1,0 +1,175 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.inference;
+
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.inference.metadata.EndpointMetadata;
+import org.elasticsearch.inference.metadata.EndpointMetadataClusterState;
+import org.elasticsearch.test.AbstractBWCSerializationTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
+
+import java.io.IOException;
+import java.util.List;
+
+import static org.hamcrest.Matchers.is;
+
+public class EndpointMetadataClusterStateTests extends AbstractBWCSerializationTestCase<EndpointMetadataClusterState> {
+
+    public static EndpointMetadataClusterState randomInstance() {
+        if (randomBoolean()) {
+            return EndpointMetadataClusterState.EMPTY_INSTANCE;
+        }
+        var instance = new EndpointMetadataClusterState(EndpointMetadataTests.randomHeuristics(), EndpointMetadataTests.randomInternal());
+        return EndpointMetadataClusterState.EMPTY_INSTANCE.equals(instance) ? EndpointMetadataClusterState.EMPTY_INSTANCE : instance;
+    }
+
+    public static EndpointMetadataClusterState randomNonEmptyInstance() {
+        // Guarantee heuristics is non-empty so the result can never equal EMPTY_INSTANCE (which requires both components to be empty).
+        var heuristics = randomValueOtherThan(EndpointMetadata.Heuristics.EMPTY_INSTANCE, EndpointMetadataTests::randomHeuristics);
+        return new EndpointMetadataClusterState(heuristics, EndpointMetadataTests.randomInternal());
+    }
+
+    @Override
+    protected EndpointMetadataClusterState createTestInstance() {
+        return randomInstance();
+    }
+
+    @Override
+    protected Writeable.Reader<EndpointMetadataClusterState> instanceReader() {
+        return EndpointMetadataClusterState::new;
+    }
+
+    @Override
+    protected EndpointMetadataClusterState doParseInstance(XContentParser parser) throws IOException {
+        return EndpointMetadataClusterState.parse(parser);
+    }
+
+    @Override
+    protected boolean supportsUnknownFields() {
+        // The parser is intentionally lenient: unknown fields (e.g. display, regions written by older nodes) must be ignored.
+        return true;
+    }
+
+    @Override
+    protected EndpointMetadataClusterState mutateInstance(EndpointMetadataClusterState instance) throws IOException {
+        if (randomBoolean()) {
+            return new EndpointMetadataClusterState(
+                randomValueOtherThan(instance.heuristics(), EndpointMetadataTests::randomHeuristics),
+                instance.internal()
+            );
+        }
+        return new EndpointMetadataClusterState(
+            instance.heuristics(),
+            randomValueOtherThan(instance.internal(), EndpointMetadataTests::randomInternal)
+        );
+    }
+
+    @Override
+    protected EndpointMetadataClusterState mutateInstanceForVersion(EndpointMetadataClusterState instance, TransportVersion version) {
+        return instance;
+    }
+
+    public void testToXContent_EmptyInstance() throws IOException {
+        var builder = XContentFactory.contentBuilder(XContentType.JSON);
+        EndpointMetadataClusterState.EMPTY_INSTANCE.toXContent(builder, ToXContent.EMPTY_PARAMS);
+
+        assertThat(Strings.toString(builder), is(XContentHelper.stripWhitespace("""
+            {
+              "heuristics": {
+                "properties": []
+              },
+              "internal": {}
+            }
+            """)));
+    }
+
+    public void testToXContent_NonEmptyInstance() throws IOException {
+        var instance = new EndpointMetadataClusterState(
+            new EndpointMetadata.Heuristics(List.of("heuristic1", "heuristic2"), StatusHeuristic.BETA, "2025-01-01", "2025-12-31"),
+            new EndpointMetadata.Internal("fingerprint", 1L)
+        );
+
+        var builder = XContentFactory.contentBuilder(XContentType.JSON);
+        instance.toXContent(builder, ToXContent.EMPTY_PARAMS);
+
+        assertThat(Strings.toString(builder), is(XContentHelper.stripWhitespace("""
+            {
+              "heuristics": {
+                "properties": ["heuristic1", "heuristic2"],
+                "status": "beta",
+                "release_date": "2025-01-01",
+                "end_of_life_date": "2025-12-31"
+              },
+              "internal": {
+                "fingerprint": "fingerprint",
+                "version": 1
+              }
+            }
+            """)));
+    }
+
+    /**
+     * Verifies that the lenient parser silently drops unknown fields written by older nodes (display, regions, denied_by_region_policy).
+     */
+    public void testParse_DropsUnknownFieldsFromFullEndpointMetadataJson() throws IOException {
+        var expectedHeuristics = new EndpointMetadata.Heuristics(
+            List.of("heuristic1", "heuristic2"),
+            StatusHeuristic.BETA,
+            "2025-01-01",
+            "2025-12-31"
+        );
+        var expectedInternal = new EndpointMetadata.Internal("fingerprint", 1L);
+
+        try (var parser = createParser(XContentType.JSON.xContent(), EndpointMetadataTests.NON_EMPTY_ENDPOINT_METADATA_JSON)) {
+            var parsed = EndpointMetadataClusterState.parse(parser);
+            assertThat(parsed.heuristics(), is(expectedHeuristics));
+            assertThat(parsed.internal(), is(expectedInternal));
+        }
+    }
+
+    public void testFingerprintMatches() {
+        var internalNull = new EndpointMetadata.Internal(null, null);
+        var internalAbc = new EndpointMetadata.Internal("abc", null);
+        var internalXyz = new EndpointMetadata.Internal("xyz", null);
+
+        var csNull = new EndpointMetadataClusterState(EndpointMetadata.Heuristics.EMPTY_INSTANCE, internalNull);
+        var csAbc = new EndpointMetadataClusterState(EndpointMetadata.Heuristics.EMPTY_INSTANCE, internalAbc);
+        var csXyz = new EndpointMetadataClusterState(EndpointMetadata.Heuristics.EMPTY_INSTANCE, internalXyz);
+
+        assertTrue(csNull.fingerprintMatches(internalNull));
+        assertFalse(csNull.fingerprintMatches(internalAbc));
+        assertTrue(csAbc.fingerprintMatches(internalAbc));
+        assertFalse(csAbc.fingerprintMatches(internalXyz));
+        assertTrue(csXyz.fingerprintMatches(internalXyz));
+    }
+
+    public void testIsNewerThan() {
+        var internalNull = new EndpointMetadata.Internal(null, null);
+        var internalV4 = new EndpointMetadata.Internal(null, 4L);
+        var internalV5 = new EndpointMetadata.Internal(null, 5L);
+
+        var csNull = new EndpointMetadataClusterState(EndpointMetadata.Heuristics.EMPTY_INSTANCE, internalNull);
+        var csV4 = new EndpointMetadataClusterState(EndpointMetadata.Heuristics.EMPTY_INSTANCE, internalV4);
+        var csV5 = new EndpointMetadataClusterState(EndpointMetadata.Heuristics.EMPTY_INSTANCE, internalV5);
+
+        assertFalse(csNull.isNewerThan(internalNull));
+        assertFalse(csNull.isNewerThan(internalV4));
+        assertTrue(csV4.isNewerThan(internalNull));
+        assertFalse(csV4.isNewerThan(internalV4));
+        assertFalse(csV4.isNewerThan(internalV5));
+        assertTrue(csV5.isNewerThan(internalV4));
+    }
+}

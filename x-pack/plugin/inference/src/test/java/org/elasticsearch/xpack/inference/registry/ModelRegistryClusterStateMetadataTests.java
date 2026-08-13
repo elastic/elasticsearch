@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.inference.EndpointClusterState;
 import org.elasticsearch.inference.EndpointClusterStateTests;
 import org.elasticsearch.inference.metadata.EndpointMetadata;
+import org.elasticsearch.inference.metadata.EndpointMetadataClusterState;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -191,8 +192,8 @@ public class ModelRegistryClusterStateMetadataTests extends AbstractChunkedSeria
         var newSettings = copySettingsWithNewEndpointMetadataInternal(
             settings,
             new EndpointMetadata.Internal(
-                randomValueOtherThan(settings.endpointMetadata().internal().fingerprint(), () -> randomAlphaOfLength(5)),
-                settings.endpointMetadata().internal().version()
+                randomValueOtherThan(settings.endpointMetadataClusterState().internal().fingerprint(), () -> randomAlphaOfLength(5)),
+                settings.endpointMetadataClusterState().internal().version()
             )
         );
 
@@ -217,11 +218,11 @@ public class ModelRegistryClusterStateMetadataTests extends AbstractChunkedSeria
         var newSettings = copySettingsWithNewEndpointMetadataInternal(
             settings,
             new EndpointMetadata.Internal(
-                settings.endpointMetadata().internal().fingerprint(),
+                settings.endpointMetadataClusterState().internal().fingerprint(),
                 randomValueOtherThan(
-                    settings.endpointMetadata().internal().version(),
+                    settings.endpointMetadataClusterState().internal().version(),
                     () -> randomLongBetween(
-                        Optional.ofNullable(settings.endpointMetadata().internal().version()).orElse(0L),
+                        Optional.ofNullable(settings.endpointMetadataClusterState().internal().version()).orElse(0L),
                         Long.MAX_VALUE
                     )
                 )
@@ -480,13 +481,7 @@ public class ModelRegistryClusterStateMetadataTests extends AbstractChunkedSeria
             settings.dimensions(),
             settings.similarity(),
             settings.elementType(),
-            new EndpointMetadata(
-                settings.endpointMetadata().heuristics(),
-                internal,
-                settings.endpointMetadata().display(),
-                settings.endpointMetadata().regions(),
-                settings.endpointMetadata().deniedByRegionPolicy()
-            )
+            new EndpointMetadataClusterState(settings.endpointMetadataClusterState().heuristics(), internal)
         );
     }
 }

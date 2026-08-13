@@ -749,9 +749,7 @@ public class ThreadContextTests extends ESTestCase {
     }
 
     public void testTakeResponseHeadersWarningsSizeReset() {
-        Settings settings = Settings.builder()
-            .put(HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_SIZE.getKey(), "1000b")
-            .build();
+        Settings settings = Settings.builder().put(HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_SIZE.getKey(), "1000b").build();
         final ThreadContext threadContext = new ThreadContext(settings);
 
         // fill some warning headers

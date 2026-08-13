@@ -63,7 +63,7 @@ public final class BatchExchangeStatusResponse extends TransportResponse {
             // plain warning text, so the strings are in the same format as those sent by new nodes.
             this.warnings = threadContext.takeResponseHeaders("Warning")
                 .stream()
-                .map(s -> HeaderWarning.extractWarningValueFromWarningHeader(s, false))
+                .map(s -> HeaderWarning.unescapeBackslashesAndQuotes(HeaderWarning.extractWarningValueFromWarningHeader(s, false)))
                 .toList();
         }
     }

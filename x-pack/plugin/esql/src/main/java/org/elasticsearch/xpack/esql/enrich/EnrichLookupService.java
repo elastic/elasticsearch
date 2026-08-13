@@ -304,7 +304,7 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
                 // Parse the RFC 7234 warning format to extract the plain warning text.
                 this.warnings = threadContext.takeResponseHeaders("Warning")
                     .stream()
-                    .map(s -> HeaderWarning.extractWarningValueFromWarningHeader(s, false))
+                    .map(s -> HeaderWarning.unescapeBackslashesAndQuotes(HeaderWarning.extractWarningValueFromWarningHeader(s, false)))
                     .toList();
             }
         }

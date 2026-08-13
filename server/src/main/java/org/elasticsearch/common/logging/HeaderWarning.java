@@ -329,6 +329,38 @@ public class HeaderWarning {
     }
 
     /**
+     * Reverse the escaping applied by {@link #escapeBackslashesAndQuotes}: {@code \\} → {@code \}
+     * and {@code \"} → {@code "}. Used when reading warning values out of RFC 7234 headers so
+     * that the plain text can be re-formatted without double-escaping.
+     */
+    public static String unescapeBackslashesAndQuotes(String s) {
+        boolean unescapingNeeded = false;
+        for (int i = 0; i < s.length() - 1; i++) {
+            if (s.charAt(i) == '\\') {
+                unescapingNeeded = true;
+                break;
+            }
+        }
+        if (unescapingNeeded == false) {
+            return s;
+        }
+        StringBuilder sb = new StringBuilder(s.length());
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (c == '\\' && i + 1 < s.length()) {
+                char next = s.charAt(i + 1);
+                if (next == '\\' || next == '"') {
+                    sb.append(next);
+                    i++;
+                    continue;
+                }
+            }
+            sb.append(c);
+        }
+        return sb.toString();
+    }
+
+    /**
      * Encode a string containing characters outside of the legal characters for an RFC 7230 quoted-string.
      *
      * @param s the string to encode

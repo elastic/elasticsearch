@@ -312,7 +312,8 @@ public record DriverCompletionInfo(
             } else {
                 LinkedHashSet<String> parsed = new LinkedHashSet<>(headerWarnings.size());
                 for (String header : headerWarnings) {
-                    parsed.add(HeaderWarning.extractWarningValueFromWarningHeader(header, false));
+                    String extracted = HeaderWarning.extractWarningValueFromWarningHeader(header, false);
+                    parsed.add(HeaderWarning.unescapeBackslashesAndQuotes(extracted));
                 }
                 warnings = parsed;
             }

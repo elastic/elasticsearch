@@ -109,8 +109,14 @@ public class FieldExtractFusionCorpusInventoryTests extends ESTestCase {
     /** Leading {@code FROM <index>} of a query; the capture group is the first index token. */
     private static final Pattern LEADING_FROM = Pattern.compile("^\\s*FROM\\s+([A-Za-z0-9_.\\-]+)", Pattern.CASE_INSENSITIVE);
 
-    /** Commands that introduce a second source or need extra resolution the single-dataset analyzer does not carry. */
-    private static final Pattern MULTI_SOURCE = Pattern.compile("\\b(JOIN|ENRICH|FORK)\\b", Pattern.CASE_INSENSITIVE);
+    /**
+     * Commands that introduce a second source the offline analyzer cannot resolve. {@code LOOKUP JOIN} is deliberately
+     * absent: every {@code lookup-settings.json} dataset is pre-resolved into the shared lookup map (see
+     * {@link #lookupResolutions()}), so join shapes are measured (and are where the real {@code ABOVE_JOIN_OR_MULTISOURCE}
+     * fallbacks surface). {@code ENRICH} still needs an enrich policy resolution the harness does not build, and
+     * {@code FORK} fans out into multiple sub-plans, so both remain out of scope.
+     */
+    private static final Pattern MULTI_SOURCE = Pattern.compile("\\b(ENRICH|FORK)\\b", Pattern.CASE_INSENSITIVE);
 
     /** How many representative rewritten queries to log per fallback bucket. */
     private static final int MAX_SAMPLES_PER_REASON = 5;
@@ -149,6 +155,9 @@ public class FieldExtractFusionCorpusInventoryTests extends ESTestCase {
     private record DatasetPlan(Analyzer analyzer, Set<String> keywordPaths) {}
 
     private final Map<String, DatasetPlan> datasetPlans = new HashMap<>();
+
+    /** Shared {@link IndexMode#LOOKUP} resolutions for {@code LOOKUP JOIN} targets, built once on first use. */
+    private Map<String, IndexResolution> lookupResolutions;
 
     /**
      * The dry run analyzes and plans the whole corpus, so the analyzer legitimately emits planner warnings
@@ -242,9 +251,10 @@ public class FieldExtractFusionCorpusInventoryTests extends ESTestCase {
     }
 
     /**
-     * The single {@link CsvTestsDataLoader.TestDataset} a query reads, or {@code null} when the query is not a clean
-     * single-dataset {@code FROM <known index>} (multi-index, cross-cluster, wildcard, subquery, or a command that
-     * adds a second source). The offline analyzer only carries one index resolution, so anything else is skipped.
+     * The single {@link CsvTestsDataLoader.TestDataset} a query reads from its leading {@code FROM}, or {@code null}
+     * when that source is not a clean single {@code FROM <known index>} (multi-index, cross-cluster, wildcard, subquery,
+     * or an {@code ENRICH}/{@code FORK} that the offline analyzer cannot resolve). A trailing {@code LOOKUP JOIN} is
+     * allowed: its target is resolved from the shared lookup map ({@link #lookupResolutions()}), not the main source.
      */
     private static CsvTestsDataLoader.TestDataset singleSourceDataset(String query) {
         Matcher matcher = LEADING_FROM.matcher(query);
@@ -289,7 +299,14 @@ public class FieldExtractFusionCorpusInventoryTests extends ESTestCase {
                 EsIndex index = new EsIndex(name, flattenedFields, Map.of(name, IndexMode.STANDARD), Map.of(), Map.of());
                 Map<IndexPattern, IndexResolution> resolutions = Map.of(new IndexPattern(Source.EMPTY, name), IndexResolution.valid(index));
                 Analyzer analyzer = new Analyzer(
-                    testAnalyzerContext(TEST_CFG, TEST_FUNCTION_REGISTRY, resolutions, new EnrichResolution(), emptyInferenceResolution()),
+                    testAnalyzerContext(
+                        TEST_CFG,
+                        TEST_FUNCTION_REGISTRY,
+                        resolutions,
+                        lookupResolutions(),
+                        new EnrichResolution(),
+                        emptyInferenceResolution()
+                    ),
                     TEST_VERIFIER
                 );
                 return new DatasetPlan(analyzer, keywordPaths);
@@ -298,6 +315,41 @@ public class FieldExtractFusionCorpusInventoryTests extends ESTestCase {
                 return new DatasetPlan(null, Set.of());
             }
         });
+    }
+
+    /**
+     * Shared {@code LOOKUP JOIN} target resolutions (keyed by index name, {@link IndexMode#LOOKUP}), built once from
+     * every {@code lookup-settings.json} dataset with the same keyword&#8594;flattened mapping remap applied. Attaching
+     * these to every per-dataset analyzer lets {@code FROM <main> | ... | LOOKUP JOIN <lookup> ON <key>} shapes plan
+     * offline. The join key is never a keyword the rewriter wraps (see the {@code LOOKUP_JOIN_ON} skip site in
+     * {@code CsvFlattenedKeywordIT}), so it stays intact across the flatten and the join still type-checks. Datasets
+     * whose mapping cannot be parsed are simply omitted; queries that reference them fall to {@code UNPLANNABLE}.
+     */
+    private Map<String, IndexResolution> lookupResolutions() {
+        if (lookupResolutions == null) {
+            Map<String, IndexResolution> resolutions = new HashMap<>();
+            for (CsvTestsDataLoader.TestDataset dataset : CsvTestsDataLoader.CSV_DATASET.values()) {
+                if ("lookup-settings.json".equals(dataset.settingFileName()) == false || dataset.mappingFileName() == null) {
+                    continue;
+                }
+                resolutions.computeIfAbsent(dataset.indexName(), name -> {
+                    try {
+                        String flattened = KeywordToFlattenedTransformer.transformMapping(
+                            CsvTestsDataLoader.readMappingFile(dataset),
+                            Set.of()
+                        ).transformedMapping();
+                        Map<String, EsField> fields = LoadMapping.loadMapping(stream(flattened));
+                        EsIndex index = new EsIndex(name, fields, Map.of(name, IndexMode.LOOKUP), Map.of(), Map.of());
+                        return IndexResolution.valid(index);
+                    } catch (Exception e) {
+                        logger.debug(() -> "keyword\u2192flattened dry run: cannot build lookup resolution for [" + name + "]", e);
+                        return null;
+                    }
+                });
+            }
+            lookupResolutions = Collections.unmodifiableMap(resolutions);
+        }
+        return lookupResolutions;
     }
 
     private static ByteArrayInputStream stream(String json) {

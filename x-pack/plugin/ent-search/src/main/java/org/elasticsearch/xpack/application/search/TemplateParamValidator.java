@@ -10,10 +10,10 @@ package org.elasticsearch.xpack.application.search;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.networknt.schema.JsonSchema;
-import com.networknt.schema.JsonSchemaFactory;
-import com.networknt.schema.SpecVersion;
-import com.networknt.schema.ValidationMessage;
+import com.networknt.schema.Error;
+import com.networknt.schema.Schema;
+import com.networknt.schema.SchemaRegistry;
+import com.networknt.schema.SpecificationVersion;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
@@ -28,9 +28,9 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Contains the template parameter validation, as a JSON Schema. It validates that the JSON schema
@@ -38,13 +38,13 @@ import java.util.Set;
  */
 public class TemplateParamValidator implements ToXContentObject, Writeable {
 
-    private static final SpecVersion.VersionFlag SCHEMA_VERSION = SpecVersion.VersionFlag.V7;
-    private static final JsonSchemaFactory SCHEMA_FACTORY = JsonSchemaFactory.getInstance(SCHEMA_VERSION);
+    private static final SpecificationVersion SCHEMA_VERSION = SpecificationVersion.DRAFT_7;
+    private static final SchemaRegistry SCHEMA_FACTORY = SchemaRegistry.withDefaultDialect(SCHEMA_VERSION);
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
-    private static final JsonSchema META_SCHEMA = SCHEMA_FACTORY.getSchema(
+    private static final Schema META_SCHEMA = SCHEMA_FACTORY.getSchema(
         TemplateParamValidator.class.getResourceAsStream("json-schema-draft-07.json")
     );
-    private final JsonSchema jsonSchema;
+    private final Schema jsonSchema;
 
     public TemplateParamValidator(StreamInput in) throws IOException {
         this(in.readString());
@@ -66,11 +66,11 @@ public class TemplateParamValidator implements ToXContentObject, Writeable {
         this(Strings.toString(xContentBuilder));
     }
 
-    private static void validateWithSchema(JsonSchema jsonSchema, JsonNode jsonNode) {
-        final Set<ValidationMessage> validationMessages = jsonSchema.validate(jsonNode);
+    private static void validateWithSchema(Schema jsonSchema, JsonNode jsonNode) {
+        final List<Error> validationMessages = jsonSchema.validate(jsonNode);
         if (validationMessages.isEmpty() == false) {
             ValidationException validationException = new ValidationException();
-            for (ValidationMessage message : validationMessages) {
+            for (Error message : validationMessages) {
                 validationException.addValidationError(message.getMessage());
             }
 
@@ -86,7 +86,7 @@ public class TemplateParamValidator implements ToXContentObject, Writeable {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         final XContent xContent = XContentType.JSON.xContent();
-        try (XContentParser parser = xContent.createParser(XContentParserConfiguration.EMPTY, getSchemaPropertiesAsString());) {
+        try (XContentParser parser = xContent.createParser(XContentParserConfiguration.EMPTY, getSchemaPropertiesAsString())) {
             builder.copyCurrentStructure(parser);
         }
         return builder;

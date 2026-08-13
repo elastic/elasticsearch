@@ -58,7 +58,7 @@ s(100000002,3,'approach',v,1,0).""";
 
 ## Configure synonym sets [analysis-synonym-configure-sets]
 
-Synonyms can be configured using the [synonyms API](docs-content://solutions/search/full-text/search-with-synonyms.md#synonyms-store-synonyms-api), a [synonyms file](docs-content://solutions/search/full-text/search-with-synonyms.md#synonyms-store-synonyms-file), or directly [inlined](docs-content://solutions/search/full-text/search-with-synonyms.md#synonyms-store-synonyms-inline) in the token filter configuration. See [create synonym sets and rules](docs-content://solutions/search/full-text/search-with-synonyms.md#synonyms-store-synonyms) for more details on each option.
+Synonyms can be configured using the [{{kib}} UI](docs-content://solutions/search/full-text/search-with-synonyms.md#synonyms-store-synonyms), the [synonyms API](docs-content://solutions/search/full-text/search-with-synonyms.md#synonyms-store-synonyms-api), a [synonyms file](docs-content://solutions/search/full-text/search-with-synonyms.md#synonyms-store-synonyms-file), or directly [inlined](docs-content://solutions/search/full-text/search-with-synonyms.md#synonyms-store-synonyms-inline) in the token filter configuration. See [create synonym sets and rules](docs-content://solutions/search/full-text/search-with-synonyms.md#synonyms-store-synonyms) for more details on each option.
 
 Use `synonyms_set` configuration option to provide one or more synonym sets created through the [Synonyms Management APIs](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-synonyms):
 

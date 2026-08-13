@@ -13,6 +13,9 @@ import com.github.jengelman.gradle.plugins.shadow.ShadowBasePlugin;
 
 import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.internal.conventions.util.Util;
+import org.elasticsearch.gradle.internal.flakiness.FlakinessModelService;
+import org.elasticsearch.gradle.internal.flakiness.FlakinessProjectModel;
+import org.elasticsearch.gradle.internal.flakiness.FlakinessResolvePlugin;
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.internal.test.ErrorReportingTestListener;
 import org.elasticsearch.gradle.internal.test.SimpleCommandLineArgumentProvider;
@@ -27,6 +30,7 @@ import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.configuration.BuildFeatures;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.JavaPlugin;
+import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
@@ -254,6 +258,26 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
         });
         configureJavaBaseModuleOptions(project);
         configureEntitlements(project);
+        registerFlakinessModel(project);
+    }
+
+    /**
+     * Contribute this project's own test model to the shared {@link FlakinessModelService}, but only when
+     * the flakiness resolve step enabled it via {@code -Pflakiness.resolve} (so a normal build pays nothing).
+     *
+     * <p>Contributions are wired lazily via {@code configureEach} / {@code withPlugin} (see
+     * {@link FlakinessProjectModel#contribute}) - <b>no {@code afterEvaluate}</b> - and read only this
+     * project's own model, so it is isolated-projects-clean. The assembled cross-project map is read back at
+     * execution time by the {@code flakinessResolve} task.
+     */
+    private static void registerFlakinessModel(Project project) {
+        if (project.hasProperty(FlakinessResolvePlugin.ENABLE_PROPERTY) == false) {
+            return;
+        }
+        Provider<FlakinessModelService> service = project.getGradle()
+            .getSharedServices()
+            .registerIfAbsent(FlakinessModelService.NAME, FlakinessModelService.class);
+        FlakinessProjectModel.contribute(project, service);
     }
 
     /**

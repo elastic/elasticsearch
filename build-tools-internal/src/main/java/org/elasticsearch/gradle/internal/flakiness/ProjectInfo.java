@@ -1,0 +1,41 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.gradle.internal.flakiness;
+
+import java.nio.file.Path;
+import java.util.List;
+import java.util.Optional;
+
+/**
+ * A Gradle-free snapshot of one project in the build, captured from that project's <em>own</em> configured
+ * model and contributed to the {@link FlakinessModelService} at the project's configuration time (see
+ * {@link FlakinessProjectModel}). It is the authoritative unit the pure {@link RefResolver} operates on.
+ *
+ * <p>Keeping this a plain record (no Gradle types) is deliberate: it is what lets the resolution logic be
+ * unit-tested without Gradle TestKit, and it is what a {@link org.gradle.api.services.BuildService} may
+ * safely hold. Crucially, every field here is derived from the project's own live model with <b>no
+ * cross-project access</b> - that is what keeps the design isolated-projects-clean (see
+ * JAVA_RESOLVER_NOTES.md); the old root-plugin {@code getAllprojects()} walk (which returned an empty model
+ * at root-config time) is gone.
+ *
+ * @param projectPath  Gradle project path, e.g. {@code :x-pack:plugin:esql}
+ * @param projectDir   absolute project directory (used for authoritative path-&gt;project resolution)
+ * @param bwc          whether the project applies {@code elasticsearch.bwc-test} - the authoritative
+ *                     {@code hasPlugin(...)} fact, replacing the old build.gradle regex
+ * @param sourceSets   this project's flakiness-relevant test source sets (a subset of
+ *                     {@code test}/{@code internalClusterTest}/{@code javaRestTest}/{@code yamlRestTest})
+ */
+public record ProjectInfo(String projectPath, Path projectDir, boolean bwc, List<SourceSetInfo> sourceSets) {
+
+    /** The named source set, if this project has it configured. */
+    public Optional<SourceSetInfo> sourceSet(String name) {
+        return sourceSets.stream().filter(s -> s.name().equals(name)).findFirst();
+    }
+}

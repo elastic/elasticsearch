@@ -9,13 +9,19 @@
 #   FLAKINESS_ITERS   — positive integer overriding the iteration count for
 #                       unit tests (-Dtests.iters), internalClusterTest
 #                       (-Dtests.iters), and REST batches (repeat-rest-test.sh
-#                       loop). Applied uniformly across all kinds.
+#                       loop). Read by the generate step (carried in the build env).
 #
-# See .buildkite/scripts/flakiness-detection/entrypoints/manual.ts for behavior.
+# See .buildkite/scripts/flakiness-detection/entrypoints/manual.ts for behavior. manual.ts writes
+# flakiness-refs.json and uploads TWO steps: an orchestration step (resolve → compile → scan on a single
+# gradle agent) and a separate generate step (TS, on the default node-capable agent) that reads the plan and
+# uploads the batch + analyze steps. The Java resolver turns FLAKINESS_CLASSES into a plan (and owns
+# batch-command generation).
+# Topology: bootstrap → [orchestration (gradle agent) + generate (node agent)] → batch + analyze.
 steps:
-  - label: "detect tests from FLAKINESS_CLASSES"
+  - label: "gather refs from FLAKINESS_CLASSES (bootstrap)"
     command: |
       npm install -g bun@1.3.13
       bun .buildkite/scripts/flakiness-detection/entrypoints/manual.ts
     timeout_in_minutes: 10
     soft_fail: false
+    artifact_paths: flakiness-refs.json

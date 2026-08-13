@@ -228,14 +228,17 @@ async function precompileFailed(): Promise<boolean> {
 }
 
 // A single record standing in for the batches that were skipped because the
-// pre-flight compile gate failed. `reason` names the gate, not a specific cause:
-// the gate exits non-zero on a genuine compile error but also on an infra failure
+// compile orchestration step failed. `reason` names the gate, not a specific cause:
+// the step exits non-zero on a genuine compile error but also on an infra failure
 // within it (dependency download, build-scan upload, OOM), and it does not read
-// its own log to tell them apart.
+// its own log to tell them apart. The stepKey is deliberately under the
+// `flakiness-orchestration:` prefix so the external batch-job metric predicate
+// (which matches `flakiness-detection:` step keys) does not treat this synthetic
+// build_failed record as a test batch.
 export function buildFailedPayload(): FlakinessPayload {
   return {
     jobId: "build-failed:precompile",
-    stepKey: "flakiness-detection:precompile",
+    stepKey: "flakiness-orchestration:compile",
     kind: "",
     rc: 1,
     durationSec: 0,

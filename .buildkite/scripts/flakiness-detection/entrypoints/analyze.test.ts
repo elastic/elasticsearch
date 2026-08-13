@@ -46,10 +46,16 @@ describe("notApplicablePayload", () => {
 });
 
 describe("buildFailedPayload", () => {
-  test("is a single build_failed record attributed to the precompile gate", () => {
-    expect(buildFailedPayload()).toEqual({
+  test("is a single build_failed record keyed under flakiness-orchestration (not a test batch)", () => {
+    const payload = buildFailedPayload();
+    // Must NOT be under the `flakiness-detection:` prefix the external batch-job
+    // metric predicate matches - otherwise this synthetic record would be counted
+    // as a test batch.
+    expect(payload.stepKey).toBe("flakiness-orchestration:compile");
+    expect(payload.stepKey.startsWith("flakiness-detection:")).toBe(false);
+    expect(payload).toEqual({
       jobId: "build-failed:precompile",
-      stepKey: "flakiness-detection:precompile",
+      stepKey: "flakiness-orchestration:compile",
       kind: "",
       rc: 1,
       durationSec: 0,

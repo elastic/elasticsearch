@@ -181,8 +181,8 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
         }));
         noNullsSuppliers.add(new TestCaseSupplier(List.of(DataType.DOUBLE_RANGE, DataType.DOUBLE_RANGE), () -> {
             assumeTrue(
-                "Requires DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V8 capability",
-                EsqlCapabilities.Cap.DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V8.isEnabled()
+                "Requires DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V10 capability",
+                EsqlCapabilities.Cap.DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V10.isEnabled()
             );
             DoubleRangeBlockBuilder.DoubleRange first = randomBoolean() ? null : TestCaseSupplier.randomDoubleRange();
             DoubleRangeBlockBuilder.DoubleRange second = TestCaseSupplier.randomDoubleRange();

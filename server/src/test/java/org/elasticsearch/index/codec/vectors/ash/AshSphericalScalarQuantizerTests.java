@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.codec.vectors.ash;
 
+import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.simdvec.ESVectorUtil;
 import org.elasticsearch.test.ESTestCase;
 
@@ -100,21 +101,33 @@ public class AshSphericalScalarQuantizerTests extends ESTestCase {
         }
     }
 
+    /**
+     * Every row of a batch must quantize identically to the same vector passed to
+     * {@link AshSphericalScalarQuantizer#encodeOne}. Uses several rows so the batch path is
+     * exercised at non-zero offsets into the flat input and output arrays.
+     */
     public void testEncodeOneMatchesBatch() {
-        AshSphericalScalarQuantizer ssq = new AshSphericalScalarQuantizer(2);
+        AshSphericalScalarQuantizer ssq = new AshSphericalScalarQuantizer(randomIntBetween(1, 4));
         int d = 16;
-        float[] input = randomGaussianVector(d);
+        int n = randomIntBetween(2, 5);
+        float[] batchInput = randomGaussianVector(n * d);
 
-        AshSphericalScalarQuantizer.SingleQuantizeResult single = ssq.encodeOne(input);
-        AshSphericalScalarQuantizer.QuantizeResult batch = ssq.encode(new float[][] { input });
+        AshSphericalScalarQuantizer.QuantizeResult batch = ssq.encode(batchInput, n, d);
+        assertEquals(n * d, batch.centeredCodes().length);
+        assertEquals(n, batch.codeNorms().length);
 
-        assertArrayEquals(single.centeredCode(), batch.centeredCodes()[0], 0f);
-        assertEquals(single.codeNorm(), batch.codeNorms()[0], 0f);
+        for (int i = 0; i < n; i++) {
+            int rowIdx = i * d;
+            float[] row = ArrayUtil.copyOfSubArray(batchInput, rowIdx, rowIdx + d);
+            AshSphericalScalarQuantizer.SingleQuantizeResult single = ssq.encodeOne(row);
+            assertArrayEquals("row " + i, single.centeredCode(), ArrayUtil.copyOfSubArray(batch.centeredCodes(), rowIdx, rowIdx + d), 0f);
+            assertEquals("row " + i, single.codeNorm(), batch.codeNorms()[i], 0f);
+        }
     }
 
     public void testEmptyInput() {
         AshSphericalScalarQuantizer ssq = new AshSphericalScalarQuantizer(2);
-        AshSphericalScalarQuantizer.QuantizeResult result = ssq.encode(new float[0][0]);
+        AshSphericalScalarQuantizer.QuantizeResult result = ssq.encode(new float[0], 0, 16);
         assertEquals(0, result.centeredCodes().length);
         assertEquals(0, result.codeNorms().length);
     }
@@ -235,10 +248,6 @@ public class AshSphericalScalarQuantizerTests extends ESTestCase {
     }
 
     private float[] randomGaussianVector(int d) {
-        float[] v = new float[d];
-        for (int j = 0; j < d; j++) {
-            v[j] = (float) random().nextGaussian();
-        }
-        return v;
+        return SvdUtil.randomGaussians(random(), d);
     }
 }

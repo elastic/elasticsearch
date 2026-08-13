@@ -24,6 +24,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
@@ -57,16 +58,14 @@ import static org.elasticsearch.inference.metadata.EndpointMetadata.METADATA_FIE
  *                    applicable only for {@link TaskType#TEXT_EMBEDDING} and {@link TaskType#EMBEDDING} (nullable).
  * @param endpointMetadata the metadata associated with the inference endpoint.
  */
-public record MinimalServiceSettings(
+public record EndpointClusterState(
     @Nullable String service,
     TaskType taskType,
     @Nullable Integer dimensions,
     @Nullable SimilarityMeasure similarity,
     @Nullable ElementType elementType,
     EndpointMetadata endpointMetadata
-) implements ServiceSettings, SimpleDiffable<MinimalServiceSettings> {
-
-    public static final String NAME = "minimal_service_settings";
+) implements ToXContentObject, SimpleDiffable<EndpointClusterState> {
 
     public static final String SERVICE_FIELD = "service";
     public static final String TASK_TYPE_FIELD = "task_type";
@@ -74,7 +73,9 @@ public record MinimalServiceSettings(
     static final String SIMILARITY_FIELD = "similarity";
     static final String ELEMENT_TYPE_FIELD = "element_type";
 
-    private static final ConstructingObjectParser<MinimalServiceSettings, Void> PARSER = new ConstructingObjectParser<>(
+    private static final String INCLUDE_ENDPOINT_METADATA_PARAM_NAME = "include_endpoint_metadata";
+
+    private static final ConstructingObjectParser<EndpointClusterState, Void> PARSER = new ConstructingObjectParser<>(
         "model_settings",
         true,
         args -> {
@@ -86,7 +87,7 @@ public record MinimalServiceSettings(
                 ? null
                 : DenseVectorFieldMapper.ElementType.fromString((String) args[4]);
             var metadata = args[5] == null ? EndpointMetadata.EMPTY_INSTANCE : (EndpointMetadata) args[5];
-            return new MinimalServiceSettings(service, taskType, dimensions, similarity, elementType, metadata);
+            return new EndpointClusterState(service, taskType, dimensions, similarity, elementType, metadata);
         }
     );
 
@@ -103,45 +104,59 @@ public record MinimalServiceSettings(
         );
     }
 
-    public static MinimalServiceSettings parse(XContentParser parser) throws IOException {
+    public static EndpointClusterState parse(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 
+    /**
+     * This class used to be a named writeable and needed a transport version for that. The class is no longer a named writeable but this
+     * transport definition cannot be deleted.
+     */
+    @SuppressWarnings("unused")
     private static final TransportVersion INFERENCE_MODEL_REGISTRY_METADATA = TransportVersion.fromName(
         "inference_model_registry_metadata"
     );
 
-    public static MinimalServiceSettings textEmbedding(
+    public static EndpointClusterState textEmbedding(
         String serviceName,
         int dimensions,
         SimilarityMeasure similarity,
         ElementType elementType
     ) {
-        return new MinimalServiceSettings(serviceName, TEXT_EMBEDDING, dimensions, similarity, elementType);
+        return new EndpointClusterState(serviceName, TEXT_EMBEDDING, dimensions, similarity, elementType);
     }
 
-    public static MinimalServiceSettings sparseEmbedding(String serviceName) {
-        return new MinimalServiceSettings(serviceName, SPARSE_EMBEDDING, null, null, null);
+    public static EndpointClusterState sparseEmbedding(String serviceName) {
+        return new EndpointClusterState(serviceName, SPARSE_EMBEDDING, null, null, null);
     }
 
-    public static MinimalServiceSettings rerank(String serviceName) {
-        return new MinimalServiceSettings(serviceName, RERANK, null, null, null);
+    public static EndpointClusterState rerank(String serviceName) {
+        return new EndpointClusterState(serviceName, RERANK, null, null, null);
     }
 
-    public static MinimalServiceSettings completion(String serviceName) {
-        return new MinimalServiceSettings(serviceName, COMPLETION, null, null, null);
+    public static EndpointClusterState completion(String serviceName) {
+        return new EndpointClusterState(serviceName, COMPLETION, null, null, null);
     }
 
-    public static MinimalServiceSettings chatCompletion(String serviceName) {
-        return new MinimalServiceSettings(serviceName, CHAT_COMPLETION, null, null, null);
+    public static EndpointClusterState chatCompletion(String serviceName) {
+        return new EndpointClusterState(serviceName, CHAT_COMPLETION, null, null, null);
     }
 
-    public MinimalServiceSettings {
+    public static Params withoutEndpointMetadata() {
+        return withoutEndpointMetadata(ToXContentObject.EMPTY_PARAMS);
+    }
+
+    public static Params withoutEndpointMetadata(Params params) {
+        Map<String, String> entries = Map.of(INCLUDE_ENDPOINT_METADATA_PARAM_NAME, Boolean.FALSE.toString());
+        return new DelegatingMapParams(entries, params);
+    }
+
+    public EndpointClusterState {
         Objects.requireNonNull(taskType, "task type must not be null");
         validate(taskType, dimensions, similarity, elementType);
     }
 
-    public MinimalServiceSettings(
+    public EndpointClusterState(
         @Nullable String service,
         TaskType taskType,
         @Nullable Integer dimensions,
@@ -151,7 +166,7 @@ public record MinimalServiceSettings(
         this(service, taskType, dimensions, similarity, elementType, EndpointMetadata.EMPTY_INSTANCE);
     }
 
-    public MinimalServiceSettings(Model model) {
+    public EndpointClusterState(Model model) {
         this(
             model.getConfigurations().getService(),
             model.getTaskType(),
@@ -162,7 +177,7 @@ public record MinimalServiceSettings(
         );
     }
 
-    public MinimalServiceSettings(StreamInput in) throws IOException {
+    public EndpointClusterState(StreamInput in) throws IOException {
         this(
             in.readOptionalString(),
             TaskType.fromStream(in),
@@ -187,38 +202,30 @@ public record MinimalServiceSettings(
         }
     }
 
-    @Override
-    public String getWriteableName() {
-        return NAME;
-    }
-
-    @Override
-    public TransportVersion getMinimalSupportedVersion() {
-        return INFERENCE_MODEL_REGISTRY_METADATA;
-    }
-
-    @Override
-    public boolean supportsVersion(TransportVersion version) {
-        return version.supports(INFERENCE_MODEL_REGISTRY_METADATA);
-    }
-
-    @Override
-    public ToXContentObject getFilteredXContentObject() {
-        return (b, p) -> toXContent(b, p, false);
-    }
-
-    @Override
-    public String modelId() {
-        return null;
-    }
-
-    public static Diff<MinimalServiceSettings> readDiffFrom(StreamInput in) throws IOException {
-        return SimpleDiffable.readDiffFrom(MinimalServiceSettings::new, in);
+    public static Diff<EndpointClusterState> readDiffFrom(StreamInput in) throws IOException {
+        return SimpleDiffable.readDiffFrom(EndpointClusterState::new, in);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return toXContent(builder, params, true);
+        builder.startObject();
+        if (service != null) {
+            builder.field(SERVICE_FIELD, service);
+        }
+        builder.field(TASK_TYPE_FIELD, taskType.toString());
+        if (dimensions != null) {
+            builder.field(DIMENSIONS_FIELD, dimensions);
+        }
+        if (similarity != null) {
+            builder.field(SIMILARITY_FIELD, similarity);
+        }
+        if (elementType != null) {
+            builder.field(ELEMENT_TYPE_FIELD, elementType);
+        }
+        if (params.paramAsBoolean(INCLUDE_ENDPOINT_METADATA_PARAM_NAME, true) && endpointMetadata.isEmpty() == false) {
+            builder.field(METADATA_FIELD_NAME, endpointMetadata);
+        }
+        return builder.endObject();
     }
 
     @Override
@@ -268,33 +275,12 @@ public record MinimalServiceSettings(
     }
 
     /**
-     * Checks if the given {@link MinimalServiceSettings} is equivalent to the current definition.
+     * Checks if the given {@link EndpointClusterState} is equivalent to the current definition.
      */
-    public boolean canMergeWith(MinimalServiceSettings other) {
+    public boolean canMergeWith(EndpointClusterState other) {
         return taskType == other.taskType
             && Objects.equals(dimensions, other.dimensions)
             && similarity == other.similarity
             && elementType == other.elementType;
-    }
-
-    private XContentBuilder toXContent(XContentBuilder builder, Params params, boolean includeFilteredFields) throws IOException {
-        builder.startObject();
-        if (service != null) {
-            builder.field(SERVICE_FIELD, service);
-        }
-        builder.field(TASK_TYPE_FIELD, taskType.toString());
-        if (dimensions != null) {
-            builder.field(DIMENSIONS_FIELD, dimensions);
-        }
-        if (similarity != null) {
-            builder.field(SIMILARITY_FIELD, similarity);
-        }
-        if (elementType != null) {
-            builder.field(ELEMENT_TYPE_FIELD, elementType);
-        }
-        if (includeFilteredFields && endpointMetadata.isEmpty() == false) {
-            builder.field(METADATA_FIELD_NAME, endpointMetadata);
-        }
-        return builder.endObject();
     }
 }

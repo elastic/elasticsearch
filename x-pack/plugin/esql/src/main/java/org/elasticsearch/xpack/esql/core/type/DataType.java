@@ -342,7 +342,7 @@ public enum DataType implements Writeable {
         builder().esType("double_range")
             .estimatedSize(2 * Double.BYTES)
             .docValues()
-            .supportedSince(DataTypesTransportVersions.ESQL_DOUBLE_RANGE_TECH_PREVIEW, ESQL_DOUBLE_RANGES)
+            .supportedSince(DataTypesTransportVersions.ESQL_DOUBLE_RANGE_UNDER_CONSTRUCTION, ESQL_DOUBLE_RANGES)
     ),
     /**
      * IP addresses. IPv4 address are always
@@ -1298,8 +1298,8 @@ public enum DataType implements Writeable {
         public static final TransportVersion ESQL_DATE_RANGE_TECH_PREVIEW = TransportVersion.fromName("esql_date_range_tech_preview");
 
         /**
-         * Tech preview transport version for double_range field type support
+         * Development version for double_range field type support.
          */
-        public static final TransportVersion ESQL_DOUBLE_RANGE_TECH_PREVIEW = TransportVersion.fromName("esql_double_range_tech_preview");
+        public static final TransportVersion ESQL_DOUBLE_RANGE_UNDER_CONSTRUCTION = TransportVersion.fromName("esql_double_range_tech_preview");
     }
 }

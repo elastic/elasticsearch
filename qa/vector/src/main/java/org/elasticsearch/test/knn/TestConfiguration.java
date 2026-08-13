@@ -83,7 +83,8 @@ public record TestConfiguration(
     String directoryType,
     DatasetConfig datasetConfig,
     int numDeletedDocs,
-    long deleteSeed
+    long deleteSeed,
+    float projectedDimsFraction
 ) {
 
     static final ParseField DATASET_FIELD = new ParseField("dataset");
@@ -132,6 +133,7 @@ public record TestConfiguration(
     static final ParseField DELETE_SEED_FIELD = new ParseField("delete_seed");
     static final ParseField EXACT_FIELD = new ParseField("exact");
     static final ParseField EXACT_QUANTIZED_FIELD = new ParseField("exact_quantized");
+    private static final ParseField PROJECTED_DIMS_FRACTION_FIELD = new ParseField("projected_dims_fraction");
 
     /** By default, in ES the default writer buffer size is 10% of the heap space
      * (see {@code IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING}).
@@ -214,6 +216,7 @@ public record TestConfiguration(
             EXACT_QUANTIZED_FIELD,
             ObjectParser.ValueType.VALUE_ARRAY
         );
+        PARSER.declareFloat(Builder::setProjectedDimsFraction, PROJECTED_DIMS_FRACTION_FIELD);
     }
 
     public int numberOfSearchRuns() {
@@ -471,6 +474,7 @@ public record TestConfiguration(
         private long deleteSeed = 1751900822751L;
         private List<Boolean> exact = List.of(Boolean.FALSE);
         private List<Boolean> exactQuantized = List.of(Boolean.FALSE);
+        private float projectedDimsFraction = 0.5f;
 
         /**
          * Elasticsearch does not set this explicitly, and in Lucene this setting is
@@ -719,6 +723,10 @@ public record TestConfiguration(
         public Builder setExactQuantized(List<Boolean> exactQuantized) {
             this.exactQuantized = exactQuantized;
             return this;
+        }
+
+        public void setProjectedDimsFraction(float v) {
+            this.projectedDimsFraction = v;
         }
 
         /*
@@ -1017,7 +1025,8 @@ public record TestConfiguration(
                 directoryType,
                 datasetConfig,
                 numDeletedDocs,
-                deleteSeed
+                deleteSeed,
+                projectedDimsFraction
             );
         }
 

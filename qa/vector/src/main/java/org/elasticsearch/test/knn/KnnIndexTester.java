@@ -48,6 +48,7 @@ import org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibration;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfFlushConfigSource;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfMergeConfigResolver;
 import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskASHVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93BinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93FlatVectorFormat;
@@ -116,6 +117,7 @@ public class KnnIndexTester {
         FLAT,
         HNSW,
         IVF,
+        ASH,
         GPU_HNSW
     }
 
@@ -270,6 +272,29 @@ public class KnnIndexTester {
                     args.datasetConfig().isSliced() ? KnnIndexer.PARTITION_ID_FIELD : null,
                     IvfFlushConfigSource.empty(),
                     mergeConfigResolver
+                );
+            }
+            case ASH -> {
+                int clusterSize = args.ivfClusterSize();
+                int centroidsPerParentCluster = args.secondaryClusterSize() == -1
+                    ? ESNextDiskASHVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER
+                    : args.secondaryClusterSize();
+                int flatVectorThreshold = args.flatVectorThreshold() >= 0 ? args.flatVectorThreshold() : -1;
+                String sliceField = args.datasetConfig().isSliced() ? KnnIndexer.PARTITION_ID_FIELD : null;
+                int bitsPerDim = args.quantizeBits() != null ? args.quantizeBits() : 2;
+                yield new ESNextDiskASHVectorsFormat(
+                    clusterSize,
+                    centroidsPerParentCluster,
+                    elementType,
+                    false,
+                    exec,
+                    mergeWorkers,
+                    flatVectorThreshold,
+                    sliceField,
+                    IvfFlushConfigSource.empty(),
+                    IvfMergeConfigResolver.useCodecDefault(),
+                    bitsPerDim,
+                    args.projectedDimsFraction()
                 );
             }
             case GPU_HNSW -> {

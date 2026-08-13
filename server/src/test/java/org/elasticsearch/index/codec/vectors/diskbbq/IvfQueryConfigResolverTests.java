@@ -50,7 +50,10 @@ public class IvfQueryConfigResolverTests extends ESTestCase {
                 IvfQueryConfigResolver resolver = IvfQueryConfigResolver.from(false, true, MAPPING_BITS, MAPPING_OVERSAMPLE, null);
                 IvfSegmentConfig resolved = resolver.resolve(fieldInfo, leaf);
 
-                assertThat(resolved.quantEncoding(), equalTo(QuantEncoding.fromBits((byte) MAPPING_BITS)));
+                assertThat(
+                    ((IvfSegmentConfig.OsqConfig) resolved.quantConfig()).encoding(),
+                    equalTo(QuantEncoding.fromBits((byte) MAPPING_BITS))
+                );
                 assertTrue(resolved.usePrecondition());
                 assertThat(resolved.rescoreOversample(), equalTo(MAPPING_OVERSAMPLE));
             }
@@ -87,8 +90,18 @@ public class IvfQueryConfigResolverTests extends ESTestCase {
                     dir,
                     4,
                     64,
-                    IvfSegmentConfig.of(CentroidIndexFormat.FLAT, QuantEncoding.ONE_BIT_4BIT_QUERY, true, MAPPING_OVERSAMPLE),
-                    IvfSegmentConfig.of(CentroidIndexFormat.FLAT, QuantEncoding.ONE_BIT_4BIT_QUERY, true, MAPPING_OVERSAMPLE),
+                    IvfSegmentConfig.of(
+                        CentroidIndexFormat.FLAT,
+                        new IvfSegmentConfig.OsqConfig(QuantEncoding.ONE_BIT_4BIT_QUERY),
+                        true,
+                        MAPPING_OVERSAMPLE
+                    ),
+                    IvfSegmentConfig.of(
+                        CentroidIndexFormat.FLAT,
+                        new IvfSegmentConfig.OsqConfig(QuantEncoding.ONE_BIT_4BIT_QUERY),
+                        true,
+                        MAPPING_OVERSAMPLE
+                    ),
                     IvfMergeConfigResolver.useCodecDefault()
                 )
             ) {
@@ -165,8 +178,8 @@ public class IvfQueryConfigResolverTests extends ESTestCase {
                     dir,
                     4,
                     64,
-                    IvfSegmentConfig.of(CentroidIndexFormat.FLAT, persistedEncoding, false, 2f),
-                    IvfSegmentConfig.of(CentroidIndexFormat.FLAT, persistedEncoding, false, 2f),
+                    IvfSegmentConfig.of(CentroidIndexFormat.FLAT, new IvfSegmentConfig.OsqConfig(persistedEncoding), false, 2f),
+                    IvfSegmentConfig.of(CentroidIndexFormat.FLAT, new IvfSegmentConfig.OsqConfig(persistedEncoding), false, 2f),
                     IvfMergeConfigResolver.useCodecDefault()
                 )
             ) {
@@ -175,7 +188,7 @@ public class IvfQueryConfigResolverTests extends ESTestCase {
                 IvfQueryConfigResolver resolver = IvfQueryConfigResolver.from(true, false, MAPPING_BITS, MAPPING_OVERSAMPLE, null);
                 IvfSegmentConfig resolved = resolver.resolve(fieldInfo, leaf);
 
-                assertThat(resolved.quantEncoding(), equalTo(persistedEncoding));
+                assertThat(((IvfSegmentConfig.OsqConfig) resolved.quantConfig()).encoding(), equalTo(persistedEncoding));
             }
         }
     }
@@ -188,8 +201,8 @@ public class IvfQueryConfigResolverTests extends ESTestCase {
                     dir,
                     4,
                     64,
-                    IvfSegmentConfig.of(CentroidIndexFormat.FLAT, persistedEncoding, false, 2f),
-                    IvfSegmentConfig.of(CentroidIndexFormat.FLAT, persistedEncoding, false, 2f),
+                    IvfSegmentConfig.of(CentroidIndexFormat.FLAT, new IvfSegmentConfig.OsqConfig(persistedEncoding), false, 2f),
+                    IvfSegmentConfig.of(CentroidIndexFormat.FLAT, new IvfSegmentConfig.OsqConfig(persistedEncoding), false, 2f),
                     IvfMergeConfigResolver.useCodecDefault()
                 )
             ) {
@@ -198,7 +211,10 @@ public class IvfQueryConfigResolverTests extends ESTestCase {
                 IvfQueryConfigResolver resolver = IvfQueryConfigResolver.from(false, false, MAPPING_BITS, MAPPING_OVERSAMPLE, null);
                 IvfSegmentConfig resolved = resolver.resolve(fieldInfo, leaf);
 
-                assertThat(resolved.quantEncoding(), equalTo(QuantEncoding.fromBits((byte) MAPPING_BITS)));
+                assertThat(
+                    ((IvfSegmentConfig.OsqConfig) resolved.quantConfig()).encoding(),
+                    equalTo(QuantEncoding.fromBits((byte) MAPPING_BITS))
+                );
             }
         }
     }

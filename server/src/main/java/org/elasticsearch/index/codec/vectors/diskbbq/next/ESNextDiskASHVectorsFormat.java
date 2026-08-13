@@ -18,6 +18,7 @@ import org.apache.lucene.search.TaskExecutor;
 import org.elasticsearch.index.codec.vectors.DirectIOCapableFlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfFlushConfigSource;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfMergeConfigResolver;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfSegmentConfig;
 import org.elasticsearch.index.codec.vectors.es93.DirectIOCapableLucene99FlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93BFloat16FlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93GenericFlatVectorScorer;
@@ -83,6 +84,11 @@ public class ESNextDiskASHVectorsFormat extends KnnVectorsFormat {
     public static final int MAX_CENTROIDS_PER_PARENT_CLUSTER = DEFAULT_VECTORS_PER_CLUSTER; // 384
     public static final int MAX_DIMENSIONS = 4096;
 
+    /** Default ASH bits per dimension for document encoding. */
+    public static final int DEFAULT_BITS_PER_DIM = IvfSegmentConfig.AshConfig.DEFAULT_BITS_PER_DIM;
+    /** Default fraction of original dimensions to project to. */
+    public static final float DEFAULT_PROJECTED_DIMS_FRACTION = IvfSegmentConfig.AshConfig.DEFAULT_PROJECTED_DIMS_FRACTION;
+
     private final int vectorPerCluster;
     private final int centroidsPerParentCluster;
     private final boolean useDirectIO;
@@ -93,6 +99,8 @@ public class ESNextDiskASHVectorsFormat extends KnnVectorsFormat {
     private final String sliceField;
     private final IvfFlushConfigSource ivfFlushConfigSource;
     private final IvfMergeConfigResolver ivfMergeConfigResolver;
+    private final int bitsPerDim;
+    private final float projectedDimsFraction;
 
     /** No-arg constructor for SPI. */
     public ESNextDiskASHVectorsFormat() {
@@ -110,7 +118,9 @@ public class ESNextDiskASHVectorsFormat extends KnnVectorsFormat {
             defaultFlatThreshold(vectorPerCluster),
             sliceField,
             IvfFlushConfigSource.empty(),
-            IvfMergeConfigResolver.useCodecDefault()
+            IvfMergeConfigResolver.useCodecDefault(),
+            DEFAULT_BITS_PER_DIM,
+            DEFAULT_PROJECTED_DIMS_FRACTION
         );
     }
 
@@ -124,7 +134,9 @@ public class ESNextDiskASHVectorsFormat extends KnnVectorsFormat {
         int flatVectorThreshold,
         String sliceField,
         IvfFlushConfigSource ivfFlushConfigSource,
-        IvfMergeConfigResolver ivfMergeConfigResolver
+        IvfMergeConfigResolver ivfMergeConfigResolver,
+        int bitsPerDim,
+        float projectedDimsFraction
     ) {
         super(NAME);
         if (vectorPerCluster < MIN_VECTORS_PER_CLUSTER || vectorPerCluster > MAX_VECTORS_PER_CLUSTER) {
@@ -166,6 +178,8 @@ public class ESNextDiskASHVectorsFormat extends KnnVectorsFormat {
         this.sliceField = sliceField;
         this.ivfFlushConfigSource = ivfFlushConfigSource;
         this.ivfMergeConfigResolver = ivfMergeConfigResolver;
+        this.bitsPerDim = bitsPerDim;
+        this.projectedDimsFraction = projectedDimsFraction;
     }
 
     @Override
@@ -182,7 +196,9 @@ public class ESNextDiskASHVectorsFormat extends KnnVectorsFormat {
             flatVectorThreshold,
             sliceField,
             ivfFlushConfigSource,
-            ivfMergeConfigResolver
+            ivfMergeConfigResolver,
+            bitsPerDim,
+            projectedDimsFraction
         );
     }
 

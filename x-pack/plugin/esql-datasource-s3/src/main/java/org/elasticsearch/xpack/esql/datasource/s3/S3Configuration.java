@@ -30,7 +30,7 @@ import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefin
  *   <li>{@code auth=anonymous} — anonymous access to public buckets</li>
  *   <li>{@code auth=managed_identity} — the node's instance credentials via the IMDS-family chain
  *       (ECS task role, then EC2 instance profile). Requires the
- *       {@code esql.datasource.managed_identity.enabled} cluster setting.</li>
+ *       {@code esql.external.managed_identity.enabled} cluster setting.</li>
  * </ul>
  */
 public class S3Configuration extends FileDataSourceConfiguration {
@@ -222,7 +222,7 @@ public class S3Configuration extends FileDataSourceConfiguration {
             + "(optionally session_token for STS temporary credentials); "
             + "set auth=anonymous for public buckets; "
             + "set auth=managed_identity to use the node's instance role "
-            + "(requires the esql.datasource.managed_identity.enabled cluster setting); "
+            + "(requires the esql.external.managed_identity.enabled cluster setting); "
             + "or configure federated authentication with role_arn";
     }
 }

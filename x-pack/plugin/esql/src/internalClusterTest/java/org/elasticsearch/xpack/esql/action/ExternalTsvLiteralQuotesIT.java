@@ -46,15 +46,15 @@ public class ExternalTsvLiteralQuotesIT extends AbstractExternalDataSourceIT {
 
     /**
      * Deterministic guard: row 0 has one mid-field {@code "}, the rest are quote-free, so a quote-toggle
-     * scanner finds no boundary and the grow loop hits a low {@code max_record_size}. Fails without the
+     * scanner finds no boundary and the grow loop hits a low {@code external_max_record_size}. Fails without the
      * fix; with it the {@code "} is literal and the count is exact.
      */
     public void testGzipStreamOnlyLeadingQuoteIsLiteral() throws Exception {
-        assumeTrue("max_record_size / parsing_parallelism pragmas are snapshot-only", Build.current().isSnapshot());
+        assumeTrue("external_max_record_size / external_parsing_parallelism pragmas are snapshot-only", Build.current().isSnapshot());
         int rows = 150_000;
         Path file = writeTsv(rows, Codec.GZIP, QuoteShape.SINGLE_LEADING);
         try {
-            // parsing_parallelism > 1 forces the streaming-parallel segmentator path; max_record_size
+            // external_parsing_parallelism > 1 forces the streaming-parallel segmentator path; external_max_record_size
             // caps the per-record grow so the pre-fix runaway is reached at a small, fast fixture.
             assertCount(file, pragmas(4, "1mb"), rows);
         } finally {
@@ -64,7 +64,7 @@ public class ExternalTsvLiteralQuotesIT extends AbstractExternalDataSourceIT {
 
     /** Stream-only path with dense literal quotes throughout the data, default cap. */
     public void testGzipStreamOnlyDenseLiteralQuotes() throws Exception {
-        assumeTrue("max_record_size / parsing_parallelism pragmas are snapshot-only", Build.current().isSnapshot());
+        assumeTrue("external_max_record_size / external_parsing_parallelism pragmas are snapshot-only", Build.current().isSnapshot());
         int rows = 150_000;
         Path file = writeTsv(rows, Codec.GZIP, QuoteShape.DENSE);
         try {
@@ -76,7 +76,7 @@ public class ExternalTsvLiteralQuotesIT extends AbstractExternalDataSourceIT {
 
     /** Segmentable uncompressed parallel path ({@code ParallelParsingCoordinator}) with dense quotes. */
     public void testUncompressedParallelDenseLiteralQuotes() throws Exception {
-        assumeTrue("max_record_size / parsing_parallelism pragmas are snapshot-only", Build.current().isSnapshot());
+        assumeTrue("external_max_record_size / external_parsing_parallelism pragmas are snapshot-only", Build.current().isSnapshot());
         int rows = 250_000; // large enough (> 2 chunks) that the parallel splitter engages
         Path file = writeTsv(rows, Codec.NONE, QuoteShape.DENSE);
         try {
@@ -88,7 +88,7 @@ public class ExternalTsvLiteralQuotesIT extends AbstractExternalDataSourceIT {
 
     /** Single-thread fallback (direct {@code reader.read}) with dense quotes. */
     public void testSingleThreadFallbackDenseLiteralQuotes() throws Exception {
-        assumeTrue("max_record_size / parsing_parallelism pragmas are snapshot-only", Build.current().isSnapshot());
+        assumeTrue("external_max_record_size / external_parsing_parallelism pragmas are snapshot-only", Build.current().isSnapshot());
         int rows = 100_000;
         Path file = writeTsv(rows, Codec.GZIP, QuoteShape.DENSE);
         try {
@@ -99,12 +99,12 @@ public class ExternalTsvLiteralQuotesIT extends AbstractExternalDataSourceIT {
     }
 
     /**
-     * Field-leading quotes through the streaming (gzip) path. The low {@code max_record_size} cap
+     * Field-leading quotes through the streaming (gzip) path. The low {@code external_max_record_size} cap
      * makes a regression to a quoting {@code .tsv} default fail fast (glued records trip the cap)
      * instead of scanning the full default window.
      */
     public void testGzipStreamOnlyFieldLeadingQuoteIsData() throws Exception {
-        assumeTrue("max_record_size / parsing_parallelism pragmas are snapshot-only", Build.current().isSnapshot());
+        assumeTrue("external_max_record_size / external_parsing_parallelism pragmas are snapshot-only", Build.current().isSnapshot());
         int rows = 150_000;
         Path file = writeTsv(rows, Codec.GZIP, QuoteShape.FIELD_LEADING);
         try {
@@ -116,7 +116,7 @@ public class ExternalTsvLiteralQuotesIT extends AbstractExternalDataSourceIT {
 
     /** Field-leading quotes through the segmentable uncompressed parallel path. */
     public void testUncompressedParallelFieldLeadingQuoteIsData() throws Exception {
-        assumeTrue("max_record_size / parsing_parallelism pragmas are snapshot-only", Build.current().isSnapshot());
+        assumeTrue("external_max_record_size / external_parsing_parallelism pragmas are snapshot-only", Build.current().isSnapshot());
         int rows = 250_000; // large enough (> 2 chunks) that the parallel splitter engages
         Path file = writeTsv(rows, Codec.NONE, QuoteShape.FIELD_LEADING);
         try {

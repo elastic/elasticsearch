@@ -282,7 +282,7 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         // reads of huge unsplit NDJSON; above the cap, fall back to streaming and accept a
         // possible offset shift on lenient-mode recovery rather than risk unbounded allocation.
         if (canUseByteArrayFastPath(object)) {
-            // Slurp the bounded (≤16 MiB) segment in one pull. max_record_size is enforced per-record
+            // Slurp the bounded (≤16 MiB) segment in one pull. external_max_record_size is enforced per-record
             // inside NdJsonPageDecoder on the pass Jackson already makes — no second walk over the buffer
             // (the pre-#965 strict cap stream / lenient filter both re-scanned every byte before the
             // decoder re-walked them; see issue 965). Splitter-side enforcement
@@ -311,7 +311,7 @@ final class NdJsonPageIterator extends BufferingPageIterator {
             );
         } else {
             // Streaming/fallback path (object too large for the fast path, unknown length, or a
-            // single-threaded read). max_record_size is enforced per-record by the decoder here too, which
+            // single-threaded read). external_max_record_size is enforced per-record by the decoder here too, which
             // closes the pre-#965 gap where this branch wrapped only a CountingInputStream and parsed
             // oversized records with no cap at all (issue 965 feedback). CountingInputStream still gives
             // close-time bytesRead for stream-only sources (bzip2 / zstd-streamed) whose length() throws.
@@ -394,7 +394,7 @@ final class NdJsonPageIterator extends BufferingPageIterator {
                 // already emitted the client-facing partial-results warning.
                 if (pageDecoder.truncated()) {
                     logger.warn(
-                        "NDJSON read of [{}] truncated at byte [{}]: a record exceeded max_record_size; results are partial",
+                        "NDJSON read of [{}] truncated at byte [{}]: a record exceeded external_max_record_size; results are partial",
                         sourceLocation,
                         pageDecoder.truncatedAtByte()
                     );

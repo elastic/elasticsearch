@@ -75,15 +75,15 @@ public class ExternalMultiFileWarmMinMaxPartialHarvestIT extends AbstractExterna
             // Tiny stripe grid so each file spans several canonical stripes -> the per-stripe emit + the
             // coordinator's 0..K + EOF fold runs per file, producing each file's whole-file column stats by
             // the same path as production.
-            .put("esql.source.cache.stripe.size", "64kb")
+            .put("esql.external.cache.stripe.size", "64kb")
             .build();
     }
 
     @Override
     protected QueryPragmas getPragmas() {
-        // parsing_parallelism > 1 selects the parallel-parse path so each file is read in multiple chunks,
+        // external_parsing_parallelism > 1 selects the parallel-parse path so each file is read in multiple chunks,
         // emitting per-stripe fragments the coordinator interval-covers and folds -- the production shape.
-        return new QueryPragmas(Settings.builder().put("parsing_parallelism", 4).build());
+        return new QueryPragmas(Settings.builder().put("external_parsing_parallelism", 4).build());
     }
 
     /**

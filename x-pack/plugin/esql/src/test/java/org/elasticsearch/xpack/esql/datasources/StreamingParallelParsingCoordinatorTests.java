@@ -292,7 +292,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
      * {@link ExternalClientException} (HTTP 400) — including the coordinator's "Streaming parallel parsing
      * failed" prefix — rather than a status-neutral {@link RuntimeException} that would later be
      * misclassified as 500. The injected "injected failure" mirrors the path real failures take (e.g. a
-     * record exceeding {@code max_record_size}).
+     * record exceeding {@code external_max_record_size}).
      */
     public void testParserIoFailureSurfacesAsExternalClientException() throws Exception {
         String content = buildContent(100);
@@ -571,7 +571,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
      * publishes the first chunk or reaches EOF. This is the core consumer-yield contract that lets the
      * producer-loop release its executor slot back to the pool while parser/segmenter sub-tasks run.
      * Without it, the producer-loop would spin inside {@code hasNext()} holding the slot, deadlocking
-     * the pool on multi-file gzip globs with default {@code parsing_parallelism = cores}.
+     * the pool on multi-file gzip globs with default {@code external_parsing_parallelism = cores}.
      */
     public void testWaitForReadyParksUntilFirstChunkOrEof() throws Exception {
         // Synthesize a stream the segmenter cannot yet make progress on by gating it behind a latch
@@ -691,7 +691,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
      * Regression test for the producer-loop pool-exhaustion deadlock: verifies that many file
      * readers can drain against a tiny shared executor pool without one iterator's producer-loop
      * blocking the sub-tasks that another iterator (or its own) needs to make progress. Pre-fix,
-     * {@code F} file readers with {@code parsing_parallelism = N} submitted {@code F × (1 + N)}
+     * {@code F} file readers with {@code external_parsing_parallelism = N} submitted {@code F × (1 + N)}
      * sub-tasks plus {@code F} producer-loop drivers — a pool of {@code F × (2 + N)} threads.
      * With a smaller pool, producer-loops blocked inside {@code hasNext()} occupy slots that their
      * sub-tasks need; post-fix, producer-loops yield via {@link CloseableIterator#waitForReady()}
@@ -1311,14 +1311,14 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             );
             RuntimeException ex = expectThrows(RuntimeException.class, () -> collectLines(iterator));
             String chain = ex.toString() + (ex.getCause() != null ? " | cause: " + ex.getCause() : "");
-            assertTrue("expected a bounded grow-loop failure, got: " + chain, chain.contains("record exceeded max_record_size"));
+            assertTrue("expected a bounded grow-loop failure, got: " + chain, chain.contains("record exceeded external_max_record_size"));
         } finally {
             executor.shutdownNow();
         }
     }
 
     /**
-     * A {@code max_record_size} cap-hit must honor the read {@link ErrorPolicy}: a strict policy keeps
+     * A {@code external_max_record_size} cap-hit must honor the read {@link ErrorPolicy}: a strict policy keeps
      * hard-failing (as before), while a non-strict policy degrades gracefully — it truncates the read
      * at the undelimitable record and returns the records parsed before it (truncate-at-failure, since
      * an unclosed record has no resumption point). The fixture is a handful of clean records followed
@@ -1362,7 +1362,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             String chain = ex.toString() + (ex.getCause() != null ? " | cause: " + ex.getCause() : "");
             assertTrue(
                 "strict policy must still hard-fail on the cap-hit, got: " + chain,
-                chain.contains("record exceeded max_record_size")
+                chain.contains("record exceeded external_max_record_size")
             );
         } finally {
             strictExecutor.shutdownNow();
@@ -1448,7 +1448,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             "expected a partial-results truncation warning, got: " + sink,
             sink.get(0).contains("results are partial")
                 && sink.get(0).contains("truncated at byte")
-                && sink.get(0).contains("record exceeded max_record_size")
+                && sink.get(0).contains("record exceeded external_max_record_size")
         );
     }
 
@@ -1492,7 +1492,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         List<String> warnings = drainWarnings();
         assertTrue(
             "expected a client-visible partial-results warning, got: " + warnings,
-            warnings.stream().anyMatch(w -> w.contains("results are partial") && w.contains("record exceeded max_record_size"))
+            warnings.stream().anyMatch(w -> w.contains("results are partial") && w.contains("record exceeded external_max_record_size"))
         );
     }
 

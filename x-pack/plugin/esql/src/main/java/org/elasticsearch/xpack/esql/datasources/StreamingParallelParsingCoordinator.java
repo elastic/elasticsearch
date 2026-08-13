@@ -89,7 +89,7 @@ public final class StreamingParallelParsingCoordinator {
      * {@code Consumer<String>} parameters/fields invite silent transposition at a call site.
      *
      * @param partialResultsWarningSink receives a single client-visible message if a non-strict
-     *                                  {@link ErrorPolicy} truncates the read at a {@code max_record_size}
+     *                                  {@link ErrorPolicy} truncates the read at a {@code external_max_record_size}
      *                                  cap-hit — a genuine partial-results signal. Production passes
      *                                  {@link AsyncExternalSourceBuffer#recordWarning} so the operator can
      *                                  re-emit it on the driver thread (the segmentator runs on a forked
@@ -163,7 +163,7 @@ public final class StreamingParallelParsingCoordinator {
      *                       compressed inputs are not macro-split, so this is {@code 0}; the decompressed
      *                       cumulative offset is the logical file-global offset on its own.
      * <p>
-     * Full-control overload that takes both the {@code max_record_size} grow-loop bound and an
+     * Full-control overload that takes both the {@code external_max_record_size} grow-loop bound and an
      * explicit consumer-owned {@code captureSink} for per-chunk source-stats contributions. Each
      * chunk is parsed on a worker thread; this coordinator binds {@code captureSink} on that worker
      * around the per-chunk {@link CloseableIterator#close()} so text-format readers' close hooks
@@ -174,7 +174,7 @@ public final class StreamingParallelParsingCoordinator {
      * {@link ParallelParsingCoordinator}).
      * <p>
      * {@code partialResultsWarningSink} receives a single client-visible message if a non-strict
-     * {@link ErrorPolicy} truncates the read at a {@code max_record_size} cap-hit — a genuine partial-
+     * {@link ErrorPolicy} truncates the read at a {@code external_max_record_size} cap-hit — a genuine partial-
      * results signal. Production passes {@link AsyncExternalSourceBuffer#recordWarning} so the operator
      * can re-emit it on the driver thread (the segmentator runs on a forked worker whose response
      * headers never reach the client — see #835). Pass {@code null} to fall back to a direct
@@ -382,7 +382,7 @@ public final class StreamingParallelParsingCoordinator {
         /**
          * The two independent warning relays this iterator's workers may need — see {@link WarningSinks}.
          * {@link WarningSinks#partialResultsWarningSink()} receives the truncation warning when a
-         * non-strict policy converts a {@code max_record_size} cap-hit into a graceful stop (production
+         * non-strict policy converts a {@code external_max_record_size} cap-hit into a graceful stop (production
          * wires {@link AsyncExternalSourceBuffer#recordWarning}; {@code null} falls back to a direct
          * {@link HeaderWarning} on the segmentator thread — tests / benchmarks. See
          * {@link #emitTruncationWarning}). {@link WarningSinks#informationalWarningSink()} is the
@@ -427,7 +427,7 @@ public final class StreamingParallelParsingCoordinator {
         /** How much per-stripe statistics each chunk harvests (row count only / + projected / + all / nothing). */
         private final StripeColumnScope statsColumnScope;
         /**
-         * Grow-loop bound. In production it comes from the {@code max_record_size} pragma (default
+         * Grow-loop bound. In production it comes from the {@code external_max_record_size} pragma (default
          * {@link SegmentableFormatReader#DEFAULT_MAX_RECORD_BYTES}); overridable for tests.
          */
         private final int maxRecordBytes;
@@ -462,7 +462,7 @@ public final class StreamingParallelParsingCoordinator {
         private Page buffered = null;
         private volatile boolean closed = false;
         /**
-         * Set when a non-strict {@link ErrorPolicy} converts a {@code max_record_size} cap-hit into a
+         * Set when a non-strict {@link ErrorPolicy} converts a {@code external_max_record_size} cap-hit into a
          * graceful stop instead of a hard failure (see {@link #runSegmentator}). A truncated read is
          * <em>not</em> a clean completion: the records emitted so far are a partial prefix and any
          * captured stats are an under-count, so {@link #close()} must poison them rather than cache
@@ -618,7 +618,7 @@ public final class StreamingParallelParsingCoordinator {
                 default -> "";
             };
             return new RecordTooLargeException(
-                "record exceeded max_record_size ["
+                "record exceeded external_max_record_size ["
                     + maxRecordBytes
                     + "] after scanning ["
                     + scannedBytes
@@ -630,7 +630,7 @@ public final class StreamingParallelParsingCoordinator {
         }
 
         /**
-         * Raised by the segmentator when a single record exceeds {@code max_record_size} before a
+         * Raised by the segmentator when a single record exceeds {@code external_max_record_size} before a
          * boundary is found. Carried as a distinct type so {@link #runSegmentator} can branch on the
          * read policy without catching unrelated I/O errors: a strict policy rethrows it (hard fail),
          * a non-strict policy truncates the read at this point and surfaces a partial-results warning.
@@ -645,7 +645,7 @@ public final class StreamingParallelParsingCoordinator {
 
         /**
          * Surfaces a single client-visible {@code Warning} announcing that the read was truncated
-         * because an undelimitable record exceeded {@code max_record_size}, returning only the records
+         * because an undelimitable record exceeded {@code external_max_record_size}, returning only the records
          * parsed before it.
          * <p>
          * {@code recordStartByte} is the decompressed byte offset where the oversized record began —
@@ -807,7 +807,7 @@ public final class StreamingParallelParsingCoordinator {
                     }
                 }
             } catch (RecordTooLargeException e) {
-                // A single record exceeded max_record_size before any boundary was found. Under a strict
+                // A single record exceeded external_max_record_size before any boundary was found. Under a strict
                 // policy this stays a hard failure (the historical behavior); under a non-strict policy we
                 // honor the lenient read intent by truncating the read here: stop dispatching, keep the
                 // records parsed so far, and surface a client-visible partial-results warning. An
@@ -1526,7 +1526,7 @@ public final class StreamingParallelParsingCoordinator {
             // dispatched chunk. An early close (LIMIT, cancellation) leaves chunks unconsumed — and a
             // parser cut off mid-chunk records a partial row count under that chunk's full byte range,
             // which the coverage tiling would otherwise accept as complete and cache as an under-count.
-            // A non-strict truncation (max_record_size cap-hit) likewise emits only a prefix of the
+            // A non-strict truncation (external_max_record_size cap-hit) likewise emits only a prefix of the
             // file's records, so it must not be cached as the file's full contribution. Either way a
             // non-clean scan poisons the file's contributions: the reconciler discards them.
             boolean cleanCompletion = firstError.get() == null && truncated == false && currentChunk >= chunksDispatched.get();

@@ -45,7 +45,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 /**
- * When the streaming-parallel segmentator hits the {@code max_record_size} cap on a stream-only
+ * When the streaming-parallel segmentator hits the {@code external_max_record_size} cap on a stream-only
  * (gzip) input, the read must honor the {@code error_mode}: a strict policy still hard-fails, while a
  * non-strict policy truncates the read at the undelimitable record and returns the records parsed so
  * far (rather than failing the whole query). The non-strict truncation also surfaces a prominent,
@@ -60,11 +60,11 @@ import static org.hamcrest.Matchers.greaterThan;
 public class ExternalMaxRecordSizeTruncationIT extends AbstractExternalDataSourceIT {
 
     private static final int LEADING_ROWS = 5;
-    /** {@code max_record_size} pragma value; {@code 1mb} == {@link #MAX_RECORD_SIZE_BYTES} bytes. */
+    /** {@code external_max_record_size} pragma value; {@code 1mb} == {@link #MAX_RECORD_SIZE_BYTES} bytes. */
     private static final String MAX_RECORD_SIZE = "1mb";
     private static final long MAX_RECORD_SIZE_BYTES = 1024L * 1024L;
     /**
-     * Size of the single oversized field. It is strictly larger than {@code max_record_size}, so the
+     * Size of the single oversized field. It is strictly larger than {@code external_max_record_size}, so the
      * segmentator can never accumulate a full record within the cap and raises {@code RECORD_TOO_LARGE}
      * — independent of the reader's {@code minimumSegmentSize} floor (asserted in {@link #assertFixtureSizing}).
      */
@@ -78,25 +78,25 @@ public class ExternalMaxRecordSizeTruncationIT extends AbstractExternalDataSourc
     /**
      * Pins the fixture's defining property so the test cannot silently change meaning if a constant or
      * the reader's segment floor is later retuned: a single record strictly larger than
-     * {@code max_record_size} can never be delimited within the cap, so {@code RECORD_TOO_LARGE} fires
+     * {@code external_max_record_size} can never be delimited within the cap, so {@code RECORD_TOO_LARGE} fires
      * regardless of chunk/segment sizing. The {@code 2x} margin keeps that true even when a chunk
      * straddles the leading rows and the start of the giant field.
      */
     @Before
     public void assertFixtureSizing() {
         assertThat(
-            "GIANT_RECORD_BYTES must exceed 2x max_record_size so the cap-hit is independent of segment sizing",
+            "GIANT_RECORD_BYTES must exceed 2x external_max_record_size so the cap-hit is independent of segment sizing",
             (long) GIANT_RECORD_BYTES,
             greaterThan(2 * MAX_RECORD_SIZE_BYTES)
         );
     }
 
     /**
-     * Default (strict) policy: a record exceeding {@code max_record_size} must fail the query fast with
+     * Default (strict) policy: a record exceeding {@code external_max_record_size} must fail the query fast with
      * a diagnosable error, as before this change.
      */
     public void testStrictPolicyHardFailsOnOversizedRecord() throws Exception {
-        assumeTrue("max_record_size / parsing_parallelism pragmas are snapshot-only", Build.current().isSnapshot());
+        assumeTrue("external_max_record_size / external_parsing_parallelism pragmas are snapshot-only", Build.current().isSnapshot());
         Path file = writeGzipWithOversizedRecord();
         try {
             String dataset = registerDataset("strict_oversized", StoragePath.fileUri(file), Map.of("header_row", false));
@@ -106,7 +106,10 @@ public class ExternalMaxRecordSizeTruncationIT extends AbstractExternalDataSourc
             EsqlQueryRequest request = syncEsqlQueryRequest(query).pragmas(pragmas(4, MAX_RECORD_SIZE)).allowPartialResults(false);
             Exception e = expectThrows(Exception.class, () -> run(request, TimeValue.timeValueMinutes(2)).close());
             String trace = ExceptionsHelper.stackTrace(e);
-            assertTrue("strict policy must hard-fail on the cap-hit, got: " + trace, trace.contains("record exceeded max_record_size"));
+            assertTrue(
+                "strict policy must hard-fail on the cap-hit, got: " + trace,
+                trace.contains("record exceeded external_max_record_size")
+            );
         } finally {
             Files.deleteIfExists(file);
         }
@@ -124,7 +127,7 @@ public class ExternalMaxRecordSizeTruncationIT extends AbstractExternalDataSourc
      * driver ran the external read (coordinator or data node) through {@code DriverCompletionInfo}.
      */
     public void testSkipRowPolicyReturnsPartialResultsAndWarnsClient() throws Exception {
-        assumeTrue("max_record_size / parsing_parallelism pragmas are snapshot-only", Build.current().isSnapshot());
+        assumeTrue("external_max_record_size / external_parsing_parallelism pragmas are snapshot-only", Build.current().isSnapshot());
         Path file = writeGzipWithOversizedRecord();
         try {
             String dataset = registerDataset(
@@ -187,7 +190,7 @@ public class ExternalMaxRecordSizeTruncationIT extends AbstractExternalDataSourc
     /**
      * Writes a gzip TSV with {@link #LEADING_ROWS} clean rows, then a single {@link #GIANT_RECORD_BYTES}-byte
      * field terminated by a newline, then a couple of trailing rows. Because that one field is larger than
-     * {@code max_record_size}, the segmentator cannot accumulate the whole record within the cap and trips
+     * {@code external_max_record_size}, the segmentator cannot accumulate the whole record within the cap and trips
      * {@code RECORD_TOO_LARGE} (either the grow-loop pre-check or the forward-scan boundary check) before it
      * can reach the terminator — so the read truncates there and the trailing rows are never parsed.
      */

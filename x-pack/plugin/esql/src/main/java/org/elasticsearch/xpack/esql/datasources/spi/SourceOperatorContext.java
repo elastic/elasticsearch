@@ -68,7 +68,7 @@ public record SourceOperatorContext(
     DeclaredReadSpec declaredReadSpec
 ) {
     /**
-     * Single source of truth for the {@code max_concurrent_open_segments} default. Lives in this SPI (leaf)
+     * Single source of truth for the {@code external_max_concurrent_open_segments} default. Lives in this SPI (leaf)
      * layer so both the {@code QueryPragmas} setting and the datasources-side fallback defaults reference it
      * without {@code datasources} having to depend on {@code plugin}. Change here and it propagates.
      */
@@ -297,7 +297,7 @@ public record SourceOperatorContext(
         private int parsingParallelism = 1;
         private int maxConcurrentOpenSegments = DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS;
         // Default matches StreamingParallelParsingCoordinator's record-growth cap (64 MiB); the planner
-        // overrides it from the max_record_size query pragma.
+        // overrides it from the external_max_record_size query pragma.
         private int maxRecordBytes = SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES;
         private int parallelism = 1;
         @Nullable

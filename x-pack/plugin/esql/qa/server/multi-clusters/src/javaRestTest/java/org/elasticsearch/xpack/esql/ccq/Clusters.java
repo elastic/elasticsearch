@@ -58,9 +58,10 @@ public class Clusters {
             cluster.setting("cluster.routing.rebalance.enable", "none");
         }
         // The local-disk allowlist setting is new in 9.5.0; older BWC nodes reject unknown settings and fail to start,
-        // so only set it on nodes that know it. file:// EXTERNAL reads run on the local (coordinating) cluster anyway.
+        // so only set it on nodes that know it, under the name their version knows (see localAllowedPathsSetting).
+        // file:// EXTERNAL reads run on the local (coordinating) cluster anyway.
         if (remoteClusterVersion().onOrAfter(org.elasticsearch.Version.V_9_5_0)) {
-            cluster.setting("esql.datasource.local_allowed_paths", csvDataPath.toString());
+            cluster.setting(localAllowedPathsSetting(remoteClusterVersion()), csvDataPath.toString());
         }
         if (knowsFederationSetting(remoteClusterVersion())) {
             cluster.setting(Federation.FEDERATION_ENABLED.getKey(), federationEnabled == null ? () -> "true" : federationEnabled);
@@ -165,7 +166,7 @@ public class Clusters {
         }
         // The local-disk allowlist setting is new in 9.5.0; older BWC nodes reject unknown settings and fail to start.
         if (localClusterVersion().onOrAfter(org.elasticsearch.Version.V_9_5_0)) {
-            cluster.setting("esql.datasource.local_allowed_paths", csvDataPath.toString());
+            cluster.setting(localAllowedPathsSetting(localClusterVersion()), csvDataPath.toString());
         }
         if (knowsFederationSetting(localClusterVersion())) {
             cluster.setting(Federation.FEDERATION_ENABLED.getKey(), federationEnabled);
@@ -211,7 +212,7 @@ public class Clusters {
             cluster.setting("cluster.routing.rebalance.enable", "none");
         }
         if (localClusterVersion().onOrAfter(org.elasticsearch.Version.V_9_5_0)) {
-            cluster.setting("esql.datasource.local_allowed_paths", csvDataPath.toString());
+            cluster.setting(localAllowedPathsSetting(localClusterVersion()), csvDataPath.toString());
         }
         if (knowsFederationSetting(localClusterVersion())) {
             // The local coordinator only asks its remotes to resolve datasets when federation is available here.
@@ -228,6 +229,17 @@ public class Clusters {
     public static org.elasticsearch.Version remoteClusterVersion() {
         String prop = System.getProperty("tests.version.remote_cluster");
         return prop != null ? org.elasticsearch.Version.fromString(prop) : org.elasticsearch.Version.CURRENT;
+    }
+
+    /**
+     * The local-disk allowlist setting under the name a cluster of this version knows: it shipped in 9.5.0 as
+     * {@code esql.datasource.local_allowed_paths} and was renamed to {@code esql.external.local_allowed_paths} in
+     * 9.6.0. A node rejects an unknown setting and fails to start, so each cluster gets its own version's spelling.
+     */
+    private static String localAllowedPathsSetting(org.elasticsearch.Version version) {
+        return version.onOrAfter(org.elasticsearch.Version.V_9_6_0)
+            ? "esql.external.local_allowed_paths"
+            : "esql.datasource.local_allowed_paths";
     }
 
     /**

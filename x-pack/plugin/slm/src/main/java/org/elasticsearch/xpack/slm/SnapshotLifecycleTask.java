@@ -307,7 +307,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                 public void onFailure(Exception e) {
                     // Capture now: if the snapshot was never registered (e.g. CreateSnapshot failed before registration),
                     // WriteJobStatus must still record the failure when the snapshot is absent from the registered set.
-                    // If it is registered now, a concurrent cleanup may remove it before WriteJobStatus runs — skip then.
+                    // If it is registered now, a concurrent cleanup may remove it before WriteJobStatus runs - skip then.
                     // SnapshotInfo failures use recordSnapshotFailure(..., false) above so they are not confused with
                     // never-registered when a peer cleanup already removed this id from the registered set (#136759).
                     final boolean snapshotNeverRegistered = clusterService.state()
@@ -492,9 +492,9 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
          */
         private final Set<SnapshotId> queriedSnapshotIds;
         /**
-         * When true, this failure is for a snapshot that was never added to the registered set (e.g. CreateSnapshot failed before
+         * When true, this failure is for a snapshot that was never added to the registered set (e.g., CreateSnapshot failed before
          * registration). WriteJobStatus must still record failure stats even though the snapshot is unregistered. When false, an
-         * unregistered initiating snapshot means another cleanup already recorded it — skip to avoid double-counting (#136759).
+         * unregistered initiating snapshot means another cleanup already recorded it - skip to avoid double-counting (#136759).
          */
         private final boolean recordFailureIfUnregistered;
 

@@ -857,7 +857,10 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
             policyId,
             snapshotA,
             randomLong(),
-            new SnapshotLifecycleTask.CompletedRegisteredSnapshotInfos(Set.of(snapshotB), List.of(snapshotInfoFailure(projectId, snapshotB))),
+            new SnapshotLifecycleTask.CompletedRegisteredSnapshotInfos(
+                Set.of(snapshotB),
+                List.of(snapshotInfoFailure(projectId, snapshotB))
+            ),
             new RuntimeException("snapshot A failed"),
             false
         ).execute(clusterState);
@@ -895,8 +898,8 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
 
     /**
      * The scenario from #136759: three snapshots of the same policy fail at virtually the same time. The first cleanup run
-     * records all three, so the two later runs must not increment {@code invocationsSinceLastSuccess} again — otherwise three
-     * failures are reported as five invocations and the SLM health indicator turns yellow prematurely.
+     * records all three, so the two later runs must not increment {@code invocationsSinceLastSuccess} again - otherwise three
+     * failures are reported as more invocations and the SLM health indicator can turn yellow prematurely.
      */
     public void testThreeConcurrentFailuresCountedOnce() throws Exception {
         final String policyId = randomAlphaOfLength(10);
@@ -1016,7 +1019,8 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
     }
 
     private SnapshotLifecycleStats slmStats(ClusterState clusterState) {
-        return ((SnapshotLifecycleMetadata) clusterState.metadata().getProject(projectId).custom(SnapshotLifecycleMetadata.TYPE)).getStats();
+        return ((SnapshotLifecycleMetadata) clusterState.metadata().getProject(projectId).custom(SnapshotLifecycleMetadata.TYPE))
+            .getStats();
     }
 
     /**

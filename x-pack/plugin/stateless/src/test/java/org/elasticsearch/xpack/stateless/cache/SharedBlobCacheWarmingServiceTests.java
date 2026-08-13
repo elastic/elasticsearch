@@ -1841,9 +1841,9 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                     .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(16))
                     .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSizeInBytes))
                     .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSizeInBytes))
-                    // offline warming + commit prefetch issue reads outside the warmCache call under test
                     .put(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_PREFETCH_COMMITS_ENABLED_SETTING.getKey(), false)
-                    .put(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING.getKey(), false)
+                    // We use offline warming to force caching of entire BCC file.
+                    .put(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING.getKey(), true)
                     .build();
             }
 
@@ -1919,9 +1919,26 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             BlobStoreCacheDirectoryTestUtils.updateLatestUploadedBcc(fakeNode.searchDirectory, vbcc.primaryTermAndGeneration());
             var indexShard = mockIndexShard(fakeNode);
 
+            var frozenBcc = vbcc.getFrozenBatchedCompoundCommit();
+
             gateFetches.set(true);
             PlainActionFuture<Void> warmFuture = new PlainActionFuture<>();
-            fakeNode.warmingService.warmCache(SEARCH, indexShard, lastCommit, fakeNode.searchDirectory, null, false, warmFuture);
+            // Force caching of entire BCC file to ensure we hit the memory limit of FillCacheMemoryPressure.
+            fakeNode.warmingService.warmCache(
+                SEARCH,
+                indexShard,
+                lastCommit,
+                fakeNode.searchDirectory,
+                Map.of(
+                    vbcc.getFrozenBatchedCompoundCommit().toBlobFile(),
+                    SharedBlobCacheWarmingService.WarmTarget.withUnknownTimestamp(
+                        frozenBcc.calculateBccBlobLength(),
+                        frozenBcc.calculateBccBlobLength()
+                    )
+                ),
+                false,
+                warmFuture
+            );
 
             // phase 1: nothing released yet → budget is binding (admitted bytes at limit, later reads queued)
             assertBusy(() -> assertThat(pressure.getWaiterCount(), greaterThan(0)));

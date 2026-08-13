@@ -101,17 +101,19 @@ public class ModelRegistryUpgradeIT extends InferenceUpgradeTestCase {
                     new HttpHost[] { HttpHost.create("http://" + getUpgradeCluster().getHttpAddress(0)) }
                 )
             ) {
-                // The region policy PUT is the write path that deterministically runs on the receiving
-                // node: TransportPutRegionPolicyAction is a HandledTransportAction (not master-forwarded),
-                // so the upgraded node executes withUpToDateMappings locally and must force-install its
-                // latest mappings past the old-version master before storing the document.
-                var putPolicyRequest = new Request("PUT", "_inference/_region_policy");
-                putPolicyRequest.addParameter("force", "true");
-                putPolicyRequest.setJsonEntity("{\"region_policy\": {\"allowed_geos\": [\"us\"]}}");
-                assertOK(upgradedNodeClient.performRequest(putPolicyRequest));
+                if (oldClusterHasBrokenBroadcastSerialization() == false) {
+                    // The region policy PUT is the write path that deterministically runs on the receiving
+                    // node: TransportPutRegionPolicyAction is a HandledTransportAction (not master-forwarded),
+                    // so the upgraded node executes withUpToDateMappings locally and must force-install its
+                    // latest mappings past the old-version master before storing the document.
+                    var putPolicyRequest = new Request("PUT", "_inference/_region_policy");
+                    putPolicyRequest.addParameter("force", "true");
+                    putPolicyRequest.setJsonEntity("{\"region_policy\": {\"allowed_geos\": [\"us\"]}}");
+                    assertOK(upgradedNodeClient.performRequest(putPolicyRequest));
 
-                assertInferenceIndexMappingsAreCurrent(upgradedNodeClient);
-                assertRegionPolicyDocHasDocType(upgradedNodeClient);
+                    assertInferenceIndexMappingsAreCurrent(upgradedNodeClient);
+                    assertRegionPolicyDocHasDocType(upgradedNodeClient);
+                }
 
                 // Endpoint creation must keep working during the mixed phase. Note that PUT inference
                 // is a master-node action: whichever node receives the request, the elected master
@@ -134,6 +136,20 @@ public class ModelRegistryUpgradeIT extends InferenceUpgradeTestCase {
             assertBusy(() -> assertMinimalModelsAreUpgraded());
             deleteAll();
         }
+    }
+
+    /**
+     * Returns whether the old cluster version is one of the released versions that carry both the
+     * preferences-cache broadcast handler and the {@code BroadcastMessageAction} serialization bug
+     * (fixed in 9.5.2). The cache-invalidation broadcast that follows a region policy PUT makes such
+     * nodes trip the unread-bytes transport check, which is fatal with assertions enabled — so the
+     * region policy portion of the mixed phase must be skipped for them. Versions before 9.5.0 have
+     * no handler for the broadcast at all (a harmless, swallowed "no handler" failure) and 9.5.2+
+     * carry the fix, so all other versions are safe.
+     */
+    private static boolean oldClusterHasBrokenBroadcastSerialization() {
+        var oldClusterVersion = getOldClusterVersion();
+        return oldClusterVersion.equals("9.5.0") || oldClusterVersion.equals("9.5.1");
     }
 
     /**

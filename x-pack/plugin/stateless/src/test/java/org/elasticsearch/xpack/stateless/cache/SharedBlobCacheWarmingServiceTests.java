@@ -623,7 +623,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             assertWarmingDurationMetricRecorded(
                 recordingMeterRegistry,
                 Map.of(
-                    "es_primary",
+                    "es_primary_shard",
                     true,
                     "es_prewarming_type",
                     SharedBlobCacheWarmingService.Type.INDEXING_BCC_HEADER_PREWARM.name(),
@@ -2301,7 +2301,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             assertWarmingDurationMetricRecorded(
                 recordingMeterRegistry,
                 Map.of(
-                    "es_primary",
+                    "es_primary_shard",
                     true,
                     "es_prewarming_type",
                     SharedBlobCacheWarmingService.Type.SEARCH.name(),

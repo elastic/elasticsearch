@@ -897,7 +897,7 @@ public class SharedBlobCacheWarmingService {
                     Map.of(
                         "primary",
                         indexShard.routingEntry().primary(),
-                        "es_primary",
+                        "es_primary_shard",
                         indexShard.routingEntry().primary(),
                         "prewarming_type",
                         type.name(),
@@ -1092,7 +1092,7 @@ public class SharedBlobCacheWarmingService {
             Map.of(
                 "primary",
                 indexShard.routingEntry().primary(),
-                "es_primary",
+                "es_primary_shard",
                 indexShard.routingEntry().primary(),
                 "prewarming_type",
                 warmingType.name(),

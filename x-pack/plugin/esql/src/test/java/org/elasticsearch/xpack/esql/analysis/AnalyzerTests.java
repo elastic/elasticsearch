@@ -51,6 +51,8 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedTsField;
 import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedSingleTypeEsField;
+import org.elasticsearch.xpack.esql.core.type.TextEsField;
 import org.elasticsearch.xpack.esql.core.type.TypeConflictedField;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
@@ -4772,6 +4774,90 @@ public class AnalyzerTests extends ESTestCase {
         if (field.getProperties() != null) {
             field.getProperties().values().forEach(AnalyzerTests::assertNoConflicts);
         }
+    }
+
+    public void testTextFieldRetainsOnlyExactKeywordSubfield() {
+        // A text field keeps its exact keyword sub-field (pushdown resolves it on the data node) and drops every other sub-field.
+        EsField exact = new KeywordEsField("keyword", Map.of(), true, 256, false, false, EsField.TimeSeriesFieldType.NONE);
+        EsField normalized = new KeywordEsField("norm", Map.of(), true, 256, true, false, EsField.TimeSeriesFieldType.NONE);
+        EsField message = new TextEsField(
+            "message",
+            new LinkedHashMap<>(Map.of("keyword", exact, "norm", normalized)),
+            false,
+            false,
+            EsField.TimeSeriesFieldType.NONE
+        );
+
+        EsField parentField = shippedFieldAfterAnalysis("message", message, "FROM idx | SORT message | LIMIT 2");
+        assertThat(parentField, instanceOf(TextEsField.class));
+        assertThat(parentField.getProperties(), hasKey("keyword"));
+        assertThat(parentField.getProperties(), not(hasKey("norm")));
+        assertThat(parentField.getExactInfo().hasExact(), is(true));
+    }
+
+    public void testTextFieldWithConflictedExactSubfieldIsFullyStripped() {
+        // The only keyword sub-field is itself type-conflicted, so it is not exact anyway; strip it so nothing throws on transport.
+        LinkedHashMap<String, Set<String>> typesToIndices = new LinkedHashMap<>();
+        typesToIndices.put(KEYWORD.typeName(), Set.of("idx-a"));
+        typesToIndices.put(DataType.LONG.typeName(), Set.of("idx-b"));
+        EsField message = new TextEsField(
+            "message",
+            new LinkedHashMap<>(Map.of("keyword", new InvalidMappedField("keyword", typesToIndices))),
+            false,
+            false,
+            EsField.TimeSeriesFieldType.NONE
+        );
+
+        EsField parentField = shippedFieldAfterAnalysis("message", message, "FROM idx | LIMIT 2");
+        assertThat(parentField, instanceOf(TextEsField.class));
+        assertThat(parentField.getProperties().isEmpty(), is(true));
+        assertThat(parentField.getExactInfo().hasExact(), is(false));
+    }
+
+    public void testPunkFallbackStripsNestedConflictedSubfield() {
+        // A potentially-unmapped field falls back to its mapped type; that mapped field's conflicted sub-field must still be stripped.
+        LinkedHashMap<String, Set<String>> typesToIndices = new LinkedHashMap<>();
+        typesToIndices.put(KEYWORD.typeName(), Set.of("idx-a"));
+        typesToIndices.put(DataType.LONG.typeName(), Set.of("idx-b"));
+        EsField mapped = new KeywordEsField(
+            "val",
+            new LinkedHashMap<>(Map.of("sub", new InvalidMappedField("sub", typesToIndices))),
+            true,
+            256,
+            false,
+            false,
+            EsField.TimeSeriesFieldType.NONE
+        );
+        EsField punk = new PotentiallyUnmappedSingleTypeEsField(mapped, Set.of("idx-a"));
+
+        EsField parentField = shippedFieldAfterAnalysis("val", punk, "SET unmapped_fields=\"load\"; FROM idx | LIMIT 2");
+        // The mapped type is kept (its conflicted sub-field stripped), not the PUNK marker.
+        assertThat(parentField, not(instanceOf(TypeConflictedField.class)));
+        assertThat(parentField.getProperties(), not(hasKey("sub")));
+    }
+
+    /** Analyzes {@code query} over a single-field index and returns the last {@code fieldName} attribute's (cleaned) field. */
+    private static EsField shippedFieldAfterAnalysis(String fieldName, EsField field, String query) {
+        EsIndex index = new EsIndex(
+            "idx",
+            Map.of(fieldName, field),
+            Map.of("idx-a", IndexMode.STANDARD, "idx-b", IndexMode.STANDARD),
+            Map.of(),
+            Map.of()
+        );
+        TestAnalyzer analyzer = analyzer().addIndex(IndexResolution.valid(index));
+        // A SET statement (e.g. unmapped_fields="load") only parses through statement(), not query().
+        LogicalPlan plan = query.stripLeading().startsWith("SET") ? analyzer.statement(query) : analyzer.query(query);
+
+        List<EsField> found = new ArrayList<>();
+        plan.forEachExpressionDown(FieldAttribute.class, fieldAttribute -> {
+            assertNoConflicts(fieldAttribute.field());
+            if (fieldAttribute.name().equals(fieldName)) {
+                found.add(fieldAttribute.field());
+            }
+        });
+        assertFalse("expected a [" + fieldName + "] field attribute", found.isEmpty());
+        return found.get(found.size() - 1);
     }
 
     public void testExplicitRetainOriginalFieldWithCast() {

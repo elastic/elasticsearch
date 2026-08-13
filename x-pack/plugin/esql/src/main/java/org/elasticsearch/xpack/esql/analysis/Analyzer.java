@@ -70,6 +70,7 @@ import org.elasticsearch.xpack.esql.core.type.MissingEsField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedSingleTypeEsField;
+import org.elasticsearch.xpack.esql.core.type.TextEsField;
 import org.elasticsearch.xpack.esql.core.type.TypeConflictedField;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
@@ -3465,41 +3466,38 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private static Attribute cleanTypeConflicts(FieldAttribute fa) {
             EsField field = fa.field();
+            FieldAttribute shipped;
             if (field instanceof PotentiallyUnmappedSingleTypeEsField punk) {
-                return fallbackToMappedType(fa, punk);
-            }
-            if (field instanceof TypeConflictedField) {
-                // A top-level conflict is representable as an UnsupportedAttribute.
+                // Falls back to its single mapped type; that mapped field may still carry sub-fields to strip.
+                shipped = fallbackToMappedType(fa, punk);
+            } else if (field instanceof TypeConflictedField) {
+                // A top-level conflict is representable as an UnsupportedAttribute; its properties never ship.
                 return fa.flagTypeConflicts();
+            } else {
+                shipped = fa;
             }
-            // A conflict nested in a healthy field's properties throws when the parent is serialized to a data node.
-            EsField cleaned = stripNestedConflicts(field);
-            return cleaned == field ? fa : fa.withField(cleaned);
+            EsField stripped = stripSubfields(shipped.field());
+            return stripped == shipped.field() ? shipped : shipped.withField(stripped);
         }
 
         /**
-         * Data nodes never read a field's sub-field {@code properties}, so a coordinator-only conflict field
-         * ({@link TypeConflictedField}, {@link InvalidMappedTsField}) nested there is dead weight that throws on transport - drop
-         * it. The sub-field's own top-level attribute is unaffected (it is flagged as unsupported independently).
+         * ESQL reads a shipped field itself, never its sub-fields - except a {@code text} field's exact keyword sub-field, which
+         * pushdown of sorts, equality and string predicates resolves through {@code properties} on the data node. Keep only that
+         * (itself stripped, so a conflict nested under it cannot reach transport either) and drop every other sub-field. Dropping
+         * everything else also removes a coordinator-only conflict field ({@link TypeConflictedField}, {@link InvalidMappedTsField})
+         * that would throw when its healthy parent serializes - including a conflicted exact sub-field, which is not exact anyway.
          */
-        private static EsField stripNestedConflicts(EsField field) {
+        private static EsField stripSubfields(EsField field) {
             Map<String, EsField> properties = field.getProperties();
             if (properties == null || properties.isEmpty()) {
                 return field;
             }
-            Map<String, EsField> kept = new LinkedHashMap<>(properties.size());
-            boolean changed = false;
-            for (Map.Entry<String, EsField> entry : properties.entrySet()) {
-                EsField child = entry.getValue();
-                if (child instanceof TypeConflictedField || child instanceof InvalidMappedTsField) {
-                    changed = true;
-                    continue;
-                }
-                EsField cleanedChild = stripNestedConflicts(child);
-                kept.put(entry.getKey(), cleanedChild);
-                changed |= cleanedChild != child;
+            Map<String, EsField> kept = Map.of();
+            if (field instanceof TextEsField text && text.getExactInfo().hasExact()) {
+                EsField exact = text.getExactField();
+                kept = Map.of(exact.getName(), stripSubfields(exact));
             }
-            return changed ? field.withProperties(kept) : field;
+            return field.withProperties(kept);
         }
 
         private static void warnObservedNonLoadablePunks(LogicalPlan plan, AnalyzerContext context) {

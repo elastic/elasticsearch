@@ -137,6 +137,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     private final BackoffPolicy casBackoffPolicy;
     private volatile boolean closed = false;
     private final boolean tenaciousRetriesEnabled;
+    private final long largeBlobThresholdInBytes;
 
     @Nullable
     private final StorageClass dataStorageClass;
@@ -165,7 +166,9 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         this.statsCollector = statsCollector;
         this.bufferSize = bufferSize;
         this.casBackoffPolicy = casBackoffPolicy;
-        this.tenaciousRetriesEnabled = storageService.clientSettings(projectId, clientName).getTenaciousRetriesEnabled();
+        final GoogleCloudStorageClientSettings clientSettings = storageService.clientSettings(projectId, clientName);
+        this.tenaciousRetriesEnabled = clientSettings.getTenaciousRetriesEnabled();
+        this.largeBlobThresholdInBytes = clientSettings.getResumableUploadThreshold().getBytes();
         this.dataStorageClass = initStorageClass(dataStorageClass);
         this.metadataStorageClass = initStorageClass(metadataStorageClass);
     }
@@ -426,7 +429,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
 
     // non-static, package private for testing
     long getLargeBlobThresholdInBytes() {
-        return LARGE_BLOB_THRESHOLD_BYTE_SIZE;
+        return largeBlobThresholdInBytes;
     }
 
     // possible options for #writeBlobResumable uploads

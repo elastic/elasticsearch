@@ -63,7 +63,7 @@ public class AzureStorageService {
      * Default block size for multi-block uploads. The Azure repository will use the Put block and Put block list APIs to split the
      * stream into several part, each of block_size length, and will upload each part in its own request.
      */
-    private static final ByteSizeValue DEFAULT_BLOCK_SIZE = ByteSizeValue.ofBytes(
+    static final ByteSizeValue DEFAULT_BLOCK_SIZE = ByteSizeValue.ofBytes(
         Math.max(
             ByteSizeUnit.MB.toBytes(5), // minimum value
             Math.min(MAX_BLOCK_SIZE.getBytes(), JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() / 20)
@@ -81,7 +81,6 @@ public class AzureStorageService {
      */
     public static final ByteSizeValue MAX_CHUNK_SIZE = ByteSizeValue.ofBytes(MAX_BLOB_SIZE);
 
-    private static final long DEFAULT_UPLOAD_BLOCK_SIZE = DEFAULT_BLOCK_SIZE.getBytes();
     private final int multipartUploadMaxConcurrency;
 
     private final AzureClientProvider azureClientProvider;
@@ -154,9 +153,8 @@ public class AzureStorageService {
         };
     }
 
-    // non-static, package private for testing
-    long getUploadBlockSize() {
-        return DEFAULT_UPLOAD_BLOCK_SIZE;
+    AzureStorageSettings getClientSettings(@Nullable ProjectId projectId, String clientName) {
+        return clientsManager.getClientSettings(projectId, clientName);
     }
 
     int getMaxReadRetries(@Nullable ProjectId projectId, String clientName) {

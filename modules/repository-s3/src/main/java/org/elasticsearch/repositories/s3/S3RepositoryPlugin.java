@@ -156,6 +156,7 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
             S3ClientSettings.REGION,
             S3ClientSettings.CONNECTION_MAX_IDLE_TIME_SETTING,
             S3ClientSettings.MAX_COPY_SIZE_BEFORE_MULTIPART,
+            S3ClientSettings.BUFFER_SIZE,
             S3Service.REPOSITORY_S3_CAS_TTL_SETTING,
             S3Service.REPOSITORY_S3_CAS_ANTI_CONTENTION_DELAY_SETTING,
             S3Repository.ACCESS_KEY_SETTING,

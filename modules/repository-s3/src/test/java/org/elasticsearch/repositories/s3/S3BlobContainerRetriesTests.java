@@ -253,7 +253,6 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             service,
             "bucket",
             S3Repository.SERVER_SIDE_ENCRYPTION_SETTING.getDefault(Settings.EMPTY),
-            bufferSize == null ? S3Repository.BUFFER_SIZE_SETTING.getDefault(Settings.EMPTY) : bufferSize,
             S3Repository.CANNED_ACL_SETTING.getDefault(Settings.EMPTY),
             S3Repository.FALLBACK_STORAGE_CLASS_SETTING.getDefault(Settings.EMPTY),
             S3Repository.DATA_STORAGE_CLASS_SETTING.getDefault(Settings.EMPTY),
@@ -264,7 +263,13 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             new DeterministicTaskQueue().getThreadPool(),
             new S3RepositoriesMetrics(new RepositoriesMetrics(recordingMeterRegistry)),
             BackoffPolicy.constantBackoff(TimeValue.timeValueMillis(1), MAX_NUMBER_SNAPSHOT_DELETE_RETRIES)
-        );
+        ) {
+            @Override
+            public long bufferSizeInBytes() {
+                // these tests use buffer sizes far below the minimum that the buffer_size setting accepts
+                return bufferSize == null ? super.bufferSizeInBytes() : bufferSize.getBytes();
+            }
+        };
         return new S3BlobContainer(
             Objects.requireNonNullElse(blobContainerPath, randomBoolean() ? BlobPath.EMPTY : BlobPath.EMPTY.add("foo")),
             s3BlobStore

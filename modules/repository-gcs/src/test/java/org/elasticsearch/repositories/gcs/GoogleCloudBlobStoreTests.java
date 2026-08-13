@@ -18,6 +18,7 @@ import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.core.Nullable;
@@ -31,7 +32,9 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -138,11 +141,40 @@ public class GoogleCloudBlobStoreTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("not an allowed GCS Storage Class"));
     }
 
+    public void testResumableUploadThresholdIsTakenFromClientSettings() {
+        final GoogleCloudStorageBlobStore blobStore = newBlobStore(
+            Settings.builder().put("gcs.client.test-client.resumable_upload_threshold", "17mb").build()
+        );
+        assertThat(blobStore.getLargeBlobThresholdInBytes(), equalTo(ByteSizeValue.ofMb(17).getBytes()));
+    }
+
+    public void testResumableUploadThresholdFallsBackToDefault() {
+        final GoogleCloudStorageBlobStore blobStore = newBlobStore(Settings.EMPTY);
+        assertThat(blobStore.getLargeBlobThresholdInBytes(), equalTo((long) GoogleCloudStorageBlobStore.LARGE_BLOB_THRESHOLD_BYTE_SIZE));
+    }
+
+    private GoogleCloudStorageBlobStore newBlobStore(Settings clientSettings) {
+        final GoogleCloudStorageService service = mock(GoogleCloudStorageService.class);
+        when(service.clientSettings(eq(ProjectId.DEFAULT), eq("test-client"))).thenReturn(
+            GoogleCloudStorageClientSettings.getClientSettings(clientSettings, "test-client")
+        );
+        return newBlobStore(service, null, null);
+    }
+
     private GoogleCloudStorageBlobStore newBlobStore(@Nullable String dataStorageClass, @Nullable String metadataStorageClass) {
         final GoogleCloudStorageService service = mock(GoogleCloudStorageService.class);
         final GoogleCloudStorageClientSettings clientSettings = mock(GoogleCloudStorageClientSettings.class);
         when(clientSettings.getTenaciousRetriesEnabled()).thenReturn(randomBoolean());
+        when(clientSettings.getResumableUploadThreshold()).thenReturn(ByteSizeValue.ofMb(5));
         when(service.clientSettings(any(), any())).thenReturn(clientSettings);
+        return newBlobStore(service, dataStorageClass, metadataStorageClass);
+    }
+
+    private static GoogleCloudStorageBlobStore newBlobStore(
+        GoogleCloudStorageService service,
+        @Nullable String dataStorageClass,
+        @Nullable String metadataStorageClass
+    ) {
         return new GoogleCloudStorageBlobStore(
             ProjectId.DEFAULT,
             "test-bucket",
@@ -162,6 +194,7 @@ public class GoogleCloudBlobStoreTests extends ESTestCase {
         final GoogleCloudStorageService storageService = mock(GoogleCloudStorageService.class);
         final GoogleCloudStorageClientSettings clientSettings = mock(GoogleCloudStorageClientSettings.class);
         when(clientSettings.getTenaciousRetriesEnabled()).thenReturn(randomBoolean());
+        when(clientSettings.getResumableUploadThreshold()).thenReturn(ByteSizeValue.ofMb(5));
         when(storageService.clientSettings(any(), any())).thenReturn(clientSettings);
         return new GoogleCloudStorageRepository(
             randomProjectIdOrDefault(),

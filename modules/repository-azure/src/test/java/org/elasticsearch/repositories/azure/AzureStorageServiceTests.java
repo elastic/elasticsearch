@@ -18,6 +18,7 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -37,6 +38,7 @@ import java.util.Collections;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -370,6 +372,52 @@ public class AzureStorageServiceTests extends ESTestCase {
 
         final SettingsException e = expectThrows(SettingsException.class, () -> storageServiceWithSettingsValidation(settings));
         assertEquals("Azure proxy host is unknown.", e.getMessage());
+    }
+
+    public void testUploadSizesAreConfiguredPerClient() throws Exception {
+        final Settings settings = Settings.builder()
+            .setSecureSettings(buildSecureSettings())
+            .put("azure.client.azure1.block_size", "7mb")
+            .put("azure.client.azure1.max_single_part_upload_size", "14mb")
+            .build();
+
+        try (AzureRepositoryPlugin plugin = pluginWithSettingsValidation(settings)) {
+            final var storageSettings = plugin.azureStoreService.get().getStorageSettings();
+            assertThat(storageSettings.get("azure1").getBlockSize(), equalTo(ByteSizeValue.ofMb(7)));
+            assertThat(storageSettings.get("azure1").getMaxSinglePartUploadSize(), equalTo(ByteSizeValue.ofMb(14)));
+            assertThat(storageSettings.get("azure2").getBlockSize(), equalTo(AzureStorageService.DEFAULT_BLOCK_SIZE));
+            assertThat(
+                storageSettings.get("azure2").getMaxSinglePartUploadSize(),
+                equalTo(AzureRepository.Repository.DEFAULT_MAX_SINGLE_UPLOAD_SIZE)
+            );
+        }
+    }
+
+    public void testBlockSizeBounds() throws Exception {
+        // Azure imposes no minimum block size, so the setting accepts a single byte
+        final Settings atMinimum = Settings.builder()
+            .setSecureSettings(buildSecureSettings())
+            .put("azure.client.azure1.block_size", "1b")
+            .build();
+        try (AzureRepositoryPlugin plugin = pluginWithSettingsValidation(atMinimum)) {
+            assertThat(plugin.azureStoreService.get().getStorageSettings().get("azure1").getBlockSize(), equalTo(ByteSizeValue.ONE));
+        }
+
+        final Settings belowMinimum = Settings.builder()
+            .setSecureSettings(buildSecureSettings())
+            .put("azure.client.azure1.block_size", "0b")
+            .build();
+        final var tooSmall = expectThrows(IllegalArgumentException.class, () -> pluginWithSettingsValidation(belowMinimum));
+        assertThat(tooSmall.getMessage(), containsString("block_size"));
+        assertThat(tooSmall.getMessage(), containsString("must be >= [1b]"));
+
+        final Settings aboveMaximum = Settings.builder()
+            .setSecureSettings(buildSecureSettings())
+            .put("azure.client.azure1.block_size", AzureStorageService.MAX_BLOCK_SIZE.getBytes() + 1 + "b")
+            .build();
+        final var tooLarge = expectThrows(IllegalArgumentException.class, () -> pluginWithSettingsValidation(aboveMaximum));
+        assertThat(tooLarge.getMessage(), containsString("block_size"));
+        assertThat(tooLarge.getMessage(), containsString("must be <= [100mb]"));
     }
 
     public void testDefaultTimeOut() throws Exception {

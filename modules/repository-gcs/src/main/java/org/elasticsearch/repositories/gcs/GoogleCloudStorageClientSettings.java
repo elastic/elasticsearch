@@ -159,6 +159,22 @@ public class GoogleCloudStorageClientSettings {
         key -> byteSizeSetting(key, ByteSizeValue.ofMb(16), ByteSizeValue.ofKb(256), ByteSizeValue.ofMb(100), Setting.Property.NodeScope)
     );
 
+    /**
+     * Threshold above which a blob is uploaded with a resumable upload (several requests) rather than a single request. Single request
+     * uploads buffer the whole blob in memory, hence the upper bound, which matches {@link #RESUMABLE_WRITE_BUFFER_SIZE_SETTING}.
+     */
+    static final Setting.AffixSetting<ByteSizeValue> RESUMABLE_UPLOAD_THRESHOLD_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "resumable_upload_threshold",
+        key -> byteSizeSetting(
+            key,
+            ByteSizeValue.ofBytes(GoogleCloudStorageBlobStore.LARGE_BLOB_THRESHOLD_BYTE_SIZE),
+            ByteSizeValue.ONE,
+            ByteSizeValue.ofMb(100),
+            Setting.Property.NodeScope
+        )
+    );
+
     /** The credentials used by the client to connect to the Storage endpoint. */
     private final ServiceAccountCredentials credential;
 
@@ -194,6 +210,9 @@ public class GoogleCloudStorageClientSettings {
     /** The write buffer size for resumable uploads, or empty to use the SDK default. */
     private final OptionalInt resumableWriteBufferSize;
 
+    /** The size above which blobs are uploaded with a resumable upload rather than a single request. */
+    private final ByteSizeValue resumableUploadThreshold;
+
     GoogleCloudStorageClientSettings(
         final ServiceAccountCredentials credential,
         final String endpoint,
@@ -206,7 +225,8 @@ public class GoogleCloudStorageClientSettings {
         final int maxRetries,
         final long megabytesCopiedPerChunk,
         final boolean tenaciousRetriesEnabled,
-        final OptionalInt resumableWriteBufferSize
+        final OptionalInt resumableWriteBufferSize,
+        final ByteSizeValue resumableUploadThreshold
     ) {
         this.credential = credential;
         this.endpoint = endpoint;
@@ -220,6 +240,7 @@ public class GoogleCloudStorageClientSettings {
         this.megabytesCopiedPerChunk = megabytesCopiedPerChunk;
         this.tenaciousRetriesEnabled = tenaciousRetriesEnabled;
         this.resumableWriteBufferSize = resumableWriteBufferSize;
+        this.resumableUploadThreshold = resumableUploadThreshold;
     }
 
     public ServiceAccountCredentials getCredential() {
@@ -271,6 +292,10 @@ public class GoogleCloudStorageClientSettings {
         return resumableWriteBufferSize;
     }
 
+    public ByteSizeValue getResumableUploadThreshold() {
+        return resumableUploadThreshold;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass()) return false;
@@ -286,7 +311,8 @@ public class GoogleCloudStorageClientSettings {
             && maxRetries == that.maxRetries
             && megabytesCopiedPerChunk == that.megabytesCopiedPerChunk
             && tenaciousRetriesEnabled == that.tenaciousRetriesEnabled
-            && Objects.equals(resumableWriteBufferSize, that.resumableWriteBufferSize);
+            && Objects.equals(resumableWriteBufferSize, that.resumableWriteBufferSize)
+            && Objects.equals(resumableUploadThreshold, that.resumableUploadThreshold);
     }
 
     @Override
@@ -303,7 +329,8 @@ public class GoogleCloudStorageClientSettings {
             maxRetries,
             megabytesCopiedPerChunk,
             tenaciousRetriesEnabled,
-            resumableWriteBufferSize
+            resumableWriteBufferSize,
+            resumableUploadThreshold
         );
     }
 
@@ -349,7 +376,8 @@ public class GoogleCloudStorageClientSettings {
             getConfigValue(settings, clientName, MAX_RETRIES_SETTING),
             getConfigValue(settings, clientName, MEGABYTES_COPIED_PER_CHUNK_SETTING),
             getConfigValue(settings, clientName, GCS_TENACIOUS_RETRIES_ENABLED_SETTING),
-            resumableWriteBufferSize
+            resumableWriteBufferSize,
+            getConfigValue(settings, clientName, RESUMABLE_UPLOAD_THRESHOLD_SETTING)
         );
     }
 

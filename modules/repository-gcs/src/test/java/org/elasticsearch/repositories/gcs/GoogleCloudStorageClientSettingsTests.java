@@ -48,6 +48,7 @@ import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSetting
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.MEGABYTES_COPIED_PER_CHUNK_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.PROJECT_ID_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.READ_TIMEOUT_SETTING;
+import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.RESUMABLE_UPLOAD_THRESHOLD_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.RESUMABLE_WRITE_BUFFER_SIZE_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.getClientSettings;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.loadCredential;
@@ -135,7 +136,8 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
             MAX_RETRIES_SETTING.getDefault(Settings.EMPTY),
             MEGABYTES_COPIED_PER_CHUNK_SETTING.getDefault(Settings.EMPTY),
             GCS_TENACIOUS_RETRIES_ENABLED_SETTING.getDefault(Settings.EMPTY),
-            OptionalInt.empty()
+            OptionalInt.empty(),
+            RESUMABLE_UPLOAD_THRESHOLD_SETTING.getDefault(Settings.EMPTY)
         );
         assertEquals(credential.getProjectId(), googleCloudStorageClientSettings.getProjectId());
     }
@@ -156,7 +158,8 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
             MAX_RETRIES_SETTING.getDefault(Settings.EMPTY),
             MEGABYTES_COPIED_PER_CHUNK_SETTING.getDefault(Settings.EMPTY),
             GCS_TENACIOUS_RETRIES_ENABLED_SETTING.getDefault(Settings.EMPTY),
-            OptionalInt.empty()
+            OptionalInt.empty(),
+            RESUMABLE_UPLOAD_THRESHOLD_SETTING.getDefault(Settings.EMPTY)
         );
         assertEquals(proxy, googleCloudStorageClientSettings.getProxy());
     }
@@ -206,6 +209,51 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
             assertNotNull(credentials);
             assertEquals("proxy_access_token", credentials.refreshAccessToken().getTokenValue());
         }
+    }
+
+    public void testResumableUploadThresholdSetting() {
+        final String clientName = randomIdentifier("client");
+        final Setting<ByteSizeValue> concreteSetting = RESUMABLE_UPLOAD_THRESHOLD_SETTING.getConcreteSettingForNamespace(clientName);
+
+        // defaults to the value that applies when nothing is configured
+        assertFalse(concreteSetting.exists(Settings.EMPTY));
+        assertEquals(
+            GoogleCloudStorageBlobStore.LARGE_BLOB_THRESHOLD_BYTE_SIZE,
+            getClientSettings(Settings.EMPTY, clientName).getResumableUploadThreshold().getBytes()
+        );
+
+        // explicit configuration is respected, per client
+        final int sizeMb = randomIntBetween(1, 100);
+        final String otherClientName = randomValueOtherThan(clientName, () -> randomIdentifier("client"));
+        final Settings withThreshold = Settings.builder().put(concreteSetting.getKey(), sizeMb + "mb").build();
+        assertEquals(ByteSizeValue.ofMb(sizeMb), getClientSettings(withThreshold, clientName).getResumableUploadThreshold());
+        assertEquals(
+            GoogleCloudStorageBlobStore.LARGE_BLOB_THRESHOLD_BYTE_SIZE,
+            getClientSettings(withThreshold, otherClientName).getResumableUploadThreshold().getBytes()
+        );
+
+        // at min (1 byte)
+        assertEquals(ByteSizeValue.ONE, concreteSetting.get(Settings.builder().put(concreteSetting.getKey(), ByteSizeValue.ONE).build()));
+
+        // below min (1 byte)
+        final IllegalArgumentException belowMin = expectThrows(
+            IllegalArgumentException.class,
+            () -> concreteSetting.get(Settings.builder().put(concreteSetting.getKey(), ByteSizeValue.ZERO).build())
+        );
+        assertThat(belowMin.getMessage(), containsString("resumable_upload_threshold"));
+        assertThat(belowMin.getMessage(), containsString("must be >= [1b]"));
+
+        // above max (100 MiB)
+        final IllegalArgumentException aboveMax = expectThrows(
+            IllegalArgumentException.class,
+            () -> concreteSetting.get(
+                Settings.builder()
+                    .put(concreteSetting.getKey(), ByteSizeValue.ofBytes(100 * 1024 * 1024 + randomIntBetween(1, 1024 * 1024)))
+                    .build()
+            )
+        );
+        assertThat(aboveMax.getMessage(), containsString("resumable_upload_threshold"));
+        assertThat(aboveMax.getMessage(), containsString("must be <= [100mb]"));
     }
 
     public void testResumableWriteBufferSizeSetting() {
@@ -268,7 +316,8 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
             original.getMaxRetries(),
             original.getMegabytesCopiedPerChunk(),
             original.getTenaciousRetriesEnabled(),
-            original.getResumableWriteBufferSize()
+            original.getResumableWriteBufferSize(),
+            original.getResumableUploadThreshold()
         );
     }
 
@@ -285,7 +334,8 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
         long megabytesCopiedPerChunk = original.getMegabytesCopiedPerChunk();
         boolean tenaciousRetriesEnabled = original.getTenaciousRetriesEnabled();
         OptionalInt resumableWriteBufferSize = original.getResumableWriteBufferSize();
-        switch (randomIntBetween(0, 11)) {
+        ByteSizeValue resumableUploadThreshold = original.getResumableUploadThreshold();
+        switch (randomIntBetween(0, 12)) {
             case 0 -> credential = randomValueOtherThan(original.getCredential(), () -> {
                 try {
                     return randomCredential(clientName).v1();
@@ -315,6 +365,10 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
             case 11 -> resumableWriteBufferSize = original.getResumableWriteBufferSize().isEmpty()
                 ? OptionalInt.of(randomIntBetween(256 * 1024, 100 * 1024 * 1024))
                 : OptionalInt.empty();
+            case 12 -> resumableUploadThreshold = randomValueOtherThan(
+                original.getResumableUploadThreshold(),
+                () -> ByteSizeValue.ofBytes(randomIntBetween(1, 100 * 1024 * 1024))
+            );
             default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new GoogleCloudStorageClientSettings(
@@ -329,7 +383,8 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
             maxRetries,
             megabytesCopiedPerChunk,
             tenaciousRetriesEnabled,
-            resumableWriteBufferSize
+            resumableWriteBufferSize,
+            resumableUploadThreshold
         );
     }
 
@@ -447,7 +502,8 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
             maxRetries,
             megabytesCopiedPerChunk,
             tenaciousRetriesEnabled,
-            OptionalInt.empty()
+            OptionalInt.empty(),
+            RESUMABLE_UPLOAD_THRESHOLD_SETTING.getDefault(Settings.EMPTY)
         );
     }
 

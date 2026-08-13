@@ -16,7 +16,9 @@ import software.amazon.awssdk.regions.Region;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.settings.MockSecureSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
@@ -29,6 +31,7 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -163,6 +166,39 @@ public class S3ClientSettingsTests extends ESTestCase {
             assertThat(credentials.secretAccessKey(), is("secret_key"));
             assertThat(credentials.sessionToken(), is("session_token"));
         }
+    }
+
+    public void testBufferSizeCanBeSetPerClient() {
+        final Map<String, S3ClientSettings> settings = S3ClientSettings.load(
+            Settings.builder().put("s3.client.other.buffer_size", "17mb").build()
+        );
+        assertThat(settings.get("default").bufferSize, is(S3Repository.DEFAULT_BUFFER_SIZE));
+        assertThat(settings.get("other").bufferSize, is(ByteSizeValue.ofMb(17)));
+    }
+
+    public void testRefineDoesNotSplitTheClientCacheOnRepositoryBufferSize() {
+        // S3BlobStore applies a repository-level buffer_size itself, so refine() must leave the client value alone: two repositories that
+        // differ only in buffer_size have to keep comparing equal, or they stop sharing a cached client
+        final S3ClientSettings clientSettings = S3ClientSettings.load(
+            Settings.builder().put("s3.client.default.buffer_size", "17mb").build()
+        ).get("default");
+        final S3ClientSettings refined = clientSettings.refine(Settings.builder().put("buffer_size", "23mb").build());
+        assertThat(refined.bufferSize, is(ByteSizeValue.ofMb(17)));
+        assertThat(refined, is(clientSettings.refine(Settings.builder().put("buffer_size", "31mb").build())));
+    }
+
+    public void testBufferSizeRejectsValuesOutsideMultipartLimits() {
+        final Setting<ByteSizeValue> setting = S3ClientSettings.BUFFER_SIZE.getConcreteSettingForNamespace("default");
+        final var belowMin = expectThrows(
+            IllegalArgumentException.class,
+            () -> setting.get(Settings.builder().put(setting.getKey(), ByteSizeValue.ofMb(randomIntBetween(1, 4))).build())
+        );
+        assertThat(belowMin.getMessage(), containsString("must be >= [5mb]"));
+        final var aboveMax = expectThrows(
+            IllegalArgumentException.class,
+            () -> setting.get(Settings.builder().put(setting.getKey(), ByteSizeValue.ofGb(randomIntBetween(6, 100))).build())
+        );
+        assertThat(aboveMax.getMessage(), containsString("must be <= [5gb]"));
     }
 
     public void testPathStyleAccessCanBeSet() {

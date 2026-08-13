@@ -124,6 +124,7 @@ public class S3BlobContainerStorageClassTests extends ESTestCase {
             Settings.builder()
                 .put(S3Repository.CLIENT_NAME.getKey(), clientName)
                 .put(S3Repository.GET_REGISTER_RETRY_DELAY.getKey(), TimeValue.ZERO)
+                .put(S3Repository.BUFFER_SIZE_SETTING.getKey(), S3Repository.MIN_PART_SIZE_USING_MULTIPART)
                 .build()
         );
 
@@ -132,7 +133,6 @@ public class S3BlobContainerStorageClassTests extends ESTestCase {
             service,
             BUCKET,
             false,
-            S3Repository.MIN_PART_SIZE_USING_MULTIPART,
             S3Repository.CANNED_ACL_SETTING.getDefault(Settings.EMPTY),
             fallbackStorageClass != null ? fallbackStorageClass : S3Repository.FALLBACK_STORAGE_CLASS_SETTING.getDefault(Settings.EMPTY),
             dataStorageClass != null ? dataStorageClass : S3Repository.DATA_STORAGE_CLASS_SETTING.getDefault(Settings.EMPTY),

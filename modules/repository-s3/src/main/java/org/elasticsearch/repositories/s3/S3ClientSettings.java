@@ -29,7 +29,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+import static org.elasticsearch.repositories.s3.S3Repository.DEFAULT_BUFFER_SIZE;
 import static org.elasticsearch.repositories.s3.S3Repository.MAX_FILE_SIZE;
+import static org.elasticsearch.repositories.s3.S3Repository.MAX_PART_SIZE_USING_MULTIPART;
 import static org.elasticsearch.repositories.s3.S3Repository.MIN_PART_SIZE_USING_MULTIPART;
 
 /**
@@ -217,6 +219,23 @@ final class S3ClientSettings {
         key -> Setting.byteSizeSetting(key, MAX_FILE_SIZE, MIN_PART_SIZE_USING_MULTIPART, MAX_FILE_SIZE, Property.NodeScope)
     );
 
+    /**
+     * Threshold above which an upload is split into parts of this same size and uploaded with the Multipart Upload API. A repository may
+     * override this with its own {@code buffer_size} setting, which {@link S3BlobStore} applies directly rather than through
+     * {@link #refine} so that it also takes effect for per-project clients.
+     */
+    static final Setting.AffixSetting<ByteSizeValue> BUFFER_SIZE = Setting.affixKeySetting(
+        PREFIX,
+        "buffer_size",
+        key -> Setting.byteSizeSetting(
+            key,
+            DEFAULT_BUFFER_SIZE,
+            MIN_PART_SIZE_USING_MULTIPART,
+            MAX_PART_SIZE_USING_MULTIPART,
+            Property.NodeScope
+        )
+    );
+
     /** Tenacious retries for transient blob store errors. */
     static final Setting.AffixSetting<Boolean> S3_TENACIOUS_RETRIES_ENABLED_SETTING = Setting.affixKeySetting(
         PREFIX,
@@ -291,6 +310,9 @@ final class S3ClientSettings {
     /** Maximum size allowed for copy without multipart */
     final ByteSizeValue maxCopySizeBeforeMultipart;
 
+    /** Threshold above which an upload uses multipart, and the size of each of its parts. */
+    final ByteSizeValue bufferSize;
+
     /** Tenacious retries for transient blob store errors. */
     final boolean tenaciousRetriesEnabled;
 
@@ -316,6 +338,7 @@ final class S3ClientSettings {
         boolean addPurposeCustomQueryParameter,
         String region,
         ByteSizeValue maxCopySizeBeforeMultipart,
+        ByteSizeValue bufferSize,
         boolean tenaciousRetriesEnabled,
         boolean alwaysSignRequests
     ) {
@@ -337,6 +360,7 @@ final class S3ClientSettings {
         this.addPurposeCustomQueryParameter = addPurposeCustomQueryParameter;
         this.region = region;
         this.maxCopySizeBeforeMultipart = maxCopySizeBeforeMultipart;
+        this.bufferSize = bufferSize;
         this.tenaciousRetriesEnabled = tenaciousRetriesEnabled;
         this.alwaysSignRequests = alwaysSignRequests;
     }
@@ -438,6 +462,7 @@ final class S3ClientSettings {
             newAddPurposeCustomQueryParameter,
             newRegion,
             newMaxCopySizeBeforeMultipart,
+            bufferSize,
             newTenaciousRetriesEnabled,
             newAlwaysSignRequests
         );
@@ -551,6 +576,7 @@ final class S3ClientSettings {
                 getConfigValue(settings, clientName, ADD_PURPOSE_CUSTOM_QUERY_PARAMETER),
                 getConfigValue(settings, clientName, REGION),
                 getConfigValue(settings, clientName, MAX_COPY_SIZE_BEFORE_MULTIPART),
+                getConfigValue(settings, clientName, BUFFER_SIZE),
                 getConfigValue(settings, clientName, S3_TENACIOUS_RETRIES_ENABLED_SETTING),
                 getConfigValue(settings, clientName, ALWAYS_SIGN_REQUESTS)
             );
@@ -583,6 +609,7 @@ final class S3ClientSettings {
             && Objects.equals(addPurposeCustomQueryParameter, that.addPurposeCustomQueryParameter)
             && Objects.equals(region, that.region)
             && Objects.equals(maxCopySizeBeforeMultipart, that.maxCopySizeBeforeMultipart)
+            && Objects.equals(bufferSize, that.bufferSize)
             && tenaciousRetriesEnabled == that.tenaciousRetriesEnabled
             && alwaysSignRequests == that.alwaysSignRequests;
     }
@@ -607,6 +634,7 @@ final class S3ClientSettings {
             addPurposeCustomQueryParameter,
             region,
             maxCopySizeBeforeMultipart,
+            bufferSize,
             tenaciousRetriesEnabled,
             alwaysSignRequests
         );

@@ -750,6 +750,10 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
         if (readTimeout != null) {
             clientSettings.put(READ_TIMEOUT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), readTimeout);
         }
+        clientSettings.put(
+            AzureStorageSettings.BLOCK_SIZE_SETTING.getConcreteSettingForNamespace(clientName).getKey(),
+            ByteSizeValue.of(1, ByteSizeUnit.MB)
+        );
 
         final MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString(ACCOUNT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), ACCOUNT);
@@ -777,11 +781,6 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
                     // port.
                     secondaryHost != null ? secondaryHost.replaceFirst("/" + ACCOUNT, "") : null
                 );
-            }
-
-            @Override
-            long getUploadBlockSize() {
-                return ByteSizeUnit.MB.toBytes(1);
             }
         };
 

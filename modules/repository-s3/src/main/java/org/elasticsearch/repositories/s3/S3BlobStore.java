@@ -146,7 +146,6 @@ class S3BlobStore implements BlobStore {
         S3Service service,
         String bucket,
         boolean serverSideEncryption,
-        ByteSizeValue bufferSize,
         String cannedACL,
         String fallbackStorageClass,
         String dataStorageClass,
@@ -163,8 +162,12 @@ class S3BlobStore implements BlobStore {
         this.bigArrays = bigArrays;
         this.bucket = bucket;
         this.serverSideEncryption = serverSideEncryption;
-        this.bufferSize = bufferSize;
-        this.maxCopySizeBeforeMultipart = service.settings(projectId, repositoryMetadata).maxCopySizeBeforeMultipart;
+        final S3ClientSettings clientSettings = service.settings(projectId, repositoryMetadata);
+        // the repository-level setting wins even for per-project clients, whose settings are not refined with the repository's own
+        this.bufferSize = S3Repository.BUFFER_SIZE_SETTING.exists(repositoryMetadata.settings())
+            ? S3Repository.BUFFER_SIZE_SETTING.get(repositoryMetadata.settings())
+            : clientSettings.bufferSize;
+        this.maxCopySizeBeforeMultipart = clientSettings.maxCopySizeBeforeMultipart;
         this.cannedACL = initCannedACL(cannedACL);
         this.fallbackStorageClass = initStorageClass(fallbackStorageClass, false);
         this.dataStorageClass = Strings.hasText(dataStorageClass) ? initStorageClass(dataStorageClass, true) : this.fallbackStorageClass;
@@ -179,8 +182,8 @@ class S3BlobStore implements BlobStore {
         this.bulkDeletionBatchSize = S3Repository.DELETION_BATCH_SIZE_SETTING.get(repositoryMetadata.settings());
         this.retryThrottledDeleteBackoffPolicy = retryThrottledDeleteBackoffPolicy;
         this.getRegisterRetryDelay = S3Repository.GET_REGISTER_RETRY_DELAY.get(repositoryMetadata.settings());
-        this.addPurposeCustomQueryParameter = service.settings(projectId, repositoryMetadata).addPurposeCustomQueryParameter;
-        this.tenaciousRetriesEnabled = service.settings(projectId, repositoryMetadata).tenaciousRetriesEnabled;
+        this.addPurposeCustomQueryParameter = clientSettings.addPurposeCustomQueryParameter;
+        this.tenaciousRetriesEnabled = clientSettings.tenaciousRetriesEnabled;
     }
 
     MetricPublisher getMetricPublisher(Operation operation, OperationPurpose purpose) {

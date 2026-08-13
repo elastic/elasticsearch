@@ -162,6 +162,8 @@ public class S3RepositoryTests extends ESTestCase {
             ResourceWatcherService resourceWatcherService
         ) {
             super(environment, clusterService, projectResolver, resourceWatcherService, () -> Region.of(randomIdentifier()));
+            // the plugin normally does this on startup; refreshAndClearCache is a no-op below so that repositories keep their clients
+            super.refreshAndClearCache(S3ClientSettings.load(clusterService.getSettings()));
         }
 
         @Override
@@ -257,18 +259,49 @@ public class S3RepositoryTests extends ESTestCase {
         assertThrows(IllegalArgumentException.class, () -> createS3Repo(metadata));
     }
 
+    public void testBufferSizeIsTakenFromClientSettings() {
+        final RepositoryMetadata metadata = getRepositoryMetadata(
+            Settings.builder().put(S3Repository.BUCKET_SETTING.getKey(), "bucket").build()
+        );
+        try (S3Repository s3repo = createS3Repo(metadata, Settings.builder().put("s3.client.default.buffer_size", "17mb").build())) {
+            s3repo.start();
+            assertThat(((S3BlobStore) s3repo.blobStore()).bufferSizeInBytes(), equalTo(ByteSizeValue.ofMb(17).getBytes()));
+        }
+    }
+
+    public void testRepositoryBufferSizeOverridesClientBufferSize() {
+        final RepositoryMetadata metadata = getRepositoryMetadata(
+            Settings.builder()
+                .put(S3Repository.BUCKET_SETTING.getKey(), "bucket")
+                .put(S3Repository.BUFFER_SIZE_SETTING.getKey(), "23mb")
+                .build()
+        );
+        try (S3Repository s3repo = createS3Repo(metadata, Settings.builder().put("s3.client.default.buffer_size", "17mb").build())) {
+            s3repo.start();
+            assertThat(((S3BlobStore) s3repo.blobStore()).bufferSizeInBytes(), equalTo(ByteSizeValue.ofMb(23).getBytes()));
+        }
+    }
+
     private S3Repository createS3Repo(RepositoryMetadata metadata) {
-        return createS3Repo(ProjectId.DEFAULT, metadata);
+        return createS3Repo(ProjectId.DEFAULT, metadata, Settings.EMPTY);
+    }
+
+    private S3Repository createS3Repo(RepositoryMetadata metadata, Settings nodeSettings) {
+        return createS3Repo(ProjectId.DEFAULT, metadata, nodeSettings);
     }
 
     private S3Repository createS3Repo(ProjectId pid, RepositoryMetadata metadata) {
+        return createS3Repo(pid, metadata, Settings.EMPTY);
+    }
+
+    private S3Repository createS3Repo(ProjectId pid, RepositoryMetadata metadata, Settings nodeSettings) {
         return new S3Repository(
             pid,
             metadata,
             NamedXContentRegistry.EMPTY,
             new DummyS3Service(
                 mock(Environment.class),
-                ClusterServiceUtils.createClusterService(new DeterministicTaskQueue().getThreadPool()),
+                ClusterServiceUtils.createClusterService(new DeterministicTaskQueue().getThreadPool(), nodeSettings),
                 TestProjectResolvers.DEFAULT_PROJECT_ONLY,
                 mock(ResourceWatcherService.class)
             ),

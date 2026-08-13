@@ -15,7 +15,9 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.repositories.RepositoriesMetrics;
@@ -24,7 +26,10 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.List;
 import java.util.Optional;
 
+import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class AzureBlobStoreTests extends ESTestCase {
 
@@ -97,12 +102,58 @@ public class AzureBlobStoreTests extends ESTestCase {
         }
     }
 
+    public void testUploadSizesAreTakenFromClientSettings() {
+        final AzureBlobStore blobStore = newBlobStore(
+            Settings.builder()
+                .put("azure.client.myclient.block_size", "7mb")
+                .put("azure.client.myclient.max_single_part_upload_size", "14mb"),
+            Settings.builder()
+        );
+        assertThat(blobStore.getUploadBlockSize(), equalTo(ByteSizeValue.ofMb(7).getBytes()));
+        assertThat(blobStore.getLargeBlobThresholdInBytes(), equalTo(ByteSizeValue.ofMb(14).getBytes()));
+    }
+
+    public void testUploadSizesFallBackToDefaultsWhenClientDoesNotConfigureThem() {
+        final AzureBlobStore blobStore = newBlobStore(Settings.builder(), Settings.builder());
+        assertThat(blobStore.getUploadBlockSize(), equalTo(AzureStorageService.DEFAULT_BLOCK_SIZE.getBytes()));
+        assertThat(blobStore.getLargeBlobThresholdInBytes(), equalTo(AzureRepository.Repository.DEFAULT_MAX_SINGLE_UPLOAD_SIZE.getBytes()));
+    }
+
+    public void testRepositoryOverridesClientMaxSinglePartUploadSize() {
+        final AzureBlobStore blobStore = newBlobStore(
+            Settings.builder().put("azure.client.myclient.max_single_part_upload_size", "14mb"),
+            Settings.builder().put(AzureRepository.Repository.MAX_SINGLE_PART_UPLOAD_SIZE_SETTING.getKey(), "3mb")
+        );
+        assertThat(blobStore.getLargeBlobThresholdInBytes(), equalTo(ByteSizeValue.ofMb(3).getBytes()));
+    }
+
     private static AzureBlobStore newBlobStore(@Nullable String dataAccessTier, @Nullable String metadataAccessTier) {
+        return newBlobStore(Settings.builder(), Settings.builder(), dataAccessTier, metadataAccessTier);
+    }
+
+    private static AzureBlobStore newBlobStore(Settings.Builder clientSettings, Settings.Builder repositorySettings) {
+        return newBlobStore(clientSettings, repositorySettings, null, null);
+    }
+
+    private static AzureBlobStore newBlobStore(
+        Settings.Builder clientSettings,
+        Settings.Builder repositorySettings,
+        @Nullable String dataAccessTier,
+        @Nullable String metadataAccessTier
+    ) {
         final AzureStorageService service = mock(AzureStorageService.class);
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("azure.client.myclient.account", "myaccount");
+        secureSettings.setString("azure.client.myclient.key", AzureStorageServiceTests.encodeKey("mykey"));
+        when(service.getClientSettings(eq(ProjectId.DEFAULT), eq("myclient"))).thenReturn(
+            AzureStorageSettings.load(clientSettings.setSecureSettings(secureSettings).build()).get("myclient")
+        );
         final RepositoryMetadata metadata = new RepositoryMetadata(
             "test",
             AzureRepository.TYPE,
-            Settings.builder().put(AzureRepository.Repository.CONTAINER_SETTING.getKey(), "test-container").build()
+            repositorySettings.put(AzureRepository.Repository.CONTAINER_SETTING.getKey(), "test-container")
+                .put(AzureRepository.Repository.CLIENT_NAME.getKey(), "myclient")
+                .build()
         );
         return new AzureBlobStore(
             ProjectId.DEFAULT,

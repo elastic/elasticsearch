@@ -22,6 +22,7 @@ import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.test.ESTestCase;
 
@@ -83,6 +84,7 @@ public class GoogleCloudStorageBlobStoreContainerTests extends ESTestCase {
 
         GoogleCloudStorageClientSettings mockClientSettings = mock(GoogleCloudStorageClientSettings.class);
         when(mockClientSettings.getTenaciousRetriesEnabled()).thenReturn(randomBoolean());
+        when(mockClientSettings.getResumableUploadThreshold()).thenReturn(ByteSizeValue.ofMb(5));
         when(storageService.clientSettings(any(), any())).thenReturn(mockClientSettings);
 
         try (

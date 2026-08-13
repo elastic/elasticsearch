@@ -313,7 +313,8 @@ public class GoogleCloudStorageBlobContainerStatsTests extends ESTestCase {
             MAX_RETRIES_SETTING.getDefault(Settings.EMPTY),
             MEGABYTES_COPIED_PER_CHUNK_SETTING.getDefault(Settings.EMPTY),
             GCS_TENACIOUS_RETRIES_ENABLED_SETTING.getDefault(Settings.EMPTY),
-            OptionalInt.empty()
+            OptionalInt.empty(),
+            GoogleCloudStorageClientSettings.RESUMABLE_UPLOAD_THRESHOLD_SETTING.getDefault(Settings.EMPTY)
         );
         googleCloudStorageService.refreshAndClearCache(Map.of(clientName, clientSettings));
         final GoogleCloudStorageBlobStore blobStore = new GoogleCloudStorageBlobStore(

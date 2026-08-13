@@ -128,6 +128,10 @@ public class AzureBlobContainerAccessTierTests extends ESTestCase {
             .put(ENDPOINT_SUFFIX_SETTING.getConcreteSettingForNamespace(clientName).getKey(), endpoint)
             .put(MAX_RETRIES_SETTING.getConcreteSettingForNamespace(clientName).getKey(), 0)
             .put(TIMEOUT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), TimeValue.timeValueSeconds(60))
+            .put(
+                AzureStorageSettings.BLOCK_SIZE_SETTING.getConcreteSettingForNamespace(clientName).getKey(),
+                ByteSizeValue.of(1, ByteSizeUnit.MB)
+            )
             .setSecureSettings(secureSettings)
             .build();
 
@@ -148,11 +152,6 @@ public class AzureBlobContainerAccessTierTests extends ESTestCase {
                     Duration.ofMillis(100),
                     null
                 );
-            }
-
-            @Override
-            long getUploadBlockSize() {
-                return ByteSizeUnit.MB.toBytes(1);
             }
         };
 

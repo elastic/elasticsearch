@@ -157,6 +157,10 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(AzureStorageSettings.ENDPOINT_SUFFIX_SETTING.getConcreteSettingForNamespace("test").getKey(), endpoint)
+            .put(
+                AzureStorageSettings.BLOCK_SIZE_SETTING.getConcreteSettingForNamespace("test").getKey(),
+                ByteSizeValue.of(1, ByteSizeUnit.MB)
+            )
             .put(AzureClientProvider.EVENT_LOOP_THREAD_COUNT.getKey(), EVENT_LOOP_THREAD_COUNT_SETTING.get())
             .put(AzureClientProvider.MAX_OPEN_CONNECTIONS.getKey(), MAX_CONNECTION_SETTING.get())
             .put(AzureClientProvider.MAX_IDLE_TIME.getKey(), TimeValue.timeValueSeconds(randomIntBetween(10, 30)))
@@ -173,8 +177,7 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
     }
 
     /**
-     * AzureRepositoryPlugin that allows to set low values for the Azure's client retry policy
-     * and for BlobRequestOptions#getSingleBlobPutThresholdInBytes().
+     * AzureRepositoryPlugin that allows to set low values for the Azure's client retry policy.
      */
     public static class TestAzureRepositoryPlugin extends AzureRepositoryPlugin {
 
@@ -200,11 +203,6 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
                         10L,
                         null
                     );
-                }
-
-                @Override
-                long getUploadBlockSize() {
-                    return ByteSizeUnit.MB.toBytes(1);
                 }
             };
         }

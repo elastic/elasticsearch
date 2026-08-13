@@ -150,6 +150,10 @@ public abstract class AbstractAzureServerTestCase extends ESTestCase {
         clientSettings.put(ENDPOINT_SUFFIX_SETTING.getConcreteSettingForNamespace(clientName).getKey(), endpoint);
         clientSettings.put(MAX_RETRIES_SETTING.getConcreteSettingForNamespace(clientName).getKey(), maxRetries);
         clientSettings.put(TIMEOUT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), tryTimeout);
+        clientSettings.put(
+            AzureStorageSettings.BLOCK_SIZE_SETTING.getConcreteSettingForNamespace(clientName).getKey(),
+            ByteSizeValue.of(1, ByteSizeUnit.MB)
+        );
         if (readTimeout != null) {
             clientSettings.put(AzureStorageSettings.READ_TIMEOUT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), readTimeout);
         }
@@ -177,11 +181,6 @@ public abstract class AbstractAzureServerTestCase extends ESTestCase {
                     // port.
                     secondaryHost != null ? secondaryHost.replaceFirst("/" + ACCOUNT, "") : null
                 );
-            }
-
-            @Override
-            long getUploadBlockSize() {
-                return ByteSizeUnit.MB.toBytes(1);
             }
 
             @Override

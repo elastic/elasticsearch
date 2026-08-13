@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.Setting.AffixSetting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 
@@ -106,6 +107,34 @@ final class AzureStorageSettings {
         () -> ACCOUNT_SETTING
     );
 
+    /**
+     * Threshold above which a blob is uploaded using several Put Block requests rather than a single Put Blob request. A repository may
+     * override this with its own {@code max_single_part_upload_size} setting.
+     */
+    public static final AffixSetting<ByteSizeValue> MAX_SINGLE_PART_UPLOAD_SIZE_SETTING = Setting.affixKeySetting(
+        AZURE_CLIENT_PREFIX_KEY,
+        "max_single_part_upload_size",
+        key -> Setting.byteSizeSetting(key, AzureRepository.Repository.DEFAULT_MAX_SINGLE_UPLOAD_SIZE, Property.NodeScope),
+        () -> ACCOUNT_SETTING
+    );
+
+    /**
+     * Size of the blocks used for multi-block uploads. Each block is uploaded in its own Put Block request, so larger blocks mean fewer
+     * requests, at the cost of buffering more data per in-flight block.
+     */
+    public static final AffixSetting<ByteSizeValue> BLOCK_SIZE_SETTING = Setting.affixKeySetting(
+        AZURE_CLIENT_PREFIX_KEY,
+        "block_size",
+        key -> Setting.byteSizeSetting(
+            key,
+            AzureStorageService.DEFAULT_BLOCK_SIZE,
+            ByteSizeValue.ONE,
+            AzureStorageService.MAX_BLOCK_SIZE,
+            Property.NodeScope
+        ),
+        () -> ACCOUNT_SETTING
+    );
+
     /** The type of the proxy to connect to azure through. Can be direct (no proxy, default), http or socks */
     public static final AffixSetting<Proxy.Type> PROXY_TYPE_SETTING = Setting.affixKeySetting(
         AZURE_CLIENT_PREFIX_KEY,
@@ -143,6 +172,8 @@ final class AzureStorageSettings {
     private final Proxy proxy;
     private final boolean hasCredentials;
     private final Set<String> credentialsUsageFeatures;
+    private final ByteSizeValue maxSinglePartUploadSize;
+    private final ByteSizeValue blockSize;
 
     private AzureStorageSettings(
         String account,
@@ -156,7 +187,9 @@ final class AzureStorageSettings {
         String proxyHost,
         Integer proxyPort,
         String endpoint,
-        String secondaryEndpoint
+        String secondaryEndpoint,
+        ByteSizeValue maxSinglePartUploadSize,
+        ByteSizeValue blockSize
     ) {
         this.account = account;
         this.sasToken = sasToken;
@@ -166,6 +199,8 @@ final class AzureStorageSettings {
         this.timeout = timeout;
         this.readTimeout = readTimeout;
         this.maxRetries = maxRetries;
+        this.maxSinglePartUploadSize = maxSinglePartUploadSize;
+        this.blockSize = blockSize;
         this.credentialsUsageFeatures = Strings.hasText(key) ? Set.of("uses_key_credentials")
             : Strings.hasText(sasToken) ? Set.of("uses_sas_token")
             : System.getenv("AZURE_FEDERATED_TOKEN_FILE") == null ? Set.of("uses_default_credentials", "uses_managed_identity")
@@ -205,6 +240,14 @@ final class AzureStorageSettings {
 
     public int getMaxRetries() {
         return maxRetries;
+    }
+
+    public ByteSizeValue getMaxSinglePartUploadSize() {
+        return maxSinglePartUploadSize;
+    }
+
+    public ByteSizeValue getBlockSize() {
+        return blockSize;
     }
 
     public Proxy getProxy() {
@@ -326,7 +369,9 @@ final class AzureStorageSettings {
                 getValue(settings, clientName, PROXY_HOST_SETTING),
                 getValue(settings, clientName, PROXY_PORT_SETTING),
                 getValue(settings, clientName, ENDPOINT_SETTING),
-                getValue(settings, clientName, SECONDARY_ENDPOINT_SETTING)
+                getValue(settings, clientName, SECONDARY_ENDPOINT_SETTING),
+                getValue(settings, clientName, MAX_SINGLE_PART_UPLOAD_SIZE_SETTING),
+                getValue(settings, clientName, BLOCK_SIZE_SETTING)
             );
         }
     }
@@ -414,7 +459,9 @@ final class AzureStorageSettings {
             && Objects.equals(timeout, that.timeout)
             && Objects.equals(readTimeout, that.readTimeout)
             && Objects.equals(proxy, that.proxy)
-            && Objects.equals(credentialsUsageFeatures, that.credentialsUsageFeatures);
+            && Objects.equals(credentialsUsageFeatures, that.credentialsUsageFeatures)
+            && Objects.equals(maxSinglePartUploadSize, that.maxSinglePartUploadSize)
+            && Objects.equals(blockSize, that.blockSize);
     }
 
     @Override
@@ -428,7 +475,9 @@ final class AzureStorageSettings {
             maxRetries,
             proxy,
             hasCredentials,
-            credentialsUsageFeatures
+            credentialsUsageFeatures,
+            maxSinglePartUploadSize,
+            blockSize
         );
     }
 }

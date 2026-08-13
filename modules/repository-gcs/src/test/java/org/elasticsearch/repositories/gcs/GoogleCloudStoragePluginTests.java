@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.SnapshotMetrics;
@@ -48,7 +49,8 @@ public class GoogleCloudStoragePluginTests extends ESTestCase {
                 "gcs.client.*.max_retries",
                 "gcs.client.*.megabytes_copied_per_chunk",
                 "gcs.client.*.tenacious_retries.enabled",
-                "gcs.client.*.resumable_write_buffer_size"
+                "gcs.client.*.resumable_write_buffer_size",
+                "gcs.client.*.resumable_upload_threshold"
             ),
             settings.stream().map(Setting::getKey).toList()
         );
@@ -59,6 +61,7 @@ public class GoogleCloudStoragePluginTests extends ESTestCase {
         GoogleCloudStorageService storageService = mock(GoogleCloudStorageService.class);
         GoogleCloudStorageClientSettings clientSettings = mock(GoogleCloudStorageClientSettings.class);
         when(clientSettings.getTenaciousRetriesEnabled()).thenReturn(randomBoolean());
+        when(clientSettings.getResumableUploadThreshold()).thenReturn(ByteSizeValue.ofMb(5));
         when(storageService.clientSettings(any(), any())).thenReturn(clientSettings);
         final var repository = new GoogleCloudStorageRepository(
             projectId,

@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 156667
+summary: Honor `error_mode` for oversized NDJSON numbers
+type: bug

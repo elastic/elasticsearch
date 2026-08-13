@@ -2084,6 +2084,11 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 kibanaRole.indices().allowedIndicesMatcher(TransportAutoPutMappingAction.TYPE.name()).test(indexAbstraction),
                 is(true)
             );
+            // delete_index is required to repair a plain index occupying the metadata data stream name
+            assertThat(
+                kibanaRole.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(indexAbstraction),
+                is(true)
+            );
             assertViewIndexMetadata(kibanaRole, indexName);
         });
 

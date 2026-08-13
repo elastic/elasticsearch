@@ -73,10 +73,7 @@ public class KibanaWorkflowsImplicitPrivilegesProviderTests extends ESTestCase {
         Collection<ApplicationPrivilegeDescriptor> stored = List.of(
             new ApplicationPrivilegeDescriptor(KIBANA_APPLICATION, "wf_exec_read", Set.of(READ_EXECUTION_ACTION), Map.of())
         );
-        assertThat(
-            provider.getImplicitIndicesPrivileges(resolve(role("wf_exec_read", "space:marketing"), stored)),
-            hasSize(1)
-        );
+        assertThat(provider.getImplicitIndicesPrivileges(resolve(role("wf_exec_read", "space:marketing"), stored)), hasSize(1));
     }
 
     // ---- Both actions, same space ----
@@ -190,17 +187,9 @@ public class KibanaWorkflowsImplicitPrivilegesProviderTests extends ESTestCase {
     public void testManagedActionAloneYieldsNoGrant() {
         // Without the base action there is nothing to grant.
         Collection<ApplicationPrivilegeDescriptor> stored = List.of(
-            new ApplicationPrivilegeDescriptor(
-                KIBANA_APPLICATION,
-                "wf_managed_only",
-                Set.of(READ_MANAGED_EXECUTION_ACTION),
-                Map.of()
-            )
+            new ApplicationPrivilegeDescriptor(KIBANA_APPLICATION, "wf_managed_only", Set.of(READ_MANAGED_EXECUTION_ACTION), Map.of())
         );
-        assertThat(
-            provider.getImplicitIndicesPrivileges(resolve(role("wf_managed_only", "space:default"), stored)),
-            is(empty())
-        );
+        assertThat(provider.getImplicitIndicesPrivileges(resolve(role("wf_managed_only", "space:default"), stored)), is(empty()));
     }
 
     // ---- Non-Kibana application ----

@@ -27,10 +27,13 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.escf.EscfBatch;
+import org.elasticsearch.escf.EscfColumn;
 import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.sourcebatch.MappedColumns;
 import org.elasticsearch.sourcebatch.SourceSchema;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -124,7 +127,13 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
 
         final IndexRequest[] requests = buildIndexRequests(docs, sourceBytesArray);
         final MappingLookup mappingLookup = mapperService.mappingLookup();
-        final BatchMappingContext ctx = new BatchMappingContext(requests, mappingLookup, mapperService.getIndexSettings());
+        final IndexSettings indexSettings = mapperService.getIndexSettings();
+        final BatchMappingContext ctx = new BatchMappingContext(
+            EngineTestCase.initFromRequests(requests),
+            mappingLookup,
+            indexSettings,
+            BytesRefRecycler.NON_RECYCLING_INSTANCE
+        );
 
         // Drive all supported metadata mappers through their columnar hooks, mirroring the
         // preParse-all / postParse-all ordering of the row-major path.
@@ -138,23 +147,36 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
 
         try (EscfBatch escfBatch = EscfEncoder.encode(Arrays.asList(sourceBytesArray), XContentType.JSON)) {
             final SourceSchema schema = escfBatch.schema();
-            final IndexSettings indexSettings = mapperService.getIndexSettings();
+
+            // Accumulate leaves owned by a group mapper (e.g. flattened). Groups are ordered by first-seen
+            // leaf, making the output column order deterministic.
+            final ColumnGroupResolver.Builder groupBuilder = new ColumnGroupResolver.Builder();
             for (int c = 0; c < schema.leafCount(); c++) {
                 final String path = schema.getFullPath(c);
                 final Mapper mapper = mappingLookup.getMapper(path);
                 if (mapper instanceof FieldMapper fm) {
-                    if (fm.supportsColumnarParse(indexSettings) == false) {
-                        throw new AssertionError(
-                            "field ["
-                                + path
-                                + "] has mapper ["
-                                + fm.typeName()
-                                + "] that does not support columnar parse; "
-                                + "test data must only include fields whose mappers support columnar"
-                        );
-                    }
+                    assertSupportsColumnarParse(fm, path, indexSettings);
                     fm.mapColumnBatch(ctx, escfBatch.column(c));
+                } else if (mapper == null) {
+                    // No mapper at this path: it may still belong to a mapper that owns a whole group of descendant leaves, such as
+                    // a flattened field, whose object value the encoder explodes into one dotted leaf per key.
+                    if (ColumnGroupResolver.findColumnGroup(
+                        path,
+                        mappingLookup
+                    ) instanceof ColumnGroupResolver.ColumnGroupLookup.Owned owned) {
+                        assertSupportsColumnarParse(owned.mapper(), owned.ownerPath(), indexSettings);
+                        groupBuilder.add(owned, c);
+                    }
                 }
+            }
+
+            for (ColumnGroupResolver.ColumnGroupResolution group : groupBuilder.build()) {
+                final int[] leafIndexes = group.leafIndexes();
+                final EscfColumn[] groupColumns = new EscfColumn[leafIndexes.length];
+                for (int i = 0; i < leafIndexes.length; i++) {
+                    groupColumns[i] = escfBatch.column(leafIndexes[i]);
+                }
+                group.mapper().mapColumnGroupBatch(ctx, groupColumns, group.relativeKeys());
             }
 
             for (MetadataFieldMapper m : supportedMappers) {
@@ -220,6 +242,19 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
                         + "]: x-content vs column-batch field sets differ"
                 );
             }
+        }
+    }
+
+    private static void assertSupportsColumnarParse(FieldMapper mapper, String path, IndexSettings indexSettings) {
+        if (mapper.supportsColumnarParse(indexSettings) == false) {
+            throw new AssertionError(
+                "field ["
+                    + path
+                    + "] has mapper ["
+                    + mapper.typeName()
+                    + "] that does not support columnar parse; "
+                    + "test data must only include fields whose mappers support columnar"
+            );
         }
     }
 

@@ -64,19 +64,14 @@ For the full set of authentication methods and what each one requires, refer to 
 
 ## Manage data sources using the API
 
-<!-- TODO: link to API reference once https://github.com/elastic/elasticsearch-specification/pull/6503 is published -->
 Data sources are managed under the `/_query/data_source` endpoint. All data source operations require the cluster `manage` privilege or a `global.data_source` privilege. Refer to [manage credentials and privileges](esql-data-federation-security.md) for details.
 
-| Operation | Endpoint |
-|---|---|
-| [Create or update](#create-or-update-a-data-source) | `PUT /_query/data_source/{name}` |
-| [Get](#get-a-data-source) | `GET /_query/data_source/{name}` |
-| [List all](#list-all-data-sources) | `GET /_query/data_source` |
-| [Delete](#delete-a-data-source) | `DELETE /_query/data_source/{name}` |
-
-<!-- # https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-put-data-source -->
-<!-- # https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-get-data-source -->
-<!-- # https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-delete-data-source -->
+| Operation | Endpoint | API reference |
+|---|---|---|
+| [Create or update](#create-or-update-a-data-source) | `PUT /_query/data_source/{name}` | [Create or update an ES\|QL data source](https://www.elastic.co/docs/api/doc/elasticsearch/v9/operation/operation-esql-put-data-source) |
+| [Get](#get-a-data-source) | `GET /_query/data_source/{name}` | [Get ES\|QL data sources](https://www.elastic.co/docs/api/doc/elasticsearch/v9/operation/operation-esql-get-data-source) |
+| [List all](#list-all-data-sources) | `GET /_query/data_source` | [Get ES\|QL data sources](https://www.elastic.co/docs/api/doc/elasticsearch/v9/operation/operation-esql-get-data-source) |
+| [Delete](#delete-a-data-source) | `DELETE /_query/data_source/{name}` | [Delete ES\|QL data sources](https://www.elastic.co/docs/api/doc/elasticsearch/v9/operation/operation-esql-delete-data-source) |
 
 ### Create or update a data source
 

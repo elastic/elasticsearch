@@ -11,14 +11,14 @@
     ">non-issue",
     ":Delivery/Packaging",
     ":Delivery/Build",
-    "Team:Delivery",
+    "Team:Core/Infra",
     "auto-merge-without-approval"
   ],
-  "baseBranchPatterns": [
-    "main",
-    "9.4",
-    "9.3",
-    "8.19"
+  "ignorePaths": [
+    "x-pack/qa/repository-old-versions-compatibility/src/javaRestTest/resources/README.md",
+    "docs/**",
+    "build-tools-internal/gradle/wrapper/**",
+    "plugins/examples/gradle/wrapper/**"
   ],
   "packageRules": [
     {
@@ -36,7 +36,7 @@
       "enabled": true
     },
     {
-      "description": "Gradle wrapper: one rolling PR per release train (e.g. 9.5.x patch lane and 9.6.x minor/RC lane), lockstep across all wrapper.properties files; manual fix commits preserved",
+      "description": "Gradle wrapper: one rolling PR per release train (e.g. 9.5.x patch lane and 9.6.x minor/RC lane). Only the root gradle/wrapper/gradle-wrapper.properties is managed via managerFilePatterns; build-tools-internal and plugins/examples wrappers are kept in sync manually via ./gradlew wrapper. respectLatest: false lets the same PR keep rolling forward through Gradle RCs/milestones until GA.",
       "matchManagers": [
         "gradle-wrapper"
       ],
@@ -45,11 +45,12 @@
       ],
       "enabled": true,
       "ignoreUnstable": false,
+      "respectLatest": false,
       "separateMinorPatch": true,
       "automerge": false,
       "rebaseWhen": "behind-base-branch",
-      "branchTopic": "gradle-wrapper-{{{newMajor}}}.{{{newMinor}}}.x",
-      "commitMessageTopic": "Gradle wrapper {{{newMajor}}}.{{{newMinor}}}.x",
+      "branchTopic": "gradle-wrapper-{{{newMajor}}}.{{{newMinor}}}.{{{newPatch}}}",
+      "commitMessageTopic": "Gradle wrapper {{{newMajor}}}.{{{newMinor}}}.{{{newPatch}}}",
       "schedule": [
         "at any time"
       ],
@@ -60,11 +61,17 @@
       ]
     }
   ],
-  "baseBranches": [
+  "baseBranchPatterns": [
     "main",
     "9.5",
     "9.4",
     "9.3",
+    "8.19"
+  ],
+  "baseBranches": [
+    "main",
+    "9.5",
+    "9.4",
     "8.19"
   ]
 }

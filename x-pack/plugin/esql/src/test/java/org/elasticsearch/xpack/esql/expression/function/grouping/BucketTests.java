@@ -15,6 +15,7 @@ import org.apache.lucene.tests.util.TimeUnits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -84,6 +85,8 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
         dateCases(suppliers, "fixed date", () -> DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-02-17T09:00:00.00Z"));
         dateRoundingHandlesNonNestedCalendarUnits(suppliers);
         dateNanosCases(suppliers, "fixed date nanos", () -> DateUtils.toLong(Instant.parse("2023-02-17T09:00:00.00Z")));
+        largeBucketCountCase(suppliers, "fixed date very large bucket count", 8_000_000_000L, 10);
+        largeBucketCountCase(suppliers, "fixed date max long bucket count", Long.MAX_VALUE, 1);
         // Span cases — one per branch of expectedDateMetadataForSpan, registered for both DATETIME and DATE_NANOS.
         // The dates below are picked so BUCKET's rounded value equals the day-of-month rounding used by resultsMatcher
         // (i.e. the input lies on a span boundary AND on a midnight UTC), so the existing helper can validate the
@@ -214,61 +217,81 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
             Duration.ofMillis(13),
             "[13 in Z][fixed]"
         );
-        dateTruncCases(suppliers);
         numberCases(suppliers, "fixed long", DataType.LONG, () -> 100L);
         numberCasesWithSpan(suppliers, "fixed long with span", DataType.LONG, () -> 100L);
         numberCases(suppliers, "fixed int", DataType.INTEGER, () -> 100);
         numberCasesWithSpan(suppliers, "fixed int with span", DataType.INTEGER, () -> 100);
         numberCases(suppliers, "fixed double", DataType.DOUBLE, () -> 100.0);
         numberCasesWithSpan(suppliers, "fixed double with span", DataType.DOUBLE, () -> 100.);
-        return parameterSuppliersFromTypedData(
-            anyNullIsNull(
-                suppliers,
-                (nullPosition, nullValueDataType, original) -> nullPosition == 0 && nullValueDataType == DataType.NULL
-                    ? DataType.NULL
-                    : original.expectedType(),
-                (nullPosition, nullData, original) -> nullPosition == 0 ? original : equalTo("LiteralsEvaluator[lit=null]")
-            )
+        suppliers = anyNullIsNull(
+            suppliers,
+            (nullPosition, nullValueDataType, original) -> nullPosition == 0 && nullValueDataType == DataType.NULL
+                ? DataType.NULL
+                : original.expectedType(),
+            (nullPosition, nullData, original) -> nullPosition == 0 ? original : equalTo("LiteralsEvaluator[lit=null]")
         );
+        dateTruncCases(suppliers);
+        return parameterSuppliersFromTypedData(suppliers);
     }
 
     // TODO once we cast above the functions we can drop these
     private static final DataType[] DATE_BOUNDS_TYPE = new DataType[] { DataType.DATETIME, DataType.KEYWORD, DataType.TEXT };
+    private static final DataType[] BUCKETS_TYPE = new DataType[] { DataType.INTEGER, DataType.LONG };
 
     private static void dateCases(List<TestCaseSupplier> suppliers, String name, LongSupplier date) {
         for (DataType fromType : DATE_BOUNDS_TYPE) {
             for (DataType toType : DATE_BOUNDS_TYPE) {
-                suppliers.add(new TestCaseSupplier(name, List.of(DataType.DATETIME, DataType.INTEGER, fromType, toType), () -> {
-                    List<TestCaseSupplier.TypedData> args = new ArrayList<>();
-                    args.add(new TestCaseSupplier.TypedData(date.getAsLong(), DataType.DATETIME, "field"));
-                    // TODO more "from" and "to" and "buckets"
-                    args.add(new TestCaseSupplier.TypedData(50, DataType.INTEGER, "buckets").forceLiteral());
-                    args.add(dateBound("from", fromType, "2023-02-01T00:00:00.00Z"));
-                    args.add(dateBound("to", toType, "2023-03-01T09:00:00.00Z"));
-                    return new TestCaseSupplier.TestCase(
-                        args,
-                        "DateTruncDatetimeEvaluator[fieldVal=Attribute[channel=0], "
-                            + "rounding=Rounding[DAY_OF_MONTH in Z][fixed to midnight]]",
-                        DataType.DATETIME,
-                        resultsMatcher(args)
-                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC)).withExtra(META_DAY_1);
-                }));
-                // same as above, but a low bucket count and datetime bounds that match it (at hour span)
-                suppliers.add(new TestCaseSupplier(name, List.of(DataType.DATETIME, DataType.INTEGER, fromType, toType), () -> {
-                    List<TestCaseSupplier.TypedData> args = new ArrayList<>();
-                    args.add(new TestCaseSupplier.TypedData(date.getAsLong(), DataType.DATETIME, "field"));
-                    args.add(new TestCaseSupplier.TypedData(4, DataType.INTEGER, "buckets").forceLiteral());
-                    args.add(dateBound("from", fromType, "2023-02-17T09:00:00Z"));
-                    args.add(dateBound("to", toType, "2023-02-17T12:00:00Z"));
-                    return new TestCaseSupplier.TestCase(
-                        args,
-                        "DateTruncDatetimeEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding[3600000 in Z][fixed]]",
-                        DataType.DATETIME,
-                        equalTo(Rounding.builder(Rounding.DateTimeUnit.HOUR_OF_DAY).build().prepareForUnknown().round(date.getAsLong()))
-                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC)).withExtra(META_HOUR_1);
-                }));
+                for (DataType bucketsType : BUCKETS_TYPE) {
+                    suppliers.add(new TestCaseSupplier(name, List.of(DataType.DATETIME, bucketsType, fromType, toType), () -> {
+                        List<TestCaseSupplier.TypedData> args = new ArrayList<>();
+                        args.add(new TestCaseSupplier.TypedData(date.getAsLong(), DataType.DATETIME, "field"));
+                        // TODO more "from" and "to" and "buckets"
+                        args.add(new TestCaseSupplier.TypedData(50, bucketsType, "buckets").forceLiteral());
+                        args.add(dateBound("from", fromType, "2023-02-01T00:00:00.00Z"));
+                        args.add(dateBound("to", toType, "2023-03-01T09:00:00.00Z"));
+                        return new TestCaseSupplier.TestCase(
+                            args,
+                            "DateTruncDatetimeEvaluator[fieldVal=Attribute[channel=0], "
+                                + "rounding=Rounding[DAY_OF_MONTH in Z][fixed to midnight]]",
+                            DataType.DATETIME,
+                            resultsMatcher(args)
+                        ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC)).withExtra(META_DAY_1);
+                    }));
+                    // same as above, but a low bucket count and datetime bounds that match it (at hour span)
+                    suppliers.add(new TestCaseSupplier(name, List.of(DataType.DATETIME, bucketsType, fromType, toType), () -> {
+                        List<TestCaseSupplier.TypedData> args = new ArrayList<>();
+                        args.add(new TestCaseSupplier.TypedData(date.getAsLong(), DataType.DATETIME, "field"));
+                        args.add(new TestCaseSupplier.TypedData(4, bucketsType, "buckets").forceLiteral());
+                        args.add(dateBound("from", fromType, "2023-02-17T09:00:00Z"));
+                        args.add(dateBound("to", toType, "2023-02-17T12:00:00Z"));
+                        return new TestCaseSupplier.TestCase(
+                            args,
+                            "DateTruncDatetimeEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding[3600000 in Z][fixed]]",
+                            DataType.DATETIME,
+                            equalTo(Rounding.builder(Rounding.DateTimeUnit.HOUR_OF_DAY).build().prepareForUnknown().round(date.getAsLong()))
+                        ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC)).withExtra(META_HOUR_1);
+                    }));
+                }
             }
         }
+    }
+
+    private static void largeBucketCountCase(List<TestCaseSupplier> suppliers, String name, long bucketCount, int expectedMillis) {
+        long date = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-10-23T12:15:03.360Z");
+        suppliers.add(new TestCaseSupplier(name, List.of(DataType.DATETIME, DataType.LONG, DataType.DATETIME, DataType.DATETIME), () -> {
+            List<TestCaseSupplier.TypedData> args = new ArrayList<>();
+            args.add(new TestCaseSupplier.TypedData(date, DataType.DATETIME, "field"));
+            args.add(new TestCaseSupplier.TypedData(bucketCount, DataType.LONG, "buckets").forceLiteral());
+            args.add(dateBound("from", DataType.DATETIME, "2023-01-01T00:00:00.00Z"));
+            args.add(dateBound("to", DataType.DATETIME, "2024-01-01T00:00:00.00Z"));
+            return new TestCaseSupplier.TestCase(
+                args,
+                "DateTruncDatetimeEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding[" + expectedMillis + " in Z][fixed]]",
+                DataType.DATETIME,
+                equalTo(Rounding.builder(TimeValue.timeValueMillis(expectedMillis)).build().prepareForUnknown().round(date))
+            ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC))
+                .withExtra(Map.of("bucket", Map.of("interval", (long) expectedMillis, "unit", "millisecond")));
+        }));
     }
 
     private static void dateRoundingHandlesNonNestedCalendarUnits(List<TestCaseSupplier> suppliers) {
@@ -524,35 +547,37 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
     private static void dateNanosCases(List<TestCaseSupplier> suppliers, String name, LongSupplier date) {
         for (DataType fromType : DATE_BOUNDS_TYPE) {
             for (DataType toType : DATE_BOUNDS_TYPE) {
-                suppliers.add(new TestCaseSupplier(name, List.of(DataType.DATE_NANOS, DataType.INTEGER, fromType, toType), () -> {
-                    List<TestCaseSupplier.TypedData> args = new ArrayList<>();
-                    args.add(new TestCaseSupplier.TypedData(date.getAsLong(), DataType.DATE_NANOS, "field"));
-                    // TODO more "from" and "to" and "buckets"
-                    args.add(new TestCaseSupplier.TypedData(50, DataType.INTEGER, "buckets").forceLiteral());
-                    args.add(dateBound("from", fromType, "2023-02-01T00:00:00.00Z"));
-                    args.add(dateBound("to", toType, "2023-03-01T09:00:00.00Z"));
-                    return new TestCaseSupplier.TestCase(
-                        args,
-                        "DateTruncDateNanosEvaluator[fieldVal=Attribute[channel=0], "
-                            + "rounding=Rounding[DAY_OF_MONTH in Z][fixed to midnight]]",
-                        DataType.DATE_NANOS,
-                        resultsMatcher(args)
-                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC)).withExtra(META_DAY_1);
-                }));
-                // same as above, but a low bucket count and datetime bounds that match it (at hour span)
-                suppliers.add(new TestCaseSupplier(name, List.of(DataType.DATE_NANOS, DataType.INTEGER, fromType, toType), () -> {
-                    List<TestCaseSupplier.TypedData> args = new ArrayList<>();
-                    args.add(new TestCaseSupplier.TypedData(date.getAsLong(), DataType.DATE_NANOS, "field"));
-                    args.add(new TestCaseSupplier.TypedData(4, DataType.INTEGER, "buckets").forceLiteral());
-                    args.add(dateBound("from", fromType, "2023-02-17T09:00:00Z"));
-                    args.add(dateBound("to", toType, "2023-02-17T12:00:00Z"));
-                    return new TestCaseSupplier.TestCase(
-                        args,
-                        "DateTruncDateNanosEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding[3600000 in Z][fixed]]",
-                        DataType.DATE_NANOS,
-                        equalTo(Rounding.builder(Rounding.DateTimeUnit.HOUR_OF_DAY).build().prepareForUnknown().round(date.getAsLong()))
-                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC)).withExtra(META_HOUR_1);
-                }));
+                for (DataType bucketsType : BUCKETS_TYPE) {
+                    suppliers.add(new TestCaseSupplier(name, List.of(DataType.DATE_NANOS, bucketsType, fromType, toType), () -> {
+                        List<TestCaseSupplier.TypedData> args = new ArrayList<>();
+                        args.add(new TestCaseSupplier.TypedData(date.getAsLong(), DataType.DATE_NANOS, "field"));
+                        // TODO more "from" and "to" and "buckets"
+                        args.add(new TestCaseSupplier.TypedData(50, bucketsType, "buckets").forceLiteral());
+                        args.add(dateBound("from", fromType, "2023-02-01T00:00:00.00Z"));
+                        args.add(dateBound("to", toType, "2023-03-01T09:00:00.00Z"));
+                        return new TestCaseSupplier.TestCase(
+                            args,
+                            "DateTruncDateNanosEvaluator[fieldVal=Attribute[channel=0], "
+                                + "rounding=Rounding[DAY_OF_MONTH in Z][fixed to midnight]]",
+                            DataType.DATE_NANOS,
+                            resultsMatcher(args)
+                        ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC)).withExtra(META_DAY_1);
+                    }));
+                    // same as above, but a low bucket count and datetime bounds that match it (at hour span)
+                    suppliers.add(new TestCaseSupplier(name, List.of(DataType.DATE_NANOS, bucketsType, fromType, toType), () -> {
+                        List<TestCaseSupplier.TypedData> args = new ArrayList<>();
+                        args.add(new TestCaseSupplier.TypedData(date.getAsLong(), DataType.DATE_NANOS, "field"));
+                        args.add(new TestCaseSupplier.TypedData(4, bucketsType, "buckets").forceLiteral());
+                        args.add(dateBound("from", fromType, "2023-02-17T09:00:00Z"));
+                        args.add(dateBound("to", toType, "2023-02-17T12:00:00Z"));
+                        return new TestCaseSupplier.TestCase(
+                            args,
+                            "DateTruncDateNanosEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding[3600000 in Z][fixed]]",
+                            DataType.DATE_NANOS,
+                            equalTo(Rounding.builder(Rounding.DateTimeUnit.HOUR_OF_DAY).build().prepareForUnknown().round(date.getAsLong()))
+                        ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC)).withExtra(META_HOUR_1);
+                    }));
+                }
             }
         }
     }
@@ -666,7 +691,7 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
             from = args.get(2);
             to = args.get(3);
         }
-        return new Bucket(source, args.get(0), args.get(1), from, to, configuration);
+        return new Bucket(source, args.get(0), args.get(1), from, to, null, configuration);
     }
 
     /**

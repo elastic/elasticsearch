@@ -15,6 +15,9 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.PrimitiveIterator;
 
+/**
+ * A {@link KMeansResult} with additional overspill assignments
+ */
 public record KMeansWithOverspill<V>(KMeansResult<V> result, OverspillAssignments overspill) {
 
     public V[] centroids() {
@@ -28,8 +31,7 @@ public record KMeansWithOverspill<V>(KMeansResult<V> result, OverspillAssignment
     /**
      * Merge multiple clustering results into a single result by concatenating centroids
      * in the provided order and reindexing assignments to the merged centroid layout.
-     * Soar assignments are offset the same way; if a result has no soar assignments,
-     * the merged result uses {@code -1} for those positions.
+     * Overspill assignments are offset the same way, where present.
      */
     public static <V> KMeansWithOverspill<V> merge(List<KMeansWithOverspill<V>> results, CentroidOps<V> ops) {
         int numCentroids = 0;

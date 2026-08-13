@@ -79,7 +79,10 @@ public class CustomRequestTests extends ESTestCase {
         );
 
         var request = new CustomRequest(
-            EmbeddingParameters.of(new EmbeddingsInput(List.of("abc", "123"), null), model.getServiceSettings().getInputTypeTranslator()),
+            EmbeddingParameters.of(
+                EmbeddingsInput.fromStrings(List.of("abc", "123"), null),
+                model.getServiceSettings().getInputTypeTranslator()
+            ),
             model
         );
         var httpRequest = RequestTests.getHttpRequestSync(request);
@@ -140,7 +143,7 @@ public class CustomRequestTests extends ESTestCase {
 
         var request = new CustomRequest(
             EmbeddingParameters.of(
-                new EmbeddingsInput(List.of("abc", "123"), InputType.INGEST),
+                EmbeddingsInput.fromStrings(List.of("abc", "123"), InputType.INGEST),
                 model.getServiceSettings().getInputTypeTranslator()
             ),
             model
@@ -196,7 +199,7 @@ public class CustomRequestTests extends ESTestCase {
 
         var request = new CustomRequest(
             EmbeddingParameters.of(
-                new EmbeddingsInput(List.of("abc", "123"), InputType.SEARCH),
+                EmbeddingsInput.fromStrings(List.of("abc", "123"), InputType.SEARCH),
                 model.getServiceSettings().getInputTypeTranslator()
             ),
             model
@@ -358,7 +361,7 @@ public class CustomRequestTests extends ESTestCase {
             ),
             model
         );
-        var exception = expectThrows(IllegalStateException.class, () -> RequestTests.getHttpRequestSync(request));
+        var exception = expectThrows(IllegalArgumentException.class, () -> RequestTests.getHttpRequestSync(request));
         assertThat(
             exception.getMessage(),
             is(
@@ -510,7 +513,7 @@ public class CustomRequestTests extends ESTestCase {
         );
 
         var exception = expectThrows(
-            IllegalStateException.class,
+            IllegalArgumentException.class,
             () -> new CustomRequest(
                 RerankParameters.of(
                     new QueryAndDocsInputs(InferenceString.ofText("query string"), InferenceString.fromStringList(List.of("abc", "123")))

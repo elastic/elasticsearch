@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.inference.ResolvedInference;
@@ -92,6 +93,13 @@ public class TestAnalyzer {
     private final Map<String, IndexResolution> lookupResolution = new HashMap<>();
     private final Map<LinkedIndexPattern, IndexResolution> lenientResolution = new HashMap<>();
     private final EnrichResolution enrichResolution = new EnrichResolution();
+    // EnrichResolution is keyed by the Source of the specific ENRICH occurrence it resolves, but addEnrichPolicy/addEnrichError
+    // are called before the query is parsed (builder pattern), so a Source isn't available yet. Registrations are queued here
+    // by policy name + mode and matched against the actual Enrich occurrences once the plan is known, see resolveEnrichResolution.
+    private final List<PendingEnrich> pendingEnrichResolutions = new ArrayList<>();
+
+    private record PendingEnrich(String policyName, Enrich.Mode mode, ResolvedEnrichPolicy resolved, String error) {}
+
     private final InferenceResolution.Builder inferenceResolution = InferenceResolution.builder();
     private UnmappedResolution unmappedResolution = UNMAPPED_FIELDS.defaultValue();
     private TimestampBounds timestampBounds;
@@ -200,7 +208,7 @@ public class TestAnalyzer {
         EsIndex noFieldsIndex = new EsIndex(
             noFieldsIndexName,
             Map.of(),
-            Map.of(noFieldsIndexName, IndexMode.STANDARD),
+            Map.of(noFieldsIndexName, new IndexProperties(IndexMode.STANDARD, 0)),
             Map.of("", List.of(noFieldsIndexName)),
             Map.of("", List.of(noFieldsIndexName))
         );
@@ -321,6 +329,14 @@ public class TestAnalyzer {
     }
 
     /**
+     * Adds the datenanos-k8s index with k8s-mappings-date_nanos.json in time series mode. It mirrors {@link #addK8s()}
+     * but carries a {@code date_nanos} {@code @timestamp}, so tests can exercise the date_nanos time-bucket/step path.
+     */
+    public TestAnalyzer addK8sDateNanos() {
+        return addIndex("datenanos-k8s", "k8s-mappings-date_nanos.json", IndexMode.TIME_SERIES);
+    }
+
+    /**
      * Adds the otel-metrics index, built programmatically to mirror what IndexResolver produces for a real
      * OTel TSDB index. In a real OTel index both the root-level alias (e.g. {@code cpu}) and the concrete
      * passthrough field (e.g. {@code attributes.cpu}) have {@code isAlias=false}; the mapping here reflects
@@ -358,7 +374,13 @@ public class TestAnalyzer {
         mapping.put("host.name", new KeywordEsField("host.name", Map.of(), true, 0, false, false, EsField.TimeSeriesFieldType.DIMENSION));
         mapping.put("metrics", new EsField("metrics", DataType.OBJECT, metricsChildren, false, EsField.TimeSeriesFieldType.NONE));
 
-        EsIndex otelMetrics = new EsIndex("otel-metrics", mapping, Map.of("otel-metrics", IndexMode.TIME_SERIES), Map.of(), Map.of());
+        EsIndex otelMetrics = new EsIndex(
+            "otel-metrics",
+            mapping,
+            Map.of("otel-metrics", new IndexProperties(IndexMode.TIME_SERIES, 0)),
+            Map.of(),
+            Map.of()
+        );
         return addIndex(otelMetrics);
     }
 
@@ -388,7 +410,7 @@ public class TestAnalyzer {
      * Add an error resolving enrich indices.
      */
     public TestAnalyzer addEnrichError(String policyName, Enrich.Mode mode, String reason) {
-        enrichResolution.addError(policyName, mode, reason);
+        pendingEnrichResolutions.add(new PendingEnrich(policyName, mode, null, reason));
         return this;
     }
 
@@ -460,8 +482,29 @@ public class TestAnalyzer {
      * Adds an enrich policy resolution with a specific mode by loading the mapping from a resource file.
      */
     public TestAnalyzer addEnrichPolicy(Enrich.Mode mode, String policy, ResolvedEnrichPolicy resolved) {
-        enrichResolution.addResolvedPolicy(policy, mode, resolved);
+        pendingEnrichResolutions.add(new PendingEnrich(policy, mode, resolved, null));
         return this;
+    }
+
+    /**
+     * Matches pending {@link #addEnrichPolicy}/{@link #addEnrichError} registrations (queued by policy name + mode before the
+     * query was known) against the actual {@link Enrich} occurrences in the now-parsed plan, and registers each match into the
+     * real {@link #enrichResolution} keyed by that occurrence's {@code Source} - mirroring how {@code EnrichPolicyResolver}
+     * keys production resolutions. If several occurrences share the same policy name and mode, every one of them is
+     * registered with the same resolution.
+     */
+    private void resolveEnrichResolution(LogicalPlan plan) {
+        plan.forEachUp(Enrich.class, enrich -> {
+            for (PendingEnrich pending : pendingEnrichResolutions) {
+                if (pending.policyName().equals(enrich.resolvedPolicyName()) && pending.mode() == enrich.mode()) {
+                    if (pending.resolved() != null) {
+                        enrichResolution.addResolvedPolicy(enrich.source(), pending.resolved());
+                    } else {
+                        enrichResolution.addError(enrich.source(), pending.error());
+                    }
+                }
+            }
+        });
     }
 
     /**
@@ -883,9 +926,20 @@ public class TestAnalyzer {
     /**
      * Build an {@link Analyzer} for advanced usage.
      * Prefer {@link #query} or {@link #error} if possible.
+     * <p>
+     * The returned {@link Analyzer} resolves pending {@link #addEnrichPolicy}/{@link #addEnrichError} registrations against
+     * whatever plan it's asked to analyze, right before analyzing it - see {@link #resolveEnrichResolution}. This covers both
+     * {@link #query}/{@link #error} (which call this internally) and advanced usage where callers hold onto the returned
+     * {@link Analyzer} and call {@link Analyzer#analyze} directly, possibly against several different queries.
      */
     public Analyzer buildAnalyzer(Verifier verifier) {
-        return new Analyzer(buildContext(), verifier);
+        return new Analyzer(buildContext(), verifier) {
+            @Override
+            public LogicalPlan analyze(LogicalPlan plan) {
+                resolveEnrichResolution(plan);
+                return super.analyze(plan);
+            }
+        };
     }
 
     /**
@@ -919,7 +973,13 @@ public class TestAnalyzer {
         var grouped = Arrays.stream(indexName.split(","))
             .collect(groupingBy(index -> RemoteClusterAware.splitIndexName(index).getClusterGroupingKey()));
         return IndexResolution.valid(
-            new EsIndex(indexName, EsqlTestUtils.loadMapping(resource), Map.of(indexName, indexMode), grouped, grouped)
+            new EsIndex(
+                indexName,
+                EsqlTestUtils.loadMapping(resource),
+                Map.of(indexName, new IndexProperties(indexMode, 0)),
+                grouped,
+                grouped
+            )
         );
     }
 

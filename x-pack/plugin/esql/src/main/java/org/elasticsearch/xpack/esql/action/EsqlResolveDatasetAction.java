@@ -95,7 +95,9 @@ public class EsqlResolveDatasetAction extends TransportLocalProjectMetadataActio
             project.metadata(),
             indexNameExpressionResolver
         );
-        listener.onResponse(new Response(resolution.authorizedDatasets(), resolution.nonDatasetNames(), resolution.explicitUnauthorized()));
+        listener.onResponse(
+            new Response(resolution.resolvedExternalDatasets(), resolution.nonDatasetNames(), resolution.explicitUnauthorized())
+        );
     }
 
     /**

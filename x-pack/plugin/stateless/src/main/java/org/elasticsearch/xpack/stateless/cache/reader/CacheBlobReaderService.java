@@ -57,14 +57,22 @@ public class CacheBlobReaderService {
     private final Client client;
     private final ByteSizeValue indexingShardCacheBlobReaderChunkSize;
     private final ThreadPool threadPool;
+    private final FillCacheMemoryPressure fillCacheMemoryPressure;
 
     // TODO consider specializing the CacheBlobReaderService for the indexing node to always consider blobs as uploaded (ES-8248)
     // TODO refactor CacheBlobReaderService to keep track of shard's upload info itself (ES-8248)
-    public CacheBlobReaderService(Settings settings, StatelessSharedBlobCacheService cacheService, Client client, ThreadPool threadPool) {
+    public CacheBlobReaderService(
+        Settings settings,
+        StatelessSharedBlobCacheService cacheService,
+        Client client,
+        ThreadPool threadPool,
+        FillCacheMemoryPressure fillCacheMemoryPressure
+    ) {
         this.cacheService = cacheService;
         this.client = client;
         this.indexingShardCacheBlobReaderChunkSize = TRANSPORT_BLOB_READER_CHUNK_SIZE_SETTING.get(settings);
         this.threadPool = threadPool;
+        this.fillCacheMemoryPressure = fillCacheMemoryPressure;
     }
 
     /**
@@ -78,6 +86,10 @@ public class CacheBlobReaderService {
      * @param totalBytesReadFromIndexing    counts how many bytes were read from indexing nodes
      * @param cachePopulationReason         The reason that we're reading from the data source
      * @param fileName                      The actual (lucene) file that's requested from the blob location
+     * @param speculativeFill               true = feeds a speculative fill (warming, online prewarming, commit prefetch) — subject
+     *                                      to the {@link FillCacheMemoryPressure} budget. Demand reads (some thread is blocked)
+     *                                      must never set this true: they must not queue behind speculative work, and blocking a
+     *                                      pool thread on the budget could stall the very pool a deferred read would resume on.
      * @return a {@link CacheBlobReader} for the given shard and blob
      */
     public CacheBlobReader getCacheBlobReader(
@@ -89,8 +101,11 @@ public class CacheBlobReaderService {
         LongConsumer totalBytesReadFromIndexing,
         BlobCacheMetrics.CachePopulationReason cachePopulationReason,
         Executor objectStoreFetchExecutor,
-        String fileName
+        String fileName,
+        boolean speculativeFill
     ) {
+        assert cachePopulationReason != BlobCacheMetrics.CachePopulationReason.CacheMiss || speculativeFill == false
+            : "cache-miss reads serve blocked searches and can never be speculative";
         final var locationPrimaryTermAndGeneration = blobFile.termAndGeneration();
         final long rangeSize = cacheService.getRangeSize();
         var objectStoreCacheBlobReader = new MeteringCacheBlobReader(
@@ -103,20 +118,25 @@ public class CacheBlobReaderService {
             createReadCompleteCallback(fileName, totalBytesReadFromObjectStore, CachePopulationSource.BlobStore, cachePopulationReason)
         );
         var latestUploadInfo = tracker.getLatestUploadInfo(locationPrimaryTermAndGeneration);
+        final CacheBlobReader cacheBlobReader;
         if (latestUploadInfo.isUploaded()) {
-            return objectStoreCacheBlobReader;
+            cacheBlobReader = objectStoreCacheBlobReader;
         } else {
             var indexingShardCacheBlobReader = new MeteringCacheBlobReader(
                 getIndexingShardCacheBlobReader(shardId, locationPrimaryTermAndGeneration, latestUploadInfo.preferredNodeId()),
                 createReadCompleteCallback(fileName, totalBytesReadFromIndexing, CachePopulationSource.Peer, cachePopulationReason)
             );
-            return getSwitchingCacheBlobReader(
+            cacheBlobReader = getSwitchingCacheBlobReader(
                 tracker,
                 locationPrimaryTermAndGeneration,
                 objectStoreCacheBlobReader,
                 indexingShardCacheBlobReader
             );
         }
+        if (speculativeFill == false) {
+            return cacheBlobReader;
+        }
+        return new PressuredCacheBlobReader(cacheBlobReader, fillCacheMemoryPressure, threadPool);
     }
 
     // protected to override in tests

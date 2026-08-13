@@ -98,6 +98,11 @@ public class ExternalSourceProfileIT extends AbstractExternalDataSourceIT {
                 // assertion here is that the fields are present (i.e. not negative for the numeric ones).
                 assertThat(status.splitsProcessed(), greaterThanOrEqualTo(0));
                 assertThat(status.bytesRead(), greaterThanOrEqualTo(0L));
+                assertThat(
+                    "split discovery time should be metered",
+                    response.getExecutionInfo().queryProfile().splitDiscoveryNanos(),
+                    greaterThan(0L)
+                );
             }
         } finally {
             Files.deleteIfExists(parquetFile);
@@ -121,6 +126,7 @@ public class ExternalSourceProfileIT extends AbstractExternalDataSourceIT {
                 assertEquals("exactly one file scanned", 1, profile.filesScanned());
                 assertThat("at least one split scanned", profile.splitsScanned(), greaterThanOrEqualTo(1));
                 assertThat("bytes scanned populated", profile.bytesScanned(), greaterThan(0L));
+                assertThat("split discovery time should be metered", profile.splitDiscoveryNanos(), greaterThan(0L));
             }
         } finally {
             Files.deleteIfExists(parquetFile);
@@ -147,6 +153,7 @@ public class ExternalSourceProfileIT extends AbstractExternalDataSourceIT {
                 assertEquals("metadata-only COUNT(*) must scan no files", 0, profile.filesScanned());
                 assertEquals("metadata-only COUNT(*) must scan no splits", 0, profile.splitsScanned());
                 assertEquals("metadata-only COUNT(*) must scan no bytes", 0L, profile.bytesScanned());
+                assertEquals("metadata-only COUNT(*) must have no split discovery time", 0L, profile.splitDiscoveryNanos());
             }
         } finally {
             Files.deleteIfExists(parquetFile);
@@ -196,6 +203,7 @@ public class ExternalSourceProfileIT extends AbstractExternalDataSourceIT {
                 assertEquals("cold COUNT(*) scans exactly one split", 1, profile.splitsScanned());
                 assertEquals("cold COUNT(*) reads the whole CSV file", Files.size(csvFile), profile.bytesScanned());
                 assertEquals("cold COUNT(*) does not short-circuit warm", 0, profile.externalWarmAggregates());
+                assertThat("split discovery time should be metered", profile.splitDiscoveryNanos(), greaterThan(0L));
             }
 
             // WARM: the harvested stats were reconciled into the coordinator cache, so COUNT(*) is served
@@ -212,6 +220,7 @@ public class ExternalSourceProfileIT extends AbstractExternalDataSourceIT {
                     findAsyncExternalSourceStatusOrNull(response),
                     nullValue()
                 );
+                assertEquals("warm COUNT(*) reports zero split discovery time", 0, profile.splitDiscoveryNanos());
             }
         } finally {
             Files.deleteIfExists(csvFile);
@@ -277,6 +286,11 @@ public class ExternalSourceProfileIT extends AbstractExternalDataSourceIT {
             // The gate declined (unservable column) -> discovery ran -> served from a scan, not warm-short-circuit.
             assertEquals("warm MIN(unservable col) is not served warm", 0, warm.getExecutionInfo().queryProfile().externalWarmAggregates());
             assertThat("warm MIN(unservable col) scanned", warm.getExecutionInfo().queryProfile().splitsScanned(), greaterThan(0));
+            assertThat(
+                "split discovery time should be metered",
+                warm.getExecutionInfo().queryProfile().splitDiscoveryNanos(),
+                greaterThan(0L)
+            );
         }
 
         // Regression control: COUNT(*) still short-circuits warm on the same dataset (row count IS servable).
@@ -309,6 +323,11 @@ public class ExternalSourceProfileIT extends AbstractExternalDataSourceIT {
                 assertThat(status.currentSplit(), greaterThanOrEqualTo(1));
                 assertThat(status.splitsProcessed(), greaterThanOrEqualTo(0));
                 assertThat(status.bytesRead(), greaterThanOrEqualTo(0L));
+                assertThat(
+                    "split discovery time should be metered",
+                    response.getExecutionInfo().queryProfile().splitDiscoveryNanos(),
+                    greaterThan(0L)
+                );
             }
         } finally {
             Files.deleteIfExists(parquetFile);
@@ -354,6 +373,11 @@ public class ExternalSourceProfileIT extends AbstractExternalDataSourceIT {
                 // (sub-microsecond synchronous reads + low-resolution clocks). Assert non-negative
                 // rather than a strict positive — the deterministic shape signal lives in row_groups_in_file.
                 assertThat("read_nanos must be non-negative", parquetStatus.readNanos(), greaterThanOrEqualTo(0L));
+                assertThat(
+                    "split discovery time should be metered",
+                    response.getExecutionInfo().queryProfile().splitDiscoveryNanos(),
+                    greaterThan(0L)
+                );
             }
         } finally {
             Files.deleteIfExists(parquetFile);

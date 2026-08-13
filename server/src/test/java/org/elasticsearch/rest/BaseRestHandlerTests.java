@@ -13,6 +13,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.action.cat.AbstractCatAction;
 import org.elasticsearch.test.ESTestCase;
@@ -322,6 +323,39 @@ public class BaseRestHandlerTests extends ESTestCase {
         }
     }
 
+    public void testChunkConsumerCanConsumeFullBodyAfterPreparation() throws Exception {
+        try (XContentBuilder builder = JsonXContent.contentBuilder().startObject().endObject()) {
+            final RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withContent(
+                new BytesArray(builder.toString()),
+                XContentType.JSON
+            ).build();
+            final var restChannelConsumer = new TestRequestBodyChunkConsumer(request);
+            final BaseRestHandler handler = new BaseRestHandler() {
+                @Override
+                protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
+                    assertSame(request, restRequest);
+                    return restChannelConsumer;
+                }
+
+                @Override
+                public String getName() {
+                    return "test_chunk_consumer_with_full_body";
+                }
+
+                @Override
+                public List<Route> routes() {
+                    return Collections.emptyList();
+                }
+            };
+
+            final RestChannel channel = new FakeRestChannel(request, randomBoolean());
+            handler.handleRequest(request, channel, mockClient);
+            assertTrue(request.isContentConsumed());
+            assertTrue(restChannelConsumer.executed);
+            assertTrue(restChannelConsumer.closed);
+        }
+    }
+
     public void testUnconsumedNoBody() throws Exception {
         final var restChannelConsumer = new TestRestChannelConsumer();
         final BaseRestHandler handler = new BaseRestHandler() {
@@ -380,6 +414,26 @@ public class BaseRestHandlerTests extends ESTestCase {
             assertThat(e, hasToString(containsString("request [GET /] does not support having a body")));
             assertFalse(restChannelConsumer.executed);
             assertTrue(restChannelConsumer.closed);
+        }
+    }
+
+    private static class TestRequestBodyChunkConsumer extends TestRestChannelConsumer implements BaseRestHandler.RequestBodyChunkConsumer {
+
+        private final RestRequest request;
+
+        private TestRequestBodyChunkConsumer(RestRequest request) {
+            this.request = request;
+        }
+
+        @Override
+        public void accept(RestChannel restChannel) {
+            request.content();
+            super.accept(restChannel);
+        }
+
+        @Override
+        public void handleChunk(RestChannel channel, ReleasableBytesReference chunk, boolean isLast) {
+            fail("full body should not be handled as a chunk");
         }
     }
 

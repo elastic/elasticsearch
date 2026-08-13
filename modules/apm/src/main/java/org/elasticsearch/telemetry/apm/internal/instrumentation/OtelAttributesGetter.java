@@ -19,8 +19,7 @@ final class OtelAttributesGetter implements HttpServerAttributesGetter<RequestAn
 
     @Override
     public String getUrlScheme(RequestAndRoute request) {
-        // TODO pass the scheme from netty
-        return null;
+        return request.request().getHttpRequest().getScheme();
     }
 
     @Override

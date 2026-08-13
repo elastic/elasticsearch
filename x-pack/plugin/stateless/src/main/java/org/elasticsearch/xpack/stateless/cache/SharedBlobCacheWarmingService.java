@@ -1748,7 +1748,10 @@ public class SharedBlobCacheWarmingService {
                 try {
                     cacheWarmingPageAlignedBytesTotalMetric.incrementBy(totalBytesCopied.get(), warmingRun.labels());
                 } catch (Throwable t) {
-                    logger.error("Failed to record page-aligned bytes metric for {} {}", warmingRun.shardId(), warmingRun.type(), t);
+                    logger.warn(
+                        () -> Strings.format("Failed to record page-aligned bytes metric for %s %s", warmingRun.shardId(), warmingRun.type()),
+                        t
+                    );
                 }
             });
         }

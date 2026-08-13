@@ -59,14 +59,11 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
 
     public void testConstant() throws IOException {
         double[] bucketValues = DoubleStream.generate(() -> 10).limit(100).toArray();
-        testChangeType(
-            bucketValues,
-            (changeType, msg) -> assertThat(msg, changeType, instanceOf(ChangeType.Stationary.class))
-        );
+        testChangeType(bucketValues, (changeType, msg) -> assertThat(msg, changeType, instanceOf(ChangeType.Stationary.class)));
     }
 
     public void testSlopeUp() throws IOException {
-        NormalDistribution normal = new NormalDistribution(RandomGeneratorFactory.createRandomGenerator(Randomness.get()), 0, 2);
+        NormalDistribution normal = new NormalDistribution(RandomGeneratorFactory.createRandomGenerator(Randomness.get()), 0, 0.1);
         AtomicInteger i = new AtomicInteger();
         double[] bucketValues = DoubleStream.generate(() -> i.addAndGet(1) + normal.sample()).limit(40).toArray();
         testChangeType(bucketValues, (changeType, msg) -> {
@@ -80,7 +77,7 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
     }
 
     public void testSlopeDown() throws IOException {
-        NormalDistribution normal = new NormalDistribution(RandomGeneratorFactory.createRandomGenerator(Randomness.get()), 0, 2);
+        NormalDistribution normal = new NormalDistribution(RandomGeneratorFactory.createRandomGenerator(Randomness.get()), 0, 0.1);
         AtomicInteger i = new AtomicInteger(40);
         double[] bucketValues = DoubleStream.generate(() -> i.decrementAndGet() + normal.sample()).limit(40).toArray();
         testChangeType(bucketValues, (changeType, msg) -> {
@@ -95,36 +92,28 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
     }
 
     public void testSlopeChange() throws IOException {
-        NormalDistribution normal = new NormalDistribution(RandomGeneratorFactory.createRandomGenerator(Randomness.get()), 0, 1);
+        NormalDistribution normal = new NormalDistribution(RandomGeneratorFactory.createRandomGenerator(Randomness.get()), 0, 0.1);
         AtomicInteger i = new AtomicInteger();
         double[] bucketValues = DoubleStream.concat(
             DoubleStream.generate(() -> 10 + normal.sample()).limit(30),
             DoubleStream.generate(() -> (11 + 2 * i.incrementAndGet()) + normal.sample()).limit(20)
         ).toArray();
         testChangeType(bucketValues, (changeType, msg) -> {
-            assertThat(
-                msg,
-                changeType,
-                anyOf(instanceOf(ChangeType.TrendChange.class), instanceOf(ChangeType.NonStationary.class))
-            );
+            assertThat(msg, changeType, anyOf(instanceOf(ChangeType.TrendChange.class), instanceOf(ChangeType.NonStationary.class)));
             if (changeType instanceof ChangeType.NonStationary nonStationary) {
-                assertThat(nonStationary.getTrend(), equalTo("increasing"));
+                assertThat(msg, nonStationary.getTrend(), equalTo("increasing"));
             }
         });
     }
 
     public void testSpike() throws IOException {
-        NormalDistribution normal = new NormalDistribution(RandomGeneratorFactory.createRandomGenerator(Randomness.get()), 0, 2);
+        NormalDistribution normal = new NormalDistribution(RandomGeneratorFactory.createRandomGenerator(Randomness.get()), 0, 0.1);
         double[] bucketValues = DoubleStream.concat(
             DoubleStream.generate(() -> 10 + normal.sample()).limit(40),
             DoubleStream.concat(DoubleStream.of(30 + normal.sample()), DoubleStream.generate(() -> 10 + normal.sample()).limit(40))
         ).toArray();
         testChangeType(bucketValues, (changeType, msg) -> {
-            assertThat(
-                msg,
-                changeType,
-                anyOf(instanceOf(ChangeType.Spike.class), instanceOf(ChangeType.DistributionChange.class))
-            );
+            assertThat(msg, changeType, anyOf(instanceOf(ChangeType.Spike.class), instanceOf(ChangeType.DistributionChange.class)));
             if (changeType instanceof ChangeType.Spike) {
                 assertThat(changeType.changePoint(), equalTo(40));
             }
@@ -132,17 +121,13 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
     }
 
     public void testDip() throws IOException {
-        NormalDistribution normal = new NormalDistribution(RandomGeneratorFactory.createRandomGenerator(Randomness.get()), 0, 1);
+        NormalDistribution normal = new NormalDistribution(RandomGeneratorFactory.createRandomGenerator(Randomness.get()), 0, 0.1);
         double[] bucketValues = DoubleStream.concat(
             DoubleStream.generate(() -> 100 + normal.sample()).limit(40),
             DoubleStream.concat(DoubleStream.of(30 + normal.sample()), DoubleStream.generate(() -> 100 + normal.sample()).limit(40))
         ).toArray();
         testChangeType(bucketValues, (changeType, msg) -> {
-            assertThat(
-                msg,
-                changeType,
-                anyOf(instanceOf(ChangeType.Dip.class), instanceOf(ChangeType.DistributionChange.class))
-            );
+            assertThat(msg, changeType, anyOf(instanceOf(ChangeType.Dip.class), instanceOf(ChangeType.DistributionChange.class)));
             if (changeType instanceof ChangeType.Dip) {
                 assertThat(changeType.changePoint(), equalTo(40));
             }
@@ -150,7 +135,7 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
     }
 
     public void testStepChange() throws IOException {
-        NormalDistribution normal = new NormalDistribution(RandomGeneratorFactory.createRandomGenerator(Randomness.get()), 0, 1);
+        NormalDistribution normal = new NormalDistribution(RandomGeneratorFactory.createRandomGenerator(Randomness.get()), 0, 0.1);
         double[] bucketValues = DoubleStream.concat(
             DoubleStream.generate(() -> 10 + normal.sample()).limit(20),
             DoubleStream.generate(() -> 30 + normal.sample()).limit(20)

@@ -1,7 +1,4 @@
 tests:
-- class: org.elasticsearch.xpack.ml.aggs.changepoint.ChangePointAggregatorTests
-  method: testSlopeUp
-  issue: https://github.com/elastic/elasticsearch/issues/156237
 - class: org.elasticsearch.xpack.apmdata.APMYamlTestSuiteIT
   method: test {yaml=/10_apm/Test template reinstallation}
   issue: https://github.com/elastic/elasticsearch/issues/116445
@@ -583,12 +580,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.analysis.AnalyzerSubqueryTests
   method: testTSSubqueryWithConflictingTypesAndExplicitCast
   issue: https://github.com/elastic/elasticsearch/issues/156229
-- class: org.elasticsearch.xpack.ml.aggs.changepoint.ChangePointAggregatorTests
-  method: testSlopeChange
-  issue: https://github.com/elastic/elasticsearch/issues/156230
-- class: org.elasticsearch.xpack.ml.aggs.changepoint.ChangePointAggregatorTests
-  method: testSlopeDown
-  issue: https://github.com/elastic/elasticsearch/issues/156231
 - class: org.elasticsearch.xpack.esql.qa.parquet.ParquetCompressedFormatSpecIT
   method: test {csv-spec:external-basic.aggregateByGender [lz4raw/HTTP]}
   issue: https://github.com/elastic/elasticsearch/issues/156241
@@ -756,9 +747,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecStringIT
   method: test {csv-spec:string.mvStringNotEqualsFound}
   issue: https://github.com/elastic/elasticsearch/issues/156512
-- class: org.elasticsearch.xpack.ml.aggs.changepoint.ChangePointAggregatorTests
-  method: testSpike
-  issue: https://github.com/elastic/elasticsearch/issues/156516
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecStringIT
   method: test {csv-spec:string.mvKeywordNotEqualsMultiValueConstant}
   issue: https://github.com/elastic/elasticsearch/issues/156517

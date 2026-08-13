@@ -115,9 +115,8 @@ public final class DateFieldMapper extends FieldMapper {
     public static final DateFormatter DEFAULT_DATE_TIME_NANOS_FORMATTER = DateFormatter.forPattern(
         "strict_date_optional_time_nanos||epoch_millis"
     ).withLocale(DEFAULT_LOCALE);
-    private static final DateMathParser EPOCH_MILLIS_PARSER = DateFormatter.forPattern("epoch_millis")
-        .withLocale(DEFAULT_LOCALE)
-        .toDateMathParser();
+    private static final DateFormatter EPOCH_MILLIS_FORMATTER = DateFormatter.forPattern("epoch_millis").withLocale(DEFAULT_LOCALE);
+    private static final DateMathParser EPOCH_MILLIS_PARSER = EPOCH_MILLIS_FORMATTER.toDateMathParser();
     public static final NodeFeature INVALID_DATE_FIX = new NodeFeature("mapper.range.invalid_date_fix");
 
     // FieldType constants for the Lucene field variants emitted by the columnar parse path.
@@ -1338,7 +1337,7 @@ public final class DateFieldMapper extends FieldMapper {
             final var dateFormatter = fieldType().dateTimeFormatter();
             epochCompatible = dateFormatter.equals(DEFAULT_DATE_TIME_FORMATTER)
                 || dateFormatter.equals(DEFAULT_DATE_TIME_NANOS_FORMATTER)
-                || dateFormatter.equals(EPOCH_MILLIS_PARSER);
+                || dateFormatter.equals(EPOCH_MILLIS_FORMATTER);
         }
         EscfColumnBuilder builder = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, BytesRefRecycler.NON_RECYCLING_INSTANCE);
         builder.lockScalar(EscfColumnKind.LONG);
@@ -1416,7 +1415,7 @@ public final class DateFieldMapper extends FieldMapper {
             && context.parser().numberType() == XContentParser.NumberType.LONG
             && (dateFormatter.equals(DEFAULT_DATE_TIME_FORMATTER)
                 || dateFormatter.equals(DEFAULT_DATE_TIME_NANOS_FORMATTER)
-                || dateFormatter.equals(EPOCH_MILLIS_PARSER));
+                || dateFormatter.equals(EPOCH_MILLIS_FORMATTER));
     }
 
     private void indexValue(DocumentParserContext context, long timestamp) {

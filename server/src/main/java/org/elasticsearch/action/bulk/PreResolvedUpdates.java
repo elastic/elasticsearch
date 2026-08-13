@@ -79,6 +79,8 @@ public final class PreResolvedUpdates implements Releasable {
         UpdateHelper.PreResolvedUpdate[] slots = null;
         try {
             Set<String> seenIds = Sets.newHashSetWithExpectedSize(items.length);
+            // Shared per segment so Lucene's CompressingStoredFieldsReader can reuse its
+            // per-chunk decompression state across docs in the same leaf.
             IdentityHashMap<LeafReader, StoredFields> storedFieldsCache = null;
             for (int i = 0; i < items.length; i++) {
                 final DocWriteRequest<?> itemRequest = items[i].request();

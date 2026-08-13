@@ -522,13 +522,13 @@ public final class DateFieldMapper extends FieldMapper {
         }
     }
 
-    public static final TypeParser MILLIS_PARSER = createTypeParserWithLegacySupport((n, c) -> {
-        return new Builder(n, Resolution.MILLISECONDS, c.getDateFormatter(), c.scriptCompiler(), c.getIndexSettings());
-    });
+    public static final TypeParser MILLIS_PARSER = createTypeParserWithLegacySupport(
+        (n, c) -> new Builder(n, Resolution.MILLISECONDS, c.getDateFormatter(), c.scriptCompiler(), c.getIndexSettings())
+    );
 
-    public static final TypeParser NANOS_PARSER = createTypeParserWithLegacySupport((n, c) -> {
-        return new Builder(n, Resolution.NANOSECONDS, c.getDateFormatter(), c.scriptCompiler(), c.getIndexSettings());
-    });
+    public static final TypeParser NANOS_PARSER = createTypeParserWithLegacySupport(
+        (n, c) -> new Builder(n, Resolution.NANOSECONDS, c.getDateFormatter(), c.scriptCompiler(), c.getIndexSettings())
+    );
 
     public static final class DateFieldType extends MappedFieldType {
         final DateFormatter dateTimeFormatter;
@@ -928,7 +928,7 @@ public final class DateFieldMapper extends FieldMapper {
                 long minValue = Long.MAX_VALUE;
                 long maxValue = Long.MIN_VALUE;
                 List<LeafReaderContext> leaves = reader.leaves();
-                if (leaves.size() == 0) {
+                if (leaves.isEmpty()) {
                     // no data, so nothing matches
                     return Relation.DISJOINT;
                 }
@@ -1366,7 +1366,7 @@ public final class DateFieldMapper extends FieldMapper {
                 if (ignoreMalformed) {
                     context.addIgnoredField(mappedFieldType.name());
                     if (isSourceSynthetic) {
-                        FallbackPostMapper.capture(context, fullPath(), FallbackPostMapper.Reason.MALFORMED);
+                        IgnoreMalformedStoredValues.storeMalformedValueForSyntheticSource(context, fullPath(), context.parser());
                     } else {
                         context.parser().skipChildren();
                     }
@@ -1383,7 +1383,7 @@ public final class DateFieldMapper extends FieldMapper {
                         context.addIgnoredField(mappedFieldType.name());
                         if (isSourceSynthetic) {
                             // Save a copy of the field so synthetic source can load it
-                            FallbackPostMapper.capture(context, fullPath(), FallbackPostMapper.Reason.MALFORMED);
+                            IgnoreMalformedStoredValues.storeMalformedValueForSyntheticSource(context, fullPath(), context.parser());
                         }
                         return;
                     } else {

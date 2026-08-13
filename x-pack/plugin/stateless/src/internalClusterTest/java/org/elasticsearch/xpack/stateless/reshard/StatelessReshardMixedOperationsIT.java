@@ -102,8 +102,9 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
             // or when keepalive expires.
             // With `ISOLATE_NODE` disruption it is possible that a reader context is opened
             // to execute a search but not closed since the node is isolated and search failed on this shard.
-            // To prevent asserts for leaked reader contexts we shorten the keepalive.
-            .put(SearchService.DEFAULT_KEEPALIVE_SETTING.getKey(), TimeValue.timeValueSeconds(1));
+            // To prevent asserts for leaked reader contexts we shorten both the keepalive and the reaper interval
+            .put(SearchService.DEFAULT_KEEPALIVE_SETTING.getKey(), TimeValue.timeValueSeconds(1))
+            .put(SearchService.KEEPALIVE_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1));
     }
 
     @Override

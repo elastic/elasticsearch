@@ -53,6 +53,14 @@ public class StatelessAbortRunningMergesOnRelocationIT extends AbstractStateless
 
     private static final int MAX_CONCURRENT_RUNNING_MERGES = 2;
 
+    /**
+     * Parked merges and the gated pre-flush upload are held across {@code startIndexNode} /
+     * {@code ensureStableCluster} / reroute / assertions. That window can exceed
+     * {@link org.elasticsearch.test.ESTestCase#SAFE_AWAIT_TIMEOUT} on slow CI (see #156224),
+     * and timing out on a merge thread fatally closes the IndexWriter.
+     */
+    private static final TimeValue PARKED_OPERATION_TIMEOUT = TimeValue.THIRTY_SECONDS;
+
     @Override
     protected boolean addMockFsRepository() {
         return false;
@@ -285,7 +293,7 @@ public class StatelessAbortRunningMergesOnRelocationIT extends AbstractStateless
         void maybeBlock(String blobName) {
             if (StatelessCompoundCommit.startsWithBlobPrefix(blobName) && blockNextCommitUpload.compareAndSet(true, false)) {
                 blocked.countDown();
-                safeAwait(proceed);
+                safeAwait(proceed, PARKED_OPERATION_TIMEOUT);
             }
         }
 
@@ -322,7 +330,7 @@ public class StatelessAbortRunningMergesOnRelocationIT extends AbstractStateless
 
         private void maybeBlockMerge(String indexName) {
             if (indexName.equals(blockMergesForIndex)) {
-                safeAwait(proceedMerge);
+                safeAwait(proceedMerge, PARKED_OPERATION_TIMEOUT);
             }
         }
 

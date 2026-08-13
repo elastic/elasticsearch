@@ -917,3 +917,6 @@ tests:
 - class: org.elasticsearch.xpack.core.security.authc.service.ServiceAccountTokenTests
   method: testBearerString
   issue: https://github.com/elastic/elasticsearch/issues/156716
+- class: org.elasticsearch.xpack.core.watcher.crypto.CryptoServiceTests
+  method: testEncryptionAndDecryptionChars
+  issue: https://github.com/elastic/elasticsearch/issues/156717

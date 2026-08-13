@@ -38,10 +38,10 @@ final class AshSphericalScalarQuantizer {
     /**
      * Result of batch quantization.
      *
-     * @param centeredCodes codes centered around zero, shape (n, nDims)
+     * @param centeredCodes codes centered around zero, row-major (n x nDims)
      * @param codeNorms L2 norm of each code vector, length n
      */
-    record QuantizeResult(float[][] centeredCodes, float[] codeNorms) {}
+    record QuantizeResult(float[] centeredCodes, float[] codeNorms) {}
 
     /**
      * Creates a spherical scalar quantizer with the given bit width.
@@ -60,18 +60,20 @@ final class AshSphericalScalarQuantizer {
         return bitsPerDim;
     }
 
-    QuantizeResult encode(float[][] x) {
-        int n = x.length;
-        if (n == 0) {
-            return new QuantizeResult(new float[0][0], new float[0]);
-        }
-        int nDims = x[0].length;
-        float[][] centeredCodes = new float[n][nDims];
+    /**
+     * Quantizes {@code n} vectors of {@code nDims} components each.
+     *
+     * @param x the vectors to quantize, row-major (n x nDims)
+     * @param n number of vectors
+     * @param nDims components per vector
+     */
+    QuantizeResult encode(float[] x, int n, int nDims) {
+        float[] centeredCodes = new float[n * nDims];
         float[] codeNorms = new float[n];
 
         for (int i = 0; i < n; i++) {
-            float norm = quantizeExact(x[i], centeredCodes[i], nDims);
-            codeNorms[i] = norm;
+            int base = i * nDims;
+            codeNorms[i] = quantizeExact(x, base, centeredCodes, base, nDims);
         }
         return new QuantizeResult(centeredCodes, codeNorms);
     }
@@ -79,34 +81,36 @@ final class AshSphericalScalarQuantizer {
     SingleQuantizeResult encodeOne(float[] xLatent) {
         int nDims = xLatent.length;
         float[] out = new float[nDims];
-        float norm = quantizeExact(xLatent, out, nDims);
+        float norm = quantizeExact(xLatent, 0, out, 0, nDims);
         return new SingleQuantizeResult(out, norm);
     }
 
     /**
-     * Greedy optimal quantization for a single vector.
-     * Returns the norm of the centered code and writes the code to {@code out}.
+     * Greedy optimal quantization for a single vector of {@code d} components read from
+     * {@code z[zOffset..]}. Returns the norm of the centered code and writes the code to
+     * {@code out[outOffset..]}. The offsets let a caller quantize one row of a flat
+     * row-major matrix in place.
      */
-    private float quantizeExact(float[] z, float[] out, int d) {
+    private float quantizeExact(float[] z, int zOffset, float[] out, int outOffset, int d) {
         int numAbsLevels = 1 << (bitsPerDim - 1);
         int nSteps = numAbsLevels - 1;
 
         if (nSteps == 0) {
-            return quantizeExact1Bit(z, out, d);
+            return quantizeExact1Bit(z, zOffset, out, outOffset, d);
         }
         if (nSteps == 1) {
-            return quantizeExact2Bit(z, out, d);
+            return quantizeExact2Bit(z, zOffset, out, outOffset, d);
         }
-        return quantizeExactGeneral(z, out, d, numAbsLevels, nSteps);
+        return quantizeExactGeneral(z, zOffset, out, outOffset, d, numAbsLevels, nSteps);
     }
 
     /**
      * 1-bit quantization: each dimension is assigned magnitude 0.5 with the sign of the input.
      * The norm is always sqrt(0.25 * d) = 0.5 * sqrt(d).
      */
-    private static float quantizeExact1Bit(float[] z, float[] out, int d) {
+    private static float quantizeExact1Bit(float[] z, int zOffset, float[] out, int outOffset, int d) {
         for (int j = 0; j < d; j++) {
-            out[j] = Math.copySign(0.5f, z[j]);
+            out[outOffset + j] = Math.copySign(0.5f, z[zOffset + j]);
         }
         return (float) Math.sqrt(0.25 * d);
     }
@@ -118,12 +122,12 @@ final class AshSphericalScalarQuantizer {
      * by |z_j| descending and sweeps to find the cutoff that maximizes
      * cumDot / sqrt(cumNormSq), where upgrading dimension j adds |z_j| to cumDot and 2.0 to cumNormSq.
      */
-    private static float quantizeExact2Bit(float[] z, float[] out, int d) {
+    private static float quantizeExact2Bit(float[] z, int zOffset, float[] out, int outOffset, int d) {
         int[] order = new int[d];
         float[] absZ = new float[d];
         for (int j = 0; j < d; j++) {
             order[j] = j;
-            absZ[j] = Math.abs(z[j]);
+            absZ[j] = Math.abs(z[zOffset + j]);
         }
         IndirectSorter.sortDescendingByFloat(order, absZ, d);
 
@@ -158,27 +162,27 @@ final class AshSphericalScalarQuantizer {
 
         // Write output: upgraded dims get magnitude 1.5, others stay at 0.5
         for (int j = 0; j < d; j++) {
-            out[j] = Math.copySign(0.5f, z[j]);
+            out[outOffset + j] = Math.copySign(0.5f, z[zOffset + j]);
         }
         for (int k = 0; k < bestK; k++) {
             int dim = order[k];
-            out[dim] = Math.copySign(1.5f, z[dim]);
+            out[outOffset + dim] = Math.copySign(1.5f, z[zOffset + dim]);
         }
-        float norm = ESVectorUtil.dotProduct(out, out, d);
+        float norm = ESVectorUtil.dotProduct(out, outOffset, out, outOffset, d);
         return (float) Math.sqrt(norm);
     }
 
     /**
      * General quantization path for bitsPerDim > 2 (nSteps > 1).
      */
-    private float quantizeExactGeneral(float[] z, float[] out, int d, int numAbsLevels, int nSteps) {
+    private float quantizeExactGeneral(float[] z, int zOffset, float[] out, int outOffset, int d, int numAbsLevels, int nSteps) {
 
         // Extract signs and absolute values
         float[] signs = new float[d];
         float[] absZ = new float[d];
         for (int j = 0; j < d; j++) {
-            signs[j] = Math.copySign(1.0f, z[j]);
-            absZ[j] = Math.abs(z[j]);
+            signs[j] = Math.copySign(1.0f, z[zOffset + j]);
+            absZ[j] = Math.abs(z[zOffset + j]);
         }
 
         // Base level: all at 0.5
@@ -263,9 +267,9 @@ final class AshSphericalScalarQuantizer {
         // Final conversion: centered code = sign * (0.5 + bestIdx)
         for (int j = 0; j < d; j++) {
             float mag = 0.5f + bestIdx[j];
-            out[j] = signs[j] * mag;
+            out[outOffset + j] = signs[j] * mag;
         }
-        float norm = ESVectorUtil.dotProduct(out, out, d);
+        float norm = ESVectorUtil.dotProduct(out, outOffset, out, outOffset, d);
         return (float) Math.sqrt(norm);
     }
 }

@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.stateless.recovery.RelocationSourceMetrics;
 /// Tracks the duration of each phase on both the relocation source (initial flush, permit acquisition,
 /// second flush, handoff) and the relocation target (pre-recovery, indexing shard state read, engine open).
 /// Registered only on index nodes; search nodes do not participate in primary relocation.
-public class StatelessRelocationMetricsCollector {
+public class StatelessPrimaryRelocationMetricsCollector {
 
     // The total relocation duration is already covered by es.recovery.shard.total.time (target-side recovery timer);
     // these phases break it down further.
@@ -32,7 +32,9 @@ public class StatelessRelocationMetricsCollector {
     public static final String RELOCATION_TARGET_OPEN_ENGINE_TIME_METRIC_IN_SECONDS =
         "es.recovery.shard.primary.relocation.target.open_engine.time";
 
-    public static final StatelessRelocationMetricsCollector NOOP = new StatelessRelocationMetricsCollector(MeterRegistry.NOOP);
+    public static final StatelessPrimaryRelocationMetricsCollector NOOP = new StatelessPrimaryRelocationMetricsCollector(
+        MeterRegistry.NOOP
+    );
 
     private final DoubleHistogram relocationInitialFlushDurationMetric;
     private final DoubleHistogram relocationAcquirePermitsDurationMetric;
@@ -42,7 +44,7 @@ public class StatelessRelocationMetricsCollector {
     private final DoubleHistogram relocationTargetReadIndexingShardStateDurationMetric;
     private final DoubleHistogram relocationTargetOpenEngineDurationMetric;
 
-    public StatelessRelocationMetricsCollector(MeterRegistry meterRegistry) {
+    public StatelessPrimaryRelocationMetricsCollector(MeterRegistry meterRegistry) {
         relocationInitialFlushDurationMetric = meterRegistry.registerDoubleHistogram(
             RELOCATION_INITIAL_FLUSH_TIME_METRIC_IN_SECONDS,
             "Time spent in the initial flush before acquiring all primary operation permits, measured on the source",

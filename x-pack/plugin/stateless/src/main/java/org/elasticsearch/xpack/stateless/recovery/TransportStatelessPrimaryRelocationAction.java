@@ -77,7 +77,7 @@ import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.utils.StatelessCommitServiceProvider;
-import org.elasticsearch.xpack.stateless.utils.StatelessRelocationMetricsCollectorProvider;
+import org.elasticsearch.xpack.stateless.utils.StatelessPrimaryRelocationMetricsCollectorProvider;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -136,7 +136,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
     private final IndexShardCacheWarmer indexShardCacheWarmer;
     private final HollowShardsService hollowShardsService;
     private final HollowShardsMetrics hollowShardsMetrics;
-    private final StatelessRelocationMetricsCollectorProvider relocationMetricsCollectorProvider;
+    private final StatelessPrimaryRelocationMetricsCollectorProvider relocationMetricsCollectorProvider;
 
     @Inject
     public TransportStatelessPrimaryRelocationAction(
@@ -150,7 +150,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         IndexShardCacheWarmer indexShardCacheWarmer,
         HollowShardsService hollowShardsService,
         HollowShardsMetrics hollowShardsMetrics,
-        StatelessRelocationMetricsCollectorProvider relocationMetricsCollectorProvider
+        StatelessPrimaryRelocationMetricsCollectorProvider relocationMetricsCollectorProvider
     ) {
         super(TYPE.name(), actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.transportService = transportService;

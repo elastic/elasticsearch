@@ -38,7 +38,7 @@ import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicator;
 import org.elasticsearch.xpack.stateless.lucene.IndexBlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.lucene.IndexDirectory;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
-import org.elasticsearch.xpack.stateless.recovery.metering.StatelessRelocationMetricsCollector;
+import org.elasticsearch.xpack.stateless.recovery.metering.StatelessPrimaryRelocationMetricsCollector;
 import org.elasticsearch.xpack.stateless.reshard.SplitSourceService;
 import org.elasticsearch.xpack.stateless.reshard.SplitTargetService;
 import org.elasticsearch.xpack.stateless.snapshots.SnapshotsCommitService;
@@ -73,7 +73,7 @@ public class StatelessIndexNodeRecoveryListener extends AbstractStatelessRecover
     private final SplitSourceService splitSourceService;
     private final Executor bccHeaderReadExecutor;
     private final SnapshotsCommitService snapshotsCommitService;
-    private final StatelessRelocationMetricsCollector relocationMetricsCollector;
+    private final StatelessPrimaryRelocationMetricsCollector relocationMetricsCollector;
 
     public StatelessIndexNodeRecoveryListener(
         ThreadPool threadPool,
@@ -88,7 +88,7 @@ public class StatelessIndexNodeRecoveryListener extends AbstractStatelessRecover
         Executor bccHeaderReadExecutor,
         StatelessSharedBlobCacheService cacheService,
         SnapshotsCommitService snapshotsCommitService,
-        StatelessRelocationMetricsCollector relocationMetricsCollector
+        StatelessPrimaryRelocationMetricsCollector relocationMetricsCollector
     ) {
         super(objectStoreService, projectResolver);
         this.threadPool = threadPool;

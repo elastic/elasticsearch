@@ -206,8 +206,8 @@ import org.elasticsearch.xpack.stateless.recovery.TransportRegisterCommitForReco
 import org.elasticsearch.xpack.stateless.recovery.TransportSendRecoveryCommitRegistrationAction;
 import org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction;
 import org.elasticsearch.xpack.stateless.recovery.TransportStatelessUnpromotableRelocationAction;
+import org.elasticsearch.xpack.stateless.recovery.metering.StatelessPrimaryRelocationMetricsCollector;
 import org.elasticsearch.xpack.stateless.recovery.metering.StatelessRecoveryMetricsCollector;
-import org.elasticsearch.xpack.stateless.recovery.metering.StatelessRelocationMetricsCollector;
 import org.elasticsearch.xpack.stateless.recovery.metering.StatelessSearchNodeRecoveryMetricsCollector;
 import org.elasticsearch.xpack.stateless.recovery.shardinfo.SearchShardInformationIndexListener;
 import org.elasticsearch.xpack.stateless.recovery.shardinfo.SearchShardInformationMetricsCollector;
@@ -228,7 +228,7 @@ import org.elasticsearch.xpack.stateless.snapshots.TransportGetShardSnapshotComm
 import org.elasticsearch.xpack.stateless.utils.SearchShardSizeCollector;
 import org.elasticsearch.xpack.stateless.utils.SearchShardSizeCollectorProvider;
 import org.elasticsearch.xpack.stateless.utils.StatelessCommitServiceProvider;
-import org.elasticsearch.xpack.stateless.utils.StatelessRelocationMetricsCollectorProvider;
+import org.elasticsearch.xpack.stateless.utils.StatelessPrimaryRelocationMetricsCollectorProvider;
 import org.elasticsearch.xpack.stateless.xpack.DummyILMInfoTransportAction;
 import org.elasticsearch.xpack.stateless.xpack.DummyILMUsageTransportAction;
 import org.elasticsearch.xpack.stateless.xpack.DummyMonitoringInfoTransportAction;
@@ -514,7 +514,7 @@ public class StatelessPlugin extends Plugin
     private final SetOnce<HollowShardsService> hollowShardsService = new SetOnce<>();
     private final SetOnce<RecoveryCommitRegistrationHandler> recoveryCommitRegistrationHandler = new SetOnce<>();
     private final SetOnce<StatelessRecoveryMetricsCollector> recoveryMetricsCollector = new SetOnce<>();
-    private final SetOnce<StatelessRelocationMetricsCollector> relocationMetricsCollector = new SetOnce<>();
+    private final SetOnce<StatelessPrimaryRelocationMetricsCollector> relocationMetricsCollector = new SetOnce<>();
     private final SetOnce<DocumentParsingProvider> documentParsingProvider = new SetOnce<>();
     private final SetOnce<BlobCacheMetrics> blobCacheMetrics = new SetOnce<>();
     private final SetOnce<IndicesService> indicesService = new SetOnce<>();
@@ -986,8 +986,8 @@ public class StatelessPlugin extends Plugin
                 new BlobStoreHealthIndicator(settings, clusterService, electionStrategy.get(), threadPool::relativeTimeInMillis).init()
             )
         );
-        final StatelessRelocationMetricsCollector relocationMetricsCollector = createRelocationMetricsCollector(meterRegistry);
-        components.add(new StatelessRelocationMetricsCollectorProvider(relocationMetricsCollector));
+        final StatelessPrimaryRelocationMetricsCollector relocationMetricsCollector = createRelocationMetricsCollector(meterRegistry);
+        components.add(new StatelessPrimaryRelocationMetricsCollectorProvider(relocationMetricsCollector));
 
         setAndGet(this.recoveryMetricsCollector, createRecoveryMetricsCollector(meterRegistry));
 
@@ -1082,9 +1082,9 @@ public class StatelessPlugin extends Plugin
         return components;
     }
 
-    private StatelessRelocationMetricsCollector createRelocationMetricsCollector(final MeterRegistry meterRegistry) {
+    private StatelessPrimaryRelocationMetricsCollector createRelocationMetricsCollector(final MeterRegistry meterRegistry) {
         if (hasIndexRole) {
-            return setAndGet(this.relocationMetricsCollector, new StatelessRelocationMetricsCollector(meterRegistry));
+            return setAndGet(this.relocationMetricsCollector, new StatelessPrimaryRelocationMetricsCollector(meterRegistry));
         }
         return null;
     }

@@ -56,9 +56,7 @@ public class InTests extends AbstractFunctionTestCase {
             if (DataType.DATE_RANGE.supportedVersion().supportedLocally()) {
                 dateRanges(suppliers, i);
             }
-            if (DataType.DOUBLE_RANGE.supportedVersion().supportedLocally()) {
-                doubleRanges(suppliers, i);
-            }
+            doubleRanges(suppliers, i);
         }
         return parameterSuppliersFromTypedData(suppliers);
     }

@@ -56,9 +56,7 @@ public class AbsentTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.dateCases(1, 1000),
             MultiRowTestCaseSupplier.dateNanosCases(1, 1000),
             MultiRowTestCaseSupplier.dateRangeCases(1, 1000).stream().map(s -> s.withAppliesTo(dateRangeAppliesTo)).toList(),
-            EsqlCapabilities.Cap.DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V10.isEnabled()
-                ? MultiRowTestCaseSupplier.doubleRangeCases(1, 1000).stream().map(s1 -> s1.withAppliesTo(doubleRangeAppliesTo)).toList()
-                : List.<TestCaseSupplier.TypedDataSupplier>of(),
+            MultiRowTestCaseSupplier.doubleRangeCases(1, 1000).stream().map(s -> s.withAppliesTo(doubleRangeAppliesTo)).toList(),
             MultiRowTestCaseSupplier.denseVectorCases(1, 1000),
             MultiRowTestCaseSupplier.booleanCases(1, 1000),
             MultiRowTestCaseSupplier.ipCases(1, 1000),
@@ -98,6 +96,7 @@ public class AbsentTests extends AbstractAggregationTestCase {
             DataType.DATE_NANOS,
             DataType.DENSE_VECTOR,
             DataType.DOUBLE,
+            DataType.DOUBLE_RANGE,
             DataType.FLATTENED,
             DataType.GEO_POINT,
             DataType.GEO_SHAPE,
@@ -111,9 +110,6 @@ public class AbsentTests extends AbstractAggregationTestCase {
             DataType.EXPONENTIAL_HISTOGRAM,
             DataType.TDIGEST
         );
-        if (EsqlCapabilities.Cap.DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V10.isEnabled()) {
-            types = Stream.concat(types.stream(), Stream.of(DataType.DOUBLE_RANGE)).toList();
-        }
         for (var dataType : types) {
             var field = dataType == DataType.EXPONENTIAL_HISTOGRAM || dataType == DataType.TDIGEST
                 ? TestCaseSupplier.TypedData.multiRow(List.of(), dataType, "field")

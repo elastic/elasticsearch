@@ -23,5 +23,8 @@ serverless: preview
 :::{include} ../description/to_double_range.md
 :::
 
+:::{include} ../types/to_double_range.md
+:::
+
 :::{include} ../examples/to_double_range.md
 :::

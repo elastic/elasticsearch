@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -47,9 +46,10 @@ public class ValuesTests extends AbstractAggregationTestCase {
         var suppliers = new ArrayList<TestCaseSupplier>();
         FunctionAppliesTo dateRangeAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.5.0", "", false);
         FunctionAppliesTo doubleRangeAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.6.0", "", false);
-        List<TestCaseSupplier.TypedDataSupplier> doubleRangeCases = EsqlCapabilities.Cap.DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V10.isEnabled()
-            ? MultiRowTestCaseSupplier.doubleRangeCases(1, 1000).stream().map(s -> s.withAppliesTo(doubleRangeAppliesTo)).toList()
-            : List.of();
+        List<TestCaseSupplier.TypedDataSupplier> doubleRangeCases = MultiRowTestCaseSupplier.doubleRangeCases(1, 1000)
+            .stream()
+            .map(s -> s.withAppliesTo(doubleRangeAppliesTo))
+            .toList();
 
         Stream.of(
             MultiRowTestCaseSupplier.intCases(1, 1000, Integer.MIN_VALUE, Integer.MAX_VALUE, true),

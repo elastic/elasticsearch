@@ -44,6 +44,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.toMap;
+import static org.elasticsearch.index.mapper.RangeFieldMapper.ESQL_DOUBLE_RANGES;
 import static org.elasticsearch.index.mapper.RangeFieldMapper.ESQL_LONG_RANGES;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.areTypesCompatible;
 
@@ -341,7 +342,7 @@ public enum DataType implements Writeable {
         builder().esType("double_range")
             .estimatedSize(2 * Double.BYTES)
             .docValues()
-            .underConstruction(DataTypesTransportVersions.ESQL_DOUBLE_RANGE_TECH_PREVIEW)
+            .supportedSince(DataTypesTransportVersions.ESQL_DOUBLE_RANGE_TECH_PREVIEW, ESQL_DOUBLE_RANGES)
     ),
     /**
      * IP addresses. IPv4 address are always

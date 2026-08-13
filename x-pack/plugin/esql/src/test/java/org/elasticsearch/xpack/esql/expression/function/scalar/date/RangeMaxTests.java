@@ -82,19 +82,17 @@ public class RangeMaxTests extends AbstractScalarFunctionTestCase {
             }));
         }
 
-        if (DataType.DOUBLE_RANGE.supportedVersion().supportedLocally()) {
-            FunctionAppliesTo doubleRangeAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.6.0", "", false);
-            suppliers.add(new TestCaseSupplier("double range", List.of(DataType.DOUBLE_RANGE), () -> {
-                double to = 42.25;
-                var range = new DoubleRangeBlockBuilder.DoubleRange(-12.5, to);
-                return new TestCaseSupplier.TestCase(
-                    List.of(new TestCaseSupplier.TypedData(range, DataType.DOUBLE_RANGE, "field").withAppliesTo(doubleRangeAppliesTo)),
-                    "RangeMaxDoubleEvaluator[range=" + read + "]",
-                    DataType.DOUBLE,
-                    equalTo(to)
-                );
-            }));
-        }
+        FunctionAppliesTo doubleRangeAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.6.0", "", false);
+        suppliers.add(new TestCaseSupplier("double range", List.of(DataType.DOUBLE_RANGE), () -> {
+            double to = 42.25;
+            var range = new DoubleRangeBlockBuilder.DoubleRange(-12.5, to);
+            return new TestCaseSupplier.TestCase(
+                List.of(new TestCaseSupplier.TypedData(range, DataType.DOUBLE_RANGE, "field").withAppliesTo(doubleRangeAppliesTo)),
+                "RangeMaxDoubleEvaluator[range=" + read + "]",
+                DataType.DOUBLE,
+                equalTo(to)
+            );
+        }));
 
         return parameterSuppliersFromTypedDataWithDefaultChecks(false, suppliers);
     }

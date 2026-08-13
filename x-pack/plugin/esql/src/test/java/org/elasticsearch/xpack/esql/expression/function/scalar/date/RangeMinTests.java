@@ -83,19 +83,17 @@ public class RangeMinTests extends AbstractScalarFunctionTestCase {
             }));
         }
 
-        if (DataType.DOUBLE_RANGE.supportedVersion().supportedLocally()) {
-            FunctionAppliesTo doubleRangeAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.6.0", "", false);
-            suppliers.add(new TestCaseSupplier("double range", List.of(DataType.DOUBLE_RANGE), () -> {
-                double from = -12.5;
-                var range = new DoubleRangeBlockBuilder.DoubleRange(from, 42.25);
-                return new TestCaseSupplier.TestCase(
-                    List.of(new TestCaseSupplier.TypedData(range, DataType.DOUBLE_RANGE, "field").withAppliesTo(doubleRangeAppliesTo)),
-                    "RangeMinDoubleEvaluator[range=" + read + "]",
-                    DataType.DOUBLE,
-                    equalTo(from)
-                );
-            }));
-        }
+        FunctionAppliesTo doubleRangeAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.6.0", "", false);
+        suppliers.add(new TestCaseSupplier("double range", List.of(DataType.DOUBLE_RANGE), () -> {
+            double from = -12.5;
+            var range = new DoubleRangeBlockBuilder.DoubleRange(from, 42.25);
+            return new TestCaseSupplier.TestCase(
+                List.of(new TestCaseSupplier.TypedData(range, DataType.DOUBLE_RANGE, "field").withAppliesTo(doubleRangeAppliesTo)),
+                "RangeMinDoubleEvaluator[range=" + read + "]",
+                DataType.DOUBLE,
+                equalTo(from)
+            );
+        }));
 
         return parameterSuppliersFromTypedDataWithDefaultChecks(false, suppliers);
     }

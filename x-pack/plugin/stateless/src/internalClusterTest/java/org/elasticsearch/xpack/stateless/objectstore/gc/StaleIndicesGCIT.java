@@ -88,8 +88,7 @@ public class StaleIndicesGCIT extends AbstractStatelessPluginIntegTestCase {
     /// node, so when the test ends some primaries can never be assigned again.
     ///
     /// [AbstractStatelessPluginIntegTestCase#beforeIndexDeletion] flushes *every* index to release commits held by the current
-    /// VBCC, and a flush against an unassigned primary does not give up until
-    /// [org.elasticsearch.action.support.replication.ReplicationRequest#DEFAULT_TIMEOUT] (one minute) has elapsed.
+    /// VBCC, and a flush against an unassigned primary does not give up until the timeout (one minute by default) has elapsed.
     /// That stall dominated the runtime of this suite. An unassigned shard has no engine and therefore holds no commit, so
     /// restricting the flush to indices whose primaries are assigned releases exactly the same commits without the wait.
     @Override

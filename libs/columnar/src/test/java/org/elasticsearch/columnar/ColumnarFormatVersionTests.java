@@ -16,6 +16,8 @@ import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
+import org.elasticsearch.columnar.numeric.NumericPipeline;
+import org.elasticsearch.columnar.numeric.NumericPipelineSelector;
 import org.elasticsearch.columnar.substrate.ColumnarCodecUtil;
 import org.elasticsearch.test.ESTestCase;
 
@@ -52,34 +54,12 @@ public class ColumnarFormatVersionTests extends ESTestCase {
         }
     }
 
-    public void testWriteProfileBoundsEnforced() {
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> new ColumnarWriteProfile(new FormatVersion(FormatVersion.CURRENT.version() + 1))
-        );
-        final ColumnarWriteProfile ok = new ColumnarWriteProfile(FormatVersion.CURRENT);
-        assertEquals(FormatVersion.CURRENT, ok.version());
-    }
-
-    public void testCurrentProfileMatchesVersionCurrent() {
-        assertEquals(FormatVersion.CURRENT, ColumnarWriteProfile.current().version());
-    }
-
-    public void testBuilderNullArgsRejected() {
-        expectThrows(NullPointerException.class, () -> new ColumNARDocValuesFormat.Builder().pipelineSelector(null));
-        expectThrows(NullPointerException.class, () -> new ColumNARDocValuesFormat.Builder().writeProfile(null));
-    }
-
-    public void testBuilderInvalidBlockSizeRejected() {
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> new ColumNARDocValuesFormat.Builder().blockSize(ColumNARDocValuesFormat.MIN_BLOCK_SIZE - 1).build()
-        );
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> new ColumNARDocValuesFormat.Builder().blockSize(ColumNARDocValuesFormat.MAX_BLOCK_SIZE + 1).build()
-        );
-        expectThrows(IllegalArgumentException.class, () -> new ColumNARDocValuesFormat.Builder().blockSize(300).build());
+    public void testInvalidBlockSizeRejected() {
+        final NumericPipelineSelector sel = (f, t) -> NumericPipeline::defaultPipeline;
+        for (int bs : new int[] { 0, -1, 64, 127, 384, 640, ColumNARDocValuesFormat.MAX_BLOCK_SIZE * 2 }) {
+            final int blockSize = bs;
+            expectThrows(IllegalArgumentException.class, () -> new ColumNARDocValuesFormat(sel, blockSize));
+        }
     }
 
     private static void writeHeaderOnly(final ByteBuffersDirectory dir, final String name, final String codec, int version)

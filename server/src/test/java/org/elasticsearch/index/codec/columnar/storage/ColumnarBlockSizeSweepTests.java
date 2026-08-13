@@ -52,35 +52,35 @@ public class ColumnarBlockSizeSweepTests extends ColumnarNumericStorageTestBase 
     );
 
     public void testSweepMonotonicTimestamps() throws IOException {
-        runSweep("MONOTONIC_TIMESTAMPS", (f, t) -> (profile, bs) -> NumericPipeline.monotonicLongPipeline(bs));
+        runSweep("MONOTONIC_TIMESTAMPS", (f, t) -> NumericPipeline::monotonicLongPipeline);
     }
 
     public void testSweepTsdbSplit() throws IOException {
-        runSweep("TSDB_SPLIT", (f, t) -> (profile, bs) -> NumericPipeline.monotonicLongPipeline(bs));
+        runSweep("TSDB_SPLIT", (f, t) -> NumericPipeline::monotonicLongPipeline);
     }
 
     public void testSweepCounterSteady() throws IOException {
-        runSweep("COUNTER_STEADY", (f, t) -> (profile, bs) -> NumericPipeline.monotonicLongPipeline(bs));
+        runSweep("COUNTER_STEADY", (f, t) -> NumericPipeline::monotonicLongPipeline);
     }
 
     public void testSweepGauge() throws IOException {
-        runSweep("GAUGE", (f, t) -> (profile, bs) -> NumericPipeline.defaultPipeline(bs));
+        runSweep("GAUGE", (f, t) -> NumericPipeline::defaultPipeline);
     }
 
     public void testSweepSensorDoubles() throws IOException {
-        runSweep("SENSOR_DOUBLES", (f, t) -> (profile, bs) -> NumericPipeline.doubleGaugePipeline(bs));
+        runSweep("SENSOR_DOUBLES", (f, t) -> NumericPipeline::doubleGaugePipeline);
     }
 
     public void testSweepDoubleGauge() throws IOException {
-        runSweep("DOUBLE_GAUGE", (f, t) -> (profile, bs) -> NumericPipeline.doubleGaugePipeline(bs));
+        runSweep("DOUBLE_GAUGE", (f, t) -> NumericPipeline::doubleGaugePipeline);
     }
 
     public void testSweepDoubleCounter() throws IOException {
-        runSweep("DOUBLE_COUNTER", (f, t) -> (profile, bs) -> NumericPipeline.doubleCounterPipeline(bs));
+        runSweep("DOUBLE_COUNTER", (f, t) -> NumericPipeline::doubleCounterPipeline);
     }
 
     public void testSweepRandomFull() throws IOException {
-        runSweep("RANDOM_FULL", (f, t) -> (profile, bs) -> NumericPipeline.defaultPipeline(bs));
+        runSweep("RANDOM_FULL", (f, t) -> NumericPipeline::defaultPipeline);
     }
 
     private void runSweep(String workload, NumericPipelineSelector selector) throws IOException {
@@ -90,11 +90,7 @@ public class ColumnarBlockSizeSweepTests extends ColumnarNumericStorageTestBase 
 
     private void runParity(String workload, NumericPipelineSelector selector, long[] values) throws IOException {
         for (int blockSize : ES95_BLOCK_SIZES) {
-            final long columnar = measureConsumer(
-                new ColumNARDocValuesFormat.Builder().pipelineSelector(selector).blockSize(blockSize).build(),
-                values,
-                true
-            );
+            final long columnar = measureConsumer(new ColumNARDocValuesFormat(selector, blockSize), values, true);
             final long es95 = measureConsumer(es95Format(workload, blockSize == 512), values, false);
             final double ratio = (double) columnar / es95;
             logger.info(

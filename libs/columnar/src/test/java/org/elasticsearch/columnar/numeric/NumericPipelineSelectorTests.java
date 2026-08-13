@@ -24,7 +24,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.columnar.ColumNARDocValuesFormat;
 import org.elasticsearch.columnar.ColumnarFieldType;
-import org.elasticsearch.columnar.ColumnarWriteProfile;
 import org.elasticsearch.columnar.FormatVersion;
 import org.elasticsearch.columnar.substrate.BlockBytesCodec;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
@@ -63,47 +62,37 @@ public class NumericPipelineSelectorTests extends ESTestCase {
     public void testSelectorIsInvokedPerField() throws IOException {
         final NumericPipelineSelector selector = (fieldName, type) -> {
             assertEquals("my_field", fieldName);
-            return (profile, bs) -> NumericPipeline.defaultPipeline(bs);
+            return NumericPipeline::defaultPipeline;
         };
         writeAndReadMetadata("my_field", selector, longValues());
     }
 
     public void testDefaultPipelineTransformIds() throws IOException {
-        assertTransformIds((f, t) -> (profile, bs) -> NumericPipeline.defaultPipeline(bs), longValues(), DEFAULT_TRANSFORM_IDS);
+        assertTransformIds((f, t) -> NumericPipeline::defaultPipeline, longValues(), DEFAULT_TRANSFORM_IDS);
     }
 
     public void testSplitDeltaPipelineTransformIds() throws IOException {
-        assertTransformIds(
-            (f, t) -> (profile, bs) -> NumericPipeline.monotonicLongPipeline(bs),
-            monotonicLongs(),
-            SPLIT_DELTA_TRANSFORM_IDS
-        );
+        assertTransformIds((f, t) -> NumericPipeline::monotonicLongPipeline, monotonicLongs(), SPLIT_DELTA_TRANSFORM_IDS);
     }
 
     public void testAlpGaugePipelineTransformIds() throws IOException {
-        assertTransformIds((f, t) -> (profile, bs) -> NumericPipeline.doubleGaugePipeline(bs), doubleBits(), ALP_GAUGE_TRANSFORM_IDS);
+        assertTransformIds((f, t) -> NumericPipeline::doubleGaugePipeline, doubleBits(), ALP_GAUGE_TRANSFORM_IDS);
     }
 
     public void testAlpCounterPipelineTransformIds() throws IOException {
-        assertTransformIds((f, t) -> (profile, bs) -> NumericPipeline.doubleCounterPipeline(bs), doubleBits(), ALP_COUNTER_TRANSFORM_IDS);
+        assertTransformIds((f, t) -> NumericPipeline::doubleCounterPipeline, doubleBits(), ALP_COUNTER_TRANSFORM_IDS);
     }
 
-    public void testConsumerPassesProfileAndBlockSizeToTemplate() throws IOException {
+    public void testConsumerPassesBlockSizeToTemplate() throws IOException {
         final int blockSize = randomValidBlockSize();
-        final ColumnarWriteProfile profile = ColumnarWriteProfile.current();
-        final ColumnarWriteProfile[] capturedProfile = new ColumnarWriteProfile[1];
         final int[] capturedBlockSize = new int[1];
 
-        final NumericPipelineSelector capturingSelector = (fieldName, type) -> (p, bs) -> {
-            capturedProfile[0] = p;
+        final NumericPipelineSelector capturingSelector = (fieldName, type) -> bs -> {
             capturedBlockSize[0] = bs;
             return NumericPipeline.defaultPipeline(bs);
         };
 
-        final ColumNARDocValuesFormat format = new ColumNARDocValuesFormat.Builder().pipelineSelector(capturingSelector)
-            .blockSize(blockSize)
-            .writeProfile(profile)
-            .build();
+        final ColumNARDocValuesFormat format = new ColumNARDocValuesFormat(capturingSelector, blockSize);
 
         final FieldType fieldType = columnarBinaryFieldType(ColumnarFieldType.LONG);
         final BytesRefBuilder builder = new BytesRefBuilder();
@@ -117,15 +106,13 @@ public class NumericPipelineSelectorTests extends ESTestCase {
             writer.commit();
         }
 
-        assertNotNull("selector was not called through the consumer", capturedProfile[0]);
-        assertEquals(profile, capturedProfile[0]);
         assertEquals(blockSize, capturedBlockSize[0]);
     }
 
     public void testSelectorCanVaryPipelineByFieldName() throws IOException {
         final NumericPipelineSelector selector = (fieldName, type) -> fieldName.equals("alp_field")
-            ? (profile, bs) -> NumericPipeline.doubleGaugePipeline(bs)
-            : (profile, bs) -> NumericPipeline.defaultPipeline(bs);
+            ? NumericPipeline::doubleGaugePipeline
+            : NumericPipeline::defaultPipeline;
 
         assertArrayEquals(ALP_GAUGE_TRANSFORM_IDS, writeAndReadMetadata("alp_field", selector, doubleBits()).transformIds());
         assertArrayEquals(DEFAULT_TRANSFORM_IDS, writeAndReadMetadata("other_field", selector, longValues()).transformIds());
@@ -178,7 +165,7 @@ public class NumericPipelineSelectorTests extends ESTestCase {
                 ColumnarCodecUtil.writeHeader(out, "ColumNARData", FormatVersion.CURRENT, segmentId, "");
                 final int blockSize = randomValidBlockSize();
                 final NumericPipeline pipeline = selector.select(fieldName, ColumnarFieldType.LONG)
-                    .build(ColumnarWriteProfile.current(), blockSize);
+                    .build(blockSize);
                 written = NumericColumnWriter.write(
                     values.length,
                     values.length,

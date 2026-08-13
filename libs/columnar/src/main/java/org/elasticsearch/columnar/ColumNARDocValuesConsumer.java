@@ -44,11 +44,8 @@ import java.util.List;
  * into the long column. Field metadata is flushed on {@link #close()}.
  *
  * <p><b>Merge contract.</b> {@link #mergeBinaryField} re-encodes all source segments through the
- * current writer's pipeline. The output segment is stamped at the {@link ColumnarWriteProfile} version
- * supplied at construction time. There is no version-preserving merge and no mixed-version output
- * segment: a force-merge is a silent format upgrade. During a rolling upgrade, server-side wiring
- * will derive the gate from the index's creation {@code IndexVersion}, capped at what the oldest
- * data node in the cluster can read, so merges never produce a segment newer than that bound.
+ * current writer's pipeline. There is no version-preserving merge and no mixed-version output
+ * segment: a force-merge is a silent format upgrade.
  */
 final class ColumNARDocValuesConsumer extends DocValuesConsumer {
 
@@ -59,20 +56,13 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
     private final IndexOutput meta;
     private final List<FieldEntry> fields = new ArrayList<>();
     private final NumericPipelineSelector pipelineSelector;
-    private final ColumnarWriteProfile writeProfile;
     private final int blockSize;
     private boolean closed = false;
 
     private record FieldEntry(int fieldNumber, byte fieldTypeId, NumericColumnMetadata metadata) {}
 
-    ColumNARDocValuesConsumer(
-        SegmentWriteState state,
-        NumericPipelineSelector pipelineSelector,
-        int blockSize,
-        final ColumnarWriteProfile writeProfile
-    ) throws IOException {
+    ColumNARDocValuesConsumer(SegmentWriteState state, NumericPipelineSelector pipelineSelector, int blockSize) throws IOException {
         this.pipelineSelector = pipelineSelector;
-        this.writeProfile = writeProfile;
         this.blockSize = blockSize;
         this.maxDoc = state.segmentInfo.maxDoc();
         this.directory = state.directory;
@@ -88,7 +78,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             ColumnarCodecUtil.writeHeader(
                 data,
                 ColumNARDocValuesFormat.DATA_CODEC,
-                writeProfile.version(),
+                FormatVersion.CURRENT,
                 state.segmentInfo.getId(),
                 state.segmentSuffix
             );
@@ -102,7 +92,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             ColumnarCodecUtil.writeHeader(
                 meta,
                 ColumNARDocValuesFormat.META_CODEC,
-                writeProfile.version(),
+                FormatVersion.CURRENT,
                 state.segmentInfo.getId(),
                 state.segmentSuffix
             );
@@ -230,7 +220,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
 
         // A BINARY field can't carry a skipper, so the column builds its own skip index inline
         // during the value-encode pass — no extra cursor over the data.
-        final NumericPipeline pipeline = pipelineSelector.select(field.name, type).build(writeProfile, blockSize);
+        final NumericPipeline pipeline = pipelineSelector.select(field.name, type).build(blockSize);
         assert pipeline.blockSize() == blockSize
             : "template ignored blockSize argument: built " + pipeline.blockSize() + ", expected " + blockSize;
         NumericColumnMetadata metadata = NumericColumnWriter.write(

@@ -9,33 +9,23 @@
 
 package org.elasticsearch.columnar.numeric;
 
-import org.elasticsearch.columnar.ColumnarWriteProfile;
-
 /**
- * A factory that builds a {@link NumericPipeline} for a target write profile and block size.
- * Returned by {@link NumericPipelineSelector#select} so that the selector can express "which
- * pipeline type" without knowing the block size or the profile, while
+ * A factory that builds a {@link NumericPipeline} for a given block size. Returned by
+ * {@link NumericPipelineSelector#select} so that the selector can express "which pipeline type"
+ * without knowing the block size, while
  * {@link org.elasticsearch.columnar.ColumNARDocValuesFormat} remains the sole owner of the block
- * size decision and {@link org.elasticsearch.columnar.ColumNARDocValuesConsumer} passes the
- * profile through.
+ * size decision.
  *
- * <p>Baseline factories ignore the profile:
+ * <p>Typical usage as a method reference:
  * <pre>{@code
- * (profile, bs) -> NumericPipeline.monotonicLongPipeline(bs)
+ * (fieldName, type) -> NumericPipeline::monotonicLongPipeline
  * }</pre>
- *
- * <p>Future factories that require a minimum version compare
- * {@link ColumnarWriteProfile#version()} against a {@code FormatVersion.VERSION_*} constant at
- * build time before constructing the pipeline.
  */
 @FunctionalInterface
 public interface NumericPipelineTemplate {
 
     /**
-     * Builds a pipeline configured for the given write profile and block size. Baseline factories
-     * ignore {@code profile}. Factories that require a minimum version compare
-     * {@link ColumnarWriteProfile#version()} against a {@code VERSION_*} constant before
-     * constructing the pipeline.
+     * Builds a pipeline configured for the given block size.
      */
-    NumericPipeline build(ColumnarWriteProfile profile, int blockSize);
+    NumericPipeline build(int blockSize);
 }

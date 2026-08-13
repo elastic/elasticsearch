@@ -914,3 +914,6 @@ tests:
 - class: org.elasticsearch.xpack.core.inference.action.PutCCMConfigurationActionRequestTests
   method: testConcurrentEquals
   issue: https://github.com/elastic/elasticsearch/issues/156715
+- class: org.elasticsearch.xpack.core.security.authc.service.ServiceAccountTokenTests
+  method: testBearerString
+  issue: https://github.com/elastic/elasticsearch/issues/156716

@@ -16,6 +16,7 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
+import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -307,7 +308,8 @@ public final class FetchPhase {
             ? bytes -> memoryChecker.accept(bytes > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) bytes)
             : bytes -> {
                 if (bytes > 0) {
-                    context.circuitBreaker().addEstimateBytesAndMaybeBreak(bytes, "script_field");
+                    context.circuitBreaker()
+                        .addEstimateBytesAndMaybeBreak(bytes, ChildMemoryCircuitBreaker.CATEGORY_FETCH + "[script_field]");
                     scriptFieldsBreakerBytes[0] += bytes;
                 }
             };
@@ -347,7 +349,7 @@ public final class FetchPhase {
 
             IntConsumer memChecker = memoryChecker != null ? memoryChecker : bytes -> {
                 locallyAccumulatedBytes[0] += bytes;
-                if (context.checkCircuitBreaker(locallyAccumulatedBytes[0], "fetch source")) {
+                if (context.checkCircuitBreaker(locallyAccumulatedBytes[0], ChildMemoryCircuitBreaker.CATEGORY_FETCH + "[source]")) {
                     addRequestBreakerBytes(locallyAccumulatedBytes[0]);
                     locallyAccumulatedBytes[0] = 0;
                 }
@@ -445,7 +447,7 @@ public final class FetchPhase {
                 context.addFetchThreadsMetrics(docsIterator.getFetchMetricsDelta());
                 long leakedBytes = docsIterator.getRequestBreakerBytes();
                 if (leakedBytes > 0) {
-                    context.circuitBreaker().addWithoutBreaking(-leakedBytes);
+                    context.circuitBreaker().addWithoutBreaking(-leakedBytes, ChildMemoryCircuitBreaker.CATEGORY_FETCH);
                 }
                 buildListener.onFailure(e);
                 listener.onFailure(e);

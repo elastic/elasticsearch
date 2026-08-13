@@ -321,6 +321,11 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
     }
 
     @Override
+    public boolean contributesToScore() {
+        return true;
+    }
+
+    @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         if (false == isRuntimeSearch()) {
             return super.toEvaluator(toEvaluator);

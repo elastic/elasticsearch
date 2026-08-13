@@ -20,6 +20,7 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.LongValues;
 import org.apache.lucene.util.packed.DirectReader;
 import org.apache.lucene.util.packed.DirectWriter;
+import org.elasticsearch.common.CheckedIntFunction;
 import org.elasticsearch.index.codec.vectors.GenericFlatVectorReaders;
 import org.elasticsearch.index.codec.vectors.ash.AshPostingsVisitor;
 import org.elasticsearch.index.codec.vectors.ash.AshProjectionMatrix;
@@ -35,8 +36,6 @@ import org.elasticsearch.search.vectors.ESAcceptDocs;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.concurrent.ConcurrentHashMap;
-
-import org.elasticsearch.common.CheckedIntFunction;
 
 /**
  * ASH-specific implementation of {@link IVFVectorsReader}. Scores posting lists using

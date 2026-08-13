@@ -9,8 +9,6 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import com.carrotsearch.hppc.ObjectDoubleHashMap;
-
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
@@ -38,6 +36,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static java.util.Collections.emptySet;
 
@@ -57,7 +56,7 @@ public abstract sealed class RoutingAllocation permits ImmutableRoutingAllocatio
     protected final SnapshotShardSizeInfo shardSizeInfo;
 
     // Lazily populated; MutableRoutingAllocation invalidates entries when shard state changes.
-    final ObjectDoubleHashMap<String> nodeMaxShardWriteLoadProportionCache = new ObjectDoubleHashMap<>();
+    final Map<String, Double> nodeMaxShardWriteLoadProportionCache = new ConcurrentHashMap<>();
 
     private Map<ShardId, Set<String>> ignoredShardToNodes = null;
 

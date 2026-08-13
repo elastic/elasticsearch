@@ -920,3 +920,6 @@ tests:
 - class: org.elasticsearch.xpack.core.watcher.crypto.CryptoServiceTests
   method: testEncryptionAndDecryptionChars
   issue: https://github.com/elastic/elasticsearch/issues/156717
+- class: org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskASHVectorsFormatTests
+  method: testAshEuclideanScoreCorrectness
+  issue: https://github.com/elastic/elasticsearch/issues/156719

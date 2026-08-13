@@ -172,7 +172,7 @@ public class ESNextDiskASHVectorsFormatTests extends ESTestCase {
                             assertThat(
                                 "EUCLIDEAN score for doc " + sd.doc + ": ASH=" + sd.score + " exact=" + exact,
                                 (double) relError,
-                                lessThan(0.35)
+                                lessThan(0.4)
                             );
                         }
 

@@ -2866,7 +2866,7 @@ public class ApiKeyServiceTests extends ESTestCase {
 
     public void testCreationFailsIfAuthenticationIsCloudServiceAccount() throws IOException {
         final Authentication authentication = AuthenticationTestHelper.randomCloudServiceAccountAuthentication();
-        final CreateApiKeyRequest createApiKeyRequest = randomBoolean()
+        final AbstractCreateApiKeyRequest createApiKeyRequest = randomBoolean()
             ? new CreateApiKeyRequest(randomAlphaOfLengthBetween(3, 8), null, null)
             : CreateCrossClusterApiKeyRequest.withNameAndAccess(randomAlphaOfLengthBetween(3, 8), randomCrossClusterApiKeyAccessField());
         ApiKeyService service = createApiKeyService(Settings.EMPTY);

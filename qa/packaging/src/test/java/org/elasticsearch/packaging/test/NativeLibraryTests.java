@@ -185,9 +185,7 @@ public class NativeLibraryTests extends PackagingTestCase {
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/156597")
     public void test40ParquetRsNativeLibrary() throws Exception {
         assumeTrue("parquet-rs native library is only supported on Linux and macOS", Platforms.LINUX || Platforms.DARWIN);
-
         configureAndStart(SECURITY_DISABLED_SETTINGS);
-
         try {
             String logs = getElasticsearchLogs();
             assertThat(logs, containsString("Loaded parquet-rs native library"));

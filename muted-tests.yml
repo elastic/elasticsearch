@@ -911,3 +911,6 @@ tests:
 - class: org.elasticsearch.xpack.core.inference.action.PutCCMConfigurationActionRequestTests
   method: testBwcSerialization
   issue: https://github.com/elastic/elasticsearch/issues/156714
+- class: org.elasticsearch.xpack.core.inference.action.PutCCMConfigurationActionRequestTests
+  method: testConcurrentEquals
+  issue: https://github.com/elastic/elasticsearch/issues/156715

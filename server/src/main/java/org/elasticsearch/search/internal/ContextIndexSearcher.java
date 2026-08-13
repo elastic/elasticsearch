@@ -80,14 +80,46 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     @Nullable
     private CircuitBreaker circuitBreaker;
 
-    // ContextIndexSearcher instances are request-scoped while the threads executing their leaves are long-lived.
-    // Keep the ThreadLocal key static so completed requests cannot leave stale weak keys in worker ThreadLocalMaps.
-    // The active searcher prevents one searcher's leaf from releasing another searcher's out-of-band charge.
+    // Point-range scorers charge memory below searchLeaf, so a ThreadLocal associates each charge with the leaf whose finally block
+    // releases it. The key must be static because ContextIndexSearcher instances are request-scoped while search threads are long-lived.
     private static final ThreadLocal<LeafExecutionState> LEAF_EXECUTION_STATE = ThreadLocal.withInitial(LeafExecutionState::new);
 
     private static final class LeafExecutionState {
-        private ContextIndexSearcher activeSearcher;
+        private Object activeOwner;
+        private int activeLeafOrd = -1;
         private long bytes;
+    }
+
+    // The ThreadLocal only retains this lightweight identity token while a leaf is active, not the request-scoped searcher or its reader.
+    private final Object leafExecutionOwner = new Object();
+
+    private final class LeafExecutionScope implements Releasable {
+        private final LeafExecutionState state;
+        private final Object previousOwner;
+        private final int previousLeafOrd;
+        private final long baseline;
+        private final int leafOrd;
+
+        private LeafExecutionScope(LeafExecutionState state, int leafOrd) {
+            this.state = state;
+            this.previousOwner = state.activeOwner;
+            this.previousLeafOrd = state.activeLeafOrd;
+            this.baseline = state.bytes;
+            this.leafOrd = leafOrd;
+            state.activeOwner = leafExecutionOwner;
+            state.activeLeafOrd = leafOrd;
+        }
+
+        @Override
+        public void close() {
+            assert state.activeOwner == leafExecutionOwner && state.activeLeafOrd == leafOrd;
+            try {
+                releaseLeafExecutionBytes(state, baseline);
+            } finally {
+                state.activeOwner = previousOwner;
+                state.activeLeafOrd = previousLeafOrd;
+            }
+        }
     }
 
     private final AtomicLong outstandingPointRangeExecutionBytes = new AtomicLong();
@@ -216,16 +248,21 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      * {@link org.elasticsearch.common.breaker.CircuitBreakingException} when the reservation trips the
      * breaker; in that case nothing is recorded because the breaker did not commit the bytes.
      */
-    void chargeLeafExecutionBytes(long bytes) {
+    void chargeLeafExecutionBytes(LeafReaderContext leaf, long bytes) {
         if (circuitBreaker == null || bytes <= 0L) {
             return;
         }
         circuitBreaker.addEstimateBytesAndMaybeBreak(bytes, "pointrange-execution");
         LeafExecutionState state = LEAF_EXECUTION_STATE.get();
-        if (state.activeSearcher == this) {
+        if (state.activeOwner == leafExecutionOwner && state.activeLeafOrd == leaf.ord) {
             state.bytes += bytes;
         }
         outstandingPointRangeExecutionBytes.addAndGet(bytes);
+    }
+
+    @Nullable
+    private LeafExecutionScope enterLeafExecution(LeafReaderContext leaf) {
+        return circuitBreaker == null ? null : new LeafExecutionScope(LEAF_EXECUTION_STATE.get(), leaf.ord);
     }
 
     /**
@@ -569,13 +606,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     protected void searchLeaf(LeafReaderContext ctx, int minDocId, int maxDocId, Weight weight, Collector collector) throws IOException {
         cancellable.checkCancelled();
 
-        final LeafExecutionState leafExecutionState = circuitBreaker == null ? null : LEAF_EXECUTION_STATE.get();
-        final ContextIndexSearcher previousLeafSearcher = leafExecutionState == null ? null : leafExecutionState.activeSearcher;
-        final long leafExecutionBaseline = leafExecutionState == null ? 0L : leafExecutionState.bytes;
-        if (leafExecutionState != null) {
-            leafExecutionState.activeSearcher = this;
-        }
-        try {
+        try (LeafExecutionScope ignored = enterLeafExecution(ctx)) {
             final LeafCollector leafCollector;
             try {
                 leafCollector = collector.getLeafCollector(ctx);
@@ -623,14 +654,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             // Finish the leaf collection in preparation for the next.
             // This includes any collection that was terminated early via `CollectionTerminatedException`
             leafCollector.finish();
-        } finally {
-            if (leafExecutionState != null) {
-                try {
-                    releaseLeafExecutionBytes(leafExecutionState, leafExecutionBaseline);
-                } finally {
-                    leafExecutionState.activeSearcher = previousLeafSearcher;
-                }
-            }
         }
     }
 

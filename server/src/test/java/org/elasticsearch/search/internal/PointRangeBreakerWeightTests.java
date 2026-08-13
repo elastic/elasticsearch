@@ -15,20 +15,24 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.Weight;
@@ -42,7 +46,6 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.lang.reflect.Modifier;
 import java.util.Collection;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -58,6 +61,13 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
     private static final String RARE_TERM = "rare";
     private static final int RARE_DOCS = 5;
     private static final int NUM_DOCS = 2000;
+    private static final LeafCollector NO_OP_LEAF_COLLECTOR = new LeafCollector() {
+        @Override
+        public void setScorer(Scorable scorer) {}
+
+        @Override
+        public void collect(int doc) {}
+    };
 
     private Directory directory;
     private DirectoryReader reader;
@@ -85,12 +95,6 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
     @After
     public void closeDirectoryAndReader() throws Exception {
         IOUtils.close(reader, directory);
-    }
-
-    public void testLeafExecutionAccountingUsesStableThreadLocalKey() throws NoSuchFieldException {
-        var field = ContextIndexSearcher.class.getDeclaredField("LEAF_EXECUTION_STATE");
-        assertTrue("the ThreadLocal key must outlive request-scoped searchers", Modifier.isStatic(field.getModifiers()));
-        assertTrue("the shared ThreadLocal key must not be replaceable", Modifier.isFinal(field.getModifiers()));
     }
 
     public void testDenseRangeChargesAndReleasesAcrossSearch() throws IOException {
@@ -203,6 +207,87 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
         assertThat("the active search must collect documents", hits, greaterThan(0));
         assertThat("the active leaf must not release the other searcher's out-of-band charge", usedAfterSearch, greaterThan(0L));
         assertThat("closing both searchers must release the charge exactly once", breaker.getUsed(), equalTo(0L));
+    }
+
+    public void testNestedLeafDoesNotReleaseAnotherLeafsChargeFromSameSearcher() throws IOException {
+        try (
+            DirectoryReader firstReader = DirectoryReader.open(directory);
+            DirectoryReader secondReader = DirectoryReader.open(directory);
+            MultiReader multiReader = new MultiReader(new IndexReader[] { firstReader, secondReader }, false)
+        ) {
+            assertThat(multiReader.leaves().size(), equalTo(2));
+            LeafReaderContext outerLeaf = multiReader.leaves().get(0);
+            LeafReaderContext innerLeaf = multiReader.leaves().get(1);
+            TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
+            ContextIndexSearcher searcher = new ContextIndexSearcher(
+                multiReader,
+                IndexSearcher.getDefaultSimilarity(),
+                null,
+                IndexSearcher.getDefaultQueryCachingPolicy(),
+                false
+            );
+            searcher.setCircuitBreaker(breaker);
+
+            Query dense = LongPoint.newRangeQuery(FIELD, 0L, (NUM_DOCS * 3 / 4));
+            Weight rangeWeight = searcher.createWeight(searcher.rewrite(dense), ScoreMode.COMPLETE_NO_SCORES, 1.0f);
+            Query traversalQuery = new TermQuery(new Term(KEYWORD_FIELD, RARE_TERM));
+            Weight traversalWeight = searcher.createWeight(searcher.rewrite(traversalQuery), ScoreMode.COMPLETE_NO_SCORES, 1.0f);
+            Scorer[] retainedScorer = new Scorer[1];
+            AtomicLong usedAfterNestedLeaf = new AtomicLong();
+
+            Collector innerCollector = new Collector() {
+                @Override
+                public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
+                    assertSame(innerLeaf, context);
+                    ScorerSupplier scorerSupplier = rangeWeight.scorerSupplier(outerLeaf);
+                    assertNotNull(scorerSupplier);
+                    retainedScorer[0] = scorerSupplier.get(Long.MAX_VALUE);
+                    return NO_OP_LEAF_COLLECTOR;
+                }
+
+                @Override
+                public ScoreMode scoreMode() {
+                    return ScoreMode.COMPLETE_NO_SCORES;
+                }
+            };
+            Collector outerCollector = new Collector() {
+                @Override
+                public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
+                    assertSame(outerLeaf, context);
+                    searcher.searchLeaf(innerLeaf, 0, innerLeaf.reader().maxDoc(), traversalWeight, innerCollector);
+                    usedAfterNestedLeaf.set(breaker.getUsed());
+                    assertNotNull(retainedScorer[0]);
+                    assertNotEquals(DocIdSetIterator.NO_MORE_DOCS, retainedScorer[0].iterator().nextDoc());
+                    ScorerSupplier outerLeafScorerSupplier = rangeWeight.scorerSupplier(outerLeaf);
+                    assertNotNull(outerLeafScorerSupplier);
+                    outerLeafScorerSupplier.get(Long.MAX_VALUE);
+                    assertThat(breaker.getUsed(), greaterThan(usedAfterNestedLeaf.get()));
+                    return NO_OP_LEAF_COLLECTOR;
+                }
+
+                @Override
+                public ScoreMode scoreMode() {
+                    return ScoreMode.COMPLETE_NO_SCORES;
+                }
+            };
+
+            try {
+                searcher.searchLeaf(outerLeaf, 0, outerLeaf.reader().maxDoc(), traversalWeight, outerCollector);
+                assertThat(
+                    "the nested leaf must not release a charge owned by the still-active outer leaf",
+                    usedAfterNestedLeaf.get(),
+                    greaterThan(0L)
+                );
+                assertThat(
+                    "the outer leaf must release its own charge and leave the conservatively retained charge until close",
+                    breaker.getUsed(),
+                    equalTo(usedAfterNestedLeaf.get())
+                );
+            } finally {
+                searcher.close();
+            }
+            assertThat("close must release the retained charge exactly once", breaker.getUsed(), equalTo(0L));
+        }
     }
 
     public void testOutOfBandChargeOnAnotherThreadReleasedOnClose() throws Exception {

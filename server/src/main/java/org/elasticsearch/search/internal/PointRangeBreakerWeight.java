@@ -74,14 +74,14 @@ final class PointRangeBreakerWeight extends Weight {
             @Override
             public Scorer get(long leadCost) throws IOException {
                 if (indexOrDocValues == false || (cost >>> 3) <= leadCost) {
-                    searcher.chargeLeafExecutionBytes(charge);
+                    searcher.chargeLeafExecutionBytes(context, charge);
                 }
                 return inner.get(leadCost);
             }
 
             @Override
             public BulkScorer bulkScorer() throws IOException {
-                searcher.chargeLeafExecutionBytes(charge);
+                searcher.chargeLeafExecutionBytes(context, charge);
                 return inner.bulkScorer();
             }
 

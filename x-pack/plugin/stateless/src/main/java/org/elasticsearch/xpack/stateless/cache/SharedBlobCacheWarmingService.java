@@ -511,6 +511,7 @@ public class SharedBlobCacheWarmingService {
                 BLOB_CACHE_WARMING_BCC_BLOBS_DONE_TOTAL_METRIC,
                 "Total number of BCC blobs warmed (includes cancelled tasks)",
                 "count"
+            );
         this.warmingRequestedBytesTotalMetric = telemetryProvider.getMeterRegistry()
             .registerLongCounter(
                 BLOB_CACHE_WARMING_REQUESTED_BYTES_TOTAL_METRIC,

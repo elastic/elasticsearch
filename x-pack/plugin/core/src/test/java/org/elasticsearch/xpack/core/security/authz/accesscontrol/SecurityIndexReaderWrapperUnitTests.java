@@ -84,8 +84,7 @@ public class SecurityIndexReaderWrapperUnitTests extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void closeDirectoryReader() throws Exception {
         esIn.close();
     }
 

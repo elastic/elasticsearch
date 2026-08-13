@@ -108,9 +108,7 @@ public class ProfilingDataStreamManagerTests extends ESTestCase {
     }
 
     @After
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void shutdownThreadPool() throws Exception {
         threadPool.shutdownNow();
     }
 

@@ -199,7 +199,7 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
         }
     }
 
-    public void testNonStringJsonValuesAreStringified() {
+    public void testNestedObjectFlattensToLeafAndScalarsStringify() {
         BlockFactory bf = blockFactory();
         Result result = result(
             List.of(intAttr(), unmappedAttr()),
@@ -208,10 +208,12 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
 
         Result expanded = expand(result, bf);
         try {
-            assertThat(names(expanded), equalTo(List.of(INT_ATTR, "active", "count", "nested")));
+            // A nested object contributes no column of its own; its leaf becomes a dotted column (nested.x). Non-string scalars
+            // (number, boolean) still render through toString.
+            assertThat(names(expanded), equalTo(List.of(INT_ATTR, "active", "count", "nested.x")));
             assertThat(
                 nonNullRows(expanded),
-                contains(matchesMap().entry(INT_ATTR, 1).entry("active", "true").entry("count", "5").entry("nested", "{x=1}"))
+                contains(matchesMap().entry(INT_ATTR, 1).entry("active", "true").entry("count", "5").entry("nested.x", "1"))
             );
         } finally {
             Releasables.close(expanded.pages());
@@ -244,14 +246,168 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
         });
     }
 
+    public void testFlattenedLeafCollidingWithQueryColumnIsDropped() {
+        BlockFactory bf = blockFactory();
+        // network.eth0.rx is a mapped (query) column. The data node filters _unmapped_fields by top-level source key, so it cannot drop
+        // just the mapped leaf - the whole partially-mapped network object flows through. Flattening re-derives network.eth0.rx, which
+        // must yield to the existing column (no conflict/500), while the genuinely-unmapped siblings still expand.
+        Result result = result(
+            List.of(keywordAttr("network.eth0.rx"), unmappedAttr()),
+            List.of(page(bf, List.of(row("7", jsonObject("{'network':{'bytes_in':10,'eth0':{'tx':5,'rx':7}}}")))))
+        );
+
+        Result expanded = expand(result, bf);
+        try {
+            assertThat(names(expanded), equalTo(List.of("network.eth0.rx", "network.bytes_in", "network.eth0.tx")));
+            assertThat(
+                nonNullRows(expanded),
+                contains(matchesMap().entry("network.eth0.rx", "7").entry("network.bytes_in", "10").entry("network.eth0.tx", "5"))
+            );
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+    }
+
+    public void testArrayOfObjectsExpandsToNullColumnWithoutSynthesizingLeaves() {
+        BlockFactory bf = blockFactory();
+        // An array of objects is treated as a leaf (collectLeaves does not descend arrays), so it produces one column that has no
+        // keyword representation and is all-null - no per-element samples.nested column is synthesized. Contrast tags (array of scalars).
+        Result result = result(
+            List.of(intAttr(), unmappedAttr()),
+            List.of(page(bf, List.of(row(1, jsonObject("{'tags':['a','b'],'samples':[{'nested':'x'},{'nested':'y'}]}")))))
+        );
+
+        Result expanded = expand(result, bf);
+        try {
+            assertThat(names(expanded), equalTo(List.of(INT_ATTR, "samples", "tags")));
+            int samplesCol = names(expanded).indexOf("samples");
+            for (Page page : expanded.pages()) {
+                assertThat("array-of-objects must expand to an all-null column", page.getBlock(samplesCol).isNull(0), equalTo(true));
+            }
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+    }
+
+    public void testDuplicateLeafFromLiteralAndNestedKeyMergesToMultivalue() {
+        BlockFactory bf = blockFactory();
+        // A row whose _source carries both a literal dotted key "a.b" and a nested {"a":{"b":...}} produces the leaf a.b twice; both
+        // values must survive as a multivalue in source order rather than one silently overwriting the other.
+        Result result = result(
+            List.of(intAttr(), unmappedAttr()),
+            List.of(page(bf, List.of(row(1, jsonObject("{'a.b':'literal','a':{'b':'nested'}}")))))
+        );
+
+        Result expanded = expand(result, bf);
+        try {
+            assertThat(names(expanded), equalTo(List.of(INT_ATTR, "a.b")));
+            assertThat(
+                nonNullRows(expanded),
+                contains(matchesMap().entry(INT_ATTR, 1).entry("a.b", List.of(new BytesRef("literal"), new BytesRef("nested"))))
+            );
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+    }
+
+    public void testExactExcludeOfParentStillKeepsObjectDottedLeaves() {
+        BlockFactory bf = blockFactory();
+        // SORT unmapped adds an exact "unmapped" exclude. The data node still ships the reconstructed object; the coordinator tests each
+        // dotted leaf, and "unmapped.deep.leaf" does not match the exact "unmapped" exclude, so it survives - parity with a stored key.
+        Result result = result(
+            List.of(intAttr(), unmappedAttr(UnmappedFieldsPattern.excludes(List.of("unmapped", INT_ATTR)))),
+            List.of(page(bf, List.of(row(1, jsonObject("{'unmapped':{'deep':{'leaf':'v'}}}")))))
+        );
+
+        Result expanded = expand(result, bf);
+        try {
+            assertThat(names(expanded), equalTo(List.of(INT_ATTR, "unmapped.deep.leaf")));
+            assertThat(nonNullRows(expanded), contains(matchesMap().entry(INT_ATTR, 1).entry("unmapped.deep.leaf", "v")));
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+    }
+
+    public void testChildWildcardIncludeExpandsObjectLeavesAndDropsSiblings() {
+        BlockFactory bf = blockFactory();
+        // KEEP unmapped.* must reach the object's dotted leaves on the coordinator even though the top-level key is the bare "unmapped",
+        // and must drop an unrelated sibling key that the wildcard does not cover.
+        Result result = result(
+            List.of(intAttr(), unmappedAttr(UnmappedFieldsPattern.includes(List.of("unmapped.*")))),
+            List.of(page(bf, List.of(row(1, jsonObject("{'unmapped':{'deep':{'leaf':'v'},'foo':'f'},'other':'o'}")))))
+        );
+
+        Result expanded = expand(result, bf);
+        try {
+            assertThat(names(expanded), equalTo(List.of(INT_ATTR, "unmapped.deep.leaf", "unmapped.foo")));
+            assertThat(
+                nonNullRows(expanded),
+                contains(matchesMap().entry(INT_ATTR, 1).entry("unmapped.deep.leaf", "v").entry("unmapped.foo", "f"))
+            );
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+    }
+
+    public void testNestedWildcardDropRemovesOnlyItsSubtree() {
+        BlockFactory bf = blockFactory();
+        // DROP unmapped.deep* removes "unmapped.deep.leaf" but leaves the sibling "unmapped.foo"; the object still ships and the
+        // coordinator drops only the matching leaf, so a synthetic object behaves like a stored source's per-key drop.
+        Result result = result(
+            List.of(intAttr(), unmappedAttr(UnmappedFieldsPattern.excludes(List.of("unmapped.deep*", INT_ATTR)))),
+            List.of(page(bf, List.of(row(1, jsonObject("{'unmapped':{'deep':{'leaf':'v'},'foo':'f'}}")))))
+        );
+
+        Result expanded = expand(result, bf);
+        try {
+            assertThat(names(expanded), equalTo(List.of(INT_ATTR, "unmapped.foo")));
+            assertThat(nonNullRows(expanded), contains(matchesMap().entry(INT_ATTR, 1).entry("unmapped.foo", "f")));
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+    }
+
+    public void testFixedSuffixExcludeKeepsObjectLeavesThatDoNotShareTheSuffix() {
+        BlockFactory bf = blockFactory();
+        // DROP *ped is a fixed-suffix wildcard: it matches the reconstructed parent key "unmapped" but none of its deeper leaves. The
+        // data node ships the object anyway (see UnmappedFieldsPatternTests#testObjectPushPrunesOnlyOnSubtreeCoveringExcludes); here the
+        // coordinator keeps "unmapped.deep.leaf" because it does not end in "ped", matching what a stored source's literal key would face.
+        Result result = result(
+            List.of(intAttr(), unmappedAttr(UnmappedFieldsPattern.excludes(List.of("*ped", INT_ATTR)))),
+            List.of(page(bf, List.of(row(1, jsonObject("{'unmapped':{'deep':{'leaf':'v'}}}")))))
+        );
+
+        Result expanded = expand(result, bf);
+        try {
+            assertThat(names(expanded), equalTo(List.of(INT_ATTR, "unmapped.deep.leaf")));
+            assertThat(nonNullRows(expanded), contains(matchesMap().entry(INT_ATTR, 1).entry("unmapped.deep.leaf", "v")));
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+    }
+
     public void testExpandReleasesInputPagesWhenExpansionFails() {
         BlockFactory bf = blockFactory();
-        // Query column "a" collides with the "a" key discovered in the _unmapped_fields JSON, so buildSchema throws.
-        Result result = result(List.of(keywordAttr("a"), unmappedAttr()), List.of(page(bf, List.of(row("v", jsonObject("{'a':'x'}"))))));
+        // A _unmapped_fields cell must hold exactly one value; a two-value cell makes getBytesRef throw mid-collect. The point is that
+        // expand still releases the input pages it took ownership of on that failure path.
+        Block intBlock;
+        try (var builder = bf.newIntBlockBuilder(1)) {
+            builder.appendInt(1);
+            intBlock = builder.build();
+        }
+        BytesRefBlock unmappedBlock;
+        try (BytesRefBlock.Builder builder = bf.newBytesRefBlockBuilder(1)) {
+            builder.beginPositionEntry();
+            builder.appendBytesRef(new BytesRef(jsonObject("{'a':'x'}")));
+            builder.appendBytesRef(new BytesRef(jsonObject("{'b':'y'}")));
+            builder.endPositionEntry();
+            unmappedBlock = builder.build();
+        }
+        Result result = result(List.of(intAttr(), unmappedAttr()), List.of(new Page(intBlock, unmappedBlock)));
         assertThat("input pages should reserve breaker memory before expand runs", bf.breaker().getUsed(), greaterThan(0L));
 
         var e = expectThrows(IllegalStateException.class, () -> expand(result, bf));
-        assertThat(e.getMessage(), containsString("Conflict in unmapped field name"));
+        assertThat(e.getMessage(), containsString("Expected exactly one value"));
 
         // No manual release here: the point is that expand must have released the input pages on its failure path.
         assertThat("expand leaked the input pages on failure", bf.breaker().getUsed(), equalTo(0L));
@@ -275,6 +431,10 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
 
     private static UnmappedFieldsAttribute unmappedAttr() {
         return new UnmappedFieldsAttribute(Source.EMPTY, UnmappedFieldsPattern.ALL);
+    }
+
+    private static UnmappedFieldsAttribute unmappedAttr(UnmappedFieldsPattern pattern) {
+        return new UnmappedFieldsAttribute(Source.EMPTY, pattern);
     }
 
     /** Builds a single page whose blocks are inferred from {@code rows} (one {@link #row} per position). */

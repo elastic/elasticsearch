@@ -29,10 +29,10 @@ import java.util.Set;
  * Block loader for the synthetic {@code _unmapped_fields} column produced by
  * {@code SET unmapped_fields="LOAD_ALL"}.
  *
- * <p>For each document it reads {@code _source}, retains only top-level keys
- * that match the {@link UnmappedFieldsPattern} (matching at least one pattern in every include
- * group and not matching any exclude pattern), and re-serialises the surviving key/value
- * pairs as a JSON object. Documents where nothing survives get a null.
+ * <p>For each document it reads {@code _source} and re-serialises the surviving top-level key/value pairs as a JSON object, which the
+ * coordinator later flattens into per-leaf columns. A scalar or array key survives when it satisfies the full {@link UnmappedFieldsPattern}
+ * ({@link UnmappedFieldsPattern#matches}); an object key ships more leniently ({@link UnmappedFieldsPattern#matchesObjectPush}) because it
+ * owns no column of its own and the coordinator filters its flattened leaves per name. Documents where nothing survives get a null.
  *
  * <p>Field-level security needs no handling here: it strips denied fields from the {@code _source} this reads, so they never
  * reach the pattern. {@code EsqlSecurityIT#testFieldLevelSecurityFieldDeniedWithUnmappedFieldsLoadAll} holds that down.
@@ -111,7 +111,13 @@ final class UnmappedFieldsBlockLoader implements BlockLoader {
                     json.startObject();
                     boolean anyMatch = false;
                     for (Map.Entry<String, Object> entry : sourceMap.entrySet()) {
-                        if (pattern.matches(entry.getKey())) {
+                        // A scalar/array key becomes a leaf column of its own, so it must satisfy the full pattern; an object owns no
+                        // column and its flattened leaves are filtered per name by the coordinator, so it ships more leniently. See
+                        // UnmappedFieldsPattern#matchesObjectPush for why deferring keeps synthetic and stored sources in parity.
+                        boolean keep = entry.getValue() instanceof Map
+                            ? pattern.matchesObjectPush(entry.getKey())
+                            : pattern.matches(entry.getKey());
+                        if (keep) {
                             anyMatch = true;
                             json.field(entry.getKey(), entry.getValue());
                         }

@@ -20,7 +20,6 @@ import org.elasticsearch.search.lookup.Source;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 /**
@@ -83,7 +82,7 @@ final class UnmappedKeywordBlockLoader implements BlockLoader {
         public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
             Source source = storedFields.source();
             List<BytesRef> values = new ArrayList<>();
-            collectKeywordValues(source.extractValue(fieldName, null), values);
+            UnmappedKeywordValues.collect(source.extractValue(fieldName, null), values);
             if (values.isEmpty()) {
                 builder.appendNull();
             } else if (values.size() == 1) {
@@ -95,21 +94,6 @@ final class UnmappedKeywordBlockLoader implements BlockLoader {
                 }
                 builder.endPositionEntry();
             }
-        }
-
-        // A keyword scalar can only hold scalars, so objects (a Map) contribute no value and the field reads null; arrays keep only
-        // their scalar elements.
-        private static void collectKeywordValues(Object value, List<BytesRef> values) {
-            if (value == null || value instanceof Map) {
-                return;
-            }
-            if (value instanceof List<?> list) {
-                for (Object element : list) {
-                    collectKeywordValues(element, values);
-                }
-                return;
-            }
-            values.add(new BytesRef(value.toString()));
         }
 
         @Override

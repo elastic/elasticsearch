@@ -157,6 +157,35 @@ public final class UnmappedFieldsPattern implements NamedWriteable {
     }
 
     /**
+     * Whether a top-level {@code _source} key whose value is an <em>object</em> should be shipped from the data node so the coordinator
+     * can flatten it into dotted leaf columns and decide, per leaf, which survive.
+     *
+     * <p>An object has no {@code keyword} column of its own — only its leaves ({@code key.child}) become columns — and the coordinator
+     * applies the full pattern to each flattened leaf name via {@link #matches}. So the data node prunes a whole object only when an
+     * exclude provably covers the <em>entire</em> subtree: a wildcard that matches the parent name <em>and ends in {@code *}</em>, so its
+     * trailing wildcard also absorbs an arbitrarily long {@code .child} suffix ({@code DROP key*} drops {@code key} and every
+     * {@code key.leaf}). A fixed-suffix wildcard such as {@code *d} can match the parent {@code unmapped} yet miss
+     * {@code unmapped.deep.leaf}, and an exact include/exclude names a single column, so neither prunes here — the coordinator's per-leaf
+     * {@link #matches} enforces them. Over-shipping is always safe (the coordinator filters per leaf); only over-pruning would lose data.
+     *
+     * <p>Deferring the per-leaf decision to the coordinator is what makes a synthetic-source object — which rebuilds a dotted key such as
+     * {@code unmapped.deep.leaf} under an {@code unmapped} parent object — expand to the same columns as the equivalent stored-source
+     * literal dotted key, under every {@code KEEP}/{@code DROP} shape (exact or wildcard, parent or descendant).
+     */
+    public boolean matchesObjectPush(String name) {
+        return isNone() == false && anySubtreeCoveringExcludeMatches(name) == false;
+    }
+
+    /**
+     * Whether any exclude covers the <em>entire</em> subtree of {@code name}: it ends in {@code *} (so its trailing wildcard absorbs an
+     * arbitrarily long {@code .child} suffix) and matches {@code name} itself. A fixed-suffix wildcard like {@code *d} matches the parent
+     * but not its leaves, so it is not subtree-covering and is left to the coordinator's per-leaf {@link #matches}.
+     */
+    private boolean anySubtreeCoveringExcludeMatches(String name) {
+        return excludes.stream().anyMatch(exclude -> exclude.endsWith("*") && Regex.simpleMatch(exclude, name));
+    }
+
+    /**
      * Returns a new pattern with {@code names} appended to the excludes list, deduplicating.
      */
     public UnmappedFieldsPattern withAdditionalExcludes(List<String> names) {

@@ -496,7 +496,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             ByteSizeValue blockLoaderSizeOrdinals,
             ByteSizeValue blockLoaderSizeScript
         ) {
-            if (asUnsupportedSource == false && name.equals(fullFieldName) && super.fieldType(name) == null && sourceSynthetic) {
+            if (asUnsupportedSource == false && name.equals(fullFieldName) && super.fieldType(name) == null) {
                 return new UnmappedKeywordBlockLoader(name);
             }
             return super.blockLoader(

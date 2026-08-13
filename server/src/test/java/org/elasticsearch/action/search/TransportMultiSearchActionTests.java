@@ -40,7 +40,6 @@ import org.elasticsearch.common.io.stream.CountingStreamOutput;
 import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -931,6 +930,11 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         assertThat(breaker.getUsed(), equalTo(0L));
     }
 
+    /**
+     * Even when the tracking breaker's byte limit is exhausted partway through, every failure item
+     * must still be accounted for (via {@link CircuitBreaker#addWithoutBreaking} once reservation is
+     * rejected) rather than discarded, so the msearch completes with all its original failure detail.
+     */
     public void testAllSubSearchesFailStillTripsBreaker() throws Exception {
         int numRequests = 20;
         long byteLimit = 2048L;
@@ -945,33 +949,12 @@ public class TransportMultiSearchActionTests extends ESTestCase {
             captured -> System.arraycopy(captured, 0, items, 0, numRequests)
         );
 
-        boolean anyTrimmed = false;
         for (MultiSearchResponse.Item item : items) {
             assertTrue(item.isFailure());
-            if (item.getFailure() instanceof SearchPhaseExecutionException spee && spee.shardFailures().length == 1) {
-                anyTrimmed = true;
-            }
+            assertThat(item.getFailure(), instanceOf(SearchPhaseExecutionException.class));
+            assertThat(((SearchPhaseExecutionException) item.getFailure()).shardFailures().length, equalTo(10));
         }
-
-        assertTrue("expected at least one failure item to be trimmed to a single shard failure", anyTrimmed);
         assertThat(breaker.getUsed(), equalTo(0L));
-    }
-
-    public void testTrimmedFailurePreservesStatus() {
-        ShardSearchFailure[] failures = new ShardSearchFailure[3];
-        for (int i = 0; i < failures.length; i++) {
-            failures[i] = new ShardSearchFailure(new EsRejectedExecutionException("rejected execution " + i));
-        }
-        SearchPhaseExecutionException original = new SearchPhaseExecutionException("query", "all shards failed", failures);
-        assertThat(original.status().getStatus(), equalTo(429));
-
-        Exception trimmed = TransportMultiSearchAction.trimFailure(original);
-        assertThat(trimmed, instanceOf(SearchPhaseExecutionException.class));
-        SearchPhaseExecutionException trimmedSpee = (SearchPhaseExecutionException) trimmed;
-        assertThat(trimmedSpee.shardFailures().length, equalTo(1));
-        assertThat(trimmedSpee.status(), equalTo(original.status()));
-
-        assertSame(trimmedSpee, TransportMultiSearchAction.trimFailure(trimmedSpee));
     }
 
     private static SearchPhaseExecutionException searchPhaseExecutionExceptionWithShardFailures(int numShardFailures) {

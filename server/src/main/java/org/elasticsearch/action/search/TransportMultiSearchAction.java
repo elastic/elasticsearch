@@ -31,7 +31,6 @@ import org.elasticsearch.common.io.stream.CountingStreamOutput;
 import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -163,14 +162,6 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
 
     /** Fixed overhead for a failure {@code MultiSearchResponse.Item} shell plus its array slot. */
     static final long BASE_FAILURE_ITEM_OVERHEAD = 64L;
-
-    /**
-     * Per-{@code _msearch}-request budget for failure-detail bytes (see {@link #estimateFailureBytes}).
-     * Failures exceeding this are trimmed via {@link #trimFailure} before being charged against
-     * {@link CircuitBreaker#REQUEST}, bounding one request's failure detail independently of the
-     * much larger, node-wide breaker limit.
-     */
-    static final long MAX_FAILURE_DETAIL_BYTES = ByteSizeValue.ofMb(1).getBytes();
 
     private final int allocatedProcessors;
     private final ClusterService clusterService;
@@ -465,24 +456,6 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
     }
 
     /**
-     * Reduces a failure to its cheapest representative form once failure-detail bytes are over budget.
-     * Keeps the <em>first</em> {@link ShardSearchFailure} rather than dropping to
-     * {@link ShardSearchFailure#EMPTY_ARRAY}: an empty array makes {@code status()} fall back to
-     * {@code SERVICE_UNAVAILABLE}, silently turning a client-visible 429 into a 503.
-     */
-    static Exception trimFailure(Exception e) {
-        if (e instanceof SearchPhaseExecutionException spee && spee.shardFailures().length > 1) {
-            return new SearchPhaseExecutionException(
-                spee.getPhaseName(),
-                spee.getMessage(),
-                spee.getCause(),
-                new ShardSearchFailure[] { spee.shardFailures()[0] }
-            );
-        }
-        return e;
-    }
-
-    /**
      * Estimates the heap cost of a single {@link SearchHit}, including its stored source bytes,
      * doc-value / stored field entry shells and their values, sort values, highlight fragments,
      * explanations, and any nested {@code inner_hits} (recursive).
@@ -709,46 +682,16 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         return false;
     }
 
-    /**
-     * Reserves failure-detail bytes for {@code item} against {@link CircuitBreaker#REQUEST}, trimming via
-     * {@link #trimFailure} once over {@link #MAX_FAILURE_DETAIL_BYTES} or once the reservation
-     * itself is rejected. Never lets an exception escape: failure items can't be discarded, so aborting
-     * here would hang the msearch forever instead of just under-counting it.
-     */
     private MultiSearchResponse.Item accountFailureItem(MultiSearchBreakerAccounting breakerAccounting, MultiSearchResponse.Item item) {
-        Exception failure = item.getFailure();
-        long bytes = estimateFailureBytes(failure);
-        if (breakerAccounting.failureBytes() + bytes > MAX_FAILURE_DETAIL_BYTES) {
-            TrimmedFailure trimmed = tryTrim(failure);
-            if (trimmed != null) {
-                bytes = trimmed.bytes();
-                item = trimmed.item();
-            }
-        }
+        long bytes = estimateFailureBytes(item.getFailure());
         try {
             circuitBreaker.addEstimateBytesAndMaybeBreak(bytes, "<msearch_failure>");
         } catch (Exception reservationFailure) {
-            TrimmedFailure trimmed = tryTrim(failure);
-            if (trimmed != null) {
-                bytes = trimmed.bytes();
-                item = trimmed.item();
-            }
             circuitBreaker.addWithoutBreaking(bytes);
         }
-        breakerAccounting.addFailure(bytes);
+        breakerAccounting.add(bytes, 0);
         return item;
     }
-
-    /** Applies {@link #trimFailure}, or returns {@code null} if {@code failure} had nothing to trim. */
-    private static TrimmedFailure tryTrim(Exception failure) {
-        Exception trimmed = trimFailure(failure);
-        if (trimmed == failure) {
-            return null;
-        }
-        return new TrimmedFailure(estimateFailureBytes(trimmed), new MultiSearchResponse.Item(null, trimmed));
-    }
-
-    private record TrimmedFailure(long bytes, MultiSearchResponse.Item item) {}
 
     record SearchRequestSlot(SearchRequest request, int responseSlot) {
 
@@ -761,20 +704,10 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
     final class MultiSearchBreakerAccounting {
         private final AtomicLong incrementalBytes = new AtomicLong();
         private final AtomicLong queryPhaseAggregationHandoffBytes = new AtomicLong();
-        private final AtomicLong failureBytes = new AtomicLong();
 
         void add(long incremental, long queryPhaseAggregationHandoff) {
             incrementalBytes.addAndGet(incremental);
             queryPhaseAggregationHandoffBytes.addAndGet(queryPhaseAggregationHandoff);
-        }
-
-        void addFailure(long bytes) {
-            incrementalBytes.addAndGet(bytes);
-            failureBytes.addAndGet(bytes);
-        }
-
-        long failureBytes() {
-            return failureBytes.get();
         }
 
         void releaseAll() {

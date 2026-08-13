@@ -462,17 +462,6 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
     }
 
     /**
-     * Whether {@code policyMetadata} already records {@code snapshotName} as its last success or last failure.
-     * Used by tests to document that a concurrent cleanup's initiating failure can overwrite a peer's lastFailure entry.
-     */
-    static boolean policyAlreadyRecordsSnapshot(SnapshotLifecyclePolicyMetadata policyMetadata, String snapshotName) {
-        SnapshotInvocationRecord lastFailure = policyMetadata.getLastFailure();
-        SnapshotInvocationRecord lastSuccess = policyMetadata.getLastSuccess();
-        return (lastFailure != null && snapshotName.equals(lastFailure.getSnapshotName()))
-            || (lastSuccess != null && snapshotName.equals(lastSuccess.getSnapshotName()));
-    }
-
-    /**
      * A cluster state update task to write the result of a snapshot job to the cluster metadata for the associated policy.
      */
     static class WriteJobStatus extends ClusterStateUpdateTask {

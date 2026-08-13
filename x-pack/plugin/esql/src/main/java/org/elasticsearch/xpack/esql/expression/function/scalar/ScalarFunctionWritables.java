@@ -47,7 +47,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundTo;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Tau;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
-import org.elasticsearch.xpack.esql.expression.function.scalar.promql.PromqlRegexExtract;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.BitLength;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Chicken;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
@@ -74,6 +73,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InsensitiveEquals;
+import org.elasticsearch.xpack.esql.expression.promql.function.RegexExpand;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -144,7 +144,7 @@ public class ScalarFunctionWritables {
         entries.add(ToUpper.ENTRY);
         entries.add(HistogramPercentile.ENTRY);
         entries.add(ExtractHistogramComponent.ENTRY);
-        entries.add(PromqlRegexExtract.ENTRY);
+        entries.add(RegexExpand.ENTRY);
         entries.add(WindowFilter.ENTRY);
 
         entries.addAll(GroupingWritables.getNamedWriteables());

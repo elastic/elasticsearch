@@ -2,9 +2,10 @@
 // or more contributor license agreements. Licensed under the Elastic License
 // 2.0; you may not use this file except in compliance with the Elastic License
 // 2.0.
-package org.elasticsearch.xpack.esql.expression.function.scalar.promql;
+package org.elasticsearch.xpack.esql.expression.promql.function;
 
 import com.google.re2j.Matcher;
+import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import java.util.function.Function;
@@ -21,11 +22,11 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link ExpressionEvaluator} implementation for {@link PromqlRegexExtract}.
+ * {@link ExpressionEvaluator} implementation for {@link RegexExpand}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class PromqlRegexExtractEvaluator implements ExpressionEvaluator {
-  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(PromqlRegexExtractEvaluator.class);
+public final class RegexExpandEvaluator implements ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(RegexExpandEvaluator.class);
 
   private final Source source;
 
@@ -39,15 +40,15 @@ public final class PromqlRegexExtractEvaluator implements ExpressionEvaluator {
 
   private final BytesRef outValue;
 
-  private final PromqlRegexExtract.Replacement template;
+  private final RegexExpand.Replacement template;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public PromqlRegexExtractEvaluator(Source source, ExpressionEvaluator srcBlock, Matcher matcher,
-      BytesRef scratch, BytesRefBuilder out, BytesRef outValue,
-      PromqlRegexExtract.Replacement template, DriverContext driverContext) {
+  public RegexExpandEvaluator(Source source, ExpressionEvaluator srcBlock, Matcher matcher,
+      BytesRef scratch, BytesRefBuilder out, BytesRef outValue, RegexExpand.Replacement template,
+      DriverContext driverContext) {
     this.source = source;
     this.srcBlock = srcBlock;
     this.matcher = matcher;
@@ -83,7 +84,12 @@ public final class PromqlRegexExtractEvaluator implements ExpressionEvaluator {
           result.appendNull();
           continue position;
         }
-        PromqlRegexExtract.process(result, p, srcBlockBlock, this.matcher, this.scratch, this.out, this.outValue, this.template);
+        try {
+          RegexExpand.process(result, p, srcBlockBlock, this.matcher, this.scratch, this.out, this.outValue, this.template);
+        } catch (IllegalArgumentException e) {
+          warnings().registerException(e);
+          result.appendNull();
+        }
       }
       return result.build();
     }
@@ -91,7 +97,7 @@ public final class PromqlRegexExtractEvaluator implements ExpressionEvaluator {
 
   @Override
   public String toString() {
-    return "PromqlRegexExtractEvaluator[" + "srcBlock=" + srcBlock + ", template=" + template + "]";
+    return "RegexExpandEvaluator[" + "srcBlock=" + srcBlock + ", template=" + template + "]";
   }
 
   @Override
@@ -119,12 +125,12 @@ public final class PromqlRegexExtractEvaluator implements ExpressionEvaluator {
 
     private final Function<DriverContext, BytesRef> outValue;
 
-    private final PromqlRegexExtract.Replacement template;
+    private final RegexExpand.Replacement template;
 
     public Factory(Source source, ExpressionEvaluator.Factory srcBlock,
         Function<DriverContext, Matcher> matcher, Function<DriverContext, BytesRef> scratch,
         Function<DriverContext, BytesRefBuilder> out, Function<DriverContext, BytesRef> outValue,
-        PromqlRegexExtract.Replacement template) {
+        RegexExpand.Replacement template) {
       this.source = source;
       this.srcBlock = srcBlock;
       this.matcher = matcher;
@@ -135,13 +141,13 @@ public final class PromqlRegexExtractEvaluator implements ExpressionEvaluator {
     }
 
     @Override
-    public PromqlRegexExtractEvaluator get(DriverContext context) {
-      return new PromqlRegexExtractEvaluator(source, srcBlock.get(context), matcher.apply(context), scratch.apply(context), out.apply(context), outValue.apply(context), template, context);
+    public RegexExpandEvaluator get(DriverContext context) {
+      return new RegexExpandEvaluator(source, srcBlock.get(context), matcher.apply(context), scratch.apply(context), out.apply(context), outValue.apply(context), template, context);
     }
 
     @Override
     public String toString() {
-      return "PromqlRegexExtractEvaluator[" + "srcBlock=" + srcBlock + ", template=" + template + "]";
+      return "RegexExpandEvaluator[" + "srcBlock=" + srcBlock + ", template=" + template + "]";
     }
   }
 }

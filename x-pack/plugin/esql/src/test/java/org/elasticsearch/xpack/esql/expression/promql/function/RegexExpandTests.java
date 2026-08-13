@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.expression.function.scalar.promql;
+package org.elasticsearch.xpack.esql.expression.promql.function;
 
 import com.google.re2j.Matcher;
 import com.google.re2j.Pattern;
@@ -39,15 +39,18 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
- * Unit tests for {@link PromqlRegexExtract}, the value-derivation scalar behind PromQL {@code label_replace}. The pure
+ * Unit tests for {@link RegexExpand}, the value-derivation scalar behind PromQL {@code label_replace}. The pure
  * {@code expand}/match semantics (Prometheus/Go parity) are asserted directly; the three-outcome null/empty/value encoding
  * is asserted through a real evaluator so the builder-arg null handling is exercised end to end.
  */
-public class PromqlRegexExtractTests extends ESTestCase {
+public class RegexExpandTests extends ESTestCase {
 
     private final List<CircuitBreaker> breakers = Collections.synchronizedList(new ArrayList<>());
 
@@ -245,6 +248,16 @@ public class PromqlRegexExtractTests extends ESTestCase {
         assertThat(replace("(.*)", "[$1]", "a\nb"), equalTo("[a\nb]"));
     }
 
+    // --- Analysis-time regex validation: compiles exactly as the evaluator does, so invalid patterns are rejected early ---
+
+    public void testValidateRegexAcceptsValidPattern() {
+        assertThat(RegexExpand.validateRegex("source-value-(.*)"), nullValue());
+    }
+
+    public void testValidateRegexRejectsInvalidPattern() {
+        assertThat(RegexExpand.validateRegex("("), notNullValue());
+    }
+
     // --- Evaluator: null (no-op) / empty (delete) / value (set) and absent-source-reads-as-empty ---
 
     public void testEvaluatorSet() {
@@ -267,7 +280,7 @@ public class PromqlRegexExtractTests extends ESTestCase {
     /**
      * An absent source label is coalesced to {@code ""} upstream (during translation), so at the evaluator it matches an
      * empty regex. A genuinely {@code null} position is short-circuited by the generated evaluator and never reaches
-     * {@link PromqlRegexExtract#process}, which is why the coalesce is the caller's responsibility.
+     * {@link RegexExpand#process}, which is why the coalesce is the caller's responsibility.
      */
     public void testEvaluatorEmptySourceMatchesEmptyRegex() {
         assertThat(eval("", "hi", ""), equalTo("hi"));
@@ -279,6 +292,32 @@ public class PromqlRegexExtractTests extends ESTestCase {
 
     public void testEvaluatorMultiByteValue() {
         assertThat(eval("(.*)", "[$1]", "naïve"), equalTo("[naïve]"));
+    }
+
+    public void testEvaluatorMultiValueSourceWarnsAndIsNull() {
+        Source source = Source.EMPTY;
+        RegexExpand function = new RegexExpand(
+            source,
+            field("src", DataType.KEYWORD),
+            new Literal(source, new BytesRef("(.*)"), DataType.KEYWORD),
+            new Literal(source, new BytesRef("$1"), DataType.KEYWORD)
+        );
+        DriverContext context = driverContext();
+        BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
+        try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(1)) {
+            builder.beginPositionEntry();
+            builder.appendBytesRef(new BytesRef("a"));
+            builder.appendBytesRef(new BytesRef("b"));
+            builder.endPositionEntry();
+            try (
+                var evaluator = AbstractScalarFunctionTestCase.evaluator(function).get(context);
+                Block block = evaluator.eval(new Page(builder.build()))
+            ) {
+                assertTrue(block.isNull(0));
+            }
+        }
+        context.finish();
+        assertThat(context.warnings(), hasItem(containsString("single-value function encountered multi-value")));
     }
 
     // --- Evaluator across multiple rows: the Matcher and output buffers are reused per driver, so verify no cross-row bleed ---
@@ -305,26 +344,26 @@ public class PromqlRegexExtractTests extends ESTestCase {
     }
 
     /**
-     * Mirrors {@link PromqlRegexExtract}'s match/expand contract: {@code null} on no match (no-op), otherwise the expansion
+     * Mirrors {@link RegexExpand}'s match/expand contract: {@code null} on no match (no-op), otherwise the expansion
      * (which may be the empty string, the delete sentinel).
      */
     private static String replace(String regex, String replacement, String src) {
         Pattern pattern = Pattern.compile("^(?s:" + regex + ")$");
-        // Match the raw UTF-8 bytes, mirroring PromqlRegexExtract#process: capture-group offsets are then byte offsets, which
+        // Match the raw UTF-8 bytes, mirroring RegexExpand#process: capture-group offsets are then byte offsets, which
         // is what expand() slices against.
         byte[] input = src.getBytes(StandardCharsets.UTF_8);
         Matcher matcher = pattern.matcher(input);
         if (matcher.matches() == false) {
             return null;
         }
-        return PromqlRegexExtract.Replacement.of(replacement, pattern)
+        return RegexExpand.Replacement.of(replacement, pattern)
             .expand(matcher, input, new BytesRefBuilder(), new BytesRef())
             .utf8ToString();
     }
 
     private String eval(String regex, String replacement, String src) {
         Source source = Source.EMPTY;
-        PromqlRegexExtract function = new PromqlRegexExtract(
+        RegexExpand function = new RegexExpand(
             source,
             field("src", DataType.KEYWORD),
             new Literal(source, new BytesRef(regex), DataType.KEYWORD),
@@ -355,7 +394,7 @@ public class PromqlRegexExtractTests extends ESTestCase {
      */
     private List<String> evalMany(String regex, String replacement, String... srcs) {
         Source source = Source.EMPTY;
-        PromqlRegexExtract function = new PromqlRegexExtract(
+        RegexExpand function = new RegexExpand(
             source,
             field("src", DataType.KEYWORD),
             new Literal(source, new BytesRef(regex), DataType.KEYWORD),

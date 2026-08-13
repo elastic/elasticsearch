@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.expression.function.scalar.promql;
+package org.elasticsearch.xpack.esql.expression.promql.function;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -13,14 +13,14 @@ import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTe
 
 import java.io.IOException;
 
-public class PromqlRegexExtractSerializationTests extends AbstractExpressionSerializationTests<PromqlRegexExtract> {
+public class RegexExpandSerializationTests extends AbstractExpressionSerializationTests<RegexExpand> {
     @Override
-    protected PromqlRegexExtract createTestInstance() {
-        return new PromqlRegexExtract(randomSource(), randomChild(), randomChild(), randomChild());
+    protected RegexExpand createTestInstance() {
+        return new RegexExpand(randomSource(), randomChild(), randomChild(), randomChild());
     }
 
     @Override
-    protected PromqlRegexExtract mutateInstance(PromqlRegexExtract instance) throws IOException {
+    protected RegexExpand mutateInstance(RegexExpand instance) throws IOException {
         Source source = instance.source();
         Expression src = instance.children().get(0);
         Expression regex = instance.children().get(1);
@@ -30,6 +30,6 @@ public class PromqlRegexExtractSerializationTests extends AbstractExpressionSeri
             case 1 -> regex = randomValueOtherThan(regex, AbstractExpressionSerializationTests::randomChild);
             case 2 -> replacement = randomValueOtherThan(replacement, AbstractExpressionSerializationTests::randomChild);
         }
-        return new PromqlRegexExtract(source, src, regex, replacement);
+        return new RegexExpand(source, src, regex, replacement);
     }
 }

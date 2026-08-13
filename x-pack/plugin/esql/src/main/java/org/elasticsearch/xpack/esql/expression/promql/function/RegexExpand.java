@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.expression.function.scalar.promql;
+package org.elasticsearch.xpack.esql.expression.promql.function;
 
 import com.google.re2j.Matcher;
 import com.google.re2j.Pattern;
@@ -60,17 +60,20 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
  * The caller is responsible for materializing an absent {@code src} as the empty string (via {@code COALESCE(src, "")} during
  * translation): the generated evaluator short-circuits all-null positions to {@code null} before {@link #process} runs, so a
  * genuinely null {@code src} would otherwise become a spurious no-op instead of matching against {@code ""}.
+ * <p>
+ * If the label is multivalue - the function would raise a {@code "single-value function encountered multi-value"} warning and emit
+ * {@code null} (a no-op) for that row.
  */
-public final class PromqlRegexExtract extends EsqlScalarFunction implements VersionedNamedWriteable {
+public final class RegexExpand extends EsqlScalarFunction implements VersionedNamedWriteable {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
-        "PromqlRegexExtract",
-        PromqlRegexExtract::new
+        "RegexExpand",
+        RegexExpand::new
     );
 
     /**
-     * Transport version gating the PromQL label-function internal scalar {@link PromqlRegexExtract}.
+     * Transport version gating the PromQL label-function internal scalar {@link RegexExpand}.
      */
     public static final TransportVersion PROMQL_LABEL_FUNCTIONS = TransportVersion.fromName("promql_label_functions");
 
@@ -78,14 +81,14 @@ public final class PromqlRegexExtract extends EsqlScalarFunction implements Vers
     private final Expression regex;
     private final Expression replacement;
 
-    public PromqlRegexExtract(Source source, Expression src, Expression regex, Expression replacement) {
+    public RegexExpand(Source source, Expression src, Expression regex, Expression replacement) {
         super(source, List.of(src, regex, replacement));
         this.src = src;
         this.regex = regex;
         this.replacement = replacement;
     }
 
-    private PromqlRegexExtract(StreamInput in) throws IOException {
+    private RegexExpand(StreamInput in) throws IOException {
         this(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
@@ -139,12 +142,12 @@ public final class PromqlRegexExtract extends EsqlScalarFunction implements Vers
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new PromqlRegexExtract(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
+        return new RegexExpand(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, PromqlRegexExtract::new, src, regex, replacement);
+        return NodeInfo.create(this, RegexExpand::new, src, regex, replacement);
     }
 
     @Override
@@ -160,7 +163,7 @@ public final class PromqlRegexExtract extends EsqlScalarFunction implements Vers
         // read-buffer BytesRef, and the output buffer the expansion is assembled into (with a BytesRef view over it). Matching a
         // raw vector thus allocates none of these per row - only the exact-size input byte[] each row is copied into (see
         // #process), which RE2/J's byte-oriented matching requires.
-        return new PromqlRegexExtractEvaluator.Factory(
+        return new RegexExpandEvaluator.Factory(
             source(),
             toEvaluator.apply(src),
             context -> pattern.matcher(""),
@@ -199,7 +202,7 @@ public final class PromqlRegexExtract extends EsqlScalarFunction implements Vers
         }
     }
 
-    @Evaluator
+    @Evaluator(warnExceptions = { IllegalArgumentException.class })
     static void process(
         BytesRefBlock.Builder builder,
         @Position int p,
@@ -210,6 +213,12 @@ public final class PromqlRegexExtract extends EsqlScalarFunction implements Vers
         @Fixed(includeInToString = false, scope = THREAD_LOCAL) BytesRef outValue,
         @Fixed Replacement template
     ) {
+        // A single label has a single value, so a multivalued source has no defined value to match. Follow the ES|QL
+        // single-value contract (the same one label_join inherits from Concat): the declared warnExceptions turns this into a
+        // "single-value function encountered multi-value" warning and a null (no-op) result, leaving the destination untouched.
+        if (srcBlock.getValueCount(p) > 1) {
+            throw new IllegalArgumentException("single-value function encountered multi-value");
+        }
         // Match the raw UTF-8 bytes: RE2/J matches an identical rune stream in UTF-8 and UTF-16 mode, so staying in UTF-8
         // avoids a decode-to-String/re-encode round-trip and lets the expansion slice capture groups straight out of the input
         // bytes. Capture-group offsets are byte offsets in this mode.
@@ -226,11 +235,12 @@ public final class PromqlRegexExtract extends EsqlScalarFunction implements Vers
 
     /**
      * The single-valued string value at position {@code p} as an exact-size UTF-8 {@code byte[]}, or {@link BytesRef#EMPTY_BYTES}
-     * when the position has no value. Null positions never reach here (the generated evaluator short-circuits them), so this only
-     * guards the empty-multivalue case; the caller coalesces an absent source label to {@code ""} upstream. A fresh copy is made
-     * because RE2/J's {@link Matcher#reset(byte[])} matches the whole array (it has no offset/length form) while the block hands
-     * back a view into shared storage with an arbitrary offset and an over-sized backing array. {@code scratch} is a caller-owned
-     * read buffer that holds nothing past this call and may be reused.
+     * when the position has no value. Null positions never reach here (the generated evaluator short-circuits them) and
+     * multivalued positions are rejected by {@link #process} before this is called, so this only guards the empty (zero-value)
+     * case; the caller coalesces an absent source label to {@code ""} upstream. A fresh copy is made because RE2/J's
+     * {@link Matcher#reset(byte[])} matches the whole array (it has no offset/length form) while the block hands back a view into
+     * shared storage with an arbitrary offset and an over-sized backing array. {@code scratch} is a caller-owned read buffer that
+     * holds nothing past this call and may be reused.
      */
     private static byte[] inputBytes(BytesRefBlock block, int p, BytesRef scratch) {
         if (block.getValueCount(p) == 0) {

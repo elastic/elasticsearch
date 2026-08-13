@@ -32,7 +32,8 @@ public class XContentParserConfigurationImpl implements XContentParserConfigurat
         null,
         null,
         false,
-        true
+        true,
+        false
     );
 
     final NamedXContentRegistry registry;
@@ -42,6 +43,7 @@ public class XContentParserConfigurationImpl implements XContentParserConfigurat
     final FilterPath[] excludes;
     final boolean filtersMatchFieldNamesWithDots;
     final boolean includeSourceOnError;
+    final boolean sourceFilterWildcardSemantics;
 
     private XContentParserConfigurationImpl(
         NamedXContentRegistry registry,
@@ -50,7 +52,8 @@ public class XContentParserConfigurationImpl implements XContentParserConfigurat
         FilterPath[] includes,
         FilterPath[] excludes,
         boolean filtersMatchFieldNamesWithDots,
-        boolean includeSourceOnError
+        boolean includeSourceOnError,
+        boolean sourceFilterWildcardSemantics
     ) {
         this.registry = registry;
         this.deprecationHandler = deprecationHandler;
@@ -59,6 +62,20 @@ public class XContentParserConfigurationImpl implements XContentParserConfigurat
         this.excludes = excludes;
         this.filtersMatchFieldNamesWithDots = filtersMatchFieldNamesWithDots;
         this.includeSourceOnError = includeSourceOnError;
+        this.sourceFilterWildcardSemantics = sourceFilterWildcardSemantics;
+    }
+
+    private XContentParserConfigurationImpl copy(boolean includeSourceOnError) {
+        return new XContentParserConfigurationImpl(
+            registry,
+            deprecationHandler,
+            restApiVersion,
+            includes,
+            excludes,
+            filtersMatchFieldNamesWithDots,
+            includeSourceOnError,
+            sourceFilterWildcardSemantics
+        );
     }
 
     @Override
@@ -71,15 +88,7 @@ public class XContentParserConfigurationImpl implements XContentParserConfigurat
         if (includeSourceOnError == this.includeSourceOnError) {
             return this;
         }
-        return new XContentParserConfigurationImpl(
-            registry,
-            deprecationHandler,
-            restApiVersion,
-            includes,
-            excludes,
-            filtersMatchFieldNamesWithDots,
-            includeSourceOnError
-        );
+        return copy(includeSourceOnError);
     }
 
     @Override
@@ -91,7 +100,8 @@ public class XContentParserConfigurationImpl implements XContentParserConfigurat
             includes,
             excludes,
             filtersMatchFieldNamesWithDots,
-            includeSourceOnError
+            includeSourceOnError,
+            sourceFilterWildcardSemantics
         );
     }
 
@@ -107,7 +117,8 @@ public class XContentParserConfigurationImpl implements XContentParserConfigurat
             includes,
             excludes,
             filtersMatchFieldNamesWithDots,
-            includeSourceOnError
+            includeSourceOnError,
+            sourceFilterWildcardSemantics
         );
     }
 
@@ -123,7 +134,8 @@ public class XContentParserConfigurationImpl implements XContentParserConfigurat
             includes,
             excludes,
             filtersMatchFieldNamesWithDots,
-            includeSourceOnError
+            includeSourceOnError,
+            sourceFilterWildcardSemantics
         );
     }
 
@@ -144,6 +156,29 @@ public class XContentParserConfigurationImpl implements XContentParserConfigurat
         Set<String> includeStrings,
         Set<String> excludeStrings,
         boolean filtersMatchFieldNamesWithDots
+    ) {
+        return buildFilteringConfiguration(prefixPath, includeStrings, excludeStrings, filtersMatchFieldNamesWithDots, false);
+    }
+
+    @Override
+    public XContentParserConfiguration withSourceFilterWildcardFiltering(
+        String prefixPath,
+        Set<String> includeStrings,
+        Set<String> excludeStrings,
+        boolean filtersMatchFieldNamesWithDots
+    ) {
+        if (includeStrings != null && includeStrings.isEmpty() == false) {
+            throw new IllegalArgumentException("source wildcard filtering only supports exclude-only patterns");
+        }
+        return buildFilteringConfiguration(prefixPath, includeStrings, excludeStrings, filtersMatchFieldNamesWithDots, true);
+    }
+
+    private XContentParserConfiguration buildFilteringConfiguration(
+        String prefixPath,
+        Set<String> includeStrings,
+        Set<String> excludeStrings,
+        boolean filtersMatchFieldNamesWithDots,
+        boolean sourceFilterWildcardSemantics
     ) {
         FilterPath[] includePaths = FilterPath.compile(includeStrings);
         FilterPath[] excludePaths = FilterPath.compile(excludeStrings);
@@ -172,19 +207,18 @@ public class XContentParserConfigurationImpl implements XContentParserConfigurat
             includePaths,
             excludePaths,
             filtersMatchFieldNamesWithDots,
-            includeSourceOnError
+            includeSourceOnError,
+            sourceFilterWildcardSemantics
         );
     }
 
     public JsonParser filter(JsonParser parser) {
         JsonParser filtered = parser;
         if (excludes != null) {
-            filtered = new FilteringParserDelegate(
-                filtered,
-                new FilterPathBasedFilter(excludes, false, filtersMatchFieldNamesWithDots),
-                true,
-                true
-            );
+            FilterPathBasedFilter excludeFilter = sourceFilterWildcardSemantics
+                ? FilterPathBasedFilter.createSourceFilterExclusiveWildcardFilter(excludes, filtersMatchFieldNamesWithDots)
+                : new FilterPathBasedFilter(excludes, false, filtersMatchFieldNamesWithDots);
+            filtered = new FilteringParserDelegate(filtered, excludeFilter, true, true);
         }
         if (includes != null) {
             filtered = new FilteringParserDelegate(

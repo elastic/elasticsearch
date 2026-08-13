@@ -38,6 +38,11 @@ public final class SourceFilter {
     private Function<Map<String, Object>, Map<String, Object>> mapFilter = null;
     private Function<Source, Source> bytesFilter = null;
 
+    /**
+     * Streaming bytes filtering is only used when parity with map filtering is established for the
+     * configured patterns. Wildcard excludes that do not contain a {@code .} segment (for example
+     * {@code array*}) can produce invalid JSON in the streaming filter and continue to use the map path.
+     */
     private final boolean canFilterBytes;
     private final boolean empty;
     private final String[] includes;
@@ -53,11 +58,28 @@ public final class SourceFilter {
     public SourceFilter(String[] includes, String[] excludes) {
         this.includes = includes == null ? Strings.EMPTY_ARRAY : includes;
         this.excludes = excludes == null ? Strings.EMPTY_ARRAY : excludes;
-        // TODO: Remove this once we upgrade to Jackson 2.14. There is currently a bug
-        // in exclude filtering if one of the excludes contains a wildcard '*'.
-        // see https://github.com/FasterXML/jackson-core/pull/729
-        this.canFilterBytes = CollectionUtils.isEmpty(excludes) || Arrays.stream(excludes).noneMatch(field -> field.contains("*"));
-        this.empty = CollectionUtils.isEmpty(this.includes) && CollectionUtils.isEmpty(this.excludes);
+        this.canFilterBytes = canFilterBytes(this.includes, this.excludes);
+        this.empty = this.includes.length == 0 && this.excludes.length == 0;
+    }
+
+    /**
+     * Returns whether bytes streaming can be used for this filter configuration.
+     */
+    static boolean canFilterBytes(String[] includes, String[] excludes) {
+        if (CollectionUtils.isEmpty(excludes)) {
+            return true;
+        }
+        for (String exclude : excludes) {
+            if (exclude.contains("**")) {
+                return false;
+            }
+            if (exclude.contains("*")) {
+                if (includes.length > 0 || exclude.contains(".") == false) {
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 
     public String[] getIncludes() {
@@ -160,12 +182,12 @@ public final class SourceFilter {
         if (canFilterBytes == false) {
             return this::filterMap;
         }
-        final XContentParserConfiguration parserConfig = XContentParserConfiguration.EMPTY.withFiltering(
-            null,
-            Set.copyOf(Arrays.asList(includes)),
-            Set.copyOf(Arrays.asList(excludes)),
-            true
-        );
+        Set<String> includePaths = Set.copyOf(Arrays.asList(includes));
+        Set<String> excludePaths = Set.copyOf(Arrays.asList(excludes));
+        boolean hasWildcardExcludes = Arrays.stream(excludes).anyMatch(exclude -> exclude.contains("*"));
+        final XContentParserConfiguration parserConfig = hasWildcardExcludes
+            ? XContentParserConfiguration.EMPTY.withSourceFilterWildcardFiltering(null, includePaths, excludePaths, true)
+            : XContentParserConfiguration.EMPTY.withFiltering(null, includePaths, excludePaths, true);
         return in -> {
             try {
                 BytesStreamOutput streamOutput = new BytesStreamOutput(1024);

@@ -25,6 +25,131 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 public class FilterPathTests extends ESTestCase {
+    public void testWildcardObj3PathMatching() {
+        FilterPath[] filterPaths = FilterPath.compile(singleton("*.obj3"));
+        List<FilterPath> nextFilters = new ArrayList<>();
+        assertThat(filterPaths[0].matches("obj1", nextFilters, true, true), is(false));
+        assertEquals(1, nextFilters.size());
+
+        FilterPath afterObj1 = nextFilters.get(0);
+        nextFilters = new ArrayList<>();
+        assertThat(afterObj1.matches("obj2", nextFilters, true, true), is(false));
+        assertEquals(1, nextFilters.size());
+
+        FilterPath afterObj2 = nextFilters.get(0);
+        nextFilters = new ArrayList<>();
+        assertThat(afterObj2.matches("obj3", nextFilters, true, true), is(true));
+    }
+
+    public void testWildcardExcludeMatchesNestedLeaf() {
+        FilterPath[] filterPaths = FilterPath.compile(singleton("*.obj2"));
+        List<FilterPath> nextFilters = new ArrayList<>();
+        assertThat(filterPaths[0].matches("obj1", nextFilters, true, true), is(false));
+        assertEquals(1, nextFilters.size());
+
+        FilterPath afterObj1 = nextFilters.get(0);
+        nextFilters = new ArrayList<>();
+        assertThat(afterObj1.matches("obj2", nextFilters, true, true), is(true));
+        assertEquals(0, nextFilters.size());
+
+        filterPaths = FilterPath.compile(singleton("*.obj3"));
+        nextFilters = new ArrayList<>();
+        assertThat(filterPaths[0].matches("obj1", nextFilters, true, true), is(false));
+        assertEquals(1, nextFilters.size());
+        afterObj1 = nextFilters.get(0);
+        nextFilters = new ArrayList<>();
+        assertThat(afterObj1.matches("obj2", nextFilters, true, true), is(false));
+        assertEquals(1, nextFilters.size());
+        FilterPath afterObj2 = nextFilters.get(0);
+        nextFilters = new ArrayList<>();
+        assertThat(afterObj2.matches("obj3", nextFilters, true, true), is(true));
+    }
+
+    public void testDeferredMatchStarFooBarAfterIntermediateSegment() {
+        assertTrue(matchesSegments("*.foo.bar", "b", "foo", "bar"));
+        assertFalse(matchesSegments("*.foo.bar", "b", "foo", "x"));
+
+        List<FilterPath> nextFilters = new ArrayList<>();
+        FilterPath[] filterPaths = FilterPath.compile(singleton("*.foo.bar"));
+        assertThat(filterPaths[0].matches("a", nextFilters, false, true), is(false));
+        assertEquals(1, nextFilters.size());
+
+        FilterPath afterA = nextFilters.get(0);
+        nextFilters = new ArrayList<>();
+        assertThat(afterA.matches("foo", nextFilters, false, true), is(false));
+        assertEquals(1, nextFilters.size());
+
+        FilterPath afterFoo = nextFilters.get(0);
+        nextFilters = new ArrayList<>();
+        assertThat(afterFoo.matches("inner", nextFilters, false, true), is(false));
+        assertEquals(1, nextFilters.size());
+
+        FilterPath afterInner = nextFilters.get(0);
+        nextFilters = new ArrayList<>();
+        assertThat(afterInner.matches("foo", nextFilters, false, true), is(false));
+        assertEquals(1, nextFilters.size());
+
+        FilterPath afterInnerFoo = nextFilters.get(0);
+        nextFilters = new ArrayList<>();
+        assertThat(afterInnerFoo.matches("bar", nextFilters, false, true), is(true));
+    }
+
+    public void testDeferredMatchStarWildcardSuffix() {
+        assertTrue(matchesSegments("*.obj*", "b", "obj2", "objX"));
+        assertTrue(matchesSegments("*.obj*", "a", "obj1"));
+
+        FilterPath[] filterPaths = FilterPath.compile(singleton("*.obj*"));
+        List<FilterPath> nextFilters = new ArrayList<>();
+        assertThat(filterPaths[0].matches("a", nextFilters, false, true), is(false));
+        assertEquals(1, nextFilters.size());
+
+        FilterPath afterA = nextFilters.get(0);
+        nextFilters = new ArrayList<>();
+        assertThat(afterA.matches("obj1", nextFilters, false, true), is(true));
+    }
+
+    public void testDeferredMatchFooStarBar() {
+        assertTrue(matchesSegments("foo.*.bar", "foo", "middle", "bar"));
+        assertFalse(matchesSegments("foo.*.bar", "foo", "middle", "baz"));
+
+        FilterPath[] filterPaths = FilterPath.compile(singleton("foo.*.bar"));
+        List<FilterPath> nextFilters = new ArrayList<>();
+        assertThat(filterPaths[0].matches("foo", nextFilters, false, true), is(false));
+        assertEquals(1, nextFilters.size());
+
+        FilterPath afterFoo = nextFilters.get(0);
+        nextFilters = new ArrayList<>();
+        assertThat(afterFoo.matches("middle", nextFilters, false, true), is(false));
+        assertEquals(1, nextFilters.size());
+
+        FilterPath afterMiddle = nextFilters.get(0);
+        nextFilters = new ArrayList<>();
+        assertThat(afterMiddle.matches("bar", nextFilters, false, true), is(true));
+    }
+
+    private static boolean matchesSegments(String pattern, String... segments) {
+        FilterPath[] filterPaths = FilterPath.compile(singleton(pattern));
+        List<FilterPath> active = new ArrayList<>();
+        active.add(filterPaths[0]);
+        for (String segment : segments) {
+            List<FilterPath> next = new ArrayList<>();
+            boolean matched = false;
+            for (FilterPath filter : active) {
+                if (filter.matches(segment, next, false, true)) {
+                    matched = true;
+                }
+            }
+            if (matched) {
+                return true;
+            }
+            active = next;
+            if (active.isEmpty()) {
+                return false;
+            }
+        }
+        return false;
+    }
+
     public void testSimpleFilterPath() {
         final String input = "test";
 

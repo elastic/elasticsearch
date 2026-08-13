@@ -11,6 +11,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.xcontent.AbstractObjectParser;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -20,6 +21,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiConsumer;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeNullValues;
@@ -40,8 +42,8 @@ public record Headers(StatefulValue<Map<String, String>> mapValue) implements To
 
     private static final ParseField HEADERS = new ParseField(HEADERS_FIELD);
 
-    public static <Value, Context> void initParser(ConstructingObjectParser<Value, Context> parser) {
-        parser.declareObjectOrNull(optionalConstructorArg(), (p, c) -> {
+    public static <Value, Context> void declare(AbstractObjectParser<Value, Context> parser, BiConsumer<Value, Object> setter) {
+        parser.declareObjectOrNull(setter, (p, c) -> {
             var parsedMap = p.map();
             if (parsedMap == null || parsedMap == PARSER_NULL_SENTINEL) {
                 return parsedMap;
@@ -51,6 +53,10 @@ public record Headers(StatefulValue<Map<String, String>> mapValue) implements To
 
             return doValidation(parsedMap, validationException);
         }, PARSER_NULL_SENTINEL, HEADERS);
+    }
+
+    public static <Value, Context> void initParser(ConstructingObjectParser<Value, Context> parser) {
+        declare(parser, optionalConstructorArg());
     }
 
     private static Map<String, String> doValidation(Map<String, Object> map, ValidationException validationException) {
@@ -112,6 +118,13 @@ public record Headers(StatefulValue<Map<String, String>> mapValue) implements To
 
     public boolean isNull() {
         return mapValue.isNull();
+    }
+
+    public static Headers applyUpdate(Headers update, Headers current) {
+        if (update.mapValue.isUndefined()) {
+            return current;
+        }
+        return update.mapValue.isPresent() ? update : UNDEFINED_INSTANCE;
     }
 
     @Override

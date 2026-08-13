@@ -47,7 +47,7 @@ public class OpenAiEmbeddingsRequest implements OutboundDenseEmbeddingRequest {
                 new OpenAiEmbeddingsRequestEntity(
                     truncationResult.input(),
                     model.getServiceSettings().modelId(),
-                    model.getTaskSettings().user(),
+                    model.getTaskSettings().user().orElse(null),
                     model.getServiceSettings().dimensions(),
                     model.getServiceSettings().dimensionsSetByUser()
                 )
@@ -62,8 +62,8 @@ public class OpenAiEmbeddingsRequest implements OutboundDenseEmbeddingRequest {
             httpPost.setHeader(createOrgHeader(org));
         }
 
-        if (model.getTaskSettings().headers() != null) {
-            for (var header : model.getTaskSettings().headers().entrySet()) {
+        if (model.getTaskSettings().headers().isPresent()) {
+            for (var header : model.getTaskSettings().headers().mapValue().get().entrySet()) {
                 httpPost.setHeader(header.getKey(), header.getValue());
             }
         }

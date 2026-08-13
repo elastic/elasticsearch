@@ -7,92 +7,214 @@
 
 package org.elasticsearch.xpack.inference.services.openai;
 
+import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
-import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
+import org.elasticsearch.xcontent.AbstractObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xpack.core.inference.InferenceUtils;
+import org.elasticsearch.xpack.inference.common.parser.Headers;
+import org.elasticsearch.xpack.inference.common.parser.StatefulValue;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalMapRemoveNulls;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.validateMapStringValues;
-import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields.HEADERS;
-import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields.USER;
+import static org.elasticsearch.xpack.inference.common.parser.Headers.UNDEFINED_INSTANCE;
 
-public abstract class OpenAiTaskSettings<T extends OpenAiTaskSettings<T>> implements TaskSettings {
-    private static final Settings EMPTY_SETTINGS = new Settings(null, null);
+public abstract class OpenAiTaskSettings implements TaskSettings {
 
-    private final Settings taskSettings;
+    public static final TransportVersion INFERENCE_API_OPENAI_TASK_SETTINGS_TRI_STATE = TransportVersion.fromName(
+        "inference_api_openai_task_settings_tri_state"
+    );
 
-    public OpenAiTaskSettings(Map<String, Object> map) {
-        this(fromMap(map));
+    public abstract static class Builder<T extends OpenAiTaskSettings> {
+
+        private StatefulValue<String> user = StatefulValue.undefined();
+        private Headers headers = UNDEFINED_INSTANCE;
+
+        public void setUser(StatefulValue<String> user) {
+            this.user = Objects.requireNonNull(user);
+        }
+
+        public void setHeadersArg(Object headersArg) {
+            this.headers = Headers.create(headersArg, ModelConfigurations.TASK_SETTINGS);
+        }
+
+        protected abstract T build(StatefulValue<String> user, Headers headers);
+
+        public final T build(ConfigurationParseContext context) {
+            // Persisted settings are parsed leniently; only user-supplied requests are validated.
+            if (context == ConfigurationParseContext.REQUEST) {
+                validateUserIsNotEmpty(user);
+            }
+            return build(user, headers);
+        }
     }
 
-    public record Settings(@Nullable String user, @Nullable Map<String, String> headers) {}
+    public static <B extends Builder<? extends OpenAiTaskSettings>> ObjectParser<B, ConfigurationParseContext> createParser(
+        String parserName,
+        boolean ignoreUnknownFields,
+        Supplier<B> builderSupplier
+    ) {
+        ObjectParser<B, ConfigurationParseContext> parser = new ObjectParser<>(parserName, ignoreUnknownFields, builderSupplier);
 
-    public static Settings createSettings(String user, Map<String, String> stringHeaders) {
-        if (user == null && stringHeaders == null) {
-            return EMPTY_SETTINGS;
+        StatefulValue.declareNullable(
+            parser,
+            Builder::setUser,
+            XContentParser::text,
+            new ParseField(OpenAiServiceFields.USER),
+            ObjectParser.ValueType.STRING_OR_NULL
+        );
+
+        Headers.declare(parser, Builder::setHeadersArg);
+
+        return parser;
+    }
+
+    protected static <T extends OpenAiTaskSettings> T parseSettingsFromMap(
+        Map<String, Object> map,
+        ConfigurationParseContext context,
+        ObjectParser<? extends Builder<T>, ConfigurationParseContext> parser
+    ) {
+        try (var xParser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, map)) {
+            return parser.apply(xParser, context).build(context);
+        } catch (IOException e) {
+            throw new ElasticsearchParseException("Failed to parse [{}]", e, ModelConfigurations.TASK_SETTINGS);
+        }
+    }
+
+    public static void declareCommonUpdatableFields(AbstractObjectParser<? extends CommonUpdate, Void> parser) {
+        StatefulValue.declareNullable(
+            parser,
+            (update, value) -> update.user = value,
+            XContentParser::text,
+            new ParseField(OpenAiServiceFields.USER),
+            ObjectParser.ValueType.STRING_OR_NULL
+        );
+
+        Headers.declare(parser, (update, value) -> update.headers = Headers.create(value, ModelConfigurations.TASK_SETTINGS));
+    }
+
+    /**
+     * Fields parsed from an update request. Settings are immutable, so each subclass builds the new instance itself from
+     * {@link #mergedUser} / {@link #mergedHeaders}.
+     */
+    public static class CommonUpdate {
+
+        protected StatefulValue<String> user = StatefulValue.undefined();
+        protected Headers headers = UNDEFINED_INSTANCE;
+
+        public void validate() {
+            validateUserIsNotEmpty(user);
+        }
+
+        protected StatefulValue<String> mergedUser(OpenAiTaskSettings existing) {
+            return StatefulValue.applyUpdate(user, existing.user);
+        }
+
+        protected Headers mergedHeaders(OpenAiTaskSettings existing) {
+            return Headers.applyUpdate(headers, existing.headers);
+        }
+    }
+
+    protected static <U extends CommonUpdate> U parseUpdate(Map<String, Object> map, ObjectParser<U, Void> parser) {
+        try (var xParser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, map)) {
+            var update = parser.apply(xParser, null);
+            update.validate();
+            return update;
+        } catch (IOException e) {
+            throw new ElasticsearchParseException("Failed to parse [{}] update", e, ModelConfigurations.TASK_SETTINGS);
+        }
+    }
+
+    private static void validateUserIsNotEmpty(StatefulValue<String> user) {
+        if (user.isPresent() && user.get().isEmpty()) {
+            var validationException = new ValidationException();
+            validationException.addValidationError(
+                InferenceUtils.mustBeNonEmptyString(OpenAiServiceFields.USER, ModelConfigurations.TASK_SETTINGS)
+            );
+            throw validationException;
+        }
+    }
+
+    private final StatefulValue<String> user;
+    private final Headers headers;
+
+    protected OpenAiTaskSettings(StatefulValue<String> user, Headers headers) {
+        this.user = Objects.requireNonNull(user);
+        this.headers = Objects.requireNonNull(headers);
+    }
+
+    protected OpenAiTaskSettings(StreamInput in, TransportVersion legacyHeadersVersion) throws IOException {
+        if (in.getTransportVersion().supports(INFERENCE_API_OPENAI_TASK_SETTINGS_TRI_STATE)) {
+            this.user = StatefulValue.read(in, StreamInput::readString);
+            this.headers = new Headers(in);
         } else {
-            return new Settings(user, stringHeaders);
+            var userValue = StatefulValue.<String>undefined();
+            var userString = in.readOptionalString();
+            if (Strings.isNullOrEmpty(userString) == false) {
+                userValue = StatefulValue.of(userString);
+            }
+            Headers headersValue;
+            if (in.getTransportVersion().supports(legacyHeadersVersion)) {
+                var headersMap = in.readOptionalImmutableMap(StreamInput::readString, StreamInput::readString);
+                headersValue = headersMap == null ? UNDEFINED_INSTANCE : new Headers(StatefulValue.of(headersMap));
+            } else {
+                headersValue = UNDEFINED_INSTANCE;
+            }
+            this.user = userValue;
+            this.headers = headersValue;
         }
     }
 
-    private static Settings fromMap(Map<String, Object> map) {
-        if (map.isEmpty()) {
-            return EMPTY_SETTINGS;
+    protected void writeCommonSettings(StreamOutput out, TransportVersion legacyHeadersVersion) throws IOException {
+        if (out.getTransportVersion().supports(INFERENCE_API_OPENAI_TASK_SETTINGS_TRI_STATE)) {
+            StatefulValue.write(out, user, StreamOutput::writeString);
+            headers.writeTo(out);
+        } else {
+            out.writeOptionalString(user.orElse(null));
+            if (out.getTransportVersion().supports(legacyHeadersVersion)) {
+                out.writeOptionalMap(headers.mapValue().orElse(null), StreamOutput::writeString, StreamOutput::writeString);
+            }
         }
-
-        ValidationException validationException = new ValidationException();
-
-        String user = extractOptionalString(map, USER, ModelConfigurations.TASK_SETTINGS, validationException);
-        Map<String, Object> headers = extractOptionalMapRemoveNulls(map, HEADERS, validationException);
-        var stringHeaders = validateMapStringValues(headers, HEADERS, validationException, false, null);
-
-        validationException.throwIfValidationErrorsExist();
-
-        return createSettings(user, stringHeaders);
     }
 
-    public OpenAiTaskSettings(@Nullable String user, @Nullable Map<String, String> headers) {
-        this(new Settings(user, headers));
+    public StatefulValue<String> user() {
+        return user;
     }
 
-    protected OpenAiTaskSettings(Settings taskSettings) {
-        this.taskSettings = Objects.requireNonNull(taskSettings);
-    }
-
-    public String user() {
-        return taskSettings.user();
-    }
-
-    public Map<String, String> headers() {
-        return taskSettings.headers();
+    public Headers headers() {
+        return headers;
     }
 
     @Override
     public boolean isEmpty() {
-        return taskSettings.user() == null && (taskSettings.headers() == null || taskSettings.headers().isEmpty());
+        return user.orElse("").isEmpty() && headers.isEmpty();
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
 
-        if (taskSettings.user() != null) {
-            builder.field(USER, taskSettings.user());
+        if (user.isPresent() && user.get().isEmpty() == false) {
+            builder.field(OpenAiServiceFields.USER, user.get());
         }
 
-        if (taskSettings.headers() != null && taskSettings.headers().isEmpty() == false) {
-            builder.field(HEADERS, taskSettings.headers());
-        }
-
+        headers.toXContent(builder, params);
         builder.endObject();
-
         return builder;
     }
 
@@ -100,24 +222,15 @@ public abstract class OpenAiTaskSettings<T extends OpenAiTaskSettings<T>> implem
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        OpenAiTaskSettings<?> that = (OpenAiTaskSettings<?>) o;
-        return Objects.equals(taskSettings, that.taskSettings);
+        OpenAiTaskSettings that = (OpenAiTaskSettings) o;
+        return Objects.equals(user, that.user) && Objects.equals(headers, that.headers);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(taskSettings);
+        return Objects.hash(user, headers);
     }
 
     @Override
-    public T updatedTaskSettings(Map<String, Object> newSettings) {
-        Settings updatedSettings = fromMap(newSettings);
-
-        var userToUse = updatedSettings.user() == null ? taskSettings.user() : updatedSettings.user();
-        var headersToUse = updatedSettings.headers() == null ? taskSettings.headers() : updatedSettings.headers();
-        return create(userToUse, headersToUse);
-    }
-
-    protected abstract T create(@Nullable String user, @Nullable Map<String, String> headers);
-
+    public abstract OpenAiTaskSettings updatedTaskSettings(Map<String, Object> newSettings);
 }

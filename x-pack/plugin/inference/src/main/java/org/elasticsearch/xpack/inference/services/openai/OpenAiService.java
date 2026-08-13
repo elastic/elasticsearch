@@ -176,6 +176,11 @@ public class OpenAiService extends SenderService<OpenAiModel> {
     }
 
     @Override
+    public boolean usesParserForTaskSettings() {
+        return true;
+    }
+
+    @Override
     protected void migrateBetweenTaskAndServiceSettings(Map<String, Object> serviceSettings, Map<String, Object> taskSettings) {
         moveModelFromTaskToServiceSettings(taskSettings, serviceSettings);
     }

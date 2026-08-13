@@ -1288,7 +1288,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
             TaskType.TEXT_EMBEDDING,
             "service",
             serviceSettings,
-            new OpenAiEmbeddingsTaskSettings(null, null),
+            OpenAiEmbeddingsTaskSettings.EMPTY,
             null,
             new OpenAiOAuth2SecretsSettings(new SecureString(clientSecret.toCharArray())),
             mock(ThreadPool.class),

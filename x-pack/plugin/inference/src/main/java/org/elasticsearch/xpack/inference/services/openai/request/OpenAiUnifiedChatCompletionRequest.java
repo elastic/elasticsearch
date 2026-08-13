@@ -52,8 +52,8 @@ public class OpenAiUnifiedChatCompletionRequest implements OutboundUnifiedComple
             httpPost.setHeader(createOrgHeader(org));
         }
 
-        if (model.getTaskSettings().headers() != null) {
-            for (var header : model.getTaskSettings().headers().entrySet()) {
+        if (model.getTaskSettings().headers().isPresent()) {
+            for (var header : model.getTaskSettings().headers().mapValue().get().entrySet()) {
                 httpPost.setHeader(header.getKey(), header.getValue());
             }
         }

@@ -13,129 +13,91 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
+import org.elasticsearch.xpack.inference.common.parser.Headers;
+import org.elasticsearch.xpack.inference.common.parser.StatefulValue;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
-public abstract class OpenAiTaskSettingsTests<T extends OpenAiTaskSettings<T>> extends AbstractBWCWireSerializationTestCase<T> {
-
-    private enum HeadersDefinition {
-        NULL(null),
-        EMPTY(Map.of()),
-        DEFINED(Map.of(randomAlphaOfLength(15), randomAlphaOfLength(15)));
-
-        private final Map<String, String> headers;
-
-        HeadersDefinition(@Nullable Map<String, String> headers) {
-            this.headers = headers;
-        }
-    }
+public abstract class OpenAiTaskSettingsTests<T extends OpenAiTaskSettings> extends AbstractBWCWireSerializationTestCase<T> {
 
     public T createRandom() {
-        var user = randomBoolean() ? null : randomAlphaOfLength(15);
-        var headers = randomFrom(HeadersDefinition.values()).headers;
-
+        var user = randomFrom(
+            StatefulValue.<String>undefined(),
+            StatefulValue.<String>nullInstance(),
+            StatefulValue.of(randomAlphaOfLength(15))
+        );
+        var headers = randomFrom(
+            Headers.UNDEFINED_INSTANCE,
+            Headers.NULL_INSTANCE,
+            new Headers(StatefulValue.of(Map.of(randomAlphaOfLength(15), randomAlphaOfLength(15))))
+        );
         return create(user, headers);
     }
 
     public void testIsEmpty() {
-        var bothNull = create(null, null);
-        assertTrue(bothNull.isEmpty());
-
-        var nullUserEmptyHeaders = create(null, Map.of());
-        assertTrue(nullUserEmptyHeaders.isEmpty());
-
-        var nullHeaders = create("user", null);
-        assertFalse(nullHeaders.isEmpty());
-
-        var nullUser = create(null, Map.of("K", "v"));
-        assertFalse(nullUser.isEmpty());
-
-        var neitherNull = create("user", Map.of("K", "v"));
-        assertFalse(neitherNull.isEmpty());
+        assertTrue(create(StatefulValue.undefined(), Headers.UNDEFINED_INSTANCE).isEmpty());
+        assertTrue(create(StatefulValue.nullInstance(), Headers.UNDEFINED_INSTANCE).isEmpty());
+        assertTrue(create(StatefulValue.undefined(), Headers.NULL_INSTANCE).isEmpty());
+        assertFalse(create(StatefulValue.of("user"), Headers.UNDEFINED_INSTANCE).isEmpty());
+        assertFalse(create(StatefulValue.undefined(), new Headers(StatefulValue.of(Map.of("K", "v")))).isEmpty());
+        assertFalse(create(StatefulValue.of("user"), new Headers(StatefulValue.of(Map.of("K", "v")))).isEmpty());
     }
 
-    public void testUpdatedTaskSettings() {
-        var initialSettings = createRandom();
-        var newSettings = createRandom();
-
-        Map<String, Object> newSettingsMap = new HashMap<>();
-        if (newSettings.user() != null) {
-            newSettingsMap.put(OpenAiServiceFields.USER, newSettings.user());
-        }
-
-        if (newSettings.headers() != null) {
-            newSettingsMap.put(OpenAiServiceFields.HEADERS, newSettings.headers());
-        }
-
-        var updatedSettings = initialSettings.updatedTaskSettings(newSettingsMap);
-
-        if (newSettings.user() == null) {
-            assertEquals(initialSettings.user(), updatedSettings.user());
-        } else {
-            assertEquals(newSettings.user(), updatedSettings.user());
-        }
-
-        if (newSettings.headers() == null) {
-            assertEquals(initialSettings.headers(), updatedSettings.headers());
-        } else {
-            assertEquals(newSettings.headers(), updatedSettings.headers());
-        }
-    }
-
-    public void testUpdatedTaskSettings_ApplyingEmptyHeaders() {
-        var user = "user";
-        var initialSettingsNullHeaders = create(user, null);
-        var newSettingsMap = new HashMap<String, Object>(Map.of(OpenAiServiceFields.HEADERS, Map.of()));
-
-        var updatedSettings = initialSettingsNullHeaders.updatedTaskSettings(newSettingsMap);
-        assertThat(updatedSettings, is(create(user, Map.of())));
-
-        var initialSettingsDefinedHeaders = create(user, Map.of("key", "value"));
-        updatedSettings = initialSettingsDefinedHeaders.updatedTaskSettings(new HashMap<>(Map.of(OpenAiServiceFields.HEADERS, Map.of())));
-        assertThat(updatedSettings, is(create(user, Map.of())));
-    }
-
-    public void testUpdatedTaskSettings_KeepsOriginalValuesWithOverridesAreNull() {
-        var taskSettings = createFromMap(new HashMap<>(Map.of(OpenAiServiceFields.USER, "user")));
+    public void testUpdatedTaskSettings_KeepsOriginalValuesWithEmptyOverrides() {
+        var taskSettings = createFromMap(new HashMap<>(Map.of(OpenAiServiceFields.USER, "user")), ConfigurationParseContext.REQUEST);
 
         assertThat(taskSettings.updatedTaskSettings(new HashMap<>()), is(taskSettings));
     }
 
-    public void testUpdatedTaskSettings_UsesOverriddenSettings() {
-        var taskSettings = createFromMap(new HashMap<>(Map.of(OpenAiServiceFields.USER, "user")));
+    public void testUpdatedTaskSettings_OverridesUser() {
+        var taskSettings = createFromMap(new HashMap<>(Map.of(OpenAiServiceFields.USER, "user")), ConfigurationParseContext.REQUEST);
 
-        assertThat(taskSettings.updatedTaskSettings(new HashMap<>(Map.of(OpenAiServiceFields.USER, "user2"))), is(create("user2", null)));
+        var updated = taskSettings.updatedTaskSettings(new HashMap<>(Map.of(OpenAiServiceFields.USER, "user2")));
+        assertThat(updated.user(), is(StatefulValue.of("user2")));
+        assertTrue(updated.headers().mapValue().isUndefined());
     }
 
-    public void testUpdatedTaskSettings_UsesOverriddenSettings_ForHeaders() {
+    public void testUpdatedTaskSettings_ClearsUserWithNull() {
+        var taskSettings = createFromMap(new HashMap<>(Map.of(OpenAiServiceFields.USER, "user")), ConfigurationParseContext.REQUEST);
+
+        var nullUserMap = new HashMap<String, Object>();
+        nullUserMap.put(OpenAiServiceFields.USER, null);
+        var updated = taskSettings.updatedTaskSettings(nullUserMap);
+        assertTrue(updated.user().isUndefined());
+    }
+
+    public void testUpdatedTaskSettings_OverridesHeaders() {
         var user = "user";
-        var taskSettings = createFromMap(new HashMap<>(Map.of(OpenAiServiceFields.USER, user)));
+        var taskSettings = createFromMap(new HashMap<>(Map.of(OpenAiServiceFields.USER, user)), ConfigurationParseContext.REQUEST);
 
         var headers = Map.of("key", "value");
-        assertThat(
-            taskSettings.updatedTaskSettings(new HashMap<>(Map.of(OpenAiServiceFields.HEADERS, headers))),
-            is(create(user, headers))
-        );
+        var updated = taskSettings.updatedTaskSettings(new HashMap<>(Map.of(OpenAiServiceFields.HEADERS, headers)));
+        assertThat(updated.user(), is(StatefulValue.of(user)));
+        assertThat(updated.headers().mapValue().get(), is(headers));
     }
 
     public void testFromMap_WithUserAndHeaders() {
-        assertThat(
-            createFromMap(new HashMap<>(Map.of(OpenAiServiceFields.USER, "user", OpenAiServiceFields.HEADERS, Map.of("key", "value")))),
-            is(create("user", Map.of("key", "value")))
+        var settings = createFromMap(
+            new HashMap<>(Map.of(OpenAiServiceFields.USER, "user", OpenAiServiceFields.HEADERS, Map.of("key", "value"))),
+            ConfigurationParseContext.REQUEST
         );
+        assertThat(settings.user(), is(StatefulValue.of("user")));
+        assertThat(settings.headers().mapValue().get(), is(Map.of("key", "value")));
     }
 
     public void testFromMap_UserIsEmptyString() {
         var thrownException = expectThrows(
             ValidationException.class,
-            () -> createFromMap(new HashMap<>(Map.of(OpenAiServiceFields.USER, "")))
+            () -> createFromMap(new HashMap<>(Map.of(OpenAiServiceFields.USER, "")), ConfigurationParseContext.REQUEST)
         );
 
         assertThat(
@@ -144,96 +106,108 @@ public abstract class OpenAiTaskSettingsTests<T extends OpenAiTaskSettings<T>> e
         );
     }
 
-    public void testFromMap_MissingUser_DoesNotThrowException() {
-        var taskSettings = createFromMap(new HashMap<>());
-        assertNull(taskSettings.user());
+    public void testFromMap_MissingUser_ProducesUndefined() {
+        var taskSettings = createFromMap(new HashMap<>(), ConfigurationParseContext.REQUEST);
+        assertTrue(taskSettings.user().isUndefined());
     }
 
-    public void testFromMap_ReturnsEmptySettings_WhenTheMapDoesNotContainTheFields() {
-        var settings = createFromMap(new HashMap<>(Map.of("key", "value")));
-        assertNull(settings.user());
-        assertNull(settings.headers());
+    public void testFromMap_NullUser_ProducesNullInstance() {
+        var nullUserMap = new HashMap<String, Object>();
+        nullUserMap.put(OpenAiServiceFields.USER, null);
+        var settings = createFromMap(nullUserMap, ConfigurationParseContext.REQUEST);
+        assertTrue(settings.user().isNull());
     }
 
-    public void testFromMap_ParsesCorrectly_WhenUserIsNull() {
-        var settings = createFromMap(new HashMap<>(Map.of(OpenAiServiceFields.HEADERS, new HashMap<>(Map.of("key", "value")))));
-
-        assertNull(settings.user());
-        assertThat(settings.headers(), is(Map.of("key", "value")));
-    }
-
-    public void testFromMap_ParsesCorrectly_WhenHeadersIsNull() {
-        var settings = createFromMap(new HashMap<>(Map.of(OpenAiServiceFields.USER, "user")));
-
-        assertThat(settings.user(), is("user"));
-        assertNull(settings.headers());
+    public void testFromMap_PersistentContext_IgnoresUnknownFields() {
+        var settings = createFromMap(new HashMap<>(Map.of("unknown_field", "value")), ConfigurationParseContext.PERSISTENT);
+        assertTrue(settings.user().isUndefined());
+        assertTrue(settings.headers().mapValue().isUndefined());
     }
 
     public void testFromMap_ParsesCorrectly_WhenHeadersIsEmptyMap() {
-        var settings = createFromMap(new HashMap<>(Map.of(OpenAiServiceFields.USER, "user", OpenAiServiceFields.HEADERS, Map.of())));
-
-        assertThat(settings.user(), is("user"));
-        assertThat(settings.headers(), anEmptyMap());
+        var settings = createFromMap(
+            new HashMap<>(Map.of(OpenAiServiceFields.USER, "user", OpenAiServiceFields.HEADERS, Map.of())),
+            ConfigurationParseContext.REQUEST
+        );
+        assertThat(settings.user(), is(StatefulValue.of("user")));
+        // empty headers map → NULL_INSTANCE (treated as clearing)
+        assertTrue(settings.headers().isNull());
     }
 
     public void testFromMap_ParsesCorrectly_WhenHeadersMapOfNulls() {
         var headersMap = new HashMap<String, Object>();
         headersMap.put("key1", null);
         headersMap.put("key2", null);
-        var settings = createFromMap(new HashMap<>(Map.of(OpenAiServiceFields.USER, "user", OpenAiServiceFields.HEADERS, headersMap)));
-
-        assertThat(settings.user(), is("user"));
-        assertThat(settings.headers(), anEmptyMap());
+        var settings = createFromMap(
+            new HashMap<>(Map.of(OpenAiServiceFields.USER, "user", OpenAiServiceFields.HEADERS, headersMap)),
+            ConfigurationParseContext.REQUEST
+        );
+        assertThat(settings.user(), is(StatefulValue.of("user")));
+        // all null values stripped → empty map → NULL_INSTANCE
+        assertTrue(settings.headers().isNull());
     }
 
     public void testFromMap_ParsesCorrectly_WhenHeadersContainsAnInteger() {
         var exception = expectThrows(
-            ValidationException.class,
+            XContentParseException.class,
             () -> createFromMap(
-                new HashMap<>(Map.of(OpenAiServiceFields.USER, "user", OpenAiServiceFields.HEADERS, new HashMap<>(Map.of("key", 1))))
+                new HashMap<>(Map.of(OpenAiServiceFields.USER, "user", OpenAiServiceFields.HEADERS, new HashMap<>(Map.of("key", 1)))),
+                ConfigurationParseContext.REQUEST
             )
         );
 
+        assertThat(exception.getMessage(), containsString("failed to parse field [headers]"));
         assertThat(
-            exception.getMessage(),
-            is(
-                "Validation Failed: 1: Map field [headers] has an entry that is not valid, "
-                    + "[key => 1]. Value type of [Integer] is not one of [String].;"
+            exception.getCause().getMessage(),
+            containsString(
+                "Map field [headers] has an entry that is not valid, [key => 1]. Value type of [Integer] is not one of [String].;"
             )
         );
     }
 
     @Override
     protected T mutateInstance(T instance) throws IOException {
-        var setNull = randomBoolean();
-        var fieldToMutate = randomIntBetween(0, 1);
+        return randomBoolean() ? mutateUser(instance) : mutateHeaders(instance);
+    }
 
-        return switch (fieldToMutate) {
-            case 0 -> create(
-                instance.user() == null ? randomAlphaOfLength(15) : (setNull ? null : instance.user() + "modified"),
-                instance.headers()
-            );
-            case 1 -> {
-                if (instance.headers() == null) {
-                    yield create(instance.user(), Map.of(randomAlphaOfLength(15), randomAlphaOfLength(15)));
-                } else if (setNull) {
-                    yield create(instance.user(), null);
-                } else {
-                    var instanceHeaders = new HashMap<>(instance.headers() == null ? Map.of() : instance.headers());
-                    instanceHeaders.put(randomAlphaOfLength(15), randomAlphaOfLength(15));
-                    yield create(instance.user(), instanceHeaders);
-                }
-            }
-            default -> throw new IllegalStateException("Unexpected value: " + fieldToMutate);
-        };
+    private T mutateUser(T instance) {
+        var currentUser = instance.user();
+        StatefulValue<String> newUser;
+        if (currentUser.isUndefined()) {
+            newUser = randomBoolean() ? StatefulValue.nullInstance() : StatefulValue.of(randomAlphaOfLength(15));
+        } else if (currentUser.isNull()) {
+            newUser = randomBoolean() ? StatefulValue.undefined() : StatefulValue.of(randomAlphaOfLength(15));
+        } else {
+            newUser = randomFrom(StatefulValue.undefined(), StatefulValue.nullInstance(), StatefulValue.of(currentUser.get() + "_mutated"));
+        }
+        return create(newUser, instance.headers());
+    }
+
+    private T mutateHeaders(T instance) {
+        var currentHeaders = instance.headers();
+        Headers newHeaders;
+        if (currentHeaders.mapValue().isUndefined()) {
+            newHeaders = randomBoolean()
+                ? Headers.NULL_INSTANCE
+                : new Headers(StatefulValue.of(Map.of(randomAlphaOfLength(15), randomAlphaOfLength(15))));
+        } else if (currentHeaders.isNull()) {
+            newHeaders = randomBoolean()
+                ? Headers.UNDEFINED_INSTANCE
+                : new Headers(StatefulValue.of(Map.of(randomAlphaOfLength(15), randomAlphaOfLength(15))));
+        } else {
+            var mutatedMap = new HashMap<>(currentHeaders.mapValue().get());
+            mutatedMap.put(randomAlphaOfLength(15), randomAlphaOfLength(15));
+            newHeaders = randomFrom(Headers.UNDEFINED_INSTANCE, Headers.NULL_INSTANCE, new Headers(StatefulValue.of(mutatedMap)));
+        }
+        return create(instance.user(), newHeaders);
     }
 
     public void testToXContent_WritesUserAndHeaders() throws IOException {
-        var settings = create("user", Map.of("key", "value"));
+        var settings = create(StatefulValue.of("user"), new Headers(StatefulValue.of(Map.of("key", "value"))));
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         settings.toXContent(builder, null);
-        String xContentResult = Strings.toString(builder);
+        var xContentResult = Strings.toString(builder);
         var expected = XContentHelper.stripWhitespace("""
             {
                 "user": "user",
@@ -244,12 +218,12 @@ public abstract class OpenAiTaskSettingsTests<T extends OpenAiTaskSettings<T>> e
         assertThat(xContentResult, is(expected));
     }
 
-    public void testToXContent_WritesOnlyUser_WhenHeadersIsNull() throws IOException {
-        var settings = create("user", null);
+    public void testToXContent_WritesOnlyUser_WhenHeadersIsUndefined() throws IOException {
+        var settings = create(StatefulValue.of("user"), Headers.UNDEFINED_INSTANCE);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         settings.toXContent(builder, null);
-        String xContentResult = Strings.toString(builder);
+        var xContentResult = Strings.toString(builder);
         var expected = XContentHelper.stripWhitespace("""
             {
                 "user": "user"
@@ -259,12 +233,12 @@ public abstract class OpenAiTaskSettingsTests<T extends OpenAiTaskSettings<T>> e
         assertThat(xContentResult, is(expected));
     }
 
-    public void testToXContent_WritesOnlyHeaders_WhenUserIsNull() throws IOException {
-        var settings = create(null, Map.of("key", "value"));
+    public void testToXContent_WritesOnlyHeaders_WhenUserIsUndefined() throws IOException {
+        var settings = create(StatefulValue.undefined(), new Headers(StatefulValue.of(Map.of("key", "value"))));
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         settings.toXContent(builder, null);
-        String xContentResult = Strings.toString(builder);
+        var xContentResult = Strings.toString(builder);
         var expected = XContentHelper.stripWhitespace("""
             {
                 "headers": {"key": "value"}
@@ -274,19 +248,19 @@ public abstract class OpenAiTaskSettingsTests<T extends OpenAiTaskSettings<T>> e
         assertThat(xContentResult, is(expected));
     }
 
-    public void testToXContent_WritesEmptyObject_WhenBothNull() throws IOException {
-        var settings = create(null, null);
+    public void testToXContent_WritesEmptyObject_WhenBothUndefined() throws IOException {
+        var settings = create(StatefulValue.undefined(), Headers.UNDEFINED_INSTANCE);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         settings.toXContent(builder, null);
-        String xContentResult = Strings.toString(builder);
+        var xContentResult = Strings.toString(builder);
 
         assertThat(xContentResult, is("{}"));
     }
 
-    protected abstract T create(@Nullable String user, @Nullable Map<String, String> headers);
+    protected abstract T create(StatefulValue<String> user, Headers headers);
 
-    protected abstract T createFromMap(Map<String, Object> map);
+    protected abstract T createFromMap(Map<String, Object> map, ConfigurationParseContext context);
 
     public static Map<String, Object> getOpenAiTaskSettingsMap(@Nullable String user) {
         var map = new HashMap<String, Object>();

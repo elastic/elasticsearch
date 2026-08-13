@@ -2398,8 +2398,11 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             assertThat(capturedTasks.size(), equalTo(enqueuedCount));
             assertThat(
                 "enqueued must equal number of blobs before any task starts",
-                measurementsTotal(recordingMeterRegistry, InstrumentType.LONG_UP_DOWN_COUNTER,
-                    SharedBlobCacheWarmingService.BLOB_CACHE_WARMING_BCC_BLOBS_ENQUEUED_CURRENT_METRIC),
+                measurementsTotal(
+                    recordingMeterRegistry,
+                    InstrumentType.LONG_UP_DOWN_COUNTER,
+                    SharedBlobCacheWarmingService.BLOB_CACHE_WARMING_BCC_BLOBS_ENQUEUED_CURRENT_METRIC
+                ),
                 equalTo((long) enqueuedCount)
             );
 
@@ -2419,8 +2422,11 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 );
                 assertThat(
                     "enqueued must equal number of blobs before any task starts",
-                    measurementsTotal(recordingMeterRegistry, InstrumentType.LONG_UP_DOWN_COUNTER,
-                        SharedBlobCacheWarmingService.BLOB_CACHE_WARMING_BCC_BLOBS_ENQUEUED_CURRENT_METRIC),
+                    measurementsTotal(
+                        recordingMeterRegistry,
+                        InstrumentType.LONG_UP_DOWN_COUNTER,
+                        SharedBlobCacheWarmingService.BLOB_CACHE_WARMING_BCC_BLOBS_ENQUEUED_CURRENT_METRIC
+                    ),
                     equalTo((long) --enqueuedCount)
                 );
             }
@@ -2431,21 +2437,29 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
 
             assertThat(
                 "enqueued must return to zero after all tasks complete",
-                measurementsTotal(recordingMeterRegistry, InstrumentType.LONG_UP_DOWN_COUNTER,
-                    SharedBlobCacheWarmingService.BLOB_CACHE_WARMING_BCC_BLOBS_ENQUEUED_CURRENT_METRIC),
+                measurementsTotal(
+                    recordingMeterRegistry,
+                    InstrumentType.LONG_UP_DOWN_COUNTER,
+                    SharedBlobCacheWarmingService.BLOB_CACHE_WARMING_BCC_BLOBS_ENQUEUED_CURRENT_METRIC
+                ),
                 equalTo(0L)
             );
             assertThat(
                 "running must return to zero after all tasks complete",
-                measurementsTotal(recordingMeterRegistry, InstrumentType.LONG_UP_DOWN_COUNTER,
-                    SharedBlobCacheWarmingService.BLOB_CACHE_WARMING_BCC_BLOBS_RUNNING_CURRENT_METRIC),
+                measurementsTotal(
+                    recordingMeterRegistry,
+                    InstrumentType.LONG_UP_DOWN_COUNTER,
+                    SharedBlobCacheWarmingService.BLOB_CACHE_WARMING_BCC_BLOBS_RUNNING_CURRENT_METRIC
+                ),
                 equalTo(0L)
             );
             assertThat(
                 "done counter must equal the number of warmed blobs",
                 recordingMeterRegistry.getRecorder()
-                    .getMeasurements(InstrumentType.LONG_COUNTER,
-                        SharedBlobCacheWarmingService.BLOB_CACHE_WARMING_BCC_BLOBS_DONE_TOTAL_METRIC)
+                    .getMeasurements(
+                        InstrumentType.LONG_COUNTER,
+                        SharedBlobCacheWarmingService.BLOB_CACHE_WARMING_BCC_BLOBS_DONE_TOTAL_METRIC
+                    )
                     .stream()
                     .mapToLong(Measurement::getLong)
                     .sum(),

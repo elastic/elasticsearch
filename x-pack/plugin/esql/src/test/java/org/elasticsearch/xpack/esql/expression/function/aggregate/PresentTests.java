@@ -44,12 +44,6 @@ public class PresentTests extends AbstractAggregationTestCase {
         FunctionAppliesTo histogramGaAppliesTo = appliesTo(FunctionAppliesToLifecycle.GA, "9.4.0", "", true);
         FunctionAppliesTo flattenedPreviewAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.5.0", "", false);
         FunctionAppliesTo dateRangeAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.5.0", "", false);
-        FunctionAppliesTo doubleRangeAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.6.0", "", false);
-        List<TestCaseSupplier.TypedDataSupplier> doubleRangeCases = MultiRowTestCaseSupplier.doubleRangeCases(1, 1000)
-            .stream()
-            .map(s -> s.withAppliesTo(doubleRangeAppliesTo))
-            .toList();
-
         Stream.of(
             MultiRowTestCaseSupplier.nullCases(1, 1000),
             MultiRowTestCaseSupplier.intCases(1, 1000, Integer.MIN_VALUE, Integer.MAX_VALUE, true),
@@ -60,7 +54,7 @@ public class PresentTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.dateCases(1, 1000),
             MultiRowTestCaseSupplier.dateNanosCases(1, 1000),
             MultiRowTestCaseSupplier.dateRangeCases(1, 1000).stream().map(s -> s.withAppliesTo(dateRangeAppliesTo)).toList(),
-            doubleRangeCases,
+            MultiRowTestCaseSupplier.doubleRangeCases(1, 1000),
             MultiRowTestCaseSupplier.denseVectorCases(1, 1000),
             MultiRowTestCaseSupplier.booleanCases(1, 1000),
             MultiRowTestCaseSupplier.ipCases(1, 1000),

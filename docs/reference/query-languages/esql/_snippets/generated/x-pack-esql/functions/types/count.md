@@ -14,7 +14,6 @@
 | dense_vector | long |
 | double | long |
 | double_range {applies_to}`stack: preview 9.6.0` | long |
-| double_range | long |
 | exponential_histogram {applies_to}`stack: preview 9.3.0, ga 9.4.0` | long |
 | flattened {applies_to}`stack: preview 9.5.0` | long |
 | geo_point | long |

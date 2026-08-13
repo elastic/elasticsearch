@@ -4,7 +4,7 @@
 
 | field | result |
 | --- | --- |
-| double_range | double_range |
+| double_range {applies_to}`stack: preview 9.6.0` | double_range |
 | keyword | double_range |
 | text | double_range |
 

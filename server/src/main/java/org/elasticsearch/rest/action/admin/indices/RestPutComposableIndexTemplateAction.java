@@ -17,6 +17,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
@@ -35,7 +36,7 @@ import static org.elasticsearch.rest.action.admin.indices.RestPutComponentTempla
 public class RestPutComposableIndexTemplateAction extends BaseRestHandler {
 
     private static final String INDEX_TEMPLATE_TRACKING_INFO = "index_template_tracking_info";
-    private static final String INDEX_TEMPLATE_MANAGED_FIELD = "index_template_managed_field";
+    static final String INDEX_TEMPLATE_MANAGED_FIELD = "index_template_managed_field";
 
     private static final Set<String> CAPABILITIES = Set.of(
         SUPPORTS_FAILURE_STORE,
@@ -67,14 +68,18 @@ public class RestPutComposableIndexTemplateAction extends BaseRestHandler {
         putRequest.create(request.paramAsBoolean("create", false));
         putRequest.cause(request.param("cause", "api"));
         try (var parser = request.contentParser()) {
-            ComposableIndexTemplate template = ComposableIndexTemplate.parse(parser);
-            if (template.isManaged()) {
-                throw new IllegalArgumentException("[managed] is a system-managed field and cannot be set by a user");
-            }
-            putRequest.indexTemplate(template);
+            putRequest.indexTemplate(parseAndValidateTemplate(parser));
         }
 
         return channel -> client.execute(TransportPutComposableIndexTemplateAction.TYPE, putRequest, new RestToXContentListener<>(channel));
+    }
+
+    static ComposableIndexTemplate parseAndValidateTemplate(XContentParser parser) throws IOException {
+        ComposableIndexTemplate template = ComposableIndexTemplate.parse(parser);
+        if (template.isManaged()) {
+            throw new IllegalArgumentException("[managed] is a system-managed field and cannot be set by a user");
+        }
+        return template;
     }
 
     @Override

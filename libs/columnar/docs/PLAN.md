@@ -40,24 +40,18 @@ The direction, the decisions that constrain it, and the build order. Update as d
 - Per-field pipeline selection: `NumericPipelineSelector` (`@FunctionalInterface`
   `select(fieldName, type) -> NumericPipelineTemplate`) injected into `ColumNARDocValuesFormat`
   at construction time alongside an explicit `blockSize`. The selector answers "which pipeline
-  type?" without knowing the block size or write profile; the format applies both to the returned
-  template via `NumericPipelineTemplate.build(ColumnarWriteProfile, int)`. Because the template
-  now takes two parameters, the four named factories (`defaultPipeline`, `monotonicLongPipeline`,
-  `doubleGaugePipeline`, `doubleCounterPipeline`) must be wrapped in explicit lambdas rather than
-  used as method references: `(profile, bs) -> NumericPipeline.defaultPipeline(bs)`. Server-side
-  wiring into `PerFieldFormatSupplier` is a follow-up (see Next).
+  type?" without knowing the block size; the format applies it via
+  `NumericPipelineTemplate.build(int)`. The four named factories (`defaultPipeline`,
+  `monotonicLongPipeline`, `doubleGaugePipeline`, `doubleCounterPipeline`) are usable as method
+  references: `(f, t) -> NumericPipeline::defaultPipeline`. Server-side wiring into
+  `PerFieldFormatSupplier` is a follow-up (see Next).
 
 ## Next
 
-- **Required before the first format bump**: registries for frozen ids (field types, transforms,
-  terminals, block-byte codecs, skip codecs) must expose each id's minimum `FormatVersion`.
-  Writers must validate the assembled write plan against `ColumnarWriteProfile`, and readers must
-  validate recorded ids against the segment header version while loading metadata. Add tests for
-  old-header/new-id rejection, old-profile/new-id write rejection, v0 fixture reads, and merge
-  output stamped with the injected profile.
-
+- **Required before the first format bump**: readers must validate recorded ids against the segment
+  header version while loading metadata; add v0 fixture reads and a BWC fixture test class.
   While ColumNAR is behind a feature flag and has no stable on-disk compatibility commitment,
-  a format-version bump is not strictly required for every internal id/layout iteration.
+  a format-version bump is required only for layout changes, not for id additions.
 
 - **Server-side selector wiring**: implement a concrete `NumericPipelineSelector` in server that
   inspects `FieldType`, `IndexMode`, and `MetricType` to route each field to the correct pipeline

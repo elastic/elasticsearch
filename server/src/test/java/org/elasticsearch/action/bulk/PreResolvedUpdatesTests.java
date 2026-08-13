@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -736,7 +737,8 @@ public class PreResolvedUpdatesTests extends IndexShardTestCase {
             new IndexingPressure(settings),
             EmptySystemIndices.INSTANCE,
             TestProjectResolvers.DEFAULT_PROJECT_ONLY,
-            DocumentParsingProvider.EMPTY_INSTANCE
+            DocumentParsingProvider.EMPTY_INSTANCE,
+            BigArrays.NON_RECYCLING_INSTANCE
         );
         PlainActionFuture<TransportReplicationAction.PrimaryResult<BulkShardRequest, BulkShardResponse>> future = new PlainActionFuture<>();
         threadPool.executor(ThreadPool.Names.WRITE).execute(() -> action.shardOperationOnPrimary(request, primary, future));

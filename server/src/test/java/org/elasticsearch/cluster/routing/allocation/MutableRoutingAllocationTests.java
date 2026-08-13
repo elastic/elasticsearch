@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.test.ESTestCase;
 
 import java.util.Map;
 
@@ -38,7 +39,7 @@ public class MutableRoutingAllocationTests extends ESAllocationTestCase {
      */
     public void testCacheInvalidatedOnShardStarted() {
         String sourceNodeId = randomIdentifier();
-        String otherNodeId = randomValueOtherThan(sourceNodeId, MutableRoutingAllocationTests::randomIdentifier);
+        String otherNodeId = randomValueOtherThan(sourceNodeId, ESTestCase::randomIdentifier);
 
         Index index = new Index("test-index", "_na_");
         ShardId startedShardId = new ShardId(index, 0);    // write load 3.0, always STARTED
@@ -76,7 +77,7 @@ public class MutableRoutingAllocationTests extends ESAllocationTestCase {
      */
     public void testCacheInvalidatedOnRelocationStarted() {
         String sourceNodeId = randomIdentifier();
-        String targetNodeId = randomValueOtherThan(sourceNodeId, MutableRoutingAllocationTests::randomIdentifier);
+        String targetNodeId = randomValueOtherThan(sourceNodeId, ESTestCase::randomIdentifier);
 
         Index index = new Index("test-index", "_na_");
         ShardId relocatingShardId = new ShardId(index, 0); // write load 3.0, will relocate away

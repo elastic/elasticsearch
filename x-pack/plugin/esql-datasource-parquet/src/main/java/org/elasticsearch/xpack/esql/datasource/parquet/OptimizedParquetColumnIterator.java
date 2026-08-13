@@ -737,9 +737,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
      * after the sign flip and could make threshold pruning discard competitive rows.
      */
     private Long unsignedLongStat(long raw) {
-        return ParquetColumnDecoding.isUnsignedInt64(sortColumnPrimitiveType)
-            ? ParquetColumnDecoding.encodeUnsignedLong(raw)
-            : null;
+        return ParquetColumnDecoding.isUnsignedInt64(sortColumnPrimitiveType) ? ParquetColumnDecoding.encodeUnsignedLong(raw) : null;
     }
 
     private static final long DEEPER_PREFETCH_BYTES = 32_000_000L;

@@ -245,7 +245,54 @@ Design directions that surfaced during this work but are not part of the MVP. Th
 
 A future enhancement could allow the built-in `elastic/kibana` account to run-as a managed service account for workload execution. Kibana would authenticate with its own credential and execute with the managed account's identity and live-resolved roles. This would be a third execution option alongside direct bearer-token use and grant-based API keys, with two attractive properties: no long-lived managed-account token needs to be distributed to (or stored by) Kibana at all, and run-as preserves both identities in audit (authenticated by `elastic/kibana`, effective user the managed account), which is arguably the strongest audit story of the three options.
 
-Elasticsearch currently blocks this in two places. Service-account authentications can neither initiate run-as (an `Authentication` consistency rule) nor serve as run-as targets (target resolution goes through user lookup realms, which do not cover the `_service_account` realm). An impersonation model would also need to answer who may run-as which accounts: `run_as` patterns in role descriptors match principal names, so the fixed `elastic/kibana` descriptor could carry a pattern covering managed namespaces while excluding `elastic/*`, which is feasible since built-in descriptors are source-controlled.
+Elasticsearch currently blocks this in two places. A service account cannot initiate run-as, and a service account cannot be a run-as target: impersonation lookup only considers ordinary users, not identities in the `_service_account` realm. Both gates would lift for this feature.
+
+The authorization model is the part that needs a deliberate design. Today's run-as is caller-only: Elasticsearch checks the authenticating principal's role `run_as` patterns against the target name, and the target has no say. Putting a managed-namespace pattern on the built-in `elastic/kibana` role (covering every non-`elastic/*` name) would make the Kibana service token a universal impersonation key for the managed-account namespace. That is privilege escalation. `elastic/kibana` is `kibana_system`, which is broad but closed: it is not `manage_security` and not unrestricted `all`. Managed accounts may be assigned any role, including reserved roles. A name-pattern grant would let a stolen or compromised Kibana token inhabit any of them, including an account an admin later assigns `superuser`. It is also strictly more powerful than the other two execution paths, which require possession of the target's credential (`grant_api_key` still needs the target's access token or password). Excluding `elastic/*` only protects other built-in service accounts; it does not bound the privileges of `acme/*`.
+
+The ACL therefore lives on the target account, as a default-deny allowlist of impersonator principals, with a small caller-side capability rather than a name wildcard.
+
+#### Target consent: `run_as_from`
+
+```
+PUT /_security/service/acme/billing-workflow
+{
+  "roles": ["billing_read", "connector_caller"],
+  "enabled": true,
+  "run_as_from": ["elastic/kibana"]
+}
+```
+
+`run_as_from` is an optional list of exact principals who may impersonate this account. Absent or empty means nobody may: fail closed, and the state of every account created before the field exists. GET returns the field. The name is deliberately not `run_as`; on a role descriptor that means "who I may inhabit," and reusing it here would invert the meaning on a different document type. The security index already maps `run_as` as keyword for roles; this is a new field and a mapping addition.
+
+Exact principals only. No `*`, no `elastic/*`. A wildcard on the target would recreate the original hole on a different document.
+
+Direct bearer-token authentication is unchanged: holding a token does not require membership in `run_as_from`. Impersonation and credential possession stay separate. A disabled account is rejected as a run-as target the same way it fails authentication.
+
+PUT remains full replacement, as with `roles` and `enabled`. Updating roles without resending `run_as_from` clears it and drops impersonation. That is fail closed; the management UI must always send the field.
+
+#### Caller capability, not a name list
+
+The authenticating principal still needs permission to *ask*. Allow service accounts to initiate run-as on this path, but do not put a managed-namespace `run_as` pattern on `kibana_system`. Give `elastic/kibana` a capability: a dedicated cluster privilege (for example `run_as_managed_service_account`) on that account's built-in role, or an equivalent special case for that principal. That answers "is this principal allowed to attempt impersonation of managed accounts." The account's `run_as_from` answers "may they inhabit *this* account." Both checks must pass.
+
+`elastic/kibana` does not have `manage_security`, so it cannot write `run_as_from` and cannot opt itself into accounts. Consent is an admin mutation (the Kibana management UI runs as the logged-in admin); use is later impersonation by Task Manager with the Kibana service token. That split is the security property.
+
+An admin can still assign `superuser` *and* list `elastic/kibana`. That is explicit and per-account, the same class of decision as putting `run_as: ["elastic"]` on a human role, not an implicit cluster-wide grant.
+
+#### What this does not close
+
+Kibana can inhabit any opted-in account. If a non-admin Kibana user can bind an alerting rule to `acme/super-workflow`, Elasticsearch only sees `elastic/kibana` run-as that principal. Binding workloads to accounts is Kibana authorization. Encoding application identifiers (`on_behalf_of: alerting:rule:123`) into the account document would leak Kibana semantics into the security index and is out of scope here.
+
+Operator privileges already refuse to treat a run-as authentication as operator. Impersonation would drop operator status; that is existing behavior and the correct direction.
+
+#### Authorization checks
+
+Run-as target lookup today considers ordinary users only. For a name that parses as a managed service-account principal, resolve it as a managed account instead. Then:
+
+- deny if the account is missing or disabled;
+- deny if the authenticating principal is not in `run_as_from`;
+- deny if the caller lacks the initiator capability.
+
+The resulting authentication must be allowed to have a service-account effective identity; today run-as requires an ordinary user. Existing `run_as_granted` / `run_as_denied` audit events cover the outcome; the denial should distinguish caller-side vs target-side failure.
 
 ### Self-service account management (API key parity)
 

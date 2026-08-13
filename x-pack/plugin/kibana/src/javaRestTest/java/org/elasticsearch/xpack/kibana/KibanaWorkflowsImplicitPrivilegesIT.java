@@ -29,7 +29,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 /**
- * End-to-end coverage for {@link KibanaWorkflowsImplicitPrivilegesProvider} against a real
+ * End-to-end coverage for {@code KibanaWorkflowsImplicitPrivilegesProvider} against a real
  * default-distribution node.
  *
  * <h2>What this test proves</h2>

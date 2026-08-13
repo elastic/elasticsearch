@@ -463,10 +463,12 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             UNMAPPED_FIELD_TYPE.freeze();
         }
         private final String fullFieldName;
+        private final boolean sourceSynthetic;
 
         DefaultShardContextForUnmappedField(DefaultShardContext ctx, String fullFieldName) {
             super(ctx.index, ctx.releasable, ctx.ctx, ctx.aliasFilter);
             this.fullFieldName = fullFieldName;
+            this.sourceSynthetic = ctx.ctx.isSourceSynthetic();
         }
 
         @Override
@@ -482,6 +484,30 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         public @Nullable MappedFieldType fieldType(String name) {
             var superResult = super.fieldType(name);
             return superResult == null && name.equals(fullFieldName) ? createUnmappedFieldType(name, this) : superResult;
+        }
+
+        @Override
+        public BlockLoader blockLoader(
+            String name,
+            boolean asUnsupportedSource,
+            MappedFieldType.FieldExtractPreference fieldExtractPreference,
+            BlockLoaderFunctionConfig blockLoaderFunctionConfig,
+            org.elasticsearch.index.mapper.blockloader.Warnings warnings,
+            ByteSizeValue blockLoaderSizeOrdinals,
+            ByteSizeValue blockLoaderSizeScript
+        ) {
+            if (asUnsupportedSource == false && name.equals(fullFieldName) && super.fieldType(name) == null && sourceSynthetic) {
+                return new UnmappedKeywordBlockLoader(name);
+            }
+            return super.blockLoader(
+                name,
+                asUnsupportedSource,
+                fieldExtractPreference,
+                blockLoaderFunctionConfig,
+                warnings,
+                blockLoaderSizeOrdinals,
+                blockLoaderSizeScript
+            );
         }
 
         static MappedFieldType createUnmappedFieldType(String name, DefaultShardContext context) {

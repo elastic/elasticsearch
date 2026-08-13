@@ -391,6 +391,14 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_FIX_IMPLICIT_CAST_ON_SMALL_NUMERIC_PUNK,
 
         /**
+         * Reading an unmapped field whose {@code _source} value is an object as a keyword under {@code unmapped_fields="load"}/{@code
+         * "LOAD_ALL"} now yields {@code null} instead of failing on a synthetic-source index: a keyword scalar can't hold an object, so
+         * ES|QL reads the field from {@code _source} rather than the synthetic-source fallback loader that tripped on it.
+         * See https://github.com/elastic/elasticsearch/issues/156381 and https://github.com/elastic/elasticsearch/issues/156433.
+         */
+        OPTIONAL_FIELDS_FIX_LOAD_OBJECT_FROM_SYNTHETIC_SOURCE,
+
+        /**
          * Support specifically for *just* the _index METADATA field. Used by CsvTests, since that is the only metadata field currently
          * supported.
          */

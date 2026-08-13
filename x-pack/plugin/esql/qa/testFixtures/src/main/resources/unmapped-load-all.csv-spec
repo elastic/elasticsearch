@@ -466,6 +466,39 @@ n:integer
 1
 ;
 
+loadAllSyntheticSourceObjectUnmappedFieldIsNull
+required_capability: optional_fields_load_all
+required_capability: optional_fields_fix_load_object_from_synthetic_source
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM synthetic_source_partial_mapping
+| KEEP @timestamp, unmapped, unmapped.nested
+| SORT @timestamp
+| LIMIT 3
+;
+
+@timestamp:datetime      | unmapped:keyword | unmapped.nested:keyword
+2024-10-23T12:15:03.360Z | null             | g
+2024-10-23T12:27:28.948Z | null             | f
+2024-10-23T13:33:34.937Z | null             | e
+;
+
+loadAllSyntheticSourceObjectFieldMultiParentIsNull
+required_capability: optional_fields_load_all
+required_capability: optional_fields_fix_load_object_from_synthetic_source
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM k8s_unmapped
+| KEEP network
+| LIMIT 3
+;
+
+network:keyword
+null
+null
+null
+;
+
 ####################################################################
 # Gap coverage: known-failing tests documenting intended behaviour #
 ####################################################################

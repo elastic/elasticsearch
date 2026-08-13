@@ -211,10 +211,6 @@ teardown:
   # max_concurrent_searches=1 forces sequential execution so sub-search 0 completes and
   # its estimate is reserved before sub-search 1 starts.
   #
-  # Sub-search 2 targets a missing index: this is a genuine failure item produced via the
-  # onFailure() path (not the success lambda's CircuitBreakingException substitution exercised
-  # by sub-search 1), proving the accounting choke point in handleResponse covers both origins
-  # and that the request still completes normally rather than hanging.
   - do:
       msearch:
         max_concurrent_searches: 1

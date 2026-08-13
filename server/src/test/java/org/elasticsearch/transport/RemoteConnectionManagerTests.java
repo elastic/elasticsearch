@@ -11,6 +11,7 @@ package org.elasticsearch.transport;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.Strings;
@@ -162,6 +163,7 @@ public class RemoteConnectionManagerTests extends ESTestCase {
         final Transport.Connection wrappedConnection = RemoteConnectionManager.wrapConnectionWithRemoteClusterInfo(
             connection,
             clusterAlias,
+            randomProjectIdOrDefault(),
             credentialsResolver
         );
         final long requestId = randomLong();
@@ -191,6 +193,7 @@ public class RemoteConnectionManagerTests extends ESTestCase {
         final Transport.Connection wrappedConnection = RemoteConnectionManager.wrapConnectionWithRemoteClusterInfo(
             connection,
             clusterAlias,
+            randomProjectIdOrDefault(),
             credentialsResolver
         );
 
@@ -198,6 +201,34 @@ public class RemoteConnectionManagerTests extends ESTestCase {
             .resolveRemoteClusterAliasWithCredentials(wrappedConnection);
 
         assertThat(actual, isPresentWith(new RemoteConnectionManager.RemoteClusterAliasWithCredentials(clusterAlias, credentials)));
+    }
+
+    public void testResolveRemoteClusterProjectId() {
+        final Transport.Connection connection = mock(Transport.Connection.class);
+        final String clusterAlias = randomAlphaOfLengthBetween(3, 8);
+        final RemoteClusterCredentialsManager credentialsResolver = mock(RemoteClusterCredentialsManager.class);
+
+        // A genuine (non-default) linked project ID round-trips through the wrapped connection.
+        final ProjectId linkedProjectId = randomUniqueProjectId();
+        final Transport.Connection wrappedConnection = RemoteConnectionManager.wrapConnectionWithRemoteClusterInfo(
+            connection,
+            clusterAlias,
+            linkedProjectId,
+            credentialsResolver
+        );
+        assertThat(RemoteConnectionManager.resolveLinkedProjectId(wrappedConnection), isPresentWith(linkedProjectId));
+
+        // The default project ID stands in for "no linked project" (e.g. non-CPS remote clusters) and must never be surfaced.
+        final Transport.Connection defaultProjectConnection = RemoteConnectionManager.wrapConnectionWithRemoteClusterInfo(
+            connection,
+            clusterAlias,
+            ProjectId.DEFAULT,
+            credentialsResolver
+        );
+        assertThat(RemoteConnectionManager.resolveLinkedProjectId(defaultProjectConnection).isPresent(), equalTo(false));
+
+        // A connection that does not target a remote cluster has no linked project ID.
+        assertThat(RemoteConnectionManager.resolveLinkedProjectId(mock(Transport.Connection.class)).isPresent(), equalTo(false));
     }
 
     private static class TestRemoteConnection extends CloseableConnection {

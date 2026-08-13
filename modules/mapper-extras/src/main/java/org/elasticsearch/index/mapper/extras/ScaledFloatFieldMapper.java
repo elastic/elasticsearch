@@ -87,14 +87,6 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         return (ScaledFloatFieldMapper) in;
     }
 
-    public static final FieldMapper.DocValuesParameter.Values DEFAULT_DOC_VALUES_PARAMS = new FieldMapper.DocValuesParameter.Values(
-        true,
-        FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
-        true,
-        true,
-        FieldMapper.DocValuesParameter.Values.OnFailure.FAIL
-    );
-
     public static class Builder extends FieldMapper.Builder {
 
         private final Parameter<Boolean> indexed;
@@ -144,7 +136,12 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         public Builder(String name, IndexSettings indexSettings) {
             super(name);
             this.docValuesParameters = FieldMapper.DocValuesParameter.of(
-                DEFAULT_DOC_VALUES_PARAMS,
+                FieldMapper.DocValuesParameter.defaultValues(
+                    indexSettings,
+                    FieldMapper.DocValuesParameter.Values.ENABLED_LOW_CARDINALITY,
+                    FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
+                    IndexVersions.DOC_VALUES_DEFAULTS_FOR_ALL_MAPPERS
+                ),
                 m -> toType(m).docValuesParameters(),
                 indexSettings.getMode().isStrictColumnar()
             );
@@ -406,7 +403,17 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 }
                 hi = Math.round(Math.floor(dValue));
             }
-            return NumberFieldMapper.NumberType.LONG.rangeQuery(name(), lo, hi, true, true, hasDocValues(), context, indexType.hasPoints());
+            return NumberFieldMapper.NumberType.LONG.rangeQuery(
+                name(),
+                lo,
+                hi,
+                true,
+                true,
+                hasDocValues(),
+                context,
+                indexType.hasPoints(),
+                indexType.hasTerms()
+            );
         }
 
         @Override
@@ -682,6 +689,11 @@ public class ScaledFloatFieldMapper extends FieldMapper {
     @Override
     protected boolean isSingleValueEnforced() {
         return docValuesParameters.multiValue() == false;
+    }
+
+    @Override
+    protected FieldMapper.DocValuesParameter.Values.OnFailure onFailureBehavior() {
+        return docValuesParameters.onFailure();
     }
 
     @Override

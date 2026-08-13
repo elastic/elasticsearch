@@ -43,6 +43,24 @@ public class DeclaredSchemaValidatorTests extends ESTestCase {
         DeclaredSchemaValidator.validate(new DatasetMapping(new Mappings(Dynamic.TRUE, props))); // no throw
     }
 
+    public void testFormatOnDateNanosColumnAcceptedAtPut() {
+        // `format` is accepted on date_nanos exactly as on date: the declared pattern is the string-parse dialect.
+        // (The numeric-epoch read stays format-free — there the declared type itself names the unit.)
+        Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
+        props.put("ts", DatasetFieldMapping.withFormat("date_nanos", null, "yyyy-MM-dd HH:mm:ss.SSSSSSSSS"));
+        DeclaredSchemaValidator.validate(new DatasetMapping(new Mappings(Dynamic.TRUE, props))); // no throw
+    }
+
+    public void testInvalidFormatPatternOnDateNanosRejectedAtPut() {
+        Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
+        props.put("ts", DatasetFieldMapping.withFormat("date_nanos", null, "not-a-valid-pattern-{{{"));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> DeclaredSchemaValidator.validate(new DatasetMapping(new Mappings(Dynamic.TRUE, props)))
+        );
+        assertTrue(e.getMessage(), e.getMessage().contains("invalid [format]"));
+    }
+
     public void testFormatOnNonDateColumnRejected() {
         // `format` is a date-parse pattern, so it is only meaningful on a date column.
         Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
@@ -51,7 +69,10 @@ public class DeclaredSchemaValidatorTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> DeclaredSchemaValidator.validate(new DatasetMapping(new Mappings(Dynamic.TRUE, props)))
         );
-        assertTrue(e.getMessage(), e.getMessage().contains("[format] on column [name] is only supported on [date] columns"));
+        assertTrue(
+            e.getMessage(),
+            e.getMessage().contains("[format] on column [name] is only supported on [date] and [date_nanos] columns")
+        );
     }
 
     public void testInvalidFormatPatternRejectedAtPut() {
@@ -116,7 +137,9 @@ public class DeclaredSchemaValidatorTests extends ESTestCase {
                     "g",
                     "unsigned_long",
                     "h",
-                    "ip"
+                    "ip",
+                    "i",
+                    "date_nanos"
                 ),
                 null
             )
@@ -129,7 +152,7 @@ public class DeclaredSchemaValidatorTests extends ESTestCase {
     }
 
     public void testUnsupportedTypeRejected() {
-        for (String bad : new String[] { "geo_point", "date_nanos", "binary", "short", "float", "version", "not_a_type" }) {
+        for (String bad : new String[] { "geo_point", "binary", "short", "float", "version", "not_a_type" }) {
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
                 () -> DeclaredSchemaValidator.validate(mapping(Dynamic.TRUE, props("col", bad), null))

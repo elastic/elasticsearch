@@ -218,6 +218,7 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchAction
 import org.elasticsearch.xpack.core.watcher.transport.actions.service.WatcherServiceAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsAction;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -251,9 +252,8 @@ import static org.mockito.Mockito.when;
  */
 public class ReservedRolesStoreTests extends ESTestCase {
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initReservedRolesStore() {
         // Initialize the reserved roles store so that static fields are populated.
         // In production code, this is guaranteed by how components are initialized by the Security plugin
         new ReservedRolesStore();
@@ -642,6 +642,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
             ReservedRolesStore.LISTS_ITEMS_INDEX_REINDEXED_V8 + randomAlphaOfLength(randomIntBetween(0, 13)),
             ".slo-observability." + randomAlphaOfLength(randomIntBetween(0, 13))
         ).forEach(index -> assertAllIndicesAccessAllowed(kibanaRole, index));
+
+        assertReadWriteAndManage(kibanaRole, ".contextengine-" + randomAlphaOfLength(randomIntBetween(0, 13)));
 
         // Alerting V2 views prefix: Kibana system user has create_view only
         Arrays.asList(ReservedRolesStore.ALERTING_V2_ALERT_VIEWS, ReservedRolesStore.ALERTING_V2_RULE_VIEWS).forEach(index -> {
@@ -1277,8 +1279,12 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         // Context Engine's SML storage: a regular (non-system) index that Kibana
         // creates and manages itself, including its alias.
-        Arrays.asList(".context-idx-sml-data", ".context-idx-sml-data-" + randomAlphaOfLength(randomIntBetween(0, 13)))
+        Arrays.asList("ai-index-idx-sml-data", "ai-index-idx-sml-data-" + randomAlphaOfLength(randomIntBetween(0, 13)))
             .forEach(index -> assertReadWriteAndManage(kibanaRole, index));
+
+        // Context Engine feedback-loop signals: per-space, regular (non-system)
+        // user indices that Kibana creates and manages via the storage adapter.
+        assertReadWriteAndManage(kibanaRole, "context-engine-signals-" + randomAlphaOfLength(randomIntBetween(0, 13)));
 
         // Agent Builder OTLP telemetry (traces + logs from span events)
         Arrays.asList(
@@ -2107,7 +2113,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         });
 
         // Tests for third-party agent indices (ExtraHop, QualysGAV, SentinelOne, Island Browser, Cyera,
-        // IRONSCALES, Axonius and JupiterOne) that
+        // IRONSCALES, Axonius, JupiterOne and PingDirectory) that
         // `kibana_system` has full management access to
         // This includes read, write, create, delete, and all ILM-related management actions.
         Arrays.asList(
@@ -2134,7 +2140,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
             "logs-axonius.storage-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-axonius.ticket-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-axonius.user-" + randomAlphaOfLength(randomIntBetween(1, 10)),
-            "logs-jupiter_one.risks_and_alerts-" + randomAlphaOfLength(randomIntBetween(1, 10))
+            "logs-jupiter_one.risks_and_alerts-" + randomAlphaOfLength(randomIntBetween(1, 10)),
+            "logs-ping_directory.user-" + randomAlphaOfLength(randomIntBetween(1, 10))
         ).forEach((index_qualys_extra_hop) -> {
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(index_qualys_extra_hop);
 
@@ -4171,6 +4178,58 @@ public class ReservedRolesStoreTests extends ESTestCase {
         }
 
         assertThat(rolesWithRemoteIndicesPrivileges, containsInAnyOrder("kibana_system", "monitoring_user"));
+    }
+
+    /**
+     * Verifies that kibana_system remote_indices grants cover the Elastic Defend endpoint patterns needed
+     * when agents use a Fleet remote Elasticsearch output (CCS read-back via RCS 2.0 API-key auth).
+     */
+    public void testKibanaSystemRoleRemoteEndpointIndices() {
+        final RoleDescriptor roleDescriptor = ReservedRolesStore.roleDescriptor("kibana_system");
+        assertNotNull(roleDescriptor);
+        assertThat(roleDescriptor.hasRemoteIndicesPrivileges(), is(true));
+
+        final Set<String> remotePatterns = Arrays.stream(roleDescriptor.getRemoteIndicesPrivileges())
+            .map(RoleDescriptor.RemoteIndicesPrivileges::indicesPrivileges)
+            .flatMap(ip -> Arrays.stream(ip.getIndices()))
+            .collect(Collectors.toSet());
+
+        // Positive: all 6 Defend endpoint patterns must have remote read privileges.
+        // Representative concrete names that each pattern must cover are listed in comments.
+        assertThat(remotePatterns, hasItem(".logs-endpoint.action.responses-*"));  // .logs-endpoint.action.responses-default
+        assertThat(remotePatterns, hasItem(".fleet-actions-results*"));             // .fleet-actions-results
+        assertThat(remotePatterns, hasItem("metrics-endpoint.metadata_current_*")); // metrics-endpoint.metadata_current_default
+        assertThat(remotePatterns, hasItem(".metrics-endpoint.metadata_united_default*")); // .metrics-endpoint.metadata_united_default
+        assertThat(remotePatterns, hasItem("metrics-endpoint.policy-*"));           // metrics-endpoint.policy-default
+        assertThat(remotePatterns, hasItem("logs-endpoint.events.*"));              // logs-endpoint.events.process-default
+
+        // Negative: actions and heartbeat excluded for architectural reasons;
+        // endpoint alerts may contain user data — Kibana intentionally reads them as the current user, not kibana_system.
+        assertThat(remotePatterns, not(hasItem(".logs-endpoint.actions-*")));
+        assertThat(remotePatterns, not(hasItem(".logs-endpoint.heartbeat-*")));
+        assertThat(remotePatterns, not(hasItem("logs-endpoint.alerts-*")));
+
+        // Verify each Defend remote entry carries read and read_cross_cluster privileges.
+        final Set<String> defendPatterns = Set.of(
+            ".logs-endpoint.action.responses-*",
+            ".fleet-actions-results*",
+            "metrics-endpoint.metadata_current_*",
+            ".metrics-endpoint.metadata_united_default*",
+            "metrics-endpoint.policy-*",
+            "logs-endpoint.events.*"
+        );
+        Arrays.stream(roleDescriptor.getRemoteIndicesPrivileges())
+            .map(RoleDescriptor.RemoteIndicesPrivileges::indicesPrivileges)
+            .filter(ip -> Arrays.stream(ip.getIndices()).anyMatch(defendPatterns::contains))
+            .forEach(ip -> {
+                final List<String> privs = Arrays.asList(ip.getPrivileges());
+                assertThat("Expected 'read' on remote Defend entry " + Arrays.toString(ip.getIndices()), privs, hasItem("read"));
+                assertThat(
+                    "Expected 'read_cross_cluster' on remote Defend entry " + Arrays.toString(ip.getIndices()),
+                    privs,
+                    hasItem("read_cross_cluster")
+                );
+            });
     }
 
     /**

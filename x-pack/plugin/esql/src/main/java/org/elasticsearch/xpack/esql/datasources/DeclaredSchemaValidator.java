@@ -44,6 +44,9 @@ public final class DeclaredSchemaValidator {
      * ES|QL types the external readers (CSV/NDJSON/Parquet/ORC) can currently produce, hence the declarable set.
      * {@code ip} is produced by parsing a string column (the mapper-style coercion in
      * {@code DeclaredTypeCoercions}: CSV parses it directly, Parquet/ORC coerce a physical string column);
+     * {@code date_nanos} reads a whole-number source as epoch-nanoseconds — the declared type names the numeric
+     * unit ({@code datetime} = millis, {@code date_nanos} = nanos; see {@code DeclaredTypeCoercions}) — and a
+     * string source parses with the column's declared {@code format} (else ISO nanos);
      * per-format narrowing stays deferred to read time like the rest of the set (see the class Javadoc).
      */
     static final Set<DataType> DECLARABLE_TYPES = Set.of(
@@ -54,6 +57,7 @@ public final class DeclaredSchemaValidator {
         DataType.DOUBLE,
         DataType.BOOLEAN,
         DataType.DATETIME,
+        DataType.DATE_NANOS,
         DataType.UNSIGNED_LONG,
         DataType.IP
     );
@@ -122,9 +126,10 @@ public final class DeclaredSchemaValidator {
 
     /**
      * A declared {@code format} is a date-parse pattern, so it is only accepted on a column whose type resolves to
-     * {@code datetime} ({@code date_nanos} is not a declarable type). The pattern is validated here with the ES
-     * {@link DateFormatter#forPattern} — the same class the text readers use to parse a <b>declared</b> date column
-     * (CSV/TSV via a per-column {@code DateFormatter}, NDJSON likewise), so a bad pattern fails the PUT rather than the
+     * {@code datetime} or {@code date_nanos}. The pattern is validated here with the ES
+     * {@link DateFormatter#forPattern} — the same class the readers use to parse a <b>declared</b> date column
+     * (CSV/TSV via a per-column {@code DateFormatter}, NDJSON likewise, the columnar string coercion through
+     * {@code DeclaredTypeCoercions}), so a bad pattern fails the PUT rather than the
      * first query and a PUT-accepted pattern is read-parseable. (The readers' <em>file-level</em> {@code datetime_format}
      * on CSV uses a JDK formatter; that is a separate, unaffected path.)
      */
@@ -132,8 +137,9 @@ public final class DeclaredSchemaValidator {
         if (format == null) {
             return;
         }
-        if (DataType.fromNameOrAlias(type) != DataType.DATETIME) {
-            throw new IllegalArgumentException("[format] on column [" + column + "] is only supported on [date] columns");
+        DataType resolved = DataType.fromNameOrAlias(type);
+        if (resolved != DataType.DATETIME && resolved != DataType.DATE_NANOS) {
+            throw new IllegalArgumentException("[format] on column [" + column + "] is only supported on [date] and [date_nanos] columns");
         }
         try {
             DateFormatter.forPattern(format);

@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.qa.rest.AbstractExternalSourceSpecTestCase;
 import org.junit.ClassRule;
+import org.junit.rules.TestRule;
 
 import java.io.IOException;
 import java.util.List;
@@ -28,8 +29,10 @@ import java.util.Set;
 @ThreadLeakFilters(filters = { TestClustersThreadFilter.class, AzureReactorThreadFilter.class })
 public class ParquetRsFormatSpecIT extends AbstractExternalSourceSpecTestCase {
 
-    @ClassRule
     public static ElasticsearchCluster cluster = Clusters.testCluster(() -> s3Fixture.getAddress());
+
+    @ClassRule
+    public static TestRule ruleChain = chainFixturesBeforeCluster(cluster);
 
     public ParquetRsFormatSpecIT(
         String fileName,
@@ -77,8 +80,11 @@ public class ParquetRsFormatSpecIT extends AbstractExternalSourceSpecTestCase {
         "mvCountFromSplit",
         "mvDedupeFromSplit",
         "mvExpandFromSplit",
+        "mvLikeFromDataset",
+        "mvLikeNotFromDataset",
         "mvMaxFromSplit",
         "mvMinFromSplit",
+        "mvRLikeFromDataset",
         // unknown parquet column [salary_change] referenced in projection (reported in the schema as "element")
         "mvDedupeFromSplit2",
         // unknown parquet column [author] referenced in projection

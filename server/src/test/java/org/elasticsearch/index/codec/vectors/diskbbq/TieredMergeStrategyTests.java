@@ -149,7 +149,7 @@ public class TieredMergeStrategyTests extends ESTestCase {
         TieredMergeStrategy<float[]> strategy = new TieredMergeStrategy<>(64, CentroidOps.FLOAT);
         int[] sizes = { 3000, 4000, 500 };
         int[] centroids = { 20, 20, 0 };
-        IVFVectorsReader.CentroidData[] data = makeCentroidData(centroids);
+        IVFVectorsReader.CentroidData<float[]>[] data = makeCentroidData(centroids);
         data[2] = null; // segment without centroid data
         TieredMergeStrategy.MergeAction<float[]> action = strategy.selectAction(sizes, centroids, data);
         assertEquals(TieredMergeStrategy.Strategy.CONCATENATION, action.strategy());
@@ -162,7 +162,7 @@ public class TieredMergeStrategyTests extends ESTestCase {
         // Segments 0 + 1 surface priors; segment 2 does not (e.g. legacy ES920/ES940 reader returns null).
         int[] sizes = { 3000, 4000, 2000 };
         int[] centroids = { 20, 20, 0 };
-        IVFVectorsReader.CentroidData[] data = makeCentroidData(centroids);
+        IVFVectorsReader.CentroidData<float[]>[] data = makeCentroidData(centroids);
         data[2] = null;
         TieredMergeStrategy.MergeAction<float[]> action = strategy.selectAction(sizes, centroids, data);
         TieredMergeStrategy.Concatenation<float[]> concat = (TieredMergeStrategy.Concatenation<float[]>) action;
@@ -175,7 +175,7 @@ public class TieredMergeStrategyTests extends ESTestCase {
         TieredMergeStrategy<float[]> strategy = new TieredMergeStrategy<>(64, CentroidOps.FLOAT);
         int[] sizes = { 3000, 4000 };
         int[] centroids = { 20, 20 };
-        IVFVectorsReader.CentroidData[] data = makeCentroidData(centroids);
+        IVFVectorsReader.CentroidData<float[]>[] data = makeCentroidData(centroids);
         TieredMergeStrategy.MergeAction<float[]> action = strategy.selectAction(sizes, centroids, data);
         TieredMergeStrategy.Concatenation<float[]> concat = (TieredMergeStrategy.Concatenation<float[]>) action;
         assertEquals(7000, concat.coveredVectorCount());
@@ -190,18 +190,19 @@ public class TieredMergeStrategyTests extends ESTestCase {
         int[] centroids,
         TieredMergeStrategy.Strategy expected
     ) {
-        IVFVectorsReader.CentroidData[] data = makeCentroidData(centroids);
+        IVFVectorsReader.CentroidData<float[]>[] data = makeCentroidData(centroids);
         TieredMergeStrategy.MergeAction<float[]> action = strategy.selectAction(sizes, centroids, data);
         assertEquals(expected, action.strategy());
         return action;
     }
 
-    private static IVFVectorsReader.CentroidData[] makeCentroidData(int[] centroidCounts) {
-        IVFVectorsReader.CentroidData[] data = new IVFVectorsReader.CentroidData[centroidCounts.length];
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    private static IVFVectorsReader.CentroidData<float[]>[] makeCentroidData(int[] centroidCounts) {
+        IVFVectorsReader.CentroidData<float[]>[] data = new IVFVectorsReader.CentroidData[centroidCounts.length];
         for (int i = 0; i < centroidCounts.length; i++) {
             if (centroidCounts[i] > 0) {
                 float[][] c = new float[centroidCounts[i]][4]; // dummy 4-d centroids
-                data[i] = new IVFVectorsReader.CentroidData(
+                data[i] = new IVFVectorsReader.CentroidData<>(
                     KMeansFloatVectorValues.build(Arrays.asList(c), null, 4),
                     new int[centroidCounts[i]],
                     new float[4],

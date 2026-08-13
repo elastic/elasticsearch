@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.DatasetResolver;
+import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
@@ -139,7 +140,12 @@ public class TransportEsqlSuggestionsAction extends HandledTransportAction<EsqlS
         this.clusterService = clusterService;
         this.viewResolver = viewResolver;
         this.remoteClusterService = transportService.getRemoteClusterService();
-        this.datasetResolver = new DatasetResolver(client, threadPool.executor(ThreadPool.Names.SEARCH), crossProjectModeDecider);
+        this.datasetResolver = new DatasetResolver(
+            client,
+            threadPool.executor(ThreadPool.Names.SEARCH),
+            crossProjectModeDecider,
+            Federation.isAvailable(clusterService.getSettings())
+        );
         this.enrichPolicyResolver = enrichPolicyResolver;
         this.services = new TransportActionServices(
             transportService,

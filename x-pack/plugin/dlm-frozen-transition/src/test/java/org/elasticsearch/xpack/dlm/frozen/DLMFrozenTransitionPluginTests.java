@@ -71,10 +71,9 @@ public class DLMFrozenTransitionPluginTests extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
+    public void closeClusterServiceAndThreadPool() throws Exception {
         clusterService.close();
         terminate(threadPool);
-        super.tearDown();
     }
 
     /**
@@ -86,6 +85,7 @@ public class DLMFrozenTransitionPluginTests extends ESTestCase {
             clusterService,
             (indexName, pid) -> new DLMFrozenTransitionServiceTests.TestDLMFrozenTransitionRunnable(
                 indexName,
+                pid,
                 new java.util.concurrent.CountDownLatch(0)
             ),
             transitionExecutor,

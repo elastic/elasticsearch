@@ -1,7 +1,7 @@
 Limit[1000[INTEGER],false,false]
 \_Aggregate[[],[ABSENT($$id_int$converted_to$keyword{r$}#0,true[BOOLEAN],PT0S[TIME_DURATION]) AS absent(to_string(id_int))#1]]
   \_MvExpand[other2{r}#2,other2{r}#3]
-    \_LookupJoin[LEFT,[id_int{r}#4, other2{r}#2],[id_int{f}#5, other2{f}#6],false,null]
+    \_LookupJoin[LEFT,[id_int{r}#4, other2{r}#2],[id_int{f}#5, other2{f}#6],null,ANY]
       |_Project[[extra1{r}#7, extra2{r}#8 AS other2#2, id_int{r}#4, ip_addr{r}#9, is_active_bool{r}#10, name_str{r}#11, $$id_int$converted_to$keyword{r$}#0]]
       | \_UnionAll[[extra1{r}#7, extra2{r}#8, id_int{r}#4, $$id_int$converted_to$keyword{r$}#0, ip_addr{r}#9, is_active_bool{r}#10, name_str{r}#11]]
       |   |_Project[[extra1{f}#12, extra2{f}#13, id_int{f}#14, $$id_int$converted_to$keyword{r$}#15, ip_addr{f}#16, is_active_bool{f}#17, name_str{f}#18]]

@@ -31,7 +31,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.IndicesService;
@@ -275,8 +274,7 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
                 for (int j = 0; j < numberOfShards; ++j) {
                     IndexShard mockIndexShard = mock(IndexShard.class);
                     when(mockIndexService.getShard(j)).thenReturn(mockIndexShard);
-                    SeqNoStats seqNoStats = new SeqNoStats(42 + i + j, 42 + i + j, 42 + i + j);
-                    when(mockIndexShard.seqNoStats()).thenReturn(seqNoStats);
+                    when(mockIndexShard.getLastKnownGlobalCheckpoint()).thenReturn(42L + i + j);
                 }
 
                 when(mockIndicesService.indexServiceSafe(indexMeta.getIndex())).thenReturn(mockIndexService);

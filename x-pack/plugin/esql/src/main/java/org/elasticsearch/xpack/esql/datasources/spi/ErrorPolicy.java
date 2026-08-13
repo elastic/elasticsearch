@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import java.util.Arrays;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Configures how format readers handle malformed or unparseable rows.
@@ -40,11 +42,9 @@ import java.util.Set;
  * </table>
  *
  * <h2>Usage</h2>
- * {@snippet lang="esql" :
- *   FROM s3://bucket/data.csv WITH {"max_errors": 100}
- *   FROM s3://bucket/data.csv WITH {"error_mode": "skip_row", "max_error_ratio": 0.1}
- *   FROM s3://bucket/data.csv WITH {"error_mode": "null_field"}
- * }
+ * A dataset configures its error policy via the {@code error_mode}, {@code max_errors}, and
+ * {@code max_error_ratio} settings, resolved from the settings described above and applied to
+ * every query that reads the dataset through {@code FROM <dataset>}.
  *
  * <h2>Client-visible warnings</h2>
  * Whenever the non-strict modes ({@link Mode#SKIP_ROW} and {@link Mode#NULL_FIELD}) cause a row to be
@@ -85,6 +85,11 @@ public record ErrorPolicy(Mode mode, long maxErrors, double maxErrorRatio, boole
             }
             String normalized = value.toUpperCase(Locale.ROOT).replace(" ", "_");
             return Mode.valueOf(normalized);
+        }
+
+        /** The accepted spellings, lower case, for inclusion in a rejection message. */
+        public static String supportedValues() {
+            return Arrays.stream(values()).map(m -> m.name().toLowerCase(Locale.ROOT)).collect(Collectors.joining(", "));
         }
     }
 
@@ -199,13 +204,37 @@ public record ErrorPolicy(Mode mode, long maxErrors, double maxErrorRatio, boole
         Mode mode = Mode.SKIP_ROW;
         if (errorModeValue != null) {
             String modeStr = errorModeValue.toString();
+            String rejection = "Invalid value for ["
+                + CONFIG_ERROR_MODE
+                + "]: ["
+                + errorModeValue
+                + "]; supported values are ["
+                + Mode.supportedValues()
+                + "]";
             try {
                 mode = Mode.parse(modeStr);
             } catch (IllegalArgumentException e) {
-                throw new IllegalArgumentException("Invalid value for [" + CONFIG_ERROR_MODE + "]: [" + errorModeValue + "]", e);
+                throw new IllegalArgumentException(
+                    "Invalid value for ["
+                        + CONFIG_ERROR_MODE
+                        + "]: ["
+                        + errorModeValue
+                        + "]; supported values are ["
+                        + Mode.supportedValues()
+                        + "]",
+                    e
+                );
             }
             if (mode == null) {
-                throw new IllegalArgumentException("Invalid value for [" + CONFIG_ERROR_MODE + "]: [" + errorModeValue + "]");
+                throw new IllegalArgumentException(
+                    "Invalid value for ["
+                        + CONFIG_ERROR_MODE
+                        + "]: ["
+                        + errorModeValue
+                        + "]; supported values are ["
+                        + Mode.supportedValues()
+                        + "]"
+                );
             }
         }
 

@@ -13,6 +13,58 @@ If you are an Enterprise Search user and want to upgrade to Elastic 9.0, refer t
 It includes detailed steps, tooling, and resources to help you transition to supported alternatives in 9.x, such as Elasticsearch, the Open Web Crawler, and self-managed connectors.
 :::
 
+## 9.5.1 [connectors-9.5.1-release-notes]
+
+### Fixes [connectors-9.5.1-fixes]
+* Fix Document Level Security for the Outlook connector, where content documents were indexed with identities that did not match the ones granted by the access control documents, so owners could not retrieve their own synced documents. [#4313](https://github.com/elastic/connectors/pull/4313), [#4290](https://github.com/elastic/connectors/issues/4290)
+* Fix the SharePoint Online connector to skip the system list `SharePointHomeCacheList`, so syncs are no longer aborted by Unauthorized responses when fetching its attachments. [#4308](https://github.com/elastic/connectors/pull/4308)
+* Fix Confluence connector Document Level Security to index effective page view restrictions by intersecting the child's and all ancestors' read restrictions, instead of over-granting through space-level permissions. [#4303](https://github.com/elastic/connectors/pull/4303), [#4095](https://github.com/elastic/connectors/issues/4095)
+
+## 9.5.0 [connectors-9.5.0-release-notes]
+
+### Features and enhancements [connectors-9.5.0-features-enhancements]
+* Added the `elasticsearch.bulk.max_text_document_size` setting, a per-document size cap for non-binary documents sent to the Elasticsearch bulk sink (default 3 MiB; set to `0` to disable). Oversized text documents are skipped and logged instead of overwhelming the cluster. [#4013](https://github.com/elastic/connectors/pull/4013), [#14454](https://github.com/elastic/search-team/issues/14454)
+* Trimmed Gmail messages to their body and a minimal set of headers before indexing, reducing indexed payload size and noise from raw message content. A new `include_full_raw_message` toggle (default `false`) restores the previous full-raw behavior. [#4031](https://github.com/elastic/connectors/pull/4031), [#1369](https://github.com/elastic/connectors/issues/1369)
+
+### Fixes [connectors-9.5.0-fixes]
+* Fixed the SharePoint Online connector to surface a clear, actionable error when role assignments are unauthorized while Document Level Security is enabled, naming the affected site and explaining how to grant `Sites.FullControl.All` or disable DLS. [#4266](https://github.com/elastic/connectors/pull/4266), [#3293](https://github.com/elastic/connectors/issues/3293)
+* Fixed the Outlook connector to skip unexpected Exchange item types, unresolvable or inaccessible folders, and related edge cases with a warning instead of aborting the sync. [#4158](https://github.com/elastic/connectors/pull/4158)
+* Fixed the Outlook connector aborting an entire sync when Exchange returned an unrecognised EWS element (for example a stray `EndTimeZone` alongside a calendar item). Such elements are now skipped with a warning and the rest of the mailbox continues to sync. [#4287](https://github.com/elastic/connectors/pull/4287)
+
+## 9.4.5 [connectors-9.4.5-release-notes]
+
+### Fixes [connectors-9.4.5-fixes]
+* Fix Document Level Security for the Outlook connector, where content documents were indexed with identities that did not match the ones granted by the access control documents, so owners could not retrieve their own synced documents. [#4312](https://github.com/elastic/connectors/pull/4312), [#4290](https://github.com/elastic/connectors/issues/4290)
+* Fix the SharePoint Online connector to skip the system list `SharePointHomeCacheList`, so syncs are no longer aborted by Unauthorized responses when fetching its attachments. [#4307](https://github.com/elastic/connectors/pull/4307)
+* Fix Confluence connector Document Level Security to index effective page view restrictions by intersecting the child's and all ancestors' read restrictions, instead of over-granting through space-level permissions. [#4302](https://github.com/elastic/connectors/pull/4302), [#4095](https://github.com/elastic/connectors/issues/4095)
+* Fix the Outlook connector aborting a sync when Exchange returned an unrecognised EWS element; such elements are now skipped with a warning and the rest of the mailbox continues to sync. [#4292](https://github.com/elastic/connectors/pull/4292)
+* Fix the SharePoint Online connector to surface a clear, actionable error when role assignments are unauthorized while Document Level Security is enabled. [#4268](https://github.com/elastic/connectors/pull/4268), [#3293](https://github.com/elastic/connectors/issues/3293)
+* Fix the Outlook connector to skip unexpected Exchange item types, unresolvable or inaccessible folders, and related edge cases with a warning instead of aborting the sync. [#4177](https://github.com/elastic/connectors/pull/4177), [#4158](https://github.com/elastic/connectors/pull/4158)
+
+## 9.4.4 [connectors-9.4.4-release-notes]
+
+### Fixes [connectors-9.4.4-fixes]
+* Fix Slack connector float timestamp causing messages to be deleted on scheduled syncs. [#4168](https://github.com/elastic/connectors/pull/4168)
+* Handle out-of-range BSON datetimes in the MongoDB connector to prevent sync failures. [#4155](https://github.com/elastic/connectors/pull/4155)
+* Fix Outlook connector to dispatch Contacts by item type and harden folder and field assumptions. [#4151](https://github.com/elastic/connectors/pull/4151)
+* Fix GitHub connector to propagate fetch errors instead of swallowing them. [#4135](https://github.com/elastic/connectors/pull/4135)
+* Fix Outlook connector to harden sync against missing Exchange field values. [#4132](https://github.com/elastic/connectors/pull/4132)
+* Drop unused `space.permissions` from content query in the Confluence Data Center and Server connector. [#4121](https://github.com/elastic/connectors/pull/4121)
+* Fix Outlook connector to verify Exchange TLS with an in-memory CA, removing a cert-file race condition. [#4115](https://github.com/elastic/connectors/pull/4115)
+* Fix Outlook connector to skip mailbox-less accounts and prevent SSL misconfiguration from aborting sync. [#4092](https://github.com/elastic/connectors/pull/4092)
+
+## 9.3.8 [connectors-9.3.8-release-notes]
+
+### Fixes [connectors-9.3.8-fixes]
+* Fix Slack connector float timestamp causing messages to be deleted on scheduled syncs. [#4167](https://github.com/elastic/connectors/pull/4167)
+* Handle out-of-range BSON datetimes in the MongoDB connector to prevent sync failures. [#4166](https://github.com/elastic/connectors/pull/4166)
+* Fix Outlook connector to dispatch Contacts by item type and harden folder and field assumptions. [#4152](https://github.com/elastic/connectors/pull/4152)
+* Fix GitHub connector to propagate fetch errors instead of swallowing them. [#4134](https://github.com/elastic/connectors/pull/4134)
+* Fix Outlook connector to harden sync against missing Exchange field values. [#4131](https://github.com/elastic/connectors/pull/4131)
+* Drop unused `space.permissions` from content query in the Confluence Data Center and Server connector. [#4120](https://github.com/elastic/connectors/pull/4120)
+* Fix Outlook connector to verify Exchange TLS with an in-memory CA, removing a cert-file race condition. [#4114](https://github.com/elastic/connectors/pull/4114)
+* Fix Outlook connector to skip mailbox-less accounts and prevent SSL misconfiguration from aborting sync. [#4091](https://github.com/elastic/connectors/pull/4091)
+
 ## 9.4.3 [connectors-9.4.3-release-notes]
 
 ### Fixes [connectors-9.4.3-fixes]

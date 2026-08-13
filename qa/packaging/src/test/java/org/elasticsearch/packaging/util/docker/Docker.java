@@ -176,9 +176,47 @@ public class Docker {
         removeContainer();
 
         final String command = builder.distribution(distribution).build();
-
         logger.info("Running command: " + command);
-        containerId = sh.run(command).stdout().trim();
+
+        // Retry on Docker daemon tmpfs remounting error (exit code 125)
+        // See: https://github.com/elastic/elasticsearch/issues/149040
+        final int maxAttempts = 3;
+
+        for (int attempt = 0; attempt < maxAttempts; attempt++) {
+            try {
+                final Shell.Result result = sh.run(command);
+                containerId = result.stdout().trim();
+                return;
+            } catch (Shell.ShellException e) {
+                final String stderr = e.getMessage();
+                final boolean isTmpfsRemountError = stderr != null
+                    && stderr.contains("unable to remount dir as readonly")
+                    && stderr.contains("device or resource busy");
+
+                if (isTmpfsRemountError && attempt < maxAttempts - 1) {
+                    final long delayMs = 500L * (1L << attempt); // 500ms, 1s, 2s
+                    logger.warn(
+                        "Docker tmpfs remounting failed (attempt "
+                            + (attempt + 1)
+                            + "/"
+                            + maxAttempts
+                            + "), retrying in "
+                            + delayMs
+                            + "ms. Error: "
+                            + stderr
+                    );
+                    try {
+                        Thread.sleep(delayMs);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        throw e;
+                    }
+                } else {
+                    // Either not a tmpfs error, or final attempt — rethrow
+                    throw e;
+                }
+            }
+        }
     }
 
     /**

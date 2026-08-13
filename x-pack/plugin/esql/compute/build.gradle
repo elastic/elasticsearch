@@ -22,7 +22,7 @@ dependencies {
   compileOnly project(xpackModule('ml'))
   annotationProcessor project('gen')
   implementation 'com.carrotsearch:hppc:0.8.1'
-  implementation 'org.ow2.asm:asm:9.9'  // ConstantMethodResultSpecializer: runtime bytecode generation for @Fixed(jitConstant=true) evaluators
+  implementation 'org.ow2.asm:asm:9.10.1'  // ConstantMethodResultSpecializer: runtime bytecode generation for @Fixed(jitConstant=true) evaluators
   api project(':libs:arrow')
   api project(':libs:exponential-histogram')
   implementation project(':libs:swisshash')
@@ -101,6 +101,8 @@ def prop(Name, Type, type, Wrapper, TYPE, BYTES, Array, Hash) {
     "BytesRef" : Name == "BytesRef" ? "true" : "",
     "Ip"       : Name == "Ip" ? "true" : "",
     "LongRange": Name == "LongRange" ? "true" : "",
+    "DoubleRange": Name == "DoubleRange" ? "true" : "",
+    "Range": (Name == "LongRange" || Name == "DoubleRange") ? "true" : "",
   ]
 }
 
@@ -1223,6 +1225,12 @@ tasks.named('stringTemplates').configure {
     it.properties = longRangeProperties
     it.inputFile = enrichResultBuilderInput
     it.outputFile = "org/elasticsearch/xpack/compute/operator/lookup/EnrichResultBuilderForLongRange.java"
+  }
+  var doubleRangeProperties = prop("DoubleRange", "DoubleRange", "double", "", "DOUBLE_RANGE", "", "", "")
+  template {
+    it.properties = doubleRangeProperties
+    it.inputFile = enrichResultBuilderInput
+    it.outputFile = "org/elasticsearch/xpack/compute/operator/lookup/EnrichResultBuilderForDoubleRange.java"
   }
 
   // TODO: add {value}_over_time for other types: boolean, bytes_refs

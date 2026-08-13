@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.Nullable;
@@ -82,33 +83,39 @@ public final class QuerySettings {
         .canonicalize(ZoneId::normalized)
         .build();
 
-    @Param(name = "unmapped_fields", type = { "keyword" }, since = "9.3.0", description = """
+    // LOAD_ALL is deliberately absent from this description: it is snapshot-only, and there is no mechanism to hold
+    // docs back for a snapshot-only value of an already-released setting. Document it once it ships.
+    @Param(name = "unmapped_fields", type = { "keyword" }, since = "preview 9.3-9.4, ga 9.5+", description = """
         Determines how unmapped fields are treated.
-        For a conceptual overview and use cases, refer to [Unmapped fields](/reference/query-languages/esql/esql-unmapped-fields.md).
+        For a conceptual overview and use cases, including performance considerations, refer to
+        [Unmapped fields](/reference/query-languages/esql/esql-unmapped-fields.md).
 
         Possible values are:
 
         - `DEFAULT` : Standard ESQL queries fail when referencing unmapped fields.
-        - `NULLIFY` : Treats unmapped fields as null values.
-        - `LOAD` : Loads unmapped fields from the stored [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md)
-        with type `keyword`. Or nullifies them if absent from `_source`. {applies_to}`stack: preview 9.4`
+        - `NULLIFY` : Treats referenced unmapped fields as null values. Fully unmapped fields that are never mentioned do not
+          appear in the output.
+        - `LOAD` : Loads referenced fully unmapped fields from the stored
+          [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md) with type `keyword`. Or nullifies them if
+          absent from `_source`. Also loads partially mapped fields from `_source` where they are unmapped.
+        {applies_to}`stack: preview =9.4, ga 9.5+`
 
         [`PROMQL`](/reference/query-languages/esql/commands/promql.md) queries have their own specific semantics for unmapped fields.
 
         Special notes about the `LOAD` option:
-        - `FORK`, `LOOKUP JOIN`, subqueries, and views are not yet supported anywhere in the query.
+        - [`PROMQL`](/reference/query-languages/esql/commands/promql.md) is not supported with `LOAD`.
         - Referencing subfields of `flattened` parents is not supported.
-        - [Full-text search functions](/reference/query-languages/esql/functions-operators/search-functions.md) are supported.
-          {applies_to}`stack: preview 9.5`
+        - [Full-text search functions](/reference/query-languages/esql/functions-operators/search-functions.md) are supported,
+          although unmapped fields cannot be loaded without an explicit invocation of `to_text`.
+          {applies_to}`stack: ga 9.5+`
           - Full-text search functions are not supported anywhere in the query. {applies_to}`stack: preview =9.4`
-        - [`KNN`](/reference/query-languages/esql/functions-operators/dense-vector-functions/knn.md) on partially unmapped
-          `dense_vector` fields is not yet supported.
         - Partially unmapped non-`keyword` fields can be used in expressions. If the field is mapped to a single type and there's an
-          available conversion from `keyword` to that type, the implicit conversion is applied. If there's no available conversion,
-          and an explicit one has not been provided by the user, values remain typed where mapped and are `null` for rows from
-          indices where the field is unmapped. {applies_to}`stack: preview 9.5`
-          - Partially unmapped non-`keyword` fields must be referenced inside a cast or conversion function (e.g. `::TYPE` or `TO_TYPE`),
-            unless referenced in `KEEP` or `DROP`. {applies_to}`stack: preview =9.4`
+          available conversion from `keyword` to that type, the implicit conversion is applied. If there's no available conversion
+          (for example `text`, `aggregate_metric_double`, or `dense_vector`), and an explicit one has not been provided by the user,
+          values retain the mapped type but are `null` for rows from indices where the field is unmapped.
+          {applies_to}`stack: ga 9.5+`
+          - Partially unmapped non-`keyword` fields must be referenced inside a cast or conversion function (e.g. `::TYPE` or
+            `TO_TYPE`), unless referenced in `KEEP` or `DROP`. {applies_to}`stack: preview =9.4`
         """)
     @Example(file = "unmapped-nullify", tag = "unmapped-nullify-simple-keep", description = """
         Field `unmapped_message` is not mapped; it doesn't appear in the mapping of index `partial_mapping_sample_data`. It appears,
@@ -125,7 +132,14 @@ public final class QuerySettings {
     public static final QuerySettingDef<UnmappedResolution> UNMAPPED_FIELDS = QuerySettingDef.string(
         "unmapped_fields",
         QuerySettings::parseUnmappedResolution
-    ).withDefault(UnmappedResolution.DEFAULT).withPreview().build();
+    )
+        .withValidator(
+            (value, ctx) -> value == UnmappedResolution.LOAD_ALL && ctx.isSnapshot() == false
+                ? "unmapped_fields value [LOAD_ALL] requires a snapshot build"
+                : null
+        )
+        .withDefault(UnmappedResolution.DEFAULT)
+        .build();
 
     @Param(
         name = "column_metadata",
@@ -227,10 +241,19 @@ public final class QuerySettings {
         try {
             return UnmappedResolution.valueOf(value.toUpperCase(Locale.ROOT));
         } catch (Exception e) {
-            throw new IllegalArgumentException(
-                "Invalid unmapped_fields resolution [" + value + "], must be one of " + Arrays.toString(UnmappedResolution.values())
-            );
+            throw new IllegalArgumentException(invalidUnmappedResolutionMessage(value, Build.current().isSnapshot()));
         }
+    }
+
+    /**
+     * Parsing runs before the snapshot-only validator of {@link #UNMAPPED_FIELDS}, so this message is what a user of a production build
+     * sees for a typo. It must not advertise {@link UnmappedResolution#LOAD_ALL}, which that build rejects.
+     */
+    static String invalidUnmappedResolutionMessage(String value, boolean snapshotBuild) {
+        List<UnmappedResolution> available = Arrays.stream(UnmappedResolution.values())
+            .filter(resolution -> snapshotBuild || resolution.loadsAllUnmappedFields() == false)
+            .toList();
+        return "Invalid unmapped_fields resolution [" + value + "], must be one of " + available;
     }
 
     /**

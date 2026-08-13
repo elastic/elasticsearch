@@ -413,4 +413,23 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
             declaredReadSpec
         );
     }
+
+    /**
+     * Returns a copy of this relation with its {@link #fileList()} replaced. Used by the fragment discovery path to
+     * swap in {@link FileList#EMPTY} when coordinator-side split discovery prunes every file, so the read path scans
+     * nothing instead of reading the whole dataset only to have a downstream row filter drop every row.
+     */
+    public ExternalRelation withFileList(FileList newFileList) {
+        return new ExternalRelation(
+            source(),
+            sourcePath,
+            metadata,
+            output,
+            newFileList,
+            schemaMap,
+            datasetName,
+            metadataFields,
+            declaredReadSpec
+        );
+    }
 }

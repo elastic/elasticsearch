@@ -3,7 +3,18 @@ import { mkdtemp, mkdir, writeFile } from "fs/promises";
 import { tmpdir } from "os";
 import { join, dirname } from "path";
 
-import { analyzeReports, classifyFailure, StripSystemStreams } from "./analyze.ts";
+import { analyzeReports, classifyFailure, stripSeedSuffix, StripSystemStreams } from "./analyze.ts";
+
+describe("stripSeedSuffix", () => {
+  test("strips a trailing randomized-runner seed suffix", () => {
+    expect(stripSeedSuffix("testFoo {seed=[24918B24CBE01DE3:A940852AB5443E5]}")).toBe("testFoo");
+  });
+
+  test("leaves plain names and non-seed parameterization suffixes intact", () => {
+    expect(stripSeedSuffix("testFoo")).toBe("testFoo");
+    expect(stripSeedSuffix("testFoo {p0=x}")).toBe("testFoo {p0=x}");
+  });
+});
 
 describe("classifyFailure", () => {
   test("classifies AssertionError messages as 'assertion'", () => {
@@ -50,6 +61,33 @@ describe("analyzeReports", () => {
         failures: 1,
         failureKinds: ["assertion"],
       }),
+    ]);
+  });
+
+  test("collapses seeded iterations of a method into one row, keeping failing seeds", async () => {
+    // A randomized `tests.iters` run emits one testcase per seed. All iterations
+    // of a method must aggregate into a single row with real pass/fail counts,
+    // and the seed-bearing name of a failure must survive for reproduction.
+    const root = await mkTmpReports([
+      {
+        path: "server/build/test-results/test/TEST-org.example.SeedTests.xml",
+        body: `<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="org.example.SeedTests" tests="2" failures="1" errors="0">
+  <testcase classname="org.example.SeedTests" name="testFlaky {seed=[AAAA:1111]}"/>
+  <testcase classname="org.example.SeedTests" name="testFlaky {seed=[AAAA:2222]}">
+    <failure type="java.lang.AssertionError" message="boom"/>
+  </testcase>
+</testsuite>`,
+      },
+    ]);
+    const report = await analyzeReports([root]);
+    expect(report.perTest).toHaveLength(1);
+    const flaky = report.perTest[0];
+    expect(flaky.method).toBe("testFlaky");
+    expect(flaky.passes).toBe(1);
+    expect(flaky.failures).toBe(1);
+    expect(flaky.exampleFailures).toEqual([
+      { name: "testFlaky {seed=[AAAA:2222]}", message: "boom" },
     ]);
   });
 
@@ -111,10 +149,10 @@ describe("analyzeReports", () => {
     const plain = report.perTest.find((t) => t.method === "testPlain")!;
     const cdata = report.perTest.find((t) => t.method === "testCdata")!;
     expect(plain.failureKinds).toEqual(["assertion"]);
-    expect(plain.exampleMessages[0]).toContain("expected:<1> but was:<2>");
+    expect(plain.exampleFailures[0].message).toContain("expected:<1> but was:<2>");
     expect(cdata.failureKinds).toEqual(["error"]);
-    expect(cdata.exampleMessages[0]).toContain("boom");
-    expect(cdata.exampleMessages[0]).toContain("Foo.bar(Foo.java:42)");
+    expect(cdata.exampleFailures[0].message).toContain("boom");
+    expect(cdata.exampleFailures[0].message).toContain("Foo.bar(Foo.java:42)");
   });
 
   test("keeps memory bounded when a single <failure> body is huge", async () => {
@@ -140,7 +178,7 @@ describe("analyzeReports", () => {
     expect(huge.failureKinds).toEqual(["assertion"]);
     // The cached example message must be truncated, not the original 4 MiB.
     // The cap inside analyze.ts is 16 KiB per failure body.
-    expect(huge.exampleMessages[0].length).toBeLessThanOrEqual(16 * 1024);
+    expect(huge.exampleFailures[0].message.length).toBeLessThanOrEqual(16 * 1024);
   });
 
   test("uses body text when `message` attribute is empty or absent", async () => {
@@ -164,8 +202,8 @@ describe("analyzeReports", () => {
     const report = await analyzeReports([root]);
     const wins = report.perTest.find((t) => t.method === "testWins")!;
     const empty = report.perTest.find((t) => t.method === "testEmptyAttr")!;
-    expect(wins.exampleMessages).toEqual(["attr wins"]);
-    expect(empty.exampleMessages).toEqual(["body text must be used"]);
+    expect(wins.exampleFailures.map((e) => e.message)).toEqual(["attr wins"]);
+    expect(empty.exampleFailures.map((e) => e.message)).toEqual(["body text must be used"]);
   });
 
   test("self-closing <failure message='..'/> still classifies and records", async () => {
@@ -182,7 +220,7 @@ describe("analyzeReports", () => {
     ]);
     const report = await analyzeReports([root]);
     expect(report.totals.realFailures).toBe(1);
-    expect(report.perTest[0].exampleMessages).toEqual(["boom"]);
+    expect(report.perTest[0].exampleFailures.map((e) => e.message)).toEqual(["boom"]);
   });
 
   test("strips huge <system-out>/<system-err> sections before parsing", async () => {
@@ -242,7 +280,7 @@ ${cases}
     expect(report.totals.successfulCases).toBe(1);
     expect(report.totals.realFailures).toBe(1);
     const failing = report.perTest.find((t) => t.method === "testWithFailureAndStdout")!;
-    expect(failing.exampleMessages).toEqual(["boom"]);
+    expect(failing.exampleFailures.map((e) => e.message)).toEqual(["boom"]);
   });
 
   test("does NOT strip a literal '<system-out' embedded inside a CDATA failure body", async () => {
@@ -264,8 +302,8 @@ ${cases}
     ]);
     const report = await analyzeReports([root]);
     expect(report.totals.realFailures).toBe(1);
-    expect(report.perTest[0].exampleMessages[0]).toContain("<system-out>");
-    expect(report.perTest[0].exampleMessages[0]).toContain("leaked into the message");
+    expect(report.perTest[0].exampleFailures[0].message).toContain("<system-out>");
+    expect(report.perTest[0].exampleFailures[0].message).toContain("leaked into the message");
   });
 
   test("rejects on malformed XML rather than swallowing it silently", async () => {

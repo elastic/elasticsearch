@@ -18,7 +18,7 @@ import org.elasticsearch.columnar.numeric.NumericPipeline;
 import org.elasticsearch.columnar.substrate.BlockBytesCodec;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
 import org.elasticsearch.columnar.substrate.ColumnIteratorReader;
-import org.elasticsearch.columnar.substrate.MonotonicWriter;
+import org.elasticsearch.columnar.substrate.MonotonicReader;
 
 import java.io.IOException;
 
@@ -65,7 +65,7 @@ public final class StringColumnReader {
             this.blockOrdinals = null;
             return;
         }
-        this.blockOffsets = MonotonicWriter.open(
+        this.blockOffsets = MonotonicReader.open(
             data,
             meta.blockOffsetsMeta(),
             meta.numBlocks() + 1L,

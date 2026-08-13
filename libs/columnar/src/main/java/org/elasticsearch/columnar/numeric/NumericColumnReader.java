@@ -15,7 +15,7 @@ import org.apache.lucene.util.LongValues;
 import org.elasticsearch.columnar.substrate.BlockBytesCodec;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
 import org.elasticsearch.columnar.substrate.ColumnIteratorReader;
-import org.elasticsearch.columnar.substrate.MonotonicWriter;
+import org.elasticsearch.columnar.substrate.MonotonicReader;
 
 import java.io.IOException;
 
@@ -55,7 +55,7 @@ public final class NumericColumnReader {
             this.blockBuffer = new long[0];
             return;
         }
-        this.blockOffsets = MonotonicWriter.open(
+        this.blockOffsets = MonotonicReader.open(
             data,
             meta.blockOffsetsMeta(),
             meta.numBlocks() + 1L,
@@ -63,7 +63,7 @@ public final class NumericColumnReader {
             meta.blockOffsetsDataLength()
         );
         this.valueAddresses = meta.multiValued()
-            ? MonotonicWriter.open(
+            ? MonotonicReader.open(
                 data,
                 meta.valueAddressesMeta(),
                 meta.numDocsWithField() + 1L,

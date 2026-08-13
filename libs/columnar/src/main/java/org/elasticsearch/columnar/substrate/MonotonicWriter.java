@@ -9,23 +9,17 @@
 
 package org.elasticsearch.columnar.substrate;
 
-import org.apache.lucene.store.ByteBuffersDataInput;
 import org.apache.lucene.store.ByteBuffersDataOutput;
-import org.apache.lucene.store.ByteBuffersIndexInput;
 import org.apache.lucene.store.ByteBuffersIndexOutput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.IOUtils;
-import org.apache.lucene.util.LongValues;
-import org.apache.lucene.util.packed.DirectMonotonicReader;
 import org.apache.lucene.util.packed.DirectMonotonicWriter;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.List;
 
 /**
  * Builds a {@code DirectMonotonic} table (block offsets, per-document value addresses, dictionary term
@@ -34,8 +28,8 @@ import java.util.List;
  * returned; {@link #close} removes the temporary file.
  *
  * <p>Type-agnostic: every column type addresses its blocks through one of these tables, so this lives in
- * the substrate rather than beside any one column implementation. {@link #open} is the read-side
- * counterpart, mapping a finished table back to a {@link LongValues} over the data input.
+ * the substrate rather than beside any one column implementation. {@link MonotonicReader} is the read-side
+ * counterpart, reopening a finished table over the data input.
  */
 public final class MonotonicWriter implements Closeable {
 
@@ -80,23 +74,6 @@ public final class MonotonicWriter implements Closeable {
             data.copyBytes(in, in.length());
         }
         return new Table(dataOffset, data.getFilePointer() - dataOffset, metaBuffer.toArrayCopy());
-    }
-
-    /**
-     * Reopens a table written by this class: {@code metaBytes} is the {@link Table#meta()} held in the
-     * column metadata, and the values themselves are read off-heap from {@code data}.
-     */
-    public static LongValues open(IndexInput data, byte[] metaBytes, long numEntries, long dataOffset, long dataLength) throws IOException {
-        DirectMonotonicReader.Meta tableMeta;
-        try (
-            IndexInput metaInput = new ByteBuffersIndexInput(
-                new ByteBuffersDataInput(List.of(ByteBuffer.wrap(metaBytes))),
-                "monotonic-meta"
-            )
-        ) {
-            tableMeta = DirectMonotonicReader.loadMeta(metaInput, numEntries, BLOCK_SHIFT);
-        }
-        return DirectMonotonicReader.getInstance(tableMeta, data.randomAccessSlice(dataOffset, dataLength));
     }
 
     @Override

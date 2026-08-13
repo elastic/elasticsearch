@@ -313,7 +313,7 @@ public record DriverCompletionInfo(
                 LinkedHashSet<String> parsed = new LinkedHashSet<>(headerWarnings.size());
                 for (String header : headerWarnings) {
                     String extracted = HeaderWarning.extractWarningValueFromWarningHeader(header, false);
-                    parsed.add(HeaderWarning.unescapeBackslashesAndQuotes(extracted));
+                    parsed.add(HeaderWarning.decodeAndUnescape(extracted));
                 }
                 warnings = parsed;
             }

@@ -268,22 +268,8 @@ public final class AsymmetricHashingQuantizer {
     }
 
     private float[] randomOrthogonal(int originalDim, int nDims) {
-        // Generate random matrix and orthogonalize columns via modified Gram-Schmidt
         float[] q = SvdUtil.randomGaussians(new Random(seed), originalDim * nDims);
-        // Modified Gram-Schmidt: orthogonalize column by column
-        for (int j = 0; j < nDims; j++) {
-            // Subtract projections of previous columns
-            for (int prev = 0; prev < j; prev++) {
-                float dot = 0;
-                for (int i = 0; i < originalDim; i++) {
-                    dot = Math.fma(q[i * nDims + j], q[i * nDims + prev], dot);
-                }
-                for (int i = 0; i < originalDim; i++) {
-                    q[i * nDims + j] = Math.fma(-dot, q[i * nDims + prev], q[i * nDims + j]);
-                }
-            }
-            SvdUtil.normalizeColumn(q, j, nDims, originalDim);
-        }
+        SvdUtil.qrOrthogonalize(q, originalDim, nDims);
         return q;
     }
 

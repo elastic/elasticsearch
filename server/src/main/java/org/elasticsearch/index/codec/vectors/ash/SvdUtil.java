@@ -418,7 +418,7 @@ final class SvdUtil {
     /**
      * Modified Gram-Schmidt QR orthogonalization in-place on columns of V (n x k), row-major.
      */
-    private static void qrOrthogonalize(float[] v, int n, int k) {
+    static void qrOrthogonalize(float[] v, int n, int k) {
         for (int j = 0; j < k; j++) {
             // Subtract projections of previous columns
             for (int prev = 0; prev < j; prev++) {

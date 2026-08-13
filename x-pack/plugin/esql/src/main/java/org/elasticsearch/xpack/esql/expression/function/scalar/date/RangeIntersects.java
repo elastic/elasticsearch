@@ -333,8 +333,8 @@ public class RangeIntersects extends EsqlScalarFunction implements SurrogateExpr
             upper = date;
             includeUpper = true;
         } else if (literalExp.dataType() == DOUBLE) {
-            lower = value;
-            upper = value;
+            lower = RangeWithin.finiteBound((Double) value);
+            upper = lower;
             includeUpper = true;
         } else if (literalExp.dataType() == DATE_RANGE) {
             LongRangeBlockBuilder.LongRange r = (LongRangeBlockBuilder.LongRange) value;
@@ -343,8 +343,9 @@ public class RangeIntersects extends EsqlScalarFunction implements SurrogateExpr
             includeUpper = false;
         } else {
             DoubleRangeBlockBuilder.DoubleRange r = (DoubleRangeBlockBuilder.DoubleRange) value;
-            lower = r.from();
-            upper = r.to();
+            // Non-finite bounds become unbounded query sides; RECHECK keeps the semantics exact.
+            lower = RangeWithin.finiteBound(r.from());
+            upper = RangeWithin.finiteBound(r.to());
             includeUpper = false;
         }
         return new RangeQuery(source(), name, lower, true, upper, includeUpper, format, null, ShapeRelation.INTERSECTS);

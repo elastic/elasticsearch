@@ -27,7 +27,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.is;
 
-public class MinimalServiceSettingsTests extends AbstractBWCSerializationTestCase<MinimalServiceSettings> {
+public class EndpointClusterStateTests extends AbstractBWCSerializationTestCase<EndpointClusterState> {
 
     private static final int TEST_DIMENSIONS_384 = 384;
     private static final int TEST_DIMENSIONS_768 = 768;
@@ -36,7 +36,7 @@ public class MinimalServiceSettingsTests extends AbstractBWCSerializationTestCas
     private static final String SERVICE = "service";
     private static final String OTHER_SERVICE = "other-service";
 
-    private static final MinimalServiceSettings MINIMAL_SERVICE_SETTINGS_WITHOUT_METADATA = new MinimalServiceSettings(
+    private static final EndpointClusterState MINIMAL_SERVICE_SETTINGS_WITHOUT_METADATA = new EndpointClusterState(
         SERVICE_A,
         TaskType.TEXT_EMBEDDING,
         TEST_DIMENSIONS_384,
@@ -55,7 +55,7 @@ public class MinimalServiceSettingsTests extends AbstractBWCSerializationTestCas
         }
         """;
 
-    private static final MinimalServiceSettings MINIMAL_SERVICE_SETTINGS_WITH_METADATA = new MinimalServiceSettings(
+    private static final EndpointClusterState MINIMAL_SERVICE_SETTINGS_WITH_METADATA = new EndpointClusterState(
         SERVICE_A,
         TaskType.TEXT_EMBEDDING,
         384,
@@ -96,7 +96,7 @@ public class MinimalServiceSettingsTests extends AbstractBWCSerializationTestCas
         }
         """;
 
-    public static MinimalServiceSettings randomInstance() {
+    public static EndpointClusterState randomInstance() {
         TaskType taskType = randomFrom(EnumSet.complementOf(EnumSet.of(TaskType.ANY)));
         Integer dimensions = null;
         SimilarityMeasure similarity = null;
@@ -108,7 +108,7 @@ public class MinimalServiceSettingsTests extends AbstractBWCSerializationTestCas
             elementType = randomFrom(DenseVectorFieldMapper.ElementType.values());
         }
         var endpointMetadata = randomBoolean() ? EndpointMetadata.EMPTY_INSTANCE : EndpointMetadataTests.randomInstance();
-        return new MinimalServiceSettings(
+        return new EndpointClusterState(
             randomBoolean() ? null : randomAlphaOfLength(10),
             taskType,
             dimensions,
@@ -119,17 +119,17 @@ public class MinimalServiceSettingsTests extends AbstractBWCSerializationTestCas
     }
 
     @Override
-    protected Writeable.Reader<MinimalServiceSettings> instanceReader() {
-        return MinimalServiceSettings::new;
+    protected Writeable.Reader<EndpointClusterState> instanceReader() {
+        return EndpointClusterState::new;
     }
 
     @Override
-    protected MinimalServiceSettings createTestInstance() {
+    protected EndpointClusterState createTestInstance() {
         return randomInstance();
     }
 
     @Override
-    protected MinimalServiceSettings mutateInstance(MinimalServiceSettings instance) throws IOException {
+    protected EndpointClusterState mutateInstance(EndpointClusterState instance) throws IOException {
         var service = instance.service();
         var taskType = instance.taskType();
         var dimensions = instance.dimensions();
@@ -199,11 +199,11 @@ public class MinimalServiceSettingsTests extends AbstractBWCSerializationTestCas
             }
         }
 
-        return new MinimalServiceSettings(service, taskType, dimensions, similarity, elementType, endpointMetadata);
+        return new EndpointClusterState(service, taskType, dimensions, similarity, elementType, endpointMetadata);
     }
 
     @Override
-    protected MinimalServiceSettings mutateInstanceForVersion(MinimalServiceSettings instance, TransportVersion version) {
+    protected EndpointClusterState mutateInstanceForVersion(EndpointClusterState instance, TransportVersion version) {
         var metadataVersion = TransportVersion.fromName("inference_endpoint_metadata_fields_added");
 
         var endpointMetadata = instance.endpointMetadata();
@@ -212,7 +212,7 @@ public class MinimalServiceSettingsTests extends AbstractBWCSerializationTestCas
         } else {
             endpointMetadata = EndpointMetadataTests.doMutateInstanceForVersion(endpointMetadata, version);
         }
-        return new MinimalServiceSettings(
+        return new EndpointClusterState(
             instance.service(),
             instance.taskType(),
             instance.dimensions(),
@@ -223,8 +223,8 @@ public class MinimalServiceSettingsTests extends AbstractBWCSerializationTestCas
     }
 
     @Override
-    protected MinimalServiceSettings doParseInstance(XContentParser parser) throws IOException {
-        return MinimalServiceSettings.parse(parser);
+    protected EndpointClusterState doParseInstance(XContentParser parser) throws IOException {
+        return EndpointClusterState.parse(parser);
     }
 
     @Override
@@ -233,7 +233,7 @@ public class MinimalServiceSettingsTests extends AbstractBWCSerializationTestCas
     }
 
     public void testCanMergeWith_SettingsWithDifferentEndpointMetadata() {
-        var settings = new MinimalServiceSettings(
+        var settings = new EndpointClusterState(
             SERVICE_A,
             TaskType.TEXT_EMBEDDING,
             TEST_DIMENSIONS_384,
@@ -241,7 +241,7 @@ public class MinimalServiceSettingsTests extends AbstractBWCSerializationTestCas
             DenseVectorFieldMapper.ElementType.FLOAT,
             EndpointMetadata.EMPTY_INSTANCE
         );
-        var same = new MinimalServiceSettings(
+        var same = new EndpointClusterState(
             SERVICE_A,
             TaskType.TEXT_EMBEDDING,
             TEST_DIMENSIONS_384,
@@ -253,7 +253,7 @@ public class MinimalServiceSettingsTests extends AbstractBWCSerializationTestCas
     }
 
     public void testCanMergeWithSameSettings() {
-        var settings = new MinimalServiceSettings(
+        var settings = new EndpointClusterState(
             SERVICE_A,
             TaskType.TEXT_EMBEDDING,
             TEST_DIMENSIONS_384,
@@ -261,7 +261,7 @@ public class MinimalServiceSettingsTests extends AbstractBWCSerializationTestCas
             DenseVectorFieldMapper.ElementType.FLOAT,
             EndpointMetadata.EMPTY_INSTANCE
         );
-        var same = new MinimalServiceSettings(
+        var same = new EndpointClusterState(
             SERVICE_A,
             TaskType.TEXT_EMBEDDING,
             TEST_DIMENSIONS_384,
@@ -275,7 +275,7 @@ public class MinimalServiceSettingsTests extends AbstractBWCSerializationTestCas
     public void testCanMergeWithDifferentServiceName_ReturnsTrue() {
         // Embedding task type
         {
-            var settings = new MinimalServiceSettings(
+            var settings = new EndpointClusterState(
                 SERVICE_A,
                 TaskType.TEXT_EMBEDDING,
                 TEST_DIMENSIONS_384,
@@ -283,7 +283,7 @@ public class MinimalServiceSettingsTests extends AbstractBWCSerializationTestCas
                 DenseVectorFieldMapper.ElementType.FLOAT,
                 EndpointMetadata.EMPTY_INSTANCE
             );
-            var other = new MinimalServiceSettings(
+            var other = new EndpointClusterState(
                 SERVICE_B,
                 TaskType.TEXT_EMBEDDING,
                 TEST_DIMENSIONS_384,
@@ -295,14 +295,14 @@ public class MinimalServiceSettingsTests extends AbstractBWCSerializationTestCas
         }
         // Non-embedding task type
         {
-            var settings = new MinimalServiceSettings(SERVICE, TaskType.COMPLETION, null, null, null, EndpointMetadata.EMPTY_INSTANCE);
-            var other = new MinimalServiceSettings(OTHER_SERVICE, TaskType.COMPLETION, null, null, null, EndpointMetadata.EMPTY_INSTANCE);
+            var settings = new EndpointClusterState(SERVICE, TaskType.COMPLETION, null, null, null, EndpointMetadata.EMPTY_INSTANCE);
+            var other = new EndpointClusterState(OTHER_SERVICE, TaskType.COMPLETION, null, null, null, EndpointMetadata.EMPTY_INSTANCE);
             assertTrue(settings.canMergeWith(other));
         }
     }
 
     public void testCanMergeWithDifferentTaskType_ReturnsFalse() {
-        var settings = new MinimalServiceSettings(
+        var settings = new EndpointClusterState(
             null,
             TaskType.TEXT_EMBEDDING,
             TEST_DIMENSIONS_384,
@@ -310,12 +310,12 @@ public class MinimalServiceSettingsTests extends AbstractBWCSerializationTestCas
             DenseVectorFieldMapper.ElementType.FLOAT,
             EndpointMetadata.EMPTY_INSTANCE
         );
-        var other = new MinimalServiceSettings(null, TaskType.SPARSE_EMBEDDING, null, null, null, EndpointMetadata.EMPTY_INSTANCE);
+        var other = new EndpointClusterState(null, TaskType.SPARSE_EMBEDDING, null, null, null, EndpointMetadata.EMPTY_INSTANCE);
         assertFalse(settings.canMergeWith(other));
     }
 
     public void testCanMergeWithDifferentDimensions_ReturnsFalse() {
-        var settings = new MinimalServiceSettings(
+        var settings = new EndpointClusterState(
             null,
             TaskType.TEXT_EMBEDDING,
             TEST_DIMENSIONS_384,
@@ -323,7 +323,7 @@ public class MinimalServiceSettingsTests extends AbstractBWCSerializationTestCas
             DenseVectorFieldMapper.ElementType.FLOAT,
             EndpointMetadata.EMPTY_INSTANCE
         );
-        var other = new MinimalServiceSettings(
+        var other = new EndpointClusterState(
             null,
             TaskType.TEXT_EMBEDDING,
             TEST_DIMENSIONS_768,
@@ -335,7 +335,7 @@ public class MinimalServiceSettingsTests extends AbstractBWCSerializationTestCas
     }
 
     public void testCanMergeWithDifferentSimilarity_ReturnsFalse() {
-        var settings = new MinimalServiceSettings(
+        var settings = new EndpointClusterState(
             null,
             TaskType.TEXT_EMBEDDING,
             TEST_DIMENSIONS_384,
@@ -343,7 +343,7 @@ public class MinimalServiceSettingsTests extends AbstractBWCSerializationTestCas
             DenseVectorFieldMapper.ElementType.FLOAT,
             EndpointMetadata.EMPTY_INSTANCE
         );
-        var other = new MinimalServiceSettings(
+        var other = new EndpointClusterState(
             null,
             TaskType.TEXT_EMBEDDING,
             TEST_DIMENSIONS_384,
@@ -355,7 +355,7 @@ public class MinimalServiceSettingsTests extends AbstractBWCSerializationTestCas
     }
 
     public void testCanMergeWithDifferentElementType_ReturnsFalse() {
-        var settings = new MinimalServiceSettings(
+        var settings = new EndpointClusterState(
             null,
             TaskType.TEXT_EMBEDDING,
             TEST_DIMENSIONS_384,
@@ -363,7 +363,7 @@ public class MinimalServiceSettingsTests extends AbstractBWCSerializationTestCas
             DenseVectorFieldMapper.ElementType.FLOAT,
             EndpointMetadata.EMPTY_INSTANCE
         );
-        var other = new MinimalServiceSettings(
+        var other = new EndpointClusterState(
             null,
             TaskType.TEXT_EMBEDDING,
             TEST_DIMENSIONS_384,
@@ -374,7 +374,7 @@ public class MinimalServiceSettingsTests extends AbstractBWCSerializationTestCas
         assertFalse(settings.canMergeWith(other));
     }
 
-    public void testToXContentMinimalServiceSettingsWithoutMetadata() throws IOException {
+    public void testToXContent_WithEmptyEndpointMetadata_DoesNotSerializeEndpointMetadata() throws IOException {
         var builder = XContentFactory.contentBuilder(XContentType.JSON);
         MINIMAL_SERVICE_SETTINGS_WITHOUT_METADATA.toXContent(builder, ToXContent.EMPTY_PARAMS);
         var json = Strings.toString(builder);
@@ -382,7 +382,7 @@ public class MinimalServiceSettingsTests extends AbstractBWCSerializationTestCas
         assertThat(json, is(XContentHelper.stripWhitespace(MINIMAL_SERVICE_SETTINGS_WITHOUT_METADATA_JSON)));
     }
 
-    public void testToXContentMinimalServiceSettingsWithEndpointMetadata() throws IOException {
+    public void testToXContent_WithEndpointMetadata_SerializesEndpointMetadata() throws IOException {
         var builder = XContentFactory.contentBuilder(XContentType.JSON);
         MINIMAL_SERVICE_SETTINGS_WITH_METADATA.toXContent(builder, ToXContent.EMPTY_PARAMS);
         var json = Strings.toString(builder);
@@ -390,9 +390,9 @@ public class MinimalServiceSettingsTests extends AbstractBWCSerializationTestCas
         assertThat(json, is(XContentHelper.stripWhitespace(MINIMAL_SERVICE_SETTINGS_WITH_METADATA_JSON)));
     }
 
-    public void testFilteredToXContent() throws IOException {
+    public void testToXContent_DoesNotSerializeEndpointMetadata_WhenPassingParamWithoutEndpointMetadata() throws IOException {
         var builder = XContentFactory.contentBuilder(XContentType.JSON);
-        MINIMAL_SERVICE_SETTINGS_WITH_METADATA.getFilteredXContentObject().toXContent(builder, ToXContent.EMPTY_PARAMS);
+        MINIMAL_SERVICE_SETTINGS_WITH_METADATA.toXContent(builder, EndpointClusterState.withoutEndpointMetadata());
         var json = Strings.toString(builder);
 
         assertThat(json, is(XContentHelper.stripWhitespace(MINIMAL_SERVICE_SETTINGS_WITHOUT_METADATA_JSON)));

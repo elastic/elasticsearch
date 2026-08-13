@@ -547,6 +547,21 @@ public final class CsvSpecReader {
         }
 
         /**
+         * Makes expected warnings optional: they may or may not appear in the response.
+         * Any actual warning must still match one of the expected patterns.
+         * Used in mixed/multi-cluster tests where older nodes (pre-9.6) may not propagate
+         * warnings correctly due to a threading bug fixed in 9.6.
+         */
+        public void makeWarningsOptional() {
+            if (expectedWarnings.isEmpty() == false) {
+                expectedWarningsRegexString.addAll(expectedWarnings.stream().map(Pattern::quote).toList());
+                expectedWarnings.clear();
+                expectedWarningsRegex.clear();
+                expectedWarningsRegex.addAll(expectedWarningsRegexString.stream().map(CsvSpecReader::warningRegexToPattern).toList());
+            }
+        }
+
+        /**
          * Allows all warnings in the result.
          */
         public void allowAllWarnings() {

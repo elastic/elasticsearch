@@ -63,7 +63,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
 
     public void testSvdMatrixReconstruction() {
         int m = 5, n = 3;
-        float[] a = SvdUtil.randomGaussians(random(), m*n);
+        float[] a = SvdUtil.randomGaussians(random(), m * n);
         SvdUtil.SvdResult result = SvdUtil.thinSvd(a, m, n);
 
         assertEquals(m * n, result.u().length);
@@ -87,7 +87,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
 
     public void testSvdWideMatrixReconstruction() {
         int m = 3, n = 5;
-        float[] a = SvdUtil.randomGaussians(random(), m*n);
+        float[] a = SvdUtil.randomGaussians(random(), m * n);
         SvdUtil.SvdResult result = SvdUtil.thinSvd(a, m, n);
 
         assertEquals(m * m, result.u().length);

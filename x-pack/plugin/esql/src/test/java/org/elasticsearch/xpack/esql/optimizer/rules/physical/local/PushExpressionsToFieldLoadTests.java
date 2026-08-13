@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.optimizer.AbstractLocalPhysicalPlanOptimizer
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.TestPlannerOptimizer;
+import org.elasticsearch.xpack.esql.plan.physical.CompoundOutputEvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
@@ -759,6 +760,63 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
 
         List<FieldAttribute> pushed = findPushedFields(plan, "data", BlockLoaderFunctionConfig.Function.EXTRACT_FLATTENED_SUBFIELD);
         assertThat("field_extract feeding GROK should fuse", pushed, hasSize(1));
+    }
+
+    // ---- field_extract into URI_PARTS / REGISTERED_DOMAIN / USER_AGENT input (CompoundOutputEvalExec) ----
+
+    public void testFieldExtractInUriParts() {
+        assumeTrue("field_extract must be part of this build", FieldExtract.isFnFieldExtractCapabilityMet());
+        assumeTrue("URI_PARTS must be enabled", EsqlCapabilities.Cap.URI_PARTS_COMMAND.isEnabled());
+        // URI_PARTS (a CompoundOutputEvalExec) carries its parsed value in input(); the field_extract there must fuse
+        // into a keyed sub-field load rather than survive as a per-row evaluator feeding the command.
+        PhysicalPlan plan = flattenedPlannerOptimizer.plan("""
+            FROM test
+            | URI_PARTS p = field_extract(data, "host.name")
+            | SORT id
+            | LIMIT 10
+            | KEEP p.domain
+            """);
+
+        List<FieldAttribute> pushed = findPushedFields(plan, "data", BlockLoaderFunctionConfig.Function.EXTRACT_FLATTENED_SUBFIELD);
+        assertThat("field_extract feeding URI_PARTS should fuse", pushed, hasSize(1));
+
+        CompoundOutputEvalExec command = findFirst(plan, CompoundOutputEvalExec.class);
+        assertNotNull("Should find a CompoundOutputEvalExec (URI_PARTS)", command);
+        FieldAttribute input = as(command.input(), FieldAttribute.class);
+        assertThat(
+            as(input.field(), FunctionEsField.class).functionConfig().function(),
+            is(BlockLoaderFunctionConfig.Function.EXTRACT_FLATTENED_SUBFIELD)
+        );
+    }
+
+    public void testFieldExtractInRegisteredDomain() {
+        assumeTrue("field_extract must be part of this build", FieldExtract.isFnFieldExtractCapabilityMet());
+        assumeTrue("REGISTERED_DOMAIN must be enabled", EsqlCapabilities.Cap.REGISTERED_DOMAIN_COMMAND.isEnabled());
+        PhysicalPlan plan = flattenedPlannerOptimizer.plan("""
+            FROM test
+            | REGISTERED_DOMAIN rd = field_extract(data, "host.name")
+            | SORT id
+            | LIMIT 10
+            | KEEP rd.domain
+            """);
+
+        List<FieldAttribute> pushed = findPushedFields(plan, "data", BlockLoaderFunctionConfig.Function.EXTRACT_FLATTENED_SUBFIELD);
+        assertThat("field_extract feeding REGISTERED_DOMAIN should fuse", pushed, hasSize(1));
+    }
+
+    public void testFieldExtractInUserAgent() {
+        assumeTrue("field_extract must be part of this build", FieldExtract.isFnFieldExtractCapabilityMet());
+        assumeTrue("USER_AGENT must be enabled", EsqlCapabilities.Cap.USER_AGENT_COMMAND.isEnabled());
+        PhysicalPlan plan = flattenedPlannerOptimizer.plan("""
+            FROM test
+            | USER_AGENT ua = field_extract(data, "host.name")
+            | SORT id
+            | LIMIT 10
+            | KEEP ua.name
+            """);
+
+        List<FieldAttribute> pushed = findPushedFields(plan, "data", BlockLoaderFunctionConfig.Function.EXTRACT_FLATTENED_SUBFIELD);
+        assertThat("field_extract feeding USER_AGENT should fuse", pushed, hasSize(1));
     }
 
     // ---- Lookup join test (Primaries check) ----

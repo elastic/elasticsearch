@@ -255,17 +255,13 @@ final class SvdUtil {
             for (int i = 0; i < k; i++) {
                 mv[i] = ESVectorUtil.dotProduct(m, i * k, v, 0, k);
             }
-            // mtmv = M^T @ mv
-            double normSq = 0;
-            for (int j = 0; j < k; j++) {
-                double sum = 0;
-                for (int i = 0; i < k; i++) {
-                    sum = Math.fma(m[i * k + j], mv[i], sum);
-                }
-                mtmv[j] = (float) sum;
-                normSq += sum * sum;
+            // mtmv = M^T @ mv: row-broadcast so M is read contiguously
+            Arrays.fill(mtmv, 0f);
+            for (int i = 0; i < k; i++) {
+                ESVectorUtil.linearCombination(mv[i], m, i * k, mtmv, 0, k);
             }
             // Normalize
+            double normSq = ESVectorUtil.dotProduct(mtmv, 0, mtmv, 0, k);
             double norm = Math.sqrt(normSq);
             if (norm < 1e-30) return 0f;
             for (int j = 0; j < k; j++) {
@@ -368,11 +364,7 @@ final class SvdUtil {
                 int aBase = i * n;
                 int wBase = i * k;
                 for (int d = 0; d < n; d++) {
-                    float aVal = a[aBase + d];
-                    int vNewBase = d * k;
-                    for (int j = 0; j < k; j++) {
-                        vNew[vNewBase + j] = Math.fma(aVal, w[wBase + j], vNew[vNewBase + j]);
-                    }
+                    ESVectorUtil.linearCombination(a[aBase + d], w, wBase, vNew, d * k, k);
                 }
             }
             qrOrthogonalize(vNew, n, k);
@@ -443,14 +435,10 @@ final class SvdUtil {
 
             // Power iteration on A A^T: u <- A (A^T u) / ||...||
             for (int iter = 0; iter < 100; iter++) {
-                // w = A^T u (n-dimensional)
+                // w = A^T u (n-dimensional): row-broadcast so A is read contiguously
                 float[] w = new float[n];
-                for (int j = 0; j < n; j++) {
-                    double sum = 0;
-                    for (int i = 0; i < m; i++) {
-                        sum = Math.fma(a[i * n + j], u[i], sum);
-                    }
-                    w[j] = (float) sum;
+                for (int i = 0; i < m; i++) {
+                    ESVectorUtil.linearCombination(u[i], a, i * n, w, 0, n);
                 }
                 // u_new = A w (m-dimensional)
                 float[] uNew = new float[m];
@@ -459,10 +447,8 @@ final class SvdUtil {
                 }
                 // Deflate
                 for (int d = 0; d < found; d++) {
-                    double dot = ESVectorUtil.dotProduct(uNew, deflated[d]);
-                    for (int i = 0; i < m; i++) {
-                        uNew[i] = (float) Math.fma(-dot, deflated[d][i], uNew[i]);
-                    }
+                    float dot = ESVectorUtil.dotProduct(uNew, deflated[d]);
+                    ESVectorUtil.linearCombination(-dot, deflated[d], uNew);
                 }
                 ESVectorUtil.l2Normalize(uNew);
                 u = uNew;
@@ -470,14 +456,10 @@ final class SvdUtil {
             deflated[found] = u;
             found++;
 
-            // Recover right singular vector: v = A^T u, then normalize
+            // Recover right singular vector: v = A^T u, then normalize; row-broadcast so A is read contiguously
             float[] sv = new float[n];
-            for (int j = 0; j < n; j++) {
-                double sum = 0;
-                for (int i = 0; i < m; i++) {
-                    sum = Math.fma(a[i * n + j], u[i], sum);
-                }
-                sv[j] = (float) sum;
+            for (int i = 0; i < m; i++) {
+                ESVectorUtil.linearCombination(u[i], a, i * n, sv, 0, n);
             }
             ESVectorUtil.l2Normalize(sv);
             System.arraycopy(sv, 0, result, vec * n, n);

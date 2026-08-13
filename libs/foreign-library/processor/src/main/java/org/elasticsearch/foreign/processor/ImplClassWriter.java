@@ -131,7 +131,6 @@ class ImplClassWriter {
     private static final MethodTypeDesc MTD_Arena_ofConfined = MethodTypeDesc.of(CD_Arena);
     private static final MethodTypeDesc MTD_Arena_close = MethodTypeDesc.of(CD_void);
     private static final MethodTypeDesc MTD_MemorySegmentAdapter_allocateString = MethodTypeDesc.of(CD_MemorySegment, CD_Arena, CD_String);
-    private static final MethodTypeDesc MTD_critical = MethodTypeDesc.of(CD_LinkerOptionArray);
     private static final MethodTypeDesc MTD_criticalWith = MethodTypeDesc.of(CD_LinkerOptionArray, CD_LinkerOptionArray);
     private static final MethodTypeDesc MTD_captureState = MethodTypeDesc.of(CD_MemorySegment);
 
@@ -393,24 +392,18 @@ class ImplClassWriter {
     /**
      * Emits the {@code Linker.Option[]} array passed to {@code linker.downcallHandle}.
      *
-     * <p>For a pure {@code @Critical} method (no capture, no variadic) the array is built by
-     * {@code LinkerAdapter.critical()}. Otherwise the array is assembled inline with a
-     * {@code captureCallState(...)} entry for {@code @CaptureSystemError} — {@code "errno"} or
-     * {@code "GetLastError"} depending on the method's resolved {@link MethodModel.CapturedError}
-     * channel — and/or a {@code firstVariadicArg(N)} entry for {@code @Variadic}; when the method is
-     * also {@code @Critical}, that array is passed to {@code LinkerAdapter.criticalWith()} which
-     * prepends the critical option on JDK 22+ (and returns the array unchanged on JDK 21).
+     * <p>The array is assembled inline with a {@code captureCallState(...)} entry for
+     * {@code @CaptureSystemError} — {@code "errno"} or {@code "GetLastError"} depending on the
+     * method's resolved {@link MethodModel.CapturedError} channel — and/or a
+     * {@code firstVariadicArg(N)} entry for {@code @Variadic}. When the method is {@code @Critical},
+     * that array (possibly empty) is passed to {@code LinkerAdapter.criticalWith()}, which prepends
+     * the critical option on JDK 22+ and returns the array unchanged on JDK 21.
      */
     private static void emitLinkerOptions(CodeBuilder cb, MethodModel nm) {
         MethodModel.CapturedError capturedError = nm.capturedError();
         boolean capture = capturedError != MethodModel.CapturedError.NONE;
         boolean variadic = nm.firstVariadicArg() >= 0;
         boolean critical = nm.isCritical();
-
-        if (critical && !capture && !variadic) {
-            cb.invokestatic(CD_LinkerAdapter, "critical", MTD_critical);
-            return;
-        }
 
         int size = (capture ? 1 : 0) + (variadic ? 1 : 0);
         cb.loadConstant(size);

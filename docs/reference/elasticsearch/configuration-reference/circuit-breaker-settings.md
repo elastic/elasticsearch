@@ -68,7 +68,6 @@ $$$request-breaker-overhead$$$
 
 ```{applies_to}
 stack: ga 9.6
-serverless: ga
 ```
 
 The native memory circuit breaker limits off-heap (native) memory allocations, such as Arrow buffers used by ES|QL. Unlike the other breakers, this breaker is **not** included in the parent circuit breaker's total: the parent's limit is expressed in JVM heap bytes, and adding off-heap bytes to it would mix units. Each resource is bounded independently.

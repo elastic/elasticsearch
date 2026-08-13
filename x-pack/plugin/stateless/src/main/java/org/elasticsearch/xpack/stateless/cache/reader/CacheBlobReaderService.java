@@ -193,7 +193,7 @@ public class CacheBlobReaderService {
             }
 
             @Override
-            public void onCopyCompleted(int totalBytesRead, long timeNanos) {
+            public void onReadCompleted(int totalBytesRead, long timeNanos) {
                 cacheService.getBlobCacheMetrics()
                     .recordCachePopulationMetrics(fileName, totalBytesRead, timeNanos, cachePopulationReason, cachePopulationSource);
             }

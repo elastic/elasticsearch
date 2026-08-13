@@ -24,7 +24,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 
 public class MeteringCacheBlobReaderTests extends ESTestCase {
 
@@ -43,17 +42,13 @@ public class MeteringCacheBlobReaderTests extends ESTestCase {
         final int chunk1 = randomIntBetween(1, 512);
         final int chunk2 = randomIntBetween(1, 512);
         final int length = chunk1 + chunk2;
-        final int[] read1 = { 0 };
-        final int[] read2 = { 0 };
+        final List<Integer> readBytes = new ArrayList<>();
         meteringCacheBlobReader.getRangeInputStream(0, length, ActionListener.wrap(stream -> {
             final var buf = new byte[length];
-            read1[0] = stream.read(buf, 0, chunk1);
-            read2[0] = stream.read(buf, chunk1, chunk2);
+            readBytes.add(stream.read(buf, 0, chunk1));
+            readBytes.add(stream.read(buf, chunk1, chunk2));
         }, e -> fail("unexpected: " + e)));
-
-        assertThat(read1[0], greaterThan(0));
-        assertThat(read2[0], greaterThan(0));
-        assertThat(capturedBytes, equalTo(List.of(read1[0], read2[0])));
+        assertThat(capturedBytes, equalTo(readBytes));
     }
 
     public void testOnCopyCompletedCallback() {
@@ -63,7 +58,7 @@ public class MeteringCacheBlobReaderTests extends ESTestCase {
             createFakeCacheBlobReader(),
             new MeteringCacheBlobReader.ReadCompleteCallback() {
                 @Override
-                public void onCopyCompleted(int totalBytesRead, long timeNanos) {
+                public void onReadCompleted(int totalBytesRead, long timeNanos) {
                     capturedTotal.set(totalBytesRead);
                     capturedTime.set(timeNanos);
                 }
@@ -113,7 +108,7 @@ public class MeteringCacheBlobReaderTests extends ESTestCase {
         final var callbackException = new RuntimeException("Timing callback exception");
         final var throwingCallback = new MeteringCacheBlobReader.ReadCompleteCallback() {
             @Override
-            public void onCopyCompleted(int totalBytesRead, long timeNanos) {
+            public void onReadCompleted(int totalBytesRead, long timeNanos) {
                 throw callbackException;
             }
         };

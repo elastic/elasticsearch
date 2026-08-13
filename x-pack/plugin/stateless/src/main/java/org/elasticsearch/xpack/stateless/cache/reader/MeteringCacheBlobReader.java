@@ -54,14 +54,14 @@ public class MeteringCacheBlobReader implements CacheBlobReader {
     @Override
     public void onCopyCompleted(int totalBytesRead, long timeNanos) {
         try {
-            readCompleteCallback.onCopyCompleted(totalBytesRead, timeNanos);
+            readCompleteCallback.onReadCompleted(totalBytesRead, timeNanos);
         } catch (Exception e) {
             logger.debug("Error calling timing call-back", e);
         }
     }
 
     /**
-     * Notified as bytes are read from the source stream (per-chunk) and once when the full range copy completes.
+     * Notified as bytes are read from the source stream (per-chunk) and once when the read is completed.
      */
     public interface ReadCompleteCallback {
         /**
@@ -74,13 +74,12 @@ public class MeteringCacheBlobReader implements CacheBlobReader {
         default void onBytesRead(int bytesRead) {}
 
         /**
-         * Called once after the full range copy completes, with the total bytes and wall-clock duration
-         * of the copy. Used for throughput-metric recording.
+         * Notify that a stream was consumed
          *
-         * @param totalBytesRead Total bytes copied for this range
-         * @param timeNanos      Wall-clock duration of the copy in nanoseconds
+         * @param totalBytesRead Total bytes read
+         * @param timeToReadNanos The time between the first byte being read and the stream being closed (in nanoseconds)
          */
-        default void onCopyCompleted(int totalBytesRead, long timeNanos) {}
+        default void onReadCompleted(int totalBytesRead, long timeToReadNanos) {}
     }
 
     /**
@@ -90,26 +89,26 @@ public class MeteringCacheBlobReader implements CacheBlobReader {
      */
     private class MeteringInputStream extends FilterInputStream {
 
-        private MeteringInputStream(InputStream delegate) {
-            super(delegate);
+        private MeteringInputStream(InputStream delegateInputStream) {
+            super(delegateInputStream);
         }
 
         @Override
         public int read() throws IOException {
-            final int b = super.read();
-            if (b != -1) {
+            final int byteOfData = super.read();
+            if (byteOfData != -1) {
                 notifyBytesRead(1);
             }
-            return b;
+            return byteOfData;
         }
 
         @Override
         public int read(byte[] b, int off, int len) throws IOException {
-            final int n = super.read(b, off, len);
-            if (n > 0) {
-                notifyBytesRead(n);
+            final int bytesRead = super.read(b, off, len);
+            if (bytesRead > 0) {
+                notifyBytesRead(bytesRead);
             }
-            return n;
+            return bytesRead;
         }
 
         private void notifyBytesRead(int n) {

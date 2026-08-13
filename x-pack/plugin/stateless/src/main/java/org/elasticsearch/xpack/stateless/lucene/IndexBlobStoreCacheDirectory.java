@@ -97,12 +97,12 @@ public class IndexBlobStoreCacheDirectory extends BlobStoreCacheDirectory {
             }
 
             @Override
-            public void onCopyCompleted(int totalBytesRead, long timeNanos) {
+            public void onReadCompleted(int totalBytesRead, long readTimeNanos) {
                 cacheService.getBlobCacheMetrics()
                     .recordCachePopulationMetrics(
                         fileName,
                         totalBytesRead,
-                        timeNanos,
+                        readTimeNanos,
                         cachePopulationReason,
                         CachePopulationSource.BlobStore
                     );

@@ -242,15 +242,9 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         // Score a query against the encoded vectors using the production scoring path
         float[] query = SvdUtil.randomGaussians(random(), dim);
 
-        // Project query: qt = query @ W (raw, not centered)
+        // Project query: qt = wT @ query (raw, not centered)
         float[] qt = new float[nDims];
-        for (int j = 0; j < nDims; j++) {
-            double s = 0;
-            for (int d = 0; d < dim; d++) {
-                s = Math.fma(query[d], w[d * nDims + j], s);
-            }
-            qt[j] = (float) s;
-        }
+        SvdUtil.matrixVectorMultiply(wT, nDims, dim, query, qt);
         float queryDotCentroid = ESVectorUtil.dotProduct(query, centroids[0]);
 
         float[] scores = new float[nVectors];
@@ -301,15 +295,9 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
             float[] centroid = SvdUtil.randomGaussians(random(), dim);
             float[] query = SvdUtil.randomGaussians(random(), dim);
 
-            // Raw query projection: qt = query @ W
+            // Raw query projection: qt = wT @ query
             float[] qt = new float[nDims];
-            for (int j = 0; j < nDims; j++) {
-                double sum = 0;
-                for (int d = 0; d < dim; d++) {
-                    sum = Math.fma(query[d], w[d * nDims + j], sum);
-                }
-                qt[j] = (float) sum;
-            }
+            SvdUtil.matrixVectorMultiply(wT, nDims, dim, query, qt);
             float queryDotCentroid = ESVectorUtil.dotProduct(query, centroid, dim);
             AsymmetricHashingQuantizer.VectorAndNorm precomputed = AsymmetricHashingQuantizer.precomputeCentroid(centroid, wT);
 
@@ -502,24 +490,18 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         float[] w = ash.train(vectors, centroidGetter);
         int nDims = ash.nDims(dim);
 
-        // Pre-transform each query: qt = q @ W
+        // Precompute per-cluster values
+        float[] wT = ESVectorUtil.transposeMatrix(w, dim, nDims);
+
+        // Pre-transform each query: qt = wT @ q
         float[][] qt = new float[nQueries][nDims];
         for (int q = 0; q < nQueries; q++) {
-            for (int j = 0; j < nDims; j++) {
-                double s = 0;
-                for (int d = 0; d < dim; d++) {
-                    s = Math.fma(queries[q][d], w[d * nDims + j], s);
-                }
-                qt[q][j] = (float) s;
-            }
+            SvdUtil.matrixVectorMultiply(wT, nDims, dim, queries[q], qt[q]);
         }
 
         // Score matrices: approx[q][i] = ASH-approximated dot(q, v_i), exact[q][i] = true dot
         double[][] exact = new double[nQueries][nVectors];
         double[][] approx = new double[nQueries][nVectors];
-
-        // Precompute per-cluster values
-        float[] wT = ESVectorUtil.transposeMatrix(w, dim, nDims);
         AsymmetricHashingQuantizer.VectorAndNorm[] precomputedPerCluster = new AsymmetricHashingQuantizer.VectorAndNorm[nClusters];
         for (int c = 0; c < nClusters; c++) {
             precomputedPerCluster[c] = AsymmetricHashingQuantizer.precomputeCentroid(centroids[c], wT);

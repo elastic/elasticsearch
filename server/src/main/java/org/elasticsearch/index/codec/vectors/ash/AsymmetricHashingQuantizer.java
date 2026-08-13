@@ -173,9 +173,7 @@ public final class AsymmetricHashingQuantizer {
         int originalDim = centroid.length;
         int nDims = wT.length / originalDim;
         float[] centroidProjected = new float[nDims];
-        for (int j = 0; j < nDims; j++) {
-            centroidProjected[j] = ESVectorUtil.dotProduct(centroid, 0, wT, j * originalDim, originalDim);
-        }
+        SvdUtil.matrixVectorMultiply(wT, nDims, originalDim, centroid, centroidProjected);
         float centroidNormSq = ESVectorUtil.dotProduct(centroid, centroid);
         return new VectorAndNorm(centroidProjected, centroidNormSq);
     }
@@ -199,9 +197,7 @@ public final class AsymmetricHashingQuantizer {
 
         // Project using transposed W: xLatent[j] = dot(centered, wT[j])
         float[] xLatent = new float[nDims];
-        for (int j = 0; j < nDims; j++) {
-            xLatent[j] = ESVectorUtil.dotProduct(centered.vector(), 0, wT, j * originalDim, originalDim);
-        }
+        SvdUtil.matrixVectorMultiply(wT, nDims, originalDim, centered.vector(), xLatent);
 
         // Quantize
         AshSphericalScalarQuantizer.SingleQuantizeResult qr = quantizer.encodeOne(xLatent);

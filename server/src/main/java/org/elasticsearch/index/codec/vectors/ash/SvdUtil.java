@@ -250,31 +250,26 @@ final class SvdUtil {
         Arrays.fill(v, (float) (1.0 / Math.sqrt(k)));
         float[] mv = new float[k];
         float[] mtmv = new float[k];
+
         for (int iter = 0; iter < iterations; iter++) {
             // mv = M @ v
-            for (int i = 0; i < k; i++) {
-                mv[i] = ESVectorUtil.dotProduct(m, i * k, v, 0, k);
-            }
+            matrixVectorMultiply(m, k, k, v, mv);
             // mtmv = M^T @ mv: row-broadcast so M is read contiguously
             Arrays.fill(mtmv, 0f);
             for (int i = 0; i < k; i++) {
                 ESVectorUtil.linearCombination(mv[i], m, i * k, mtmv, 0, k);
             }
-            // Normalize
-            double normSq = ESVectorUtil.dotProduct(mtmv, 0, mtmv, 0, k);
-            double norm = Math.sqrt(normSq);
-            if (norm < 1e-30) return 0f;
-            for (int j = 0; j < k; j++) {
-                v[j] = (float) (mtmv[j] / norm);
-            }
+            // Normalize mtmv - this becomes the new v for the next iteration
+            float normSq = ESVectorUtil.l2Normalize(mtmv);
+            if (normSq == 0f || !Float.isFinite(normSq)) return 0f;
+            float[] tmp = v;
+            v = mtmv;
+            mtmv = tmp;
         }
+
         // Compute ||M @ v|| which approximates sigma_max
-        double mvNormSq = 0;
-        for (int i = 0; i < k; i++) {
-            double sum = ESVectorUtil.dotProduct(m, i * k, v, 0, k);
-            mvNormSq += sum * sum;
-        }
-        return (float) Math.sqrt(mvNormSq);
+        matrixVectorMultiply(m, k, k, v, mv);
+        return (float) Math.sqrt(ESVectorUtil.dotProduct(mv, 0, mv, 0, k));
     }
 
     private static void sortDescending(float[] u, float[] s, float[] v, int m, int n) {
@@ -376,6 +371,25 @@ final class SvdUtil {
     }
 
     /**
+     * Computes {@code result = A @ v} where A is a (rows x cols) row-major matrix.
+     *
+     * @param a      flat row-major matrix, length rows*cols
+     * @param rows   number of rows in A
+     * @param cols   number of columns in A (and length of v)
+     * @param v      input vector, length cols
+     * @param result output vector, length rows
+     */
+    static void matrixVectorMultiply(float[] a, int rows, int cols, float[] v, float[] result) {
+        matrixVectorMultiply(a, rows, cols, v, 0, result, 0);
+    }
+
+    static void matrixVectorMultiply(float[] a, int rows, int cols, float[] v, int vOffset, float[] result, int resultOffset) {
+        for (int i = 0; i < rows; i++) {
+            result[resultOffset + i] = ESVectorUtil.dotProduct(a, i * cols, v, vOffset, cols);
+        }
+    }
+
+    /**
      * Normalizes column {@code col} of a row-major matrix in-place and returns the column norm.
      * Elements are at indices {@code col}, {@code col + stride}, ..., {@code col + (length-1)*stride}.
      * No-ops (but still returns the norm) if the norm is zero or non-finite.
@@ -442,9 +456,7 @@ final class SvdUtil {
                 }
                 // u_new = A w (m-dimensional)
                 float[] uNew = new float[m];
-                for (int i = 0; i < m; i++) {
-                    uNew[i] = ESVectorUtil.dotProduct(a, i * n, w, 0, n);
-                }
+                matrixVectorMultiply(a, m, n, w, uNew);
                 // Deflate
                 for (int d = 0; d < found; d++) {
                     float dot = ESVectorUtil.dotProduct(uNew, deflated[d]);

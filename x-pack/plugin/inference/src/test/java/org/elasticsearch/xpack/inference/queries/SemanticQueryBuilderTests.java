@@ -48,9 +48,9 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
+import org.elasticsearch.inference.EndpointClusterState;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InputType;
-import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
@@ -618,14 +618,14 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         return sourceToParse;
     }
 
-    private static MinimalServiceSettings getModelSettingsForInferenceResultType(
+    private static EndpointClusterState getModelSettingsForInferenceResultType(
         InferenceResultType inferenceResultType,
         @Nullable DenseVectorFieldMapper.ElementType denseVectorElementType
     ) {
         return switch (inferenceResultType) {
             case NONE -> null;
-            case SPARSE_EMBEDDING -> new MinimalServiceSettings("my-service", TaskType.SPARSE_EMBEDDING, null, null, null);
-            case TEXT_EMBEDDING -> new MinimalServiceSettings(
+            case SPARSE_EMBEDDING -> new EndpointClusterState("my-service", TaskType.SPARSE_EMBEDDING, null, null, null);
+            case TEXT_EMBEDDING -> new EndpointClusterState(
                 "my-service",
                 TaskType.TEXT_EMBEDDING,
                 TEXT_EMBEDDING_DIMENSION_COUNT,
@@ -633,7 +633,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
                 denseVectorElementType == DenseVectorFieldMapper.ElementType.BIT ? SimilarityMeasure.L2_NORM : SimilarityMeasure.COSINE,
                 denseVectorElementType
             );
-            case EMBEDDING -> new MinimalServiceSettings(
+            case EMBEDDING -> new EndpointClusterState(
                 "my-service",
                 TaskType.EMBEDDING,
                 TEXT_EMBEDDING_DIMENSION_COUNT,

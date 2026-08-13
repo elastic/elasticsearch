@@ -12,7 +12,9 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ObjectPath;
+import org.junit.ClassRule;
 
 import java.util.List;
 import java.util.Map;
@@ -22,8 +24,16 @@ import static org.hamcrest.Matchers.is;
 
 public class SLMHistoryManagedTemplateUpgradeIT extends AbstractXpackRollingUpgradeTestCase {
 
+    @ClassRule
+    public static ElasticsearchCluster cluster = buildCluster();
+
     public SLMHistoryManagedTemplateUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
+    }
+
+    @Override
+    protected ElasticsearchCluster getUpgradeCluster() {
+        return cluster;
     }
 
     @SuppressWarnings("unchecked")

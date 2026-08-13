@@ -28,6 +28,7 @@ import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import java.util.List;
 
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -138,7 +139,7 @@ public class PromqlHistogramQuantileStatesTests extends ComputeTestCase {
     public void testCombineSkipsUnparseableBound() {
         BlockFactory blockFactory = blockFactory();
         DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
-        Warnings warnings = Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, TestWarningsSource.INSTANCE);
+        Warnings warnings = driverContext.createWarnings(TestWarningsSource.INSTANCE);
 
         // Prometheus warns and skips malformed `le` buckets, preserving the valid buckets for the same histogram.
         try (var state = new SingleState(blockFactory.breaker(), 0.5, warnings)) {
@@ -150,9 +151,13 @@ public class PromqlHistogramQuantileStatesTests extends ComputeTestCase {
                 assertThat(result.getDouble(0), equalTo(1.0));
             }
         }
-        assertWarnings(
-            "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
-            "Line 1:1: java.lang.NumberFormatException: bucket label [le] has a malformed value of [not_a_number]"
+        driverContext.finish();
+        assertThat(
+            driverContext.warnings(),
+            containsInAnyOrder(
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: java.lang.NumberFormatException: bucket label [le] has a malformed value of [not_a_number]"
+            )
         );
     }
 

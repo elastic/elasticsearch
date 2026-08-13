@@ -1305,31 +1305,15 @@ public class CsvFlattenedKeywordIT extends CsvIT {
     }
 
     public static final java.util.List<String> EXPECTED_ERRORS = java.util.List.of(
-        "ABSENT_OVER_TIME:field is missing",
-        "CIDR_MATCH:blockX is missing",
-        "CLAMP:field is missing",
-        "CLAMP:max is missing",
-        "CLAMP:min is missing",
-        "CLAMP_MAX:field is missing",
-        "CLAMP_MAX:max is missing",
-        "CLAMP_MIN:field is missing",
-        "CLAMP_MIN:min is missing",
-        "COUNT_DISTINCT_OVER_TIME:field is missing",
-        "COUNT_OVER_TIME:field is missing",
-        "DATE_DIFF:unit is missing",
+        // EMBEDDING requires an inference service unavailable in the csv-spec test cluster.
         "EMBEDDING:value is missing",
         "FIELD_EXTRACT:path is missing",
-        "FIRST_OVER_TIME:field is missing",
-        "FROM_BASE64:string is missing",
-        "JSON_EXTRACT:string is missing",
-        "KNN:field is missing",
-        "KQL:query is missing",
-        "LAST_OVER_TIME:field is missing",
-        "MATCH:query is missing",
+
+        // MATCH_OPERATOR's field is a FieldAttribute, not a literal — we intentionally
+        // do not add an ENTITY hint to it, so the csv-spec test cluster never exercises
+        // this parameter via flattened-keyword field extraction.
         "MATCH_OPERATOR:field is missing",
-        "MATCH_OPERATOR:query is missing",
-        "MAX_OVER_TIME:field is missing",
-        "MIN_OVER_TIME:field is missing",
+
         // mv_in_range's bounds are literals in the csv-specs (like the comparison operators below), so its
         // keyword/text parameters are not exercised via flattened-keyword field extraction.
         "MV_IN_RANGE:field is missing",
@@ -1338,12 +1322,15 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         // MV_SORT's order argument is now marked as a CONSTANT hint in the function's docs
         // metadata, so it is excluded from the candidate set entirely (see the "constant".equals(kind)
         // check below) and never appears here as missing.
-        "NETWORK_DIRECTION:internal_networks is missing",
-        "PRESENT_OVER_TIME:field is missing",
-        "QSTR:query is missing",
+
         "SPARKLINE:from is missing",
         "SPARKLINE:to is missing",
+        // TEXT_EMBEDDING requires an inference service unavailable in the csv-spec test cluster.
         "TEXT_EMBEDDING:text is missing",
+        // WITHOUT is a time-series grouping helper valid only inside TS queries, and its dimension arguments
+        // must be real index dimension fields. Rewriting a dimension to a flattened subfield destroys its
+        // dimension nature, and TS tests are skipped by the coverage check entirely (see the ts_info_command
+        // / metrics_info_command guard above), so this slot can never be exercised via field extraction.
         "WITHOUT:dimension is missing"
     );
 
@@ -1428,7 +1415,7 @@ public class CsvFlattenedKeywordIT extends CsvIT {
                                     Object typeObj = params.get(i).get("type");
                                     if (typeObj instanceof String) {
                                         String t = (String) typeObj;
-                                        if ("keyword".equals(t) || "text".equals(t)) {
+                                        if ("keyword".equals(t)) {
                                             candidates.add(indexKey);
                                         }
                                     }

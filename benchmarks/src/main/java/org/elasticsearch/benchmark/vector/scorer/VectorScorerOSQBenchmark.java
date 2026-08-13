@@ -14,16 +14,14 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.store.MMapDirectory;
-import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.store.DirectoryType;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat;
 import org.elasticsearch.simdvec.ES940OSQVectorsScorer;
 import org.elasticsearch.simdvec.ESVectorizationProvider;
 import org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils;
-import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectoryFactory;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -92,12 +90,6 @@ public class VectorScorerOSQBenchmark {
         Utils.configureBenchmarkLogging();
     }
 
-    public enum DirectoryType {
-        NIO,
-        MMAP,
-        SNAP
-    }
-
     public enum VectorImplementation {
         SCALAR,
         PANAMA,
@@ -148,7 +140,9 @@ public class VectorScorerOSQBenchmark {
     @Param
     public VectorImplementation implementation;
 
-    @Param
+    // Listed explicitly to avoid pulling STATELESS_INDEX_LOCAL: this directory type is expensive (it brings up a
+    // node environment and blob cache per instance). Run it explicitly with -p directoryType=STATELESS_INDEX_LOCAL.
+    @Param({ "NIO", "MMAP", "SNAP" })
     public DirectoryType directoryType;
 
     @Param
@@ -318,11 +312,7 @@ public class VectorScorerOSQBenchmark {
     }
 
     void setup(VectorData data) throws IOException {
-        this.directory = switch (directoryType) {
-            case MMAP -> new MMapDirectory(createTempDirectory("vectorDataMmap"));
-            case NIO -> new NIOFSDirectory(createTempDirectory("vectorDataNFIOS"));
-            case SNAP -> SearchableSnapshotDirectoryFactory.newDirectory(createTempDirectory("vectorDataSNAP"));
-        };
+        this.directory = directoryType.newDirectory(createTempDirectory("VectorScorerOSQBenchmark"));
 
         try (IndexOutput output = directory.createOutput("vectors", IOContext.DEFAULT)) {
             for (int i = 0; i < NUM_VECTORS; i += BULK_SIZE) {
@@ -372,7 +362,9 @@ public class VectorScorerOSQBenchmark {
 
     @TearDown
     public void teardown() throws IOException {
-        IOUtils.close(directory, input);
+        // the input has to go first: closing a SNAP or stateless directory tears down the cache the input reads through
+        IOUtils.close(input, directory);
+        IOUtils.rm(tempDir);
     }
 
     @Benchmark

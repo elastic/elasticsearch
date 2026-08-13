@@ -57,6 +57,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
@@ -109,6 +110,12 @@ public class FieldExtractFusionCorpusInventoryTests extends ESTestCase {
     /** Leading {@code FROM <index>} of a query; the capture group is the first index token. */
     private static final Pattern LEADING_FROM = Pattern.compile("^\\s*FROM\\s+([A-Za-z0-9_.\\-]+)", Pattern.CASE_INSENSITIVE);
 
+    /** Leading source command keyword of a query (e.g. {@code FROM}, {@code TS}, {@code ROW}, {@code SHOW}). */
+    private static final Pattern LEADING_COMMAND = Pattern.compile("^\\s*([A-Za-z]+)");
+
+    /** One or more leading {@code SET <name> = <value>;} pragmas, stripped before the real source is classified. */
+    private static final Pattern SET_PREAMBLE = Pattern.compile("^(?:\\s*SET\\b[^;]*;)+", Pattern.CASE_INSENSITIVE);
+
     /**
      * Commands that introduce a second source the offline analyzer cannot resolve. {@code LOOKUP JOIN} is deliberately
      * absent: every {@code lookup-settings.json} dataset is pre-resolved into the shared lookup map (see
@@ -151,6 +158,32 @@ public class FieldExtractFusionCorpusInventoryTests extends ESTestCase {
         NO_DATA_NODE_FRAGMENT
     }
 
+    /**
+     * Sub-reason for a {@link Skip#NOT_SINGLE_DATASET} query, so the (large) catch-all bucket can be prioritised for
+     * further widening. Exactly one applies per rejected query, tested in the same order as {@link #classifySource}.
+     */
+    enum NotSingle {
+        /** Query does not start with {@code FROM} (e.g. {@code ROW}, {@code SHOW}, {@code TS}, {@code EXPLAIN}). */
+        NON_FROM_START,
+        /** Leading source token is a wildcard ({@code *}) or cross-cluster ({@code remote:index}) pattern. */
+        WILDCARD_OR_REMOTE,
+        /** Multi-index {@code FROM a, b} or a sub-query source (comma/paren before the first pipe). */
+        MULTI_INDEX_FROM,
+        /** Contains an {@code ENRICH} the offline harness cannot resolve (no enrich policy resolution built). */
+        ENRICH,
+        /** Contains a {@code FORK}, which fans out into multiple sub-plans. */
+        FORK,
+        /** Leading {@code FROM <token>} names an index with no known/loadable dataset mapping. */
+        UNKNOWN_INDEX
+    }
+
+    /**
+     * Result of classifying a query's source: exactly one of {@code dataset} (measurable) or {@code reason} is non-null.
+     * {@code mode} is the {@link IndexMode} the source reads with ({@link IndexMode#STANDARD} for {@code FROM},
+     * {@link IndexMode#TIME_SERIES} for {@code TS}); it is only meaningful when {@code dataset} is non-null.
+     */
+    private record SourceClass(CsvTestsDataLoader.TestDataset dataset, IndexMode mode, NotSingle reason) {}
+
     /** Per-dataset offline analyzer plus the keyword paths the rewriter should wrap. {@code null} analyzer means unusable. */
     private record DatasetPlan(Analyzer analyzer, Set<String> keywordPaths) {}
 
@@ -176,24 +209,39 @@ public class FieldExtractFusionCorpusInventoryTests extends ESTestCase {
         int fused = 0;
         Map<Fusion, Integer> fallbackByReason = new EnumMap<>(Fusion.class);
         Map<Skip, Integer> skipByReason = new EnumMap<>(Skip.class);
+        // Breakdown of the (large) NOT_SINGLE_DATASET bucket, to prioritise which shape to widen coverage to next.
+        Map<NotSingle, Integer> notSingleByReason = new EnumMap<>(NotSingle.class);
+        // Further split of NON_FROM_START by leading command (TS/ROW/SHOW/...), since only index-reading sources fuse.
+        Map<String, Integer> nonFromLeadingCommand = new TreeMap<>();
         // A few representative rewritten queries per fallback bucket, so each residual is directly inspectable.
         Map<Fusion, List<String>> fallbackSamples = new EnumMap<>(Fusion.class);
         int measuredQueries = 0;
 
         for (CsvSpecReader.CsvTestCase testCase : loadAllCsvSpecTestCases()) {
-            Skip skip = trySkip(testCase);
-            if (skip != null) {
-                skipByReason.merge(skip, 1, Integer::sum);
+            if (testCase.skipFlattenedRewrite != null && testCase.skipFlattenedRewrite.isBlank() == false) {
+                skipByReason.merge(Skip.SILENCED, 1, Integer::sum);
                 continue;
             }
-            DatasetPlan datasetPlan = datasetPlan(singleSourceDataset(testCase.query));
+            // Drop any leading SET pragmas (e.g. SET unmapped_fields="nullify";) so the real FROM/TS source is classified
+            // and planned; the dropped pragma is orthogonal to field_extract fusion on mapped keyword fields.
+            String query = stripSetPreamble(testCase.query);
+            SourceClass source = classifySource(query);
+            if (source.dataset() == null) {
+                skipByReason.merge(Skip.NOT_SINGLE_DATASET, 1, Integer::sum);
+                notSingleByReason.merge(source.reason(), 1, Integer::sum);
+                if (source.reason() == NotSingle.NON_FROM_START) {
+                    nonFromLeadingCommand.merge(leadingCommand(query), 1, Integer::sum);
+                }
+                continue;
+            }
+            DatasetPlan datasetPlan = datasetPlan(source.dataset(), source.mode());
             if (datasetPlan == null || datasetPlan.analyzer() == null) {
                 skipByReason.merge(Skip.DATASET_UNAVAILABLE, 1, Integer::sum);
                 continue;
             }
 
             AstKeywordFieldRewriter.RewriteResult rewrite = AstKeywordFieldRewriter.rewrite(
-                testCase.query,
+                query,
                 q -> datasetPlan.keywordPaths(),
                 KeywordToFlattenedTransformer.WRAPPER_SUBKEY,
                 List.of()
@@ -228,7 +276,7 @@ public class FieldExtractFusionCorpusInventoryTests extends ESTestCase {
             measuredQueries++;
         }
 
-        logReport(measuredQueries, fused, fallbackByReason, skipByReason, fallbackSamples);
+        logReport(measuredQueries, fused, fallbackByReason, skipByReason, notSingleByReason, nonFromLeadingCommand, fallbackSamples);
 
         assertThat("corpus dry run must plan at least some single-dataset queries", measuredQueries, greaterThan(0));
         assertThat("field_extract must fuse for at least some real corpus shapes", fused, greaterThan(0));
@@ -237,58 +285,92 @@ public class FieldExtractFusionCorpusInventoryTests extends ESTestCase {
     // ---- per test-case gating --------------------------------------------------------------------------
 
     /**
-     * Returns a {@link Skip} reason if the test case is out of scope for the offline single-dataset dry run, or
-     * {@code null} if it should be measured. Kept before the (more expensive) analyzer/rewrite steps.
+     * Classifies a query's source into either the single {@link CsvTestsDataLoader.TestDataset} it reads (measurable),
+     * or a {@link NotSingle} reason it is out of scope. Kept in one place so the reject reasons stay mutually exclusive
+     * and the {@link Skip#NOT_SINGLE_DATASET} bucket can be broken down for prioritising further widening. Both
+     * {@code FROM <index>} and {@code TS <index>} (time-series) are treated as single-source reads; the index name may
+     * be quoted or backtick-quoted. A trailing {@code LOOKUP JOIN} stays in scope (resolved from {@link #lookupResolutions()}).
      */
-    private static Skip trySkip(CsvSpecReader.CsvTestCase testCase) {
-        if (testCase.skipFlattenedRewrite != null && testCase.skipFlattenedRewrite.isBlank() == false) {
-            return Skip.SILENCED;
+    private static SourceClass classifySource(String query) {
+        Matcher command = LEADING_COMMAND.matcher(query);
+        if (command.find() == false) {
+            return new SourceClass(null, null, NotSingle.NON_FROM_START);
         }
-        if (singleSourceDataset(testCase.query) == null) {
-            return Skip.NOT_SINGLE_DATASET;
+        IndexMode mode = switch (command.group(1).toUpperCase(Locale.ROOT)) {
+            case "FROM" -> IndexMode.STANDARD;
+            case "TS" -> IndexMode.TIME_SERIES;
+            default -> null;
+        };
+        if (mode == null) {
+            return new SourceClass(null, null, NotSingle.NON_FROM_START);
         }
-        return null;
-    }
-
-    /**
-     * The single {@link CsvTestsDataLoader.TestDataset} a query reads from its leading {@code FROM}, or {@code null}
-     * when that source is not a clean single {@code FROM <known index>} (multi-index, cross-cluster, wildcard, subquery,
-     * or an {@code ENRICH}/{@code FORK} that the offline analyzer cannot resolve). A trailing {@code LOOKUP JOIN} is
-     * allowed: its target is resolved from the shared lookup map ({@link #lookupResolutions()}), not the main source.
-     */
-    private static CsvTestsDataLoader.TestDataset singleSourceDataset(String query) {
-        Matcher matcher = LEADING_FROM.matcher(query);
-        if (matcher.find() == false) {
-            return null;
-        }
-        String token = matcher.group(1);
-        if (token.indexOf('*') >= 0 || token.indexOf(':') >= 0) {
-            return null; // wildcard or cross-cluster pattern
-        }
-        // Reject multi-index FROM (a comma anywhere in the source list before the first pipe).
+        // The source list runs from the end of the command keyword to the first pipe (or end of query).
         int firstPipe = query.indexOf('|');
-        String fromClause = firstPipe < 0 ? query : query.substring(0, firstPipe);
-        if (fromClause.indexOf(',') >= 0 || fromClause.indexOf('(') >= 0) {
-            return null;
+        String sourceList = (firstPipe < 0 ? query.substring(command.end()) : query.substring(command.end(), firstPipe)).trim();
+        // Reject multi-index sources and sub-query sources (a comma or open paren in the source list).
+        if (sourceList.indexOf(',') >= 0 || sourceList.indexOf('(') >= 0) {
+            return new SourceClass(null, null, NotSingle.MULTI_INDEX_FROM);
         }
-        if (MULTI_SOURCE.matcher(query).find()) {
-            return null;
+        String token = unquoteIndexToken(sourceList);
+        if (token.indexOf('*') >= 0 || token.indexOf(':') >= 0) {
+            return new SourceClass(null, null, NotSingle.WILDCARD_OR_REMOTE);
+        }
+        Matcher multiSource = MULTI_SOURCE.matcher(query);
+        if (multiSource.find()) {
+            boolean fork = multiSource.group(1).equalsIgnoreCase("FORK");
+            return new SourceClass(null, null, fork ? NotSingle.FORK : NotSingle.ENRICH);
         }
         CsvTestsDataLoader.TestDataset dataset = CsvTestsDataLoader.CSV_DATASET.get(token);
         if (dataset == null || dataset.mappingFileName() == null) {
-            return null;
+            return new SourceClass(null, null, NotSingle.UNKNOWN_INDEX);
         }
-        return dataset;
+        return new SourceClass(dataset, mode, null);
+    }
+
+    /**
+     * Extracts the single index name from a source list: strips surrounding quotes/backticks and any trailing options
+     * (e.g. {@code METADATA _id}). Returns the bare token, which the caller matches against known datasets.
+     */
+    private static String unquoteIndexToken(String sourceList) {
+        String token = sourceList;
+        if (token.isEmpty() == false) {
+            char first = token.charAt(0);
+            if (first == '"' || first == '\'' || first == '`') {
+                int close = token.indexOf(first, 1);
+                token = close > 0 ? token.substring(1, close) : token.substring(1);
+                return token;
+            }
+        }
+        int space = token.indexOf(' ');
+        return space >= 0 ? token.substring(0, space) : token;
+    }
+
+    /** The leading command keyword of a query, upper-cased (e.g. {@code TS}, {@code ROW}); {@code "?"} if none matches. */
+    private static String leadingCommand(String query) {
+        Matcher matcher = LEADING_COMMAND.matcher(query);
+        return matcher.find() ? matcher.group(1).toUpperCase(Locale.ROOT) : "?";
+    }
+
+    /** Removes any leading {@code SET ...;} pragmas so the real {@code FROM}/{@code TS} source can be classified/planned. */
+    private static String stripSetPreamble(String query) {
+        return SET_PREAMBLE.matcher(query).replaceFirst("").stripLeading();
     }
 
     // ---- offline analyzer construction -----------------------------------------------------------------
 
-    /** Builds (and caches) the offline analyzer + keyword-path set for a dataset; caches unusable datasets as {@code null} analyzer. */
-    private DatasetPlan datasetPlan(CsvTestsDataLoader.TestDataset dataset) {
+    /**
+     * Builds (and caches) the offline analyzer + keyword-path set for a dataset read in the given {@link IndexMode}
+     * ({@link IndexMode#STANDARD} for {@code FROM}, {@link IndexMode#TIME_SERIES} for {@code TS}). The cache key includes
+     * the mode, since the same dataset planned as time-series needs a different index resolution. Unusable datasets are
+     * cached with a {@code null} analyzer.
+     */
+    private DatasetPlan datasetPlan(CsvTestsDataLoader.TestDataset dataset, IndexMode mode) {
         if (dataset == null) {
             return null;
         }
-        return datasetPlans.computeIfAbsent(dataset.indexName(), name -> {
+        String cacheKey = dataset.indexName() + '|' + mode;
+        return datasetPlans.computeIfAbsent(cacheKey, key -> {
+            String name = dataset.indexName();
             try {
                 String originalMapping = CsvTestsDataLoader.readMappingFile(dataset);
                 Set<String> keywordPaths = new HashSet<>();
@@ -296,7 +378,7 @@ public class FieldExtractFusionCorpusInventoryTests extends ESTestCase {
 
                 String flattened = KeywordToFlattenedTransformer.transformMapping(originalMapping, Set.of()).transformedMapping();
                 Map<String, EsField> flattenedFields = LoadMapping.loadMapping(stream(flattened));
-                EsIndex index = new EsIndex(name, flattenedFields, Map.of(name, IndexMode.STANDARD), Map.of(), Map.of());
+                EsIndex index = new EsIndex(name, flattenedFields, Map.of(name, mode), Map.of(), Map.of());
                 Map<IndexPattern, IndexResolution> resolutions = Map.of(new IndexPattern(Source.EMPTY, name), IndexResolution.valid(index));
                 Analyzer analyzer = new Analyzer(
                     testAnalyzerContext(
@@ -475,6 +557,8 @@ public class FieldExtractFusionCorpusInventoryTests extends ESTestCase {
         int fused,
         Map<Fusion, Integer> fallbackByReason,
         Map<Skip, Integer> skipByReason,
+        Map<NotSingle, Integer> notSingleByReason,
+        Map<String, Integer> nonFromLeadingCommand,
         Map<Fusion, List<String>> fallbackSamples
     ) {
         int fallback = fallbackByReason.values().stream().mapToInt(Integer::intValue).sum();
@@ -493,6 +577,14 @@ public class FieldExtractFusionCorpusInventoryTests extends ESTestCase {
         skipByReason.forEach((reason, count) -> stable.put(reason.name(), count));
         stable.forEach((reason, count) -> skips.append(": ").append(reason).append('=').append(count));
         logger.info(skips.toString());
+
+        StringBuilder notSingle = new StringBuilder("field_extract corpus fusion inventory (not-single-dataset breakdown)");
+        notSingleByReason.forEach((reason, count) -> notSingle.append(": ").append(reason).append('=').append(count));
+        logger.info(notSingle.toString());
+
+        StringBuilder nonFrom = new StringBuilder("field_extract corpus fusion inventory (non-FROM leading command)");
+        nonFromLeadingCommand.forEach((cmd, count) -> nonFrom.append(": ").append(cmd).append('=').append(count));
+        logger.info(nonFrom.toString());
 
         // One log line per sampled fallback query, so each residual bucket is directly inspectable.
         fallbackSamples.forEach((reason, samples) -> {

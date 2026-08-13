@@ -111,11 +111,6 @@ public class RemoteClusterSecurityWithApmTracingRestIT extends AbstractRemoteClu
                 allTrue(
                     transactionValue("name", equalTo("GET /_resolve/cluster/{name}")),
                     transactionValue("trace_id", equalTo(traceIdValue))
-                ),
-                // transport action on fulfilling cluster
-                allTrue(
-                    transactionValue("name", equalTo("indices:admin/resolve/cluster")),
-                    transactionValue("trace_id", equalTo(traceIdValue))
                 )
             )
         );

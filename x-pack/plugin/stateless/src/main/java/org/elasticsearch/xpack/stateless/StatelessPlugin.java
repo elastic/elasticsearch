@@ -983,7 +983,9 @@ public class StatelessPlugin extends Plugin
                 new BlobStoreHealthIndicator(settings, clusterService, electionStrategy.get(), threadPool::relativeTimeInMillis).init()
             )
         );
-        components.add(setAndGet(recoveryMetricsCollector, createRecoveryMetricsCollector(meterRegistry)));
+        final var recoveryMetricsCollector = setAndGet(this.recoveryMetricsCollector, createRecoveryMetricsCollector(meterRegistry));
+        components.add(new PluginComponentBinding<>(StatelessRecoveryMetricsCollector.class, recoveryMetricsCollector));
+
         documentParsingProvider.set(services.documentParsingProvider());
         if (hasMasterRole) {
             components.add(new RemoveRefreshClusterBlockService(settings, clusterService, threadPool));

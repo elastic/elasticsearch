@@ -17,9 +17,9 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTestUtils;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.DataType;
+import org.elasticsearch.inference.EndpointClusterState;
 import org.elasticsearch.inference.EndpointMetadataTests;
 import org.elasticsearch.inference.InferenceString;
-import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
@@ -92,7 +92,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         assertThat(newInstance.inference().modelSettings(), equalTo(expectedInstance.inference().modelSettings()));
         assertThat(newInstance.inference().chunks().size(), equalTo(expectedInstance.inference().chunks().size()));
         assertThat(newInstance.inference().chunkingSettings(), equalTo(expectedInstance.inference().chunkingSettings()));
-        MinimalServiceSettings modelSettings = newInstance.inference().modelSettings();
+        EndpointClusterState modelSettings = newInstance.inference().modelSettings();
         for (var entry : newInstance.inference().chunks().entrySet()) {
             var expectedChunks = expectedInstance.inference().chunks().get(entry.getKey());
             assertNotNull(expectedChunks);
@@ -162,27 +162,27 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
 
     public void testModelSettingsValidation() {
         NullPointerException npe = expectThrows(NullPointerException.class, () -> {
-            new MinimalServiceSettings("service", null, 10, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT);
+            new EndpointClusterState("service", null, 10, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT);
         });
         assertThat(npe.getMessage(), equalTo("task type must not be null"));
 
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> {
-            new MinimalServiceSettings("service", TaskType.SPARSE_EMBEDDING, 10, null, null);
+            new EndpointClusterState("service", TaskType.SPARSE_EMBEDDING, 10, null, null);
         });
         assertThat(ex.getMessage(), containsString("[dimensions] is not allowed"));
 
         ex = expectThrows(IllegalArgumentException.class, () -> {
-            new MinimalServiceSettings("service", TaskType.SPARSE_EMBEDDING, null, SimilarityMeasure.COSINE, null);
+            new EndpointClusterState("service", TaskType.SPARSE_EMBEDDING, null, SimilarityMeasure.COSINE, null);
         });
         assertThat(ex.getMessage(), containsString("[similarity] is not allowed"));
 
         ex = expectThrows(IllegalArgumentException.class, () -> {
-            new MinimalServiceSettings("service", TaskType.SPARSE_EMBEDDING, null, null, DenseVectorFieldMapper.ElementType.FLOAT);
+            new EndpointClusterState("service", TaskType.SPARSE_EMBEDDING, null, null, DenseVectorFieldMapper.ElementType.FLOAT);
         });
         assertThat(ex.getMessage(), containsString("[element_type] is not allowed"));
 
         ex = expectThrows(IllegalArgumentException.class, () -> {
-            new MinimalServiceSettings(
+            new EndpointClusterState(
                 "service",
                 TaskType.TEXT_EMBEDDING,
                 null,
@@ -193,19 +193,19 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         assertThat(ex.getMessage(), containsString("required [dimensions] field is missing"));
 
         ex = expectThrows(IllegalArgumentException.class, () -> {
-            new MinimalServiceSettings("service", TaskType.TEXT_EMBEDDING, 10, null, DenseVectorFieldMapper.ElementType.FLOAT);
+            new EndpointClusterState("service", TaskType.TEXT_EMBEDDING, 10, null, DenseVectorFieldMapper.ElementType.FLOAT);
         });
         assertThat(ex.getMessage(), containsString("required [similarity] field is missing"));
 
         ex = expectThrows(IllegalArgumentException.class, () -> {
-            new MinimalServiceSettings("service", TaskType.TEXT_EMBEDDING, 10, SimilarityMeasure.COSINE, null);
+            new EndpointClusterState("service", TaskType.TEXT_EMBEDDING, 10, SimilarityMeasure.COSINE, null);
         });
         assertThat(ex.getMessage(), containsString("required [element_type] field is missing"));
     }
 
     public void testModelSettingsXContentExcludesEndpointMetadata() throws IOException {
         final EndpointMetadata endpointMetadata = EndpointMetadataTests.randomNonEmptyInstance();
-        final MinimalServiceSettings modelSettings = new MinimalServiceSettings(
+        final EndpointClusterState modelSettings = new EndpointClusterState(
             "test-service",
             TaskType.SPARSE_EMBEDDING,
             null,
@@ -443,7 +443,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
             useLegacyFormat ? inputs : null,
             new SemanticTextField.InferenceResult(
                 model.getInferenceEntityId(),
-                new MinimalServiceSettings(model),
+                new EndpointClusterState(model),
                 chunkingSettings,
                 Map.of(fieldName, chunks)
             ),

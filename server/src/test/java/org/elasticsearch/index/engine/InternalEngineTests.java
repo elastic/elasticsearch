@@ -145,6 +145,7 @@ import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
@@ -252,7 +253,12 @@ public class InternalEngineTests extends EngineTestCase {
         int n = operations.size();
         final IndexOperationBatch indexBatch = fromIndexOps(operations, batch);
         final MetadataFieldMapper[] metadataMappers = mapperService.mappingLookup().getMapping().getSortedMetadataMappers();
-        final BatchMappingContext ctx = new BatchMappingContext(indexBatch, mapperService.mappingLookup(), defaultSettings);
+        final BatchMappingContext ctx = new BatchMappingContext(
+            indexBatch,
+            mapperService.mappingLookup(),
+            defaultSettings,
+            BytesRefRecycler.NON_RECYCLING_INSTANCE
+        );
         for (MetadataFieldMapper mapper : metadataMappers) {
             mapper.preColumnarParse(ctx);
         }

@@ -10,12 +10,16 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.esql.plugin.ComputeService;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.util.Collection;
@@ -23,11 +27,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 
 public class WarningsIT extends AbstractEsqlIntegTestCase {
+
+    private static final String OLD_NODE_WARNING = "warning from a data node without esql_driver_warnings support";
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -199,6 +208,97 @@ public class WarningsIT extends AbstractEsqlIntegTestCase {
         } finally {
             coordinatorTs.clearAllRules();
         }
+    }
+
+    /**
+     * Regression test for warnings raised by a data node too old to report them in
+     * {@link org.elasticsearch.compute.operator.DriverCompletionInfo#warnings()}.
+     * <p>
+     * Such a node predates the {@code esql_driver_warnings} wire field, so it raises warnings through
+     * {@link HeaderWarning} instead. Those only reach the coordinator as transport response headers, serialised
+     * from the thread context of whichever thread sends the data node response. The coordinator must then carry
+     * them from the thread that handles that response to the thread that renders the final response.
+     * <p>
+     * The old node is simulated by adding a warning to the data node's thread context immediately before its
+     * channel serialises the response, which is exactly where an old node's warnings would already be sitting.
+     * The warning deliberately never exists in the completion info, so it can only reach the client if the
+     * coordinator handles header-only warnings.
+     */
+    public void testWarningsArrivingOnlyAsResponseHeaders() throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+
+        String dataNodeName = randomDataNode().getName();
+        // the coordinator must be a different node, so the data node's response crosses the transport layer
+        String coordinatorName = randomValueOtherThan(dataNodeName, () -> randomDataNode().getName());
+
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("legacy-warnings")
+                .setSettings(
+                    Settings.builder()
+                        .put("index.routing.allocation.require._name", dataNodeName)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                )
+                .setMapping("value", "type=long")
+        );
+        client().prepareIndex("legacy-warnings").setSource("value", 1).get();
+        client().admin().indices().prepareRefresh("legacy-warnings").get();
+
+        AtomicInteger injected = new AtomicInteger();
+        var dataNodeTs = asInstanceOf(MockTransportService.class, internalCluster().getInstance(TransportService.class, dataNodeName));
+        // deliberately not HeaderWarning.addWarning, which writes to every registered thread context: in a single JVM
+        // that includes the coordinator's, which would let the warning reach the response without being serialised
+        var dataNodeThreadContext = dataNodeTs.getThreadPool().getThreadContext();
+        dataNodeTs.addRequestHandlingBehavior(
+            ComputeService.DATA_ACTION_NAME,
+            (handler, request, channel, task) -> handler.messageReceived(request, new TransportChannel() {
+                @Override
+                public String getProfileName() {
+                    return channel.getProfileName();
+                }
+
+                @Override
+                public void sendResponse(TransportResponse response) {
+                    // where an old node's warnings already sit when its channel serialises the response
+                    dataNodeThreadContext.addResponseHeader("Warning", HeaderWarning.formatWarning(OLD_NODE_WARNING));
+                    injected.incrementAndGet();
+                    channel.sendResponse(response);
+                }
+
+                @Override
+                public void sendResponse(Exception exception) {
+                    channel.sendResponse(exception);
+                }
+            }, task)
+        );
+
+        // captured inside the listener because the response headers only live on the thread that rendered the response
+        AtomicReference<List<String>> responseWarnings = new AtomicReference<>(List.of());
+        CountDownLatch latch = new CountDownLatch(1);
+        try {
+            EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest("FROM legacy-warnings | LIMIT 10");
+            client(coordinatorName).execute(EsqlQueryAction.INSTANCE, request, ActionListener.running(() -> {
+                try {
+                    var threadPool = internalCluster().getInstance(TransportService.class, coordinatorName).getThreadPool();
+                    responseWarnings.set(threadPool.getThreadContext().getResponseHeaders().getOrDefault("Warning", List.of()));
+                } finally {
+                    latch.countDown();
+                }
+            }));
+            assertTrue("query did not complete", latch.await(30, TimeUnit.SECONDS));
+        } finally {
+            dataNodeTs.clearAllRules();
+        }
+
+        // guards against the query being planned without a remote data node request, which would make the test vacuous
+        assertThat("the data node never responded, so no warning was injected", injected.get(), greaterThanOrEqualTo(1));
+        assertThat(
+            "a warning that exists only as a response header on the data node response should reach the client",
+            responseWarnings.get().stream().filter(w -> w.contains(OLD_NODE_WARNING)).toList(),
+            hasSize(greaterThanOrEqualTo(1))
+        );
     }
 
     private DiscoveryNode randomDataNode() {

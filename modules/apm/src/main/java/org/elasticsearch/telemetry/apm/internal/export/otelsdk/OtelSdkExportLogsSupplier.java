@@ -15,6 +15,7 @@ import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.common.CompletableResultCode;
 import io.opentelemetry.sdk.logs.SdkLoggerProvider;
 import io.opentelemetry.sdk.logs.export.BatchLogRecordProcessor;
+import io.opentelemetry.sdk.resources.Resource;
 
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.config.Configuration;
@@ -251,8 +252,15 @@ public class OtelSdkExportLogsSupplier implements Closeable {
         }
         int maxQueueSize = OtelSdkSettings.TELEMETRY_LOGS_MAX_QUEUE_SIZE.get(settings);
         return SdkLoggerProvider.builder()
-            .setResource(OtelSdkResource.get(settings))
+            .setResource(logDeliveryResource(settings))
             .addLogRecordProcessor(BatchLogRecordProcessor.builder(exporterBuilder.build()).setMaxQueueSize(maxQueueSize).build())
+            .build();
+    }
+
+    static Resource logDeliveryResource(Settings settings) {
+        return Resource.builder()
+            .put("service.name", OtelSdkSettings.TELEMETRY_LOGS_RESOURCE_SERVICE_NAME.get(settings))
+            .put("service.type", OtelSdkSettings.TELEMETRY_LOGS_RESOURCE_SERVICE_TYPE.get(settings))
             .build();
     }
 

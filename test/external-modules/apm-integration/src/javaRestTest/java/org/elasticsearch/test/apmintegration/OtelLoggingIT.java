@@ -24,6 +24,7 @@ import org.junit.ClassRule;
 import org.junit.rules.TestRule;
 
 import java.util.HexFormat;
+import java.util.Map;
 
 import static org.elasticsearch.tasks.Task.TRACE_PARENT_HTTP_HEADER;
 import static org.hamcrest.Matchers.equalTo;
@@ -123,6 +124,7 @@ public class OtelLoggingIT extends AbstractTelemetryIT {
         assertNull("cluster.uuid must not be on OTel records", log.attributes().get("log4j.map_message.cluster.uuid"));
         assertNull("node.name must not be on OTel records", log.attributes().get("log4j.map_message.node.name"));
         assertNull("node.id must not be on OTel records", log.attributes().get("log4j.map_message.node.id"));
+        assertThat(log.resourceAttributes(), equalTo(Map.of("service.name", "serverless-elasticsearch", "service.type", "elasticsearch")));
     }
 
     public void testOtelLoggingOnSearch() throws Exception {
@@ -148,5 +150,7 @@ public class OtelLoggingIT extends AbstractTelemetryIT {
         assertThat(log.traceId().get(), equalTo(randomId));
         var indices = (ArrayValue) log.attributes().get(QueryLogging.QUERY_FIELD_INDICES);
         assertThat(indices.getValuesList().getFirst().getStringValue(), equalTo("test_index"));
+        // Query logs ship over the same provider as audit logs and share the log-delivery resource contract.
+        assertThat(log.resourceAttributes(), equalTo(Map.of("service.name", "serverless-elasticsearch", "service.type", "elasticsearch")));
     }
 }

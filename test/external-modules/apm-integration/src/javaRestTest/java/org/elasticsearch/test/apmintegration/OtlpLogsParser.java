@@ -17,6 +17,7 @@ import io.opentelemetry.proto.logs.v1.ScopeLogs;
 import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -30,17 +31,18 @@ public final class OtlpLogsParser extends OtlpParser {
     static List<ReceivedTelemetry> parse(ExportLogsServiceRequest request) {
         List<ReceivedTelemetry> result = new ArrayList<>();
         for (ResourceLogs resourceLogs : request.getResourceLogsList()) {
+            Map<String, Object> resourceAttributes = extractRawAttributes(resourceLogs.getResource().getAttributesList());
             for (ScopeLogs scopeLogs : resourceLogs.getScopeLogsList()) {
                 String scopeName = scopeLogs.getScope().getName();
                 for (LogRecord record : scopeLogs.getLogRecordsList()) {
-                    result.add(toReceivedLog(record, scopeName));
+                    result.add(toReceivedLog(record, scopeName, resourceAttributes));
                 }
             }
         }
         return result;
     }
 
-    static ReceivedTelemetry.ReceivedLog toReceivedLog(LogRecord record, String scopeName) {
+    static ReceivedTelemetry.ReceivedLog toReceivedLog(LogRecord record, String scopeName, Map<String, Object> resourceAttributes) {
         Optional<String> traceId = record.getTraceId().isEmpty()
             ? Optional.empty()
             : Optional.of(HexFormat.of().formatHex(record.getTraceId().toByteArray()));
@@ -51,7 +53,8 @@ public final class OtlpLogsParser extends OtlpParser {
             record.getBody().getStringValue(),
             extractRawAttributes(record.getAttributesList()),
             traceId,
-            scopeName
+            scopeName,
+            resourceAttributes
         );
     }
 }

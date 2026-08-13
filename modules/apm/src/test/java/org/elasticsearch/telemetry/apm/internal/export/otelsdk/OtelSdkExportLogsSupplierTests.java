@@ -9,10 +9,12 @@
 
 package org.elasticsearch.telemetry.apm.internal.export.otelsdk;
 
+import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.logs.Severity;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.logs.SdkLoggerProvider;
 import io.opentelemetry.sdk.logs.export.SimpleLogRecordProcessor;
+import io.opentelemetry.sdk.resources.Resource;
 import io.opentelemetry.sdk.testing.exporter.InMemoryLogRecordExporter;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
@@ -170,6 +172,22 @@ public class OtelSdkExportLogsSupplierTests extends ESTestCase {
         supplier.install();
         supplier.close();
         supplier.close();
+    }
+
+    public void testLogDeliveryResourceContainsOnlyServiceNameAndType() {
+        Resource resource = OtelSdkExportLogsSupplier.logDeliveryResource(Settings.EMPTY);
+        assertThat(resource.getAttribute(AttributeKey.stringKey("service.name")), equalTo("serverless-elasticsearch"));
+        assertThat(resource.getAttribute(AttributeKey.stringKey("service.type")), equalTo("elasticsearch"));
+    }
+
+    public void testLogDeliveryResourceServiceNameAndTypeAreSettable() {
+        Settings settings = Settings.builder()
+            .put(OtelSdkSettings.TELEMETRY_LOGS_RESOURCE_SERVICE_NAME.getKey(), "self-managed-elasticsearch")
+            .put(OtelSdkSettings.TELEMETRY_LOGS_RESOURCE_SERVICE_TYPE.getKey(), "elasticsearch-custom")
+            .build();
+        Resource resource = OtelSdkExportLogsSupplier.logDeliveryResource(settings);
+        assertThat(resource.getAttribute(AttributeKey.stringKey("service.name")), equalTo("self-managed-elasticsearch"));
+        assertThat(resource.getAttribute(AttributeKey.stringKey("service.type")), equalTo("elasticsearch-custom"));
     }
 
     /**

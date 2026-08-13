@@ -115,6 +115,8 @@ public sealed interface ReceivedTelemetry {
      * a {@code log4j.map_message.} prefix, which will be removed (tracked in #4183) when the raw
      * {@code OpenTelemetryAppender} is replaced with a custom one that applies the audit field
      * rename.
+     * {@code resourceAttributes} is the attribute map of the {@code ResourceLogs.resource} the
+     * record arrived under.
      */
     record ReceivedLog(
         long timeUnixNano,
@@ -123,13 +125,15 @@ public sealed interface ReceivedTelemetry {
         String body,
         Map<String, Object> attributes,
         Optional<String> traceId,
-        String scopeName
+        String scopeName,
+        Map<String, Object> resourceAttributes
     ) implements ReceivedTelemetry {
         public ReceivedLog {
             requireNonNull(attributes);
             attributes = Map.copyOf(attributes);
             requireNonNull(traceId);
             requireNonNull(scopeName);
+            resourceAttributes = Map.copyOf(requireNonNull(resourceAttributes));
         }
     }
 }

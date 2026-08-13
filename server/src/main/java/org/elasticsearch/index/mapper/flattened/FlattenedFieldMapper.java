@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.mapper.flattened;
 
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.column.LongColumn;
 import org.apache.lucene.document.column.ObjectTupleCursor;
 import org.apache.lucene.index.DirectoryReader;
@@ -106,7 +107,6 @@ import org.elasticsearch.lucene.queries.KeyedArrayOrderInlineNullPrefixQuery;
 import org.elasticsearch.lucene.queries.KeyedArrayOrderInlineNullTermQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesPrefixQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermQuery;
-import org.apache.lucene.document.SortedSetDocValuesField;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.FlattenedDocValuesField;
 import org.elasticsearch.script.field.ToScriptFieldFactory;

@@ -886,3 +886,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/156655
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecLookupJoinExpressionIT
   issue: https://github.com/elastic/elasticsearch/issues/156658
+- class: org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceTests
+  method: testOfflineWarmingRatioAndBytesMetrics
+  issue: https://github.com/elastic/elasticsearch/issues/156664

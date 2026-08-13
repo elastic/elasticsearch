@@ -176,17 +176,17 @@ public class OtelSdkExportLogsSupplierTests extends ESTestCase {
 
     public void testLogDeliveryResourceContainsOnlyServiceNameAndType() {
         Resource resource = OtelSdkExportLogsSupplier.logDeliveryResource(Settings.EMPTY);
-        assertThat(resource.getAttribute(AttributeKey.stringKey("service.name")), equalTo("serverless-elasticsearch"));
+        assertThat(resource.getAttribute(AttributeKey.stringKey("service.name")), equalTo("self-managed-elasticsearch"));
         assertThat(resource.getAttribute(AttributeKey.stringKey("service.type")), equalTo("elasticsearch"));
     }
 
     public void testLogDeliveryResourceServiceNameAndTypeAreSettable() {
         Settings settings = Settings.builder()
-            .put(OtelSdkSettings.TELEMETRY_LOGS_RESOURCE_SERVICE_NAME.getKey(), "self-managed-elasticsearch")
+            .put(OtelSdkSettings.TELEMETRY_LOGS_RESOURCE_SERVICE_NAME.getKey(), "serverless-elasticsearch")
             .put(OtelSdkSettings.TELEMETRY_LOGS_RESOURCE_SERVICE_TYPE.getKey(), "elasticsearch-custom")
             .build();
         Resource resource = OtelSdkExportLogsSupplier.logDeliveryResource(settings);
-        assertThat(resource.getAttribute(AttributeKey.stringKey("service.name")), equalTo("self-managed-elasticsearch"));
+        assertThat(resource.getAttribute(AttributeKey.stringKey("service.name")), equalTo("serverless-elasticsearch"));
         assertThat(resource.getAttribute(AttributeKey.stringKey("service.type")), equalTo("elasticsearch-custom"));
     }
 

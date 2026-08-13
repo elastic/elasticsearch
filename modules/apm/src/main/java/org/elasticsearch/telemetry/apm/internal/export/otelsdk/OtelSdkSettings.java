@@ -216,7 +216,7 @@ public final class OtelSdkSettings {
      */
     public static final Setting<String> TELEMETRY_LOGS_RESOURCE_SERVICE_NAME = Setting.simpleString(
         "telemetry.logs.resource.service.name",
-        "serverless-elasticsearch",
+        "self-managed-elasticsearch",
         NodeScope
     );
 

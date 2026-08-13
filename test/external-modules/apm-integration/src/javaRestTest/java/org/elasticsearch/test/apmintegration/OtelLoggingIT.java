@@ -62,6 +62,7 @@ public class OtelLoggingIT extends AbstractTelemetryIT {
         .setting("xpack.security.audit.logfile.emit_cluster_uuid", "false")
         .setting("telemetry.logs.audit.enabled", "true")
         .setting("telemetry.logs.querylog.enabled", "true")
+        .setting("telemetry.logs.resource.service.name", "serverless-elasticsearch")
         // OTLP/gRPC endpoint: scheme https for mTLS, no path (different shape than HTTP-protobuf endpoint).
         .setting("telemetry.logs.endpoint", () -> recordingApmServer.getGrpcEndpoint())
         // mTLS: ES node verifies the recording server's cert and presents a client cert.

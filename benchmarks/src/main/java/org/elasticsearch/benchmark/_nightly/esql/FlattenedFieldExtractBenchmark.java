@@ -70,6 +70,9 @@ import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Warmup;
 
 import java.io.IOException;
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -89,8 +92,9 @@ import java.util.stream.IntStream;
  *       single sub-key's doc values directly. Selected by handing the mapper an
  *       {@link ExtractFlattenedSubfieldConfig} via the block-loader context.</li>
  *   <li>{@code root_then_evaluator} - the slow fallback: the whole flattened root is loaded as a JSON
- *       blob (as {@code root_only} does) and then {@link FieldExtract#process} re-parses that blob per
- *       row to pull out the key. This is {@code root_only}'s cost plus the per-row parse.</li>
+ *       blob (as {@code root_only} does) and then {@link FieldExtract#processConstant} (the constant-key
+ *       evaluator body production runs for a foldable key) re-parses that blob per row to pull out the
+ *       key. This is {@code root_only}'s cost plus the per-row parse.</li>
  *   <li>{@code root_only} - the baseline: load the entire flattened object via
  *       {@link org.elasticsearch.index.mapper.flattened.RootFlattenedDocValuesBlockLoader} with no
  *       extraction, so {@code (root_then_evaluator - root_only)} isolates the per-row parse cost.</li>
@@ -154,7 +158,7 @@ import java.util.stream.IntStream;
  * &rarr; {@code Lucene90DocValuesProducer...lookupOrd} is &asymp; 80% (self time lands in {@code TermsDict.next}
  * / {@code seekExact}, {@code LZ4.decompress}, and byte copies out of the compressed terms dictionary - one
  * ordinal&rarr;term lookup per sub-field per document), while assembling the JSON blob
- * ({@code XContentBuilder.field} / Jackson {@code writeStringField}) is only &asymp; 8-10%. {@code FieldExtract#process}
+ * ({@code XContentBuilder.field} / Jackson {@code writeStringField}) is only &asymp; 8-10%. {@code FieldExtract#processConstant}
  * (the per-row re-parse) appears only as a thin {@code UTF8StreamJsonParser} slice in {@code root_then_evaluator},
  * which carried &asymp; 6% more total samples than {@code root_only} - direct evidence the fallback is
  * reconstruction bound (specifically term-lookup bound), not parse bound. The corollary for GA: the lever on the
@@ -196,7 +200,31 @@ public class FlattenedFieldExtractBenchmark {
     private static final String SEPARATOR = "\0";
     /** The sub-key extracted by the {@code keyed_fused} and {@code root_then_evaluator} paths. */
     private static final String KEY = "sub_0";
-    private static final BytesRef KEY_BYTES = new BytesRef(KEY);
+
+    /**
+     * Handle to the package-private {@link FieldExtract#processConstant} - the per-row evaluator body that
+     * production runs for a <em>foldable</em> key (via {@code FieldExtractConstantEvaluator}; see
+     * {@link FieldExtract#toEvaluator}). The {@code root_then_evaluator} path models
+     * {@code field_extract(root, "sub_0")}, whose key is a constant, so it must call this rather than the
+     * public {@link FieldExtract#process} - the latter re-derives the key with {@code BytesRef#utf8ToString}
+     * and re-runs {@code validateFieldExtractPath} on every row, work the constant path does once at plan
+     * time. Bound once into a {@code static final} so the JIT can inline {@code invokeExact}, keeping the
+     * measured fallback cost faithful to production instead of overstating it (most visibly for small
+     * {@code subFields}, where the whole-blob parse is cheap enough for that per-row key work to matter).
+     */
+    private static final MethodHandle PROCESS_CONSTANT;
+    static {
+        try {
+            PROCESS_CONSTANT = MethodHandles.privateLookupIn(FieldExtract.class, MethodHandles.lookup())
+                .findStatic(
+                    FieldExtract.class,
+                    "processConstant",
+                    MethodType.methodType(void.class, BytesRefBlock.Builder.class, BytesRef.class, String.class)
+                );
+        } catch (ReflectiveOperationException e) {
+            throw new ExceptionInInitializerError(e);
+        }
+    }
 
     private static final String[] SUPPORTED_LAYOUTS = new String[] { "in_order", "shuffled" };
     private static final String[] SUPPORTED_PATHS = new String[] { "keyed_fused", "root_then_evaluator", "root_only" };
@@ -425,15 +453,20 @@ public class FlattenedFieldExtractBenchmark {
     }
 
     /**
-     * Runs the per-row fallback evaluator ({@link FieldExtract#process}) over a block of whole flattened
-     * JSON blobs, mirroring what the slow path does after the root loader materializes each document.
+     * Runs the per-row fallback evaluator ({@link FieldExtract#processConstant}, the constant-key body
+     * production uses for a foldable key) over a block of whole flattened JSON blobs, mirroring what the
+     * slow path does after the root loader materializes each document.
      */
     private long extractAndSum(BytesRefBlock rootBlobs, BytesRef scratch) {
         long sum = 0;
         try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(rootBlobs.getPositionCount())) {
             for (int p = 0; p < rootBlobs.getPositionCount(); p++) {
                 BytesRef blob = rootBlobs.getBytesRef(rootBlobs.getFirstValueIndex(p), scratch);
-                FieldExtract.process(builder, blob, KEY_BYTES);
+                try {
+                    PROCESS_CONSTANT.invokeExact(builder, blob, KEY);
+                } catch (Throwable t) {
+                    throw new AssertionError("processConstant failed", t);
+                }
             }
             try (BytesRefBlock extracted = builder.build()) {
                 BytesRef valueScratch = new BytesRef();

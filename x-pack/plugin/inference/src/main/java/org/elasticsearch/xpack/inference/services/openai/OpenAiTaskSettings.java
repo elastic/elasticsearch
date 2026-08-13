@@ -9,14 +9,10 @@ package org.elasticsearch.xpack.inference.services.openai;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
-import org.elasticsearch.xcontent.AbstractObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -96,7 +92,13 @@ public abstract class OpenAiTaskSettings implements TaskSettings {
         }
     }
 
-    public static void declareCommonUpdatableFields(AbstractObjectParser<? extends CommonUpdate, Void> parser) {
+    /**
+     * Creates a strict parser for an update request with the common updatable fields ({@code user} and {@code headers}) already
+     * declared. Unknown fields are rejected so callers get an error for a misspelled or unsupported field.
+     */
+    public static <U extends CommonUpdate> ObjectParser<U, Void> createUpdateParser(String parserName, Supplier<U> updateSupplier) {
+        var parser = new ObjectParser<U, Void>(parserName, updateSupplier);
+
         StatefulValue.declareNullable(
             parser,
             (update, value) -> update.user = value,
@@ -106,6 +108,8 @@ public abstract class OpenAiTaskSettings implements TaskSettings {
         );
 
         Headers.declare(parser, (update, value) -> update.headers = Headers.create(value, ModelConfigurations.TASK_SETTINGS));
+
+        return parser;
     }
 
     /**
@@ -156,40 +160,6 @@ public abstract class OpenAiTaskSettings implements TaskSettings {
     protected OpenAiTaskSettings(StatefulValue<String> user, Headers headers) {
         this.user = Objects.requireNonNull(user);
         this.headers = Objects.requireNonNull(headers);
-    }
-
-    protected OpenAiTaskSettings(StreamInput in, TransportVersion legacyHeadersVersion) throws IOException {
-        if (in.getTransportVersion().supports(INFERENCE_API_OPENAI_TASK_SETTINGS_TRI_STATE)) {
-            this.user = StatefulValue.read(in, StreamInput::readString);
-            this.headers = new Headers(in);
-        } else {
-            var userValue = StatefulValue.<String>undefined();
-            var userString = in.readOptionalString();
-            if (Strings.isNullOrEmpty(userString) == false) {
-                userValue = StatefulValue.of(userString);
-            }
-            Headers headersValue;
-            if (in.getTransportVersion().supports(legacyHeadersVersion)) {
-                var headersMap = in.readOptionalImmutableMap(StreamInput::readString, StreamInput::readString);
-                headersValue = headersMap == null ? UNDEFINED_INSTANCE : new Headers(StatefulValue.of(headersMap));
-            } else {
-                headersValue = UNDEFINED_INSTANCE;
-            }
-            this.user = userValue;
-            this.headers = headersValue;
-        }
-    }
-
-    protected void writeCommonSettings(StreamOutput out, TransportVersion legacyHeadersVersion) throws IOException {
-        if (out.getTransportVersion().supports(INFERENCE_API_OPENAI_TASK_SETTINGS_TRI_STATE)) {
-            StatefulValue.write(out, user, StreamOutput::writeString);
-            headers.writeTo(out);
-        } else {
-            out.writeOptionalString(user.orElse(null));
-            if (out.getTransportVersion().supports(legacyHeadersVersion)) {
-                out.writeOptionalMap(headers.mapValue().orElse(null), StreamOutput::writeString, StreamOutput::writeString);
-            }
-        }
     }
 
     public StatefulValue<String> user() {

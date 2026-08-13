@@ -32,7 +32,7 @@ public class OpenAiEmbeddingsTaskSettingsTests extends OpenAiTaskSettingsTests<O
 
     @Override
     protected Writeable.Reader<OpenAiEmbeddingsTaskSettings> instanceReader() {
-        return OpenAiEmbeddingsTaskSettings::new;
+        return OpenAiEmbeddingsTaskSettings::read;
     }
 
     @Override

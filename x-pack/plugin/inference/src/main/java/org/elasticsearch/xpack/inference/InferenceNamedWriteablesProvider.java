@@ -534,7 +534,7 @@ public class InferenceNamedWriteablesProvider {
             )
         );
         namedWriteables.add(
-            new NamedWriteableRegistry.Entry(TaskSettings.class, OpenAiEmbeddingsTaskSettings.NAME, OpenAiEmbeddingsTaskSettings::new)
+            new NamedWriteableRegistry.Entry(TaskSettings.class, OpenAiEmbeddingsTaskSettings.NAME, OpenAiEmbeddingsTaskSettings::read)
         );
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(
@@ -547,7 +547,7 @@ public class InferenceNamedWriteablesProvider {
             new NamedWriteableRegistry.Entry(
                 TaskSettings.class,
                 OpenAiChatCompletionTaskSettings.NAME,
-                OpenAiChatCompletionTaskSettings::new
+                OpenAiChatCompletionTaskSettings::read
             )
         );
         namedWriteables.add(

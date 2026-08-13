@@ -33,7 +33,7 @@ public class OpenAiChatCompletionTaskSettingsTests extends OpenAiTaskSettingsTes
 
     @Override
     protected Writeable.Reader<OpenAiChatCompletionTaskSettings> instanceReader() {
-        return OpenAiChatCompletionTaskSettings::new;
+        return OpenAiChatCompletionTaskSettings::read;
     }
 
     @Override

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.openai.completion;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -52,8 +53,29 @@ public class OpenAiChatCompletionTaskSettings extends OpenAiTaskSettings {
         super(user, headers);
     }
 
-    public OpenAiChatCompletionTaskSettings(StreamInput in) throws IOException {
-        super(in, INFERENCE_API_OPENAI_HEADERS);
+    public static OpenAiChatCompletionTaskSettings read(StreamInput in) throws IOException {
+        if (in.getTransportVersion().supports(INFERENCE_API_OPENAI_TASK_SETTINGS_TRI_STATE)) {
+            return new OpenAiChatCompletionTaskSettings(StatefulValue.read(in, StreamInput::readString), new Headers(in));
+        }
+
+        StatefulValue<String> user;
+        var userString = in.readOptionalString();
+        if (Strings.isNullOrEmpty(userString) == false) {
+            user = StatefulValue.of(userString);
+        } else {
+            user = StatefulValue.undefined();
+        }
+
+        Headers headers;
+
+        if (in.getTransportVersion().supports(INFERENCE_API_OPENAI_HEADERS)) {
+            var headersMap = in.readOptionalImmutableMap(StreamInput::readString, StreamInput::readString);
+            headers = headersMap == null ? Headers.UNDEFINED_INSTANCE : new Headers(StatefulValue.of(headersMap));
+        } else {
+            headers = Headers.UNDEFINED_INSTANCE;
+        }
+
+        return new OpenAiChatCompletionTaskSettings(user, headers);
     }
 
     @Override
@@ -68,7 +90,16 @@ public class OpenAiChatCompletionTaskSettings extends OpenAiTaskSettings {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        writeCommonSettings(out, INFERENCE_API_OPENAI_HEADERS);
+        if (out.getTransportVersion().supports(INFERENCE_API_OPENAI_TASK_SETTINGS_TRI_STATE)) {
+            StatefulValue.write(out, user(), StreamOutput::writeString);
+            headers().writeTo(out);
+            return;
+        }
+
+        out.writeOptionalString(user().orElse(null));
+        if (out.getTransportVersion().supports(INFERENCE_API_OPENAI_HEADERS)) {
+            out.writeOptionalMap(headers().mapValue().orElse(null), StreamOutput::writeString, StreamOutput::writeString);
+        }
     }
 
     private static class Builder extends OpenAiTaskSettings.Builder<OpenAiChatCompletionTaskSettings> {
@@ -83,11 +114,7 @@ public class OpenAiChatCompletionTaskSettings extends OpenAiTaskSettings {
      */
     private static class Update extends OpenAiTaskSettings.CommonUpdate {
 
-        private static final ObjectParser<Update, Void> PARSER = new ObjectParser<>(PARSER_NAME, Update::new);
-
-        static {
-            OpenAiTaskSettings.declareCommonUpdatableFields(PARSER);
-        }
+        private static final ObjectParser<Update, Void> PARSER = createUpdateParser(PARSER_NAME, Update::new);
 
         OpenAiChatCompletionTaskSettings mergeInto(OpenAiChatCompletionTaskSettings existing) {
             return new OpenAiChatCompletionTaskSettings(mergedUser(existing), mergedHeaders(existing));

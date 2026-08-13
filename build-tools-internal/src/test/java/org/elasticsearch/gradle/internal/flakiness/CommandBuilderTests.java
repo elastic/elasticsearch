@@ -124,6 +124,49 @@ public class CommandBuilderTests {
         assertThat(cmds.get(0).command(), equalTo("__GRADLE__ -Dtests.iters=100 -Dtests.timeoutSuite=3600000! :s:test --tests org.A"));
     }
 
+    /**
+     * The bwc shape: the bare {@code javaRestTest} task is disabled, so the entry carries the capped
+     * {@code v<version>#bwcTest} tasks. Each becomes its own batch command (javaRestTest cap is 1), which is
+     * what keeps per-task attribution clean for the analyzer - one bwc version per Buildkite job.
+     */
+    @Test
+    public void testMultiTaskEntryEmitsOneCommandPerTask() {
+        PlanEntry bwc = runOn(
+            ":qa:rolling",
+            "javaRestTest",
+            Kinds.JAVA_REST_TEST,
+            "org.FooIT",
+            null,
+            null,
+            List.of(":qa:rolling:v9.6.0#bwcTest", ":qa:rolling:v9.5.1#bwcTest")
+        );
+
+        List<PlanCommand> cmds = CommandBuilder.build(List.of(bwc), CommandBuilder.Config.defaults());
+
+        assertThat(cmds, hasSize(2));
+        assertThat(cmds.get(0).command(), containsString(":qa:rolling:v9.6.0#bwcTest --tests org.FooIT --rerun"));
+        assertThat(cmds.get(1).command(), containsString(":qa:rolling:v9.5.1#bwcTest --tests org.FooIT --rerun"));
+        // Never the disabled bare task.
+        assertThat(cmds.get(0).command(), not(containsString(":qa:rolling:javaRestTest")));
+    }
+
+    /** A multi-task unit-test entry shares one invocation when the per-kind batch cap allows it. */
+    @Test
+    public void testMultiTaskUnitEntryBatchesTasksIntoOneInvocation() {
+        PlanEntry twoTasks = runOn(":qa:p", "test", Kinds.TEST, "org.ATests", null, null, List.of(":qa:p:altTestA", ":qa:p:altTestB"));
+
+        List<PlanCommand> cmds = CommandBuilder.build(List.of(twoTasks), CommandBuilder.Config.defaults());
+
+        assertThat(cmds, hasSize(1));
+        assertThat(
+            cmds.get(0).command(),
+            equalTo(
+                "__GRADLE__ -Dtests.iters=100 -Dtests.timeoutSuite=3600000! "
+                    + ":qa:p:altTestA --tests org.ATests :qa:p:altTestB --tests org.ATests"
+            )
+        );
+    }
+
     @Test
     public void testKindOrderingAcrossKinds() {
         List<PlanCommand> cmds = CommandBuilder.build(
@@ -139,8 +182,24 @@ public class CommandBuilderTests {
 
     // ---- fixtures ----
 
+    /**
+     * A conventional entry: its single runnable task is the bare {@code :project:<sourceSet>} task, which is
+     * what the resolver derives for a project that does not disable it.
+     */
     private static PlanEntry run(String project, String sourceSet, String kind, String fqcn, String suitePath, String yamlTest) {
-        return new PlanEntry(project, sourceSet, kind, fqcn, suitePath, yamlTest, Kinds.DISPOSITION_RUN, null, null);
+        return runOn(project, sourceSet, kind, fqcn, suitePath, yamlTest, List.of(project + ":" + sourceSet));
+    }
+
+    private static PlanEntry runOn(
+        String project,
+        String sourceSet,
+        String kind,
+        String fqcn,
+        String suitePath,
+        String yamlTest,
+        List<String> runnableTasks
+    ) {
+        return new PlanEntry(project, sourceSet, kind, fqcn, suitePath, yamlTest, Kinds.DISPOSITION_RUN, null, null, runnableTasks);
     }
 
     private static PlanEntry unit(String project, String fqcn) {

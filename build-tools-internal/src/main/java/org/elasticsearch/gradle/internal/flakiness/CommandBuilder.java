@@ -30,6 +30,15 @@ import java.util.stream.Collectors;
  * <p>Every emitted command uses the {@link PlanCommand#GRADLE_PLACEHOLDER} token where the gradle binary
  * belongs, keeping the plan target-neutral (the runner layer substitutes {@code .ci/scripts/run-gradle.sh}
  * or {@code ./gradlew}). Pure and Gradle-free, so it is unit-testable without TestKit.
+ *
+ * <h2>Task paths come from the plan, not from a convention</h2>
+ * The invocation is built from each entry's {@code runnableTasks} (authoritative task paths from the project's
+ * real {@code Test} tasks), never from an assumed {@code :project:&lt;kind&gt;}. The batching unit is therefore
+ * an (entry, task path) pair: an entry with several runnable tasks - the capped
+ * {@code v&lt;version&gt;#bwcTest} set of a bwc project - contributes one unit per task. Units are then batched
+ * per kind exactly as before, so the per-kind cap bounds real gradle task invocations and the
+ * one-task-per-step kinds (javaRestTest, cap 1) keep one bwc version per Buildkite job - clean per-task
+ * attribution for the analyzer.
  */
 public final class CommandBuilder {
 
@@ -65,24 +74,33 @@ public final class CommandBuilder {
 
     private CommandBuilder() {}
 
+    /**
+     * One unit of work: a plan entry paired with one of its runnable task paths. Entries with several runnable
+     * tasks (a capped bwc fan-out) explode into one unit per task, so batching and the emitted gradle
+     * command line are both expressed purely in real task paths.
+     */
+    private record RunUnit(PlanEntry entry, String taskPath) {}
+
     /** Build the batch commands for the run entries, in {@link Kinds#KIND_ORDER}, capped per kind. */
     public static List<PlanCommand> build(List<PlanEntry> runEntries, Config cfg) {
         List<PlanEntry> staged = deduplicateYamlRunners(collapseYamlSuites(dedupe(runEntries)));
 
-        Map<String, List<PlanEntry>> byKind = new LinkedHashMap<>();
+        Map<String, List<RunUnit>> byKind = new LinkedHashMap<>();
         for (PlanEntry e : staged) {
-            byKind.computeIfAbsent(e.kind(), k -> new ArrayList<>()).add(e);
+            for (String taskPath : e.runnableTasks()) {
+                byKind.computeIfAbsent(e.kind(), k -> new ArrayList<>()).add(new RunUnit(e, taskPath));
+            }
         }
 
         List<PlanCommand> out = new ArrayList<>();
         for (String kind : Kinds.KIND_ORDER) {
-            List<PlanEntry> kindTests = byKind.get(kind);
-            if (kindTests == null) {
+            List<RunUnit> kindUnits = byKind.get(kind);
+            if (kindUnits == null) {
                 continue;
             }
             int cap = Kinds.KIND_CAP.get(kind);
-            for (int i = 0; i < kindTests.size(); i += cap) {
-                List<PlanEntry> batch = kindTests.subList(i, Math.min(i + cap, kindTests.size()));
+            for (int i = 0; i < kindUnits.size(); i += cap) {
+                List<RunUnit> batch = kindUnits.subList(i, Math.min(i + cap, kindUnits.size()));
                 out.add(new PlanCommand(kind, Kinds.KIND_LABEL.get(kind), Kinds.KIND_KEY.get(kind), batchCommand(batch, cfg)));
             }
         }
@@ -135,7 +153,8 @@ public final class CommandBuilder {
                             null,
                             Kinds.DISPOSITION_RUN,
                             null,
-                            null
+                            null,
+                            first.runnableTasks()
                         )
                     );
                 } else {
@@ -161,8 +180,8 @@ public final class CommandBuilder {
         return result;
     }
 
-    private static String batchCommand(List<PlanEntry> batch, Config cfg) {
-        String kind = batch.get(0).kind();
+    private static String batchCommand(List<RunUnit> batch, Config cfg) {
+        String kind = batch.get(0).entry().kind();
         return switch (kind) {
             case Kinds.TEST -> G
                 + " -Dtests.iters="
@@ -170,29 +189,22 @@ public final class CommandBuilder {
                 + " -Dtests.timeoutSuite="
                 + cfg.suiteTimeoutMs()
                 + "! "
-                + tasksWithFilters(batch, "test", t -> "--tests " + t.fqcn(), null);
+                + tasksWithFilters(batch, t -> "--tests " + t.fqcn(), null);
             case Kinds.INTERNAL_CLUSTER_TEST -> G
                 + " -Dtests.iters="
                 + cfg.internalClusterTestIters()
                 + " -Dtests.timeoutSuite="
                 + cfg.suiteTimeoutMs()
                 + "! "
-                + tasksWithFilters(batch, "internalClusterTest", t -> "--tests " + t.fqcn(), null);
+                + tasksWithFilters(batch, t -> "--tests " + t.fqcn(), null);
             case Kinds.JAVA_REST_TEST -> REPEAT_REST
                 + " "
                 + cfg.restIters()
                 + " "
                 + G
                 + " "
-                + tasksWithFilters(batch, "javaRestTest", t -> "--tests " + t.fqcn(), "--rerun");
-            case Kinds.YAML_REST_TEST_RUNNER -> REPEAT_REST
-                + " "
-                + cfg.restIters()
-                + " "
-                + G
-                + " "
-                + batch.get(0).gradleProject()
-                + ":yamlRestTest --rerun";
+                + tasksWithFilters(batch, t -> "--tests " + t.fqcn(), "--rerun");
+            case Kinds.YAML_REST_TEST_RUNNER -> REPEAT_REST + " " + cfg.restIters() + " " + G + " " + batch.get(0).taskPath() + " --rerun";
             case Kinds.YAML_REST_TEST_SUITE -> yamlSuiteCommand(batch, cfg);
             case Kinds.YAML_REST_TEST_CASE -> REPEAT_REST
                 + " "
@@ -200,7 +212,7 @@ public final class CommandBuilder {
                 + " "
                 + G
                 + " "
-                + tasksWithFilters(batch, "yamlRestTest", t -> "--tests \"" + t.fqcn() + "." + t.yamlTest() + "\"", "--rerun");
+                + tasksWithFilters(batch, t -> "--tests \"" + t.fqcn() + "." + t.yamlTest() + "\"", "--rerun");
             default -> throw new IllegalStateException("unexpected batch kind: " + kind);
         };
     }
@@ -210,10 +222,10 @@ public final class CommandBuilder {
      * apply to every yamlRestTest task in the invocation. ESClientYamlSuiteTestCase recognises a per-task
      * scoped variant {@code tests.rest.suite.<task path>} so each task gets only its own suites.
      */
-    private static String yamlSuiteCommand(List<PlanEntry> batch, Config cfg) {
+    private static String yamlSuiteCommand(List<RunUnit> batch, Config cfg) {
         Map<String, List<String>> byTask = new LinkedHashMap<>();
-        for (PlanEntry t : batch) {
-            byTask.computeIfAbsent(t.gradleProject() + ":yamlRestTest", k -> new ArrayList<>()).add(t.suitePath());
+        for (RunUnit u : batch) {
+            byTask.computeIfAbsent(u.taskPath(), k -> new ArrayList<>()).add(u.entry().suitePath());
         }
         String tasks = byTask.keySet().stream().map(task -> task + " --rerun").collect(Collectors.joining(" "));
         String suiteProps = byTask.entrySet()
@@ -227,15 +239,10 @@ public final class CommandBuilder {
      * Gradle task-level options ({@code --tests}, {@code --rerun}) bind to the most recently named task on
      * the command line, so per-task options must follow each {@code :project:taskName} they apply to.
      */
-    private static String tasksWithFilters(
-        List<PlanEntry> batch,
-        String taskName,
-        Function<PlanEntry, String> toFilter,
-        String perTaskSuffix
-    ) {
+    private static String tasksWithFilters(List<RunUnit> batch, Function<PlanEntry, String> toFilter, String perTaskSuffix) {
         Map<String, List<String>> byTask = new LinkedHashMap<>();
-        for (PlanEntry t : batch) {
-            byTask.computeIfAbsent(t.gradleProject() + ":" + taskName, k -> new ArrayList<>()).add(toFilter.apply(t));
+        for (RunUnit u : batch) {
+            byTask.computeIfAbsent(u.taskPath(), k -> new ArrayList<>()).add(toFilter.apply(u.entry()));
         }
         return byTask.entrySet().stream().map(e -> {
             List<String> parts = new ArrayList<>();

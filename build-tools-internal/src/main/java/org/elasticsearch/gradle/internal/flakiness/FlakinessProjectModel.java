@@ -13,10 +13,12 @@ import org.gradle.api.Project;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.SourceSet;
+import org.gradle.api.tasks.testing.Test;
 
 import java.io.File;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 
@@ -27,9 +29,12 @@ import java.util.Set;
  *
  * <p>It mirrors the {@code MutedTestPlugin} idiom (register a build service, then react via
  * {@code configureEach} / {@code withPlugin}): each test source set is recorded incrementally as it is
- * configured, and the {@code bwc} flag when the {@code elasticsearch.bwc-test} plugin is applied. The service
- * accumulates these into that project's {@link ProjectInfo}. It only ever reads the project passed in - never
- * a sibling, parent, or root - so it introduces no cross-project access.
+ * configured. The service accumulates those into that project's {@link ProjectInfo}. It only ever reads the
+ * project passed in - never a sibling, parent, or root - so it introduces no cross-project access.
+ *
+ * <p>The project's {@code Test}-task facts are contributed as a <b>late-read supplier</b> instead of a
+ * snapshot, because {@code enabled} / {@code testClassesDirs} are mutated (and whole task families are
+ * registered) after this hook runs - see {@link FlakinessModelService} and {@link #testTaskSnapshot}.
  *
  * <p><b>Note:</b> this fixes the {@code afterEvaluate} ArchUnit violation but does <em>not</em> make the
  * solution configuration-cache-compatible: the P0 whole-build-configuration requirement (every project must
@@ -37,9 +42,6 @@ import java.util.Set;
  * {@code --no-configuration-cache} (see JAVA_RESOLVER_NOTES.md).
  */
 public final class FlakinessProjectModel {
-
-    /** The plugin id marking a project whose tests cannot be re-run in isolation (bwc qa projects). */
-    public static final String BWC_TEST_PLUGIN = "elasticsearch.bwc-test";
 
     /** The source sets flakiness detection understands (only these are recorded). */
     public static final Set<String> CANDIDATE_SOURCE_SETS = Set.of(
@@ -53,7 +55,8 @@ public final class FlakinessProjectModel {
 
     /**
      * Wire this project's incremental contributions into {@code service}. Safe to call from a plugin's
-     * {@code apply}: the source-set and plugin reactions fire lazily during this project's own configuration.
+     * {@code apply}: the source-set reaction fires lazily during this project's own configuration, and the
+     * {@code Test}-task supplier is not invoked until the resolve task runs.
      *
      * @param project the project to contribute (only its own model is read)
      * @param service the shared model service provider (resolved lazily inside each reaction)
@@ -70,12 +73,47 @@ public final class FlakinessProjectModel {
             java.getSourceSets().configureEach(ss -> {
                 if (CANDIDATE_SOURCE_SETS.contains(ss.getName())) {
                     service.get().recordSourceSet(projectPath, projectDir, sourceSetInfo(project, ss));
+                    // Registering repeatedly is harmless (same key, equivalent supplier) and keeps the
+                    // registration scoped to projects that actually have a flakiness-relevant source set.
+                    service.get().registerTestTasks(projectPath, () -> testTaskSnapshot(project));
                 }
             });
         });
+    }
 
-        // Authoritative bwc: set when the bwc-test plugin is applied (whether before or after this runs).
-        project.getPluginManager().withPlugin(BWC_TEST_PLUGIN, applied -> service.get().markBwc(projectPath, projectDir));
+    /**
+     * Snapshot this project's {@code Test} tasks. <b>Invoked at task-execution time only</b> (from
+     * {@link FlakinessModelService#testTasks}); that is the whole point:
+     * <ul>
+     *   <li>iterating {@code tasks.withType(Test)} <em>realizes</em> the tasks, which runs every pending
+     *       {@code configureEach}/{@code named} configuration action on them - including
+     *       {@code elasticsearch.bwc-test}'s {@code enabled = false} and its
+     *       {@code testClassesDirs = sourceSets.javaRestTest.output.classesDirs} reassignment - so the values
+     *       read here are the final, post-configuration ones;</li>
+     *   <li>by execution time all {@code Test} tasks are registered, so late families such as
+     *       {@code v&lt;version&gt;#bwcTest} and {@code destructiveDistroTest.&lt;distro&gt;} are included.</li>
+     * </ul>
+     * Realizing tasks is the cost we pay for that correctness; it is bounded to the projects that own a
+     * resolved target and gated behind {@code -Pflakiness.resolve} (JAVA_RESOLVER_NOTES.md P7).
+     *
+     * <p>Sorted by task name so the model - and therefore the emitted plan - is reproducible.
+     */
+    static List<TestTaskInfo> testTaskSnapshot(Project project) {
+        List<TestTaskInfo> tasks = new ArrayList<>();
+        for (Test task : project.getTasks().withType(Test.class)) {
+            tasks.add(
+                new TestTaskInfo(task.getName(), taskPath(project.getPath(), task.getName()), task.getEnabled(), testClassesDirs(task))
+            );
+        }
+        tasks.sort(Comparator.comparing(TestTaskInfo::name));
+        return tasks;
+    }
+
+    private static List<Path> testClassesDirs(Test task) {
+        if (task.getTestClassesDirs() == null) {
+            return List.of();
+        }
+        return toPaths(task.getTestClassesDirs().getFiles());
     }
 
     /** Build the Gradle-free {@link SourceSetInfo} snapshot for one source set of a project. */

@@ -64,8 +64,15 @@ export interface PlanEntry {
   suitePath?: string;
   yamlTest?: string;
   disposition: "run" | "skip";
-  reason?: string; // set on skip, e.g. "bwc"
+  // Set on skip: why the target cannot be re-run, from the Java resolver's TestTaskSelector -
+  // "no-runnable-task" (the source set has no enabled Test task) or "requires-packaging-host" (only the
+  // destructive packaging tasks would run it). Folded into `not_applicable` by the analyze step.
+  reason?: string;
   expandedFrom?: string; // set when this concrete entry came from an abstract base
+  // The authoritative Gradle task paths that re-run this entry, from the project's real Test tasks - so a
+  // bwc target carries its `v<version>#bwcTest` tasks rather than the disabled bare task. Empty on a skip.
+  // TS never has to build a task path itself; the Java side already baked these into `commands`.
+  runnableTasks?: string[];
 }
 
 export interface PlanExpansion {
@@ -73,6 +80,28 @@ export interface PlanExpansion {
   ran: number;
   total: number;
   cap: number;
+}
+
+/**
+ * One target whose candidate Test tasks were capped by the resolver: `selected` of `total` candidates were
+ * kept (newest-first). Reported so a bwc target that fans out to dozens of `v<version>#bwcTest` tasks
+ * visibly says which ones actually ran.
+ */
+export interface PlanTaskSelection {
+  gradleProject: string;
+  sourceSet: string;
+  selected: string[];
+  total: number;
+  cap: number;
+}
+
+/**
+ * A target the resolver could not re-run, as written to `flakiness-skipped.json` for the analyze step. It is
+ * a {@link ClassifiedTest} plus the resolver's machine-readable reason, so the recorded `not_applicable`
+ * outcome explains itself ("requires-packaging-host" reads very differently from "no-runnable-task").
+ */
+export interface SkippedTest extends ClassifiedTest {
+  reason?: string;
 }
 
 export interface PlanUnresolved {
@@ -102,6 +131,7 @@ export interface FlakinessPlan {
   reason?: string | null;
   entries: PlanEntry[];
   expansions?: PlanExpansion[];
+  taskSelections?: PlanTaskSelection[];
   unresolved?: PlanUnresolved[];
   // Ready batch commands, one per BK batch step. Present and possibly empty (no run entries). A buildFailed
   // plan carries no useful commands (handle buildFailed first). See {@link PlanCommand}.

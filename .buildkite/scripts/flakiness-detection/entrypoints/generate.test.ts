@@ -103,7 +103,7 @@ describe("generate run() - happy path", () => {
           kind: "javaRestTest",
           fqcn: "org.foo.SomeIT",
           disposition: "skip",
-          reason: "bwc",
+          reason: "requires-packaging-host",
         },
       ],
       commands: [UNIT_CMD],
@@ -118,6 +118,41 @@ describe("generate run() - happy path", () => {
     const parsed = JSON.parse(skipped!.body);
     expect(parsed).toHaveLength(1);
     expect(parsed[0].fqcn).toBe("org.foo.SomeIT");
+    // The reason travels to the analyze step, so the not_applicable record explains itself.
+    expect(parsed[0].reason).toBe("requires-packaging-host");
+  });
+
+  test("logs the capped task fan-out so a bwc selection is never invisible", () => {
+    const plan: FlakinessPlan = {
+      buildFailed: false,
+      entries: [
+        {
+          gradleProject: ":qa:rolling",
+          sourceSet: "javaRestTest",
+          kind: "javaRestTest",
+          fqcn: "org.foo.SomeIT",
+          disposition: "run",
+          runnableTasks: [":qa:rolling:v9.6.0#bwcTest", ":qa:rolling:v9.5.1#bwcTest"],
+        },
+      ],
+      taskSelections: [
+        {
+          gradleProject: ":qa:rolling",
+          sourceSet: "javaRestTest",
+          selected: [":qa:rolling:v9.6.0#bwcTest", ":qa:rolling:v9.5.1#bwcTest"],
+          total: 67,
+          cap: 2,
+        },
+      ],
+      commands: [UNIT_CMD],
+    };
+    const { io, rec } = fakeIO(plan);
+
+    run(io);
+
+    expect(rec.logs.join("\n")).toContain("selected 2 of 67 candidate tasks (cap 2)");
+    // Reported on the console only - not an annotation (it is already in the plan artifact).
+    expect(rec.annotations).toEqual([]);
   });
 
   test("no runnable commands and no skips -> no upload, early return", () => {

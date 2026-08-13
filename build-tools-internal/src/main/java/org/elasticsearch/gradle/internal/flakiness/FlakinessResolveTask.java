@@ -36,7 +36,7 @@ import java.util.TreeSet;
  * {@link BaseTarget} via the pure {@link RefResolver}, and writes two hand-off files:
  * <ul>
  *   <li>{@code flakiness-base-targets.json} - the rich targets (+ unresolved refs) the scan step consumes;</li>
- *   <li>{@code flakiness-compile-tasks.txt} - the distinct compile task paths of the non-bwc targets, which
+ *   <li>{@code flakiness-compile-tasks.txt} - the distinct compile task paths of the runnable targets, which
  *       the compile step invokes plainly (its exit code is the sole {@code build_failed} signal).</li>
  * </ul>
  *
@@ -44,6 +44,12 @@ import java.util.TreeSet;
  * design: populate-at-config in each project, read-at-execution here. To turn the prototype's silent-empty
  * failure mode (JAVA_RESOLVER_NOTES.md P1a) into a loud one, the action fails if the model is empty while
  * there are refs to resolve.
+ *
+ * <p>The same execution-time read is what makes the {@code Test}-task disposition correct: the resolver asks
+ * the service for each owning project's {@code Test} tasks <em>from this action</em>, so their {@code enabled}
+ * flags and {@code testClassesDirs} are the final post-configuration values (see
+ * {@link FlakinessModelService#testTasks}). That is what lets a bwc target resolve to its real
+ * {@code v&lt;version&gt;#bwcTest} tasks rather than to a disabled bare task.
  */
 public abstract class FlakinessResolveTask extends DefaultTask {
 
@@ -73,6 +79,14 @@ public abstract class FlakinessResolveTask extends DefaultTask {
     @ServiceReference(FlakinessModelService.NAME)
     public abstract Property<FlakinessModelService> getModelService();
 
+    /**
+     * Max {@code Test} tasks a single target may fan out to ({@code -Pflakiness.taskCap}). A bwc project has
+     * one {@code v&lt;version&gt;#bwcTest} task per wire-compatible version, so the fan-out must be capped; the
+     * newest versions are preferred (see {@link TestTaskSelector}).
+     */
+    @Input
+    public abstract Property<Integer> getTaskCap();
+
     @OutputFile
     public abstract RegularFileProperty getBaseTargetsFile();
 
@@ -91,7 +105,8 @@ public abstract class FlakinessResolveTask extends DefaultTask {
             );
         }
         FlakinessJson.RefsFile refsFile = FlakinessJson.parseRefs(getRefsJson().get());
-        List<ProjectInfo> projects = getModelService().get().projects();
+        FlakinessModelService model = getModelService().get();
+        List<ProjectInfo> projects = model.projects();
 
         if (projects.isEmpty() && refsFile.refs().isEmpty() == false) {
             // The whole point of the rework: prove populate->read worked. An empty model with refs to
@@ -107,7 +122,11 @@ public abstract class FlakinessResolveTask extends DefaultTask {
         }
 
         Path repoRoot = getRepoRoot().get().getAsFile().toPath();
-        RefResolver.Resolution resolution = new RefResolver(repoRoot, projects).resolve(refsFile.refs());
+        // model::testTasks realizes the owning project's Test tasks on first use, here in the task ACTION -
+        // the late read that guarantees post-configuration enabled/testClassesDirs values.
+        RefResolver.Resolution resolution = new RefResolver(repoRoot, projects, model::testTasks, getTaskCap().get()).resolve(
+            refsFile.refs()
+        );
 
         FlakinessJson.BaseTargetsFile out = new FlakinessJson.BaseTargetsFile(resolution.targets(), resolution.unresolved());
         File baseTargets = getBaseTargetsFile().get().getAsFile();
@@ -127,20 +146,32 @@ public abstract class FlakinessResolveTask extends DefaultTask {
             projects.size(),
             compileTasks.size()
         );
+        for (BaseTarget t : resolution.targets()) {
+            if (t.runnable()) {
+                getLogger().lifecycle("  {} {} -> {}", t.kind(), targetLabel(t), t.runnableTasks());
+            } else {
+                getLogger().lifecycle("  {} {} -> skip ({})", t.kind(), targetLabel(t), t.skipReason());
+            }
+        }
         if (compileTasks.isEmpty() == false) {
             getLogger().info("compile tasks: {}", compileTasks);
         }
     }
 
+    private static String targetLabel(BaseTarget t) {
+        String identity = t.fqcn() != null ? t.fqcn() : t.suitePath() != null ? t.suitePath() : t.sourceSet();
+        return t.gradleProject() + " " + identity;
+    }
+
     /**
-     * The distinct compile task paths of the runnable (non-bwc) targets, deterministically ordered. A bwc
-     * target is skipped downstream, so there is nothing to compile for it. Extracted as a pure static method
-     * so it is unit-testable without Gradle.
+     * The distinct compile task paths of the runnable targets, deterministically ordered. A target with no
+     * runnable task is skipped downstream, so there is nothing to compile for it. Extracted as a pure static
+     * method so it is unit-testable without Gradle.
      */
     static List<String> compileTaskPaths(List<BaseTarget> targets) {
         TreeSet<String> compileTasks = new TreeSet<>();
         for (BaseTarget t : targets) {
-            if (t.bwc() == false && t.compileTaskPath() != null) {
+            if (t.runnable() && t.compileTaskPath() != null) {
                 compileTasks.add(t.compileTaskPath());
             }
         }

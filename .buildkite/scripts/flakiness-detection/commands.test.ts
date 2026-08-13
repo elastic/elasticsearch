@@ -1,21 +1,23 @@
 import { describe, expect, test } from "vitest";
-import { planCommandsToRunnable, planEntryToClassifiedTest, withGradleBinary } from "./commands.ts";
+import { planCommandsToRunnable, planEntryToSkippedTest, withGradleBinary } from "./commands.ts";
 import type { PlanCommand, PlanEntry } from "./domain.ts";
 
-describe("planEntryToClassifiedTest", () => {
-  test("maps a unit-test run entry (fqcn, no suitePath/yamlTest)", () => {
+describe("planEntryToSkippedTest", () => {
+  test("maps a unit-test entry (fqcn, no suitePath/yamlTest) and carries the skip reason", () => {
     const e: PlanEntry = {
-      gradleProject: ":server",
+      gradleProject: ":qa:packaging",
       sourceSet: "test",
       kind: "test",
-      fqcn: "org.elasticsearch.FooTests",
-      disposition: "run",
+      fqcn: "org.elasticsearch.packaging.test.ArchiveTests",
+      disposition: "skip",
+      reason: "requires-packaging-host",
     };
-    expect(planEntryToClassifiedTest(e)).toEqual({
-      gradleProject: ":server",
+    expect(planEntryToSkippedTest(e)).toEqual({
+      gradleProject: ":qa:packaging",
       kind: "test",
       sourceSet: "test",
-      fqcn: "org.elasticsearch.FooTests",
+      fqcn: "org.elasticsearch.packaging.test.ArchiveTests",
+      reason: "requires-packaging-host",
     });
   });
 
@@ -27,7 +29,7 @@ describe("planEntryToClassifiedTest", () => {
       suitePath: "esql/10_foo",
       disposition: "run",
     };
-    expect(planEntryToClassifiedTest(e)).toEqual({
+    expect(planEntryToSkippedTest(e)).toEqual({
       gradleProject: ":x-pack:plugin:esql",
       kind: "yamlRestTestSuite",
       sourceSet: "yamlRestTest",
@@ -44,7 +46,7 @@ describe("planEntryToClassifiedTest", () => {
       yamlTest: "test {yaml=/10_apm/Reinstall}",
       disposition: "run",
     };
-    expect(planEntryToClassifiedTest(e)).toEqual({
+    expect(planEntryToSkippedTest(e)).toEqual({
       gradleProject: ":x-pack:plugin:apm-data",
       kind: "yamlRestTestCase",
       sourceSet: "yamlRestTest",

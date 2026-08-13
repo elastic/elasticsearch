@@ -1,16 +1,18 @@
-import type { ClassifiedTest, PlanCommand, PlanEntry, RunnableCommand } from "./domain.ts";
+import type { PlanCommand, PlanEntry, RunnableCommand, SkippedTest } from "./domain.ts";
 
 /**
- * Map a `flakiness-plan.json` entry to a {@link ClassifiedTest}. The Java resolver has already done all the
- * resolution/enrichment work (project, source set, kind, abstract-flattening), so this is a pure field
- * copy - the interesting logic that used to live in the TS detectors is gone. Used for skip entries (which
- * generate writes to `flakiness-skipped.json`) and by the analyze path.
+ * Map a skipped `flakiness-plan.json` entry to the {@link SkippedTest} record generate writes to
+ * `flakiness-skipped.json`. The Java resolver has already done all the resolution/enrichment work (project,
+ * source set, kind, abstract-flattening) and decided the disposition, so this is a pure field copy - the
+ * interesting logic that used to live in the TS detectors is gone. The `reason` is carried through so the
+ * analyze step's `not_applicable` record says why the target was not re-runnable.
  */
-export function planEntryToClassifiedTest(e: PlanEntry): ClassifiedTest {
-  const t: ClassifiedTest = { gradleProject: e.gradleProject, kind: e.kind, sourceSet: e.sourceSet };
+export function planEntryToSkippedTest(e: PlanEntry): SkippedTest {
+  const t: SkippedTest = { gradleProject: e.gradleProject, kind: e.kind, sourceSet: e.sourceSet };
   if (e.fqcn !== undefined) t.fqcn = e.fqcn;
   if (e.suitePath !== undefined) t.suitePath = e.suitePath;
   if (e.yamlTest !== undefined) t.yamlTest = e.yamlTest;
+  if (e.reason !== undefined) t.reason = e.reason;
   return t;
 }
 

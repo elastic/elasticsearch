@@ -2,7 +2,7 @@ import { execSync } from "child_process";
 import { existsSync, readFileSync, writeFileSync } from "fs";
 import { resolve } from "path";
 
-import { planCommandsToRunnable, planEntryToClassifiedTest } from "../commands.ts";
+import { planCommandsToRunnable, planEntryToSkippedTest } from "../commands.ts";
 import { uploadBuildkitePipeline } from "../runners/buildkite.ts";
 import { DEFAULT_AGENT_CONFIG, type FlakinessPlan, type RunnableCommand } from "../domain.ts";
 
@@ -74,16 +74,24 @@ function defaultIO(): GenerateIO {
 }
 
 /**
- * Surface the resolver's enrichment so abstract expansions and unresolved refs are never silently dropped.
+ * Surface the resolver's enrichment so abstract expansions, capped task fan-outs and unresolved refs are
+ * never silently dropped.
  *
- * Expansions are logged to the console only - they are already recorded in flakiness-plan.json, so an
- * annotation would just be noise. Unresolved refs, by contrast, get a `warning` annotation WHEN non-empty:
- * a silently-unresolved unmute is a real false-negative (a test we meant to re-check but never did). When
- * there are no unresolved refs, no annotation is emitted.
+ * Expansions and task selections are logged to the console only - they are already recorded in
+ * flakiness-plan.json, so an annotation would just be noise. Unresolved refs, by contrast, get a `warning`
+ * annotation WHEN non-empty: a silently-unresolved unmute is a real false-negative (a test we meant to
+ * re-check but never did). When there are no unresolved refs, no annotation is emitted.
  */
 function reportEnrichment(plan: FlakinessPlan, io: GenerateIO): void {
   for (const e of plan.expansions ?? []) {
     io.log(`expanded abstract ${e.abstractFqcn} -> ran ${e.ran} of ${e.total} concrete subclasses (cap ${e.cap})`);
+  }
+
+  for (const s of plan.taskSelections ?? []) {
+    io.log(
+      `${s.gradleProject} (${s.sourceSet}): selected ${s.selected.length} of ${s.total} candidate tasks ` +
+        `(cap ${s.cap}): ${s.selected.join(", ")}`
+    );
   }
 
   const unresolved = plan.unresolved ?? [];
@@ -127,7 +135,7 @@ export function run(io: GenerateIO = defaultIO()): void {
   reportEnrichment(plan, io);
 
   if (skipEntries.length > 0 && io.isCI) {
-    io.writeFile(SKIPPED_FILE, JSON.stringify(skipEntries.map(planEntryToClassifiedTest)));
+    io.writeFile(SKIPPED_FILE, JSON.stringify(skipEntries.map(planEntryToSkippedTest)));
   }
 
   if (runnable.length === 0 && skipEntries.length === 0) {
@@ -135,7 +143,7 @@ export function run(io: GenerateIO = defaultIO()): void {
     return;
   }
 
-  // hasNotApplicable emits the analyze step even when every entry was a bwc skip (zero batches).
+  // hasNotApplicable emits the analyze step even when every entry was skipped (zero batches).
   io.upload(runnable, { hasNotApplicable: skipEntries.length > 0 });
 }
 

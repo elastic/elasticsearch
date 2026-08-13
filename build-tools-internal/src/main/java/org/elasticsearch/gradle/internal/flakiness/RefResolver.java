@@ -19,6 +19,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
 import java.util.regex.Pattern;
 
 /**
@@ -31,6 +32,13 @@ import java.util.regex.Pattern;
  * <p>Resolution is done entirely against the model's real {@code srcDirs} / {@code outputDir} /
  * {@code compileTaskPath} - it no longer assumes the {@code src/&lt;ss&gt;/java} layout, so a project with a
  * non-standard source layout resolves correctly.
+ *
+ * <p>Every produced target is also given its <b>disposition</b>: {@link TestTaskSelector} names the enabled
+ * {@code Test} tasks that really run the target's source-set output (so a project that disables the bare
+ * conventional task - bwc, packaging - resolves to its real tasks or to a precise skip reason, instead of
+ * silently emitting a task Gradle reports {@code SKIPPED}). The {@code Test}-task facts are supplied by a
+ * per-project lookup, which the resolve task backs with {@link FlakinessModelService#testTasks} so they are
+ * read after configuration has finished.
  *
  * <p>Two resolution paths:
  * <ul>
@@ -69,13 +77,21 @@ public final class RefResolver {
 
     private final Path repoRoot;
     private final List<ProjectInfo> projects;
+    private final Function<String, List<TestTaskInfo>> testTasks;
+    private final int taskCap;
 
-    public RefResolver(Path repoRoot, List<ProjectInfo> projects) {
+    /**
+     * @param testTasks per-project-path lookup of the project's post-configuration {@code Test} tasks
+     * @param taskCap   max tasks a single target may fan out to (see {@link TestTaskSelector#DEFAULT_TASK_CAP})
+     */
+    public RefResolver(Path repoRoot, List<ProjectInfo> projects, Function<String, List<TestTaskInfo>> testTasks, int taskCap) {
         this.repoRoot = repoRoot.toAbsolutePath().normalize();
         // Longest projectDir first so a nested project wins over its ancestor.
         this.projects = projects.stream()
             .sorted(Comparator.comparingInt((ProjectInfo p) -> p.projectDir().toAbsolutePath().normalize().toString().length()).reversed())
             .toList();
+        this.testTasks = testTasks;
+        this.taskCap = taskCap;
     }
 
     /** The result of resolving a batch of refs: the base targets plus any refs that could not be resolved. */
@@ -181,7 +197,18 @@ public final class RefResolver {
         return Optional.empty();
     }
 
-    private static BaseTarget target(ProjectInfo p, SourceSetInfo ss, String kind, String fqcn, String suitePath, String yamlTest) {
+    /**
+     * Build the target and resolve its disposition. The conventional bare task name for every kind we handle
+     * is the source-set name itself ({@code test}/{@code internalClusterTest}/{@code javaRestTest}/
+     * {@code yamlRestTest}), which is what {@link TestTaskSelector} treats as canonical when it is enabled.
+     */
+    private BaseTarget target(ProjectInfo p, SourceSetInfo ss, String kind, String fqcn, String suitePath, String yamlTest) {
+        TestTaskSelector.Selection selection = TestTaskSelector.select(
+            ss.name(),
+            ss.outputDir(),
+            testTasks.apply(p.projectPath()),
+            taskCap
+        );
         return new BaseTarget(
             p.projectPath(),
             ss.name(),
@@ -189,9 +216,11 @@ public final class RefResolver {
             fqcn,
             suitePath,
             yamlTest,
-            p.bwc(),
             ss.compileTaskPath(),
-            ss.outputDir() == null ? null : ss.outputDir().toString()
+            ss.outputDir() == null ? null : ss.outputDir().toString(),
+            selection.taskPaths(),
+            selection.candidateCount(),
+            selection.skipReason()
         );
     }
 

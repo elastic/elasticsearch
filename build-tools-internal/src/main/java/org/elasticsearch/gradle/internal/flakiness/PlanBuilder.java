@@ -11,24 +11,31 @@ package org.elasticsearch.gradle.internal.flakiness;
 
 import org.elasticsearch.gradle.internal.flakiness.FlakinessPlan.Expansion;
 import org.elasticsearch.gradle.internal.flakiness.FlakinessPlan.PlanEntry;
+import org.elasticsearch.gradle.internal.flakiness.FlakinessPlan.TaskSelection;
 import org.elasticsearch.gradle.internal.flakiness.FlakinessPlan.Unresolved;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
- * Assembles the final {@link FlakinessPlan} from resolved {@link BaseTarget}s, bytecode enrichment, and
- * bwc facts. Pure: no Gradle, no I/O beyond what the {@link ClassHierarchyScanner} already did.
+ * Assembles the final {@link FlakinessPlan} from resolved {@link BaseTarget}s and bytecode enrichment. Pure:
+ * no Gradle, no I/O beyond what the {@link ClassHierarchyScanner} already did.
  *
  * <p>Rules (contract 2):
  * <ul>
- *   <li>bwc target -&gt; single {@code skip} entry, {@code reason="bwc"} (downstream {@code not_applicable}).</li>
+ *   <li>target with a {@code skipReason} (no enabled task, or only packaging-host tasks) -&gt; single
+ *       {@code skip} entry carrying that reason (downstream {@code not_applicable}).</li>
  *   <li>yaml kinds (no fqcn, or a specific parameterised case) -&gt; pass through as {@code run}; bytecode
  *       enrichment is a no-op for them.</li>
  *   <li>Java kind with an fqcn -&gt; {@link ClassHierarchyScanner#expand} it. Concrete: one {@code run}.
  *       Abstract: one {@code run} per chosen concrete subclass with {@code expandedFrom}, plus an
  *       {@link Expansion} record. Abstract with zero concrete subclasses: surfaced as {@code unresolved}.</li>
  * </ul>
+ *
+ * <p>Every {@code run} entry carries the target's {@code runnableTasks} through to the plan, so
+ * {@link CommandBuilder} can build the invocation from real task paths.
  */
 public final class PlanBuilder {
 
@@ -40,16 +47,24 @@ public final class PlanBuilder {
         List<BaseTarget> targets,
         List<Unresolved> unresolvedIn,
         ClassHierarchyScanner scanner,
-        int subclassCap
+        int subclassCap,
+        int taskCap
     ) {
         List<PlanEntry> entries = new ArrayList<>();
         List<Expansion> expansions = new ArrayList<>();
+        List<TaskSelection> taskSelections = new ArrayList<>();
         List<Unresolved> unresolved = new ArrayList<>(unresolvedIn);
+        // One report record per (project, sourceSet): every target of the same source set saw the same
+        // candidate tasks, so repeating it per target would just be noise.
+        Set<String> reportedSelections = new LinkedHashSet<>();
 
         for (BaseTarget t : targets) {
-            if (t.bwc()) {
-                entries.add(skip(t, "bwc"));
+            if (t.runnable() == false) {
+                entries.add(skip(t, t.skipReason()));
                 continue;
+            }
+            if (t.candidateTasks() > t.runnableTasks().size() && reportedSelections.add(t.gradleProject() + "|" + t.sourceSet())) {
+                taskSelections.add(new TaskSelection(t.gradleProject(), t.sourceSet(), t.runnableTasks(), t.candidateTasks(), taskCap));
             }
             if (Kinds.BYTECODE_ENRICHED.contains(t.kind()) == false || t.fqcn() == null) {
                 // yaml suite/runner/case: nothing to enrich, run as-is.
@@ -79,7 +94,7 @@ public final class PlanBuilder {
         }
         // Batch commands are attached by the caller (FlakinessScanTask) via withCommands, once it has the
         // iteration config; PlanBuilder stays focused on entry assembly.
-        return new FlakinessPlan(false, null, entries, expansions, unresolved, List.of());
+        return new FlakinessPlan(false, null, entries, expansions, taskSelections, unresolved, List.of());
     }
 
     private static PlanEntry run(BaseTarget t, String fqcn, String expandedFrom) {
@@ -92,7 +107,8 @@ public final class PlanBuilder {
             t.yamlTest(),
             Kinds.DISPOSITION_RUN,
             null,
-            expandedFrom
+            expandedFrom,
+            t.runnableTasks()
         );
     }
 
@@ -106,7 +122,8 @@ public final class PlanBuilder {
             t.yamlTest(),
             Kinds.DISPOSITION_SKIP,
             reason,
-            null
+            null,
+            List.of()
         );
     }
 }

@@ -1,16 +1,17 @@
 import { describe, expect, test } from "vitest";
 
-import type { ClassifiedTest } from "../domain.ts";
+import type { SkippedTest } from "../domain.ts";
 
 import { buildFailedPayload, isPrecompileFailure, notApplicablePayload } from "./analyze.ts";
 
 describe("notApplicablePayload", () => {
-  test("maps a skipped BWC javaRestTest to a zeroed not_applicable record", () => {
-    const t: ClassifiedTest = {
+  test("maps a skipped javaRestTest to a zeroed not_applicable record carrying the resolver's reason", () => {
+    const t: SkippedTest = {
       gradleProject: ":x-pack:plugin:logsdb:qa:rolling-upgrade",
       kind: "javaRestTest",
       sourceSet: "javaRestTest",
       fqcn: "org.elasticsearch.xpack.logsdb.SomeIT",
+      reason: "no-runnable-task",
     };
 
     expect(notApplicablePayload(t)).toEqual({
@@ -25,12 +26,17 @@ describe("notApplicablePayload", () => {
       outcome: "not_applicable",
       timedOut: false,
       failingClasses: [],
-      reason: "bwc",
+      reason: "no-runnable-task",
     });
   });
 
+  test("falls back to a generic reason when the artifact carries none", () => {
+    const t: SkippedTest = { gradleProject: ":qa:x", kind: "test", sourceSet: "test", fqcn: "org.FooTests" };
+    expect(notApplicablePayload(t).reason).toBe("not-runnable");
+  });
+
   test("uses the full yaml descriptor as the target for a yaml case", () => {
-    const t: ClassifiedTest = {
+    const t: SkippedTest = {
       gradleProject: ":qa:mixed",
       kind: "yamlRestTestCase",
       sourceSet: "yamlRestTest",

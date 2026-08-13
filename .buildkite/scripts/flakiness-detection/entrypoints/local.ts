@@ -93,6 +93,20 @@ export async function run(): Promise<void> {
     console.error(`Unresolved (${u.reason}): ${u.ref.spec ?? u.ref.className ?? u.ref.path}`);
   }
 
+  // Surface the resolver's dispositions: a skipped target and a capped task fan-out are both things a
+  // developer running this locally needs to see, not silently dropped work.
+  for (const e of plan.entries) {
+    if (e.disposition === "skip") {
+      console.error(`Skipped (${e.reason}): ${e.fqcn ?? e.suitePath ?? e.gradleProject}`);
+    }
+  }
+  for (const s of plan.taskSelections ?? []) {
+    console.log(
+      `${s.gradleProject} (${s.sourceSet}): selected ${s.selected.length} of ${s.total} candidate tasks ` +
+        `(cap ${s.cap}): ${s.selected.join(", ")}`
+    );
+  }
+
   const runnable = planCommandsToRunnable(plan.commands ?? [], "local");
   if (runnable.length === 0) {
     console.error("Nothing runnable in plan");

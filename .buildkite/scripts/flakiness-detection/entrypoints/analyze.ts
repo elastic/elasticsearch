@@ -6,7 +6,7 @@ import { join, resolve } from "path";
 import { analyzeReports } from "../analyzer/analyze.ts";
 import { deriveOutcome } from "../analyzer/outcome.ts";
 import { renderMarkdown, severity } from "../analyzer/render.ts";
-import { DEFAULT_AGENT_CONFIG, KIND_KEYS, type ClassifiedTest, type TestKind } from "../domain.ts";
+import { DEFAULT_AGENT_CONFIG, KIND_KEYS, type SkippedTest, type TestKind } from "../domain.ts";
 import { NEVER_FAIL_GRACE_MINUTES } from "../runners/buildkite.ts";
 
 const PROJECT_ROOT = resolve(`${import.meta.dirname}/../../../..`);
@@ -37,10 +37,10 @@ const MAX_FAILING_CLASSES = 50;
 // Keep this filename in sync with FLAKINESS_OUTCOMES_ARTIFACT in runners/buildkite.ts.
 const OUTCOMES_ARTIFACT_FILE = "flakiness-outcomes.json";
 
-// Written by the bootstrap step (entrypoints/pr.ts): tests that could not be
-// re-run (BWC projects). Downloaded next to this script and folded into the
-// outcomes as `not_applicable`. Keep in sync with FLAKINESS_SKIPPED_ARTIFACT in
-// runners/buildkite.ts and entrypoints/pr.ts.
+// Written by the generate step: targets the resolver could not re-run, each with
+// its reason (e.g. "requires-packaging-host"). Downloaded next to this script and
+// folded into the outcomes as `not_applicable`. Keep in sync with
+// FLAKINESS_SKIPPED_ARTIFACT in runners/buildkite.ts and entrypoints/pr.ts.
 const SKIPPED_FILE = "flakiness-skipped.json";
 
 // Written by the pre-flight compile step only when compilation fails; folded in
@@ -72,8 +72,9 @@ interface FlakinessPayload extends JobStatus {
   timedOut: boolean;
   infraSubtype?: string;
   failingClasses: string[];
-  // Set only on `not_applicable` records: why the test could not be re-run
-  // (currently always "bwc").
+  // Set only on `not_applicable` records: why the test could not be re-run, as
+  // decided by the Java resolver (e.g. "no-runnable-task",
+  // "requires-packaging-host"). See PlanEntry.reason in domain.ts.
   reason?: string;
 }
 
@@ -169,8 +170,8 @@ async function buildPayload(statusWithSignals: JobStatusWithSignals): Promise<Fl
   return payload;
 }
 
-// Read the BWC skip list the bootstrap step wrote. Absent = nothing skipped.
-async function readSkippedTests(): Promise<ClassifiedTest[]> {
+// Read the skip list the generate step wrote. Absent = nothing skipped.
+async function readSkippedTests(): Promise<SkippedTest[]> {
   try {
     const parsed = JSON.parse(await readFile(join(PROJECT_ROOT, SKIPPED_FILE), "utf8"));
     return Array.isArray(parsed) ? parsed : [];
@@ -179,10 +180,12 @@ async function readSkippedTests(): Promise<ClassifiedTest[]> {
   }
 }
 
-// A skipped BWC test never ran as a job, so it has no rc/duration/XML. It is
+// A skipped test never ran as a job, so it has no rc/duration/XML. It is
 // recorded as a `not_applicable` payload with zeroed counts and a synthetic
-// jobId so downstream keyed on jobId stays well-formed.
-export function notApplicablePayload(t: ClassifiedTest): FlakinessPayload {
+// jobId so downstream keyed on jobId stays well-formed. The resolver's reason is
+// carried verbatim; `not-runnable` is only a fallback for a legacy artifact that
+// predates the reason field.
+export function notApplicablePayload(t: SkippedTest): FlakinessPayload {
   const target = t.yamlTest ? `${t.fqcn}.${t.yamlTest}` : (t.fqcn ?? t.suitePath ?? "");
   return {
     jobId: `not-applicable:${t.kind}:${t.gradleProject}:${target}`,
@@ -196,7 +199,7 @@ export function notApplicablePayload(t: ClassifiedTest): FlakinessPayload {
     outcome: "not_applicable",
     timedOut: false,
     failingClasses: [],
-    reason: "bwc",
+    reason: t.reason ?? "not-runnable",
   };
 }
 
@@ -279,14 +282,15 @@ async function run(): Promise<void> {
     }
   }
 
-  // Fold in the tests the bootstrap step could not re-run (BWC): recorded as
+  // Fold in the targets the resolver could not re-run: recorded as
   // `not_applicable` so they are counted separately from `hang`/`infra_fail`.
   const skipped = await readSkippedTests();
   for (const t of skipped) {
     payloads.push(notApplicablePayload(t));
   }
   if (skipped.length > 0) {
-    console.log(`Recorded ${skipped.length} not_applicable (BWC, not re-runnable via the bare task).`);
+    const reasons = [...new Set(skipped.map((t) => t.reason ?? "not-runnable"))].join(", ");
+    console.log(`Recorded ${skipped.length} not_applicable (${reasons}).`);
   }
 
   // If the pre-flight compile gate failed, the batches were skipped and produced

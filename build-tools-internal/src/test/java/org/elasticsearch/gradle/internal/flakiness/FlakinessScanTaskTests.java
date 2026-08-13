@@ -27,26 +27,48 @@ public class FlakinessScanTaskTests {
     @Test
     public void testScansOnlyBytecodeEnrichedRunnableOutputDirs() {
         List<BaseTarget> targets = List.of(
-            new BaseTarget(":a", "test", "test", "org.foo.ATests", null, null, false, ":a:compileTestJava", "/out/a/test"),
+            runnable(":a", "test", "test", "org.foo.ATests", null, "/out/a/test"),
             // Same output dir as above -> collapsed.
-            new BaseTarget(":a", "test", "test", "org.foo.A2Tests", null, null, false, ":a:compileTestJava", "/out/a/test"),
-            new BaseTarget(
-                ":b",
-                "internalClusterTest",
-                "internalClusterTest",
-                "org.foo.BIT",
-                null,
-                null,
-                false,
-                ":b:compileInternalClusterTestJava",
-                "/out/b/ict"
-            ),
+            runnable(":a", "test", "test", "org.foo.A2Tests", null, "/out/a/test"),
+            runnable(":b", "internalClusterTest", "internalClusterTest", "org.foo.BIT", null, "/out/b/ict"),
             // yaml suite -> not bytecode-enriched, no scan dir.
-            new BaseTarget(":c", "yamlRestTest", "yamlRestTestSuite", null, "x/10_foo", null, false, ":c:compileYamlRestTestJava", "/out/c"),
-            // bwc -> excluded even though it is a java kind.
-            new BaseTarget(":d", "test", "test", "org.foo.DTests", null, null, true, ":d:compileTestJava", "/out/d/test")
+            runnable(":c", "yamlRestTest", "yamlRestTestSuite", null, "x/10_foo", "/out/c"),
+            // Nothing runnable -> excluded even though it is a java kind.
+            skipped(":d", "test", "test", "org.foo.DTests", "/out/d/test")
         );
 
         assertThat(FlakinessScanTask.scanDirs(targets), containsInAnyOrder(Path.of("/out/a/test"), Path.of("/out/b/ict")));
+    }
+
+    private static BaseTarget runnable(String project, String sourceSet, String kind, String fqcn, String suitePath, String outputDir) {
+        return new BaseTarget(
+            project,
+            sourceSet,
+            kind,
+            fqcn,
+            suitePath,
+            null,
+            project + ":compileX",
+            outputDir,
+            List.of(project + ":" + sourceSet),
+            1,
+            null
+        );
+    }
+
+    private static BaseTarget skipped(String project, String sourceSet, String kind, String fqcn, String outputDir) {
+        return new BaseTarget(
+            project,
+            sourceSet,
+            kind,
+            fqcn,
+            null,
+            null,
+            project + ":compileX",
+            outputDir,
+            List.of(),
+            0,
+            TestTaskSelector.REASON_NO_RUNNABLE_TASK
+        );
     }
 }

@@ -25,14 +25,16 @@ import java.util.Optional;
  * JAVA_RESOLVER_NOTES.md); the old root-plugin {@code getAllprojects()} walk (which returned an empty model
  * at root-config time) is gone.
  *
+ * <p>It deliberately carries no {@code Test}-task facts: those cannot be snapshotted at configuration time
+ * (see {@link TestTaskInfo}) and realizing them for every project would be wasteful, so they are fetched per
+ * project on demand via {@link FlakinessModelService#testTasks}.
+ *
  * @param projectPath  Gradle project path, e.g. {@code :x-pack:plugin:esql}
  * @param projectDir   absolute project directory (used for authoritative path-&gt;project resolution)
- * @param bwc          whether the project applies {@code elasticsearch.bwc-test} - the authoritative
- *                     {@code hasPlugin(...)} fact, replacing the old build.gradle regex
  * @param sourceSets   this project's flakiness-relevant test source sets (a subset of
  *                     {@code test}/{@code internalClusterTest}/{@code javaRestTest}/{@code yamlRestTest})
  */
-public record ProjectInfo(String projectPath, Path projectDir, boolean bwc, List<SourceSetInfo> sourceSets) {
+public record ProjectInfo(String projectPath, Path projectDir, List<SourceSetInfo> sourceSets) {
 
     /** The named source set, if this project has it configured. */
     public Optional<SourceSetInfo> sourceSet(String name) {

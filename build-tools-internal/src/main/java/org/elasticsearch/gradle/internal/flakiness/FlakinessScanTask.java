@@ -49,6 +49,14 @@ public abstract class FlakinessScanTask extends DefaultTask {
     public abstract Property<Integer> getSubclassCap();
 
     /**
+     * The {@code Test}-task fan-out cap the resolve step applied. Only used for the plan's
+     * {@code taskSelections} report - the selection itself already happened in the resolve step, which is the
+     * only step that has the project model.
+     */
+    @Input
+    public abstract Property<Integer> getTaskCap();
+
+    /**
      * The operator's {@code FLAKINESS_ITERS} / {@code -Pflakiness.iters} override for the iteration counts.
      * {@code @Optional}: absent leaves the defaults (100 unit / 20 internalClusterTest / 10 rest).
      */
@@ -65,7 +73,7 @@ public abstract class FlakinessScanTask extends DefaultTask {
         List<BaseTarget> targets = input.targets();
 
         ClassHierarchyScanner scanner = ClassHierarchyScanner.scan(scanDirs(targets));
-        FlakinessPlan plan = PlanBuilder.build(targets, input.unresolved(), scanner, getSubclassCap().get());
+        FlakinessPlan plan = PlanBuilder.build(targets, input.unresolved(), scanner, getSubclassCap().get(), getTaskCap().get());
 
         // Java owns batch-command generation now: attach the ready, target-neutral batch commands to the
         // plan so the TS generate step is a thin consumer (see CommandBuilder / PlanCommand).
@@ -87,14 +95,14 @@ public abstract class FlakinessScanTask extends DefaultTask {
     }
 
     /**
-     * The distinct compiled-output directories to ASM-scan: only the bytecode-enriched, runnable (non-bwc)
-     * targets. yaml kinds carry no fqcn and bwc targets are skipped, so neither contributes a scan dir.
+     * The distinct compiled-output directories to ASM-scan: only the bytecode-enriched, runnable targets. yaml
+     * kinds carry no fqcn and targets with no runnable task are skipped, so neither contributes a scan dir.
      * Extracted as a pure static method so it is unit-testable without Gradle.
      */
     static List<Path> scanDirs(List<BaseTarget> targets) {
         Set<Path> classDirs = new LinkedHashSet<>();
         for (BaseTarget t : targets) {
-            if (t.bwc() == false && Kinds.BYTECODE_ENRICHED.contains(t.kind()) && t.outputDir() != null) {
+            if (t.runnable() && Kinds.BYTECODE_ENRICHED.contains(t.kind()) && t.outputDir() != null) {
                 classDirs.add(Path.of(t.outputDir()));
             }
         }

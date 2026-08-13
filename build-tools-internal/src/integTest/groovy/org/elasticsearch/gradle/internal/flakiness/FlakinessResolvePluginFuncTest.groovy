@@ -71,6 +71,22 @@ class FlakinessResolvePluginFuncTest extends AbstractGradleInternalPluginFuncTes
         subProject(":app") << contribute
         subProject(":other") << contribute
 
+        // :bwcish reproduces the shape of `elasticsearch.bwc-test` / `elasticsearch.distro-test`: the bare
+        // conventional task is disabled and differently named Test tasks are pointed at the SAME source-set
+        // output. Both mutations happen AFTER FlakinessProjectModel.contribute has run, and the `enabled`
+        // flip is deferred through `matching {}.configureEach {}` exactly as bwc-test.gradle does - so an
+        // eager snapshot in a configureEach callback would read the pre-mutation values and wrongly emit the
+        // disabled bare task. This is what the late read has to get right.
+        subProject(":bwcish") << contribute << """
+            tasks.matching { it.name == 'test' }.configureEach { enabled = false }
+            ['v9.6.0#altTest', 'v9.5.1#altTest', 'v9.4.0#altTest'].each { name ->
+                tasks.register(name, Test) {
+                    testClassesDirs = sourceSets.test.output.classesDirs
+                    classpath = sourceSets.test.runtimeClasspath
+                }
+            }
+        """
+
         // :app test hierarchy: AbstractFooTests (abstract) <- {BarTests, BazTests}, plus a standalone class.
         javaTestClass("app", "com/example/AbstractFooTests", "abstract class AbstractFooTests {}")
         javaTestClass("app", "com/example/BarTests", "class BarTests extends AbstractFooTests {}")
@@ -78,15 +94,18 @@ class FlakinessResolvePluginFuncTest extends AbstractGradleInternalPluginFuncTes
 
         // :other has an unrelated concrete test, referenced via a changed-file ref.
         javaTestClass("other", "com/other/OtherTests", "class OtherTests {}")
+
+        javaTestClass("bwcish", "com/bwcish/BwcishTests", "class BwcishTests {}")
     }
 
     def "populates the model per-project and resolves, compiles and scans end-to-end"() {
-        given: "a refs file with an abstract-base unmute (in :app) and a changed file (in :other)"
+        given: "a refs file with an abstract-base unmute (:app), a changed file (:other) and a disabled-bare-task project (:bwcish)"
         file("flakiness-refs.json").text = """
             { "mergeBase": "test",
               "refs": [
                 { "source": "unmute", "className": "com.example.AbstractFooTests" },
-                { "source": "changed-file", "path": "other/src/test/java/com/other/OtherTests.java" } ] }
+                { "source": "changed-file", "path": "other/src/test/java/com/other/OtherTests.java" },
+                { "source": "changed-file", "path": "bwcish/src/test/java/com/bwcish/BwcishTests.java" } ] }
         """
 
         when: "resolve reads the service at execution time"
@@ -95,7 +114,7 @@ class FlakinessResolvePluginFuncTest extends AbstractGradleInternalPluginFuncTes
         then: "it produced authoritative base targets across BOTH projects (not the silent-empty trap)"
         resolveResult.task(":flakinessResolve").outcome == TaskOutcome.SUCCESS
         def baseTargets = new JsonSlurper().parse(file("flakiness-base-targets.json"))
-        baseTargets.targets.size() == 2
+        baseTargets.targets.size() == 3
         baseTargets.unresolved.isEmpty()
 
         def appTarget = baseTargets.targets.find { it.gradleProject == ":app" }
@@ -104,14 +123,25 @@ class FlakinessResolvePluginFuncTest extends AbstractGradleInternalPluginFuncTes
         appTarget.kind == "test"
         appTarget.compileTaskPath == ":app:compileTestJava"
         appTarget.outputDir.replace('\\', '/').endsWith("app/build/classes/java/test")
+        // An ordinary project: the plain enabled bare task, derived from the model.
+        appTarget.runnableTasks == [":app:test"]
+        appTarget.skipReason == null
 
         def otherTarget = baseTargets.targets.find { it.gradleProject == ":other" }
         otherTarget.fqcn == "com.other.OtherTests"
         otherTarget.compileTaskPath == ":other:compileTestJava"
+        otherTarget.runnableTasks == [":other:test"]
 
-        and: "the emitted compile task list covers both projects"
+        and: "the disabled-bare-task project resolves to its real alternatives, newest-first and capped"
+        def bwcishTarget = baseTargets.targets.find { it.gradleProject == ":bwcish" }
+        bwcishTarget.runnableTasks == [":bwcish:v9.6.0#altTest", ":bwcish:v9.5.1#altTest"]
+        bwcishTarget.runnableTasks.every { it != ":bwcish:test" }
+        bwcishTarget.candidateTasks == 3
+        bwcishTarget.skipReason == null
+
+        and: "the emitted compile task list covers all three projects"
         def compileTasks = file("flakiness-compile-tasks.txt").text.readLines().findAll { it.trim() }
-        compileTasks as Set == [":app:compileTestJava", ":other:compileTestJava"] as Set
+        compileTasks as Set == [":app:compileTestJava", ":other:compileTestJava", ":bwcish:compileTestJava"] as Set
 
         when: "the emitted compile tasks are run plainly, then scan enriches the compiled output"
         gradleRunner(compileTasks as String[]).build()
@@ -135,6 +165,13 @@ class FlakinessResolvePluginFuncTest extends AbstractGradleInternalPluginFuncTes
         other.disposition == "run"
         other.expandedFrom == null
 
+        and: "the capped fan-out is reported"
+        plan.taskSelections.size() == 1
+        plan.taskSelections[0].gradleProject == ":bwcish"
+        plan.taskSelections[0].total == 3
+        plan.taskSelections[0].cap == 2
+        plan.taskSelections[0].selected == [":bwcish:v9.6.0#altTest", ":bwcish:v9.5.1#altTest"]
+
         and: "the plan carries ready, target-neutral batch commands (Java owns batch-command generation)"
         plan.commands.size() >= 1
         plan.commands.every { it.command.contains("__GRADLE__") }
@@ -144,6 +181,12 @@ class FlakinessResolvePluginFuncTest extends AbstractGradleInternalPluginFuncTes
         unitCmd.command.startsWith("__GRADLE__ -Dtests.iters=100 -Dtests.timeoutSuite=3600000!")
         unitCmd.command.contains("--tests com.example.BarTests")
         unitCmd.command.contains("--tests com.other.OtherTests")
+
+        and: "the commands invoke the real alternative tasks, never the disabled bare one"
+        def bwcishCmds = plan.commands.findAll { it.command.contains("com.bwcish.BwcishTests") }
+        bwcishCmds.every { it.command.contains(":bwcish:test ") == false }
+        bwcishCmds.collect { it.command }.join(" ").contains(":bwcish:v9.6.0#altTest --tests com.bwcish.BwcishTests")
+        bwcishCmds.collect { it.command }.join(" ").contains(":bwcish:v9.5.1#altTest --tests com.bwcish.BwcishTests")
     }
 
     private void javaTestClass(String project, String internalName, String body) {

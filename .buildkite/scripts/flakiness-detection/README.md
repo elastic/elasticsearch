@@ -4,7 +4,7 @@ Detects test flakiness by repeatedly running a focused subset of tests and produ
 
 The package gathers input references from one of three sources, hands them to a Java/Gradle resolver that turns them into a plan carrying ready batch commands, then either uploads those commands as a Buildkite sub-pipeline or executes them locally. A JUnit XML analyzer summarises the run as a markdown report.
 
-> **Architecture note (B2).** Resolution of inputs to concrete test targets - which Gradle project / source set / kind a file or class belongs to, whether a class is abstract (and its concrete subclasses), and whether a project is BWC - is done by a **Java/Gradle resolver** in `build-tools-internal` (`org.elasticsearch.gradle.internal.flakiness`, task `flakinessResolve`), not by TypeScript path regexes.
+> **Architecture note (B2).** Resolution of inputs to concrete test targets - which Gradle project / source set / kind a file or class belongs to, whether a class is abstract (and its concrete subclasses), and **which Gradle task actually re-runs it** - is done by a **Java/Gradle resolver** in `build-tools-internal` (`org.elasticsearch.gradle.internal.flakiness`, task `flakinessResolve`), not by TypeScript path regexes.
 > **Batch-command generation** (dedupe, yaml-suite collapse, per-cap batching, and assembly of the per-batch Gradle command string) also lives in Java now: the `flakinessScan` task emits ready commands into `flakiness-plan.json`'s `commands` array.
 > Each command carries the literal token `__GRADLE__` wherever the gradle binary belongs; the TS runner layer substitutes it with `.ci/scripts/run-gradle.sh` (Buildkite) or `./gradlew` (local), so Java stays target neutral.
 > TS owns only input gathering, gradle-binary substitution, Buildkite orchestration, and JUnit analysis.
@@ -100,15 +100,16 @@ A `FlakinessRef` (defined in `domain.ts`) is one of: `{source:"changed-file", pa
 
 The resolver is split across two Gradle tasks and a plain compile between them, so the compile is a first-class step whose non-zero exit is the sole `build_failed` signal.
 `flakinessResolve` reads `flakiness-refs.json`, resolves each ref to a base target using the real project graph, and writes `flakiness-base-targets.json` plus `flakiness-compile-tasks.txt` (the newline-separated compile task paths for the affected source sets).
+Each target also carries `runnableTasks`: the **enabled** `Test` tasks whose `testClassesDirs` overlap the owning source set's output - so a project that disables the conventional bare task and points other tasks at the same output (BWC's `v<version>#bwcTest`, packaging's `destructiveDistroTest.*`) resolves to those real tasks instead of a task Gradle would report `SKIPPED`. Targets with nothing runnable carry a precise `skipReason` (`no-runnable-task`, `requires-packaging-host`).
 The `compile` step then plainly runs those tasks; on failure it writes a `buildFailed` `flakiness-plan.json` and `flakiness-precompile.json` and exits non-zero, skipping `scan`.
-`flakinessScan` reads the base targets, ASM-scans the compiled test classes to flatten abstract bases into concrete subclasses (deterministic, capped) and to detect BWC, does all batching (dedupe, yaml-suite collapse, per-cap slicing), and writes `flakiness-plan.json` - including a `commands` array of ready per-batch Gradle command strings, each carrying the `__GRADLE__` binary placeholder.
+`flakinessScan` reads the base targets, ASM-scans the compiled test classes to flatten abstract bases into concrete subclasses (deterministic, capped), does all batching (dedupe, yaml-suite collapse, per-cap slicing), and writes `flakiness-plan.json` - including a `commands` array of ready per-batch Gradle command strings, each carrying the `__GRADLE__` binary placeholder.
 Each plan entry carries `disposition:"run"|"skip"` (skip → `not_applicable` downstream). See `JAVA_RESOLVER_NOTES.md`.
 
 ### Module 2: commands
 
 `commands.ts` is a thin adapter over the Java-produced plan:
 
-1. `planEntryToClassifiedTest` — maps a plan entry to a `ClassifiedTest` (used for skip entries → `flakiness-skipped.json`, and by the analyze path).
+1. `planEntryToSkippedTest` — maps a skipped plan entry (with its `reason`) to the `SkippedTest` record written to `flakiness-skipped.json` for the analyze path.
 2. `withGradleBinary` — replaces every `__GRADLE__` token with `.ci/scripts/run-gradle.sh` (buildkite) or `./gradlew` (local).
 3. `planCommandsToRunnable` — maps the plan's `commands` (`PlanCommand[]`) to `RunnableCommand[]`, applying `withGradleBinary` for the chosen target.
 
@@ -207,7 +208,7 @@ Derived in priority order by `analyzer/outcome.ts` (`deriveOutcome`):
 | `infra_fail`    | `rc == 137` short run (`oom_killed`), a non-zero `rc` with a heap dump (`oom`), or any other non-zero `rc` with no real failures |
 | `hang`          | `rc == 0` but zero recorded test cases                                          |
 | `clean_pass`    | `rc == 0` with recorded cases and no real failures                              |
-| `not_applicable`| assigned upstream (not by `deriveOutcome`) for a test that could not be re-run at all, e.g. a BWC qa project whose bare task is disabled - "nothing to re-run", excluded from the false-failure metric |
+| `not_applicable`| assigned upstream (not by `deriveOutcome`) for a target the resolver found nothing to re-run for - no enabled `Test` task (`no-runnable-task`) or only the destructive packaging tasks (`requires-packaging-host`); the resolver's reason is carried into the record. "Nothing to re-run", excluded from the false-failure metric |
 | `build_failed`  | assigned upstream when the `compile` orchestration step fails: the PR did not compile, so `scan` was skipped and `generate` uploaded no batches. `analyze` emits one `build_failed` (keyed under `flakiness-orchestration:compile`, not a test batch), excluded from the false-failure metric (the PR is already red from its main build). |
 
 `timedOut` is reported alongside `outcome` so the two timeout shapes stay

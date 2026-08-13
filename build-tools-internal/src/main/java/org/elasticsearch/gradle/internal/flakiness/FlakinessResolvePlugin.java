@@ -43,6 +43,8 @@ public class FlakinessResolvePlugin implements Plugin<Project> {
     public static final String COMPILE_TASKS_PROPERTY = "flakiness.compileTasks";
     public static final String PLAN_PROPERTY = "flakiness.plan";
     public static final String CAP_PROPERTY = "flakiness.subclassCap";
+    /** Deterministic cap on how many candidate {@code Test} tasks one target may fan out to. */
+    public static final String TASK_CAP_PROPERTY = "flakiness.taskCap";
     public static final String ITERS_PROPERTY = "flakiness.iters";
     /** Environment variable operators set to override iteration counts (mirrors the old TS behaviour). */
     public static final String ITERS_ENV = "FLAKINESS_ITERS";
@@ -73,6 +75,7 @@ public class FlakinessResolvePlugin implements Plugin<Project> {
         String compileTasksPath = stringProperty(project, COMPILE_TASKS_PROPERTY, DEFAULT_COMPILE_TASKS);
         String planPath = stringProperty(project, PLAN_PROPERTY, DEFAULT_PLAN);
         int cap = intProperty(project, CAP_PROPERTY, PlanBuilder.DEFAULT_SUBCLASS_CAP);
+        int taskCap = intProperty(project, TASK_CAP_PROPERTY, TestTaskSelector.DEFAULT_TASK_CAP);
 
         // CC-safe, lazy file reads via a file-contents provider (Gradle's ValueSource-backed API). Evaluated
         // when the task property is queried at execution time, never at plain config time.
@@ -93,6 +96,7 @@ public class FlakinessResolvePlugin implements Plugin<Project> {
             t.getRepoRoot().set(project.getLayout().getProjectDirectory());
             t.getBaseTargetsFile().set(project.getLayout().getProjectDirectory().file(baseTargetsPath));
             t.getCompileTasksFile().set(project.getLayout().getProjectDirectory().file(compileTasksPath));
+            t.getTaskCap().set(taskCap);
             // Bind the service so it is instantiated and its usesService dependency is recorded (also implied
             // by the @ServiceReference on the task property).
             t.getModelService().set(model);
@@ -104,6 +108,7 @@ public class FlakinessResolvePlugin implements Plugin<Project> {
             t.setDescription("Scan the compiled classes named in flakiness-base-targets.json to write flakiness-plan.json");
             t.getBaseTargetsJson().set(baseTargetsJson);
             t.getSubclassCap().set(cap);
+            t.getTaskCap().set(taskCap);
             if (iters != null) {
                 t.getIters().set(iters);
             }

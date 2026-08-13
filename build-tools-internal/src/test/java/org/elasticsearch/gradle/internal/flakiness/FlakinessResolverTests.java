@@ -19,7 +19,10 @@ import org.objectweb.asm.Opcodes;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
@@ -90,7 +93,7 @@ public class FlakinessResolverTests {
     public void testResolvesChangedFilesToProjectSourceSetKind() throws IOException {
         Path repo = tmp.newFolder("repo").toPath();
         List<ProjectInfo> projects = fixtureProjects(repo);
-        RefResolver resolver = new RefResolver(repo, projects);
+        RefResolver resolver = resolver(repo, projects);
 
         RefResolver.Resolution r = resolver.resolve(
             List.of(
@@ -109,7 +112,9 @@ public class FlakinessResolverTests {
         assertThat(unit.gradleProject(), equalTo(":server"));
         assertThat(unit.sourceSet(), equalTo("test"));
         assertThat(unit.kind(), equalTo("test"));
-        assertThat(unit.bwc(), is(false));
+        // An ordinary project resolves to its plain, enabled bare task - now derived, not assumed.
+        assertThat(unit.runnableTasks(), contains(":server:test"));
+        assertThat(unit.skipReason(), is(nullValue()));
         // Rich, authoritative fields carried from the model (used by the compile + scan steps).
         assertThat(unit.compileTaskPath(), equalTo(":server:compileTestJava"));
         assertThat(unit.outputDir().replace('\\', '/'), org.hamcrest.Matchers.endsWith("server/build/classes/java/test"));
@@ -122,9 +127,13 @@ public class FlakinessResolverTests {
         assertThat(suite.suitePath(), equalTo("esql/10_foo"));
         assertThat(suite.fqcn(), is(nullValue()));
 
+        // The bwc project's bare javaRestTest task is disabled; the target resolves to its real bwcTest tasks
+        // (capped, newest first) instead of the task Gradle would report SKIPPED.
         BaseTarget bwc = r.targets().stream().filter(t -> "javaRestTest".equals(t.kind())).findFirst().orElseThrow();
         assertThat(bwc.gradleProject(), equalTo(":qa:rolling"));
-        assertThat(bwc.bwc(), is(true)); // authoritative bwc flag carried through from ProjectInfo
+        assertThat(bwc.runnable(), is(true));
+        assertThat(bwc.runnableTasks(), contains(":qa:rolling:v9.6.0#bwcTest", ":qa:rolling:v9.5.1#bwcTest"));
+        assertThat(bwc.candidateTasks(), equalTo(3));
     }
 
     @Test
@@ -133,7 +142,7 @@ public class FlakinessResolverTests {
         List<ProjectInfo> projects = fixtureProjects(repo);
         touch(repo, "server/src/test/java/org/elasticsearch/FooTests.java");
         touch(repo, "x-pack/plugin/esql/src/yamlRestTest/java/org/elasticsearch/EsqlIT.java");
-        RefResolver resolver = new RefResolver(repo, projects);
+        RefResolver resolver = resolver(repo, projects);
 
         RefResolver.Resolution r = resolver.resolve(
             List.of(
@@ -161,7 +170,7 @@ public class FlakinessResolverTests {
     // ---- PlanBuilder ----
 
     @Test
-    public void testFlattensAbstractSkipsBwcAndPassesYamlThrough() throws IOException {
+    public void testFlattensAbstractSkipsUnrunnableAndPassesYamlThrough() throws IOException {
         Path classes = tmp.newFolder("classes").toPath();
         writeClass(classes, "com/example/AbstractFooTests", "java/lang/Object", true);
         writeClass(classes, "com/example/BarTests", "com/example/AbstractFooTests", false);
@@ -170,13 +179,16 @@ public class FlakinessResolverTests {
         ClassHierarchyScanner scanner = ClassHierarchyScanner.scan(List.of(classes));
 
         List<BaseTarget> targets = List.of(
-            new BaseTarget(":a", "test", "test", "com.example.AbstractFooTests", null, null, false, ":a:compileTestJava", "/x/a"),
-            new BaseTarget(":b", "javaRestTest", "javaRestTest", "org.foo.SomeIT", null, null, true, ":b:compileJavaRestTestJava", "/x/b"), // bwc
-            new BaseTarget(":c", "yamlRestTest", "yamlRestTestSuite", null, "esql/10_foo", null, false, ":c:compileYamlRestTestJava", "/x/c"),
-            new BaseTarget(":d", "test", "test", "com.example.LoneAbstractTests", null, null, false, ":d:compileTestJava", "/x/d")
+            planTarget(":a", "test", "test", "com.example.AbstractFooTests", null, List.of(":a:test"), 1, null),
+            // Nothing can run this one (the packaging policy) -> a skip entry with that reason.
+            planTarget(":b", "test", "test", "org.foo.SomeTests", null, List.of(), 12, TestTaskSelector.REASON_REQUIRES_PACKAGING_HOST),
+            planTarget(":c", "yamlRestTest", "yamlRestTestSuite", null, "esql/10_foo", List.of(":c:yamlRestTest"), 1, null),
+            planTarget(":d", "test", "test", "com.example.LoneAbstractTests", null, List.of(":d:test"), 1, null),
+            // A capped fan-out -> reported in taskSelections.
+            planTarget(":e", "javaRestTest", "javaRestTest", "org.foo.SomeIT", null, List.of(":e:v9.6.0#bwcTest"), 67, null)
         );
 
-        FlakinessPlan plan = PlanBuilder.build(targets, List.of(), scanner, 5);
+        FlakinessPlan plan = PlanBuilder.build(targets, List.of(), scanner, 5, 1);
 
         // Abstract flattened into 2 concrete run entries, each with expandedFrom.
         List<PlanEntry> expanded = plan.entries().stream().filter(e -> "com.example.AbstractFooTests".equals(e.expandedFrom())).toList();
@@ -192,15 +204,24 @@ public class FlakinessResolverTests {
         assertThat(plan.expansions().get(0).ran(), equalTo(2));
         assertThat(plan.expansions().get(0).total(), equalTo(2));
 
-        // bwc -> skip reason bwc.
-        PlanEntry bwc = plan.entries().stream().filter(e -> ":b".equals(e.gradleProject())).findFirst().orElseThrow();
-        assertThat(bwc.disposition(), equalTo("skip"));
-        assertThat(bwc.reason(), equalTo("bwc"));
+        // No runnable task -> skip carrying the precise reason.
+        PlanEntry unrunnable = plan.entries().stream().filter(e -> ":b".equals(e.gradleProject())).findFirst().orElseThrow();
+        assertThat(unrunnable.disposition(), equalTo("skip"));
+        assertThat(unrunnable.reason(), equalTo("requires-packaging-host"));
+        assertThat(unrunnable.runnableTasks(), is(empty()));
 
-        // yaml -> run pass-through.
+        // yaml -> run pass-through, carrying its real task path.
         PlanEntry yaml = plan.entries().stream().filter(e -> ":c".equals(e.gradleProject())).findFirst().orElseThrow();
         assertThat(yaml.disposition(), equalTo("run"));
         assertThat(yaml.suitePath(), equalTo("esql/10_foo"));
+        assertThat(yaml.runnableTasks(), contains(":c:yamlRestTest"));
+
+        // Only the capped fan-out is reported; the 1-of-1 selections are not noise in the report.
+        assertThat(plan.taskSelections(), hasSize(1));
+        assertThat(plan.taskSelections().get(0).gradleProject(), equalTo(":e"));
+        assertThat(plan.taskSelections().get(0).total(), equalTo(67));
+        assertThat(plan.taskSelections().get(0).cap(), equalTo(1));
+        assertThat(plan.taskSelections().get(0).selected(), contains(":e:v9.6.0#bwcTest"));
 
         // Abstract with no concrete subclass -> surfaced as unresolved, never silently dropped.
         assertThat(plan.unresolved(), hasSize(1));
@@ -226,7 +247,7 @@ public class FlakinessResolverTests {
         assertThat(refs.refs().get(2).spec(), equalTo("org.foo.BazTests.testX"));
 
         List<BaseTarget> targets = List.of(
-            new BaseTarget(":server", "test", "test", "org.foo.FooTests", null, null, false, ":server:compileTestJava", "/x/server")
+            planTarget(":server", "test", "test", "org.foo.FooTests", null, List.of(":server:test"), 1, null)
         );
         FlakinessJson.BaseTargetsFile file = new FlakinessJson.BaseTargetsFile(targets, List.of());
         String tjson = FlakinessJson.writeBaseTargetsFile(file);
@@ -254,20 +275,46 @@ public class FlakinessResolverTests {
             new ProjectInfo(
                 ":server",
                 repo.resolve("server"),
-                false,
                 List.of(ssi(repo, "server", ":server", "test"), ssi(repo, "server", ":server", "internalClusterTest"))
             ),
             new ProjectInfo(
                 ":x-pack:plugin:esql",
                 repo.resolve("x-pack/plugin/esql"),
-                false,
                 List.of(
                     ssi(repo, "x-pack/plugin/esql", ":x-pack:plugin:esql", "test"),
                     ssi(repo, "x-pack/plugin/esql", ":x-pack:plugin:esql", "yamlRestTest")
                 )
             ),
-            new ProjectInfo(":qa:rolling", repo.resolve("qa/rolling"), true, List.of(ssi(repo, "qa/rolling", ":qa:rolling", "javaRestTest")))
+            new ProjectInfo(":qa:rolling", repo.resolve("qa/rolling"), List.of(ssi(repo, "qa/rolling", ":qa:rolling", "javaRestTest")))
         );
+    }
+
+    /**
+     * A resolver over the fixture projects, with the {@code Test}-task facts the real build would report:
+     * ordinary projects have an enabled bare task, while {@code :qa:rolling} mirrors
+     * {@code elasticsearch.bwc-test} - a <em>disabled</em> bare {@code javaRestTest} plus differently named
+     * tasks pointed at the same source-set output.
+     */
+    private static RefResolver resolver(Path repo, List<ProjectInfo> projects) {
+        Map<String, List<TestTaskInfo>> tasks = new LinkedHashMap<>();
+        for (ProjectInfo p : projects) {
+            List<TestTaskInfo> projectTasks = new ArrayList<>();
+            for (SourceSetInfo ss : p.sourceSets()) {
+                boolean bwcProject = p.projectPath().equals(":qa:rolling");
+                projectTasks.add(testTask(p.projectPath(), ss.name(), bwcProject == false, ss.outputDir()));
+                if (bwcProject) {
+                    projectTasks.add(testTask(p.projectPath(), "bcUpgradeTest", true, ss.outputDir()));
+                    projectTasks.add(testTask(p.projectPath(), "v9.5.1#bwcTest", true, ss.outputDir()));
+                    projectTasks.add(testTask(p.projectPath(), "v9.6.0#bwcTest", true, ss.outputDir()));
+                }
+            }
+            tasks.put(p.projectPath(), projectTasks);
+        }
+        return new RefResolver(repo, projects, path -> tasks.getOrDefault(path, List.of()), TestTaskSelector.DEFAULT_TASK_CAP);
+    }
+
+    private static TestTaskInfo testTask(String projectPath, String name, boolean enabled, Path classesDir) {
+        return new TestTaskInfo(name, projectPath + ":" + name, enabled, List.of(classesDir));
     }
 
     /**
@@ -285,6 +332,31 @@ public class FlakinessResolverTests {
 
     private static String capitalize(String s) {
         return Character.toUpperCase(s.charAt(0)) + s.substring(1);
+    }
+
+    private static BaseTarget planTarget(
+        String project,
+        String sourceSet,
+        String kind,
+        String fqcn,
+        String suitePath,
+        List<String> runnableTasks,
+        int candidateTasks,
+        String skipReason
+    ) {
+        return new BaseTarget(
+            project,
+            sourceSet,
+            kind,
+            fqcn,
+            suitePath,
+            null,
+            project + ":compile" + capitalize(sourceSet) + "Java",
+            "/x" + project,
+            runnableTasks,
+            candidateTasks,
+            skipReason
+        );
     }
 
     private static FlakinessRef changedFile(String path) {

@@ -105,6 +105,26 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         assertNoUnmappedFieldsAttribute("FROM test | KEEP salary | DROP salary");
     }
 
+    public void testStatsOmitsUnmappedFieldsAttribute() {
+        assertNoUnmappedFieldsAttribute("FROM test | STATS c = COUNT(*)");
+    }
+
+    public void testStatsByMappedFieldOmitsUnmappedFieldsAttribute() {
+        assertNoUnmappedFieldsAttribute("FROM test | STATS c = COUNT(*) BY languages");
+    }
+
+    public void testStatsByUnmappedFieldOmitsUnmappedFieldsAttribute() {
+        assertNoUnmappedFieldsAttribute("FROM test | STATS c = COUNT(*) BY unmapped_extra");
+    }
+
+    public void testKeepWildcardThenStatsOmitsUnmappedFieldsAttribute() {
+        assertNoUnmappedFieldsAttribute("FROM test | KEEP first_name* | STATS c = COUNT(*)");
+    }
+
+    public void testStatsThenKeepStarOmitsUnmappedFieldsAttribute() {
+        assertNoUnmappedFieldsAttribute("FROM test | STATS c = COUNT(*) | KEEP *");
+    }
+
     public void testKeepWildcardIgnoresMappedExactNameInSameCommand() {
         UnmappedFieldsPattern pattern = patternFor("FROM test | KEEP first_name*, salary");
         assertKept(pattern, "first_name_suffix");

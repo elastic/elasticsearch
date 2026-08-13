@@ -1473,7 +1473,6 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
      */
     public void testLoadAllModeRejectsUnsupportedCommands() {
         for (var commandAndLabel : List.of(
-            Tuple.tuple("| STATS COUNT(*) BY languages", "STATS"),
             Tuple.tuple("| DISSECT first_name \"%{a}\"", "DISSECT"),
             Tuple.tuple("| GROK first_name \"%{WORD:a}\"", "GROK"),
             Tuple.tuple("| MV_EXPAND first_name", "MV_EXPAND"),
@@ -1484,7 +1483,8 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
                 .statementError(
                     setUnmappedLoadAll("FROM test " + commandAndLabel.v1()),
                     containsString(
-                        "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT and LIMIT commands; ["
+                        "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT "
+                            + "and STATS commands; ["
                             + commandAndLabel.v2()
                             + "] is not supported yet"
                     )
@@ -1504,6 +1504,11 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             | LIMIT 10
             """));
         assertThat(Expressions.names(plan.output()), equalTo(List.of("name", "x")));
+    }
+
+    public void testLoadAllModeAllowsStats() {
+        LogicalPlan plan = test().statement(setUnmappedLoadAll("FROM test | STATS c = COUNT(*) BY languages"));
+        assertThat(Expressions.names(plan.output()), equalTo(List.of("c", "languages")));
     }
 
     /**

@@ -353,7 +353,6 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         return estimateBytes + extraBytes;
     }
 
-    // visible for testing
     public Map<ShardId, ShardMemoryMetrics> getShardMemoryMetrics() {
         return shardMemoryMetrics;
     }

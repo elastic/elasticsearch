@@ -292,7 +292,9 @@ public class DenseVectorQueryBuilder extends LeafQueryBuilder<DenseVectorQueryBu
         if (Boolean.TRUE.equals(quantized) && similarityFunction == null) {
             MappedFieldType fieldType = ctx.getFieldType(fieldName);
             if (fieldType instanceof DenseVectorFieldType vectorFieldType && vectorFieldType.isSearchable()) {
-                return new ExactKnnQueryBuilder(queryVector, fieldName, null).boost(boost).queryName(queryName);
+                // Oversample 0 pins the exact query to the quantized representation, which is what [quantized] asks
+                // for; leaving it unset would let the field's configured oversample select full-precision scoring.
+                return new ExactKnnQueryBuilder(queryVector, fieldName, null, 0f).boost(boost).queryName(queryName);
             }
         }
         return this;

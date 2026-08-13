@@ -132,8 +132,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
     }
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initAutoMigrationMock() throws Exception {
         autoMigration = mock();
         doAnswer(ans -> {
             ActionListener<?> listener = ans.getArgument(1);

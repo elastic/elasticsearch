@@ -855,16 +855,24 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
-    public void linearCombination(float scaleOther, float[] other, float scaleDest, float[] dest) {
-        for (int d = 0; d < dest.length; d++) {
-            dest[d] = scaleOther * other[d] + scaleDest * dest[d];
+    public void linearCombination(
+        float scaleOther,
+        float[] other,
+        int otherOffset,
+        float scaleDest,
+        float[] dest,
+        int destOffset,
+        int length
+    ) {
+        for (int d = 0; d < length; d++) {
+            dest[destOffset + d] = fma(scaleOther, other[otherOffset + d], scaleDest * dest[destOffset + d]);
         }
     }
 
     @Override
-    public void linearCombination(float scaleOther, float[] other, float[] dest) {
-        for (int d = 0; d < dest.length; d++) {
-            dest[d] += scaleOther * other[d];
+    public void linearCombination(float scaleOther, float[] other, int otherOffset, float[] dest, int destOffset, int length) {
+        for (int d = 0; d < length; d++) {
+            dest[destOffset + d] = fma(scaleOther, other[otherOffset + d], dest[destOffset + d]);
         }
     }
 

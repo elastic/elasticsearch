@@ -1446,41 +1446,40 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
     }
 
     public void testLinearCombination() {
-        float[] x = new float[19];
-        float[] y1 = new float[19];
+        int xLength = randomIntBetween(10, 50);
+        int yLength = randomIntBetween(10, 50);
+        float[] x = VectorTestUtils.randomFloatVector(xLength);
+        float[] y1 = VectorTestUtils.randomFloatVector(yLength);
+        float[] y2 = y1.clone();
 
-        for (int i = 0; i < x.length; i++) {
-            x[i] = randomFloat();
-            y1[i] = randomFloat();
-        }
-        float[] y2 = new float[19];
-        System.arraycopy(y1, 0, y2, 0, 19);
+        int xOffset = randomIntBetween(0, xLength - 5);
+        int yOffset = randomIntBetween(0, yLength - 5);
+        int length = Math.min(xLength - xOffset, yLength - yOffset);
 
         float scaleX = randomFloat();
         float scaleY = randomFloat();
 
-        defaultedProvider.getVectorUtilSupport().linearCombination(scaleX, x, scaleY, y1);
-        panamaProvider.getVectorUtilSupport().linearCombination(scaleX, x, scaleY, y2);
+        defaultedProvider.getVectorUtilSupport().linearCombination(scaleX, x, xOffset, scaleY, y1, yOffset, length);
+        panamaProvider.getVectorUtilSupport().linearCombination(scaleX, x, xOffset, scaleY, y2, yOffset, length);
 
         assertArrayEquals(y1, y2, 1e-5f);
     }
 
     public void testLinearCombinationNoScaleDest() {
-        // Choosing 19 dimensions so that it is a rugged number that does not align with any SIMD length
-        float[] x = new float[19];
-        float[] y1 = new float[19];
+        int xLength = randomIntBetween(10, 50);
+        int yLength = randomIntBetween(10, 50);
+        float[] x = VectorTestUtils.randomFloatVector(xLength);
+        float[] y1 = VectorTestUtils.randomFloatVector(yLength);
+        float[] y2 = y1.clone();
 
-        for (int i = 0; i < x.length; i++) {
-            x[i] = randomFloat();
-            y1[i] = randomFloat();
-        }
-        float[] y2 = new float[19];
-        System.arraycopy(y1, 0, y2, 0, 19);
+        int xOffset = randomIntBetween(0, xLength - 5);
+        int yOffset = randomIntBetween(0, yLength - 5);
+        int length = Math.min(xLength - xOffset, yLength - yOffset);
 
         float scaleX = randomFloat();
 
-        defaultedProvider.getVectorUtilSupport().linearCombination(scaleX, x, y1);
-        panamaProvider.getVectorUtilSupport().linearCombination(scaleX, x, y2);
+        defaultedProvider.getVectorUtilSupport().linearCombination(scaleX, x, xOffset, y1, yOffset, length);
+        panamaProvider.getVectorUtilSupport().linearCombination(scaleX, x, xOffset, y2, yOffset, length);
 
         assertArrayEquals(y1, y2, 1e-5f);
     }

@@ -66,7 +66,7 @@ public final class ColumnarNumericBinaryDocValues extends BinaryDocValues {
 
     @Override
     public BytesRef binaryValue() throws IOException {
-        final int rank = iterator.index();
+        final int rank = iterator.rank();
         final int first = reader.firstOrdinal(rank);
         final int count = reader.valueCount(rank);
         if (values.length < count) {
@@ -150,7 +150,7 @@ public final class ColumnarNumericBinaryDocValues extends BinaryDocValues {
 
             private int position(int doc) {
                 if (doc != DocIdSetIterator.NO_MORE_DOCS) {
-                    int rank = iterator.index();
+                    int rank = iterator.rank();
                     first = reader.firstOrdinal(rank);
                     count = reader.valueCount(rank);
                     upto = 0;

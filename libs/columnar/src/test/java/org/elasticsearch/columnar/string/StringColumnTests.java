@@ -204,7 +204,7 @@ public class StringColumnTests extends ESTestCase {
                 int seenDocs = 0;
                 ColumnIterator iterator = reader.iterator();
                 for (int doc = iterator.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = iterator.nextDoc()) {
-                    int rank = iterator.index();
+                    int rank = iterator.rank();
                     assertEquals("value count at doc " + doc, 1, reader.valueCount(rank));
                     BytesRef actual = reader.valueForOrdinal(reader.firstOrdinal(rank));
                     assertEquals("doc " + doc, docValues[doc], actual);

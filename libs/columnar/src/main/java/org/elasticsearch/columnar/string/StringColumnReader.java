@@ -89,7 +89,7 @@ public final class StringColumnReader {
         }
     }
 
-    /** A fresh iterator over the documents that have a value; {@link ColumnIterator#index()} is the rank. */
+    /** A fresh iterator over the documents that have a value; positioned by {@link ColumnIterator#rank()}. */
     public ColumnIterator iterator() throws IOException {
         return iteratorReader.iterator();
     }

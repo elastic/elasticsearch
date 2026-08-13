@@ -17,8 +17,12 @@ import java.io.IOException;
 
 /**
  * Iterates the documents that have a value for a field, and for the current document exposes its
- * value ordinal via {@link #index()} — the 0-based position among all documents that have a value.
- * The value layer uses that ordinal to locate the document's bytes in the substrate.
+ * {@link #rank()} — the 0-based position among all documents that have a value. The value layer turns a
+ * rank into the document's value ordinals to locate its bytes in the substrate.
+ *
+ * <p>A rank is <b>not</b> a value ordinal. The two coincide only for a single-valued column; a
+ * multi-valued one maps a rank to its first ordinal through a value-address table. Ranks also differ from
+ * document ids as soon as a column is sparse.
  *
  * <p>This is a {@link DocIdSetIterator}, so range and dense-loading code paths (including
  * {@link #intoBitSet}) consume it directly. Concrete shapes are chosen by the reader from
@@ -26,13 +30,13 @@ import java.io.IOException;
  */
 public abstract class ColumnIterator extends DocIdSetIterator {
 
-    /** The current document's value ordinal. */
-    public abstract int index();
+    /** The current document's rank: its 0-based position among the documents that have a value. */
+    public abstract int rank();
 
     /**
-     * Whether every document has a value, so a document id equals its own value ordinal. The
-     * vectorized range and bulk-read fast paths gate on this: only a dense column maps a value block
-     * directly onto a contiguous doc-id window.
+     * Whether every document has a value, so a document id equals its own rank. The vectorized range and
+     * bulk-read fast paths gate on this: only a dense column maps a value block directly onto a
+     * contiguous doc-id window.
      */
     public boolean isDense() {
         return false;
@@ -61,7 +65,7 @@ public abstract class ColumnIterator extends DocIdSetIterator {
         private int doc = -1;
 
         @Override
-        public int index() {
+        public int rank() {
             return -1;
         }
 
@@ -92,8 +96,8 @@ public abstract class ColumnIterator extends DocIdSetIterator {
     }
 
     /**
-     * Every document has a value, so the document id is its own value ordinal and no per-document
-     * data is stored. {@link #intoBitSet} fills the requested range in one shot.
+     * Every document has a value, so the document id is its own rank and no per-document data is
+     * stored. {@link #intoBitSet} fills the requested range in one shot.
      */
     private static final class Dense extends ColumnIterator {
         private final int maxDoc;
@@ -109,7 +113,7 @@ public abstract class ColumnIterator extends DocIdSetIterator {
         }
 
         @Override
-        public int index() {
+        public int rank() {
             return doc;
         }
 
@@ -161,7 +165,7 @@ public abstract class ColumnIterator extends DocIdSetIterator {
         }
 
         @Override
-        public int index() {
+        public int rank() {
             return disi.index();
         }
 

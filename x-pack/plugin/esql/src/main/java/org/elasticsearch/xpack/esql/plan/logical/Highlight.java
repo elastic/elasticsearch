@@ -278,7 +278,9 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
         try {
             HighlightQueryBuilders.verify(query, fieldNames, analyzer);
         } catch (IllegalArgumentException e) {
-            failures.add(fail(this, "{}", e.getMessage()));
+            // Attach to the query node, not this Highlight node: failures dedupe by node, so pinning it here would let a
+            // co-located option/analyzer failure on this node swallow the query error (see VerifierTests#testHighlightAnalyzerOption).
+            failures.add(fail(query, "{}", e.getMessage()));
         }
     }
 

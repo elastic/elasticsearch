@@ -23,6 +23,10 @@ import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
 import io.opentelemetry.context.Context;
 import io.opentelemetry.context.propagation.ContextPropagators;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
+import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter;
+import io.opentelemetry.sdk.trace.SdkTracerProvider;
+import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor;
+import io.opentelemetry.sdk.trace.samplers.Sampler;
 
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.common.settings.Settings;
@@ -47,8 +51,10 @@ import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -236,6 +242,39 @@ public class APMTracerTests extends ESTestCase {
     }
 
     /**
+     * Check that when a trace is started for a request carrying the {@link Task#X_ELASTIC_PROJECT_ID_HTTP_HEADER}
+     * header, the project id is stamped on the span as the {@code project.id} attribute.
+     */
+    public void test_whenTraceStarted_projectIdHeaderIsSetAsSpanAttribute() {
+        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
+        APMTracer apmTracer = buildTracer(settings);
+
+        String projectId = randomAlphaOfLength(16);
+        ThreadContext threadContext = new ThreadContext(settings);
+        threadContext.putHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, projectId);
+        apmTracer.startTrace(threadContext, TRACEABLE1, "name1", null);
+
+        Span span = Span.fromContextOrNull(apmTracer.getSpans().get(TRACEABLE1.getSpanId()));
+        assertThat(span, notNullValue());
+        Mockito.verify(span).setAttribute("project.id", projectId);
+    }
+
+    /**
+     * Check that when a trace is started for a request without the {@link Task#X_ELASTIC_PROJECT_ID_HTTP_HEADER}
+     * header (e.g. a non multi-project request), no {@code project.id} attribute is added to the span.
+     */
+    public void test_whenTraceStarted_withoutProjectIdHeader_noProjectIdSpanAttribute() {
+        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
+        APMTracer apmTracer = buildTracer(settings);
+
+        apmTracer.startTrace(new ThreadContext(settings), TRACEABLE1, "name1", null);
+
+        Span span = Span.fromContextOrNull(apmTracer.getSpans().get(TRACEABLE1.getSpanId()));
+        assertThat(span, notNullValue());
+        Mockito.verify(span, never()).setAttribute(eq("project.id"), anyString());
+    }
+
+    /**
      * Check that when a tracer has a list of include names configured, then those
      * names are used to filter spans.
      */
@@ -371,6 +410,40 @@ public class APMTracerTests extends ESTestCase {
         Span span = Span.fromContext(spanContext);
         assertThat(span.getSpanContext().getTraceId(), is(traceId));
         assertThat(span.getSpanContext().getSpanId(), is(remoteParentSpanId));
+    }
+
+    public void testTracingResumesAfterDisableAndReEnable() {
+        InMemorySpanExporter exporter = InMemorySpanExporter.create();
+        SdkTracerProvider tracerProvider = SdkTracerProvider.builder()
+            .addSpanProcessor(SimpleSpanProcessor.create(exporter))
+            .setSampler(Sampler.alwaysOn())
+            .build();
+        OpenTelemetrySdk sdk = OpenTelemetrySdk.builder().setTracerProvider(tracerProvider).build();
+
+        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
+        APMTracer tracer = new APMTracer(settings, () -> sdk, false, 0, false);
+        tracer.setNodeName("test-node");
+        tracer.setClusterName("test-cluster");
+        tracer.start();
+
+        startAndStopSpan(tracer, settings, TRACEABLE1, "resume-test-1");
+        assertThat(exporter.getFinishedSpanItems(), hasSize(1));
+
+        tracer.setEnabled(false);
+        exporter.reset();
+        startAndStopSpan(tracer, settings, TRACEABLE2, "resume-test-2");
+        assertThat(exporter.getFinishedSpanItems(), empty());
+
+        tracer.setEnabled(true);
+        startAndStopSpan(tracer, settings, TRACEABLE3, "resume-test-3");
+        assertThat(exporter.getFinishedSpanItems(), hasSize(1));
+
+        sdk.close();
+    }
+
+    private static void startAndStopSpan(APMTracer tracer, Settings settings, Traceable traceable, String spanName) {
+        tracer.startTrace(new ThreadContext(settings), traceable, spanName, null);
+        tracer.stopTrace(traceable);
     }
 
     private APMTracer buildTracer(Settings settings) {
@@ -543,6 +616,18 @@ public class APMTracerTests extends ESTestCase {
         assertThat(attrs.getValue().get(AttributeKey.stringKey("exception.message")), nullValue());
     }
 
+    public void test_setAttributes_callsSetAllAttributes() {
+        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
+        APMTracer tracer = buildTracer(settings);
+        tracer.startTrace(new ThreadContext(settings), TRACEABLE1, "name1", Map.of());
+        Span recordedSpan = Span.fromContext(tracer.getSpans().get(TRACEABLE1.getSpanId()));
+
+        Attributes attributes = Attributes.of(AttributeKey.stringKey("http.method"), "GET", AttributeKey.longKey("http.status_code"), 200L);
+        tracer.setAttributes(TRACEABLE1, attributes);
+
+        Mockito.verify(recordedSpan).setAllAttributes(attributes);
+    }
+
     static class SpyAPMTracer extends APMTracer {
 
         Map<String, Instant> spanStartTimeMap;
@@ -618,6 +703,8 @@ public class APMTracerTests extends ESTestCase {
 
             @Override
             public SpanBuilder setAttribute(String key, String value) {
+                // Record string attributes on the mock span so tests can Mockito.verify(span).setAttribute(...)
+                span.setAttribute(key, value);
                 return this;
             }
 

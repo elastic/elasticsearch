@@ -12,8 +12,8 @@ package org.elasticsearch.nativeaccess.jdk;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
-import org.elasticsearch.nativeaccess.VectorSimilarityFunctionsTests;
+import org.elasticsearch.nativeaccess.SimdVecLibrary;
+import org.elasticsearch.nativeaccess.SimdVecLibraryTests;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -33,20 +33,20 @@ import static org.hamcrest.Matchers.containsString;
  * (two nibbles per byte). The third argument to native functions is {@code packedLen},
  * not the logical dimension count.
  */
-public class JDKVectorLibraryInt4Tests extends VectorSimilarityFunctionsTests {
+public class JDKVectorLibraryInt4Tests extends SimdVecLibraryTests {
 
     static final byte MIN_INT4_VALUE = 0;
     static final byte MAX_INT4_VALUE = 0x0F;
 
-    public JDKVectorLibraryInt4Tests(VectorSimilarityFunctions.Function function, int size) {
+    public JDKVectorLibraryInt4Tests(SimdVecLibrary.SimilarityFunction function, int size) {
         super(function, size);
     }
 
     @ParametersFactory
     public static Iterable<Object[]> parametersFactory() {
-        List<Object[]> baseParams = CollectionUtils.iterableAsArrayList(VectorSimilarityFunctionsTests.parametersFactory());
+        List<Object[]> baseParams = CollectionUtils.iterableAsArrayList(SimdVecLibraryTests.parametersFactory());
         // Int4 only supports dot product
-        baseParams.removeIf(os -> os[0] != VectorSimilarityFunctions.Function.DOT_PRODUCT);
+        baseParams.removeIf(os -> os[0] != SimdVecLibrary.SimilarityFunction.DOT_PRODUCT);
         // Int4 requires even dimensions (two nibbles per packed byte)
         baseParams.removeIf(os -> (Integer) os[1] % 2 != 0);
         return baseParams;
@@ -54,12 +54,12 @@ public class JDKVectorLibraryInt4Tests extends VectorSimilarityFunctionsTests {
 
     @BeforeClass
     public static void beforeClass() {
-        VectorSimilarityFunctionsTests.setup();
+        SimdVecLibraryTests.setup();
     }
 
     @AfterClass
     public static void afterClass() {
-        VectorSimilarityFunctionsTests.cleanup();
+        SimdVecLibraryTests.cleanup();
     }
 
     public void testInt4BinaryVectors() {
@@ -90,18 +90,16 @@ public class JDKVectorLibraryInt4Tests extends VectorSimilarityFunctionsTests {
             int expected = dotProductI4SinglePacked(unpackedValues[first], packedValues[second]);
             assertEquals(expected, similarity(nativeUnpacked, nativePacked, packedLen));
 
-            if (supportsHeapSegments()) {
-                var heapUnpacked = MemorySegment.ofArray(unpackedValues[first]);
-                var heapPacked = MemorySegment.ofArray(packedValues[second]);
-                assertEquals(expected, similarity(heapUnpacked, heapPacked, packedLen));
-                assertEquals(expected, similarity(nativeUnpacked, heapPacked, packedLen));
-                assertEquals(expected, similarity(heapUnpacked, nativePacked, packedLen));
+            var heapUnpacked = MemorySegment.ofArray(unpackedValues[first]);
+            var heapPacked = MemorySegment.ofArray(packedValues[second]);
+            assertEquals(expected, similarity(heapUnpacked, heapPacked, packedLen));
+            assertEquals(expected, similarity(nativeUnpacked, heapPacked, packedLen));
+            assertEquals(expected, similarity(heapUnpacked, nativePacked, packedLen));
 
-                // trivial bulk with a single vector
-                float[] bulkScore = new float[1];
-                similarityBulk(nativePacked, nativeUnpacked, packedLen, 1, MemorySegment.ofArray(bulkScore));
-                assertEquals(expected, bulkScore[0], 0f);
-            }
+            // trivial bulk with a single vector
+            float[] bulkScore = new float[1];
+            similarityBulk(nativePacked, nativeUnpacked, packedLen, 1, MemorySegment.ofArray(bulkScore));
+            assertEquals(expected, bulkScore[0], 0f);
         }
     }
 
@@ -131,11 +129,9 @@ public class JDKVectorLibraryInt4Tests extends VectorSimilarityFunctionsTests {
         similarityBulk(packedSegment, nativeQuerySeg, packedLen, numVecs, bulkScoresSeg);
         assertScoresEquals(expectedScores, bulkScoresSeg);
 
-        if (supportsHeapSegments()) {
-            float[] bulkScores = new float[numVecs];
-            similarityBulk(packedSegment, nativeQuerySeg, packedLen, numVecs, MemorySegment.ofArray(bulkScores));
-            assertArrayEquals(expectedScores, bulkScores, 0f);
-        }
+        float[] bulkScores = new float[numVecs];
+        similarityBulk(packedSegment, nativeQuerySeg, packedLen, numVecs, MemorySegment.ofArray(bulkScores));
+        assertArrayEquals(expectedScores, bulkScores, 0f);
     }
 
     public void testInt4BulkWithOffsets() {
@@ -206,7 +202,6 @@ public class JDKVectorLibraryInt4Tests extends VectorSimilarityFunctionsTests {
 
     public void testInt4BulkWithOffsetsHeapSegments() {
         assumeTrue(notSupportedMsg(), supported());
-        assumeTrue("Requires support for heap MemorySegments", supportsHeapSegments());
         final int dims = size;
         final int packedLen = dims / 2;
         final int numVecs = randomIntBetween(2, 101);
@@ -411,24 +406,11 @@ public class JDKVectorLibraryInt4Tests extends VectorSimilarityFunctionsTests {
     }
 
     int similarity(MemorySegment unpacked, MemorySegment packed, int packedLen) {
-        try {
-            return (int) getVectorDistance().getHandle(
-                function,
-                VectorSimilarityFunctions.DataType.INT4,
-                VectorSimilarityFunctions.Operation.SINGLE
-            ).invokeExact(unpacked, packed, packedLen);
-        } catch (Throwable t) {
-            throw rethrow(t);
-        }
+        return getVectorDistance().dotProductI4(unpacked, packed, packedLen);
     }
 
     void similarityBulk(MemorySegment packedDocs, MemorySegment unpackedQuery, int packedLen, int count, MemorySegment result) {
-        try {
-            getVectorDistance().getHandle(function, VectorSimilarityFunctions.DataType.INT4, VectorSimilarityFunctions.Operation.BULK)
-                .invokeExact(packedDocs, unpackedQuery, packedLen, count, result);
-        } catch (Throwable t) {
-            throw rethrow(t);
-        }
+        getVectorDistance().dotProductI4Bulk(packedDocs, unpackedQuery, packedLen, count, result);
     }
 
     void similarityBulkWithOffsets(
@@ -440,27 +422,11 @@ public class JDKVectorLibraryInt4Tests extends VectorSimilarityFunctionsTests {
         int count,
         MemorySegment result
     ) {
-        try {
-            getVectorDistance().getHandle(
-                function,
-                VectorSimilarityFunctions.DataType.INT4,
-                VectorSimilarityFunctions.Operation.BULK_OFFSETS
-            ).invokeExact(packedDocs, unpackedQuery, packedLen, pitch, offsets, count, result);
-        } catch (Throwable t) {
-            throw rethrow(t);
-        }
+        getVectorDistance().dotProductI4BulkWithOffsets(packedDocs, unpackedQuery, packedLen, pitch, offsets, count, result);
     }
 
     void similarityBulkSparse(MemorySegment addresses, MemorySegment unpackedQuery, int packedLen, int count, MemorySegment result) {
-        try {
-            getVectorDistance().getHandle(
-                function,
-                VectorSimilarityFunctions.DataType.INT4,
-                VectorSimilarityFunctions.Operation.BULK_SPARSE
-            ).invokeExact(addresses, unpackedQuery, packedLen, count, result);
-        } catch (Throwable t) {
-            throw rethrow(t);
-        }
+        getVectorDistance().dotProductI4BulkSparse(addresses, unpackedQuery, packedLen, count, result);
     }
 
     static void scalarSimilarityBulk(byte[] unpackedQuery, byte[][] packedData, float[] scores) {

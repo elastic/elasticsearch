@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasource.http;
 
-import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.plugins.Plugin;
@@ -40,39 +39,33 @@ import java.util.concurrent.ExecutorService;
  * {@link DataSourcePlugin#storageProviders(Settings, ExecutorService)} SPI method,
  * backed by the ES GENERIC thread pool.
  *
- * <p>Registration of both providers is gated on the umbrella
- * {@link DatasetMetadata#ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG}. HTTP/HTTPS additionally requires
+ * <p>Registration of both providers is gated per scheme. HTTP/HTTPS requires
  * {@link #ESQL_EXTERNAL_DATASOURCES_HTTP_FEATURE_FLAG} (snapshot-on, release-off). Local file access
- * is on by default under the umbrella — the security gate is the
- * {@code esql.datasource.local_allowed_paths} node setting, not a feature flag. When a gate is off the
- * relevant schemes are not registered, so any query targeting them resolves to the generic "unsupported
- * storage scheme" rejection.
+ * is on by default — the security gate is the {@code esql.datasource.local_allowed_paths} node setting,
+ * not a feature flag. When a gate is off the relevant schemes are not registered, so any query targeting
+ * them resolves to the generic "unsupported storage scheme" rejection.
  */
 public class HttpDataSourcePlugin extends Plugin implements DataSourcePlugin {
 
     /**
      * Gates provisioning HTTP/HTTPS ({@code http://}, {@code https://}) data sources/datasets. Snapshot-on,
      * release-off; override in release with {@code -Des.esql_external_datasources_http_feature_flag_enabled=true}.
-     * Also requires the umbrella {@link DatasetMetadata#ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG}.
      */
     public static final FeatureFlag ESQL_EXTERNAL_DATASOURCES_HTTP_FEATURE_FLAG = new FeatureFlag("esql_external_datasources_http");
 
     /**
      * Gates local-file ({@code file://}) data sources/datasets. Snapshot-on, release-off; override in release
      * with {@code -Des.esql_external_datasources_local_feature_flag_enabled=true}.
-     * Also requires the umbrella {@link DatasetMetadata#ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG}.
      * Access is further controlled at runtime by the {@code esql.datasource.local_allowed_paths} node setting.
      */
     public static final FeatureFlag ESQL_EXTERNAL_DATASOURCES_LOCAL_FEATURE_FLAG = new FeatureFlag("esql_external_datasources_local");
 
     private static boolean httpEnabled() {
-        return DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()
-            && ESQL_EXTERNAL_DATASOURCES_HTTP_FEATURE_FLAG.isEnabled();
+        return ESQL_EXTERNAL_DATASOURCES_HTTP_FEATURE_FLAG.isEnabled();
     }
 
     private static boolean localEnabled() {
-        return DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()
-            && ESQL_EXTERNAL_DATASOURCES_LOCAL_FEATURE_FLAG.isEnabled();
+        return ESQL_EXTERNAL_DATASOURCES_LOCAL_FEATURE_FLAG.isEnabled();
     }
 
     @Override

@@ -46,6 +46,25 @@ public record SchemaCacheEntry(
         connectorConfig = connectorConfig != null ? Map.copyOf(connectorConfig) : Map.of();
     }
 
+    /**
+     * An identical entry whose {@code safeMetadata} is replaced with {@code metadata} — the schema-cache
+     * enrichment helper: entries are immutable, so a stats commit copies the metadata, mutates the copy,
+     * and swaps the whole entry.
+     */
+    public SchemaCacheEntry withSafeMetadata(Map<String, Object> metadata) {
+        return new SchemaCacheEntry(
+            columnNames,
+            columnTypes,
+            columnNullabilities,
+            columnSynthetics,
+            sourceType,
+            location,
+            metadata,
+            connectorConfig,
+            cachedAtMillis
+        );
+    }
+
     public static SchemaCacheEntry from(
         List<Attribute> schema,
         String sourceType,

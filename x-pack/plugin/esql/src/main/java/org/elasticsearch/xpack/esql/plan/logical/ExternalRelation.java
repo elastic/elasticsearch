@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.datasources.DeclaredReadSpec;
 import org.elasticsearch.xpack.esql.datasources.ExternalSchema;
-import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
 import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
@@ -328,6 +327,17 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
     }
 
     /**
+     * Names of the Hive-partition (path-derived) columns for this relation, read from the serialized stamp in
+     * {@code metadata.sourceMetadata()} — never from {@link #fileList()}, so the answer is identical on the
+     * coordinator and a data node (where the fileList deserializes to {@code UNRESOLVED}). Empty when the
+     * source is not partitioned. Delegates to the one canonical stamp reader, like the
+     * {@code partitionColumnNames()} accessor on {@code ExternalSourceExec}.
+     */
+    public Set<String> partitionColumnNames() {
+        return SourceStatisticsSerializer.partitionColumnNames(metadata.sourceMetadata());
+    }
+
+    /**
      * Returns the pre-enrichment Unified schema — the data-only view that {@link SchemaReconciliation}
      * built the per-file {@link org.elasticsearch.xpack.esql.datasources.ColumnMapping}s against. The
      * post-enrichment {@code metadata.schema()} includes partition attributes appended by
@@ -335,12 +345,13 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
      * than the per-file mapping. Seeding {@code ExternalSourceExec.unifiedSchema} from the
      * wider view causes {@code ColumnMapping.pruneToPerFileQuery} to read past
      * {@code index.length} when the optimizer also prunes the projection.
+     * <p>
+     * Partition names come from the serialized stamp ({@link #partitionColumnNames()}), NOT the fileList, so
+     * this produces the same narrow schema on a data node (where the fileList is {@code UNRESOLVED}) as on the
+     * coordinator — previously the data-node build silently kept the wider, partition-inclusive view.
      */
     private List<Attribute> dataOnlyUnifiedSchema() {
-        PartitionMetadata partitionInfo = fileList != null ? fileList.partitionMetadata() : null;
-        Set<String> partitionNames = partitionInfo != null && partitionInfo.isEmpty() == false
-            ? partitionInfo.partitionColumns().keySet()
-            : Set.of();
+        Set<String> partitionNames = partitionColumnNames();
         return metadata.schema()
             .stream()
             .filter(a -> a instanceof VirtualAttribute == false && partitionNames.contains(a.name()) == false)
@@ -396,6 +407,25 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
             metadata,
             newAttributes,
             fileList,
+            schemaMap,
+            datasetName,
+            metadataFields,
+            declaredReadSpec
+        );
+    }
+
+    /**
+     * Returns a copy of this relation with its {@link #fileList()} replaced. Used by the fragment discovery path to
+     * swap in {@link FileList#EMPTY} when coordinator-side split discovery prunes every file, so the read path scans
+     * nothing instead of reading the whole dataset only to have a downstream row filter drop every row.
+     */
+    public ExternalRelation withFileList(FileList newFileList) {
+        return new ExternalRelation(
+            source(),
+            sourcePath,
+            metadata,
+            output,
+            newFileList,
             schemaMap,
             datasetName,
             metadataFields,

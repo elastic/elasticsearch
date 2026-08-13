@@ -64,7 +64,7 @@ public abstract class GenerativeApproximationRestTest extends EsqlSpecTestCase {
             """.replace("{QUERY}", query));
 
         try {
-            GenerativeForkRestTest.shouldSkipForkTest(testCase);
+            ForkTestUtils.shouldSkipForkTest(testCase, adminClient());
             executeQuery("""
                 SET approximation={"rows":2000000000};
                 {QUERY}
@@ -76,7 +76,7 @@ public abstract class GenerativeApproximationRestTest extends EsqlSpecTestCase {
 
         try {
             // Subqueries use FORK under the hood, hence have the same restrictions as FORK tests.
-            GenerativeForkRestTest.shouldSkipForkTest(testCase);
+            ForkTestUtils.shouldSkipForkTest(testCase, adminClient());
             assumeTrue("Subqueries in approximation require inline stats capability", APPROXIMATION_INLINE_STATS_V2.isEnabled());
             assumeTrue("Subquery must start with FROM", query.toUpperCase(Locale.ROOT).startsWith("FROM "));
             executeQuery("""

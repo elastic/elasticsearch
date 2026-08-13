@@ -128,7 +128,9 @@ import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.recovery.CompositeRecoverySchedulingListener;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
+import org.elasticsearch.indices.recovery.RecoveryGateMonitor;
 import org.elasticsearch.indices.recovery.RecoveryMetricsCollector;
+import org.elasticsearch.indices.recovery.RecoverySchedulingListener;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.SnapshotFilesProvider;
 import org.elasticsearch.indices.recovery.ThrottlingRecoveryService;
@@ -656,7 +658,8 @@ public class SnapshotResiliencyTestHelper {
                     threadPool,
                     projectResolver,
                     clusterService,
-                    new CompositeRecoverySchedulingListener()
+                    RecoverySchedulingListener.NOOP,
+                    new RecoveryGateMonitor(List::of, threadPool)
                 );
 
                 indicesService = new IndicesServiceBuilder().settings(settings)
@@ -906,7 +909,8 @@ public class SnapshotResiliencyTestHelper {
                     indexingMemoryLimits,
                     EmptySystemIndices.INSTANCE,
                     projectResolver,
-                    DocumentParsingProvider.EMPTY_INSTANCE
+                    DocumentParsingProvider.EMPTY_INSTANCE,
+                    bigArrays
                 );
                 actions.put(TransportShardBulkAction.TYPE, transportShardBulkAction);
                 final RestoreService restoreService = new RestoreService(
@@ -1318,6 +1322,7 @@ public class SnapshotResiliencyTestHelper {
                 coordinator.start();
                 clusterService.getClusterApplierService().setNodeConnectionsService(nodeConnectionsService);
                 nodeConnectionsService.start();
+                throttlingRecoveryService.start();
                 clusterService.start();
                 indicesService.start();
                 indicesClusterStateService.start();

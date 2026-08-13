@@ -12,7 +12,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ViewMetadata;
 import org.elasticsearch.cluster.project.DefaultProjectResolver;
-import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -30,24 +29,19 @@ import static org.mockito.Mockito.mock;
 public class InMemoryViewResolver extends ViewResolver {
     protected Supplier<ViewMetadata> metadata;
     protected IndexNameExpressionResolver indexNameExpressionResolver;
-    protected ClusterService clusterService;
-    protected ProjectResolver projectResolver;
 
     public InMemoryViewResolver(
         ClusterService clusterService,
         Supplier<ViewMetadata> metadata,
         CrossProjectModeDecider crossProjectModeDecider
     ) {
-        super(null, clusterService, null, null, crossProjectModeDecider);
-        this.projectResolver = DefaultProjectResolver.INSTANCE;
+        super(null, clusterService, DefaultProjectResolver.INSTANCE, null, crossProjectModeDecider);
         this.indexNameExpressionResolver = new IndexNameExpressionResolver(
             new ThreadContext(Settings.EMPTY),
             EmptySystemIndices.INSTANCE,
             projectResolver
         );
         this.metadata = metadata;
-        this.clusterService = clusterService;
-
     }
 
     @Override

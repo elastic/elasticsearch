@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
-import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -17,7 +16,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Single source of truth for resolving format names from EXTERNAL query configuration.
+ * Single source of truth for resolving format names from dataset configuration.
  * <p>
  * Both the optimizer ({@code PushFiltersToSource}) and execution ({@code FileSourceFactory})
  * need to resolve which format reader to use for a given query. This class centralises that
@@ -30,6 +29,11 @@ import java.util.Set;
  *       and an empty value mean "no override" and fall through to the extension)</li>
  *   <li>File extension extracted from the source path</li>
  * </ol>
+ * <p>
+ * An explicit {@code reader}/{@code format} override selects the format but does not opt the resource out
+ * of compression detection: {@link #resolveReader} still composes the named format with the resource's
+ * outer compression suffix (e.g. {@code format: csv} over {@code hits.csv.gz} still decompresses), routing
+ * through {@link FormatReaderRegistry#byNameForObject} rather than a bare name lookup.
  */
 public final class FormatNameResolver {
 
@@ -39,14 +43,14 @@ public final class FormatNameResolver {
     /**
      * Sentinel {@code format} value meaning "no explicit override, infer from the resource
      * extension". Shared with the dataset CRUD validator so the create path and this read path
-     * treat {@code auto} identically. Without this, a stored or EXTERNAL {@code format=auto} would
-     * reach {@code registry.byName("auto")} and throw.
+     * treat {@code auto} identically. Without this, a stored {@code format=auto} would reach
+     * {@code registry.byName("auto")} and throw.
      */
     public static final String FORMAT_AUTO = "auto";
 
-    /** Reader alias accepted in {@code WITH {"reader": "..."}} for the parquet-rs native reader. */
+    /** Reader alias accepted via the {@code reader} dataset setting for the parquet-rs native reader. */
     public static final String READER_PARQUET_RS = "parquet-rs";
-    /** Reader alias accepted in {@code WITH {"reader": "..."}} for the Java parquet reader. */
+    /** Reader alias accepted via the {@code reader} dataset setting for the Java parquet reader. */
     public static final String READER_JAVA = "java";
     /** Format name registered by the Java parquet reader. */
     public static final String FORMAT_PARQUET = "parquet";
@@ -65,9 +69,9 @@ public final class FormatNameResolver {
         ? Map.of(READER_PARQUET_RS, FORMAT_PARQUET_RS, READER_JAVA, FORMAT_PARQUET)
         : Map.of(READER_JAVA, FORMAT_PARQUET);
 
-    /** The parquet-rs reader is live iff the external-datasources umbrella and the parquet-rs sub-flag are both on. */
+    /** The parquet-rs reader is live iff the parquet-rs sub-flag is on. */
     public static boolean parquetRsEnabled() {
-        return DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled() && ESQL_EXTERNAL_PARQUET_RS_FEATURE_FLAG.isEnabled();
+        return ESQL_EXTERNAL_PARQUET_RS_FEATURE_FLAG.isEnabled();
     }
 
     private FormatNameResolver() {}
@@ -106,6 +110,13 @@ public final class FormatNameResolver {
 
     /**
      * Resolves the format name from the WITH config map and/or the source path.
+     * <p>
+     * <b>Not compound-extension aware:</b> the extension fallback here is a naive last-dot, so a compound name like
+     * {@code hits.csv.gz} resolves to the codec suffix {@code "gz"}, not {@code "csv"}. A caller that keys operator
+     * dispatch or reader lookup on the format over a possibly-compressed resource must use {@link #resolveFormatName}
+     * (or {@link #resolveReader}), which routes through the compound-aware registry. Kept for the config-override-only
+     * path ({@code FileSourceFactory} passes an empty source path); {@code PushFiltersToSource} still calls it over the
+     * exec source path and so misses filter pushdown on compressed text — migrating that caller is tracked separately.
      *
      * @return the format name (e.g. "parquet", "parquet-rs", "orc"), or null if undetermined
      */
@@ -141,11 +152,28 @@ public final class FormatNameResolver {
     }
 
     /**
+     * Resolves the format <em>name</em> (e.g. {@code "csv"}, {@code "parquet"}) using config and source path, routed
+     * through the registry so it is compound-extension aware. Unlike {@link #resolve}, which last-dots the path and
+     * would yield the compression codec suffix ({@code "gz"}) for a compound name like {@code hits.csv.gz}, this
+     * delegates to {@link #resolveReader} and reads back {@link FormatReader#formatName()} —
+     * {@link CompressionDelegatingFormatReader#formatName()} returns the wrapped format, so the result equals the
+     * format name the inferred read path ({@code FileSourceFactory}) would produce. The strict resolver keys
+     * operator-factory dispatch on the result, so it uses this rather than {@link #resolve} to avoid diverging from the
+     * read path over a compressed resource.
+     */
+    public static String resolveFormatName(Map<String, Object> config, String objectName, FormatReaderRegistry registry) {
+        return resolveReader(config, objectName, registry).formatName();
+    }
+
+    /**
      * Resolves the format reader using config and source path, looking up the result in the registry.
      * <p>
-     * Config-based overrides ({@code reader}, {@code format}) are resolved via {@link #resolve} and
-     * looked up by name. Extension-based resolution delegates to {@link FormatReaderRegistry#byExtension}
-     * which handles compound extensions (e.g. {@code .ndjson.bz}) and compression codecs.
+     * Config-based overrides ({@code reader}, {@code format}) are resolved via {@link #resolve} and looked
+     * up by name through {@link FormatReaderRegistry#byNameForObject}, which composes the named format with
+     * {@code objectName}'s outer compression suffix (if any) exactly like the extension-based path — an
+     * explicit override selects the format but does not opt the resource out of compression detection.
+     * Extension-based resolution delegates to {@link FormatReaderRegistry#byExtension} which handles
+     * compound extensions (e.g. {@code .ndjson.bz}) and compression codecs.
      */
     public static FormatReader resolveReader(Map<String, Object> config, String objectName, FormatReaderRegistry registry) {
         if (config != null) {
@@ -156,11 +184,11 @@ public final class FormatNameResolver {
                 if (formatName == null) {
                     throw new IllegalArgumentException("Unknown reader [" + alias + "]; supported values: " + supportedReaderAliases());
                 }
-                return registry.byName(formatName);
+                return registry.byNameForObject(formatName, objectName);
             }
             String name = parseExplicitFormat(config.get(CONFIG_FORMAT));
             if (name != null) {
-                return registry.byName(name);
+                return registry.byNameForObject(name, objectName);
             }
         }
         return registry.byExtension(objectName);

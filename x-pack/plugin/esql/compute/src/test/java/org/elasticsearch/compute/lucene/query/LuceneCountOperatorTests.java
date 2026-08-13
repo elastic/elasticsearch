@@ -36,6 +36,7 @@ import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
 import org.elasticsearch.compute.lucene.ShardContext;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.test.SourceOperatorTestCase;
 import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TestDriverRunner;
@@ -134,7 +135,9 @@ public class LuceneCountOperatorTests extends SourceOperatorTestCase {
 
             @Override
             LuceneSliceQueue.PartitioningStrategy expectedPartitioning() {
-                return LuceneSliceQueue.PartitioningStrategy.DOC;
+                // Doc-values scan on a small (< threshold) index: the shared cost check keeps it on the low-overhead
+                // SHARD. DOC picking (scan-heavy) is covered by the forced-DOC tests and the source/TopN strategy tests.
+                return LuceneSliceQueue.PartitioningStrategy.SHARD;
             }
         },
         MATCH_0_AND_1 {
@@ -166,7 +169,9 @@ public class LuceneCountOperatorTests extends SourceOperatorTestCase {
 
             @Override
             LuceneSliceQueue.PartitioningStrategy expectedPartitioning() {
-                return LuceneSliceQueue.PartitioningStrategy.DOC;
+                // Doc-values scan on a small (< threshold) index: the shared cost check keeps it on the low-overhead
+                // SHARD. DOC picking (scan-heavy) is covered by the forced-DOC tests and the source/TopN strategy tests.
+                return LuceneSliceQueue.PartitioningStrategy.SHARD;
             }
         },
         LTE_100_GT_100 {
@@ -215,7 +220,9 @@ public class LuceneCountOperatorTests extends SourceOperatorTestCase {
 
             @Override
             LuceneSliceQueue.PartitioningStrategy expectedPartitioning() {
-                return LuceneSliceQueue.PartitioningStrategy.DOC;
+                // Doc-values scan on a small (< threshold) index: the shared cost check keeps it on the low-overhead
+                // SHARD. DOC picking (scan-heavy) is covered by the forced-DOC tests and the source/TopN strategy tests.
+                return LuceneSliceQueue.PartitioningStrategy.SHARD;
             }
         };
 
@@ -282,7 +289,8 @@ public class LuceneCountOperatorTests extends SourceOperatorTestCase {
             testCase.tagTypes(),
             limit,
             () -> 0L,
-            LuceneSliceQueue.MIN_DOCS_PER_SLICE
+            LuceneSliceQueue.MIN_DOCS_PER_SLICE,
+            QueryWarnings.EMIT
         );
     }
 
@@ -422,7 +430,8 @@ public class LuceneCountOperatorTests extends SourceOperatorTestCase {
             List.of(),
             Integer.MAX_VALUE,
             () -> 0L,
-            LuceneSliceQueue.MIN_DOCS_PER_SLICE
+            LuceneSliceQueue.MIN_DOCS_PER_SLICE,
+            QueryWarnings.EMIT
         );
         int driverCount = partitioningTaskConcurrency;
         List<Page> results = new CopyOnWriteArrayList<>();
@@ -550,7 +559,7 @@ public class LuceneCountOperatorTests extends SourceOperatorTestCase {
             contexts,
             queryFn,
             DataPartitioning.DOC,
-            LuceneCountOperator::partitioningStrategyForCount,
+            (c, q) -> LuceneCountOperator.partitioningStrategyForCount(c, q, (long) taskConcurrency * LuceneSliceQueue.MIN_DOCS_PER_SLICE),
             1,
             taskConcurrency,
             shardContext -> ScoreMode.COMPLETE_NO_SCORES,
@@ -561,7 +570,15 @@ public class LuceneCountOperatorTests extends SourceOperatorTestCase {
         List<Driver> drivers = new ArrayList<>();
         for (int i = 0; i < taskConcurrency; i++) {
             DriverContext driverCtx = driverContext();
-            LuceneCountOperator op = new LuceneCountOperator(contexts, driverCtx, sliceQueue, List.of(), Integer.MAX_VALUE, () -> 0L);
+            LuceneCountOperator op = new LuceneCountOperator(
+                contexts,
+                driverCtx,
+                sliceQueue,
+                List.of(),
+                Integer.MAX_VALUE,
+                () -> 0L,
+                QueryWarnings.EMIT
+            );
             drivers.add(TestDriverFactory.create(driverCtx, op, List.of(), new TestResultPageSinkOperator(results::add)));
         }
         new TestDriverRunner().run(drivers);
@@ -702,7 +719,8 @@ public class LuceneCountOperatorTests extends SourceOperatorTestCase {
                         List.of(),
                         Integer.MAX_VALUE,
                         () -> 0L,
-                        LuceneSliceQueue.MIN_DOCS_PER_SLICE
+                        LuceneSliceQueue.MIN_DOCS_PER_SLICE,
+                        QueryWarnings.EMIT
                     );
                     int driverCount = partitioningTaskConcurrency;
                     List<Page> results = new CopyOnWriteArrayList<>();

@@ -69,7 +69,10 @@ public class DatasetService {
             Priority.NORMAL,
             new SequentialAckingBatchedTaskExecutor<>()
         );
-        clusterService.getClusterSettings().initializeAndWatch(MAX_DATASETS_COUNT_SETTING, v -> this.maxDatasetsCount = v);
+        // The ceiling is watched while the setting exists, which is while the federation feature is registered (see
+        // Federation#settings). Where the feature is unregistered the ceiling is the setting's default and cannot be
+        // changed, which no request observes because the CRUD REST routes are not registered either.
+        clusterService.getClusterSettings().initializeAndWatchIfRegistered(MAX_DATASETS_COUNT_SETTING, v -> this.maxDatasetsCount = v);
     }
 
     protected DatasetMetadata getMetadata(ProjectMetadata projectMetadata) {
@@ -119,7 +122,7 @@ public class DatasetService {
                 throw ex;
             }
         }
-        // Shape-only validation of the declared mapping (no file I/O): declarable types, rename/copy_to name collisions,
+        // Shape-only validation of the declared mapping (no file I/O): declarable types, rename name collisions,
         // and the _id.path reference. A `path` column rename is honored by all formats (translation is centralized at
         // the reader boundary).
         DeclaredSchemaValidator.validate(request.mapping());

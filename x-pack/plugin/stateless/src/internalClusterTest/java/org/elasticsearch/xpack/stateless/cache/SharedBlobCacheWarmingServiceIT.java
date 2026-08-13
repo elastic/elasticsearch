@@ -45,8 +45,8 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
@@ -1019,7 +1019,17 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
         });
 
         // Initialize the replica shard.
-        setReplicaCount(1, indexName);
+        // Route this update-settings request through the master node's client rather than the random test client
+        // (InternalTestCluster#client()). This is the call that triggers the search-shard recovery which, by design,
+        // restarts the indexing node below. If the random client happened to coordinate this request on the indexing
+        // node, the in-flight request would be failed with NodeClosedException when that node shuts down
+        assertAcked(
+            internalCluster().client(masterName)
+                .admin()
+                .indices()
+                .prepareUpdateSettings(indexName)
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
+        );
 
         // Wait for the indexing node to stop then ensure it comes back up and recovers the index.
         safeAwait(stoppedLatch);
@@ -1474,7 +1484,8 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             ThreadPool threadPool,
             BlobCacheMetrics blobCacheMetrics,
             ClusterService clusterService,
-            IndicesService indicesService
+            IndicesService indicesService,
+            PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricHolder
         ) {
             MaybeNoFreeRegionForWarmingStatelessSharedBlobCacheService maybeNoFreeRegionForWarmingBlobCacheService =
                 new MaybeNoFreeRegionForWarmingStatelessSharedBlobCacheService(
@@ -1483,9 +1494,9 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                     threadPool,
                     blobCacheMetrics,
                     clusterService,
-                    indicesService
+                    indicesService,
+                    metricHolder
                 );
-            maybeNoFreeRegionForWarmingBlobCacheService.assertInvariants();
             return maybeNoFreeRegionForWarmingBlobCacheService;
         }
     }
@@ -1499,17 +1510,10 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             ThreadPool threadPool,
             BlobCacheMetrics blobCacheMetrics,
             ClusterService clusterService,
-            IndicesService indicesService
+            IndicesService indicesService,
+            PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricHolder
         ) {
-            super(
-                environment,
-                settings,
-                threadPool,
-                blobCacheMetrics,
-                clusterService,
-                indicesService,
-                new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
-            );
+            super(environment, settings, threadPool, blobCacheMetrics, clusterService, indicesService, metricHolder);
         }
 
         @Override
@@ -1556,6 +1560,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
      */
     private static class ObservableSharedBlobCacheWarmingService extends SharedBlobCacheWarmingService {
 
+        private final ThreadPool threadPool;
         private final CopyOnWriteArrayList<ActionListener<Void>> mergeWarmingCompleteListeners = new CopyOnWriteArrayList<>();
         private final CopyOnWriteArrayList<ActionListener<CompletedWarmingDetails>> warmingCompletedListeners =
             new CopyOnWriteArrayList<>();
@@ -1586,6 +1591,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             WarmingRatioProvider warmingRatioProvider
         ) {
             super(cacheService, threadPool, telemetryProvider, clusterSettings, warmingRatioProvider);
+            this.threadPool = threadPool;
         }
 
         void setAwaitWarmingForSearchRecovery(boolean await) {
@@ -1694,7 +1700,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
         }
 
         @Override
-        protected void scheduleWarmingTask(ActionListener<Releasable> task) {
+        protected void scheduleWarmingTask(AbstractWarmingTask task) {
             var interceptor = scheduleWarmingTaskInterceptor;
             if (interceptor != null) {
                 interceptor.accept(task);

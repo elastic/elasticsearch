@@ -13,11 +13,11 @@ import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
 import org.apache.lucene.util.quantization.LegacyQuantizedByteVectorValues;
+import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 
@@ -69,10 +69,6 @@ class ES93FlatBitVectorScorer implements FlatVectorsScorer {
         throw new IllegalArgumentException("Unsupported vector type");
     }
 
-    static float hammingScore(byte[] a, byte[] b) {
-        return ((a.length * Byte.SIZE) - VectorUtil.xorBitCount(a, b)) / (float) (a.length * Byte.SIZE);
-    }
-
     static class HammingVectorScorer extends RandomVectorScorer.AbstractRandomVectorScorer {
         private final byte[] query;
         private final ByteVectorValues byteValues;
@@ -85,7 +81,7 @@ class ES93FlatBitVectorScorer implements FlatVectorsScorer {
 
         @Override
         public float score(int i) throws IOException {
-            return hammingScore(byteValues.vectorValue(i), query);
+            return ESVectorUtil.hammingScore(byteValues.vectorValue(i), query);
         }
     }
 
@@ -114,7 +110,7 @@ class ES93FlatBitVectorScorer implements FlatVectorsScorer {
 
                 @Override
                 public float score(int i) throws IOException {
-                    return hammingScore(targetValues.vectorValue(i), query);
+                    return ESVectorUtil.hammingScore(targetValues.vectorValue(i), query);
                 }
             };
         }

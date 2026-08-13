@@ -112,6 +112,35 @@ public class ExternalSourceAggregatePushdownTests extends ESTestCase {
         assertEquals(true, ExternalSourceAggregatePushdown.servableExtremum(true, DataType.BOOLEAN));
     }
 
+    /**
+     * Cross-declaration type-mismatch guard: a shared file+config cache entry can be pollinated by a sibling dataset
+     * declaring a column a DIFFERENT type (the reconcile matches path+mtime+config, never the declared type), so each
+     * non-integral {@code servableExtremum} arm must safe-miss (null) a value that is not its harvested Java type —
+     * otherwise {@code buildBlock} crashes ({@code (Number)} cast / {@code parseBoolean(BytesRef.toString()=hex)}) or
+     * serves a bogus keyword ({@code toBytesRef(Number.toString())}). The IP arm additionally requires the fixed
+     * 16-byte {@code InetAddressPoint} encoding a variable-length keyword {@code BytesRef} would violate.
+     */
+    public void testServableExtremumSafeMissesCrossDeclarationForeignTypes() {
+        // DOUBLE arm serves only a Number; a foreign BytesRef/Boolean safe-misses.
+        assertEquals(5.0, ExternalSourceAggregatePushdown.servableExtremum(5.0, DataType.DOUBLE));
+        assertNull(ExternalSourceAggregatePushdown.servableExtremum(new BytesRef("5.0"), DataType.DOUBLE));
+        assertNull(ExternalSourceAggregatePushdown.servableExtremum(true, DataType.DOUBLE));
+        // BOOLEAN arm serves only a Boolean; a foreign BytesRef/Number safe-misses.
+        assertNull(ExternalSourceAggregatePushdown.servableExtremum(new BytesRef("true"), DataType.BOOLEAN));
+        assertNull(ExternalSourceAggregatePushdown.servableExtremum(1L, DataType.BOOLEAN));
+        // KEYWORD (BYTES_REF) arm serves BytesRef/String; a foreign Number/Boolean safe-misses.
+        assertEquals(new BytesRef("a"), ExternalSourceAggregatePushdown.servableExtremum(new BytesRef("a"), DataType.KEYWORD));
+        assertNull(ExternalSourceAggregatePushdown.servableExtremum(9, DataType.KEYWORD));
+        assertNull(ExternalSourceAggregatePushdown.servableExtremum(9L, DataType.KEYWORD));
+        assertNull(ExternalSourceAggregatePushdown.servableExtremum(true, DataType.KEYWORD));
+        // IP (BYTES_REF) arm serves ONLY the fixed 16-byte encoding; variable-length BytesRef / String / Number safe-miss.
+        BytesRef ip16 = new BytesRef(new byte[16]);
+        assertEquals(ip16, ExternalSourceAggregatePushdown.servableExtremum(ip16, DataType.IP));
+        assertNull(ExternalSourceAggregatePushdown.servableExtremum(new BytesRef("1.2.3.4"), DataType.IP));
+        assertNull(ExternalSourceAggregatePushdown.servableExtremum("1.2.3.4", DataType.IP));
+        assertNull(ExternalSourceAggregatePushdown.servableExtremum(9L, DataType.IP));
+    }
+
     public void testBuildBlockServesIpAsEncodedBytesRefNotNull() {
         // IP is in MIN_MAX_TYPES and harvested as its 16-byte InetAddressPoint encoding. buildBlock must
         // reconstruct a real IP block from it -- before the IP arm existed it fell to the default and, since
@@ -501,15 +530,15 @@ public class ExternalSourceAggregatePushdownTests extends ESTestCase {
         // resolution under PARTITION_COLUMNS_KEY. This is what makes the guard survive to the DATA-NODE fold,
         // where the coordinator-only FileList is UNRESOLVED. A null/absent/empty key yields the empty set (an
         // unpartitioned source is unguarded, so its physical columns serve normally).
-        assertEquals(Set.of(), ExternalSourceAggregatePushdown.partitionColumnNames(null));
-        assertEquals(Set.of(), ExternalSourceAggregatePushdown.partitionColumnNames(Map.of()));
+        assertEquals(Set.of(), SourceStatisticsSerializer.partitionColumnNames(null));
+        assertEquals(Set.of(), SourceStatisticsSerializer.partitionColumnNames(Map.of()));
         assertEquals(
             Set.of("p"),
-            ExternalSourceAggregatePushdown.partitionColumnNames(Map.of(SourceStatisticsSerializer.PARTITION_COLUMNS_KEY, List.of("p")))
+            SourceStatisticsSerializer.partitionColumnNames(Map.of(SourceStatisticsSerializer.PARTITION_COLUMNS_KEY, List.of("p")))
         );
         assertEquals(
             Set.of("year", "month"),
-            ExternalSourceAggregatePushdown.partitionColumnNames(
+            SourceStatisticsSerializer.partitionColumnNames(
                 Map.of(SourceStatisticsSerializer.PARTITION_COLUMNS_KEY, List.of("year", "month"))
             )
         );

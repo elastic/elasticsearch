@@ -89,6 +89,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetim
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDegrees;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVector;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDoubleRange;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToExponentialHistogram;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGauge;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoPoint;
@@ -174,15 +175,18 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCoun
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvDedupe;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvDifference;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvFirst;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersection;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLast;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMedian;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMedianAbsoluteDeviation;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPSeriesWeightedSum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentile;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvRLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSlice;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSort;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
@@ -599,8 +603,10 @@ public class EsqlFunctionRegistry {
                 MvDedupe.DEFINITION,
                 MvDifference.DEFINITION,
                 MvFirst.DEFINITION,
+                MvInRange.DEFINITION,
                 MvIntersection.DEFINITION,
                 MvLast.DEFINITION,
+                MvLike.DEFINITION,
                 MvMax.DEFINITION,
                 MvMedian.DEFINITION,
                 MvMedianAbsoluteDeviation.DEFINITION,
@@ -608,6 +614,7 @@ public class EsqlFunctionRegistry {
                 MvIntersects.DEFINITION,
                 MvPercentile.DEFINITION,
                 MvPSeriesWeightedSum.DEFINITION,
+                MvRLike.DEFINITION,
                 MvSort.DEFINITION,
                 MvSlice.DEFINITION,
                 MvUnion.DEFINITION,
@@ -664,7 +671,9 @@ public class EsqlFunctionRegistry {
                 // TSTEP is new enough that we only want to expose it on snapshot builds for now.
                 TStep.DEFINITION,
                 // dense vector functions
-                Magnitude.DEFINITION } };
+                Magnitude.DEFINITION,
+                // double_range is under construction; release TO_DOUBLE_RANGE together with the type.
+                ToDoubleRange.DEFINITION } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {
@@ -1161,6 +1170,9 @@ public class EsqlFunctionRegistry {
             capabilities.add(name, enabled);
             for (String sub : def.capabilities()) {
                 capabilities.add(name + "_" + sub, enabled);
+            }
+            for (String sub : def.snapshotCapabilities()) {
+                capabilities.add(name + "_" + sub, enabled && Build.current().isSnapshot());
             }
         }
     }

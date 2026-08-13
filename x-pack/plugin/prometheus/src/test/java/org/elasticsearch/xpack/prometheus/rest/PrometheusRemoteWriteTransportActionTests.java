@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.prometheus.proto.RemoteWrite;
 import org.elasticsearch.xpack.prometheus.rest.PrometheusRemoteWriteTransportAction.RemoteWriteRequest;
 import org.elasticsearch.xpack.prometheus.rest.PrometheusRemoteWriteTransportAction.RemoteWriteResponse;
 import org.junit.After;
+import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
 import java.util.Set;
@@ -61,9 +62,8 @@ public class PrometheusRemoteWriteTransportActionTests extends ESTestCase {
     private Releasable indexingPressureRelease;
     private AtomicBoolean indexingPressureReleased;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initAction() {
         client = mock(Client.class);
         when(client.prepareBulk()).thenAnswer(invocation -> new BulkRequestBuilder(client));
         transportService = mock(TransportService.class);

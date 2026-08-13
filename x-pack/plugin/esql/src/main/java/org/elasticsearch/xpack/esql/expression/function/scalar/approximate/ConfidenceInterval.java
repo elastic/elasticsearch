@@ -21,12 +21,15 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
@@ -47,7 +50,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  * This function is used internally by {@link ApproximationPlan}, and is not exposed
  * to users via the {@link EsqlFunctionRegistry}.
  */
-public class ConfidenceInterval extends EsqlScalarFunction {
+public class ConfidenceInterval extends EsqlScalarFunction implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "ConfidenceInterval",
@@ -63,6 +66,7 @@ public class ConfidenceInterval extends EsqlScalarFunction {
     private final Expression confidenceLevel;
 
     @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = { "double", },
         briefSummary = "Computes a confidence interval and its reliability from bootstrap estimates.",
         description = "Computes the confidence interval and its reliability for the given best estimate and bootstrap estimates. The "
@@ -271,11 +275,15 @@ public class ConfidenceInterval extends EsqlScalarFunction {
         // Collect estimates into an array.
         double[] estimates = new double[estimatesCount];
         boolean allNaNs = true;
+        double minEstimate = Double.MAX_VALUE;
+        double maxEstimate = Double.MIN_VALUE;
         int offset = estimatesBlock.getFirstValueIndex(position);
         for (int i = 0; i < estimatesCount; i++) {
             estimates[i] = estimatesBlock.getDouble(offset + i);
             if (Double.isNaN(estimates[i]) == false) {
                 allNaNs = false;
+                minEstimate = Math.min(minEstimate, estimates[i]);
+                maxEstimate = Math.max(maxEstimate, estimates[i]);
             }
         }
 
@@ -337,6 +345,19 @@ public class ConfidenceInterval extends EsqlScalarFunction {
         // Pick the NaN strategy that gives the mean closest to the best estimate.
         boolean ignoreNaNs = Math.abs(meanIgnoreNan - bestEstimate) < Math.abs(meanZeroNan - bestEstimate);
         double mm = ignoreNaNs ? meanIgnoreNan : meanZeroNan;
+
+        if (ignoreNaNs == false) {
+            minEstimate = Math.min(minEstimate, 0.0);
+            maxEstimate = Math.max(maxEstimate, 0.0);
+        }
+        // Estimates are totally inconsistent with bestEstimate. This can happen for metrics that
+        // are monotonic with sample size, such as MIN, MAX, COUNT_DISTINCT.
+        // Allow a little bit of numerical imprecision in the consistency check, which can happen
+        // due to round-off errors when aggregating zero-variance stats (e.g. AVG(x) BY x).
+        if (bestEstimate < minEstimate - 1e-12 * Math.abs(minEstimate) || bestEstimate > maxEstimate + 1e-12 * Math.abs(maxEstimate)) {
+            resultBuilder.appendNull();
+            return;
+        }
 
         // To compute the reliability of each trial's estimate, we use the skewness and kurtosis
         // of the bucket estimates. Under the null hypothesis these should be zero. If these are
@@ -435,7 +456,6 @@ public class ConfidenceInterval extends EsqlScalarFunction {
             resultBuilder.appendDouble((double) reliableCount / trialCount);
             resultBuilder.endPositionEntry();
         } else {
-
             resultBuilder.appendNull();
         }
     }

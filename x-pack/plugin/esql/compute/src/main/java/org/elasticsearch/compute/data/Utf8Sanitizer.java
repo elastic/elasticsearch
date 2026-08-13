@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.util.ByteUtils;
 
 import java.util.Arrays;
 
@@ -35,13 +36,35 @@ public final class Utf8Sanitizer {
     /** {@code U+FFFD} REPLACEMENT CHARACTER encoded as UTF-8. */
     private static final byte[] REPLACEMENT = { (byte) 0xEF, (byte) 0xBF, (byte) 0xBD };
 
+    /** Mask selecting the high bit of every byte in a {@code long}; a zero result means all-ASCII. */
+    private static final long ASCII_MASK = 0x8080808080808080L;
+
+    /**
+     * Advances {@code i} past a maximal run of all-ASCII 8-byte words, stopping at the first word
+     * containing a non-ASCII byte or at {@code wordEnd} (the exclusive bound past which an 8-byte read
+     * would cross {@code end}). Returns {@code i} unchanged when no full ASCII word starts at {@code i}.
+     */
+    private static int skipAsciiWords(byte[] bytes, int i, int wordEnd) {
+        while (i < wordEnd && (((long) ByteUtils.LITTLE_ENDIAN_LONG.get(bytes, i)) & ASCII_MASK) == 0) {
+            i += Long.BYTES;
+        }
+        return i;
+    }
+
     /**
      * Allocation-free scan reporting whether {@code [off, off+len)} is well-formed UTF-8.
      */
     public static boolean isWellFormed(byte[] bytes, int off, int len) {
         int i = off;
         int end = off + len;
+        // ASCII-dominant columns (the common case) are skipped a word at a time instead of byte at a time;
+        // any non-ASCII byte in the word falls through to the scalar path below.
+        int wordEnd = end - Long.BYTES + 1;
         while (i < end) {
+            i = skipAsciiWords(bytes, i, wordEnd);
+            if (i >= end) {
+                break;
+            }
             int b0 = bytes[i] & 0xFF;
             if (b0 < 0x80) {
                 // ASCII
@@ -132,7 +155,20 @@ public final class Utf8Sanitizer {
         int outLen = 0;
         int i = off;
         int end = off + len;
+        int wordEnd = end - Long.BYTES + 1;
         while (i < end) {
+            // Bulk-copy runs of ASCII words instead of re-deriving a 1-byte sequence length per byte.
+            int runEnd = skipAsciiWords(bytes, i, wordEnd);
+            if (runEnd > i) {
+                int runLen = runEnd - i;
+                out = ensureCapacity(out, outLen + runLen);
+                System.arraycopy(bytes, i, out, outLen, runLen);
+                outLen += runLen;
+                if (runEnd >= end) {
+                    break;
+                }
+                i = runEnd;
+            }
             int consumed = sequenceLength(bytes, i, end);
             if (consumed > 0) {
                 out = ensureCapacity(out, outLen + consumed);

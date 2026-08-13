@@ -20,13 +20,14 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.MinimalServiceSettings;
+import org.elasticsearch.inference.EndpointClusterState;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.metadata.EndpointMetadata;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.inference.action.InternalDeleteInferenceEndpointsAction;
 import org.elasticsearch.xpack.core.inference.action.RefreshAuthorizedEndpointsAction;
 import org.elasticsearch.xpack.core.inference.action.StoreInferenceEndpointsAction;
 import org.elasticsearch.xpack.inference.InferenceFeatures;
@@ -89,7 +90,8 @@ public class TransportRefreshAuthorizedEndpointsAction extends HandledTransportA
             return;
         }
 
-        if (inferenceFeatureService.hasFeature(InferenceFeatures.ENDPOINT_METADATA_FIELD) == false) {
+        if (inferenceFeatureService.hasFeature(InferenceFeatures.ENDPOINT_METADATA_FIELD) == false
+            || inferenceFeatureService.hasFeature(InferenceFeatures.INTERNAL_DELETE_INFERENCE_ENDPOINTS_ACTION) == false) {
             logger.info("Skipping sending authorization request, because the cluster is currently upgrading and missing required features");
             listener.onResponse(ActionResponse.Empty.INSTANCE);
             return;
@@ -124,10 +126,15 @@ public class TransportRefreshAuthorizedEndpointsAction extends HandledTransportA
         }
 
         logger.info("Deleting removed EIS inference endpoints: {}", toDelete);
-        modelRegistry.deleteModels(toDelete, ActionListener.wrap(success -> listener.onResponse(authModel), e -> {
-            logger.atWarn().withThrowable(e).log("Failed to delete removed EIS inference endpoints: {}", toDelete);
-            listener.onResponse(authModel);
-        }));
+        var deleteRequest = new InternalDeleteInferenceEndpointsAction.Request(toDelete, TimeValue.THIRTY_SECONDS);
+        client.execute(
+            InternalDeleteInferenceEndpointsAction.INSTANCE,
+            deleteRequest,
+            ActionListener.wrap(response -> listener.onResponse(authModel), e -> {
+                logger.atWarn().withThrowable(e).log("Failed to delete removed EIS inference endpoints: {}", toDelete);
+                listener.onResponse(authModel);
+            })
+        );
     }
 
     private List<Model> selectEndpointsToPersist(ElasticInferenceServiceAuthorizationModel authModel) {
@@ -140,7 +147,7 @@ public class TransportRefreshAuthorizedEndpointsAction extends HandledTransportA
 
         // We get all existing endpoints from the registry in a single call to ensure all decisions
         // of a single authorization request are based on a single cluster state.
-        Map<String, MinimalServiceSettings> existingById = modelRegistry.getMinimalServiceSettings(
+        Map<String, EndpointClusterState> existingById = modelRegistry.getEndpointClusterState(
             endpoints.stream().map(Model::getInferenceEntityId).collect(Collectors.toSet()),
             false
         );
@@ -149,7 +156,7 @@ public class TransportRefreshAuthorizedEndpointsAction extends HandledTransportA
             .collect(Collectors.toList());
     }
 
-    private static boolean shouldPersistEndpoint(Model newEndpoint, @Nullable MinimalServiceSettings existingEndpoint) {
+    private static boolean shouldPersistEndpoint(Model newEndpoint, @Nullable EndpointClusterState existingEndpoint) {
         if (existingEndpoint == null) {
             logger.debug(
                 () -> Strings.format(

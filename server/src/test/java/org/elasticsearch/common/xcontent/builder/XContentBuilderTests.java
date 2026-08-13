@@ -160,6 +160,24 @@ public class XContentBuilderTests extends ESTestCase {
         assertThat(Strings.toString(builder), equalTo("{\"test\":[\"1\",\"2\"]}"));
     }
 
+    public void testCharSequenceValue() throws Exception {
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        StringBuilder sb = new StringBuilder("hello");
+        builder.startObject().field("test").value((CharSequence) sb).endObject();
+        assertThat(Strings.toString(builder), equalTo("{\"test\":\"hello\"}"));
+    }
+
+    public void testCharSequenceValueReusedBuilder() throws Exception {
+        // The same StringBuilder, cleared and reappended between writes, must not leak stale content.
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        StringBuilder sb = new StringBuilder("first");
+        builder.startObject().field("a").value((CharSequence) sb);
+        sb.setLength(0);
+        sb.append("second");
+        builder.field("b").value((CharSequence) sb).endObject();
+        assertThat(Strings.toString(builder), equalTo("{\"a\":\"first\",\"b\":\"second\"}"));
+    }
+
     public void testWritingBinaryToStream() throws Exception {
         BytesStreamOutput bos = new BytesStreamOutput();
 
@@ -378,19 +396,18 @@ public class XContentBuilderTests extends ESTestCase {
         }
     }
 
-    public void testMissingEndObject() throws IOException {
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> {
+    public void testMissingEndObject() {
+        var e = expectThrows(AssertionError.class, () -> {
             try (XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()))) {
                 builder.startObject();
                 builder.field("foo", true);
             }
         });
-        assertThat(e.getMessage(), equalTo("Failed to close the XContentBuilder"));
-        assertThat(e.getCause().getMessage(), equalTo("Unclosed object or array found"));
+        assertThat(e.getMessage(), equalTo("Unclosed object or array found"));
     }
 
-    public void testMissingEndArray() throws IOException {
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> {
+    public void testMissingEndArray() {
+        var e = expectThrows(AssertionError.class, () -> {
             try (XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()))) {
                 builder.startObject();
                 builder.startArray("foo");
@@ -398,8 +415,7 @@ public class XContentBuilderTests extends ESTestCase {
                 builder.value(1);
             }
         });
-        assertThat(e.getMessage(), equalTo("Failed to close the XContentBuilder"));
-        assertThat(e.getCause().getMessage(), equalTo("Unclosed object or array found"));
+        assertThat(e.getMessage(), equalTo("Unclosed object or array found"));
     }
 
     private static class TestWritableValue {
@@ -544,5 +560,37 @@ public class XContentBuilderTests extends ESTestCase {
 
     public void testEnumIsXContentable() {
         XContentBuilder.ensureToXContentable(XContentableEnum.A);
+    }
+
+    public void testCloseAlwaysClosesUnderlyingJacksonGenerator() throws IOException {
+        var type = randomFrom(XContentType.values()).canonical();
+        XContentBuilder builder = XContentFactory.contentBuilder(type);
+
+        var e = expectThrows(AssertionError.class, () -> {
+            builder.startObject();
+            builder.field("foo", true);
+            builder.close();
+        });
+        assertThat(e.getMessage(), equalTo("Unclosed object or array found"));
+
+        if (type != XContentType.YAML) {
+            assertTrue(builder.generator().isClosed());
+        }
+    }
+
+    public void testCloseAllowIllFormedDoesNotValidateStructuralCorrectness() throws IOException {
+        var type = randomFrom(XContentType.values()).canonical();
+
+        XContentBuilder builder = XContentFactory.contentBuilder(type);
+        builder.startObject();
+        builder.field("foo", true);
+        builder.closeAllowIllFormed();
+
+        // SnakeYAML fails with an exception when trying to close a generator that is in the middle of object/array
+        // which is why the generator will not be marked as closed in that case: the important thing is that the XContentGenerator does not
+        // throw
+        if (type != XContentType.YAML) {
+            assertTrue(builder.generator().isClosed());
+        }
     }
 }

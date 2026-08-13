@@ -9,6 +9,8 @@
 
 package org.elasticsearch.inference.completion;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteable;
@@ -40,13 +42,27 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * @see ReasoningEffort
  * @see ReasoningSummary
  */
-public final class Reasoning implements ToXContentObject, NamedWriteable {
+public final class Reasoning implements Accountable, ToXContentObject, NamedWriteable {
 
     public static final String NAME = "reasoning";
 
-    public static final ConstructingObjectParser<Reasoning, Void> PARSER = new ConstructingObjectParser<>(
-        Reasoning.class.getSimpleName(),
-        args -> {
+    /**
+     * Strict parser that rejects unknown fields. Use this for user-facing request parsing (e.g. the
+     * unified completion request body and chat completion task settings) where an unrecognized field
+     * indicates a client mistake that should be surfaced as an error.
+     */
+    public static final ConstructingObjectParser<Reasoning, Void> PARSER = createParser(false);
+
+    /**
+     * Lenient parser that ignores unknown fields. Only use this where unknown fields are acceptable,
+     * such as parsing a server-to-server payload (e.g. the EIS authorization response) that may be
+     * produced by a newer version of the sender. Do not use this for user-facing request parsing;
+     * use {@link #PARSER} instead so client mistakes are surfaced as errors.
+     */
+    public static final ConstructingObjectParser<Reasoning, Void> LENIENT_PARSER = createParser(true);
+
+    private static ConstructingObjectParser<Reasoning, Void> createParser(boolean ignoreUnknownFields) {
+        var parser = new ConstructingObjectParser<Reasoning, Void>(Reasoning.class.getSimpleName(), ignoreUnknownFields, args -> {
             final var effort = args[0] == null ? null : ReasoningEffort.fromString((String) args[0]);
             final var summary = args[1] == null ? null : ReasoningSummary.fromString((String) args[1]);
             final var exclude = (Boolean) args[2];
@@ -55,8 +71,20 @@ public final class Reasoning implements ToXContentObject, NamedWriteable {
             validateFields(effort, enabled);
 
             return new Reasoning(effort, summary, exclude, enabled);
-        }
-    );
+        });
+
+        parser.declareRequiredFieldSet(EFFORT_FIELD, ENABLED_FIELD);
+
+        parser.declareString(optionalConstructorArg(), new ParseField(EFFORT_FIELD));
+        parser.declareString(optionalConstructorArg(), new ParseField(SUMMARY_FIELD));
+        parser.declareBoolean(optionalConstructorArg(), new ParseField(EXCLUDE_FIELD));
+        parser.declareBoolean(optionalConstructorArg(), new ParseField(ENABLED_FIELD));
+
+        return parser;
+    }
+
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Reasoning.class);
+    private static final long BOOLEAN_SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Boolean.class);
 
     @Nullable
     private final ReasoningEffort effort;
@@ -85,15 +113,6 @@ public final class Reasoning implements ToXContentObject, NamedWriteable {
         this.summary = summary;
         this.exclude = exclude;
         this.enabled = enabled;
-    }
-
-    static {
-        PARSER.declareRequiredFieldSet(EFFORT_FIELD, ENABLED_FIELD);
-
-        PARSER.declareString(optionalConstructorArg(), new ParseField(EFFORT_FIELD));
-        PARSER.declareString(optionalConstructorArg(), new ParseField(SUMMARY_FIELD));
-        PARSER.declareBoolean(optionalConstructorArg(), new ParseField(EXCLUDE_FIELD));
-        PARSER.declareBoolean(optionalConstructorArg(), new ParseField(ENABLED_FIELD));
     }
 
     /**
@@ -175,6 +194,11 @@ public final class Reasoning implements ToXContentObject, NamedWriteable {
     @Nullable
     public Boolean enabled() {
         return enabled;
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return SHALLOW_SIZE + (exclude == null ? 0L : BOOLEAN_SHALLOW_SIZE) + (enabled == null ? 0L : BOOLEAN_SHALLOW_SIZE);
     }
 
     @Override

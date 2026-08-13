@@ -18,6 +18,7 @@ import org.elasticsearch.index.IndexSettings;
 public class StandardAnalyzerProvider extends AbstractIndexAnalyzerProvider<StandardAnalyzer> {
 
     private final StandardAnalyzer standardAnalyzer;
+    private final Object sharingKey;
 
     public StandardAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(name);
@@ -26,10 +27,21 @@ public class StandardAnalyzerProvider extends AbstractIndexAnalyzerProvider<Stan
         int maxTokenLength = settings.getAsInt("max_token_length", StandardAnalyzer.DEFAULT_MAX_TOKEN_LENGTH);
         standardAnalyzer = new StandardAnalyzer(stopWords);
         standardAnalyzer.setMaxTokenLength(maxTokenLength);
+        // stopwords_case is not documented for the standard analyzer but is honoured in practice
+        // (parseStopWords reads it and the stop filter respects it for uppercase stopwords), so fold
+        // it into the sharing key — two recipes differing only in case handling must not share.
+        this.sharingKey = new Key(Analysis.stableStopWords(settings, stopWords), maxTokenLength);
     }
 
     @Override
     public StandardAnalyzer get() {
         return this.standardAnalyzer;
     }
+
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(Analysis.StableCharArraySet stopWords, int maxTokenLength) {}
 }

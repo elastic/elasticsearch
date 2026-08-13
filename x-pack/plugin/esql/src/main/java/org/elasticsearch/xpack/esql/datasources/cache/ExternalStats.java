@@ -133,6 +133,17 @@ public final class ExternalStats {
      */
     public static final String STRIPE_GRID_KEY = "_stats.stripe_grid";
 
+    /**
+     * True for the coordinator-cache per-stripe bookkeeping keys ({@link #STRIPE_ENTRY_PREFIX} sub-entries,
+     * {@link #STRIPE_LAST_INDEX_KEY}, {@link #STRIPE_GRID_KEY}) — the accumulation state behind the
+     * {@code 0..K} whole-file fold. They have no consumer outside {@code ExternalSourceCacheService}: the
+     * resolver strips them off the plan wire and the cache clears them once they can no longer contribute
+     * (complete fold, stale grid). This predicate is the single definition of that key set.
+     */
+    public static boolean isStripeBookkeeping(String key) {
+        return key.startsWith(STRIPE_ENTRY_PREFIX) || key.equals(STRIPE_LAST_INDEX_KEY) || key.equals(STRIPE_GRID_KEY);
+    }
+
     private ExternalStats() {}
 
     /**

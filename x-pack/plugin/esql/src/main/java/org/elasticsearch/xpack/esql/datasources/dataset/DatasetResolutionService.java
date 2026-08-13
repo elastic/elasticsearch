@@ -24,10 +24,12 @@ import java.util.Map;
 import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE;
 
 /**
- * Resolves dataset name expressions (including wildcards) to {@link Dataset} instances, mirroring
- * {@link org.elasticsearch.xpack.esql.view.ViewResolutionService}. Wildcards may expand across the wider
- * index namespace and are filtered down to datasets, while an explicit name must resolve to a dataset;
- * explicit missing, hidden, or co-resident foreign resources are reported as not-found.
+ * Resolves dataset name expressions (including wildcards) to {@link Dataset} instances, following the same
+ * resolution flow as {@link org.elasticsearch.xpack.esql.view.ViewResolutionService}. Wildcards may expand across
+ * the wider index namespace and are filtered down to datasets, while an explicit name must resolve to a dataset;
+ * explicit missing, hidden, or co-resident foreign resources are reported as not-found. This is deliberately
+ * stricter than view resolution, which returns an empty result for an explicit name that only matches a
+ * co-resident foreign resource rather than 404-ing it; see the dataset-strict contract from #152497.
  */
 public class DatasetResolutionService {
 

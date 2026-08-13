@@ -108,9 +108,7 @@ public class ProfilingIndexManagerTests extends ESTestCase {
     }
 
     @After
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void shutdownThreadPool() throws Exception {
         threadPool.shutdownNow();
     }
 
@@ -522,7 +520,8 @@ public class ProfilingIndexManagerTests extends ESTestCase {
                 true,
                 RecoverySource.ExistingStoreRecoverySource.INSTANCE,
                 new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""),
-                ShardRouting.Role.DEFAULT
+                ShardRouting.Role.DEFAULT,
+                ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
             );
             if (allShardsAssigned) {
                 shardRouting = shardRouting.initialize("node0", null, 0).moveToStarted(0);

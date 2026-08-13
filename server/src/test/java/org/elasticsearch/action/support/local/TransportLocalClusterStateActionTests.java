@@ -60,17 +60,14 @@ public class TransportLocalClusterStateActionTests extends ESTestCase {
         threadPool = new TestThreadPool(getTestClass().getName());
     }
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initServices() throws Exception {
         clusterService = createClusterService(threadPool);
         taskManager = new TaskManager(clusterService.getSettings(), threadPool, Set.of());
     }
 
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void closeClusterService() throws Exception {
         clusterService.close();
     }
 

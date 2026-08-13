@@ -47,6 +47,17 @@ public class ReferenceAttributeTests extends AbstractNamedExpressionSerializatio
         return (ReferenceAttribute) instance.withId(new NameId());
     }
 
+    /**
+     * Ensures {@code withQualifier} applies the new qualifier rather than returning
+     * the unchanged attribute, and still avoids cloning when the qualifier is equal.
+     */
+    public void testWithQualifier() {
+        ReferenceAttribute attribute = randomReferenceAttribute(false);
+        String newQualifier = randomValueOtherThan(attribute.qualifier(), () -> randomBoolean() ? null : randomAlphaOfLength(5));
+        assertEquals(newQualifier, attribute.withQualifier(newQualifier).qualifier());
+        assertSame(attribute, attribute.withQualifier(attribute.qualifier()));
+    }
+
     @Override
     protected boolean equalityIgnoresId() {
         return false;

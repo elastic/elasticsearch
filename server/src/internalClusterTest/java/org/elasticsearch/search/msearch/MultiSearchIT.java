@@ -296,6 +296,34 @@ public class MultiSearchIT extends ESIntegTestCase {
         }
     }
 
+    public void testMrtDefaultsToFalseInCps() throws IOException {
+        String body = """
+            {"index": "index-1" }
+            {"query" : {"match" : { "message": "this is a test"}}}
+            {"index": "index-2" }
+            {"query" : {"match_all" : {}}}
+            """;
+
+        MultiSearchRequest mreq = parseCpsRequest(body, Map.of());
+        for (SearchRequest req : mreq.requests()) {
+            assertFalse(req.isCcsMinimizeRoundtrips());
+        }
+    }
+
+    public void testMrtParamIsIgnoredInCps() throws IOException {
+        String body = """
+            {"index": "index-1", "ccs_minimize_roundtrips": true }
+            {"query" : {"match" : { "message": "this is a test"}}}
+            {"index": "index-2", "ccs_minimize_roundtrips": true }
+            {"query" : {"match_all" : {}}}
+            """;
+
+        MultiSearchRequest mreq = parseCpsRequest(body, Map.of("ccs_minimize_roundtrips", "true"));
+        for (SearchRequest req : mreq.requests()) {
+            assertFalse(req.isCcsMinimizeRoundtrips());
+        }
+    }
+
     public void testTopLevelSliceParamIsAppliedToAllSubRequests() throws IOException {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         String body = """
@@ -316,11 +344,11 @@ public class MultiSearchIT extends ESIntegTestCase {
     public void testRoutingAndSliceCannotBeMixedAcrossRequestLevels() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         String body = """
-            {"_slice": "s1" }
+            {"slice": "s1" }
             {"query" : {"match_all" : {}}}
             """;
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> parseRequest(body, Map.of("routing", "r1")));
-        assertThat(ex.getMessage(), Matchers.is("[routing] and [_slice] cannot be combined in the same _msearch request"));
+        assertThat(ex.getMessage(), Matchers.is("[routing] and [slice] cannot be combined in the same _msearch request"));
     }
 
     public void testSliceEnabledIndexDefaultsToAllAndRejectsRoutingInExecution() throws Exception {
@@ -346,7 +374,7 @@ public class MultiSearchIT extends ESIntegTestCase {
                 response.getResponses()[1].getFailure().getMessage(),
                 containsString("[routing] is not allowed when [index.slice.enabled] is true")
             );
-            assertThat(response.getResponses()[1].getFailure().getMessage(), containsString("use [_slice] instead"));
+            assertThat(response.getResponses()[1].getFailure().getMessage(), containsString("use [slice] instead"));
         });
     }
 
@@ -367,11 +395,11 @@ public class MultiSearchIT extends ESIntegTestCase {
         String body = """
             {"index":"routing-index","routing":"r1"}
             {"query":{"term":{"field.keyword":"routing-r1"}}}
-            {"index":"slice-index","_slice":"s1"}
+            {"index":"slice-index","slice":"s1"}
             {"query":{"term":{"field.keyword":"slice-s1"}}}
             {"index":"routing-index","routing":"r2"}
             {"query":{"term":{"field.keyword":"routing-r2"}}}
-            {"index":"slice-index","_slice":"s2"}
+            {"index":"slice-index","slice":"s2"}
             {"query":{"term":{"field.keyword":"slice-s2"}}}
             """;
         MultiSearchRequest request = parseRequest(body, Map.of());
@@ -418,6 +446,16 @@ public class MultiSearchIT extends ESIntegTestCase {
             (ignored) -> true,
             // Disable CPS for these tests.
             Optional.of(false)
+        );
+    }
+
+    private MultiSearchRequest parseCpsRequest(String body, Map<String, String> params) throws IOException {
+        return RestMultiSearchAction.parseRequest(
+            mkRequest(body, params),
+            true,
+            new UsageService().getSearchUsageHolder(),
+            (ignored) -> true,
+            Optional.of(true)
         );
     }
 

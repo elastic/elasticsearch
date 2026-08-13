@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
@@ -100,7 +101,7 @@ public class Lookup extends UnaryPlan implements SurrogateLogicalPlan, Telemetry
     @Override
     public LogicalPlan surrogate() {
         // left join between the main relation and the local, lookup relation
-        return new Join(source(), child(), localRelation, joinConfig(), false);
+        return new Join(source(), child(), localRelation, joinConfig(), ExecuteLocation.ANY);
     }
 
     public JoinConfig joinConfig() {

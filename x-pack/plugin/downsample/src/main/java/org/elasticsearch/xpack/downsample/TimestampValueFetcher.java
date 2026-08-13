@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.downsample;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.internal.hppc.IntArrayList;
+import org.apache.lucene.internal.hppc.LongArrayList;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.index.fielddata.plain.LeafLongFieldData;
@@ -33,17 +34,17 @@ class TimestampValueFetcher {
         return numericFieldData.getLongValues();
     }
 
-    static long[] fetch(SortedNumericLongValues timestampDocValues, IntArrayList docIdBuffer) throws IOException {
-        long[] timestamps = new long[docIdBuffer.size()];
+    static void fetch(SortedNumericLongValues timestampDocValues, IntArrayList docIdBuffer, LongArrayList timestampBuffer)
+        throws IOException {
+        assert timestampBuffer.buffer.length >= timestampBuffer.elementsCount + docIdBuffer.size() : "timestamp buffer capacity too small";
         for (int i = 0; i < docIdBuffer.size(); i++) {
             int docId = docIdBuffer.get(i);
             if (timestampDocValues.advanceExact(docId) == false) {
-                timestamps[i] = -1;
+                timestampBuffer.buffer[timestampBuffer.elementsCount++] = -1;
+                continue;
             }
-            int docValuesCount = timestampDocValues.docValueCount();
-            assert docValuesCount == 1;
-            timestamps[i] = timestampDocValues.nextValue();
+            assert timestampDocValues.docValueCount() == 1;
+            timestampBuffer.buffer[timestampBuffer.elementsCount++] = timestampDocValues.nextValue();
         }
-        return timestamps;
     }
 }

@@ -378,7 +378,7 @@ public class XPackPlugin extends XPackClientPlugin
         List<RestHandler> handlers = new ArrayList<>();
         handlers.add(new RestXPackInfoAction());
         handlers.add(new RestXPackUsageAction(DiscoveryNode.isStateless(settings)));
-        handlers.add(new RestTermsEnumAction());
+        handlers.add(new RestTermsEnumAction(restHandlersServices.crossProjectModeDecider()));
         handlers.add(new RestGetLicenseAction());
         handlers.add(new RestPutLicenseAction());
         handlers.add(new RestDeleteLicenseAction());

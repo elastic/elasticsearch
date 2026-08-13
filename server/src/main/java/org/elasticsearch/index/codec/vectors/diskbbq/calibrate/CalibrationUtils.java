@@ -13,8 +13,13 @@ import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
+import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.MergeState;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.IntroSelector;
+import org.apache.lucene.util.IntroSorter;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues;
 import org.elasticsearch.index.codec.vectors.diskbbq.Preconditioner;
 import org.elasticsearch.simdvec.ESVectorUtil;
@@ -33,7 +38,11 @@ import java.util.Random;
  */
 public final class CalibrationUtils {
 
-    static final int MAX_QUERY_SAMPLE = 1024;
+    // Query sample for calibration: a small query set (256) is sufficient to average rank distances and
+    // quantization-error statistics, and drives both the manifold fit and the residual error sweep, so it
+    // is the dominant lever on calibration cost. The corpus sample stays large (16384) to keep the manifold
+    // distance-scaling fit accurate.
+    static final int MAX_QUERY_SAMPLE = 256;
     static final int MAX_CORPUS_SAMPLE = 16384;
     static final long CALIBRATION_SEED = 215873873L;
 
@@ -265,7 +274,7 @@ public final class CalibrationUtils {
      * tracked via a {@link HashMap} keyed on the swapped positions. This is O(totalSample) time and
      * space with no rejection retries and no boxing beyond the map entries.
      */
-    static SampledData sampleData(FloatVectorValues vectorValues, int maxQuerySample, int maxCorpusSample) throws IOException {
+    static SampledData sampleData(FloatVectorValues vectorValues, int maxQuerySample, int maxCorpusSample) {
         int n = vectorValues.size();
         Random rng = new Random(CALIBRATION_SEED);
         int nQueries = Math.min(maxQuerySample, n / 2);
@@ -304,7 +313,10 @@ public final class CalibrationUtils {
     }
 
     /**
-     * Total live vectors for {@code fieldInfo} across merge inputs.
+     * Total live (non-deleted) vectors for {@code fieldInfo} across merge inputs. Segments without deletes
+     * ({@code liveDocs == null}) contribute {@link FloatVectorValues#size()} directly; segments with deletes
+     * are counted by intersecting their vector doc ids with {@code liveDocs} (one pass over the segment's
+     * vectors), the only way to exclude deleted vectors since Lucene's merged sub-readers are package-private.
      */
     public static int countMergedVectors(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
         Objects.requireNonNull(fieldInfo, "fieldInfo");
@@ -315,8 +327,19 @@ public final class CalibrationUtils {
         int total = 0;
         for (int i = 0; i < mergeState.knnVectorsReaders.length; i++) {
             FloatVectorValues segmentVectors = segmentFloatVectorValues(fieldInfo, mergeState, i);
-            if (segmentVectors != null) {
+            if (segmentVectors == null) {
+                continue;
+            }
+            Bits liveDocs = mergeState.liveDocs == null ? null : mergeState.liveDocs[i];
+            if (liveDocs == null) {
                 total += segmentVectors.size();
+            } else {
+                KnnVectorValues.DocIndexIterator iterator = segmentVectors.iterator();
+                for (int doc = iterator.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = iterator.nextDoc()) {
+                    if (liveDocs.get(doc)) {
+                        total++;
+                    }
+                }
             }
         }
         return total;
@@ -376,6 +399,69 @@ public final class CalibrationUtils {
         }
 
         return KMeansFloatVectorValues.build(result, null, dim);
+    }
+
+    /**
+     * Fills {@code idx[0..n)} with the indices of the {@code n} largest {@code keys[0..len)}, ordered by
+     * descending key.
+     * Requires {@code idx.length >= len} and {@code 0 <= n <= len}. Survivors are ordered descending so the caller
+     * accumulates error moments largest-first.
+     */
+    static void selectTopNDescending(double[] keys, int[] idx, int len, int n) {
+        for (int i = 0; i < len; i++) {
+            idx[i] = i;
+        }
+        int m = Math.min(n, len);
+        if (m <= 0) {
+            return;
+        }
+        if (m < len) {
+            // partition idx so idx[0..m) hold the m largest keys (unordered). select(from, to, k) leaves the k
+            // elements that sort first in [from, k); under this descending comparator those are the m largest.
+            new IntroSelector() {
+                double pivot;
+
+                @Override
+                protected void swap(int i, int j) {
+                    int tmp = idx[i];
+                    idx[i] = idx[j];
+                    idx[j] = tmp;
+                }
+
+                @Override
+                protected void setPivot(int i) {
+                    pivot = keys[idx[i]];
+                }
+
+                @Override
+                protected int comparePivot(int j) {
+                    // descending: pivot sorts before j when pivot's key is larger
+                    return Double.compare(keys[idx[j]], pivot);
+                }
+            }.select(0, len, m);
+        }
+        // order the m selected indices descending by key.
+        new IntroSorter() {
+            double pivot;
+
+            @Override
+            protected void swap(int i, int j) {
+                int tmp = idx[i];
+                idx[i] = idx[j];
+                idx[j] = tmp;
+            }
+
+            @Override
+            protected void setPivot(int i) {
+                pivot = keys[idx[i]];
+            }
+
+            @Override
+            protected int comparePivot(int j) {
+                // descending: pivot sorts before j when pivot's key is larger
+                return Double.compare(keys[idx[j]], pivot);
+            }
+        }.sort(0, m);
     }
 
 }

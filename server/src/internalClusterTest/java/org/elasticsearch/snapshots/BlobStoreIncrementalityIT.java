@@ -21,7 +21,6 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -147,14 +146,12 @@ public class BlobStoreIncrementalityIT extends AbstractSnapshotIntegTestCase {
         final String indexName = "test-index";
         createIndex(
             indexName,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            indexSettings(1, 0)
                 // disable automatic refresh so the docs indexed below land in exactly two segments
                 .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "-1")
                 // retention leases protect recent deletes from being merged away; sync them
                 // frequently so the merges below can reclaim the deletes promptly
-                .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "200ms")
+                .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "100ms")
                 .build()
         );
         ensureGreen(indexName);
@@ -201,7 +198,7 @@ public class BlobStoreIncrementalityIT extends AbstractSnapshotIntegTestCase {
             assertThat(forceMerge.get().getFailedShards(), is(0));
             final IndexStats stats = indicesAdmin().prepareStats(indexName).get().getIndex(indexName);
             assertThat(stats.getIndexShards().get(0).getPrimary().getDocs().getDeleted(), is(0L));
-        }, 30, TimeUnit.SECONDS);
+        });
 
         final String snapshot2 = "snap-2";
         createSnapshot(repo, snapshot2, Collections.singletonList(indexName));

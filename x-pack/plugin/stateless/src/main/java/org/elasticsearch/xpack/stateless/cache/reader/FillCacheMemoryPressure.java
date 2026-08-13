@@ -38,8 +38,7 @@ import java.util.concurrent.Executor;
  * Acquirers queue FIFO rather than being rejected: rejection would fail warming/prefetching in the very overload this exists for.
  * Latency-sensitive paths (cache-miss reads) must bypass; see {@link CacheBlobReaderService}.
  *
- * A queue head unmoved for {@link #STALL_WARN_THRESHOLD} means nothing was released in that period — typically an admitted read whose
- * stream was never drained or closed. WARN'd at most once per period.
+ * WARNs if no budget is released for {@link #STALL_WARN_THRESHOLD} while reads queue — typically a stream never drained or closed.
  *
  * No shutdown handling: queued listeners must tolerate never completing (all acquirers are speculative fills, for which this is
  * inherent anyway).
@@ -58,6 +57,7 @@ public class FillCacheMemoryPressure {
     public static final Setting<TimeValue> STALL_WARN_THRESHOLD = Setting.timeSetting(
         "stateless.fill_cache.memory.stall_warn_threshold",
         TimeValue.timeValueSeconds(60),
+        TimeValue.timeValueMillis(1),
         Setting.Property.NodeScope
     );
 
@@ -74,9 +74,11 @@ public class FillCacheMemoryPressure {
     private long currentBytes = 0;
     private long waitingBytes = 0;
     private boolean stallCheckScheduled = false;
+    // reset to now when the queue forms or budget is released; stall = no release for the full threshold period
+    private long lastBudgetReleaseMillis = 0;
     private final ArrayDeque<Waiter> waiters = new ArrayDeque<>();
 
-    private record Waiter(long bytes, Executor executor, ActionListener<Releasable> listener, long enqueuedAtMillis) {}
+    private record Waiter(long bytes, Executor executor, ActionListener<Releasable> listener) {}
 
     public FillCacheMemoryPressure(Settings settings, MeterRegistry meterRegistry, ThreadPool threadPool) {
         this.fillBytesLimit = FILL_BYTES_LIMIT.get(settings).getBytes();
@@ -109,7 +111,10 @@ public class FillCacheMemoryPressure {
                 grant(bytes);
                 queued = false;
             } else {
-                waiters.addLast(new Waiter(bytes, executor, listener, threadPool.relativeTimeInMillis()));
+                if (waiters.isEmpty()) {
+                    lastBudgetReleaseMillis = threadPool.relativeTimeInMillis();
+                }
+                waiters.addLast(new Waiter(bytes, executor, listener));
                 waitingBytes += bytes;
                 metricWaitingBytes.add(bytes);
                 logger.trace(() -> Strings.format("queued fill read of [%d] bytes behind [%d] waiters", bytes, waiters.size() - 1));
@@ -124,7 +129,7 @@ public class FillCacheMemoryPressure {
         if (queued) {
             return;
         }
-        listener.onResponse(releasableFor(bytes));
+        deliverGrant(bytes, listener);
     }
 
     // caller must hold mutex
@@ -154,7 +159,7 @@ public class FillCacheMemoryPressure {
             long reclaimed = 0;
             for (Waiter waiter : returnBudgetAndGrantWaiters(bytesToReturn)) {
                 try {
-                    waiter.executor().execute(() -> deliverGrant(waiter));
+                    waiter.executor().execute(() -> deliverGrant(waiter.bytes(), waiter.listener()));
                 } catch (Exception e) {
                     // executor rejected (node shutting down): reclaim budget, fail waiter — but collect (do not
                     // propagate) any exception from onFailure so subsequent granted waiters are still notified.
@@ -180,6 +185,7 @@ public class FillCacheMemoryPressure {
             currentBytes -= bytes;
             metricCurrentBytes.add(-bytes);
             assert currentBytes >= 0 : "fill budget underflow [" + currentBytes + "]";
+            lastBudgetReleaseMillis = threadPool.relativeTimeInMillis();
             Waiter head;
             while ((head = waiters.peekFirst()) != null && fits(head.bytes())) {
                 waiters.pollFirst();
@@ -192,13 +198,13 @@ public class FillCacheMemoryPressure {
         return granted;
     }
 
-    // runs on the waiter's executor; hands the Releasable to the listener and releases the budget if the listener throws
-    // before it can take ownership (otherwise the grant would leak — currentBytes stays inflated with no live read).
-    private void deliverGrant(Waiter waiter) {
-        final Releasable budget = releasableFor(waiter.bytes());
+    // hands the Releasable to the listener and releases the budget if the listener throws before it can take
+    // ownership (otherwise the grant would leak — currentBytes stays inflated with no live read).
+    private void deliverGrant(long bytes, ActionListener<Releasable> listener) {
+        final Releasable budget = releasableFor(bytes);
         boolean handedOff = false;
         try {
-            waiter.listener().onResponse(budget);
+            listener.onResponse(budget);
             handedOff = true;
         } finally {
             if (handedOff == false) {
@@ -210,7 +216,7 @@ public class FillCacheMemoryPressure {
     // caller must hold mutex
     private boolean tryScheduleStallCheckLocked(TimeValue delay) {
         try {
-            threadPool.schedule(this::checkForStalledHeadWaiter, delay, threadPool.generic());
+            threadPool.schedule(this::checkForStalledQueue, delay, threadPool.generic());
             return true;
         } catch (Exception e) {
             // scheduler rejected (node shutting down): stall monitoring ends
@@ -220,10 +226,10 @@ public class FillCacheMemoryPressure {
 
     /**
      * Runs {@link #STALL_WARN_THRESHOLD} after the queue becomes non-empty and re-arms while it stays non-empty (WARN at most once per
-     * period). Watching only the head suffices: FIFO grants mean a stale head implies zero grants in that period.
+     * period). A stall is a full threshold period with zero budget released while reads queue.
      */
-    private void checkForStalledHeadWaiter() {
-        final long headWaitedMillis;
+    private void checkForStalledQueue() {
+        final long quietMillis;
         final long headBytes;
         final int waiterCount;
         final long waitingBytesSnapshot;
@@ -234,19 +240,19 @@ public class FillCacheMemoryPressure {
                 stallCheckScheduled = false;
                 return;
             }
-            headWaitedMillis = threadPool.relativeTimeInMillis() - head.enqueuedAtMillis();
+            quietMillis = threadPool.relativeTimeInMillis() - lastBudgetReleaseMillis;
             headBytes = head.bytes();
             waiterCount = waiters.size();
             waitingBytesSnapshot = waitingBytes;
             currentBytesSnapshot = currentBytes;
         }
         final TimeValue nextDelay;
-        if (headWaitedMillis >= stallWarnThreshold.millis()) {
+        if (quietMillis >= stallWarnThreshold.millis()) {
             logger.warn(
                 "cache-fill memory budget stalled: no budget released for [{}] while the queue head waits for [{}] bytes; "
                     + "[{}] waiters totaling [{}] bytes; [{}] of [{}] bytes admitted but not yet released — "
                     + "check for admitted reads whose stream was never drained or closed",
-                TimeValue.timeValueMillis(headWaitedMillis),
+                TimeValue.timeValueMillis(quietMillis),
                 headBytes,
                 waiterCount,
                 waitingBytesSnapshot,
@@ -255,7 +261,7 @@ public class FillCacheMemoryPressure {
             );
             nextDelay = stallWarnThreshold;
         } else {
-            nextDelay = TimeValue.timeValueMillis(stallWarnThreshold.millis() - headWaitedMillis);
+            nextDelay = TimeValue.timeValueMillis(stallWarnThreshold.millis() - quietMillis);
         }
         synchronized (mutex) {
             // re-check under mutex: the queue may have drained between the snapshot above and here

@@ -120,8 +120,9 @@ public final class DateFieldMapper extends FieldMapper {
         .toDateMathParser();
     public static final NodeFeature INVALID_DATE_FIX = new NodeFeature("mapper.range.invalid_date_fix");
 
-    // FieldType constants for the two SortedNumericDocValuesField variants emitted by dvFactory.addNumericField.
-    // The compat harness compares frozen FieldType, so the column must carry exactly the same type.
+    // FieldType constants for the Lucene field variants emitted by the columnar parse path.
+    // The compat harness compares frozen FieldType, so the column must carry exactly the same type
+    // as the corresponding field produced by the row-major path.
     private static final IndexableFieldType SORTED_NUMERIC_DV_FIELD_TYPE = SortedNumericDocValuesField.TYPE;
     private static final IndexableFieldType SORTED_NUMERIC_DV_INDEXED_FIELD_TYPE = SortedNumericDocValuesField.indexedField("_sentinel", 0L)
         .fieldType();
@@ -1275,8 +1276,8 @@ public final class DateFieldMapper extends FieldMapper {
 
     @Override
     public boolean supportsColumnarParse(IndexSettings indexSettings) {
-        // Columnar support requires strict-columnar index mode and a plain doc-values-only date
-        // field. doc_values.multi_value and ignore_malformed are not implemented by mapColumnBatch
+        // Columnar support requires strict-columnar index mode and a doc-values date field.
+        // doc_values.multi_value and ignore_malformed are not implemented by mapColumnBatch
         // but are deliberately not rejected here instead rejected at parse time.
         return indexSettings.getMode().isStrictColumnar()
             && docValuesParameters.enabled()

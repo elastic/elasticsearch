@@ -389,7 +389,7 @@ class AzureClientProvider extends AbstractLifecycleComponent {
 
             IOUtils.closeWhileHandlingException(refs);
             connectionProviderDisposals.close();
-            allConnectionProvidersDisposed.actionGet(TimeValue.timeValueSeconds(10));
+            allConnectionProvidersDisposed.actionGet(TimeValue.timeValueSeconds(30));
         } catch (RuntimeException e) {
             logger.warn("Error disposing connection providers", e);
         } finally {

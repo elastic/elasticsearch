@@ -10,8 +10,12 @@ package org.elasticsearch.compute.operator;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.FilteringTokenFilter;
+import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.miscellaneous.LimitTokenOffsetFilter;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
+import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.memory.MemoryIndex;
@@ -37,13 +41,11 @@ import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.lucene.search.uhighlight.BoundedBreakIteratorScanner;
 import org.elasticsearch.lucene.search.uhighlight.CustomPassageFormatter;
 import org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighter;
 import org.elasticsearch.lucene.search.uhighlight.QueryMaxAnalyzedOffset;
 import org.elasticsearch.lucene.search.uhighlight.Snippet;
-import org.elasticsearch.search.fetch.subphase.highlight.LimitTokenOffsetAnalyzer;
 
 import java.io.IOException;
 import java.text.BreakIterator;
@@ -89,7 +91,6 @@ public class HighlightOperator extends AbstractPageMappingOperator {
     private final Query query;
     private final List<String> fieldNames;
     private final Analyzer analyzer;
-    private final Analyzer memoryIndexAnalyzer;
     private final PassageFormatter formatter;
     private final int indexMaxAnalyzedOffset;
     private final QueryMaxAnalyzedOffset queryMaxAnalyzedOffset;
@@ -97,7 +98,6 @@ public class HighlightOperator extends AbstractPageMappingOperator {
     private final Supplier<BreakIterator> breakIteratorSupplier;
     private final ExpressionEvaluator[] fieldEvaluators;
     private final MemoryIndex memoryIndex;
-    private LeafReader memoryIndexReader;
     private final CustomUnifiedHighlighter[] highlighters;
     private final CharArraySet termsToKeep;
 
@@ -118,8 +118,6 @@ public class HighlightOperator extends AbstractPageMappingOperator {
         int configuredOffset = config.maxAnalyzedOffset();
         int queryOffset = configuredOffset < 0 ? indexMaxAnalyzedOffset : Math.min(configuredOffset, indexMaxAnalyzedOffset);
         this.queryMaxAnalyzedOffset = QueryMaxAnalyzedOffset.create(queryOffset, indexMaxAnalyzedOffset);
-        Analyzer indexingAnalyzer = analyzer instanceof NamedAnalyzer named ? named.analyzer() : analyzer;
-        this.memoryIndexAnalyzer = new LimitTokenOffsetAnalyzer(indexingAnalyzer, queryMaxAnalyzedOffset.getNotNull());
         // number_of_fragments=0 means whole value; CustomUnifiedHighlighter uses MAX_VALUE-1 for that.
         this.highlighterNumberOfFragments = config.numberOfFragments() > 0 ? config.numberOfFragments() : Integer.MAX_VALUE - 1;
         this.breakIteratorSupplier = breakIterator(
@@ -282,7 +280,8 @@ public class HighlightOperator extends AbstractPageMappingOperator {
             appendNulls(fields);
             return;
         }
-        if (indexRow(fields) == false) {
+        LeafReader memoryIndexReader = indexRow(fields);
+        if (memoryIndexReader == null) {
             appendNulls(fields);
             return;
         }
@@ -293,7 +292,7 @@ public class HighlightOperator extends AbstractPageMappingOperator {
                 continue;
             }
             try {
-                appendSnippets(field.builder, highlight(fieldIndex, field.rowText));
+                appendSnippets(field.builder, highlight(memoryIndexReader, fieldIndex, field.rowText));
             } catch (IOException e) {
                 throw new IllegalStateException("HIGHLIGHT failed for ON field [" + field.name + "]", e);
             }
@@ -301,33 +300,33 @@ public class HighlightOperator extends AbstractPageMappingOperator {
     }
 
     /**
-     * Analyzes this row's values into the shared memory index. Returns {@code false} when filtering kept nothing the
-     * query could match and {@code no_match_size} is 0, so every field of the row is {@code null} and the caller can
-     * skip the highlighters.
+     * Analyzes this row's values into the shared memory index and returns a {@link LeafReader} over it. Returns
+     * {@code null} when filtering kept nothing the query could match and {@code no_match_size} is 0, so every field of
+     * the row is {@code null} and the caller can skip the highlighters.
      */
-    private boolean indexRow(HighlightField[] fields) {
+    private LeafReader indexRow(HighlightField[] fields) {
         memoryIndex.reset();
         boolean keptToken = false;
         for (HighlightField field : fields) {
             if (field.rowText == null) {
                 continue;
             }
-            if (termsToKeep == null) {
-                memoryIndex.addField(field.name, field.rowText, memoryIndexAnalyzer);
-            } else {
-                TokenStream tokenStream = memoryIndexAnalyzer.tokenStream(field.name, field.rowText);
-                KeepQueryTermsFilter filtered = new KeepQueryTermsFilter(tokenStream, termsToKeep);
-                memoryIndex.addField(field.name, filtered); // addField resets and closes the stream
+            TokenStream tokenStream = new LimitTokenOffsetFilter(rowTokenStream(field), queryMaxAnalyzedOffset.getNotNull(), false);
+            KeepQueryTermsFilter filtered = null;
+            if (termsToKeep != null) {
+                tokenStream = filtered = new KeepQueryTermsFilter(tokenStream, termsToKeep);
+            }
+            memoryIndex.addField(field.name, tokenStream); // addField resets and closes the stream
+            if (filtered != null) {
                 keptToken |= filtered.keptToken;
             }
         }
         // With filtering off keptToken stays false, so it says nothing about the row.
         if (termsToKeep != null && keptToken == false && config.noMatchSize() == 0) {
-            return false;
+            return null;
         }
         // MemoryIndex snapshots FieldInfos at reader construction, so create it after addField.
-        memoryIndexReader = (LeafReader) memoryIndex.createSearcher().getIndexReader();
-        return true;
+        return (LeafReader) memoryIndex.createSearcher().getIndexReader();
     }
 
     /**
@@ -353,6 +352,88 @@ public class HighlightOperator extends AbstractPageMappingOperator {
             boolean keep = terms.contains(termAtt.buffer(), 0, termAtt.length());
             keptToken |= keep;
             return keep;
+        }
+    }
+
+    /**
+     * Analyzes the row text of {@code field}. Multi-valued rows are analyzed one value at a time, as they would be
+     * when indexed: the analyzer never sees the separator, the position increment gap keeps phrases from matching
+     * across values, and offsets are rebased onto the joined row text the highlighter cuts passages from.
+     */
+    private TokenStream rowTokenStream(HighlightField field) {
+        int firstValueEnd = field.rowText.indexOf(CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR);
+        if (firstValueEnd < 0) {
+            return analyzer.tokenStream(field.name, field.rowText);
+        }
+        TokenStream firstValue = analyzer.tokenStream(field.name, field.rowText.substring(0, firstValueEnd));
+        return new MultiValueTokenStream(firstValue, analyzer, field.name, field.rowText, firstValueEnd);
+    }
+
+    /**
+     * Port of Lucene's {@code AnalysisOffsetStrategy.MultiValueTokenStream} (private there), which backs the unified
+     * highlighter's ANALYSIS offset source for multi-valued fields. Cannot use {@link MemoryIndex}'s own multi-value
+     * support (one {@code addField} call per value) instead: it only advances its offset base once a value has stored
+     * a token, so a leading value whose tokens are all dropped by {@link KeepQueryTermsFilter} would leave later
+     * values' offsets pointing at the wrong part of the row text.
+     */
+    private static final class MultiValueTokenStream extends TokenFilter {
+        private final PositionIncrementAttribute posIncrAtt = addAttribute(PositionIncrementAttribute.class);
+        private final OffsetAttribute offsetAtt = addAttribute(OffsetAttribute.class);
+        private final Analyzer analyzer;
+        private final String fieldName;
+        private final String content;
+        private int valueStart;
+        private int valueEnd;
+        private int pendingPositionIncrement;
+
+        /** {@code firstValue} must be an unconsumed stream over the first value, i.e. {@code content[0, firstValueEnd)}. */
+        MultiValueTokenStream(TokenStream firstValue, Analyzer analyzer, String fieldName, String content, int firstValueEnd) {
+            super(firstValue);
+            this.analyzer = analyzer;
+            this.fieldName = fieldName;
+            this.content = content;
+            this.valueEnd = firstValueEnd;
+        }
+
+        @Override
+        public boolean incrementToken() throws IOException {
+            while (input.incrementToken() == false) {
+                if (valueEnd == content.length()) {
+                    return false;
+                }
+                input.end();
+                pendingPositionIncrement += posIncrAtt.getPositionIncrement() + analyzer.getPositionIncrementGap(fieldName);
+                input.close();
+
+                valueStart = valueEnd + 1;
+                int nextSeparator = content.indexOf(CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR, valueStart);
+                valueEnd = nextSeparator < 0 ? content.length() : nextSeparator;
+                TokenStream next = analyzer.tokenStream(fieldName, content.substring(valueStart, valueEnd));
+                if (next != input) {
+                    // Token attributes live on the reused stream this filter wrapped at construction; a fresh stream
+                    // instance would publish its tokens to attributes this filter cannot see.
+                    throw new IllegalStateException("HIGHLIGHT requires an analyzer with reusable token streams");
+                }
+                next.reset();
+            }
+            posIncrAtt.setPositionIncrement(posIncrAtt.getPositionIncrement() + pendingPositionIncrement);
+            pendingPositionIncrement = 0;
+            offsetAtt.setOffset(valueStart + offsetAtt.startOffset(), valueStart + offsetAtt.endOffset());
+            return true;
+        }
+
+        @Override
+        public void reset() throws IOException {
+            if (valueStart != 0) {
+                throw new IllegalStateException("multi-value token stream cannot be reused");
+            }
+            super.reset();
+        }
+
+        @Override
+        public void end() throws IOException {
+            super.end();
+            offsetAtt.setOffset(valueStart + offsetAtt.startOffset(), valueStart + offsetAtt.endOffset());
         }
     }
 
@@ -409,7 +490,7 @@ public class HighlightOperator extends AbstractPageMappingOperator {
 
     // CustomUnifiedHighlighter derives its FieldHighlighter from the query at build time and caches nothing from the
     // reader, so the constructor's per-field instances can be reused for every row and page.
-    private Snippet[] highlight(int fieldIndex, String text) throws IOException {
+    private Snippet[] highlight(LeafReader memoryIndexReader, int fieldIndex, String text) throws IOException {
         return highlighters[fieldIndex].highlightField(memoryIndexReader, 0, () -> text);
     }
 

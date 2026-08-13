@@ -93,8 +93,10 @@ import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.search.crossproject.ProjectRoutingRequestInfo;
 import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.search.crossproject.SearchPlanningPhaseResolutionResult;
+import org.elasticsearch.search.crossproject.TargetProjects;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
@@ -559,6 +561,25 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 }
             } else {
                 searchResponseActionListener = delegate;
+            }
+
+            // CPS project routing telemetry — queries counts all searches while the project has links;
+            // queries_project_routing and sub-counters only increment for requests that carry a project_routing expression.
+            // PIT opens (collectSearchTelemetry=false) are excluded — they are resource allocation, not queries.
+            if (collectSearchTelemetry) {
+                TargetProjects targetProjects = rewritten.getResolvedTargetProjects();
+                boolean hasLinkedProjects = targetProjects != null && targetProjects.hasLinkedProjects();
+                if (hasLinkedProjects) {
+                    // Non-null routingInfo signals to the holder that this request carried a project_routing expression,
+                    // triggering queries_project_routing and its sub-counters in addition to queries.
+                    String projectRouting = rewritten.getProjectRouting();
+                    ProjectRoutingRequestInfo routingInfo = Strings.isNullOrEmpty(projectRouting) == false
+                        ? (targetProjects.projectRoutingRequestInfo() != null
+                            ? targetProjects.projectRoutingRequestInfo()
+                            : ProjectRoutingRequestInfo.NONE)
+                        : null;
+                    usageService.getProjectRoutingUsageHolder().recordSearch(routingInfo, hasLinkedProjects);
+                }
             }
 
             if (resolvedIndices.getRemoteClusterIndices().isEmpty()) {

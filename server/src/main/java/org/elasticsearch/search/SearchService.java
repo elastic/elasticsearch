@@ -186,8 +186,6 @@ import static org.elasticsearch.search.rank.feature.RankFeatureShardPhase.EMPTY_
 public class SearchService extends AbstractLifecycleComponent implements IndexEventListener {
     private static final Logger logger = LogManager.getLogger(SearchService.class);
 
-    private static final Supplier<DirectoryMetrics> EMPTY_SUPPLIER = () -> DirectoryMetrics.EMPTY;
-
     // we can have 5 minutes here, since we make sure to clean with search requests and when shard/index closes
     public static final Setting<TimeValue> DEFAULT_KEEPALIVE_SETTING = Setting.positiveTimeSetting(
         "search.default_keep_alive",
@@ -270,11 +268,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.Dynamic
     );
 
-    private static final boolean CHUNKED_FETCH_PHASE_FEATURE_FLAG = new FeatureFlag("chunked_fetch_phase_enabled").isEnabled();
-
     public static final Setting<Boolean> FETCH_PHASE_CHUNKED_ENABLED = Setting.boolSetting(
         "search.fetch_phase_chunked_enabled",
-        CHUNKED_FETCH_PHASE_FEATURE_FLAG,
+        true,
         Property.NodeScope,
         Property.Dynamic
     );
@@ -1097,7 +1093,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     private Supplier<DirectoryMetrics> directoryMetricsDelta() {
-        return Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled() ? indicesService.directoryMetricsDelta() : EMPTY_SUPPLIER;
+        return Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled()
+            ? indicesService.directoryMetricsDelta()
+            : indicesService.cacheMetricsDelta();
     }
 
     private static void setDirectoryMetrics(SearchPhaseResult result, Supplier<DirectoryMetrics> metricsDelta, SearchContext context) {
@@ -1105,9 +1103,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     private static void setFetchDirectoryMetrics(SearchPhaseResult result, SearchContext context) {
-        if (Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled() == false) {
-            return;
-        }
         result.setDirectoryMetrics(context.getFetchThreadsMetrics().merge(context.getWorkerThreadsMetrics()));
     }
 
@@ -1879,7 +1874,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 minimumDocsPerSlice,
                 memoryAccountingBufferSize,
                 circuitBreaker,
-                Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled() ? indicesService::directoryMetricsDelta : DirectoryMetrics.Capture.NOOP
+                this::directoryMetricsDelta
             );
             // we clone the query shard context here just for rewriting otherwise we
             // might end up with incorrect state since we are using now() or script services
@@ -2177,6 +2172,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 );
             } catch (IOException e) {
                 throw new AggregationInitializationException("Failed to create aggregators", e);
+            } catch (StackOverflowError e) {
+                throw new IllegalArgumentException("The aggregations are too deeply nested to build");
             }
         }
         if (source.suggest() != null) {

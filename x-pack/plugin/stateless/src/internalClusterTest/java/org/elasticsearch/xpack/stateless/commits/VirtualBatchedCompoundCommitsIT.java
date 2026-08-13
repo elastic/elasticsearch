@@ -40,7 +40,6 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.rest.RestStatus;
@@ -105,6 +104,7 @@ import static org.elasticsearch.xpack.stateless.commits.GetVirtualBatchedCompoun
 import static org.elasticsearch.xpack.stateless.commits.GetVirtualBatchedCompoundCommitChunksPressure.CURRENT_CHUNKS_BYTES_METRIC;
 import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.SETTING_HOLLOW_INGESTION_TTL;
 import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
+import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.BCC_AVERAGE_COMMIT_UPLOAD_THROUGHPUT_METRIC;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.BCC_ELAPSED_TIME_BEFORE_FREEZE_HISTOGRAM_METRIC;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.BCC_MISSING_TIMESTAMP_METRIC;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.BCC_NUMBER_COMMITS_HISTOGRAM_METRIC;
@@ -144,18 +144,6 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
 
         public TestStatelessPlugin(Settings settings) {
             super(settings);
-        }
-
-        @Override
-        public Collection<Object> createComponents(PluginServices services) {
-            final Collection<Object> components = super.createComponents(services);
-            components.add(
-                new PluginComponentBinding<>(
-                    StatelessCommitService.class,
-                    components.stream().filter(c -> c instanceof TestStatelessCommitService).findFirst().orElseThrow()
-                )
-            );
-            return components;
         }
 
         @Override
@@ -1372,6 +1360,17 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
                 metricsPlugin.resetMeter();
             }
         }
+
+        // Throughput metrics are pulled.
+        metricsPlugin.collect();
+
+        List<Measurement> averageThroughputMeasurements = metricsPlugin.getDoubleGaugeMeasurement(
+            BCC_AVERAGE_COMMIT_UPLOAD_THROUGHPUT_METRIC
+        );
+        // We don't want to repeat specific calculation logic here but the metric should be present.
+        assertEquals(1, averageThroughputMeasurements.size());
+        assertTrue(averageThroughputMeasurements.get(0).getDouble() > 0);
+        metricsPlugin.resetMeter();
     }
 
     public void testBccTimestampRangeMetricRecordedOnUpload() throws Exception {

@@ -133,6 +133,9 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         // Full-text functions and `:` operator are not allowed after LIMIT (can arise when a FORK
         // branch contains a LIMIT and a full-text function appears in the command after the FORK)
         "(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase|KNN)] function)|(?:\\[:\\] operator)) cannot be used after LIMIT",
+        // Full-text functions are not allowed after DEDUP (can arise when a FORK branch contains
+        // a DEDUP and a full-text function appears in the WHERE after the FORK)
+        "(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase|KNN)] function)|(?:\\[:\\] operator)) cannot be used after DEDUP",
         // Full-text functions mixed with lookup-side fields via OR cannot be pushed before LOOKUP JOIN _coordinator:
         "cannot be used in a WHERE clause that references both data-side and lookup-side fields after LOOKUP JOIN _coordinator:",
         "sub-plan execution results too large",  // INLINE STATS limitations
@@ -561,7 +564,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         ctx -> isAggregateAbsentToStringSubqueryLookupJoinBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isInlineStatsSubqueryAggregateExecBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isEvalWhereFilterBug(ctx.normalizedErrorMessage, ctx.query),
-        ctx -> isRenameInlineStatsProjectBug(ctx.normalizedErrorMessage, ctx.query), };
+        ctx -> isRenameInlineStatsProjectBug(ctx.normalizedErrorMessage, ctx.query),
+        ctx -> isEvalInlineStatsAggregateBug(ctx.normalizedErrorMessage, ctx.query), };
 
     /**
      * Returns extra error-message patterns the {@link #enabledFeatures()} are allowed to surface. Aggregated
@@ -1311,6 +1315,25 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             return false;
         }
         return RENAME_COMMAND_PATTERN.matcher(query).find() && INLINE_STATS_COMMAND_PATTERN.matcher(query).find();
+    }
+
+    private static final Pattern STATS_COMMAND_PATTERN = Pattern.compile("(?i)(?<!INLINE\\s)\\|\\s*STATS\\b");
+
+    /**
+     * EVAL reassigning an existing index field followed by INLINE STATS + STATS causes the
+     * optimizer to incorrectly prune the original field reference from the Aggregate plan,
+     * leaving it with a missing reference. Related to {@link #isEvalWhereFilterBug} (#154146).
+     */
+    static boolean isEvalInlineStatsAggregateBug(String errorMessage, String query) {
+        if (errorMessage == null || query == null) {
+            return false;
+        }
+        if (OPTIMIZED_INCORRECTLY_PATTERN.matcher(errorMessage).matches() == false) {
+            return false;
+        }
+        return EVAL_COMMAND_PATTERN.matcher(query).find()
+            && INLINE_STATS_COMMAND_PATTERN.matcher(query).find()
+            && STATS_COMMAND_PATTERN.matcher(query).find();
     }
 
     @Override

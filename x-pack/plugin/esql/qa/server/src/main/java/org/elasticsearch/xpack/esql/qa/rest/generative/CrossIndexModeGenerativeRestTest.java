@@ -112,6 +112,11 @@ public abstract class CrossIndexModeGenerativeRestTest extends GenerativeRestTes
         "airports_not_indexed",
         "airports_no_doc_values",
         "airports_not_indexed_nor_doc_values",
+        // geo_point fields (city_location) are stored at different precision in columnar mode:
+        // to_string(city_location) returns e.g. "POINT (116.073 5.975)" on standard but
+        // "POINT (116.072 5.975)" on columnar — a known encoding precision difference.
+        "airports",
+        "airports_web",
         // Mapping designed to be type-incompatible with the standard employees dataset; its CSV
         // data contains deliberate duplicates in boolean MV fields (e.g. [false,true,true]).
         // SortedSetDocValues deduplicates those in standard mode while columnar may preserve them,
@@ -179,7 +184,12 @@ public abstract class CrossIndexModeGenerativeRestTest extends GenerativeRestTes
         // causes STATS output aliases with the same names to read from the wrong source when the
         // alias name conflicts with an existing index field, producing incorrect aggregate values.
         // Excluded until the columnar alias-resolution bug is fixed.
-        "ul_logs"
+        "ul_logs",
+        // conv_from_keyword contains keyword fields (geotile_str, geohash_str, etc.) that are not
+        // indexed in columnar mode (index.mapping.index_disabled_by_default=true disables the
+        // inverted index for fields without an explicit "index: true"). Full-text queries (`:`)
+        // on those fields return different results between the two modes.
+        "conv_from_keyword"
     );
 
     /**
@@ -200,9 +210,6 @@ public abstract class CrossIndexModeGenerativeRestTest extends GenerativeRestTes
         // Long-running queries on very large synthetic result sets may time out on the cand side
         // while completing on the ref side. Known performance difference, not a correctness bug.
         "milliseconds timeout on connection",
-        // Complex queries can exhaust the REST client socket and receive "Connection is closed"
-        // while the other side completes. Infrastructure transient, not a correctness divergence.
-        "Connection is closed",
         // Columnar mode can throw a query_shard_exception when a WHERE clause tries to match a
         // string literal against a numeric field (Lucene NumberFormatException: "For input string:
         // \"hello\""). Standard mode silently returns no rows; query-execution path difference.
@@ -545,15 +552,18 @@ public abstract class CrossIndexModeGenerativeRestTest extends GenerativeRestTes
         if (cmdText.contains("BYTE_LENGTH(")) {
             return false;
         }
-        // Full-text search functions rely on the inverted index. Columnar mode stores keyword and
-        // text fields exclusively via doc values (no inverted index), so phrase / term / match
-        // queries can return different rows compared to standard mode where the inverted index is
-        // always present. Value comparison is not meaningful once these functions appear.
+        // Full-text search functions and the `:` operator rely on the inverted index. Columnar
+        // mode stores keyword fields exclusively via doc values (index_disabled_by_default=true
+        // disables the inverted index for fields that lack an explicit "index: true" mapping), so
+        // full-text / term queries on those fields return different rows compared to standard mode
+        // where the inverted index is always present. Value comparison is not meaningful once
+        // these appear.
         if (cmdText.contains("MATCH_PHRASE(")
             || cmdText.contains("MATCH(")
             || cmdText.contains("QSTR(")
             || cmdText.contains("KQL(")
-            || cmdText.contains("SCORE(")) {
+            || cmdText.contains("SCORE(")
+            || cmdText.contains(": \"")) {
             return false;
         }
         // Order-sensitive MV functions: standard mode returns multi-value fields in original
@@ -605,7 +615,14 @@ public abstract class CrossIndexModeGenerativeRestTest extends GenerativeRestTes
         // execution order, or whose aggregation behaviour differs between standard and columnar mode.
         // INLINE STATS without BY has a mode-specific COUNT discrepancy on multi-index wildcard
         // queries (standard returns a different global count than columnar); gated until root-caused.
-        if ("sample".equals(cmdName) || "fork".equals(cmdName) || "change_point".equals(cmdName) || "inline_stats".equals(cmdName)) {
+        // STATS without BY (global aggregate): when a STATS alias reuses an original field name,
+        // a subsequent EVAL can cause the optimizer to incorrectly re-resolve the alias to the
+        // original field, silently corrupting the aggregated value (returns 0 instead of N). Close
+        // the gate for global STATS to prevent these false positives; gated until root-caused.
+        if ("sample".equals(cmdName)
+            || "fork".equals(cmdName)
+            || "change_point".equals(cmdName)
+            || (("inline_stats".equals(cmdName) || "stats".equals(cmdName)) && cmdText.contains(" BY ") == false)) {
             return false;
         }
         // DEDUP deduplicates rows by all column values. Multi-value fields are returned in

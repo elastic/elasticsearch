@@ -82,6 +82,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
 
     private static final Comparator<PendingRecovery> RECOVERY_ORDERING =
         // Order first by the recovery priority in the recovery state, then by using PriorityComparator on the index metadata:
+        // (If there are multiple queue entries with the same recovery priority for the same index, execution order will be arbirary.)
         Comparator.<PendingRecovery, Integer>comparing(recovery -> recovery.recoveryState().getRecoveryPriority().ordinal())
             .thenComparing(PendingRecovery::indexMetadata, PriorityComparator.getIndexMetadataComparator());
     private final PriorityQueue<PendingRecovery> pendingRecoveries = new PriorityQueue<>(RECOVERY_ORDERING);
@@ -137,6 +138,9 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
                 pendingRecovery = null;
             } else {
                 pendingRecovery = new PendingRecovery(recoveryState, indexMetadata, allocationId, stats, task, recoveryListener, context);
+                // Note that the PendingRecovery captures the IndexMetadata that was passed in when the recovery was enqueued, so it does
+                // not respond to changes in index.priority and reorder the queue. If we wanted that, we would need to maintain a collection
+                // of listeners (see IndexService.addMetadataListener) which are mapped to the queued entries, and remove and re-add them.
                 pendingRecoveries.add(pendingRecovery);
                 stats.targetRecoveryQueued(recoveryState.getRecoverySource().getType());
             }

@@ -16,6 +16,7 @@ import org.elasticsearch.foreign.processor.model.LibraryModel;
 import org.elasticsearch.foreign.processor.model.NativeType;
 import org.elasticsearch.foreign.processor.model.ScalarFieldModel;
 import org.elasticsearch.foreign.processor.model.StructFieldModel;
+import org.elasticsearch.foreign.processor.model.StructInterfaceModel;
 import org.elasticsearch.foreign.processor.model.StructLayoutModel;
 import org.elasticsearch.foreign.processor.model.StructModel;
 
@@ -114,6 +115,9 @@ final class StructImplWriter {
             emitConstructor(cb, structImplDesc);
             emitSegmentAccessor(cb, structImplDesc);
             emitFieldAccessors(cb, structImplDesc, model, prefix, fields, perPlatform, singleLayout);
+            if (struct instanceof StructInterfaceModel sim && sim.sizeofMethodName() != null) {
+                emitSizeofMethod(cb, structImplDesc, sim.sizeofMethodName(), perPlatform, singleLayout);
+            }
         });
 
         try (var os = filer.createClassFile(structImplQualifiedName, sourceElement).openOutputStream()) {
@@ -476,6 +480,31 @@ final class StructImplWriter {
         } else {
             code.loadConstant(singleLayout.byteOffset(MemoryLayout.PathElement.groupElement(field.name())));
         }
+    }
+
+    /**
+     * Emits the {@code @Sizeof} method: returns the struct's total byte size, either as a
+     * compile-time constant (layout identical across platforms) or as {@code LAYOUT.byteSize()}
+     * (per-platform layout, already resolved for the running platform in {@code <clinit>}).
+     */
+    private static void emitSizeofMethod(
+        ClassBuilder cb,
+        ClassDesc structImplDesc,
+        String sizeofMethodName,
+        boolean perPlatform,
+        MemoryLayout singleLayout
+    ) {
+        MethodTypeDesc methodDesc = MethodTypeDesc.of(ClassDesc.ofDescriptor("I"));
+        cb.withMethodBody(sizeofMethodName, methodDesc, ClassFile.ACC_PUBLIC, code -> {
+            if (perPlatform) {
+                code.getstatic(structImplDesc, "LAYOUT", CD_StructLayout);
+                code.invokeinterface(CD_MemoryLayout, "byteSize", MTD_byteSize);
+                code.l2i();
+            } else {
+                code.loadConstant((int) singleLayout.byteSize());
+            }
+            code.ireturn();
+        });
     }
 
     /** Emits the appropriate typed return instruction for a scalar field. */

@@ -101,7 +101,7 @@ public class ESVectorUtil {
             throw new IllegalArgumentException("vector dimensions incompatible: " + a.length + "!= " + b.length);
         }
         Objects.checkFromIndexSize(0, length, a.length);
-        return IMPL.dotProduct(a, b, 0, length);
+        return IMPL.dotProduct(a, 0, b, 0, length);
     }
 
     /**
@@ -112,7 +112,16 @@ public class ESVectorUtil {
             throw new IllegalArgumentException("vector dimensions incompatible: " + a.length + "!= " + b.length);
         }
         Objects.checkFromIndexSize(offset, length, a.length);
-        return IMPL.dotProduct(a, b, offset, length);
+        return IMPL.dotProduct(a, offset, b, offset, length);
+    }
+
+    /**
+     * Dot product over {@code [[ab]Offset, [ab]Offset + length)}.
+     */
+    public static float dotProduct(float[] a, int aOffset, float[] b, int bOffset, int length) {
+        Objects.checkFromIndexSize(aOffset, length, a.length);
+        Objects.checkFromIndexSize(bOffset, length, b.length);
+        return IMPL.dotProduct(a, aOffset, b, bOffset, length);
     }
 
     /**
@@ -1090,5 +1099,23 @@ public class ESVectorUtil {
      */
     public static void inRangeBitmask(long[] values, long lowerValue, long upperValue, long[] matches) {
         IMPL.inRangeBitmask(values, lowerValue, upperValue, matches);
+    }
+
+    /**
+     * Transposes a row-major matrix from (rows x cols) to (cols x rows).
+     *
+     * @param m    input matrix in row-major order, length rows*cols
+     * @param rows number of rows in the input
+     * @param cols number of columns in the input
+     * @return transposed matrix in row-major order, length cols*rows
+     */
+    public static float[] transposeMatrix(float[] m, int rows, int cols) {
+        float[] t = new float[cols * rows];
+        for (int i = 0; i < rows; i++) {
+            for (int j = 0; j < cols; j++) {
+                t[j * rows + i] = m[i * cols + j];
+            }
+        }
+        return t;
     }
 }

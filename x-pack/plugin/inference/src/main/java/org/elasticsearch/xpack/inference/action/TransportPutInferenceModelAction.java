@@ -27,9 +27,9 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.StrictDynamicMappingException;
+import org.elasticsearch.inference.EndpointClusterState;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
-import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
@@ -331,7 +331,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         var serviceSettingsMap = getModelSettingsForIndicesReferencingInferenceEndpoints(metadata, inferenceEntityIdSet);
         var incompatibleIndices = new HashSet<String>();
         if (serviceSettingsMap.isEmpty() == false) {
-            MinimalServiceSettings newSettings = new MinimalServiceSettings(model);
+            EndpointClusterState newSettings = new EndpointClusterState(model);
             serviceSettingsMap.forEach((indexName, existingSettings) -> {
                 if (canMergeModelSettings(existingSettings, newSettings, new FieldMapper.Conflicts("")) == false) {
                     incompatibleIndices.add(indexName);

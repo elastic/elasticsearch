@@ -80,9 +80,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.action.search.AbstractSearchAsyncAction.PARTIAL_RESULTS_CANCELLATION_REASON;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -1811,10 +1809,9 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
     /**
      * Asserts certain consistent features of the response metadata when there is a single shard failure and
      * {@code allow_partial_search_results=false}. Due to the search task being cancelled on the first shard failure, it is not possible to
-     * guarantee that some or all other shards will not fail due to {@link TaskCancelledException}, so the assertions that can be
-     * considered invariant are limited. This method only asserts that the status of the clusters is not
-     * {@link SearchResponse.Cluster.Status#RUNNING}, that all shards are accounted for, and that any shard failures are of the expected
-     * type.
+     * guarantee that some or all other shards will not fail due to the internal cancel, so the assertions that can be considered invariant
+     * are limited. This method only asserts that the status of the clusters is not {@link SearchResponse.Cluster.Status#RUNNING}, that all
+     * shards are accounted for, and that any shard failures are of the expected type.
      */
     private static void assertClusterDetailsFailureOnOneShardOnlyAllowPartialResultsFalseMinimizeRoundtripsFalse(
         SearchResponse.Clusters clusters,
@@ -1850,13 +1847,12 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         assertThat(clusterInfo.getTotalShards(), equalTo(numShards));
         assertThat(clusterInfo.getSkippedShards(), equalTo(0));
         assertThat(clusterInfo.getFailedShards() + clusterInfo.getSuccessfulShards(), equalTo(numShards));
-        // When allow_partial_search_results=false, the exceptions may include TaskCancelledException due to the internal cancel
         clusterInfo.getFailures()
             .forEach(
                 failure -> assertThat(
-                    "should have 'index corrupted' or 'partial results are not allowed' in reason but was: " + failure.reason(),
+                    "should have 'index corrupted' in reason but was: " + failure.reason(),
                     failure.reason(),
-                    anyOf(containsString("index corrupted"), containsString(PARTIAL_RESULTS_CANCELLATION_REASON))
+                    containsString("index corrupted")
                 )
             );
     }
@@ -1969,10 +1965,9 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
     /**
      * Asserts certain consistent features of the response metadata when there are shard failures on only the remote cluster and
      * {@code allow_partial_search_results=false}. Due to the search task being cancelled on the first shard failure, it is not possible to
-     * guarantee that some or all other shards will not fail due to {@link TaskCancelledException}, so the assertions that can be
-     * considered invariant are limited. This method only asserts that the status of the clusters is not
-     * {@link SearchResponse.Cluster.Status#RUNNING}, that all shards are accounted for, and that any shard failures are of the expected
-     * type.
+     * guarantee that some or all other shards will not fail due to the internal cancel, so the assertions that can be considered invariant
+     * are limited. This method only asserts that the status of the clusters is not {@link SearchResponse.Cluster.Status#RUNNING}, that all
+     * shards are accounted for, and that any shard failures are of the expected type.
      */
     private static void assertClustersDetailsFailuresOnOneClusterOnlyAllowPartialResultsFalseMinimizeRoundtripsFalse(
         SearchResponse.Clusters clusters,

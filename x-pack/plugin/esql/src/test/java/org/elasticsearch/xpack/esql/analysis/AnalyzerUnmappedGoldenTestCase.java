@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.common.util.ArrayUtils;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.optimizer.GoldenTestCase;
 
 import java.util.ArrayList;
@@ -29,6 +30,11 @@ abstract class AnalyzerUnmappedGoldenTestCase extends GoldenTestCase {
 
     protected TestBuilder load(String query, String... variants) {
         return builder("SET unmapped_fields=\"load\"; " + query).nestedPath(ArrayUtils.prepend("load", variants));
+    }
+
+    protected TestBuilder loadAll(String query, String... variants) {
+        assumeTrue("Requires OPTIONAL_FIELDS_LOAD_ALL", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL.isEnabled());
+        return builder("SET unmapped_fields=\"LOAD_ALL\"; " + query).nestedPath(ArrayUtils.prepend("load_all", variants));
     }
 
     /** Runs the same query in the nullify and load modes. */

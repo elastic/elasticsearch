@@ -120,11 +120,13 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
             expressions are not scored with BM25, as there are no index statistics for an expression.
 
             When searching `text` expressions, <<esql-function-named-params,function named parameters>>
-            (match_phrase query options) are supported. The `analyzer` option must name a registered
-            analyzer (prebuilt or plugin-contributed); per-index custom analyzers cannot be used because
-            the expression is not backed by an index. Unlike on an indexed field, the analyzer is applied
-            to both the query and the expression values; when no analyzer is specified, the `standard`
-            analyzer is used. On `keyword` expressions options are not supported.
+            (match_phrase query options) are supported. As on an indexed field, the `analyzer` option
+            applies to the query string only: how the expression's values are analyzed is declared where
+            the column is created, through `TO_TEXT`'s `analyzer` option, and the query analyzer defaults
+            to that values analyzer (`standard` when none is declared). Analyzer names must name a
+            registered analyzer (prebuilt or plugin-contributed); per-index custom analyzers cannot be
+            used because the expression is not backed by an index. On `keyword` expressions options are
+            not supported.
 
             :::{tip}
             Learn more about using [ES|QL for search use cases](docs-content://solutions/search/esql-for-search.md).
@@ -153,7 +155,9 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
                     type = "keyword",
                     valueHint = { "standard" },
                     description = "Analyzer used to convert the text in the query value into token. Defaults to the index-time analyzer"
-                        + " mapped for the field. If no analyzer is mapped, the index’s default analyzer is used."
+                        + " mapped for the field; if no analyzer is mapped, the index’s default analyzer is used. For expressions not"
+                        + " backed by an index, defaults to the values analyzer declared through `TO_TEXT` (`standard` when none is"
+                        + " declared)."
                 ),
                 @MapParam.MapParamEntry(
                     name = "slop",
@@ -240,6 +244,22 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
     @Override
     protected Map<String, DataType> getAllowedOptions() {
         return ALLOWED_OPTIONS;
+    }
+
+    /**
+     * Whether the field declares a values analyzer other than the default {@code standard}. The fast token-stream
+     * matcher requires slop-0 adjacency and cannot express the position gaps a stopword-removing analyzer leaves
+     * behind, so any other declared analyzer routes through the Lucene {@link org.apache.lucene.index.memory.MemoryIndex}
+     * path (which honors positions) even without options. An explicitly declared {@code standard} is identical to no
+     * declaration, so it keeps the fast path.
+     * <p>
+     * TODO: other gap-free analyzers (whitespace, simple, keyword, ...) could also keep the fast path, but whether an
+     * arbitrary registered analyzer emits position gaps is not introspectable, so that would take a maintained
+     * allowlist of known-safe names — worth it only if the MemoryIndex path shows up in profiles.
+     */
+    private boolean hasNonStandardValuesAnalyzer() {
+        String name = valuesAnalyzerName();
+        return name != null && name.equals("standard") == false;
     }
 
     private Map<String, Object> matchPhraseQueryOptions() throws InvalidArgumentException {
@@ -392,10 +412,10 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
             return super.toEvaluator(toEvaluator);
         }
 
-        if (field.dataType() == TEXT && options() == null) {
+        if (field.dataType() == TEXT && options() == null && hasNonStandardValuesAnalyzer() == false) {
             return runtimeTextEvaluator(toEvaluator, RuntimeSearch.PhraseMatcher::new);
         }
-        // When options are used, we build a Lucene query
+        // When options or a values analyzer are used, we build a Lucene query
         if (field.dataType() == TEXT) {
             Map<String, Object> opts = matchPhraseQueryOptions();
             return textEvaluatorForQueryWithOptions(
@@ -438,8 +458,8 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
             return super.toScorer(toScorer);
         }
 
-        // With options, score through the same Lucene query the boolean evaluator runs.
-        if (field.dataType() == TEXT && options() != null) {
+        // With options or a declared values analyzer, score through the same Lucene query the boolean evaluator runs.
+        if (field.dataType() == TEXT && (options() != null || hasNonStandardValuesAnalyzer())) {
             Map<String, Object> opts = matchPhraseQueryOptions();
             return textScoreEvaluatorForQueryWithOptions(
                 new MatchPhraseQuery(source(), RuntimeSearch.CONTENT_FIELD, queryAsObject(), opts),

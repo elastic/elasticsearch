@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -185,11 +184,12 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
 
             {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
             When searching `text` expressions, <<esql-function-named-params,function named parameters>>
-            (match query options) are supported. The `analyzer` option must name a registered analyzer
-            (prebuilt or plugin-contributed). Per-index custom analyzers cannot be used because the
-            expression is not backed by an index. Unlike on an indexed field, the analyzer is applied to
-            both the query and the expression values. When no analyzer is specified, the `standard`
-            analyzer is used. On other expression types options are not supported.
+            (match query options) are supported. As on an indexed field, the `analyzer` option applies to
+            the query string only: how the expression's values are analyzed is declared where the column is
+            created, through `TO_TEXT`'s `analyzer` option, and the query analyzer defaults to that values
+            analyzer (`standard` when none is declared). Analyzer names must name a registered analyzer
+            (prebuilt or plugin-contributed); per-index custom analyzers cannot be used because the
+            expression is not backed by an index. On other expression types options are not supported.
 
             {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
             When using `METADATA _score`, `MATCH` on an expression contributes to the relevance score:
@@ -229,7 +229,9 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
                     type = "keyword",
                     valueHint = { "standard" },
                     description = "Analyzer used to convert the text in the query value into token. Defaults to the index-time analyzer"
-                        + " mapped for the field. If no analyzer is mapped, the index’s default analyzer is used."
+                        + " mapped for the field. If no analyzer is mapped, the index’s default analyzer is used. For expressions not"
+                        + " backed by an index, defaults to the values analyzer declared through `TO_TEXT` (`standard` when none is"
+                        + " declared)."
                 ),
                 @MapParam.MapParamEntry(
                     name = "auto_generate_synonyms_phrase_query",
@@ -653,13 +655,14 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
     }
 
     /**
-     * The scoring counterpart of {@link #runtimeTextEvaluator}: analyzes each row with the same standard analyzer
-     * (safe to do, since this is only used when scoring a runtime match query _without_ options)
-     * and sums the weights of the distinct query terms it contains, where a query term repeated N times weighs N —
-     * i.e. the same thing {@link RuntimeSearch#textScoreEvaluatorForQuery} would yield for the same query.
+     * The scoring counterpart of {@link #runtimeTextEvaluator}: analyzes each row with the same analyzer the
+     * boolean evaluator uses — the declared values analyzer, standard by default; this is only used when scoring a
+     * runtime match query _without_ options, so there is no query-side override — and sums the weights of the
+     * distinct query terms it contains, where a query term repeated N times weighs N — i.e. the same thing
+     * {@link RuntimeSearch#textScoreEvaluatorForQuery} would yield for the same query.
      */
     private ExpressionEvaluator.Factory runtimeTextScorer(ToScorer toScorer) {
-        Analyzer analyzer = new StandardAnalyzer();
+        Analyzer analyzer = resolveValuesAnalyzer(toScorer.toEvaluator());
         Map<BytesRef, Integer> queryTerms;
         try {
             queryTerms = RuntimeSearch.analyzeTermsWithCounts(analyzer, queryAsObject().toString());

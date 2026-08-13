@@ -340,8 +340,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             // ValuesSourceReaderOperator. Detect it up front and fail with a descriptive, retryable 409 instead. Kept narrow so
             // genuine planner bugs still surface via the sanity check.
             if (
-                // unsupported fields load as nulls, the shard mapping is irrelevant
-                isUnsupported == false
+            // unsupported fields load as nulls, the shard mapping is irrelevant
+            isUnsupported == false
                 // with a pushed-down function, the block type is the function's output, not the field's
                 && functionConfig == null
                 // only real index fields have a shard mapping to compare against

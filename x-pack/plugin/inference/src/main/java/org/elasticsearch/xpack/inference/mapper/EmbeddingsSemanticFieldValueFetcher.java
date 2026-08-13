@@ -18,7 +18,7 @@ import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.mapper.SourceLoader;
-import org.elasticsearch.inference.MinimalServiceSettings;
+import org.elasticsearch.inference.EndpointClusterState;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -76,7 +76,7 @@ class EmbeddingsSemanticFieldValueFetcher extends ChildDocIteratingValueFetcher 
 
     protected Object parsedEmbeddings(CheckedConsumer<XContentBuilder, IOException> writer, XContentType xContentType) throws IOException {
         // fetchValues short-circuits on null model settings, so they are set by the time we get here
-        MinimalServiceSettings modelSettings = fieldType.getModelSettings();
+        EndpointClusterState modelSettings = fieldType.getModelSettings();
         return readEmbeddings(writer, xContentType, parser -> switch (modelSettings.taskType()) {
             // Byte vectors can be represented exactly as float vectors
             case TEXT_EMBEDDING, EMBEDDING -> VectorData.parseXContent(parser).asFloatVector();

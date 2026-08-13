@@ -614,7 +614,10 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                                     var e = new IllegalStateException(
                                         "data node returned unexpected null result for shard [" + s.shardId + "]"
                                     );
-                                    logger.error("data node produced null result and null failure for shard [{}]", shardIdx, e);
+                                    logger.error(
+                                        "data node produced unexpected result[" + response.results[i] + "] for shard [" + s.shardId + "]",
+                                        e
+                                    );
                                     onShardFailure(shardIdx, target, shardIterators[shardIdx], e);
                                 }
                             }
@@ -1026,7 +1029,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         private Exception shardFailureOrUnknown(int localIndex) {
             Exception failure = failures.remove(localIndex);
             if (failure == null) {
-                logger.error("data node produced null result and null failure for shard [{}]", localIndex, failure);
+                logger.error("data node produced null failure for shard [{}]", localIndex);
                 failure = new IllegalStateException(
                     "shard [" + searchRequest.shards.get(localIndex).shardId + "] neither succeeded nor failed"
                 );

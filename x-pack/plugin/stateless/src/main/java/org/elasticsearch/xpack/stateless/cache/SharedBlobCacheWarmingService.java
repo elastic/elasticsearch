@@ -1985,8 +1985,7 @@ public class SharedBlobCacheWarmingService {
 
             @Override
             public void onResponse(Releasable releasable) {
-                if (dequeued.compareAndSet(false, true)) {
-                    enqueuedBccBlobsMetric.add(-1, bccSizeAttributes);
+                if (deque()) {
                     runningBccBlobsMetric.add(1, bccSizeAttributes);
                 }
                 if (isCancelled()) {
@@ -2033,16 +2032,19 @@ public class SharedBlobCacheWarmingService {
 
             @Override
             public void onFailure(Exception e) {
-                // Task was rejected by the executor before ever running; undo the enqueue increment.
-                // If onResponse already ran (dequeued is true), this is the assert-false path in
-                // AbstractThrottledTaskRunner, we'll leave the counters alone to avoid a double-decrement.
-                if (dequeued.compareAndSet(false, true)) {
-                    enqueuedBccBlobsMetric.add(-1, bccSizeAttributes);
-                }
+                deque();
                 logger.warn(
                     () -> format("%s %s failed to warm blob %s %s", warmingRun.shardId(), warmingRun.type(), blobFile, byteRangeToWarm),
                     e
                 );
+            }
+
+            private boolean deque() {
+                if (dequeued.compareAndSet(false, true)) {
+                    enqueuedBccBlobsMetric.add(-1, bccSizeAttributes);
+                    return true;
+                }
+                return false;
             }
         }
 

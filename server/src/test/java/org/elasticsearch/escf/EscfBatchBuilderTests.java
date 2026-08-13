@@ -178,11 +178,6 @@ public class EscfBatchBuilderTests extends ESTestCase {
         }
     }
 
-    /**
-     * Happy path: build a partition and close the returned batch — all recycler pages must be
-     * released. Also verifies that closing the builder afterwards (partition slot was already
-     * cleared by {@code buildPartition}) is a no-op and does not double-release (F1 coverage).
-     */
     public void testBuildPartitionThenBatchCloseReleasesPages() throws IOException {
         // Builder is the outer resource so it closes after the batch.
         // Its close() must be a no-op once the partition has been built.
@@ -217,11 +212,6 @@ public class EscfBatchBuilderTests extends ESTestCase {
         // @After confirms no leak
     }
 
-    /**
-     * Multiple partitions: only one is built and its batch is closed; the other (never built)
-     * must have its pages released when the builder is closed. Exercises the partition-cleanup
-     * path in {@link EscfBatchBuilder#close}.
-     */
     public void testUnbuiltPartitionsReleasedOnClose() throws IOException {
         try (EscfBatchBuilder builder = newBuilder()) {
             // Commit one row to partition 0

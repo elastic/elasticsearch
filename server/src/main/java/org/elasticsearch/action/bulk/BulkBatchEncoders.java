@@ -179,7 +179,7 @@ final class BulkBatchEncoders implements Releasable {
             // same as a parseToScratch failure: abandon the batch for the rest of this bulk so
             // items fall back to the inline-source path. The scratch page was already released by
             // commitScratchTo's own finally block.
-            logger.debug("EIRF commit failed; abandoning batch for the rest of this bulk", e);
+            logger.debug("scratch row commit failed; abandoning batch for the rest of this bulk", e);
             disabled = true;
             return NOT_BATCHABLE;
         }

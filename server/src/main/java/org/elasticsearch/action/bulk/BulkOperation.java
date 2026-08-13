@@ -433,7 +433,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             return;
         }
 
-        // Build per-shard EIRF batches for shards that ended up batchable (initial-pass only). For
+        // Build per-shard source batches for shards that ended up batchable (initial-pass only). For
         // shards marked non-batchable, no batch is produced and the items keep their inline source.
         // The map is mutable so we can remove() entries as they are attached to shard requests;
         // whatever remains after the loop was never dispatched and is released in the finally block.

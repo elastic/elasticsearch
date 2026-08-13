@@ -46,12 +46,9 @@ public final class EscfEncoder implements SourceBatchEncoder {
     /**
      * Scratch page held across {@link #parseToScratch} → {@link #commitScratchTo}: when the source
      * is non-array and small enough to fit in one page we copy it to this page so the Jackson parser
-     * can read from a contiguous {@code byte[]} (faster than InputStream). Jackson then returns
-     * {@link org.elasticsearch.xcontent.XContentString.UTF8Bytes} values that point directly into
-     * that {@code byte[]}; {@link EscfRowBuffer} stores those references in {@code scratchVar[]}
-     * without copying. The page therefore MUST remain alive until {@link #commitScratchTo} drains
-     * {@code scratchVar} into the column builders (which copies the bytes). Releasing it inside
-     * {@code parseToScratch} would leave dangling pointers into a recycled page.
+     * can read from a contiguous {@code byte[]} (faster than InputStream).
+     * <p>
+     * Must retain it across the row commit because the EscfRowBuffer holds pointers to the underlying bytes.
      */
     private Recycler.V<BytesRef> pendingScratchPage = null;
 
@@ -70,12 +67,7 @@ public final class EscfEncoder implements SourceBatchEncoder {
         EscfRowBuffer row = backend.beginRow();
         // When the source is a composite BytesReference (hasArray() == false) and small enough to
         // fit in a single page, copy it to a pooled scratch page so the Jackson parser can read
-        // from a contiguous byte[] (zero-copy field values, faster than InputStream).
-        // IMPORTANT: Jackson's optimizedText().bytes() returns a UTF8Bytes that points directly
-        // into this byte[], and EscfRowBuffer stores that reference without copying. The page
-        // therefore CANNOT be released here — it must stay alive until commitScratchTo() drains
-        // scratchVar[] into the column builders. pendingScratchPage is released there (or in
-        // close() if commitScratchTo is never called).
+        // from a contiguous byte[].
         Recycler.V<BytesRef> page = source.hasArray() == false && source.length() <= recycler.pageSize() ? recycler.obtain() : null;
         try {
             BytesReference sourceToParse = page == null ? source : BytesReference.copyTo(source, page.v());
@@ -95,7 +87,7 @@ public final class EscfEncoder implements SourceBatchEncoder {
             page = null;
         } finally {
             if (page != null) {
-                page.close(); // only reached on exception (normal path nulls page above)
+                page.close();
             }
         }
     }
@@ -137,8 +129,6 @@ public final class EscfEncoder implements SourceBatchEncoder {
 
     @Override
     public void close() {
-        // Release any scratch page that was not consumed by commitScratchTo (e.g. if the encoder
-        // is closed after a parse failure, before commit was called).
         Recycler.V<BytesRef> page = pendingScratchPage;
         pendingScratchPage = null;
         if (page != null) {

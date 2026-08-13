@@ -262,21 +262,6 @@ public class EscfEncoderTests extends ESTestCase {
         throw new AssertionError("Column '" + path + "' not found in batch schema");
     }
 
-    /**
-     * Regression test for scratch-page use-after-free: when the source is a composite
-     * {@link BytesReference} ({@code hasArray() == false}) and fits in one recycler page,
-     * {@link EscfEncoder#parseToScratch} copies it into a pooled scratch page so Jackson can read
-     * from a contiguous {@code byte[]}. Jackson's {@code optimizedText().bytes()} then returns
-     * {@link org.elasticsearch.xcontent.XContentString.UTF8Bytes} values that point directly into
-     * that {@code byte[]}; {@link EscfRowBuffer} stores those references in its scratch array
-     * without copying. The page MUST therefore remain alive until
-     * {@link EscfEncoder#commitScratchTo} drains the scratch array into the column builders (which
-     * copies the bytes).
-     *
-     * <p>With {@link MockPageCacheRecycler}, releasing a page immediately overwrites its bytes with
-     * random values. A premature release would therefore corrupt the committed column data, causing
-     * the assertion below to fail even in a single-threaded test.
-     */
     public void testScratchPageNotReleasedBeforeCommit() throws IOException {
         Recycler<BytesRef> recycler = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
         try (EscfEncoder encoder = new EscfEncoder(recycler)) {

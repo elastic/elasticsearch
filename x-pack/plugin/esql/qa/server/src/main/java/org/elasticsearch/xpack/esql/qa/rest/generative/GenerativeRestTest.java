@@ -1378,6 +1378,9 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         );
         if (isFeatureEnabled(GenerativeFeature.PARQUET_DATASET)) {
             List<String> externalDatasets = ensureExternalDatasets();
+            if (externalDatasets.isEmpty()) {
+                return indices;
+            }
             // Repeat each external dataset enough times to give it roughly a 20% per-slot selection
             // probability alongside the regular ES index pool. Without boosting, a single external
             // dataset competes with ~80+ indices and would almost never appear in generated FROM commands.

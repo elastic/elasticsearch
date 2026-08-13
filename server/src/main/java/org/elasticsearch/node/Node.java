@@ -58,6 +58,7 @@ import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.health.HealthPeriodicLogger;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.breaker.NativeMemoryCircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.ThrottlingRecoveryService;
@@ -590,6 +591,8 @@ public class Node implements Closeable {
         toClose.add(() -> stopWatch.stop().start("script"));
         toClose.add(injector.getInstance(ScriptService.class));
 
+        toClose.add(() -> stopWatch.stop().start("native_memory_breaker"));
+        toClose.add(injector.getInstance(NativeMemoryCircuitBreakerService.class));
         toClose.add(() -> stopWatch.stop().start("thread_pool"));
         toClose.add(() -> injector.getInstance(ThreadPool.class).shutdown());
         // Don't call shutdownNow here, it might break ongoing operations on Lucene indices.

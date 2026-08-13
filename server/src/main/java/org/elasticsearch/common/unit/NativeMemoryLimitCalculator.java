@@ -21,10 +21,8 @@ import java.util.OptionalLong;
  *
  * <ol>
  *   <li><b>Container path (preferred)</b> — when the JVM is inside a Linux cgroup with a finite
- *       memory limit, the base is {@code min(cgroupLimit, physicalMemory) - heapMax - directMax -
- *       OS_OVERHEAD}. This correctly represents the memory budget that is neither claimed by the
- *       JVM heap nor by NIO direct memory, regardless of whether the native allocator uses
- *       {@code Unsafe.allocateMemory} (like Arrow) or {@code allocateDirect} (like Netty).</li>
+ *       memory limit, the base is {@code min(cgroupLimit, physicalMemory) - heapMax}: the memory
+ *       budget that is not already claimed by the JVM heap.</li>
  *   <li><b>Fallback path</b> — when no cgroup limit is available (macOS, bare-metal Linux, or a
  *       container without a memory limit set), the base is {@link MemorySizeValue#maxDirectMemory()},
  *       i.e. {@code -XX:MaxDirectMemorySize} when set or the heap max otherwise. This is the only
@@ -38,14 +36,8 @@ import java.util.OptionalLong;
 public final class NativeMemoryLimitCalculator {
 
     /**
-     * Headroom reserved for OS kernel and runtime overhead when computing a cgroup-based budget.
-     * Matches the constant used by ML's {@code NativeMemoryCalculator}.
-     */
-    static final long OS_OVERHEAD = ByteSizeValue.ofMb(200).getBytes();
-
-    /**
      * Floor applied to the cgroup-derived budget to prevent a zero (or negative) limit on
-     * mis-configured containers where {@code cgroupLimit <= heapMax + directMax + OS_OVERHEAD}.
+     * mis-configured containers where {@code cgroupLimit <= heapMax}.
      */
     static final long MINIMUM_LIMIT = ByteSizeValue.ofMb(64).getBytes();
 
@@ -72,8 +64,7 @@ public final class NativeMemoryLimitCalculator {
             return cgroupNativeMemoryBase(
                 cgroupLimit.getAsLong(),
                 OsProbe.getInstance().getAdjustedTotalMemorySize(),
-                JvmInfo.jvmInfo().getMem().getHeapMax().getBytes(),
-                JvmInfo.jvmInfo().getMem().getDirectMemoryMax().getBytes()
+                JvmInfo.jvmInfo().getMem().getHeapMax().getBytes()
             );
         }
         return MemorySizeValue.maxDirectMemory();
@@ -83,22 +74,14 @@ public final class NativeMemoryLimitCalculator {
      * Pure calculation for the cgroup path, exposed package-private for unit testing without
      * requiring a live {@link OsProbe} instance.
      *
-     * @param cgroupLimit    the cgroup memory limit in bytes
-     * @param adjustedTotal  {@link OsProbe#getAdjustedTotalMemorySize()} — physical memory,
-     *                       possibly overridden by {@code es.total_memory_bytes}
-     * @param heapMax        {@code -Xmx} in bytes
-     * @param directMax      {@code -XX:MaxDirectMemorySize} in bytes; {@code 0} means unset,
-     *                       in which case {@code heapMax} is used as the effective direct budget
-     *                       (the JVM's own fallback when the flag is absent)
+     * @param cgroupLimit   the cgroup memory limit in bytes
+     * @param adjustedTotal {@link OsProbe#getAdjustedTotalMemorySize()} — physical memory,
+     *                      possibly overridden by {@code es.total_memory_bytes}
+     * @param heapMax       {@code -Xmx} in bytes
      */
-    static long cgroupNativeMemoryBase(long cgroupLimit, long adjustedTotal, long heapMax, long directMax) {
+    static long cgroupNativeMemoryBase(long cgroupLimit, long adjustedTotal, long heapMax) {
         // A cgroupv1 "unlimited" limit is a very large number; min() with physical memory caps it.
         long totalMemory = Math.min(cgroupLimit, adjustedTotal);
-        // When -XX:MaxDirectMemorySize is unset (directMax == 0), the JVM still permits NIO direct
-        // allocations up to heapMax (the HotSpot default). Use heapMax as the effective direct budget
-        // so that the calculation is conservative on nodes that did not set the flag explicitly.
-        long effectiveDirectMax = directMax > 0 ? directMax : heapMax;
-        long reserved = heapMax + effectiveDirectMax + OS_OVERHEAD;
-        return Math.max(totalMemory - reserved, MINIMUM_LIMIT);
+        return Math.max(totalMemory - heapMax, MINIMUM_LIMIT);
     }
 }

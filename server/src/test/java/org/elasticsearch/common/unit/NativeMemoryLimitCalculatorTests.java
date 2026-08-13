@@ -21,28 +21,25 @@ public class NativeMemoryLimitCalculatorTests extends ESTestCase {
     // cgroupNativeMemoryBase — pure logic, no OsProbe dependency
     // -----------------------------------------------------------------------
 
-    public void testCgroupPathSubtractsHeapDirectAndOverhead() {
+    public void testCgroupPathSubtractsHeap() {
         long cgroupLimit = ByteSizeValue.ofGb(8).getBytes();
         long adjustedTotal = ByteSizeValue.ofGb(8).getBytes();
         long heapMax = ByteSizeValue.ofGb(4).getBytes();
-        long directMax = ByteSizeValue.ofGb(1).getBytes();
 
-        long base = NativeMemoryLimitCalculator.cgroupNativeMemoryBase(cgroupLimit, adjustedTotal, heapMax, directMax);
+        long base = NativeMemoryLimitCalculator.cgroupNativeMemoryBase(cgroupLimit, adjustedTotal, heapMax);
 
-        assertEquals(cgroupLimit - heapMax - directMax - NativeMemoryLimitCalculator.OS_OVERHEAD, base);
+        assertEquals(cgroupLimit - heapMax, base);
     }
 
     public void testCgroupLimitLargerThanPhysicalMemoryIsCappedAtPhysical() {
         // cgroupv1 "unlimited" is a very large long — larger than any real machine.
         // min(cgroupLimit, adjustedTotal) should reduce it to adjustedTotal.
-        // directMax == 0, so effectiveDirectMax falls back to heapMax.
-        // Use 16 GB physical / 4 GB heap so that 2*heapMax + OS_OVERHEAD stays under adjustedTotal.
         long adjustedTotal = ByteSizeValue.ofGb(16).getBytes();
         long heapMax = ByteSizeValue.ofGb(4).getBytes();
 
-        long base = NativeMemoryLimitCalculator.cgroupNativeMemoryBase(Long.MAX_VALUE / 2, adjustedTotal, heapMax, 0);
+        long base = NativeMemoryLimitCalculator.cgroupNativeMemoryBase(Long.MAX_VALUE / 2, adjustedTotal, heapMax);
 
-        assertEquals(adjustedTotal - heapMax - heapMax - NativeMemoryLimitCalculator.OS_OVERHEAD, base);
+        assertEquals(adjustedTotal - heapMax, base);
     }
 
     public void testFloorAppliedWhenBudgetIsNegative() {
@@ -50,40 +47,18 @@ public class NativeMemoryLimitCalculatorTests extends ESTestCase {
         long cgroupLimit = ByteSizeValue.ofGb(1).getBytes();
         long heapMax = ByteSizeValue.ofGb(2).getBytes();
 
-        long base = NativeMemoryLimitCalculator.cgroupNativeMemoryBase(cgroupLimit, cgroupLimit, heapMax, 0);
+        long base = NativeMemoryLimitCalculator.cgroupNativeMemoryBase(cgroupLimit, cgroupLimit, heapMax);
 
         assertEquals(NativeMemoryLimitCalculator.MINIMUM_LIMIT, base);
     }
 
     public void testFloorAppliedWhenBudgetIsZero() {
-        // Exactly at the boundary: heapMax + OS_OVERHEAD == cgroupLimit.
+        // Exactly at the boundary: cgroupLimit == heapMax → base would be 0, floor applies.
         long heapMax = ByteSizeValue.ofGb(4).getBytes();
-        long cgroupLimit = heapMax + NativeMemoryLimitCalculator.OS_OVERHEAD;
 
-        long base = NativeMemoryLimitCalculator.cgroupNativeMemoryBase(cgroupLimit, cgroupLimit, heapMax, 0);
+        long base = NativeMemoryLimitCalculator.cgroupNativeMemoryBase(heapMax, heapMax, heapMax);
 
         assertThat(base, greaterThanOrEqualTo(NativeMemoryLimitCalculator.MINIMUM_LIMIT));
-    }
-
-    public void testUnsetDirectMaxFallsBackToHeapMax() {
-        // directMax == 0 means -XX:MaxDirectMemorySize was not set; the JVM defaults to heapMax
-        // for NIO direct allocations. The conservative choice is to deduct heapMax as the
-        // effective direct budget, yielding a smaller base than an explicit small directMax.
-        // Use 16 GB cgroup / 4 GB heap so that 2*heapMax + OS_OVERHEAD stays under cgroupLimit.
-        long cgroupLimit = ByteSizeValue.ofGb(16).getBytes();
-        long heapMax = ByteSizeValue.ofGb(4).getBytes();
-
-        long withNoDirectMax = NativeMemoryLimitCalculator.cgroupNativeMemoryBase(cgroupLimit, cgroupLimit, heapMax, 0);
-        long withSmallDirectMax = NativeMemoryLimitCalculator.cgroupNativeMemoryBase(
-            cgroupLimit,
-            cgroupLimit,
-            heapMax,
-            ByteSizeValue.ofGb(1).getBytes()
-        );
-
-        // No directMax → effectiveDirectMax = heapMax = 4 GB; explicit 1 GB is smaller → larger base
-        assertThat(withNoDirectMax, equalTo(cgroupLimit - heapMax - heapMax - NativeMemoryLimitCalculator.OS_OVERHEAD));
-        assertThat(withSmallDirectMax, greaterThan(withNoDirectMax));
     }
 
     // -----------------------------------------------------------------------

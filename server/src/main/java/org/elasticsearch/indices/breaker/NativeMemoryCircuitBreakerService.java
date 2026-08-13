@@ -127,7 +127,9 @@ public class NativeMemoryCircuitBreakerService extends CircuitBreakerService imp
             }
         );
 
-        if (threadPool != null) {
+        // The backstop is only meaningful when the inner breaker actually enforces limits.
+        // Skip it when type=noop so the noop setting genuinely disables all native-memory gating.
+        if (threadPool != null && breakerSettings.getType() != CircuitBreaker.Type.NOOP) {
             this.backstop = new NativeMemoryCgroupBackstop(settings, clusterSettings, threadPool);
             this.backstop.start();
             this.nativeMemoryBreaker = new BackstopCircuitBreaker(inner);

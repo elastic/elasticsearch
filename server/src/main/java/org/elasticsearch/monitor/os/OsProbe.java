@@ -893,6 +893,75 @@ public class OsProbe {
         return cgroup == null ? OptionalLong.empty() : parseCgroupBytes(cgroup.getMemoryLimitInBytes());
     }
 
+    /**
+     * Returns the cgroup memory working set in bytes: total usage minus inactive file cache.
+     * Inactive file pages are readily evictable by the kernel, so they do not represent true
+     * memory pressure — the kernel reclaims them before firing the OOM killer. This metric is
+     * the same one Kubernetes uses for pod eviction decisions.
+     *
+     * <p>Falls back to raw usage when {@code memory.stat} cannot be read.
+     * Returns {@link OptionalLong#empty()} when not running in a cgroup with a memory limit.
+     */
+    public OptionalLong getCgroupMemoryWorkingSetInBytes() {
+        OsStats.Cgroup cgroup = getCgroup(Constants.LINUX);
+        if (cgroup == null) {
+            return OptionalLong.empty();
+        }
+        OptionalLong usage = parseCgroupBytes(cgroup.getMemoryUsageInBytes());
+        if (usage.isEmpty()) {
+            return OptionalLong.empty();
+        }
+        String controlGroup = cgroup.getMemoryControlGroup();
+        if (controlGroup == null) {
+            return usage;
+        }
+        try {
+            long inactiveFile = readCgroupMemoryStatInactiveFile(controlGroup);
+            return OptionalLong.of(Math.max(0L, usage.getAsLong() - inactiveFile));
+        } catch (IOException e) {
+            logger.debug("error reading memory.stat inactive_file; using raw cgroup memory usage", e);
+            return usage;
+        }
+    }
+
+    /**
+     * Reads the inactive file cache size from {@code memory.stat}.
+     * Tries the cgroup v2 path ({@code /sys/fs/cgroup/<controlGroup>/memory.stat}, field
+     * {@code inactive_file}) first, then falls back to the cgroup v1 path
+     * ({@code /sys/fs/cgroup/memory/<controlGroup>/memory.stat}, field {@code total_inactive_file}).
+     */
+    long readCgroupMemoryStatInactiveFile(String controlGroup) throws IOException {
+        try {
+            return parseCgroupStatField(readSysFsCgroupV2MemoryStatLines(controlGroup), "inactive_file");
+        } catch (IOException e) {
+            return parseCgroupStatField(readSysFsCgroupMemoryStatLines(controlGroup), "total_inactive_file");
+        }
+    }
+
+    @SuppressForbidden(reason = "access /sys/fs/cgroup/memory.stat")
+    List<String> readSysFsCgroupV2MemoryStatLines(String controlGroup) throws IOException {
+        return Files.readAllLines(PathUtils.get("/sys/fs/cgroup", controlGroup, "memory.stat"));
+    }
+
+    @SuppressForbidden(reason = "access /sys/fs/cgroup/memory")
+    List<String> readSysFsCgroupMemoryStatLines(String controlGroup) throws IOException {
+        return Files.readAllLines(PathUtils.get("/sys/fs/cgroup/memory", controlGroup, "memory.stat"));
+    }
+
+    private static long parseCgroupStatField(List<String> lines, String field) throws IOException {
+        String prefix = field + " ";
+        for (String line : lines) {
+            if (line.startsWith(prefix)) {
+                try {
+                    return Long.parseUnsignedLong(line.substring(prefix.length()).strip());
+                } catch (NumberFormatException e) {
+                    throw new IOException("failed to parse [" + field + "] from memory.stat: [" + line + "]", e);
+                }
+            }
+        }
+        throw new IOException("field [" + field + "] not found in memory.stat");
+    }
+
     private static OptionalLong parseCgroupBytes(String value) {
         if (value == null || "max".equals(value)) {
             return OptionalLong.empty();

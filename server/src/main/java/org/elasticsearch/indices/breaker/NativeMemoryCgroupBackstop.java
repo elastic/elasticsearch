@@ -182,9 +182,13 @@ public class NativeMemoryCgroupBackstop extends AbstractLifecycleComponent {
         }
     }
 
-    /** Overridable in tests to inject synthetic cgroup usage readings. */
+    /**
+     * Overridable in tests to inject synthetic cgroup usage readings.
+     * Returns the working set (total usage minus inactive file cache), which reflects true
+     * memory pressure — the kernel evicts inactive file cache on demand before OOM-killing.
+     */
     OptionalLong readCgroupUsage() {
-        return OsProbe.getInstance().getCgroupMemoryUsageInBytes();
+        return OsProbe.getInstance().getCgroupMemoryWorkingSetInBytes();
     }
 
     /** Overridable in tests to inject synthetic cgroup limit readings. */

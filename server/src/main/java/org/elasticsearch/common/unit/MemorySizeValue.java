@@ -91,13 +91,21 @@ public enum MemorySizeValue {
     /**
      * Parse the provided string as a memory size resolved against the native memory base. Accepts absolute values such as {@code 42} or
      * {@code 2mb}, or percentages resolved against {@link NativeMemoryLimitCalculator#nativeMemoryBase()}: when running inside a Linux
-     * container with a finite memory limit, the base is {@code min(cgroupLimit, physicalMemory) - heapMax - directMax - OS overhead};
-     * otherwise it falls back to {@link #maxDirectMemory()}.
+     * container with a finite memory limit, the base is {@code min(cgroupLimit, physicalMemory) - heapMax}; otherwise it falls back to
+     * {@link #maxDirectMemory()}. A percentage of {@code 0%} is rejected; use {@code type: noop} to disable the native memory breaker.
      */
     public static ByteSizeValue parseBytesSizeValueOrDirectMemoryRatio(String sValue, String settingName) {
         settingName = Objects.requireNonNull(settingName);
         if (sValue != null && sValue.endsWith("%")) {
-            return parseRatio(sValue, settingName, 0, NativeMemoryLimitCalculator.nativeMemoryBase(), "native memory");
+            ByteSizeValue result = parseRatio(sValue, settingName, 0, NativeMemoryLimitCalculator.nativeMemoryBase(), "native memory");
+            if (result.getBytes() == 0) {
+                throw new ElasticsearchParseException(
+                    "[{}] setting [{}] resolves to 0 bytes; use 'type: noop' to disable the native memory breaker",
+                    settingName,
+                    sValue
+                );
+            }
+            return result;
         } else {
             return parseBytesSizeValue(sValue, settingName);
         }

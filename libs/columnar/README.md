@@ -60,11 +60,11 @@ the ids it was written with, older data lists only old ids and a newer reader re
 
 Nothing column-proportional is on the heap — read, write and merge stream one block at a time; offset
 and address tables use `DirectMonotonic` (temp file on write, mapped slice on read). Each segment
-carries a format version stamp in both the `.cnd` and `.cnm` headers, managed by
-`ColumnarWriteProfile`; server-side wiring will supply a version capped at what the oldest cluster
-node can read. The on-disk component ids (field type, block encoding, block-bytes codec, skip-index
-codec) are frozen once shipped; adding any requires a `FormatVersion` bump so old readers fail at
-header open, not mid-decode. See `AGENTS.md` for full policy.
+carries a format version stamp in both the `.cnd` and `.cnm` headers. The on-disk component ids
+(field type, block encoding, block-bytes codec, skip-index codec) are frozen once shipped and must
+never be reused or renumbered. A format bump is required for layout changes — new fields in `readFrom`,
+different block framing, changed offset-table encoding — not for id additions: an unknown id already
+fails loudly at first field access. See `AGENTS.md` for full policy.
 
 Block bytes pass through a `BlockBytesCodec` (identity today). Planned block compression adds Zstd as
 the pipeline's last encoder, reusing the native `org.elasticsearch.nativeaccess.Zstd` binding rather

@@ -33,7 +33,6 @@ import org.elasticsearch.rest.RestResponseUtils;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
-import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -49,6 +48,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.formatter.TextFormat;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.hamcrest.Matchers;
 import org.junit.After;
@@ -880,7 +880,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             Page first = iterator.next();
             assertEquals(1, first.getPositionCount());
             assertEquals(1, ((IntBlock) first.getBlock(0)).getInt(0));
-            EsqlIllegalArgumentException ex = expectThrows(EsqlIllegalArgumentException.class, iterator::hasNext);
+            ParsingException ex = expectThrows(ParsingException.class, iterator::hasNext);
             assertThat(ex.getMessage(), Matchers.containsString("Malformed NDJSON"));
         }
     }
@@ -908,7 +908,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             assertTrue(iterator.hasNext());
             Page first = iterator.next();
             assertEquals(batchSize, first.getPositionCount());
-            EsqlIllegalArgumentException ex = expectThrows(EsqlIllegalArgumentException.class, iterator::hasNext);
+            ParsingException ex = expectThrows(ParsingException.class, iterator::hasNext);
             assertThat(ex.getMessage(), Matchers.containsString("Malformed NDJSON"));
         }
     }
@@ -935,7 +935,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             assertTrue(iterator.hasNext());
             Page first = iterator.next();
             assertEquals(pageRows, first.getPositionCount());
-            EsqlIllegalArgumentException ex = expectThrows(EsqlIllegalArgumentException.class, iterator::hasNext);
+            ParsingException ex = expectThrows(ParsingException.class, iterator::hasNext);
             assertThat(ex.getMessage(), Matchers.containsString("Malformed NDJSON"));
         }
     }
@@ -1103,7 +1103,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             Page first = iterator.next();
             assertEquals(1, first.getPositionCount());
             assertEquals(1, ((IntBlock) first.getBlock(0)).getInt(0));
-            EsqlIllegalArgumentException ex = expectThrows(EsqlIllegalArgumentException.class, iterator::hasNext);
+            ParsingException ex = expectThrows(ParsingException.class, iterator::hasNext);
             assertThat(ex.getMessage(), Matchers.containsString("Malformed NDJSON"));
         }
     }
@@ -1180,7 +1180,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
                     .build()
             )
         ) {
-            var e = expectThrows(EsqlIllegalArgumentException.class, () -> {
+            var e = expectThrows(ParsingException.class, () -> {
                 while (iterator.hasNext()) {
                     iterator.next();
                 }
@@ -1300,7 +1300,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         // column (previously the boolean was silently null). Lenient-mode behavior is covered by
         // testInferredCrossKindBooleanHonorsErrorMode.
         try (var iterator = reader.read(object, List.of("x", "y"), 100)) {
-            var e = expectThrows(EsqlIllegalArgumentException.class, () -> {
+            var e = expectThrows(ParsingException.class, () -> {
                 while (iterator.hasNext()) {
                     iterator.next();
                 }
@@ -1329,7 +1329,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
                     .build()
             )
         ) {
-            var e = expectThrows(EsqlIllegalArgumentException.class, () -> {
+            var e = expectThrows(ParsingException.class, () -> {
                 while (iterator.hasNext()) {
                     iterator.next();
                 }
@@ -1573,7 +1573,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
                 FormatReadContext.builder().projectedColumns(List.of("n")).batchSize(100).errorPolicy(ErrorPolicy.STRICT).build()
             )
         ) {
-            var e = expectThrows(EsqlIllegalArgumentException.class, () -> {
+            var e = expectThrows(ParsingException.class, () -> {
                 while (iterator.hasNext()) {
                     iterator.next();
                 }
@@ -1676,7 +1676,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
                     .build()
             )
         ) {
-            var e = expectThrows(EsqlIllegalArgumentException.class, () -> {
+            var e = expectThrows(ParsingException.class, () -> {
                 while (iterator.hasNext()) {
                     iterator.next();
                 }
@@ -1892,7 +1892,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             assertTrue(iterator.hasNext());
             Page first = iterator.next();
             assertEquals(1, first.getPositionCount());
-            EsqlIllegalArgumentException ex = expectThrows(EsqlIllegalArgumentException.class, iterator::hasNext);
+            ParsingException ex = expectThrows(ParsingException.class, iterator::hasNext);
             assertThat(ex.getMessage(), Matchers.containsString("user"));
             assertThat(ex.getMessage(), Matchers.containsString("an object"));
         }
@@ -1912,7 +1912,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             assertTrue(iterator.hasNext());
             Page first = iterator.next();
             assertEquals(1, first.getPositionCount());
-            EsqlIllegalArgumentException ex = expectThrows(EsqlIllegalArgumentException.class, iterator::hasNext);
+            ParsingException ex = expectThrows(ParsingException.class, iterator::hasNext);
             assertThat(ex.getMessage(), Matchers.containsString("user"));
             assertThat(ex.getMessage(), Matchers.containsString("an object"));
         }
@@ -2285,7 +2285,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             Page first = iterator.next();
             assertEquals(0, first.getBlockCount());
             assertEquals(2, first.getPositionCount());
-            EsqlIllegalArgumentException ex = expectThrows(EsqlIllegalArgumentException.class, iterator::hasNext);
+            ParsingException ex = expectThrows(ParsingException.class, iterator::hasNext);
             assertThat(ex.getMessage(), Matchers.containsString("Malformed NDJSON"));
         }
     }
@@ -2459,7 +2459,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         var reader = new NdJsonFormatReader(null, blockFactory);
         var ctx = FormatReadContext.builder().projectedColumns(List.of("a", "c")).batchSize(100).errorPolicy(ErrorPolicy.STRICT).build();
         try (var iterator = reader.read(object, ctx)) {
-            EsqlIllegalArgumentException ex = expectThrows(EsqlIllegalArgumentException.class, iterator::hasNext);
+            ParsingException ex = expectThrows(ParsingException.class, iterator::hasNext);
             assertThat(ex.getMessage(), Matchers.containsString("Malformed NDJSON"));
         }
     }

@@ -40,6 +40,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 import org.elasticsearch.xpack.esql.core.util.Check;
@@ -48,6 +49,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.Closeable;
@@ -769,11 +771,19 @@ public class NdJsonPageDecoder implements Closeable {
             // a whole-line failure: both non-strict modes drop the line here, so neither is "null-fill" the way it
             // is for a per-cell failure. It earns its place most on the constraint violations this method now
             // handles, where the record is well-formed JSON that merely exceeds a parser limit.
-            throw new EsqlIllegalArgumentException(
+            // ParsingException (client-class, 400) rather than EsqlIllegalArgumentException (Ql SERVER family,
+            // 500): a line this reader cannot interpret is bad input, not a broken invariant of ours, which is
+            // the split ExternalFailures documents and CsvFormatReader.onRowErrorImpl already implements. The
+            // single "{}" arg keeps LoggerMessageFormat away from the braces an NDJSON record is full of.
+            throw new ParsingException(
                 e,
-                "Malformed NDJSON [{}]: {}; set error_mode=skip_row (or null_field) to skip the line and warn instead of failing",
-                phaseLabel,
-                e.getOriginalMessage()
+                Source.EMPTY,
+                "{}",
+                "Malformed NDJSON ["
+                    + phaseLabel
+                    + "]: "
+                    + e.getOriginalMessage()
+                    + "; set error_mode=skip_row (or null_field) to skip the line and warn instead of failing"
             );
         }
         errorCount++;
@@ -826,7 +836,9 @@ public class NdJsonPageDecoder implements Closeable {
                     + errorPolicy.maxErrorRatio()
                     + "]"
             );
-            throw new EsqlIllegalArgumentException(
+            // Client-class for the same reason as the whole-line failure above: the budget was set by the user
+            // and exhausted by the user's data.
+            throw new ParsingException(
                 "NDJSON error budget exceeded: [{}] errors in [{}] rows, maximum allowed is [{}] errors or [{}] ratio",
                 errorCount,
                 totalRowCount,
@@ -2075,8 +2087,11 @@ public class NdJsonPageDecoder implements Closeable {
                 + "]";
             parser.skipChildren();
             if (errorPolicy.isStrict()) {
-                // Mirror CsvFormatReader.onRowErrorImpl's field-error hint so the fail-fast message is actionable.
-                throw new EsqlIllegalArgumentException(
+                // Mirror CsvFormatReader.onRowErrorImpl's field-error hint so the fail-fast message is actionable,
+                // and its client-class exception so an unrepresentable value is a 400 rather than a 500.
+                throw new ParsingException(
+                    Source.EMPTY,
+                    "{}",
                     base + "; set error_mode=null_field (or skip_row) to null-fill/skip and warn instead of failing"
                 );
             }
@@ -2150,7 +2165,8 @@ public class NdJsonPageDecoder implements Closeable {
                 + "model it as separate fields.";
             parser.skipChildren();
             if (errorPolicy.isStrict()) {
-                throw new EsqlIllegalArgumentException(message);
+                // Client-class: a field that is a scalar in one record and an object in another is bad input.
+                throw new ParsingException(Source.EMPTY, "{}", message);
             }
             if (skipRow) {
                 rowDroppedBySkipRow = true;

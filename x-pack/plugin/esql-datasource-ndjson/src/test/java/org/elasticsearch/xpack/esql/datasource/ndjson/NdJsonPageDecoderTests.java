@@ -20,8 +20,8 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.datasources.DeclaredSchemaValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.hamcrest.Matchers;
 import org.junit.After;
@@ -306,8 +307,8 @@ public class NdJsonPageDecoderTests extends ESTestCase {
     public void testScalarWhereNestedObjectExpectedStrictFails() {
         String ndjson = "{\"address\": {\"city\": \"NYC\", \"zip\": \"10001\"}}\n" + "{\"address\": \"unstructured\"}\n";
 
-        EsqlIllegalArgumentException ex = expectThrows(
-            EsqlIllegalArgumentException.class,
+        ParsingException ex = expectThrows(
+            ParsingException.class,
             () -> decodePage(
                 ndjson,
                 List.of(attribute("address.city", DataType.KEYWORD), attribute("address.zip", DataType.KEYWORD)),
@@ -658,7 +659,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
             assertEquals("the good cell still decodes", 5L, block.getLong(block.getFirstValueIndex(1)));
         }
         drainWarnings();
-        expectThrows(EsqlIllegalArgumentException.class, () -> decodeOneColumn("{\"v\":-1}\n", DataType.DATE_NANOS, ErrorPolicy.STRICT));
+        expectThrows(ParsingException.class, () -> decodeOneColumn("{\"v\":-1}\n", DataType.DATE_NANOS, ErrorPolicy.STRICT));
     }
 
     /**
@@ -979,10 +980,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
      */
     public void testOversizedNumberTokenFailsFastUnderStrict() {
         String ndjson = "{\"v\":1}\n" + oversizedNumberRecord() + "\n{\"v\":3}\n";
-        EsqlIllegalArgumentException e = expectThrows(
-            EsqlIllegalArgumentException.class,
-            () -> decodeOneColumn(ndjson, DataType.LONG, ErrorPolicy.STRICT)
-        );
+        ParsingException e = expectThrows(ParsingException.class, () -> decodeOneColumn(ndjson, DataType.LONG, ErrorPolicy.STRICT));
         assertThat(e.getMessage(), Matchers.containsString("Malformed NDJSON"));
         assertThat(e.getMessage(), Matchers.containsString("Number value length"));
     }
@@ -1013,10 +1011,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
     /** fail_fast on a non-number limit, pinning that the fix is class-level rather than number-specific. */
     public void testExcessiveNestingFailsFastUnderStrict() {
         String ndjson = "{\"v\":1}\n" + excessiveNestingRecord() + "\n";
-        EsqlIllegalArgumentException e = expectThrows(
-            EsqlIllegalArgumentException.class,
-            () -> decodeOneColumn(ndjson, DataType.LONG, ErrorPolicy.STRICT)
-        );
+        ParsingException e = expectThrows(ParsingException.class, () -> decodeOneColumn(ndjson, DataType.LONG, ErrorPolicy.STRICT));
         assertThat(e.getMessage(), Matchers.containsString("Malformed NDJSON"));
         assertThat(e.getMessage(), Matchers.containsString("Document nesting depth"));
     }
@@ -1080,11 +1075,46 @@ public class NdJsonPageDecoderTests extends ESTestCase {
     public void testConstraintViolationCountsAgainstErrorBudget() {
         String ndjson = "{\"v\":1}\n" + oversizedNumberRecord() + "\n{\"v\":3}\n";
         ErrorPolicy noBudget = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, 0, 0.0, false);
-        EsqlIllegalArgumentException e = expectThrows(
-            EsqlIllegalArgumentException.class,
-            () -> decodeOneColumn(ndjson, DataType.LONG, noBudget)
-        );
+        ParsingException e = expectThrows(ParsingException.class, () -> decodeOneColumn(ndjson, DataType.LONG, noBudget));
         assertThat(e.getMessage(), Matchers.containsString("NDJSON error budget exceeded"));
+    }
+
+    /**
+     * Bad data is the client's, not ours, so every strict NDJSON read failure answers 400. This asserts the
+     * status directly rather than the exception type, because the status is the contract users actually see and
+     * the type is only how we carry it. Before this change all four of these threw {@code EsqlIllegalArgumentException},
+     * which sits in the {@code QlServerException} family with no {@code status()} override and so answered 500 —
+     * paging someone over a malformed input file. The two genuine invariant failures in this class (missing lenient
+     * scratch builders) deliberately stay server-class and are not listed here.
+     */
+    public void testEveryStrictReadFailureIsAClientError() {
+        String oversized = "{\"v\":" + "1".repeat(1200) + "}\n";
+        String badValue = "{\"v\":\"notanumber\"}\n";
+        String shapeConflict = "{\"v\":1}\n{\"v\":{\"nested\":2}}\n";
+
+        assertEquals(
+            "whole-line parse failure",
+            RestStatus.BAD_REQUEST,
+            expectThrows(ParsingException.class, () -> decodeOneColumn(oversized, DataType.LONG, ErrorPolicy.STRICT)).status()
+        );
+        assertEquals(
+            "per-cell coercion failure",
+            RestStatus.BAD_REQUEST,
+            expectThrows(ParsingException.class, () -> decodeOneColumn(badValue, DataType.LONG, ErrorPolicy.STRICT)).status()
+        );
+        assertEquals(
+            "scalar-versus-object shape conflict",
+            RestStatus.BAD_REQUEST,
+            expectThrows(ParsingException.class, () -> decodeOneColumn(shapeConflict, DataType.LONG, ErrorPolicy.STRICT)).status()
+        );
+        assertEquals(
+            "error budget exhausted",
+            RestStatus.BAD_REQUEST,
+            expectThrows(
+                ParsingException.class,
+                () -> decodeOneColumn(oversized, DataType.LONG, new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, 0, 0.0, false))
+            ).status()
+        );
     }
 
     /**

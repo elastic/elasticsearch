@@ -879,9 +879,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIpIT
   method: test {csv-spec:ip.cidrMatchFieldArg}
   issue: https://github.com/elastic/elasticsearch/issues/156583
-- class: org.elasticsearch.index.codec.vectors.ash.AsymmetricHashingQuantizerTests
-  method: testFullPipelineLearnedMethod
-  issue: https://github.com/elastic/elasticsearch/issues/156432
 - class: org.elasticsearch.xpack.logsdb.qa.StandardVersusLogsdbFieldLevelSecurityChallengeRestIT
   method: testFieldLevelSecuritySourceEquivalence
   issue: https://github.com/elastic/elasticsearch/issues/156629

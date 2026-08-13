@@ -43,11 +43,11 @@ public class StatelessSearchNodeRecoveryMetricsCollector extends StatelessRecove
 
     @Override
     protected void updateMetrics(final IndexShard indexShard, final Store store, final Map<String, Object> metricLabels) {
+        super.updateMetrics(indexShard, store, metricLabels);
         assert indexShard.routingEntry().isPromotableToPrimary() == false
             : "Index shard is promotable to primary, but this recovery metrics collector is only for search nodes";
         final SearchDirectory searchDirectory = SearchDirectory.unwrapDirectory(store.directory());
         shardRecoveryTotalBytesReadFromIndexingMetric.incrementBy(searchDirectory.totalBytesReadFromIndexing(), metricLabels);
         shardRecoveryTotalBytesWarmedFromIndexingMetric.incrementBy(searchDirectory.totalBytesWarmedFromIndexing(), metricLabels);
-        super.updateMetrics(indexShard, store, metricLabels);
     }
 }

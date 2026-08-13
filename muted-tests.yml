@@ -628,9 +628,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlOldCoordinatorSpecDenseVectorAggsIT
   method: test {csv-spec:dense_vector_aggs.sumDenseVectorOverflow}
   issue: https://github.com/elastic/elasticsearch/issues/156194
-- class: org.elasticsearch.xpack.stateless.StatelessAbortRunningMergesOnRelocationIT
-  method: testConcurrentForceMergeIsNotAborted
-  issue: https://github.com/elastic/elasticsearch/issues/156224
 - class: org.elasticsearch.xpack.esql.analysis.AnalyzerSubqueryTests
   method: testTSSubqueryWithConflictingTypesInUnionAll
   issue: https://github.com/elastic/elasticsearch/issues/156226
@@ -879,9 +876,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIpIT
   method: test {csv-spec:ip.cidrMatchFieldArg}
   issue: https://github.com/elastic/elasticsearch/issues/156583
-- class: org.elasticsearch.index.codec.vectors.ash.AsymmetricHashingQuantizerTests
-  method: testFullPipelineLearnedMethod
-  issue: https://github.com/elastic/elasticsearch/issues/156432
 - class: org.elasticsearch.xpack.logsdb.qa.StandardVersusLogsdbFieldLevelSecurityChallengeRestIT
   method: testFieldLevelSecuritySourceEquivalence
   issue: https://github.com/elastic/elasticsearch/issues/156629
@@ -892,3 +886,40 @@ tests:
 - class: org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceTests
   method: testOfflineWarmingRatioAndBytesMetrics
   issue: https://github.com/elastic/elasticsearch/issues/156664
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlOldCoordinatorSpecDateIT
+  method: test {csv-spec:date.dateDiffUnitFromField}
+  issue: https://github.com/elastic/elasticsearch/issues/156698
+- class: org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettingsTests
+  method: testBwcSerialization
+  issue: https://github.com/elastic/elasticsearch/issues/156702
+- class: org.elasticsearch.xpack.inference.services.elastic.ccm.CCMModelTests
+  issue: https://github.com/elastic/elasticsearch/issues/156703
+- class: org.elasticsearch.xpack.esql.datasource.grpc.AsyncConnectorFactoryFlightTests
+  issue: https://github.com/elastic/elasticsearch/issues/156704
+- class: org.elasticsearch.index.codec.vectors.ash.AsymmetricHashingQuantizerTests
+  method: testScoreReconstructsDotProduct
+  issue: https://github.com/elastic/elasticsearch/issues/156705
+- class: org.elasticsearch.index.codec.vectors.ash.AsymmetricHashingQuantizerTests
+  method: testFullPipelineRandomMethod
+  issue: https://github.com/elastic/elasticsearch/issues/156706
+- class: org.elasticsearch.index.codec.vectors.ash.AsymmetricHashingQuantizerTests
+  method: testReconstructedDotProductApproximatesTrueDotProduct
+  issue: https://github.com/elastic/elasticsearch/issues/156708
+- class: org.elasticsearch.reindex.RethrottleTests
+  method: testDeleteByQuery
+  issue: https://github.com/elastic/elasticsearch/issues/156709
+- class: org.elasticsearch.xpack.core.inference.action.PutCCMConfigurationActionRequestTests
+  method: testBwcSerialization
+  issue: https://github.com/elastic/elasticsearch/issues/156714
+- class: org.elasticsearch.xpack.core.inference.action.PutCCMConfigurationActionRequestTests
+  method: testConcurrentEquals
+  issue: https://github.com/elastic/elasticsearch/issues/156715
+- class: org.elasticsearch.xpack.core.security.authc.service.ServiceAccountTokenTests
+  method: testBearerString
+  issue: https://github.com/elastic/elasticsearch/issues/156716
+- class: org.elasticsearch.xpack.core.watcher.crypto.CryptoServiceTests
+  method: testEncryptionAndDecryptionChars
+  issue: https://github.com/elastic/elasticsearch/issues/156717
+- class: org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskASHVectorsFormatTests
+  method: testAshEuclideanScoreCorrectness
+  issue: https://github.com/elastic/elasticsearch/issues/156719

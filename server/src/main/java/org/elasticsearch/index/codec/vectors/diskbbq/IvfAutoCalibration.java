@@ -308,7 +308,7 @@ public class IvfAutoCalibration {
             doPreconditionResult,
             calibratedSegments
         );
-        return new IvfSegmentConfig(CentroidIndexFormat.FLAT, bestEncoding, doPreconditionResult, avgOversample);
+        return new IvfSegmentConfig(CentroidIndexFormat.FLAT, bestEncoding, doPreconditionResult, avgOversample, null);
     }
 
     /** Per-encoding accumulator for {@link #selectFromMergeState}: live-vector-weighted oversample and precondition votes. */
@@ -602,7 +602,8 @@ public class IvfAutoCalibration {
                         CentroidIndexFormat.FLAT,
                         candidate.encoding(),
                         precondition,
-                        oversample
+                        oversample,
+                        null
                     );
                     return new SweepOutcome.Success(config, expected, candidate.qbits(), candidate.dbits(), rerankVal);
                 }
@@ -616,7 +617,7 @@ public class IvfAutoCalibration {
         }
 
         return new SweepOutcome.BestEffort(
-            new IvfSegmentConfig(CentroidIndexFormat.FLAT, bestEncoding, bestPrecondition, bestOversample),
+            new IvfSegmentConfig(CentroidIndexFormat.FLAT, bestEncoding, bestPrecondition, bestOversample, null),
             bestRecall
         );
     }

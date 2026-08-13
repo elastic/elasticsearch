@@ -1205,31 +1205,25 @@ public class ParquetFormatReaderTests extends ESTestCase {
             // The sliding window (DEFAULT_WINDOW_SIZE) is charged to the native memory breaker.
             // A 100-byte limit is far below the 4 MB window — trips on metadata.
             var nativeBreaker = new LimitedBreaker("test", ByteSizeValue.ofBytes(100));
-            var limitedFactory = BlockFactory.builder(this.blockFactory.bigArrays()).nativeMemoryBreaker(nativeBreaker).build();
+            var limitedFactory = BlockFactory.builder(this.blockFactory.bigArrays())
+                .breaker(new NoopCircuitBreaker("none"))
+                .nativeMemoryBreaker(nativeBreaker)
+                .build();
             var reader = new ParquetFormatReader(limitedFactory);
             assertThrows(CircuitBreakingException.class, () -> reader.metadata(storageObject));
             assertEquals(0, nativeBreaker.getUsed());
         }
 
         {
-            // metadata() reads the footer via the stream — no ByteBufferAllocator usage — so it
-            // succeeds even with a tiny on-heap limit. read() decodes data pages via the
-            // ByteBufferAllocator, which charges the on-heap breaker and trips.
+            // The Parquet footer is read via ByteBufferAllocator, which charges the on-heap breaker.
+            // A 100-byte limit is far below the footer allocation — trips on metadata.
             var onHeapBreaker = new LimitedBreaker("test", ByteSizeValue.ofBytes(100));
-            var limitedFactory = BlockFactory.builder(this.blockFactory.bigArrays()).breaker(onHeapBreaker).build();
+            var limitedFactory = BlockFactory.builder(this.blockFactory.bigArrays())
+                .breaker(onHeapBreaker)
+                .nativeMemoryBreaker(new NoopCircuitBreaker("none"))
+                .build();
             var reader = new ParquetFormatReader(limitedFactory);
-
-            // Read the schema is now ok (no ByteBufferAllocator usage during footer read).
-            var metadata = reader.metadata(storageObject);
-            assertEquals(0, onHeapBreaker.getUsed());
-
-            // Reading a page trips the on-heap breaker via the ByteBufferAllocator.
-            assertThrows(CircuitBreakingException.class, () -> {
-                try (var iter = reader.read(storageObject, List.of("id", "score"), 1000)) {
-                    iter.next();
-                }
-            });
-            reader.close();
+            assertThrows(CircuitBreakingException.class, () -> reader.metadata(storageObject));
             assertEquals(0, onHeapBreaker.getUsed());
         }
     }

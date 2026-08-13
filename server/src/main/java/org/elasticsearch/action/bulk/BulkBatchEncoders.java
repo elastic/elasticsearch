@@ -175,10 +175,13 @@ final class BulkBatchEncoders implements Releasable {
             int rowIndex = state.encoder.commitScratchTo(shardIdInt);
             state.pendingByShard.computeIfAbsent(destShardId, k -> new ArrayList<>()).add(new PendingAttachment(request, rowIndex));
         } catch (Exception e) {
-            // commitScratchTo failure indicates internal-state corruption (IO error on the
-            // underlying stream). Surface it; the per-item catch in groupRequestsByShards turns it
-            // into a per-item failure response.
-            throw new IllegalStateException("Failed to commit EIRF row for item to shard " + destShardId, e);
+            // commitScratchTo failure (e.g. OOM while writing to column builders) is treated the
+            // same as a parseToScratch failure: abandon the batch for the rest of this bulk so
+            // items fall back to the inline-source path. The scratch page was already released by
+            // commitScratchTo's own finally block.
+            logger.debug("EIRF commit failed; abandoning batch for the rest of this bulk", e);
+            disabled = true;
+            return NOT_BATCHABLE;
         }
         return shardIdInt;
     }

@@ -9,8 +9,7 @@
 
 package org.elasticsearch.foreign.processor.model;
 
-import org.elasticsearch.foreign.CaptureErrno;
-import org.elasticsearch.foreign.CaptureLastError;
+import org.elasticsearch.foreign.CaptureSystemError;
 import org.elasticsearch.foreign.Critical;
 import org.elasticsearch.foreign.Function;
 import org.elasticsearch.foreign.Platform;
@@ -53,8 +52,9 @@ import static org.elasticsearch.foreign.processor.model.StructSpecParser.ARRAY_F
  * @param isCritical whether the method is annotated with {@code @Critical}
  * @param fallbackAdapterClassName fully-qualified name of the JDK 21 {@code @Critical} fallback adapter class,
  *        or {@code null} if none was specified
- * @param capturesErrno whether the method is annotated with {@code @CaptureErrno}
- * @param capturesLastError whether the method is annotated with {@code @CaptureLastError}
+ * @param capturedError which system-error channel the method captures after the native call
+ *        ({@link CapturedError#NONE} when the method is not annotated with {@code @CaptureSystemError}),
+ *        derived from the enclosing library's platform availability
  * @param firstVariadicArg 0-based index of the first variadic argument, or {@code -1} if not variadic
  * @param isStructFactory whether the method is annotated with {@code @StructFactory}
  * @param structReturnSimpleName simple name of the struct return type; non-null only when {@code isStructFactory}
@@ -72,8 +72,7 @@ public record MethodModel(
     List<String> paramStructSimpleNames,
     boolean isCritical,
     String fallbackAdapterClassName,
-    boolean capturesErrno,
-    boolean capturesLastError,
+    CapturedError capturedError,
     int firstVariadicArg,
     boolean isStructFactory,
     String structReturnSimpleName,
@@ -83,10 +82,24 @@ public record MethodModel(
 ) {
 
     /**
+     * The system-error channel captured after a native call. A single {@code @CaptureSystemError}
+     * annotation covers both, with the concrete channel derived from the enclosing library's
+     * platform availability (see {@link CaptureSystemError}).
+     */
+    public enum CapturedError {
+        /** No {@code @CaptureSystemError} capture requested. */
+        NONE,
+        /** POSIX {@code errno}; captured by any library that can run on a POSIX platform. */
+        ERRNO,
+        /** Win32 {@code GetLastError}; captured by a library that runs only on Windows. */
+        GET_LAST_ERROR
+    }
+
+    /**
      * The POSIX platform names in {@link Platform}. A {@code @LibrarySpecification} that marks
-     * all of these unavailable is Windows-only, so {@code @CaptureErrno} on one of its methods
-     * can never be exercised. Derived from {@link Platform#values()} (rather than hardcoded)
-     * so it stays in sync if the enum changes.
+     * all of these unavailable is Windows-only, so a {@code @CaptureSystemError} method on it captures
+     * {@code GetLastError} rather than {@code errno}. Derived from {@link Platform#values()}
+     * (rather than hardcoded) so it stays in sync if the enum changes.
      */
     private static final List<String> POSIX_PLATFORM_NAMES = Arrays.stream(Platform.values())
         .map(Enum::name)
@@ -102,8 +115,8 @@ public record MethodModel(
      * @param enclosingStructNames simple names of {@code @StructSpecification} types enclosed in the same interface,
      *        used to validate {@code @StructFactory} return types
      * @param unavailableOn enum constant names of platforms where the enclosing {@code @LibrarySpecification} is
-     *        unavailable, used to validate that {@code @CaptureErrno} / {@code @CaptureLastError} are only used
-     *        on a library that can actually run on a platform supporting them
+     *        unavailable, used to derive the {@code @CaptureSystemError} capture channel ({@code errno} vs
+     *        {@code GetLastError}) from the library's target platform family
      */
     public static MethodModel from(
         ExecutableElement method,
@@ -117,8 +130,7 @@ public record MethodModel(
 
         Function function = method.getAnnotation(Function.class);
         boolean isStructFactory = method.getAnnotation(StructFactory.class) != null;
-        boolean capturesErrno = method.getAnnotation(CaptureErrno.class) != null;
-        boolean capturesLastError = method.getAnnotation(CaptureLastError.class) != null;
+        boolean capturesSystemError = method.getAnnotation(CaptureSystemError.class) != null;
         Variadic variadicAnnotation = method.getAnnotation(Variadic.class);
         int firstVariadicArg = variadicAnnotation != null ? variadicAnnotation.firstArg() : -1;
 
@@ -132,22 +144,13 @@ public record MethodModel(
             return null;
         }
 
-        if (capturesErrno && capturesLastError) {
-            messager.printMessage(Kind.ERROR, "Method '" + methodName + "' cannot have both @CaptureErrno and @CaptureLastError", method);
-            return null;
-        }
-
         if (isStructFactory) {
             if (function != null) {
                 messager.printMessage(Kind.ERROR, "@StructFactory method '" + methodName + "' must not also have @Function", method);
                 return null;
             }
-            if (capturesErrno) {
-                messager.printMessage(Kind.ERROR, "@StructFactory method '" + methodName + "' must not have @CaptureErrno", method);
-                return null;
-            }
-            if (capturesLastError) {
-                messager.printMessage(Kind.ERROR, "@StructFactory method '" + methodName + "' must not have @CaptureLastError", method);
+            if (capturesSystemError) {
+                messager.printMessage(Kind.ERROR, "@StructFactory method '" + methodName + "' must not have @CaptureSystemError", method);
                 return null;
             }
             if (method.getAnnotation(Critical.class) != null) {
@@ -157,21 +160,9 @@ public record MethodModel(
             return buildStructFactoryModel(method, methodName, enclosingStructNames, messager);
         }
 
-        if (capturesLastError && unavailableOn.contains(Platform.WINDOWS_X64.name())) {
-            messager.printMessage(
-                Kind.ERROR,
-                "@CaptureLastError on '" + methodName + "' is invalid: enclosing @LibrarySpecification lists WINDOWS_X64 in unavailableOn",
-                method
-            );
-            return null;
-        }
-
-        if (capturesErrno && unavailableOn.containsAll(POSIX_PLATFORM_NAMES)) {
-            messager.printMessage(
-                Kind.ERROR,
-                "@CaptureErrno on '" + methodName + "' is invalid: enclosing @LibrarySpecification marks all POSIX platforms unavailable",
-                method
-            );
+        CapturedError capturedError = resolveCapturedError(capturesSystemError, unavailableOn, methodName, method, messager);
+        if (capturesSystemError && capturedError == null) {
+            // resolveCapturedError already emitted the error diagnostic.
             return null;
         }
 
@@ -247,8 +238,7 @@ public record MethodModel(
             Collections.unmodifiableList(new ArrayList<>(paramStructSimpleNames)),
             isCritical,
             fallbackAdapter,
-            capturesErrno,
-            capturesLastError,
+            capturedError,
             firstVariadicArg,
             false,
             null,
@@ -256,6 +246,41 @@ public record MethodModel(
             isProtected,
             boundsChecks
         );
+    }
+
+    /**
+     * Derives the {@link CapturedError} channel for a {@code @CaptureSystemError} method from the enclosing
+     * library's platform availability, or returns {@link CapturedError#NONE} when the method is not
+     * annotated. {@code errno} and {@code GetLastError} are distinct error channels, so the source can
+     * only be resolved when the library targets a single platform family: a library available on both
+     * Windows and a POSIX platform is an error (returns {@code null} after emitting a diagnostic).
+     */
+    private static CapturedError resolveCapturedError(
+        boolean capturesSystemError,
+        List<String> unavailableOn,
+        String methodName,
+        ExecutableElement method,
+        Messager messager
+    ) {
+        if (capturesSystemError == false) {
+            return CapturedError.NONE;
+        }
+        boolean windowsAvailable = unavailableOn.contains(Platform.WINDOWS_X64.name()) == false;
+        boolean anyPosixAvailable = unavailableOn.containsAll(POSIX_PLATFORM_NAMES) == false;
+        if (windowsAvailable && anyPosixAvailable) {
+            messager.printMessage(
+                Kind.ERROR,
+                "@CaptureSystemError on '"
+                    + methodName
+                    + "' cannot resolve the error mechanism: enclosing @LibrarySpecification is available on both "
+                    + "Windows and a POSIX platform. Restrict unavailableOn to a single platform family.",
+                method
+            );
+            return null;
+        }
+        // A library available on neither is rejected by LibraryModel before methods are built, so
+        // once Windows is unavailable at least one POSIX platform must be.
+        return windowsAvailable ? CapturedError.GET_LAST_ERROR : CapturedError.ERRNO;
     }
 
     private static MethodModel buildStructFactoryModel(
@@ -338,8 +363,7 @@ public record MethodModel(
             List.of(),
             false,
             null,
-            false,
-            false,
+            CapturedError.NONE,
             -1,
             true,
             structReturnSimpleName,

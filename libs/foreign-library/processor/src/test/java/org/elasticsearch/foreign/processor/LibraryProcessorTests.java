@@ -363,42 +363,46 @@ public class LibraryProcessorTests extends ProcessorTestCase {
     }
 
     /**
-     * A method annotated with both {@code @CaptureErrno} and {@code @CaptureLastError} must emit
-     * an error — the two are mutually exclusive since no native function sets both.
+     * {@code @CaptureSystemError} names a single error channel, but {@code errno} and {@code GetLastError}
+     * are distinct: a library reachable on both a POSIX platform and Windows cannot resolve which one
+     * to capture, so this must be a compile error. Here the library leaves any POSIX platform (Darwin
+     * aarch64) available alongside Windows.
      */
-    public void testCaptureErrnoAndCaptureLastErrorOnSameMethodEmitsError() {
+    public void testSystemErrorOnCrossPlatformLibraryEmitsError() {
         String source = """
             package test;
-            import org.elasticsearch.foreign.CaptureErrno;
-            import org.elasticsearch.foreign.CaptureLastError;
             import org.elasticsearch.foreign.Function;
             import org.elasticsearch.foreign.LibrarySpecification;
-            @LibrarySpecification(name = "testlib")
+            import org.elasticsearch.foreign.Platform;
+            import org.elasticsearch.foreign.CaptureSystemError;
+            @LibrarySpecification(
+                name = "testlib",
+                unavailableOn = { Platform.LINUX_X64, Platform.LINUX_AARCH64, Platform.DARWIN_X64 }
+            )
             public interface BadLib {
-                @CaptureErrno
-                @CaptureLastError
+                @CaptureSystemError
                 @Function("native_fn")
                 int fn(int x);
             }
             """;
 
         CompilationResult result = compile("test.BadLib", source);
-        assertFalse("Expected compilation to fail when both capture annotations are present", result.success());
-        boolean hasError = result.errors().stream().anyMatch(msg -> msg.contains("@CaptureErrno") && msg.contains("@CaptureLastError"));
-        assertTrue("Expected error about mutually exclusive capture annotations but got: " + result.errors(), hasError);
+        assertFalse("Expected compilation to fail when @CaptureSystemError spans both platform families", result.success());
+        boolean hasError = result.errors().stream().anyMatch(msg -> msg.contains("@CaptureSystemError") && msg.contains("both"));
+        assertTrue("Expected error about unresolvable @CaptureSystemError mechanism but got: " + result.errors(), hasError);
     }
 
     /**
-     * A {@code @StructFactory} method must not be annotated with {@code @CaptureLastError} —
-     * struct factories don't perform native calls that could set {@code GetLastError}.
+     * A {@code @StructFactory} method must not be annotated with {@code @CaptureSystemError} —
+     * struct factories don't perform native calls that could set a system-error value.
      */
-    public void testCaptureLastErrorOnStructFactoryEmitsError() {
+    public void testSystemErrorOnStructFactoryEmitsError() {
         String source = """
             package test;
-            import org.elasticsearch.foreign.CaptureLastError;
             import org.elasticsearch.foreign.LibrarySpecification;
             import org.elasticsearch.foreign.StructFactory;
             import org.elasticsearch.foreign.StructSpecification;
+            import org.elasticsearch.foreign.CaptureSystemError;
             @LibrarySpecification
             public interface BadLib {
                 @StructSpecification
@@ -406,73 +410,29 @@ public class LibraryProcessorTests extends ProcessorTestCase {
                     int x();
                 }
 
-                @CaptureLastError
+                @CaptureSystemError
                 @StructFactory
                 Point newPoint();
             }
             """;
 
         CompilationResult result = compile("test.BadLib", source);
-        assertFalse("Expected compilation to fail when @StructFactory has @CaptureLastError", result.success());
-        boolean hasError = result.errors().stream().anyMatch(msg -> msg.contains("must not have @CaptureLastError"));
-        assertTrue("Expected error about @StructFactory with @CaptureLastError but got: " + result.errors(), hasError);
+        assertFalse("Expected compilation to fail when @StructFactory has @CaptureSystemError", result.success());
+        boolean hasError = result.errors().stream().anyMatch(msg -> msg.contains("must not have @CaptureSystemError"));
+        assertTrue("Expected error about @StructFactory with @CaptureSystemError but got: " + result.errors(), hasError);
     }
 
     /**
-     * {@code @CaptureLastError} on a library that lists {@code WINDOWS_X64} in
-     * {@code unavailableOn} can never fire on the only platform that has {@code GetLastError} —
-     * this must be a compile error. A control case with no {@code unavailableOn} restriction
-     * must compile clean.
+     * {@code @CaptureSystemError} on a Windows-only library (every POSIX platform listed in
+     * {@code unavailableOn}) resolves to the {@code GetLastError} channel and must compile clean.
      */
-    public void testCaptureLastErrorRequiresWindowsAvailability() {
-        String badSource = """
+    public void testSystemErrorOnWindowsOnlyLibraryCompilesClean() {
+        String source = """
             package test;
-            import org.elasticsearch.foreign.CaptureLastError;
             import org.elasticsearch.foreign.Function;
             import org.elasticsearch.foreign.LibrarySpecification;
             import org.elasticsearch.foreign.Platform;
-            @LibrarySpecification(name = "testlib", unavailableOn = { Platform.WINDOWS_X64 })
-            public interface BadLib {
-                @CaptureLastError
-                @Function("native_fn")
-                int fn(int x);
-            }
-            """;
-
-        CompilationResult badResult = compile("test.BadLib", badSource);
-        assertFalse("Expected compilation to fail when unavailableOn contains WINDOWS_X64", badResult.success());
-        boolean hasError = badResult.errors().stream().anyMatch(msg -> msg.contains("lists WINDOWS_X64 in unavailableOn"));
-        assertTrue("Expected error about WINDOWS_X64 unavailability but got: " + badResult.errors(), hasError);
-
-        String goodSource = """
-            package test;
-            import org.elasticsearch.foreign.CaptureLastError;
-            import org.elasticsearch.foreign.Function;
-            import org.elasticsearch.foreign.LibrarySpecification;
-            @LibrarySpecification(name = "testlib")
-            public interface GoodLib {
-                @CaptureLastError
-                @Function("native_fn")
-                int fn(int x);
-            }
-            """;
-
-        CompilationResult goodResult = compile("test.GoodLib", goodSource);
-        assertTrue("Expected compilation to succeed but got errors: " + goodResult.errors(), goodResult.success());
-    }
-
-    /**
-     * {@code @CaptureErrno} on a library that marks all four POSIX platforms unavailable is
-     * Windows-only, so {@code errno} can never be exercised — this must be a compile error. A
-     * control case that leaves any one POSIX platform available must compile clean.
-     */
-    public void testCaptureErrnoRequiresAtLeastOnePosixPlatform() {
-        String badSource = """
-            package test;
-            import org.elasticsearch.foreign.CaptureErrno;
-            import org.elasticsearch.foreign.Function;
-            import org.elasticsearch.foreign.LibrarySpecification;
-            import org.elasticsearch.foreign.Platform;
+            import org.elasticsearch.foreign.CaptureSystemError;
             @LibrarySpecification(
                 name = "testlib",
                 unavailableOn = {
@@ -482,37 +442,38 @@ public class LibraryProcessorTests extends ProcessorTestCase {
                     Platform.DARWIN_AARCH64
                 }
             )
-            public interface BadLib {
-                @CaptureErrno
+            public interface GoodLib {
+                @CaptureSystemError
                 @Function("native_fn")
                 int fn(int x);
             }
             """;
 
-        CompilationResult badResult = compile("test.BadLib", badSource);
-        assertFalse("Expected compilation to fail when all POSIX platforms are unavailable", badResult.success());
-        boolean hasError = badResult.errors().stream().anyMatch(msg -> msg.contains("all POSIX platforms unavailable"));
-        assertTrue("Expected error about all POSIX platforms unavailable but got: " + badResult.errors(), hasError);
+        CompilationResult result = compile("test.GoodLib", source);
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+    }
 
-        String goodSource = """
+    /**
+     * {@code @CaptureSystemError} on a POSIX-only library ({@code WINDOWS_X64} listed in
+     * {@code unavailableOn}) resolves to the {@code errno} channel and must compile clean.
+     */
+    public void testSystemErrorOnPosixLibraryCompilesClean() {
+        String source = """
             package test;
-            import org.elasticsearch.foreign.CaptureErrno;
             import org.elasticsearch.foreign.Function;
             import org.elasticsearch.foreign.LibrarySpecification;
             import org.elasticsearch.foreign.Platform;
-            @LibrarySpecification(
-                name = "testlib",
-                unavailableOn = { Platform.LINUX_X64, Platform.LINUX_AARCH64, Platform.DARWIN_X64 }
-            )
+            import org.elasticsearch.foreign.CaptureSystemError;
+            @LibrarySpecification(name = "testlib", unavailableOn = { Platform.WINDOWS_X64 })
             public interface GoodLib {
-                @CaptureErrno
+                @CaptureSystemError
                 @Function("native_fn")
                 int fn(int x);
             }
             """;
 
-        CompilationResult goodResult = compile("test.GoodLib", goodSource);
-        assertTrue("Expected compilation to succeed but got errors: " + goodResult.errors(), goodResult.success());
+        CompilationResult result = compile("test.GoodLib", source);
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
     }
 
     /**

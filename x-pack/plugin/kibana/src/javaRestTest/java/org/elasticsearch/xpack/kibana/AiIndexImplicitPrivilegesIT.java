@@ -26,6 +26,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 
 /**
  * End-to-end coverage for {@code AiIndexImplicitPrivilegesProvider} against a real
@@ -49,6 +50,10 @@ import static org.hamcrest.Matchers.hasSize;
  *   <li>Documents with no {@code permissions.kibana.privileges.name} field are always visible
  *       (public documents).</li>
  * </ul>
+ * <p>
+ * The registered privilege deliberately bundles {@code login:} and {@code saved_object:dashboard/get}
+ * alongside the {@code ai_index:dashboard/read} action, so the surfaced DLS query also demonstrates
+ * that actions outside the {@code ai_index:} namespace never become scoped-privilege terms.
  */
 public class AiIndexImplicitPrivilegesIT extends ESRestTestCase {
 
@@ -61,7 +66,9 @@ public class AiIndexImplicitPrivilegesIT extends ESRestTestCase {
     private static final String KIBANA_APPLICATION = "kibana-.kibana";
     private static final String DASHBOARDS_PRIVILEGE = "feature_dashboards.read";
     private static final String LOGIN_ACTION = "login:";
-    private static final String DASHBOARD_GET_ACTION = "saved_object:dashboard/get";
+    private static final String AI_INDEX_DASHBOARD_READ_ACTION = "ai_index:dashboard/read";
+    // Registered alongside the ai_index: action to prove non-ai_index: actions are filtered out of the DLS query.
+    private static final String SAVED_OBJECT_GET_ACTION = "saved_object:dashboard/get";
 
     // Matches the ai-index-idx-* pattern so the stack plugin template auto-applies.
     private static final String AI_INDEX = "ai-index-idx-test";
@@ -113,11 +120,11 @@ public class AiIndexImplicitPrivilegesIT extends ESRestTestCase {
             {
               "%s": {
                 "%s": {
-                  "actions": ["%s", "%s"]
+                  "actions": ["%s", "%s", "%s"]
                 }
               }
             }
-            """, KIBANA_APPLICATION, DASHBOARDS_PRIVILEGE, LOGIN_ACTION, DASHBOARD_GET_ACTION));
+            """, KIBANA_APPLICATION, DASHBOARDS_PRIVILEGE, LOGIN_ACTION, SAVED_OBJECT_GET_ACTION, AI_INDEX_DASHBOARD_READ_ACTION));
         assertOK(client().performRequest(request));
     }
 
@@ -155,74 +162,78 @@ public class AiIndexImplicitPrivilegesIT extends ESRestTestCase {
         final Request create = new Request("PUT", "/" + AI_INDEX);
         assertOK(client().performRequest(create));
 
-        // Should be visible: user holds marketing|saved_object:dashboard/get.
+        // Documents deliberately carry no title/description/content: the template maps a semantic_text
+        // sub-field on each of those, and populating one would require an inference-capable license.
+        // This test is about the DLS filter, and its assertions run off document ids only.
+
+        // Should be visible: user holds marketing|ai_index:dashboard/read.
         indexDoc("marketing-dashboard", """
             {
               "permissions": {
                 "kibana": {
                   "privileges": {
-                    "name": "marketing|saved_object:dashboard/get",
+                    "name": "marketing|ai_index:dashboard/read",
                     "count": 1
                   }
                 }
               },
-              "title": "marketing dashboard"
+              "type": "dashboard"
             }
             """);
 
-        // Should NOT be visible: user does not hold finance|saved_object:dashboard/get (wrong space in token).
+        // Should NOT be visible: user does not hold finance|ai_index:dashboard/read (wrong space in token).
         indexDoc("finance-dashboard", """
             {
               "permissions": {
                 "kibana": {
                   "privileges": {
-                    "name": "finance|saved_object:dashboard/get",
+                    "name": "finance|ai_index:dashboard/read",
                     "count": 1
                   }
                 }
               },
-              "title": "finance dashboard"
+              "type": "dashboard"
             }
             """);
 
-        // Should NOT be visible: user doesn't hold marketing|saved_object:lens/get (privilege not in grant).
+        // Should NOT be visible: user doesn't hold marketing|ai_index:workflow/read (privilege not in grant).
         indexDoc("marketing-lens", """
             {
               "permissions": {
                 "kibana": {
                   "privileges": {
-                    "name": "marketing|saved_object:lens/get",
+                    "name": "marketing|ai_index:workflow/read",
                     "count": 1
                   }
                 }
               },
-              "title": "marketing lens"
+              "type": "workflow"
             }
             """);
 
         // Should be visible: no permissions field → public document.
         indexDoc("global-no-perms", """
             {
-              "title": "global no perms"
+              "type": "dashboard"
             }
             """);
 
         // Should NOT be visible: requires both tokens — AND semantics via terms_set;
-        // user only holds marketing|saved_object:dashboard/get, not marketing|saved_object:lens/get.
+        // user only holds marketing|ai_index:dashboard/read, not marketing|ai_index:workflow/read.
         indexDoc("multi-perm", """
             {
               "permissions": {
                 "kibana": {
                   "privileges": {
                     "name": [
-                      "marketing|saved_object:dashboard/get",
-                      "marketing|saved_object:lens/get"
+                      "marketing|ai_index:dashboard/read",
+                      "marketing|ai_index:workflow/read"
                     ],
                     "count": 2
                   }
                 }
               },
-              "title": "multi perm"
+              "type": "dashboard"
             }
             """);
     }
@@ -257,8 +268,11 @@ public class AiIndexImplicitPrivilegesIT extends ESRestTestCase {
         final String query = (String) implicit.get("query");
         assertThat(query, containsString("permissions.kibana.privileges.name"));
         assertThat(query, containsString("permissions.kibana.privileges.count"));
-        assertThat(query, containsString("marketing|saved_object:dashboard/get"));
+        assertThat(query, containsString("marketing|ai_index:dashboard/read"));
         assertThat(query, containsString("terms_set"));
+        // Only ai_index: actions become DLS terms — the login: and saved_object: actions in the same grant are dropped.
+        assertThat(query, not(containsString(LOGIN_ACTION)));
+        assertThat(query, not(containsString(SAVED_OBJECT_GET_ACTION)));
     }
 
     @SuppressWarnings("unchecked")

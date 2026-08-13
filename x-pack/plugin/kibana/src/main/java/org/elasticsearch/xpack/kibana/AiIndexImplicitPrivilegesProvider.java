@@ -23,27 +23,34 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
- * Implicitly grants read access to AI Index ({@code ai-index-*}) for users whose roles include any
- * Kibana application privilege grant.
+ * Implicitly grants read access to AI Index ({@code ai-index-*}) for users whose roles include a
+ * Kibana application privilege grant carrying at least one {@code ai_index:} action.
  * <p>
  * AI Index documents carry composite scoped-privileges in {@code permissions.kibana.privileges.name}
- * that bind a space and a privilege action together (e.g. {@code "marketing|saved_object:dashboard/get"}).
+ * that bind a space and a privilege action together (e.g. {@code "marketing|ai_index:dashboard/read"}).
  * The wildcard resource ({@code *}) is treated as a literal space component, producing tokens like
- * {@code "*|saved_object:dashboard/get"} for global documents. The number of scoped privileges a
+ * {@code "*|ai_index:dashboard/read"} for global documents. The number of scoped privileges a
  * document requires is pre-computed and stored in {@code permissions.kibana.privileges.count}. A
- * document with no {@code permissions.kibana.privileges.name} field is a public document visible to
- * all authenticated users.
+ * document with no {@code permissions.kibana.privileges.name} field is a public document, visible to
+ * every user this provider grants an implicit privilege to.
+ * <p>
+ * Only actions in the {@code ai_index:} namespace participate. That namespace is owned by AI Index,
+ * mirroring the way {@code saved_object:} actions are owned by saved-objects authz: a grant that
+ * carries no {@code ai_index:} action does not unlock AI Index at all, and no implicit privilege is
+ * returned for it. Consequently a user whose Kibana grants contain only, say, {@code saved_object:}
+ * or {@code api:} actions sees no AI Index documents — not even public ones.
  * <p>
  * The provider builds the user's scoped-privilege set from the cross-product of their space IDs and
- * action strings across all matching grants. For each resource the user belongs to and each action
- * they hold in that resource, one composite scoped privilege {@code "<spaceId>|<action>"} is emitted.
- * The DLS query then uses a {@code terms_set} query requiring that every scoped privilege listed on
- * the document is present in the user's held set
+ * {@code ai_index:} action strings across all matching grants. For each resource the user belongs to
+ * and each such action they hold in that resource, one composite scoped privilege
+ * {@code "<spaceId>|<action>"} is emitted. The DLS query then uses a {@code terms_set} query requiring
+ * that every scoped privilege listed on the document is present in the user's held set
  * ({@code minimum_should_match_field: permissions.kibana.privileges.count}).
  * <p>
- * The provider always builds a DLS query — the wildcard resource ({@code *}) flows through
+ * Whenever the provider does grant, it always builds a DLS query — the wildcard resource ({@code *}) flows through
  * {@link #buildScopedPrivileges} as a literal space component rather than short-circuiting to
  * unrestricted access. The DLS query:
  * <ul>
@@ -58,8 +65,10 @@ public class AiIndexImplicitPrivilegesProvider implements ImplicitPrivilegesProv
 
     static final String KIBANA_APPLICATION = "kibana-.kibana";
     // Index pattern mirrors the Kibana-side definition; keep in sync if it changes.
-    static final String[] AI_INDEX_INDICES = { "ai-index-*" };
+    static final String[] AI_INDEX_INDICES = { "ai-index-idx-*", "ai-index-ds-*" };
     static final String RESOURCE_PREFIX = "space:";
+    // Action namespace owned by AI Index; mirrors the Kibana-side AiIndexActions definition, keep in sync if it changes.
+    static final String AI_INDEX_ACTION_PREFIX = "ai_index:";
     static final String ALL_RESOURCES = "*";
     static final String INDEX_READ_PRIVILEGE = "read";
     static final String PERMISSIONS_FIELD = "permissions.kibana.privileges.name";
@@ -92,12 +101,15 @@ public class AiIndexImplicitPrivilegesProvider implements ImplicitPrivilegesProv
     }
 
     /**
-     * Collects the union of resources mapped to their action strings from every resolved
-     * application-privilege grant that targets the Kibana application.
+     * Collects the union of resources mapped to their {@code ai_index:} action strings from every
+     * resolved application-privilege grant that targets the Kibana application.
      * <p>
-     * The action strings (from {@link ApplicationPrivilege#getPatterns()}) are collected to
-     * populate the {@code terms_set} DLS clause; including all patterns from the grant is safe
-     * because extra terms that no document references are harmless.
+     * The action strings (from {@link ApplicationPrivilege#getPatterns()}) are filtered down to the
+     * {@code ai_index:} namespace before they populate the {@code terms_set} DLS clause. Actions from
+     * other namespaces are deliberately dropped: they belong to the subsystems that own them, and
+     * carrying them here would both bind AI Index visibility to unrelated authz decisions and inflate
+     * the DLS query with terms no AI Index document ever references. A grant that contributes no
+     * {@code ai_index:} action is skipped entirely, so it cannot open up AI Index on its own.
      * <p>
      * Returns a map from each resource string (e.g. {@code "space:marketing"} or {@code "*"}) to
      * the set of action strings held under that resource. Resources across multiple grants for the
@@ -108,9 +120,14 @@ public class AiIndexImplicitPrivilegesProvider implements ImplicitPrivilegesProv
         for (ResolvedApplicationPrivilege resolved : applicationPrivileges) {
             final ApplicationPrivilege privilege = resolved.privilege();
             if (applicationMatchesKibana(privilege.getApplication())) {
-                Set<String> patterns = new HashSet<>(Arrays.asList(privilege.getPatterns()));
+                Set<String> aiIndexActions = Arrays.stream(privilege.getPatterns())
+                    .filter(pattern -> pattern.startsWith(AI_INDEX_ACTION_PREFIX))
+                    .collect(Collectors.toSet());
+                if (aiIndexActions.isEmpty()) {
+                    continue;
+                }
                 for (String resource : resolved.resources()) {
-                    resourcesToActions.computeIfAbsent(resource, k -> new HashSet<>()).addAll(patterns);
+                    resourcesToActions.computeIfAbsent(resource, k -> new HashSet<>()).addAll(aiIndexActions);
                 }
             }
         }

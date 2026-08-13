@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
+import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression.PushedBlockLoaderExpression;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.FieldExtract;
@@ -56,6 +57,7 @@ import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -178,11 +180,17 @@ public class FieldExtractFusionCorpusInventoryTests extends ESTestCase {
     }
 
     /**
-     * Result of classifying a query's source: exactly one of {@code dataset} (measurable) or {@code reason} is non-null.
-     * {@code mode} is the {@link IndexMode} the source reads with ({@link IndexMode#STANDARD} for {@code FROM},
-     * {@link IndexMode#TIME_SERIES} for {@code TS}); it is only meaningful when {@code dataset} is non-null.
+     * Result of classifying a query's source: either {@code datasets} (measurable, one entry for a single
+     * {@code FROM}/{@code TS}, several for a multi-index {@code FROM a, b}) or {@code reason} is non-null. {@code mode}
+     * is the {@link IndexMode} the source reads with ({@code STANDARD} for {@code FROM}, {@code TIME_SERIES} for
+     * {@code TS}); {@code indexPattern} is the comma-joined pattern the parser produces, used to key the resolution.
+     * Only meaningful when {@code datasets} is non-null.
      */
-    private record SourceClass(CsvTestsDataLoader.TestDataset dataset, IndexMode mode, NotSingle reason) {}
+    private record SourceClass(List<CsvTestsDataLoader.TestDataset> datasets, IndexMode mode, String indexPattern, NotSingle reason) {
+        static SourceClass rejected(NotSingle reason) {
+            return new SourceClass(null, null, null, reason);
+        }
+    }
 
     /** Per-dataset offline analyzer plus the keyword paths the rewriter should wrap. {@code null} analyzer means unusable. */
     private record DatasetPlan(Analyzer analyzer, Set<String> keywordPaths) {}
@@ -226,7 +234,7 @@ public class FieldExtractFusionCorpusInventoryTests extends ESTestCase {
             // and planned; the dropped pragma is orthogonal to field_extract fusion on mapped keyword fields.
             String query = stripSetPreamble(testCase.query);
             SourceClass source = classifySource(query);
-            if (source.dataset() == null) {
+            if (source.datasets() == null) {
                 skipByReason.merge(Skip.NOT_SINGLE_DATASET, 1, Integer::sum);
                 notSingleByReason.merge(source.reason(), 1, Integer::sum);
                 if (source.reason() == NotSingle.NON_FROM_START) {
@@ -234,7 +242,7 @@ public class FieldExtractFusionCorpusInventoryTests extends ESTestCase {
                 }
                 continue;
             }
-            DatasetPlan datasetPlan = datasetPlan(source.dataset(), source.mode());
+            DatasetPlan datasetPlan = datasetPlan(source);
             if (datasetPlan == null || datasetPlan.analyzer() == null) {
                 skipByReason.merge(Skip.DATASET_UNAVAILABLE, 1, Integer::sum);
                 continue;
@@ -285,16 +293,17 @@ public class FieldExtractFusionCorpusInventoryTests extends ESTestCase {
     // ---- per test-case gating --------------------------------------------------------------------------
 
     /**
-     * Classifies a query's source into either the single {@link CsvTestsDataLoader.TestDataset} it reads (measurable),
-     * or a {@link NotSingle} reason it is out of scope. Kept in one place so the reject reasons stay mutually exclusive
-     * and the {@link Skip#NOT_SINGLE_DATASET} bucket can be broken down for prioritising further widening. Both
-     * {@code FROM <index>} and {@code TS <index>} (time-series) are treated as single-source reads; the index name may
-     * be quoted or backtick-quoted. A trailing {@code LOOKUP JOIN} stays in scope (resolved from {@link #lookupResolutions()}).
+     * Classifies a query's source into either the {@link CsvTestsDataLoader.TestDataset}(s) it reads (measurable), or a
+     * {@link NotSingle} reason it is out of scope. Kept in one place so the reject reasons stay mutually exclusive and
+     * the {@link Skip#NOT_SINGLE_DATASET} bucket can be broken down for prioritising further widening. {@code FROM} and
+     * {@code TS} (time-series) sources are in scope, including multi-index {@code FROM a, b} (merged into one resolution
+     * with union types for conflicting fields); index names may be quoted. A trailing {@code LOOKUP JOIN} stays in scope
+     * (resolved from {@link #lookupResolutions()}); {@code ENRICH}/{@code FORK} and cross-cluster/wildcard remain out.
      */
     private static SourceClass classifySource(String query) {
         Matcher command = LEADING_COMMAND.matcher(query);
         if (command.find() == false) {
-            return new SourceClass(null, null, NotSingle.NON_FROM_START);
+            return SourceClass.rejected(NotSingle.NON_FROM_START);
         }
         IndexMode mode = switch (command.group(1).toUpperCase(Locale.ROOT)) {
             case "FROM" -> IndexMode.STANDARD;
@@ -302,29 +311,37 @@ public class FieldExtractFusionCorpusInventoryTests extends ESTestCase {
             default -> null;
         };
         if (mode == null) {
-            return new SourceClass(null, null, NotSingle.NON_FROM_START);
+            return SourceClass.rejected(NotSingle.NON_FROM_START);
         }
         // The source list runs from the end of the command keyword to the first pipe (or end of query).
         int firstPipe = query.indexOf('|');
         String sourceList = (firstPipe < 0 ? query.substring(command.end()) : query.substring(command.end(), firstPipe)).trim();
-        // Reject multi-index sources and sub-query sources (a comma or open paren in the source list).
-        if (sourceList.indexOf(',') >= 0 || sourceList.indexOf('(') >= 0) {
-            return new SourceClass(null, null, NotSingle.MULTI_INDEX_FROM);
+        // A sub-query source (open paren in the source list) is out of scope; a comma is a multi-index list, handled below.
+        if (sourceList.indexOf('(') >= 0) {
+            return SourceClass.rejected(NotSingle.MULTI_INDEX_FROM);
         }
-        String token = unquoteIndexToken(sourceList);
-        if (token.indexOf('*') >= 0 || token.indexOf(':') >= 0) {
-            return new SourceClass(null, null, NotSingle.WILDCARD_OR_REMOTE);
-        }
+        // ENRICH/FORK anywhere in the query need resolution the harness does not build, regardless of the source shape.
         Matcher multiSource = MULTI_SOURCE.matcher(query);
         if (multiSource.find()) {
-            boolean fork = multiSource.group(1).equalsIgnoreCase("FORK");
-            return new SourceClass(null, null, fork ? NotSingle.FORK : NotSingle.ENRICH);
+            return SourceClass.rejected(multiSource.group(1).equalsIgnoreCase("FORK") ? NotSingle.FORK : NotSingle.ENRICH);
         }
-        CsvTestsDataLoader.TestDataset dataset = CsvTestsDataLoader.CSV_DATASET.get(token);
-        if (dataset == null || dataset.mappingFileName() == null) {
-            return new SourceClass(null, null, NotSingle.UNKNOWN_INDEX);
+        List<CsvTestsDataLoader.TestDataset> datasets = new ArrayList<>();
+        List<String> names = new ArrayList<>();
+        for (String raw : sourceList.split(",")) {
+            String token = unquoteIndexToken(raw.trim());
+            if (token.indexOf('*') >= 0 || token.indexOf(':') >= 0) {
+                return SourceClass.rejected(NotSingle.WILDCARD_OR_REMOTE);
+            }
+            CsvTestsDataLoader.TestDataset dataset = CsvTestsDataLoader.CSV_DATASET.get(token);
+            if (dataset == null || dataset.mappingFileName() == null) {
+                return SourceClass.rejected(NotSingle.UNKNOWN_INDEX);
+            }
+            datasets.add(dataset);
+            names.add(token);
         }
-        return new SourceClass(dataset, mode, null);
+        // The parser joins multi-index patterns with a bare comma (IdentifierBuilder), and IndexPattern equality is on
+        // that exact string, so reconstruct it the same way to key the resolution.
+        return new SourceClass(datasets, mode, String.join(",", names), null);
     }
 
     /**
@@ -359,27 +376,32 @@ public class FieldExtractFusionCorpusInventoryTests extends ESTestCase {
     // ---- offline analyzer construction -----------------------------------------------------------------
 
     /**
-     * Builds (and caches) the offline analyzer + keyword-path set for a dataset read in the given {@link IndexMode}
-     * ({@link IndexMode#STANDARD} for {@code FROM}, {@link IndexMode#TIME_SERIES} for {@code TS}). The cache key includes
-     * the mode, since the same dataset planned as time-series needs a different index resolution. Unusable datasets are
-     * cached with a {@code null} analyzer.
+     * Builds (and caches) the offline analyzer + keyword-path set for a classified source: one dataset for a single
+     * {@code FROM}/{@code TS}, or several merged into one resolution (with {@link InvalidMappedField} union types for
+     * cross-index type conflicts) for a multi-index {@code FROM a, b}. The cache key is the index pattern plus the mode,
+     * since the same dataset planned as time-series needs a different resolution. Unusable sources cache a {@code null}
+     * analyzer.
      */
-    private DatasetPlan datasetPlan(CsvTestsDataLoader.TestDataset dataset, IndexMode mode) {
-        if (dataset == null) {
-            return null;
-        }
-        String cacheKey = dataset.indexName() + '|' + mode;
+    private DatasetPlan datasetPlan(SourceClass source) {
+        String cacheKey = source.indexPattern() + '|' + source.mode();
         return datasetPlans.computeIfAbsent(cacheKey, key -> {
-            String name = dataset.indexName();
             try {
-                String originalMapping = CsvTestsDataLoader.readMappingFile(dataset);
                 Set<String> keywordPaths = new HashSet<>();
-                collectKeywordPaths("", LoadMapping.loadMapping(stream(originalMapping)), keywordPaths);
-
-                String flattened = KeywordToFlattenedTransformer.transformMapping(originalMapping, Set.of()).transformedMapping();
-                Map<String, EsField> flattenedFields = LoadMapping.loadMapping(stream(flattened));
-                EsIndex index = new EsIndex(name, flattenedFields, Map.of(name, mode), Map.of(), Map.of());
-                Map<IndexPattern, IndexResolution> resolutions = Map.of(new IndexPattern(Source.EMPTY, name), IndexResolution.valid(index));
+                Map<String, Map<String, EsField>> perIndexFields = new LinkedHashMap<>();
+                Map<String, IndexMode> concreteIndices = new LinkedHashMap<>();
+                for (CsvTestsDataLoader.TestDataset dataset : source.datasets()) {
+                    String originalMapping = CsvTestsDataLoader.readMappingFile(dataset);
+                    collectKeywordPaths("", LoadMapping.loadMapping(stream(originalMapping)), keywordPaths);
+                    String flattened = KeywordToFlattenedTransformer.transformMapping(originalMapping, Set.of()).transformedMapping();
+                    perIndexFields.put(dataset.indexName(), LoadMapping.loadMapping(stream(flattened)));
+                    concreteIndices.put(dataset.indexName(), source.mode());
+                }
+                Map<String, EsField> fields = mergeFields(perIndexFields);
+                EsIndex index = new EsIndex(source.indexPattern(), fields, concreteIndices, Map.of(), Map.of());
+                Map<IndexPattern, IndexResolution> resolutions = Map.of(
+                    new IndexPattern(Source.EMPTY, source.indexPattern()),
+                    IndexResolution.valid(index)
+                );
                 Analyzer analyzer = new Analyzer(
                     testAnalyzerContext(
                         TEST_CFG,
@@ -393,10 +415,40 @@ public class FieldExtractFusionCorpusInventoryTests extends ESTestCase {
                 );
                 return new DatasetPlan(analyzer, keywordPaths);
             } catch (Exception e) {
-                logger.debug(() -> "keyword\u2192flattened dry run: cannot build analyzer for [" + name + "]", e);
+                logger.debug(() -> "keyword\u2192flattened dry run: cannot build analyzer for [" + key + "]", e);
                 return new DatasetPlan(null, Set.of());
             }
         });
+    }
+
+    /**
+     * Merges the per-index (already flattened) top-level field maps into one, mirroring the field-caps merge closely
+     * enough for the fusion audit: a field with a single data type across every index that has it keeps its
+     * {@link EsField}; a field with more than one data type becomes an {@link InvalidMappedField} (the union-type shape
+     * {@code field_extract} must reject). Only top-level fields are merged (nested-object merges across indices are rare
+     * in the corpus and, when mismatched, surface as {@code UNPLANNABLE} rather than a wrong fusion verdict).
+     */
+    private static Map<String, EsField> mergeFields(Map<String, Map<String, EsField>> perIndexFields) {
+        if (perIndexFields.size() == 1) {
+            return perIndexFields.values().iterator().next();
+        }
+        Map<String, EsField> firstSeen = new LinkedHashMap<>();
+        Map<String, LinkedHashMap<String, Set<String>>> typesToIndices = new LinkedHashMap<>();
+        perIndexFields.forEach((indexName, fields) -> fields.forEach((fieldName, field) -> {
+            firstSeen.putIfAbsent(fieldName, field);
+            typesToIndices.computeIfAbsent(fieldName, k -> new LinkedHashMap<>())
+                .computeIfAbsent(field.getDataType().typeName(), k -> new HashSet<>())
+                .add(indexName);
+        }));
+        Map<String, EsField> merged = new LinkedHashMap<>();
+        typesToIndices.forEach((fieldName, byType) -> {
+            if (byType.size() == 1) {
+                merged.put(fieldName, firstSeen.get(fieldName));
+            } else {
+                merged.put(fieldName, new InvalidMappedField(fieldName, byType));
+            }
+        });
+        return merged;
     }
 
     /**

@@ -143,6 +143,9 @@ tests:
 - class: org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocatorTests
   method: testSimulateStartedShardsWithinASingleClusterInfoPolling
   issue: https://github.com/elastic/elasticsearch/issues/156626
+- class: org.elasticsearch.action.admin.indices.diskusage.IndexDiskUsageAnalyzerTests
+  method: testKnnVectors
+  issue: https://github.com/elastic/elasticsearch/issues/156756
 
 # Examples:
 #

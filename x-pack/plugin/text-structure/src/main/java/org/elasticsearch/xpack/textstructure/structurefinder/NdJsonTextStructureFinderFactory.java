@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.textstructure.structurefinder;
 
+import org.elasticsearch.xcontent.XContentEOFException;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -29,38 +30,48 @@ public class NdJsonTextStructureFinderFactory implements TextStructureFinderFact
      * This format matches if the sample consists of one or more NDJSON documents.
      * If there is more than one, they must be newline-delimited.  The
      * documents must be non-empty, to prevent lines containing "{}" from matching.
+     * The final line is permitted to be an incomplete document (i.e. one that hits
+     * end-of-file partway through parsing), as long as it's preceded by at least one
+     * complete document. This tolerates samples that were truncated to a fixed byte
+     * size before being submitted, which necessarily cuts off mid-document unless the
+     * truncation point happens to fall exactly on a line boundary.
      */
     @Override
     public boolean canCreateFromSample(List<String> explanation, String sample, double allowedFractionOfBadLines) {
 
         int completeDocCount = 0;
 
-        try {
-            String[] sampleLines = sample.split("\n");
-            for (String sampleLine : sampleLines) {
-                try (
-                    XContentParser parser = jsonXContent.createParser(
-                        XContentParserConfiguration.EMPTY,
-                        new ContextPrintingStringReader(sampleLine)
-                    )
-                ) {
+        String[] sampleLines = sample.split("\n");
+        for (int lineNum = 0; lineNum < sampleLines.length; ++lineNum) {
+            String sampleLine = sampleLines[lineNum];
+            try (
+                XContentParser parser = jsonXContent.createParser(
+                    XContentParserConfiguration.EMPTY,
+                    new ContextPrintingStringReader(sampleLine)
+                )
+            ) {
 
-                    if (parser.map().isEmpty()) {
-                        explanation.add("Not NDJSON because an empty object was parsed: [" + sampleLine + "]");
-                        return false;
-                    }
-                    ++completeDocCount;
-                    if (parser.nextToken() != null) {
-                        explanation.add(
-                            "Not newline delimited NDJSON because a line contained more than a single object: [" + sampleLine + "]"
-                        );
-                        return false;
-                    }
+                if (parser.map().isEmpty()) {
+                    explanation.add("Not NDJSON because an empty object was parsed: [" + sampleLine + "]");
+                    return false;
                 }
+                ++completeDocCount;
+                if (parser.nextToken() != null) {
+                    explanation.add(
+                        "Not newline delimited NDJSON because a line contained more than a single object: [" + sampleLine + "]"
+                    );
+                    return false;
+                }
+            } catch (IOException | IllegalStateException | XContentParseException e) {
+                if (e instanceof XContentEOFException && lineNum == sampleLines.length - 1 && completeDocCount > 0) {
+                    explanation.add("Ignoring truncated final document, assumed to result from a sample cut off mid-document");
+                    break;
+                }
+                explanation.add(
+                    "Not NDJSON because there was a parsing exception: [" + e.getMessage().replaceAll("\\s?\r?\n\\s?", " ") + "]"
+                );
+                return false;
             }
-        } catch (IOException | IllegalStateException | XContentParseException e) {
-            explanation.add("Not NDJSON because there was a parsing exception: [" + e.getMessage().replaceAll("\\s?\r?\n\\s?", " ") + "]");
-            return false;
         }
 
         if (completeDocCount == 0) {

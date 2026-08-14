@@ -18,6 +18,14 @@ public class NdJsonTextStructureFinderFactoryTests extends TextStructureTestCase
         assertTrue(factory.canCreateFromSample(explanation, NDJSON_SAMPLE, 0.0));
     }
 
+    public void testCanCreateFromSampleGivenNdJsonWithTruncatedFinalDoc() {
+        String truncatedNdJsonSample = NDJSON_SAMPLE.stripTrailing() + """
+            \n{"logger":"controller","timestamp":1478261151445,"level":"INFO","pid":42,"thread":"0x7fff7d2a8000","message":"message 3",\
+            "class":"ml","method":"core::SomeNoiseMaker","fil""";
+
+        assertTrue(factory.canCreateFromSample(explanation, truncatedNdJsonSample, 0.0));
+    }
+
     public void testCanCreateFromMessages() {
         List<String> messages = Arrays.asList(NDJSON_SAMPLE.split("\n"));
         assertTrue(factory.canCreateFromMessages(explanation, messages, 0.0));

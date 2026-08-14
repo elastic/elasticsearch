@@ -373,6 +373,9 @@ tests:
 - class: org.elasticsearch.join.ParentChildClientYamlTestSuiteIT
   method: test {yaml=/20_parent_join/join field named _type is not returned as root metadata}
   issue: https://github.com/elastic/elasticsearch/issues/156742
+- class: org.elasticsearch.join.ParentChildClientYamlTestSuiteIT
+  method: test {yaml=/20_parent_join/keyword field named _type is not returned as root metadata}
+  issue: https://github.com/elastic/elasticsearch/issues/156743
 
 # Examples:
 #

@@ -14,7 +14,7 @@ Known issues are significant defects or limitations that may impact your impleme
   (multi-value), along with a `must_not` clause, on fields with disabled indexing can still return
   false-positive matches despite the partial fix in 9.5.1. The 9.5.1 fix
   ([#155936](https://github.com/elastic/elasticsearch/pull/155936)) addressed the bulk-scorer defect
-  for `term` and range query paths, but the multi-value `terms` query uses a different Lucene query
+  for `term` and `range` query paths, but the multi-value `terms` query uses a different Lucene query
   type that was not covered by that fix. [TSDB](https://www.elastic.co/docs/manage-data/data-store/data-streams/time-series-data-stream-tsds)
   and [columnar](https://www.elastic.co/docs/reference/elasticsearch/columnar) indices and data
   streams remain affected for this query shape.

@@ -1141,17 +1141,9 @@ public class LocalExecutionPlanner {
         final Integer rowSize = topNByExec.estimatedRowSize();
         PhysicalOperation source = plan(topNByExec.child(), context);
 
-        // Resolve grouping keys; for CATEGORIZE(...) groupings, chain a CategorizeEvalOperator
-        // that appends an ordered-MV IntBlock (no fan-out) as a new channel.
-        List<Integer> groupKeys = new ArrayList<>(topNByExec.groupings().size());
-        for (Expression grouping : topNByExec.groupings()) {
-            if (Alias.unwrap(grouping) instanceof Categorize categorize) {
-                source = addCategorizeChannel(source, categorize, context);
-                groupKeys.add(source.layout.numberOfChannels() - 1);
-            } else {
-                groupKeys.add(getAttributeChannel(grouping, source.layout, "LIMIT BY expression must be an attribute"));
-            }
-        }
+        var resolved = resolveGroupKeys(topNByExec.groupings(), source, context);
+        source = resolved.source();
+        List<Integer> groupKeys = resolved.groupKeys();
         if (groupKeys.isEmpty()) {
             throw new EsqlIllegalArgumentException("TopNBy groupings cannot be empty at runtime");
         }
@@ -1175,6 +1167,32 @@ public class LocalExecutionPlanner {
     }
 
     private record TopNCommon(ElementType[] elementTypes, TopNEncoder[] encoders, List<TopNOperator.SortOrder> orders, int limit) {}
+
+    private record GroupKeysResult(PhysicalOperation source, List<Integer> groupKeys) {}
+
+    /**
+     * Resolves grouping keys for LIMIT BY / TOP-N-BY operators. For each grouping expression,
+     * if it wraps a {@link Categorize}, a {@link CategorizeEvalOperator} is chained to append
+     * a new channel; otherwise the existing attribute channel is used directly.
+     *
+     * @return updated {@code source} (may have extra channels) and the resolved channel indices
+     */
+    private GroupKeysResult resolveGroupKeys(
+        List<Expression> groupings,
+        PhysicalOperation source,
+        LocalExecutionPlannerContext context
+    ) {
+        List<Integer> groupKeys = new ArrayList<>(groupings.size());
+        for (Expression grouping : groupings) {
+            if (Alias.unwrap(grouping) instanceof Categorize categorize) {
+                source = addCategorizeChannel(source, categorize, context);
+                groupKeys.add(source.layout.numberOfChannels() - 1);
+            } else {
+                groupKeys.add(getAttributeChannel(grouping, source.layout, "LIMIT BY expression must be an attribute"));
+            }
+        }
+        return new GroupKeysResult(source, groupKeys);
+    }
 
     private TopNCommon topNCommon(
         Integer rowSize,
@@ -2181,17 +2199,9 @@ public class LocalExecutionPlanner {
         PhysicalOperation source = plan(limitBy.child(), context);
         int limitValue = (Integer) limitBy.limitPerGroup().fold(context.foldCtx);
 
-        // Resolve grouping keys; for CATEGORIZE(...) groupings, chain a CategorizeEvalOperator
-        // that appends an ordered-MV IntBlock (no fan-out) as a new channel.
-        List<Integer> groupKeys = new ArrayList<>(limitBy.groupings().size());
-        for (Expression grouping : limitBy.groupings()) {
-            if (Alias.unwrap(grouping) instanceof Categorize categorize) {
-                source = addCategorizeChannel(source, categorize, context);
-                groupKeys.add(source.layout.numberOfChannels() - 1);
-            } else {
-                groupKeys.add(getAttributeChannel(grouping, source.layout, "LIMIT BY expression must be an attribute"));
-            }
-        }
+        var resolved = resolveGroupKeys(limitBy.groupings(), source, context);
+        source = resolved.source();
+        List<Integer> groupKeys = resolved.groupKeys();
 
         Layout layout = source.layout;
         List<Layout.ChannelSet> inverse = layout.inverse();

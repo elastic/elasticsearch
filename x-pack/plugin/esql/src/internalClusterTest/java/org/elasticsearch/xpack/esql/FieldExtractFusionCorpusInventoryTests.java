@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql;
 
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -21,6 +20,7 @@ import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
@@ -81,9 +81,12 @@ import static org.hamcrest.Matchers.greaterThan;
  * shapes it feeds the real csv-spec corpus through the same rewrite + plan + walk pipeline that
  * {@link CsvFlattenedKeywordIT} exercises on a cluster, but stops short of executing anything: each query is
  * <ol>
- *     <li>restricted to the <b>single-dataset</b> {@code FROM &lt;index&gt;} subset (no {@code JOIN}/{@code ENRICH}/{@code FORK}
- *     /multi-index/subquery), so an offline analyzer over exactly one flattened mapping is enough &mdash; everything
- *     else is tallied under a skip bucket so the coverage is explicit;</li>
+ *     <li>classified by its leading source command: single- and multi-index {@code FROM}, {@code TS} time-series,
+ *     {@code LOOKUP JOIN}, and {@code ENRICH} are all in scope (a leading {@code SET ...;} preamble is stripped
+ *     first), and an offline analyzer is built over the corresponding flattened mapping(s). Shapes that cannot be
+ *     resolved from a dataset mapping offline &mdash; {@code FORK}, subqueries/unions, remote or wildcard index
+ *     patterns, unknown indices, and queries that do not start with a source command &mdash; are tallied under
+ *     explicit skip buckets so the coverage stays visible;</li>
  *     <li>rewritten with the production {@link AstKeywordFieldRewriter} so every keyword reference becomes
  *     {@code field_extract(&lt;field&gt;, "&lt;subkey&gt;")}, using the same {@link KeywordToFlattenedTransformer}
  *     keyword&rarr;flattened mapping transform the IT uses to build its indices;</li>
@@ -108,9 +111,6 @@ import static org.hamcrest.Matchers.greaterThan;
 public class FieldExtractFusionCorpusInventoryTests extends ESTestCase {
 
     private static final Logger logger = LogManager.getLogger(FieldExtractFusionCorpusInventoryTests.class);
-
-    /** Leading {@code FROM <index>} of a query; the capture group is the first index token. */
-    private static final Pattern LEADING_FROM = Pattern.compile("^\\s*FROM\\s+([A-Za-z0-9_.\\-]+)", Pattern.CASE_INSENSITIVE);
 
     /** Leading source command keyword of a query (e.g. {@code FROM}, {@code TS}, {@code ROW}, {@code SHOW}). */
     private static final Pattern LEADING_COMMAND = Pattern.compile("^\\s*([A-Za-z]+)");
@@ -581,7 +581,10 @@ public class FieldExtractFusionCorpusInventoryTests extends ESTestCase {
     record Inventory(int fused, Map<Fusion, Integer> fallbackByReason) {}
 
     private Inventory walk(PhysicalPlan plan, SearchStats stats) {
-        Set<String> fused = new HashSet<>();
+        // Count distinct fused loads by attribute NameId: the same synthetic attribute recurs across plan nodes
+        // (so we must de-dup), and NameId is stable per logical attribute, avoiding both instance double-counting
+        // and the name collisions that a plain name set would silently collapse.
+        Set<NameId> fused = new HashSet<>();
         Map<Fusion, Integer> fallbackByReason = new EnumMap<>(Fusion.class);
         Set<FieldExtract> seen = Collections.newSetFromMap(new IdentityHashMap<>());
 
@@ -590,7 +593,7 @@ public class FieldExtractFusionCorpusInventoryTests extends ESTestCase {
                 if (fa.field() instanceof FunctionEsField fe
                     && fe.functionConfig() != null
                     && fe.functionConfig().function() == BlockLoaderFunctionConfig.Function.EXTRACT_FLATTENED_SUBFIELD) {
-                    fused.add(fa.name());
+                    fused.add(fa.id());
                 }
             });
             node.forEachExpressionDown(FieldExtract.class, fx -> {
@@ -604,8 +607,8 @@ public class FieldExtractFusionCorpusInventoryTests extends ESTestCase {
 
     /**
      * Re-derives the fusion decision for a residual {@link FieldExtract}, mirroring the gate order in
-     * {@code PushExpressionsToFieldLoad#transformExpression}. Identical to the classifier in
-     * {@code FieldExtractFusionInventoryTests}.
+     * {@code PushExpressionsToFieldLoad#transformExpression} (including the configured field-extract preference).
+     * Kept in sync with the classifier in {@code FieldExtractFusionInventoryTests}.
      */
     private Fusion classify(FieldExtract fx, SearchStats stats) {
         PushedBlockLoaderExpression fuse = fx.tryPushToFieldLoading(stats);
@@ -616,7 +619,9 @@ public class FieldExtractFusionCorpusInventoryTests extends ESTestCase {
         if (fuse.field().field() instanceof UnionTypeEsField) {
             return Fusion.UNION_TYPE;
         }
-        if (stats.supportsLoaderConfig(fuse.field().fieldName(), fuse.config(), MappedFieldType.FieldExtractPreference.NONE) == false) {
+        // Mirror PushExpressionsToFieldLoad, which passes the configured pragma preference (not a hardcoded NONE),
+        // so the audit stays aligned if the default field-extract preference ever changes.
+        if (stats.supportsLoaderConfig(fuse.field().fieldName(), fuse.config(), TEST_CFG.pragmas().fieldExtractPreference()) == false) {
             return Fusion.UNSUPPORTED_LOADER_CONFIG;
         }
         return Fusion.ABOVE_JOIN_OR_MULTISOURCE;

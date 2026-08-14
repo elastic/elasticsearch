@@ -83,10 +83,9 @@ public class IndexModeQueryEquivalenceIT extends ESIntegTestCase {
 
         // Independently force-merge each index so segment layouts differ across modes. A single-segment
         // index reliably triggers DenseConjunctionBulkScorer, which the original bug lived inside.
-        if (randomBoolean()) {
-            for (String index : allIndices) {
-
-                indicesAdmin().prepareForceMerge(index).setMaxNumSegments(1).get();
+        for (String index : allIndices) {
+            if (randomBoolean()) {
+                indicesAdmin().prepareForceMerge(index).setMaxNumSegments(randomIntBetween(1,3)).get();
             }
         }
         indicesAdmin().prepareRefresh(allIndices.toArray(new String[0])).get();

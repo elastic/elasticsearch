@@ -931,18 +931,22 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         assertThat(breaker.getUsed(), equalTo(0L));
     }
 
-    /**
-     * Even when the tracking breaker's byte limit is exhausted partway through, every failure item must
-     * still be present in the response -- never dropped -- so the msearch completes rather than hanging.
-     * But since the underlying failures here (each with 10 shard failures) are far larger than the byte
-     * limit, {@link TransportMultiSearchAction#accountOrSubstituteFailureItem} rejects them and substitutes a small,
-     * bounded {@link CircuitBreakingException} instead of forcing the original, unbounded failure onto an
-     * already-saturated breaker -- this is what gives the breaker real enforcement power on this path.
-     */
     public void testAllSubSearchesFailStillTripsBreaker() throws Exception {
         int numRequests = 20;
-        long originalFailureBytes = TransportMultiSearchAction.estimateFailureBytes(searchPhaseExecutionExceptionWithShardFailures(10));
-        long byteLimit = originalFailureBytes / 2;
+        int numOriginalFailuresKept = 2;
+
+        MultiSearchResponse.Item[] uncappedItems = new MultiSearchResponse.Item[numRequests];
+        runMsearchWithBreaker(
+            new TrackingCircuitBreaker(-1),
+            numRequests,
+            () -> SearchResponse.emptyResponseBuilder().tookInMillis(1L).build(),
+            index -> true,
+            () -> searchPhaseExecutionExceptionWithShardFailures(10),
+            captured -> System.arraycopy(captured, 0, uncappedItems, 0, numRequests)
+        );
+        long originalFailureBytes = TransportMultiSearchAction.estimateFailureBytes(uncappedItems[0].getFailure());
+
+        long byteLimit = numOriginalFailuresKept * originalFailureBytes;
         TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(byteLimit);
         MultiSearchResponse.Item[] items = new MultiSearchResponse.Item[numRequests];
         runMsearchWithBreaker(
@@ -954,9 +958,13 @@ public class TransportMultiSearchActionTests extends ESTestCase {
             captured -> System.arraycopy(captured, 0, items, 0, numRequests)
         );
 
-        for (MultiSearchResponse.Item item : items) {
-            assertTrue(item.isFailure());
-            assertThat(item.getFailure(), instanceOf(CircuitBreakingException.class));
+        for (int i = 0; i < items.length; i++) {
+            assertTrue(items[i].isFailure());
+            if (i < numOriginalFailuresKept) {
+                assertThat(items[i].getFailure(), instanceOf(SearchPhaseExecutionException.class));
+            } else {
+                assertThat(items[i].getFailure(), instanceOf(CircuitBreakingException.class));
+            }
         }
         assertThat(breaker.maxWithoutBreaking(), lessThan(originalFailureBytes));
         assertThat(breaker.getUsed(), equalTo(0L));
@@ -964,7 +972,6 @@ public class TransportMultiSearchActionTests extends ESTestCase {
 
     public void testAccountFailureItemSubstitutesBoundedExceptionWhenTripped() throws Exception {
         long largeFailureBytes = TransportMultiSearchAction.estimateFailureBytes(searchPhaseExecutionExceptionWithShardFailures(50));
-        // Just enough headroom for a bounded substitute, but not for the large original failure.
         TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(largeFailureBytes - 1);
 
         MultiSearchResponse.Item[] items = new MultiSearchResponse.Item[1];

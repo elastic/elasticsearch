@@ -606,8 +606,15 @@ public class FieldExtractFusionCorpusInventoryTests extends ESTestCase {
     }
 
     /**
-     * Re-derives the fusion decision for a residual {@link FieldExtract}, mirroring the gate order in
-     * {@code PushExpressionsToFieldLoad#transformExpression} (including the configured field-extract preference).
+     * Re-derives why a residual {@link FieldExtract} did not fuse, using only the gates that can be evaluated
+     * offline from the call plus {@link SearchStats}: {@code tryPushToFieldLoading} (foldable key on a flattened
+     * field), union-type input, and {@code supportsLoaderConfig} (with the configured field-extract preference).
+     * These mirror the corresponding checks in {@code PushExpressionsToFieldLoad#transformExpression}, but not its
+     * full order: the rule also applies a primaries/lineage gate (and a {@code RoundTo} time-series gate)
+     * <em>before</em> {@code supportsLoaderConfig}, and neither can be evaluated here without the surrounding plan
+     * node. So a call that is pushable in isolation, is not a union type, and has a supported loader config yet
+     * still survived is attributed to {@link Fusion#ABOVE_JOIN_OR_MULTISOURCE} as a best-effort residual bucket -
+     * the lineage case in practice, though it would also absorb the rare time-series {@code RoundTo} rejection.
      * Kept in sync with the classifier in {@code FieldExtractFusionInventoryTests}.
      */
     private Fusion classify(FieldExtract fx, SearchStats stats) {

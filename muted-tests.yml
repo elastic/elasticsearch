@@ -397,12 +397,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizerTests
   method: testMaxExpressionDepth_nestedAbs_maxAllowed {default}
   issue: https://github.com/elastic/elasticsearch/issues/154380
-- class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityCcrMigrationIT
-  method: testRcs1SetupAgain
-  issue: https://github.com/elastic/elasticsearch/issues/154539
-- class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityCcrMigrationIT
-  method: testRcs2Setup
-  issue: https://github.com/elastic/elasticsearch/issues/154540
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test {feature:BASELINE}
   issue: https://github.com/elastic/elasticsearch/issues/154058
@@ -421,9 +415,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.ExternalCsvHivePartitionedIT
   method: testCommaSeparatedResourceFirstFileWinsRoundTrips
   issue: https://github.com/elastic/elasticsearch/issues/154662
-- class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityTransformMigrationIT
-  method: testRcs1SetupAgain
-  issue: https://github.com/elastic/elasticsearch/issues/154836
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:change_point.values null column}
   issue: https://github.com/elastic/elasticsearch/issues/154877
@@ -828,9 +819,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecFoldingIT
   method: test {csv-spec:folding.mvBoolean_Equals_MultiValueConstant}
   issue: https://github.com/elastic/elasticsearch/issues/156530
-- class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
-  method: testRelocatingTaskIsNotCancelledOnShutdownTimeout
-  issue: https://github.com/elastic/elasticsearch/issues/155593
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecUnmappedTypeConflictsIT
   method: test {csv-spec:unmapped-type-conflicts.typeConflictLongDateUnmappedNonExistentCastToDouble}
   issue: https://github.com/elastic/elasticsearch/issues/156542
@@ -920,3 +908,18 @@ tests:
 - class: org.elasticsearch.xpack.core.watcher.crypto.CryptoServiceTests
   method: testEncryptionAndDecryptionChars
   issue: https://github.com/elastic/elasticsearch/issues/156717
+- class: org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskASHVectorsFormatTests
+  method: testAshEuclideanScoreCorrectness
+  issue: https://github.com/elastic/elasticsearch/issues/156719
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/160_union_types/CASE}
+  issue: https://github.com/elastic/elasticsearch/issues/156729
+- class: org.elasticsearch.xpack.stateless.objectstore.ObjectStoreServiceTests
+  method: testTranslogUploadTimesLogLevels
+  issue: https://github.com/elastic/elasticsearch/issues/156747
+- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
+  method: test {yaml=search.vectors/131_knn_query_nested_inner_hits_score/nested kNN inner_hits are scored like the query phase on a quantized field}
+  issue: https://github.com/elastic/elasticsearch/issues/156753
+- class: org.elasticsearch.search.SearchWithRejectionsIT
+  method: testScrollContextSurvivesQueueRejection
+  issue: https://github.com/elastic/elasticsearch/issues/156757

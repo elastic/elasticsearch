@@ -1,0 +1,33 @@
+name:keyword,handle:keyword,active_period:date_range,commits:integer,areas:keyword
+Nik Everett,nik9000,2022-12-14..2026-08-14,853,[parser,analyzer,blocks,networking,testing,search,optimizer,query_pushdown,block_loader_pushdown,aggs,vectors,profile,exchange,enrich,scalars,codegen,types]
+Nhat Nguyen,dnhatn,2022-10-13..,573,[blocks,networking,testing,optimizer,block_loader_pushdown,aggs,tsdb,exchange,enrich,codegen]
+Luigi Dell'Aquila,luigidellaquila,2022-12-22..,315,[parser,analyzer,blocks,testing,optimizer,external_data_sources,profile,scalars,planner,types]
+Costin Leau,costin,2022-06-15..,281,[parser,analyzer,blocks,networking,testing,optimizer,query_pushdown,external_data_sources,planner,promql]
+Bogdan Pintea,bpintea,2022-06-16..,259,[parser,analyzer,networking,testing,optimizer,external_data_sources,scalars,planner]
+Andrei Stefan,astefan,2022-08-30..,205,[parser,analyzer,testing,optimizer,planner]
+Ievgen Degtiarenko,idegtiarenko,2024-12-10..,196,[networking,testing,cross_cluster,profile]
+Iván Cea Fontenla,ivancea96,2024-05-15..,180,[blocks,aggs,joins,scalars,types]
+Craig Taverner,craigtaverner,2023-04-21..,176,[geo,optimizer,query_pushdown,aggs,scalars]
+Alexander Spies,alex-spies,2023-08-16..,171,[parser,analyzer,optimizer,query_pushdown,unmapped,planner,types]
+Ioana Tagirta,ioanatia,2024-04-04..,151,[parser,analyzer,testing,search,scalars,fork]
+Mark Tozzi,not-napoleon,2023-07-06..2026-04-30,138,[testing,query_pushdown,block_loader_pushdown,scalars]
+Jonas Kunz,JonasKunz,2025-10-28..,133,[blocks,block_loader_pushdown,aggs,tsdb,scalars]
+Chris Hegarty,ChrisHegarty,2022-10-11..,118,[blocks,networking,aggs,codegen]
+Fang Xing,fang-xing-esql,2024-02-06..,112,[parser,analyzer,optimizer,scalars]
+Stanislav Malyshev,smalyshev,2024-09-26..,106,[networking,cross_cluster,query_logging,profile]
+Felix Barnsteiner,felixbarny,2025-10-13..,86,[parser,optimizer,promql,tsdb,types]
+Jan Kuipers,jan-elastic,2024-09-06..,84,[aggs,change_point]
+Gal Lalouche,GalLalouche,2024-11-07..,82,[analyzer,unmapped,delayed_materialization,types]
+Oleg Lvovitch,quackaplop,2026-02-26..,81,external_data_sources
+Serge Sidorov,sidosera,2026-01-02..,78,[optimizer,promql,tsdb]
+Carlos Delgado,carlosdelest,2024-07-16..2026-04-27,78,[search,query_pushdown,vectors]
+Julian Kiryakov,julian-elastic,2025-06-16..,76,[external_data_sources,joins,enrich]
+Larisa Motova,limotova,2024-10-11..2026-06-04,57,[aggs,block_loader_pushdown,tsdb]
+Dmitry Leontyev,leontyevdv,2025-08-13..,52,[block_loader_pushdown,tsdb]
+Simon Cooper,thecoop,2023-08-23..,40,vectors
+Aurélien Foucret,afoucret,2024-11-25..2026-01-14,48,[vectors,inference]
+Kostas Krikellas,kkrik-es,2023-08-16..,46,[aggs,tsdb]
+Martijn van Groningen,martijnvg,2023-07-07..,45,[block_loader_pushdown,tsdb]
+Mouhcine Aitounejjar,mouhc1ne,2025-08-28..2026-07-10,41,aggs
+Matt Alp,MattAlp,2025-10-22..,26,delayed_materialization
+Cimarron Taylor,cimequinox,2025-11-26..2026-06-01,7,[joins,scalars,parser]

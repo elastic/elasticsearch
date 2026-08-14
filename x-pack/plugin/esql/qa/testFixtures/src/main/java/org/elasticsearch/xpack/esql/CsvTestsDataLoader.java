@@ -360,7 +360,10 @@ public class CsvTestsDataLoader {
         new TestDataset("ts_window", "ts_window-mappings.json", "ts_window.csv", "ts_window-settings.json").withIndex("ts_window_nanos")
             .withTypeMapping(Map.of("@timestamp", "date_nanos")),
         new TestDataset("date_extract_fields", "mapping-date_extract_fields.json", "date_extract_fields.csv"),
-        new TestDataset("trim_test")
+        new TestDataset("trim_test"),
+        new TestDataset("esql_hackers", "mapping-esql_hackers.json", "esql_hackers.csv").withRequiredCapabilities(
+            EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V6
+        )
     ).collect(toMap(TestDataset::indexName, Function.identity()));
 
     // Developer flags for faster iteration when debugging specific csv-spec tests:
@@ -1281,7 +1284,7 @@ public class CsvTestsDataLoader {
         return new Document(id, slice, row);
     }
 
-    private static final Pattern RANGE_PATTERN = Pattern.compile("([0-9\\-.Z:]+)\\.\\.([0-9\\-.Z:]+)");
+    private static final Pattern RANGE_PATTERN = Pattern.compile("([0-9\\-.Z:]+)\\.\\.([0-9\\-.Z:]*)");
     private static final String NUMERIC_REGEX = "-?\\d+(\\.\\d+)?";
 
     private static String toJson(String type, String value) {
@@ -1291,7 +1294,12 @@ public class CsvTestsDataLoader {
                 if (m.matches() == false) {
                     throw new IllegalArgumentException("can't parse range: " + value);
                 }
-                yield "{\"gte\": \"" + m.group(1) + "\", \"lt\": \"" + m.group(2) + "\"}";
+                String lower = m.group(1);
+                String upper = m.group(2);
+                if (upper.isEmpty()) {
+                    yield "{\"gte\": \"" + lower + "\"}";
+                }
+                yield "{\"gte\": \"" + lower + "\", \"lt\": \"" + upper + "\"}";
             }
             // Text and keyword fields are always strings — strip outer quotes if present
             // (they are CSV formatting, not part of the value), escape inner quotes, and wrap.

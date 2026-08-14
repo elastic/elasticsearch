@@ -3396,9 +3396,8 @@ public class EsqlCapabilities {
 
         /**
          * Support for the {@code DEDUP} command, which removes duplicate rows from the result set.
-         * Snapshot-only.
          */
-        DEDUP_COMMAND(Build.current().isSnapshot()),
+        DEDUP_COMMAND,
 
         /**
          * Support for VALUES with date_range type.

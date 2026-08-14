@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.elastic.authorization;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.internal.Client;
@@ -16,6 +14,8 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.TaskId;
@@ -217,7 +217,7 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
             }
             scheduleNextAndSend();
         }, e -> {
-            logger.atWarn().withThrowable(e).log("Failed to determine whether CCM is enabled");
+            logger.warn("Failed to determine whether CCM is enabled", e);
             // keep polling: skip this cycle's send but schedule the next attempt
             scheduleAuthorizationRequest();
         }));
@@ -231,10 +231,7 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
     // default for testing
     void sendAuthorizationRequest() {
         var finalListener = ActionListener.runAfter(
-            ActionListener.<ActionResponse.Empty>wrap(
-                ignored -> {},
-                e -> logger.atWarn().withThrowable(e).log("Failed processing EIS preconfigured endpoints")
-            ),
+            ActionListener.<ActionResponse.Empty>wrap(ignored -> {}, e -> logger.warn("Failed processing EIS preconfigured endpoints", e)),
             () -> {
                 if (callback != null) {
                     callback.run();

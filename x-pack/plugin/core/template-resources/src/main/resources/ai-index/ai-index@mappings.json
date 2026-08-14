@@ -45,27 +45,6 @@
               "type": "keyword"
             }
           }
-        },
-        "permissions": {
-          "type": "object",
-          "properties": {
-            "kibana": {
-              "type": "object",
-              "properties": {
-                "privileges": {
-                  "type": "object",
-                  "properties": {
-                    "name": {
-                      "type": "keyword"
-                    },
-                    "count": {
-                      "type": "long"
-                    }
-                  }
-                }
-              }
-            }
-          }
         }
       }
     }

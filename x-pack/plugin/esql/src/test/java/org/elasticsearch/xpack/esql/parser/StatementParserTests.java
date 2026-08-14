@@ -1217,7 +1217,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testDedup() {
-        assumeTrue("requires snapshot build", Build.current().isSnapshot());
         LogicalPlan plan = query("FROM foo | DEDUP");
         Dedup dedup = as(plan, Dedup.class);
         UnresolvedRelation relation = as(dedup.child(), UnresolvedRelation.class);
@@ -1225,33 +1224,24 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testDedupAfterProcessingCommands() {
-        assumeTrue("requires snapshot build", Build.current().isSnapshot());
         LogicalPlan plan = query("FROM foo | EVAL x = a + 1 | WHERE b > 0 | DEDUP");
         Dedup dedup = as(plan, Dedup.class);
         as(dedup.child(), Filter.class);
     }
 
     public void testDedupChained() {
-        assumeTrue("requires snapshot build", Build.current().isSnapshot());
         LogicalPlan plan = query("FROM foo | DEDUP | LIMIT 10");
         Limit limit = as(plan, Limit.class);
         as(limit.child(), Dedup.class);
     }
 
     public void testDedupOnRow() {
-        assumeTrue("requires snapshot build", Build.current().isSnapshot());
         assertEqualsIgnoringIds(new Dedup(EMPTY, PROCESSING_CMD_INPUT), processingCommand("DEDUP"));
     }
 
     public void testDedupRejectsArguments() {
-        assumeTrue("requires snapshot build", Build.current().isSnapshot());
         expectThrows(ParsingException.class, containsString("extraneous input 'a' expecting"), () -> query("FROM foo | DEDUP a"));
         expectThrows(ParsingException.class, containsString("extraneous input '*' expecting"), () -> query("FROM foo | DEDUP *"));
-    }
-
-    public void testDedupNotInReleaseBuild() {
-        assumeFalse("only runs on release build", Build.current().isSnapshot());
-        expectThrows(ParsingException.class, containsString("mismatched input 'DEDUP'"), () -> query("FROM foo | DEDUP"));
     }
 
     public void testHighlightOnFields() {

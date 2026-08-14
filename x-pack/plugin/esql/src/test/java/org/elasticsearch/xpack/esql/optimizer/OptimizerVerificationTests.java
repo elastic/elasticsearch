@@ -1145,4 +1145,14 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
             | STATS count = COUNT(*) BY field
             """));
     }
+
+    public void testEvalResolvesForwardReferenceWithImplicitCasting() {
+        var testAnalyzer = analyzer().addIndex("hosts", "mapping-hosts.json");
+        optimize(testAnalyzer.query("""
+            FROM hosts
+            | EVAL ip = CASE(CIDR_MATCH(ip0, "10.0.0.0/8") OR ip0 == "127.0.0.1", TO_STRING(ip0), null),
+                   field = CASE(ip IS NOT NULL, "a", "b")
+            | STATS count = COUNT(*) BY field
+            """));
+    }
 }

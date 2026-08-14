@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 156758
+summary: Managed service accounts with run as from poc
+type: enhancement

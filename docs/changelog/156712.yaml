@@ -1,5 +1,0 @@
-pr: 156712
-summary: Unify external-dataset settings and pragmas under `esql.external.*`
-area: ES|QL
-type: enhancement
-issues: []

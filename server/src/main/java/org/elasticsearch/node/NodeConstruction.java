@@ -944,7 +944,8 @@ class NodeConstruction {
         // Recovery gates may be contributed by plugins and are resolved once on first use, by which point plugin components exist.
         final RecoveryGateMonitor recoveryGateMonitor = new RecoveryGateMonitor(
             () -> pluginsService.filterPlugins(RecoveryPlugin.class).flatMap(p -> p.getRecoveryGates().stream()).toList(),
-            threadPool
+            threadPool,
+            clusterService.getClusterSettings()
         );
         final ThrottlingRecoveryService throttlingRecoveryService = new ThrottlingRecoveryService(
             threadPool,

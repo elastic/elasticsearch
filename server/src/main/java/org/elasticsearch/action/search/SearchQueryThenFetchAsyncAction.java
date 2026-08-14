@@ -611,9 +611,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                                     onShardResult(q);
                                 }
                                 case null, default -> {
-                                    var e = new IllegalStateException(
-                                        "data node returned unexpected null result for shard [" + s.shardId + "]"
-                                    );
+                                    var e = new IllegalStateException("data node returned unexpected result for shard [" + s.shardId + "]");
                                     logger.error(
                                         "data node produced unexpected result[" + response.results[i] + "] for shard [" + s.shardId + "]",
                                         e

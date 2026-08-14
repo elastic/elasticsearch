@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.action;
 
+import org.apache.logging.log4j.util.Strings;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
@@ -55,6 +56,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -150,67 +152,71 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<EsqlResolveF
 
         var response = new EsqlResolveFieldsResponseBuilder(clusterService.state().getMinTransportVersion());
         try (var resultListener = new RefCountingListener(listener.delegateFailure((l, r) -> l.onResponse(response.build())))) {
-            // local resolutions
-            if (localIndices != null) {
-                var abstractions = resolveIndexAbstractions(localIndices, projectState);
+            try {
+                // local resolutions
+                if (localIndices != null) {
+                    var abstractions = resolveIndexAbstractions(localIndices, projectState);
 
-                if (request.fieldCapsRequest().clusterAlias() != null) {
-                    // validate no remote resources
-                    var views = qualifyIndexAbstraction(request.fieldCapsRequest().clusterAlias(), abstractions.views);
-                    var datasets = qualifyIndexAbstraction(request.fieldCapsRequest().clusterAlias(), abstractions.datasets);
+                    if (Strings.isNotBlank(request.fieldCapsRequest().clusterAlias())) {
+                        // validate no remote resources
+                        var views = qualifyIndexAbstraction(request.fieldCapsRequest().clusterAlias(), abstractions.views);
+                        var datasets = qualifyIndexAbstraction(request.fieldCapsRequest().clusterAlias(), abstractions.datasets);
 
-                    if (!views.isEmpty() && !datasets.isEmpty()) {
-                        resultListener.acquire().onFailure(new RemoteResourceNotSupportedException(views, datasets));
-                        return;
-                    } else if (!views.isEmpty()) {
-                        resultListener.acquire().onFailure(new RemoteViewNotSupportedException(views));
-                        return;
-                    } else if (!datasets.isEmpty()) {
-                        resultListener.acquire().onFailure(new RemoteDatasetNotSupportedException(datasets));
-                        return;
+                        if (!views.isEmpty() && !datasets.isEmpty()) {
+                            throw new RemoteResourceNotSupportedException(views, datasets);
+                        } else if (!views.isEmpty()) {
+                            throw new RemoteViewNotSupportedException(views);
+                        } else if (!datasets.isEmpty()) {
+                            throw new RemoteDatasetNotSupportedException(datasets);
+                        }
                     }
+
+                    response.resolvedLocally = abstractions.expressions;
+                    resolveConcreteIndices(request, abstractions.indices, response, resultListener);
+                    // TODO resolve views fields
+                    // TODO resolve datasets fields
                 }
 
-                response.resolvedLocally = abstractions.expressions;
-                resolveConcreteIndices(request, abstractions.indices, response, resultListener);
-                // TODO resolve views fields
-                // TODO resolve datasets fields
-            }
+                // remote resolutions
+                for (var entry : remoteIndices.entrySet()) {
+                    String clusterAlias = entry.getKey();
+                    OriginalIndices indices = entry.getValue();
 
-            // remote resolutions
-            for (var entry : remoteIndices.entrySet()) {
-                String clusterAlias = entry.getKey();
-                OriginalIndices indices = entry.getValue();
-
-                // TODO connection timeout
-                // TODO can match
-                boolean ensureConnected = transportService.getRemoteClusterService().isSkipUnavailable(clusterAlias).orElse(true) == false;
-                transportService.getRemoteClusterService()
-                    .maybeEnsureConnectedAndGetConnection(
-                        clusterAlias,
-                        ensureConnected,
-                        resultListener.acquire().delegateFailureAndWrap((l, connection) -> {
-                            var remoteRequest = new EsqlResolveFieldsRequest(
-                                TransportFieldCapabilitiesAction.prepareRemoteRequest(
-                                    clusterAlias,
-                                    request.fieldCapsRequest(),
-                                    indices,
-                                    nowInMillis,
-                                    resolveCrossProject
-                                )
-                            );
-                            transportService.sendRequest(
-                                connection,
-                                NAME,
-                                remoteRequest,
-                                TransportRequestOptions.EMPTY,
-                                new ActionListenerResponseHandler<>(l.delegateFailureAndWrap((ll, remoteResponse) -> {
-                                    response.appendRemoteResponse(clusterAlias, remoteResponse);
-                                    ll.onResponse(null);
-                                }), EsqlResolveFieldsResponse::new, searchCoordinationExecutor)
-                            );
-                        })
-                    );
+                    // TODO connection timeout
+                    // TODO can match
+                    boolean ensureConnected = transportService.getRemoteClusterService()
+                        .isSkipUnavailable(clusterAlias)
+                        .orElse(true) == false;
+                    transportService.getRemoteClusterService()
+                        .maybeEnsureConnectedAndGetConnection(
+                            clusterAlias,
+                            ensureConnected,
+                            resultListener.acquire().delegateFailureAndWrap((l, connection) -> {
+                                var remoteRequest = new EsqlResolveFieldsRequest(
+                                    TransportFieldCapabilitiesAction.prepareRemoteRequest(
+                                        clusterAlias,
+                                        request.fieldCapsRequest(),
+                                        indices,
+                                        nowInMillis,
+                                        resolveCrossProject
+                                    )
+                                );
+                                transportService.sendRequest(
+                                    connection,
+                                    NAME,
+                                    remoteRequest,
+                                    TransportRequestOptions.EMPTY,
+                                    new ActionListenerResponseHandler<>(l.delegateFailureAndWrap((ll, remoteResponse) -> {
+                                        response.appendRemoteResponse(clusterAlias, remoteResponse);
+                                        ll.onResponse(null);
+                                    }), EsqlResolveFieldsResponse::new, searchCoordinationExecutor)
+                                );
+                            })
+                        );
+                }
+            } catch (Exception e) {
+                logger.warn("Unexpected error while resolving fields", e);
+                resultListener.acquire().onFailure(e);
             }
         }
     }
@@ -471,6 +477,9 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<EsqlResolveF
     }
 
     private static List<String> qualifyIndexAbstraction(String clusterAlias, Collection<IndexAbstraction> names) {
-        return names.stream().sorted().map(name -> clusterAlias + ":" + name.getName()).toList();
+        return names.stream()
+            .sorted(Comparator.comparing(IndexAbstraction::getName))
+            .map(name -> clusterAlias + ":" + name.getName())
+            .toList();
     }
 }

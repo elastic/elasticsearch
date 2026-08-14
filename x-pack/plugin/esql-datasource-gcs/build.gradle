@@ -240,6 +240,10 @@ dependencies {
   javaRestTestImplementation 'com.google.http-client:google-http-client:1.46.3'
   javaRestTestImplementation 'com.google.api:api-common:2.46.1'
   javaRestTestImplementation 'com.google.api:gax:2.63.1'
+  // google-cloud-storage signatures carry checker-framework @NonNull annotations on Guava types
+  // (e.g. ImmutableMap). JDK 25 javac resolves those types when compiling calls into the API, and
+  // javaRestTestImplementation does not inherit the main implementation Guava, so it is added here.
+  javaRestTestImplementation 'com.google.guava:guava:33.4.0-jre'
 
   // The DEFAULT distribution already bundles repository-gcs, workload-identity, and every
   // esql-datasource-* module needed by GcsManagedIdentityAuthIT. Mapper plugins are not in

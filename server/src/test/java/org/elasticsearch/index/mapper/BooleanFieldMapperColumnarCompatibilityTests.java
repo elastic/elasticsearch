@@ -118,13 +118,58 @@ public class BooleanFieldMapperColumnarCompatibilityTests extends AbstractColumn
         );
     }
 
+    // ---- indexed=true -------------------------------------------------------------------------
+
+    /**
+     * Explicit {@code index=true} emits both a {@code StringField} ("T"/"F") and a
+     * {@code SortedNumericDocValuesField} (1/0). The columnar path must emit both a
+     * {@link org.elasticsearch.escf.LuceneBinaryColumn} and a {@link org.elasticsearch.escf.LuceneLongColumn}.
+     */
+    public void testIndexedTrueValue() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "boolean").field("index", true).endObject()),
+            columnarSettings(),
+            batch("indexed true value", 1L, doc("d1", 1L, "{\"f\":true}"))
+        );
+    }
+
+    public void testIndexedFalseValue() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "boolean").field("index", true).endObject()),
+            columnarSettings(),
+            batch("indexed false value", 1L, doc("d1", 1L, "{\"f\":false}"))
+        );
+    }
+
+    public void testIndexedWithAbsentDoc() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "boolean").field("index", true).endObject()),
+            columnarSettings(),
+            batch("indexed with absent doc", 1L, doc("d1", 1L, "{\"f\":true}"), doc("d2", 2L, "{}"), doc("d3", 3L, "{\"f\":false}"))
+        );
+    }
+
+    public void testIndexedMultipleDocs() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "boolean").field("index", true).endObject()),
+            columnarSettings(),
+            batch(
+                "indexed multiple docs",
+                1L,
+                doc("d1", 1L, "{\"f\":true}"),
+                doc("d2", 2L, "{\"f\":false}"),
+                doc("d3", 3L, "{\"f\":true}"),
+                doc("d4", 4L, "{}")
+            )
+        );
+    }
+
     // ---- explicit index=false -----------------------------------------------------------------
 
     /**
      * Explicit {@code index=false} mirrors the default in columnar mode (where
      * {@code index.mapping.index_disabled_by_default=true}), but is stated explicitly so the test
-     * remains meaningful if the default ever changes. Support for {@code index=true} in the columnar
-     * path is reserved for a future commit.
+     * remains meaningful if the default ever changes. Emits only a {@code SortedNumericDocValuesField}.
      */
     public void testExplicitlyNotIndexed() throws IOException {
         assertColumnarMatchesXContent(

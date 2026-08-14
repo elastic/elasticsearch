@@ -37,6 +37,7 @@ import org.elasticsearch.escf.EscfColumn;
 import org.elasticsearch.escf.EscfColumnBuilder;
 import org.elasticsearch.escf.EscfColumnData;
 import org.elasticsearch.escf.EscfColumnKind;
+import org.elasticsearch.escf.LuceneBinaryColumn;
 import org.elasticsearch.escf.LuceneLongColumn;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
@@ -776,7 +777,6 @@ public class BooleanFieldMapper extends FieldMapper {
         // but are not rejected here — they fall back per document at parse time.
         return indexSettings.getMode().isStrictColumnar()
             && docValuesParameters.enabled()
-            && indexed == false
             && stored == false
             && hasScript() == false
             && copyTo().copyToFields().isEmpty()
@@ -799,10 +799,16 @@ public class BooleanFieldMapper extends FieldMapper {
             );
         }
         EscfColumnData longData = booleansToLongs(source);
-        IndexableFieldType columnFieldType = fieldType().indexType().hasDocValuesSkipper()
-            ? SORTED_NUMERIC_DV_INDEXED_FIELD_TYPE
-            : SORTED_NUMERIC_DV_FIELD_TYPE;
-        ctx.addColumn(LuceneLongColumn.of(longData, fieldType().name(), columnFieldType, LongColumn.NumericKind.INT));
+        if (fieldType().indexType().hasDocValuesSkipper()) {
+            ctx.addColumn(
+                LuceneLongColumn.of(longData, fieldType().name(), SORTED_NUMERIC_DV_INDEXED_FIELD_TYPE, LongColumn.NumericKind.INT)
+            );
+        } else if (indexed) {
+            ctx.addColumn(LuceneBinaryColumn.of(booleansToTerms(source), fieldType().name(), StringField.TYPE_NOT_STORED));
+            ctx.addColumn(LuceneLongColumn.of(longData, fieldType().name(), SORTED_NUMERIC_DV_FIELD_TYPE, LongColumn.NumericKind.INT));
+        } else {
+            ctx.addColumn(LuceneLongColumn.of(longData, fieldType().name(), SORTED_NUMERIC_DV_FIELD_TYPE, LongColumn.NumericKind.INT));
+        }
     }
 
     private EscfColumnData booleansToLongs(EscfColumn source) {
@@ -833,6 +839,43 @@ public class BooleanFieldMapper extends FieldMapper {
                     }
                 } else {
                     builder.setLong(doc, parseBooleanString(value.utf8ToString()) ? 1L : 0L);
+                }
+            }
+        }
+        return builder.finish(source.docCount());
+    }
+
+    private EscfColumnData booleansToTerms(EscfColumn source) {
+        EscfColumnBuilder builder = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, BytesRefRecycler.NON_RECYCLING_INSTANCE);
+        builder.lockScalar(EscfColumnKind.STRING);
+        if (source.kind() == EscfColumnKind.BOOL) {
+            EscfColumnData colData = source.columnData();
+            FixedBitSet validity = colData.validity();
+            FixedBitSet boolValues = colData.values();
+            int docCount = colData.docCount();
+            if (validity == null) {
+                for (int doc = 0; doc < docCount; doc++) {
+                    boolean b = boolValues != null && boolValues.get(doc);
+                    builder.setString(doc, b ? Values.TRUE : Values.FALSE);
+                }
+            } else {
+                BitSetIterator it = new BitSetIterator(validity, docCount);
+                for (int doc = it.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = it.nextDoc()) {
+                    boolean b = boolValues != null && boolValues.get(doc);
+                    builder.setString(doc, b ? Values.TRUE : Values.FALSE);
+                }
+            }
+        } else {
+            final ObjectTupleCursor<BytesRef> cursor = source.bytesRefCursor(false);
+            for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
+                final BytesRef value = cursor.value();
+                if (value == null) {
+                    if (nullValue != null) {
+                        builder.setString(doc, nullValue ? Values.TRUE : Values.FALSE);
+                    }
+                } else {
+                    boolean b = parseBooleanString(value.utf8ToString());
+                    builder.setString(doc, b ? Values.TRUE : Values.FALSE);
                 }
             }
         }

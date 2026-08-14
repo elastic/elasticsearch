@@ -153,6 +153,49 @@ public final class H3CartesianUtil {
         return y1 + t * (y2 - y1);
     }
 
+    // Polar bounds: the south polar cell's maximum latitude and north polar cell's minimum latitude
+    // at each resolution. Used to detect when an intermediate H3 cell is in a polar band where
+    // the equirectangular projection distorts cell relationships enough that we must force recursion.
+    // Adapted from the equivalent NORTH_BOUND/SOUTH_BOUND arrays in H3CartesianUtil in the spatial module.
+    private static final double[] NORTH_BOUND = new double[H3.MAX_H3_RES + 1];
+    private static final double[] SOUTH_BOUND = new double[H3.MAX_H3_RES + 1];
+    static {
+        for (int res = 0; res <= H3.MAX_H3_RES; res++) {
+            NORTH_BOUND[res] = polarBoundMinLat(H3.northPolarH3(res));
+            SOUTH_BOUND[res] = polarBoundMaxLat(H3.southPolarH3(res));
+        }
+    }
+
+    /** Returns the minimum latitude of the bounding box of the north-polar cell at {@code resolution}. */
+    public static double getNorthPolarBound(int resolution) {
+        return NORTH_BOUND[resolution];
+    }
+
+    /** Returns the maximum latitude of the bounding box of the south-polar cell at {@code resolution}. */
+    public static double getSouthPolarBound(int resolution) {
+        return SOUTH_BOUND[resolution];
+    }
+
+    /** Computes the minimum latitude of a north-polar H3 cell's boundary (quantized to Lucene integer precision). */
+    private static double polarBoundMinLat(long h3) {
+        final CellBoundary boundary = H3.h3ToGeoBoundary(h3);
+        double minLat = Double.POSITIVE_INFINITY;
+        for (int i = 0; i < boundary.numPoints(); i++) {
+            minLat = Math.min(minLat, GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(boundary.getLatLon(i).getLatDeg())));
+        }
+        return minLat;
+    }
+
+    /** Computes the maximum latitude of a south-polar H3 cell's boundary (quantized to Lucene integer precision). */
+    private static double polarBoundMaxLat(long h3) {
+        final CellBoundary boundary = H3.h3ToGeoBoundary(h3);
+        double maxLat = Double.NEGATIVE_INFINITY;
+        for (int i = 0; i < boundary.numPoints(); i++) {
+            maxLat = Math.max(maxLat, GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(boundary.getLatLon(i).getLatDeg())));
+        }
+        return maxLat;
+    }
+
     /** For the given resolution, it returns true if the cell contains any of the poles */
     public static boolean isPolar(long h3) {
         final int res = H3.getResolution(h3);

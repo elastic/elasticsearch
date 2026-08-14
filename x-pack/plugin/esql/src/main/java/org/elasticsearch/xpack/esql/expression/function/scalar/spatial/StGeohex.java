@@ -359,6 +359,24 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper, An
     /**
      * Recursively descends the H3 hierarchy, adding cells that intersect the shape.
      * Adapted from {@code GeoHexGridTiler.setValuesByRecursion} in the spatial module.
+     *
+     * <p>Two subtleties from the original are preserved here:
+     * <ol>
+     *   <li><b>Polar forced-recurse</b>: near the poles the equirectangular projection distorts
+     *       H3 cell shapes enough that the bounding-box pre-check becomes unreliable at intermediate
+     *       resolutions. When an intermediate cell's bbox touches the polar band for that resolution
+     *       we skip the bbox check and always recurse, matching the {@code QUERY_CROSSES} return in
+     *       {@code UnboundedGeoHexGridTiler.relateTile}.</li>
+     *   <li><b>noChild (non-intersecting-children) loop</b>: H3 children at resolution N+1 can
+     *       physically extend beyond their resolution-N parent's area. A target-resolution cell C
+     *       may be an H3 child of parent Q but overlap a different intermediate cell P. If Q's bbox
+     *       does not intersect the shape, Q's branch is pruned and C is never visited through Q.
+     *       After recursing all H3 children of a non-disjoint cell P, we therefore also check every
+     *       noChild of P — a cell in the next resolution that intersects P but whose H3 parent is
+     *       Q ≠ P — and recurse it only when Q's bbox is disjoint from the shape (i.e. Q was or
+     *       would be pruned). See {@code H3.h3ToNoChildrenIntersecting} and the comment in
+     *       {@code GeoHexGridTiler.setValuesByRecursion}.</li>
+     * </ol>
      */
     private static void recursiveGeohex(
         GeoShapeDocValues shape,
@@ -368,20 +386,42 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper, An
         List<Long> cells,
         GeoBoundingBox scratch
     ) throws IOException {
-        H3SphericalUtil.computeGeoBounds(h3, scratch);
-        if (geohexBboxIntersectsShape(shape, scratch) == false) {
-            return;
-        }
         int res = H3.getResolution(h3);
         if (res == targetRes) {
+            // At the target resolution: apply the exact hexagon intersection test.
+            H3SphericalUtil.computeGeoBounds(h3, scratch);
+            if (geohexBboxIntersectsShape(shape, scratch) == false) {
+                return;
+            }
             if (predicate == null || predicate.validHex(h3)) {
                 if (h3CellIntersectsShape(shape, h3)) {
                     cells.add(h3);
                 }
             }
         } else {
+            // At intermediate resolutions: use the bbox as a fast pruning check.
+            // Near the poles the equirectangular projection distorts cell shapes, so skip the bbox check
+            // for polar-band cells and always recurse (equivalent to QUERY_CROSSES in the original tiler).
+            H3SphericalUtil.computeGeoBounds(h3, scratch);
+            boolean inPolarBand = scratch.top() > H3CartesianUtil.getNorthPolarBound(res)
+                || scratch.bottom() < H3CartesianUtil.getSouthPolarBound(res);
+            if (inPolarBand == false && geohexBboxIntersectsShape(shape, scratch) == false) {
+                return;
+            }
+            // Recurse all H3 children of this cell.
             for (long child : H3.h3ToChildren(h3)) {
                 recursiveGeohex(shape, child, targetRes, predicate, cells, scratch);
+            }
+            // H3 cells at the next resolution can physically extend beyond their H3 parent's area.
+            // Visit each noChild (a next-resolution cell that intersects this cell but has a different
+            // H3 parent) only when that H3 parent's bbox is disjoint from the shape — meaning it was
+            // or would be pruned, so the noChild will never be reached through its own parent's branch.
+            for (long noChild : H3.h3ToNoChildrenIntersecting(h3)) {
+                long noChildParent = H3.h3ToParent(noChild);
+                H3SphericalUtil.computeGeoBounds(noChildParent, scratch);
+                if (geohexBboxIntersectsShape(shape, scratch) == false) {
+                    recursiveGeohex(shape, noChild, targetRes, predicate, cells, scratch);
+                }
             }
         }
     }

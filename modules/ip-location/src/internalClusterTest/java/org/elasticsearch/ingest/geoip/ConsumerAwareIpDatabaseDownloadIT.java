@@ -239,7 +239,7 @@ public class ConsumerAwareIpDatabaseDownloadIT extends AbstractGeoIpIT {
             String indexName,
             String dataStreamName,
             IndexMode templateIndexMode,
-            boolean managedTemplate,
+            boolean registryInstalledTemplate,
             ProjectMetadata projectMetadata,
             Instant resolvedAt,
             Settings indexTemplateAndCreateRequestSettings,

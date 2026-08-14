@@ -30,7 +30,7 @@ public class StatelessIndexSettingProvider implements IndexSettingProvider {
         String indexName,
         @Nullable String dataStreamName,
         IndexMode templateIndexMode,
-        boolean managedTemplate,
+        boolean registryInstalledTemplate,
         ProjectMetadata projectMetadata,
         Instant resolvedAt,
         Settings indexTemplateAndCreateRequestSettings,

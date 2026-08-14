@@ -98,7 +98,7 @@ public class IndexSettingProviderTests extends ESSingleNodeTestCase {
             String indexName,
             String dataStreamName,
             IndexMode templateIndexMode,
-            boolean managedTemplate,
+            boolean registryInstalledTemplate,
             ProjectMetadata metadata,
             Instant resolvedAt,
             Settings indexTemplateAndCreateRequestSettings,

@@ -56,7 +56,7 @@ public final class ES95CodecClusterSettingProvider implements IndexSettingProvid
         final String indexName,
         final String dataStreamName,
         final IndexMode templateIndexMode,
-        final boolean managedTemplate,
+        final boolean registryInstalledTemplate,
         final ProjectMetadata projectMetadata,
         final Instant resolvedAt,
         final Settings indexTemplateAndCreateRequestSettings,

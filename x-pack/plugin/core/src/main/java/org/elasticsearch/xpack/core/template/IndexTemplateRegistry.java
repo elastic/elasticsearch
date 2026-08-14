@@ -329,14 +329,16 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
         if (filtered.isEmpty()) {
             return filtered;
         }
-        return filtered.entrySet().stream().collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> markManaged(e.getValue())));
+        return filtered.entrySet()
+            .stream()
+            .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> markRegistryInstalled(e.getValue())));
     }
 
-    private static ComposableIndexTemplate markManaged(ComposableIndexTemplate template) {
-        if (template.isManaged()) {
+    private static ComposableIndexTemplate markRegistryInstalled(ComposableIndexTemplate template) {
+        if (template.isRegistryInstalled()) {
             return template;
         }
-        return template.toBuilder().managed(true).build();
+        return template.toBuilder().registryInstalled(true).build();
     }
 
     /**

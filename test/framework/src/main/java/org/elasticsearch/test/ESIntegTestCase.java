@@ -2914,7 +2914,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                     indexName,
                     dataStreamName,
                     templateIndexMode,
-                    managedTemplate,
+                    registryInstalledTemplate,
                     projectMetadata,
                     resolvedAt,
                     indexTemplateAndCreateRequestSettings,

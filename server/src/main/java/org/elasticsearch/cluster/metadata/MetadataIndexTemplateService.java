@@ -807,7 +807,7 @@ public class MetadataIndexTemplateService {
                 VALIDATE_INDEX_NAME,
                 indexTemplate.getDataStreamTemplate() != null ? VALIDATE_DATA_STREAM_NAME : null,
                 projectMetadata.retrieveIndexModeFromTemplate(indexTemplate),
-                indexTemplate.isManaged(),
+                indexTemplate.isRegistryInstalled(),
                 projectMetadata,
                 now,
                 combinedSettings,

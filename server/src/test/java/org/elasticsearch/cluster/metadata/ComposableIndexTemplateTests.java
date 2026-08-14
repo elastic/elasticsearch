@@ -106,7 +106,7 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
             .allowAutoCreate(randomOptionalBoolean())
             .ignoreMissingComponentTemplates(ignoreMissingComponentTemplates)
             .deprecated(randomOptionalBoolean())
-            .managed(randomBoolean())
+            .registryInstalled(randomBoolean())
             .createdDate(createdDate)
             .modifiedDate(modifiedDate)
             .build();
@@ -218,18 +218,21 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
             case 8:
                 return orig.toBuilder().deprecated(orig.isDeprecated() ? randomFrom(false, null) : true).build();
             case 9:
-                return orig.toBuilder().managed(orig.isManaged() == false).build();
+                return orig.toBuilder().registryInstalled(orig.isRegistryInstalled() == false).build();
             default:
                 throw new IllegalStateException("illegal randomization branch");
         }
     }
 
-    public void testIsManaged() {
-        ComposableIndexTemplate notManaged = ComposableIndexTemplate.builder().indexPatterns(List.of("test-*")).build();
-        assertThat(notManaged.isManaged(), equalTo(false));
+    public void testIsRegistryInstalled() {
+        ComposableIndexTemplate notRegistryInstalled = ComposableIndexTemplate.builder().indexPatterns(List.of("test-*")).build();
+        assertThat(notRegistryInstalled.isRegistryInstalled(), equalTo(false));
 
-        ComposableIndexTemplate managed = ComposableIndexTemplate.builder().indexPatterns(List.of("test-*")).managed(true).build();
-        assertThat(managed.isManaged(), equalTo(true));
+        ComposableIndexTemplate registryInstalled = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of("test-*"))
+            .registryInstalled(true)
+            .build();
+        assertThat(registryInstalled.isRegistryInstalled(), equalTo(true));
     }
 
     public void testComponentTemplatesEquals() {

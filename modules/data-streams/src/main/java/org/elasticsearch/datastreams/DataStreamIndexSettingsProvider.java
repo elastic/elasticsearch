@@ -82,7 +82,7 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
         String indexName,
         @Nullable String dataStreamName,
         @Nullable IndexMode templateIndexMode,
-        boolean managedTemplate,
+        boolean registryInstalledTemplate,
         ProjectMetadata projectMetadata,
         Instant resolvedAt,
         Settings indexTemplateAndCreateRequestSettings,

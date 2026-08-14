@@ -1366,7 +1366,7 @@ public class MetadataCreateIndexService {
             final IndexMode templateIndexMode = request.isFailureIndex() || matchingTemplate == null
                 ? null
                 : projectMetadata.retrieveIndexModeFromTemplate(matchingTemplate);
-            final boolean managedTemplate = matchingTemplate != null && matchingTemplate.isManaged();
+            final boolean registryInstalledTemplate = matchingTemplate != null && matchingTemplate.isRegistryInstalled();
 
             // Loop through all the explicit index setting providers, adding them to the
             // additionalIndexSettings map
@@ -1379,7 +1379,7 @@ public class MetadataCreateIndexService {
                     request.index(),
                     request.dataStreamName(),
                     templateIndexMode,
-                    managedTemplate,
+                    registryInstalledTemplate,
                     projectMetadata,
                     resolvedAt,
                     templateAndRequestSettings,

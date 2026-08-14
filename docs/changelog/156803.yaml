@@ -1,0 +1,6 @@
+area: Mapping
+issues:
+ - 132352
+pr: 156803
+summary: Correctly load nested document source from `SearchExecutionContext`
+type: bug

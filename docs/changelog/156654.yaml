@@ -1,5 +1,0 @@
-pr: 156654
-summary: "ES|QL: NDJSON `error_mode` governs `StreamReadConstraints` violations — an over-long number token or field name, or nesting past the depth cap, drops the line and warns instead of hard-failing the read on every mode"
-area: ES|QL
-type: bug
-issues: []

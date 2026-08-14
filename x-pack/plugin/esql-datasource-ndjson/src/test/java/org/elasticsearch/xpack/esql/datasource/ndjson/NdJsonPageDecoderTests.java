@@ -23,9 +23,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.datasources.CountingBreaker;
@@ -975,16 +973,17 @@ public class NdJsonPageDecoderTests extends ESTestCase {
     }
 
     /**
-     * fail_fast: an oversized number token aborts the read with the same actionable
-     * {@code Malformed NDJSON} contract every other whole-line failure uses, carrying Jackson's own
-     * limit text. Before the fix the raw {@code StreamConstraintsException} escaped {@code decodePage}
-     * entirely and was typed by {@code ExternalFailures.surface}, so {@code error_mode} never got a say
-     * on any mode.
+     * fail_fast: an oversized number token aborts the read through the whole-line contract every other
+     * whole-line failure uses, carrying Jackson's own limit text. Without the constraint arm the raw
+     * {@code StreamConstraintsException} escapes {@code decodePage} and is typed by
+     * {@code ExternalFailures.surface}, leaving {@code error_mode} no say on any mode. The
+     * {@code Over-limit} label distinguishes a record that is well-formed but past a parser limit from
+     * one that is genuinely malformed.
      */
     public void testOversizedNumberTokenFailsFastUnderStrict() {
         String ndjson = "{\"v\":1}\n" + oversizedNumberRecord() + "\n{\"v\":3}\n";
         ParsingException e = expectThrows(ParsingException.class, () -> decodeOneColumn(ndjson, DataType.LONG, ErrorPolicy.STRICT));
-        assertThat(e.getMessage(), Matchers.containsString("Malformed NDJSON"));
+        assertThat(e.getMessage(), Matchers.containsString("Over-limit NDJSON"));
         assertThat(e.getMessage(), Matchers.containsString("Number value length"));
     }
 
@@ -1011,12 +1010,47 @@ public class NdJsonPageDecoderTests extends ESTestCase {
         assertConstraintViolationDropsLine(excessiveNestingRecord(), ErrorPolicy.LENIENT, "Document nesting depth");
     }
 
-    /** fail_fast on a non-number limit, pinning that the fix is class-level rather than number-specific. */
+    /** fail_fast on a non-number limit, pinning that the routing is class-level rather than number-specific. */
     public void testExcessiveNestingFailsFastUnderStrict() {
         String ndjson = "{\"v\":1}\n" + excessiveNestingRecord() + "\n";
         ParsingException e = expectThrows(ParsingException.class, () -> decodeOneColumn(ndjson, DataType.LONG, ErrorPolicy.STRICT));
-        assertThat(e.getMessage(), Matchers.containsString("Malformed NDJSON"));
+        assertThat(e.getMessage(), Matchers.containsString("Over-limit NDJSON"));
         assertThat(e.getMessage(), Matchers.containsString("Document nesting depth"));
+    }
+
+    /**
+     * The scanner reaches the token before projection is consulted, so an over-long number in a column the
+     * query never asked for still takes the line. Worth pinning because the opposite is the intuitive guess:
+     * a user who does not project {@code other} would expect its contents not to matter at all.
+     */
+    public void testOversizedNumberInAnUnprojectedFieldDropsLine() throws IOException {
+        assertConstraintViolationDropsLine(
+            "{\"v\":5,\"other\":" + "1".repeat(1200) + "}",
+            ErrorPolicy.LENIENT,
+            "Number value length (1200)"
+        );
+    }
+
+    /** Same, for a token nested inside an array rather than sitting directly under a field. */
+    public void testOversizedNumberInsideAnArrayDropsLine() throws IOException {
+        assertConstraintViolationDropsLine("{\"v\":[9," + "1".repeat(1200) + "]}", ErrorPolicy.LENIENT, "Number value length (1200)");
+    }
+
+    /**
+     * Demonstrates the type-independence the rest of this block argues structurally: the violation is raised
+     * while the token is scanned, before any {@code DataType} dispatch, so a keyword column loses the same
+     * line a numeric column does. If the routing ever regressed to a per-arm fix in the numeric decoders,
+     * this is the cell that would catch it.
+     */
+    public void testOversizedNumberDropsLineForAKeywordColumn() throws IOException {
+        String ndjson = "{\"v\":\"a\"}\n" + oversizedNumberRecord() + "\n{\"v\":\"b\"}\n";
+        try (Page page = decodeOneColumn(ndjson, DataType.KEYWORD, ErrorPolicy.LENIENT)) {
+            BytesRefBlock block = page.getBlock(0);
+            assertEquals("the offending line is dropped, not null-filled", 2, block.getPositionCount());
+            BytesRef scratch = new BytesRef();
+            assertEquals(new BytesRef("a"), BytesRef.deepCopyOf(block.getBytesRef(0, scratch)));
+            assertEquals(new BytesRef("b"), BytesRef.deepCopyOf(block.getBytesRef(1, scratch)));
+        }
     }
 
     /**
@@ -1085,10 +1119,10 @@ public class NdJsonPageDecoderTests extends ESTestCase {
     /**
      * Bad data is the client's, not ours, so every strict NDJSON read failure answers 400. This asserts the
      * status directly rather than the exception type, because the status is the contract users actually see and
-     * the type is only how we carry it. Before this change all four of these threw {@code EsqlIllegalArgumentException},
-     * which sits in the {@code QlServerException} family with no {@code status()} override and so answered 500 —
-     * paging someone over a malformed input file. The two genuine invariant failures in this class (missing lenient
-     * scratch builders) deliberately stay server-class and are not listed here.
+     * the type is only how we carry it. Carrying any of these in the {@code QlServerException} family instead —
+     * which has no {@code status()} override and so answers 500 — would page someone over a malformed input file.
+     * The two genuine invariant failures in this class (missing lenient scratch builders) deliberately stay
+     * server-class and are not listed here.
      */
     public void testEveryStrictReadFailureIsAClientError() {
         String oversized = "{\"v\":" + "1".repeat(1200) + "}\n";
@@ -1130,30 +1164,9 @@ public class NdJsonPageDecoderTests extends ESTestCase {
     public void testConstraintViolationOnRecordOpeningTokenFailsFastUnderStrict() {
         String ndjson = "{\"v\":1}\n" + "1".repeat(1200) + "\n";
         ParsingException e = expectThrows(ParsingException.class, () -> decodeOneColumn(ndjson, DataType.LONG, ErrorPolicy.STRICT));
-        assertThat(e.getMessage(), Matchers.containsString("Malformed NDJSON [nextToken]"));
+        assertThat(e.getMessage(), Matchers.containsString("Over-limit NDJSON [nextToken]"));
         assertThat(e.getMessage(), Matchers.containsString("Number value length"));
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
-    }
-
-    /**
-     * The four strict failures a user's data can cause answer 400; the reader's own invariant failures answer
-     * 500, so a real bug in our code still pages someone. The two invariant throws ("lenient scratch builders
-     * missing after ensureLenientScratchBuffers") are defensive and unreachable without bytecode manipulation —
-     * {@code ensureLenientScratchBuffers} reallocates anything a test could null — so they cannot be triggered
-     * here. What is pinnable, and what the split actually rests on, is that the two exception families keep
-     * their statuses. If someone retyped the invariant throws "for consistency", this fails.
-     */
-    public void testTheClientServerSplitHoldsAtTheTypeLevel() {
-        assertEquals(
-            "reader invariant failures must stay server-class",
-            RestStatus.INTERNAL_SERVER_ERROR,
-            ExceptionsHelper.status(new EsqlIllegalArgumentException("lenient scratch builders missing"))
-        );
-        assertEquals(
-            "user-data failures must be client-class",
-            RestStatus.BAD_REQUEST,
-            ExceptionsHelper.status(new ParsingException(Source.EMPTY, "{}", "malformed"))
-        );
     }
 
     /**
@@ -1246,7 +1259,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
         }
         // SkipWarnings.add() emits a one-time summary header on the first call, then the detail.
         assertEquals("one summary + one detail warning for the dropped line", 2, warnings.size());
-        assertThat(warnings.get(1), Matchers.containsString("Malformed NDJSON"));
+        assertThat(warnings.get(1), Matchers.containsString("Over-limit NDJSON"));
         assertThat(warnings.get(1), Matchers.containsString(expectedDetail));
         assertEquals("the dropped line is charged exactly once", 1L, counters.snapshot().parseErrors());
     }

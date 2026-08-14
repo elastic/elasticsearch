@@ -790,9 +790,9 @@ public class NdJsonPageIteratorTests extends ESTestCase {
      * End-to-end twin of {@link #testMalformedLineEmitsResponseWarningHeader} for a
      * {@code StreamReadConstraints} violation, which reaches the same whole-line sink from the token scanner
      * rather than from a decode arm. Exercised through {@code NdJsonFormatReader.read} so schema inference runs
-     * over the bad line too — before the fix, inference alone failed the read, so this never got as far as a
-     * warning. Asserts the surviving rows, not just the header, so a fix that warned but silently dropped the
-     * trailing record would still be caught.
+     * over the bad line too: inference has its own copy of the whole-line catch, and without it the read fails
+     * during sampling before {@code error_mode} is ever consulted. Asserts the surviving rows, not just the
+     * header, so a warning emitted while the trailing record was silently dropped would still be caught.
      */
     public void testStreamConstraintViolationEmitsResponseWarningHeaderAndKeepsGoodRows() throws IOException {
         String ndjson = "{\"id\":1}\n{\"id\":" + "1".repeat(1200) + "}\n{\"id\":3}\n";
@@ -820,7 +820,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         // 1 summary + 1 detail
         assertEquals(2, warnings.size());
         assertTrue("Summary should mention skip_row, got: " + warnings.get(0), warnings.get(0).contains("policy: skip_row"));
-        assertTrue("Detail should mention the malformed row, got: " + warnings.get(1), warnings.get(1).contains("Malformed NDJSON"));
+        assertTrue("Detail should mention the over-limit row, got: " + warnings.get(1), warnings.get(1).contains("Over-limit NDJSON"));
         assertTrue("Detail should carry Jackson's limit text, got: " + warnings.get(1), warnings.get(1).contains("Number value length"));
     }
 
@@ -831,9 +831,9 @@ public class NdJsonPageIteratorTests extends ESTestCase {
      * the REST layer itself uses — rather than calling {@code status()} on a known type, so it stays honest if
      * the thrown type changes again.
      * <p>
-     * Both arms matter. A malformed line is the long-standing whole-line failure; an over-limit token is the
-     * class this PR routed into it. Both are the user's data, so both must answer 400 and not the 500 that the
-     * {@code QlServerException} family would have produced.
+     * Both arms matter. A malformed line reaches the whole-line sink from a decode arm; an over-limit token
+     * reaches it from the token scanner. Both are the user's data, so both must answer 400 rather than the 500
+     * the {@code QlServerException} family produces.
      */
     public void testStrictReadFailuresSurfaceAsBadRequestThroughTheIterator() throws IOException {
         assertStrictReadFailureStatus("{\"id\":1}\n{{{not-an-object\n", "malformed line");

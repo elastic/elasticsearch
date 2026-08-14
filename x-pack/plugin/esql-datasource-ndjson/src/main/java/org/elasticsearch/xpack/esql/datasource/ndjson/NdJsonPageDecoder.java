@@ -766,11 +766,11 @@ public class NdJsonPageDecoder implements Closeable {
      * {@code onFieldError}.
      */
     private void onNdjsonLineParseError(JsonProcessingException e, long logicalRowIndex, String phaseLabel) {
+        String kind = lineFailureKind(e);
         if (errorPolicy.isStrict()) {
             // Mirrors the remedy hint coercionFailure and CsvFormatReader.onRowErrorImpl already give, phrased for
             // a whole-line failure: both non-strict modes drop the line here, so neither is "null-fill" the way it
-            // is for a per-cell failure. It earns its place most on the constraint violations this method now
-            // handles, where the record is well-formed JSON that merely exceeds a parser limit.
+            // is for a per-cell failure.
             // ParsingException (client-class, 400) rather than EsqlIllegalArgumentException (Ql SERVER family,
             // 500): a line this reader cannot interpret is bad input, not a broken invariant of ours, which is
             // the split ExternalFailures documents and CsvFormatReader.onRowErrorImpl already implements. The
@@ -779,7 +779,8 @@ public class NdJsonPageDecoder implements Closeable {
                 e,
                 Source.EMPTY,
                 "{}",
-                "Malformed NDJSON ["
+                kind
+                    + " NDJSON ["
                     + phaseLabel
                     + "]: "
                     + e.getOriginalMessage()
@@ -787,15 +788,7 @@ public class NdJsonPageDecoder implements Closeable {
             );
         }
         errorCount++;
-        skipWarnings.add(
-            (e instanceof JsonEOFException ? "Truncated" : "Malformed")
-                + " NDJSON at logical row ["
-                + logicalRowIndex
-                + "] ("
-                + phaseLabel
-                + "): "
-                + e.getOriginalMessage()
-        );
+        skipWarnings.add(kind + " NDJSON at logical row [" + logicalRowIndex + "] (" + phaseLabel + "): " + e.getOriginalMessage());
         checkErrorBudgetOrThrow();
         logger.log(
             errorPolicy.logErrors() ? Level.INFO : Level.DEBUG,
@@ -806,12 +799,32 @@ public class NdJsonPageDecoder implements Closeable {
             // existing assertion since this is a log-only message).
             LoggerMessageFormat.format(
                 "{} NDJSON at logical row [{}] ({}): {}",
-                (Object) (e instanceof JsonEOFException ? "Truncated" : "Malformed"),
+                (Object) kind,
                 logicalRowIndex,
                 phaseLabel,
                 e.getOriginalMessage()
             )
         );
+    }
+
+    /**
+     * Names the whole-line failure for the message, the client warning and the log, so all three agree.
+     * The three arms are the whole membership of the class {@link #onNdjsonLineParseError} accepts; anything
+     * else reaching it is a routing bug at one of its call sites, not an input the reader can describe.
+     *
+     * @see #onNdjsonLineParseError
+     */
+    private static String lineFailureKind(JsonProcessingException e) {
+        return switch (e) {
+            // Ordered before JsonParseException, which it extends.
+            case JsonEOFException ignored -> "Truncated";
+            // Well-formed JSON that exceeds one of StreamReadConstraints' limits -- number length, field-name
+            // length or nesting depth -- so "malformed" would misdescribe it. Jackson's own message, appended
+            // by the caller, names which limit.
+            case StreamConstraintsException ignored -> "Over-limit";
+            case JsonParseException ignored -> "Malformed";
+            default -> throw new AssertionError("unexpected NDJSON whole-line failure [" + e.getClass().getName() + "]");
+        };
     }
 
     /**

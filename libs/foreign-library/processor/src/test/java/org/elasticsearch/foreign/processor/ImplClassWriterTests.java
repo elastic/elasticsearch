@@ -1018,6 +1018,101 @@ public class ImplClassWriterTests extends ProcessorTestCase {
     }
 
     /**
+     * End-to-end test: on Windows x64 only, a {@code @WideString String} parameter is actually
+     * encoded as UTF-16LE before the native call. Verified by calling the real {@code FormatMessageW}
+     * from {@code kernel32.dll} with {@code FORMAT_MESSAGE_FROM_STRING | FORMAT_MESSAGE_IGNORE_INSERTS}
+     * and a non-ASCII format string, then reading the output back from the wide-char buffer.
+     * Using a non-ASCII character (é, U+00E9) ensures the test would fail if the framework used
+     * UTF-8 rather than UTF-16LE: FormatMessageW would receive a mis-encoded string and produce
+     * wrong or garbage output.
+     */
+    public void testWideStringParamEndToEndOnWindows() throws Exception {
+        if (System.getProperty("os.name", "").startsWith("Windows") == false) {
+            return;
+        }
+        String libSource = """
+            package test;
+            import java.lang.foreign.Arena;
+            import java.lang.foreign.MemorySegment;
+            import java.lang.foreign.SymbolLookup;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.ResolvedSymbol;
+            import org.elasticsearch.foreign.SymbolResolver;
+            import org.elasticsearch.foreign.WideString;
+            @LibrarySpecification(symbolResolver = FormatMessageLib.Kernel32Resolver.class)
+            public interface FormatMessageLib {
+                int FORMAT_MESSAGE_FROM_STRING = 0x00000400;
+                int FORMAT_MESSAGE_IGNORE_INSERTS = 0x00000200;
+                @Function("FormatMessageW")
+                int formatMessage(
+                    int dwFlags,
+                    @WideString String lpSource,
+                    int dwMessageId,
+                    int dwLanguageId,
+                    MemorySegment lpBuffer,
+                    int nSize,
+                    MemorySegment pArguments
+                );
+                class Kernel32Resolver implements SymbolResolver {
+                    public Kernel32Resolver() {}
+                    public ResolvedSymbol resolve(String name, SymbolLookup ignored) {
+                        return new ResolvedSymbol(name,
+                            SymbolLookup.libraryLookup("kernel32.dll", Arena.global())
+                                .find(name)
+                                .orElseThrow(() -> new UnsatisfiedLinkError("Not found in kernel32.dll: " + name)));
+                    }
+                }
+            }
+            """;
+        String driverSource = """
+            package test;
+            import java.lang.foreign.Arena;
+            import java.lang.foreign.MemorySegment;
+            import java.lang.foreign.ValueLayout;
+            public final class FormatMessageDriver {
+                public static String callWithFormat(String fmt) throws Exception {
+                    FormatMessageLib lib = new FormatMessageLib$Impl();
+                    try (Arena arena = Arena.ofConfined()) {
+                        int bufChars = 512;
+                        MemorySegment buf = arena.allocate(ValueLayout.JAVA_CHAR, bufChars);
+                        int chars = lib.formatMessage(
+                            FormatMessageLib.FORMAT_MESSAGE_FROM_STRING
+                                | FormatMessageLib.FORMAT_MESSAGE_IGNORE_INSERTS,
+                            fmt,
+                            0, 0,
+                            buf, bufChars,
+                            MemorySegment.NULL
+                        );
+                        StringBuilder sb = new StringBuilder(chars);
+                        for (int i = 0; i < chars; i++) {
+                            sb.append(buf.getAtIndex(ValueLayout.JAVA_CHAR, i));
+                        }
+                        return sb.toString();
+                    }
+                }
+            }
+            """;
+
+        var sources = new java.util.LinkedHashMap<String, String>();
+        sources.put("test.FormatMessageLib", libSource);
+        sources.put("test.FormatMessageDriver", driverSource);
+        CompilationResult result = compile(sources);
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+
+        // Loading FormatMessageLib$Impl triggers <clinit>, which resolves FormatMessageW from kernel32.dll.
+        assertNotNull("Generated FormatMessageLib$Impl not found", result.loadClass("test.FormatMessageLib$Impl"));
+
+        Class<?> driver = result.loadClass("test.FormatMessageDriver");
+        // "café" contains é (U+00E9): two bytes in UTF-8 (0xC3 0xA9) but one UTF-16LE code unit (0xE9 0x00).
+        // If the framework mistakenly used UTF-8, FormatMessageW would receive a 6-byte sequence that
+        // does not represent valid UTF-16LE text and would produce wrong output.
+        String input = "café";
+        String got = (String) driver.getMethod("callWithFormat", String.class).invoke(null, input);
+        assertEquals("FormatMessageW must echo the @WideString format string unchanged", input, got);
+    }
+
+    /**
      * An abstract-class {@code @LibrarySpecification} must generate a {@code $Impl} that extends
      * the abstract class (not {@code Object}) and implements the abstract methods. The generated
      * {@code $Impl.getSuperclass()} must equal the abstract class, and a {@code protected abstract}

@@ -2083,9 +2083,10 @@ public class NdJsonPageDecoder implements Closeable {
          * Handles a scalar value that cannot be coerced into a column's declared type — a string that is not a
          * number for a numeric column, a non-{@code true}/{@code false} token for a boolean column, a number that
          * overflows the target, a string the declared date {@code format} cannot parse, or a token whose JSON kind
-         * has no coercion to the target. Routed through {@link ErrorPolicy} and
-         * {@link DeclaredTypeCoercions#onCoercionFailure} so a declared-coercion failure produces the SAME
-         * observable outcome across every format: {@link ErrorPolicy.Mode#FAIL_FAST} fails the query with an
+         * has no coercion to the target. Routed through {@link ErrorPolicy} here rather than through the shared
+         * {@link DeclaredTypeCoercions#onCoercionFailure} the columnar readers call -- this decoder owns its own
+         * warning text and budget accounting -- but to the SAME observable outcome, which is the contract that
+         * matters across formats: {@link ErrorPolicy.Mode#FAIL_FAST} fails the query with an
          * actionable message; {@link ErrorPolicy.Mode#NULL_FIELD} nulls this cell only and warns; and
          * {@link ErrorPolicy.Mode#SKIP_ROW} drops the whole record and warns (both subject to the error budget). Every
          * unrepresentable cell reaches this one sink — a bad value here, a cross-kind token ({@link #crossKindDrift}),

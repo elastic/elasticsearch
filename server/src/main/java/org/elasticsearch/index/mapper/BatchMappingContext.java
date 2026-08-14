@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.escf.LuceneLongColumn;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.sourcebatch.LuceneColumn;
@@ -69,6 +70,26 @@ public final class BatchMappingContext {
 
     public IndexSettings indexSettings() {
         return indexSettings;
+    }
+
+    /** Returns the mapping lookup for this batch's index, for inspecting mapper configuration during post-parse. */
+    public MappingLookup mappingLookup() {
+        return mappingLookup;
+    }
+
+    /**
+     * Returns the {@link LuceneLongColumn} added by {@link FieldMapper#mapColumnBatch} for the given
+     * field, or {@code null} if no such column was produced (e.g. the field was absent from the batch).
+     * Must only be called during {@link MetadataFieldMapper#postColumnarParse}, after all field mappers
+     * have run.
+     */
+    public LuceneLongColumn mappedLongColumn(String fieldName) {
+        for (LuceneColumn column : columns) {
+            if (column instanceof LuceneLongColumn longColumn && fieldName.equals(longColumn.name())) {
+                return longColumn;
+            }
+        }
+        return null;
     }
 
     // TODO: nothing allocates through this yet — the columns it would produce have no owner to release them.

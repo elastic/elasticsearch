@@ -451,3 +451,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecK8sTimeseriesCountDistinctOverTimeIT
   method: test {csv-spec:k8s-timeseries-count-distinct-over-time.valuesNull}
   issue: https://github.com/elastic/elasticsearch/issues/156746
+- class: org.elasticsearch.common.xcontent.builder.XContentBuilderTests
+  method: testCloseAllowIllFormedDoesNotValidateStructuralCorrectness
+  issue: https://github.com/elastic/elasticsearch/issues/156563
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:unsigned_long.unsignedLongInWithNull}
+  issue: https://github.com/elastic/elasticsearch/issues/156782

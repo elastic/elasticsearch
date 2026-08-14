@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.arrow.memory.BufferAllocator;
-import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.memory.rounding.RoundingPolicy;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -18,7 +17,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.compute.data.Block.MvOrdering;
-import org.elasticsearch.compute.data.arrow.CircuitBreakerAllocationListener;
+import org.elasticsearch.compute.data.arrow.CircuitBreakingArrowAllocator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.index.mapper.BlockLoader;
@@ -126,8 +125,7 @@ public class BlockFactory {
                 if (arrowAllocator == null) {
                     if (this.parent == null) {
                         // Root block factory
-                        var listener = new CircuitBreakerAllocationListener(nativeMemoryBreaker);
-                        var allocator = new RootAllocator(listener, Long.MAX_VALUE, EXACT_FIT_ROUNDING_POLICY);
+                        var allocator = CircuitBreakingArrowAllocator.create(nativeMemoryBreaker, EXACT_FIT_ROUNDING_POLICY);
                         cleaner.register(this, () -> {
                             try {
                                 allocator.close();

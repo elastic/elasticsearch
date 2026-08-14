@@ -7,9 +7,9 @@
 
 package org.elasticsearch.compute.data.arrow;
 
+import org.apache.arrow.memory.AllocationManager;
 import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.memory.BufferAllocator;
-import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.IntVector;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -20,14 +20,16 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.test.MockBlockFactory;
 import org.elasticsearch.test.ESTestCase;
 
-public class CircuitBreakerAllocationListenerTests extends ESTestCase {
+import java.util.concurrent.atomic.AtomicInteger;
+
+public class CircuitBreakingArrowAllocatorTests extends ESTestCase {
 
     private CircuitBreaker breaker(long limit) {
         return new LimitedBreaker("test", ByteSizeValue.ofBytes(limit));
     }
 
     private BufferAllocator allocator(CircuitBreaker breaker) {
-        return new RootAllocator(new CircuitBreakerAllocationListener(breaker), Long.MAX_VALUE, requestSize -> requestSize);
+        return CircuitBreakingArrowAllocator.create(breaker, requestSize -> requestSize);
     }
 
     public void testAllocationWithinLimitSucceeds() {
@@ -148,4 +150,111 @@ public class CircuitBreakerAllocationListenerTests extends ESTestCase {
 
         blockFactory.ensureAllBlocksAreReleased();
     }
+
+    /**
+     * Verifies that a native {@link OutOfMemoryError} thrown by the {@link AllocationManager.Factory#create} method does not
+     * permanently strand the pre-allocation charge on the circuit breaker.
+     *
+     * <p>Arrow's {@code BaseAllocator.buffer()} calls {@code listener.onPreAllocation(size)} before delegating to
+     * {@code AllocationManager.Factory.create()}. If {@code create()} throws {@link OutOfMemoryError}, Arrow corrects its own
+     * internal counter in a {@code finally} block but never calls {@code listener.onRelease(size)}. Without the throwble-catching
+     * wrapper in {@link CircuitBreakingArrowAllocator#oomCorrecting(CircuitBreaker, AllocationManager.Factory)}, the circuit breaker
+     * would remain permanently overcharged by the size of the failed allocation.
+     */
+    public void testCircuitBreakerClearedOnAllocationManagerOom() {
+        var breaker = new LimitedBreaker("test", ByteSizeValue.ofBytes(4096));
+        var factory = oomingFactory(CircuitBreakingArrowAllocator.defaultFactory(), 3);
+
+        try (var allocator = CircuitBreakingArrowAllocator.create(breaker, requestSize -> requestSize, factory)) {
+            ArrowBuf buf1 = allocator.buffer(512);
+            assertEquals(512, breaker.getUsed());
+
+            ArrowBuf buf2 = allocator.buffer(512);
+            assertEquals(1024, breaker.getUsed());
+
+            // Third allocation fails at the memory allocation level; the circuit breaker charge must be refunded.
+            expectThrows(OutOfMemoryError.class, () -> allocator.buffer(512));
+            assertEquals("pre-allocation charge must be refunded after native OOM", 1024, breaker.getUsed());
+
+            assertEquals(1024, breaker.getUsed());
+
+            ArrowBuf buf3 = allocator.buffer(512);
+
+            buf1.close();
+            buf2.close();
+            buf3.close();
+            assertEquals(0, breaker.getUsed());
+        }
+    }
+
+    private AllocationManager.Factory oomingFactory(AllocationManager.Factory baseFactory, int allowedCount) {
+        final AtomicInteger counter = new AtomicInteger(allowedCount);
+        return new AllocationManager.Factory() {
+            @Override
+            public AllocationManager create(BufferAllocator accountingAllocator, long size) {
+                if (counter.decrementAndGet() == 0) {
+                    throw new OutOfMemoryError("simulated OOM");
+                }
+                return baseFactory.create(accountingAllocator, size);
+            }
+
+            @Override
+            public ArrowBuf empty() {
+                return baseFactory.empty();
+            }
+        };
+    }
+
+    // private static final class CountingUnsafeAllocationManager extends AllocationManager {
+    //
+    // private static final ArrowBuf EMPTY;
+    //
+    // private final long allocatedSize;
+    // private final long allocatedAddress;
+    //
+    // CountingUnsafeAllocationManager(BufferAllocator accountingAllocator, long requestedSize) {
+    // super(accountingAllocator);
+    // this.allocatedAddress = MemoryUtil.allocateMemory(requestedSize);
+    // this.allocatedSize = requestedSize;
+    // }
+    //
+    // public long getSize() {
+    // return this.allocatedSize;
+    // }
+    //
+    // protected long memoryAddress() {
+    // return this.allocatedAddress;
+    // }
+    //
+    // protected void release0() {
+    // MemoryUtil.freeMemory(this.allocatedAddress);
+    // }
+    //
+    // /**
+    // * Returns a factory that allows {@code allowedCount - 1} successful allocations and then
+    // * throws {@link OutOfMemoryError} from {@link AllocationManager.Factory#create} on the
+    // * {@code allowedCount}-th call. The OOM is thrown before constructing the
+    // * {@link AllocationManager} so that no dangling {@link org.apache.arrow.memory.BufferLedger}
+    // * is left registered with the allocator.
+    // */
+    // static AllocationManager.Factory factory(int allowedCount) {
+    // final AtomicInteger counter = new AtomicInteger(allowedCount);
+    // return new AllocationManager.Factory() {
+    // public AllocationManager create(BufferAllocator accountingAllocator, long size) {
+    // if (counter.decrementAndGet() == 0) {
+    // throw new OutOfMemoryError("simulated OOM");
+    // }
+    // return new CountingUnsafeAllocationManager(accountingAllocator, size);
+    // }
+    //
+    // public ArrowBuf empty() {
+    // return EMPTY;
+    // }
+    // };
+    // }
+    //
+    // static {
+    // EMPTY = new ArrowBuf(ReferenceManager.NO_OP, (BufferManager) null, 0L, MemoryUtil.allocateMemory(0L));
+    // }
+    // }
 }

@@ -230,7 +230,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
      * at row-group rollover so the direct memory is freed eagerly rather than waiting for the
      * JVM {@code Cleaner}. Closing the releasable decrements the underlying {@code ArrowBuf}
      * reference counts, which in turn returns the bytes to the circuit breaker via
-     * {@link org.elasticsearch.compute.data.arrow.CircuitBreakerAllocationListener}.
+     * {@link org.elasticsearch.compute.data.arrow.CircuitBreakingArrowAllocator}.
      */
     private Releasable currentChunksReleasable;
 

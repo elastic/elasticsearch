@@ -20,6 +20,7 @@ dependencies {
   api("org.apache.arrow:arrow-memory-unsafe:${arrowVersion}")
 
   api("org.checkerframework:checker-qual:3.42.0")
+  api("org.immutables:value-annotations:2.10.1")
   api("com.google.flatbuffers:flatbuffers-java:23.5.26")
 
   // Pin Jackson newer than the repo-wide versions.jackson (2.15.0). Arrow 18.3.0 itself targets

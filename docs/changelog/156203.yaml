@@ -1,0 +1,5 @@
+area: Infra/Core
+issues: []
+pr: 156203
+summary: Bump JDK to 26.0.2
+type: upgrade

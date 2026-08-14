@@ -52,7 +52,7 @@ public class IvfSegmentConfigTests extends ESTestCase {
     }
 
     public void testWithEffectiveRescoreOversampleReplacesNaN() {
-        IvfSegmentConfig raw = new IvfSegmentConfig(CentroidIndexFormat.FLAT, QuantEncoding.ONE_BIT_4BIT_QUERY, true, Float.NaN);
+        IvfSegmentConfig raw = IvfSegmentConfig.of(CentroidIndexFormat.FLAT, QuantEncoding.ONE_BIT_4BIT_QUERY, true, Float.NaN);
         IvfSegmentConfig effective = IvfSegmentConfig.withEffectiveRescoreOversample(raw, null, 2.5f);
         assertThat(effective.rescoreOversample(), equalTo(2.5f));
         assertThat(effective.usePrecondition(), is(true));

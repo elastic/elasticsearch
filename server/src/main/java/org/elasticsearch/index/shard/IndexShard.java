@@ -208,6 +208,7 @@ import static org.elasticsearch.cluster.metadata.DataStream.TIMESERIES_LEAF_READ
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.seqno.RetentionLeaseActions.RETAIN_ALL;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+import static org.elasticsearch.threadpool.ThreadPool.Names.WRITE;
 
 public class IndexShard extends AbstractIndexShardComponent implements IndicesClusterStateService.Shard {
 
@@ -388,7 +389,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.threadPoolMergeExecutorService = threadPoolMergeExecutorService;
         this.mapperService = mapperService;
         this.indexCache = indexCache;
-        this.internalIndexingStats = new InternalIndexingStats(relativeTimeInNanosSupplier, indexingStatsSettings);
+        this.internalIndexingStats = new InternalIndexingStats(
+            relativeTimeInNanosSupplier,
+            indexingStatsSettings,
+            threadPool.info(WRITE).getMax()
+        );
         var indexingFailuresDebugListener = new IndexingFailuresDebugListener(this);
         this.indexingOperationListeners = new IndexingOperationListener.CompositeListener(
             CollectionUtils.appendToCopyNoNullElements(listeners, internalIndexingStats, indexingFailuresDebugListener),
@@ -1568,6 +1573,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 recentIndexingLoadAtShardStarted
             );
         });
+    }
+
+    public double pollWriteLoadUtilization() {
+        return internalIndexingStats.pollUtilization();
     }
 
     public ShardSearchStats shardSearchStats() {

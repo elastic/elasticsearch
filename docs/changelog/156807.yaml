@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 156807
+summary: Add `search.max_open_contexts` admission-control limit
+type: enhancement

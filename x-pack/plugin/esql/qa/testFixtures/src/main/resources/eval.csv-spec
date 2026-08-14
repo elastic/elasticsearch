@@ -853,13 +853,13 @@ null   | [2, 1]
 
 implicitCastingOfIP_with_MultipleEvalsInterleaved
 required_capability: fix_missed_implicit_casting_inside_interleaved_evals
-ignoreOrder:true
 
 FROM hosts
 | EVAL ip = CASE(CIDR_MATCH(ip0, "10.0.0.0/8") OR ip0 == "127.0.0.1", TO_STRING(ip0), null), field = CASE(ip IS NOT NULL, "a", "b")
 | keep ip0, ip, field
 ;
 
+ignoreOrder:true
                                     ip0:ip                                       | ip:keyword    |     field:keyword
 127.0.0.1                                                                        |127.0.0.1      |a              
 ::1                                                                              |null           |b              
@@ -875,13 +875,13 @@ null                                                                            
 
 explicitCastingOfIP_with_MultipleEvalsInterleaved
 required_capability: fix_missed_implicit_casting_inside_interleaved_evals
-ignoreOrder:true
 
 FROM hosts
 | EVAL ip = CASE(CIDR_MATCH(ip0, "10.0.0.0/8") OR ip0 == "127.0.0.1"::ip, TO_STRING(ip0), null), field = CASE(ip IS NOT NULL, "a", "b")
 | keep ip0, ip, field
 ;
 
+ignoreOrder:true
                                     ip0:ip                                       | ip:keyword    |     field:keyword
 127.0.0.1                                                                        |127.0.0.1      |a              
 ::1                                                                              |null           |b              
@@ -897,7 +897,6 @@ null                                                                            
 
 implicitCastingOfIP_with_SeparateEvals
 required_capability: fix_missed_implicit_casting_inside_interleaved_evals
-ignoreOrder:true
 
 FROM hosts
 | EVAL ip = CASE(CIDR_MATCH(ip0, "10.0.0.0/8") OR ip0 == "127.0.0.1", TO_STRING(ip0), null)
@@ -905,6 +904,7 @@ FROM hosts
 | keep ip0, ip, field
 ;
 
+ignoreOrder:true
                                     ip0:ip                                       | ip:keyword    |     field:keyword
 127.0.0.1                                                                        |127.0.0.1      |a              
 ::1                                                                              |null           |b              

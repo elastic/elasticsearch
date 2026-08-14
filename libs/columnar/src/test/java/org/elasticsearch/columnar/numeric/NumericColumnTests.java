@@ -12,17 +12,20 @@ package org.elasticsearch.columnar.numeric;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.elasticsearch.columnar.FormatVersion;
 import org.elasticsearch.columnar.substrate.BlockBytesCodec;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
 import org.elasticsearch.columnar.substrate.ColumnarCodecUtil;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+
+import static org.elasticsearch.columnar.ColumnarTestUtils.randomValidBlockSize;
+import static org.elasticsearch.columnar.ColumnarTestUtils.readNumericMeta;
 
 /**
  * End-to-end round-trip of numeric columns through a {@link Directory}, single- and multi-valued in
@@ -118,7 +121,7 @@ public class NumericColumnTests extends ESTestCase {
         try (Directory dir = newDirectory()) {
             NumericColumnMetadata written;
             try (IndexOutput out = dir.createOutput("num.cnd", IOContext.DEFAULT)) {
-                ColumnarCodecUtil.writeHeader(out, "ColumnarNumericData", segmentId, "");
+                ColumnarCodecUtil.writeHeader(out, "ColumNARData", FormatVersion.CURRENT, segmentId, "");
                 written = NumericColumnWriter.write(
                     maxDoc,
                     numDocsWithField,
@@ -135,22 +138,17 @@ public class NumericColumnTests extends ESTestCase {
             }
 
             try (IndexOutput meta = dir.createOutput("num.cnm", IOContext.DEFAULT)) {
-                ColumnarCodecUtil.writeHeader(meta, "ColumnarNumericMeta", segmentId, "");
+                ColumnarCodecUtil.writeHeader(meta, "ColumNARMeta", FormatVersion.CURRENT, segmentId, "");
                 written.writeTo(meta);
                 ColumnarCodecUtil.writeFooter(meta);
             }
 
-            NumericColumnMetadata read;
-            try (ChecksumIndexInput meta = dir.openChecksumInput("num.cnm")) {
-                ColumnarCodecUtil.checkHeader(meta, "ColumnarNumericMeta", segmentId, "");
-                read = NumericColumnMetadata.readFrom(meta, maxDoc);
-                ColumnarCodecUtil.checkFooter(meta);
-            }
+            final NumericColumnMetadata read = readNumericMeta(dir, "num.cnm", segmentId, maxDoc);
             assertEquals(numValues > numDocsWithField, read.multiValued());
 
             try (IndexInput data = dir.openInput("num.cnd", IOContext.DEFAULT)) {
                 CodecUtil.checksumEntireFile(data);
-                ColumnarCodecUtil.checkHeader(data, "ColumnarNumericData", segmentId, "");
+                ColumnarCodecUtil.checkHeader(data, "ColumNARData", segmentId, "");
                 NumericColumnReader reader = new NumericColumnReader(read, data);
 
                 ColumnIterator iterator = reader.iterator();
@@ -212,7 +210,4 @@ public class NumericColumnTests extends ESTestCase {
         };
     }
 
-    private static int randomValidBlockSize() {
-        return 128 << randomIntBetween(0, 6);
-    }
 }

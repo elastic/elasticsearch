@@ -77,7 +77,7 @@ public class IndexModeQueryEquivalenceIT extends ESIntegTestCase {
 
         createIndices(standard, logsdb, columnar, timeSeries, logsdbColumnar);
 
-        final int numDocs = randomIntBetween(2500, 3000);
+        final int numDocs = randomIntBetween(5000, 10_000);
         final List<Doc> docs = generateDocs(numDocs);
         indexAll(docs, allIndices);
 
@@ -190,15 +190,15 @@ public class IndexModeQueryEquivalenceIT extends ESIntegTestCase {
         for (int i = 0; i < n; i++) {
             if (dimARun-- <= 0) {
                 dimAIdx = (dimAIdx + 1) % DIM_A_VALUES.length;
-                dimARun = randomIntBetween(200, 500);
+                dimARun = randomIntBetween(100, 3000);
             }
             if (dimBRun-- <= 0) {
                 dimBIdx = (dimBIdx + 1) % DIM_B_VALUES.length;
-                dimBRun = randomIntBetween(100, 300);
+                dimBRun = randomIntBetween(100, 3000);
             }
             if (tagRun-- <= 0) {
                 tagIdx = (tagIdx + 1) % TAG_VALUES.length;
-                tagRun = randomIntBetween(50, 150);
+                tagRun = randomIntBetween(100, 3000);
             }
             if (valueRun-- <= 0) {
                 valueIdx = (valueIdx + 1) % VALUE_VALS.length;
@@ -210,6 +210,7 @@ public class IndexModeQueryEquivalenceIT extends ESIntegTestCase {
     }
 
     private void indexAll(List<Doc> docs, List<String> indices) throws Exception {
+        // Build all requests once; builders is ordered as [all docs for index0, all docs for index1, ...].
         final List<IndexRequestBuilder> builders = new ArrayList<>(docs.size() * indices.size());
         for (String index : indices) {
             for (Doc doc : docs) {
@@ -231,9 +232,24 @@ public class IndexModeQueryEquivalenceIT extends ESIntegTestCase {
                 );
             }
         }
-        // dummyDocuments=false: the framework's synthetic "bogus" docs lack @timestamp (rejected by
-        // logsdb/logsdb_columnar) and carry explicit routing (rejected by time_series).
-        indexRandom(true, false, builders);
+
+        if (randomBoolean()) {
+            // Ordered: send one bulk per index in run-length order so MAYBE/YES_IF_PRESENT Lucene
+            // blocks form in the segment, exercising the doc-values bulk-scorer path.
+            int offset = 0;
+            for (String index : indices) {
+                var bulk = client().prepareBulk();
+                builders.subList(offset, offset + docs.size()).forEach(bulk::add);
+                bulk.get();
+                offset += docs.size();
+            }
+            indicesAdmin().prepareRefresh(indices.toArray(new String[0])).get();
+        } else {
+            // Shuffled: exercises realistic multi-segment layouts and random arrival order.
+            // dummyDocuments=false: synthetic docs lack @timestamp and carry explicit routing,
+            // both of which are rejected by logsdb/time_series modes.
+            indexRandom(true, false, builders);
+        }
     }
 
     // ---- query set ---------------------------------------------------------
@@ -381,8 +397,8 @@ public class IndexModeQueryEquivalenceIT extends ESIntegTestCase {
             );
             assertEquals(
                 "profile:true and profile:false disagree for index [" + index + "] query [" + query + "]",
-                totalHitsByIndex[idx],
-                profileHits[0]
+                profileHits[0],
+                totalHitsByIndex[idx]
             );
         }
 

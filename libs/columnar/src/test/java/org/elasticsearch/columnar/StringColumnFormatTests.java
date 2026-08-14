@@ -9,17 +9,12 @@
 
 package org.elasticsearch.columnar;
 
-import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.codecs.DocValuesFormat;
-import org.apache.lucene.codecs.FilterCodec;
-import org.apache.lucene.codecs.perfield.PerFieldDocValuesFormat;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
@@ -27,7 +22,6 @@ import org.apache.lucene.index.LogDocMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.columnar.string.StringBinaryPayload;
@@ -37,6 +31,9 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+
+import static org.elasticsearch.columnar.ColumnarTestUtils.columnarBinaryFieldType;
+import static org.elasticsearch.columnar.ColumnarTestUtils.columnarCodec;
 
 /**
  * Drives string columns through the real Lucene write path — {@link IndexWriter}, several segments, deletions,
@@ -194,28 +191,6 @@ public class StringColumnFormatTests extends ESTestCase {
     }
 
     private static FieldType stringFieldType() {
-        final FieldType type = new FieldType();
-        type.setDocValuesType(DocValuesType.BINARY);
-        type.putAttribute(ColumNARDocValuesFormat.TYPE_ATTRIBUTE, ColumnarFieldType.STRING.name());
-        type.freeze();
-        return type;
-    }
-
-    private static Codec columnarCodec() {
-        final DocValuesFormat columnar = new ColumNARDocValuesFormat();
-        final Codec base = TestUtil.getDefaultCodec();
-        return new FilterCodec(base.getName(), base) {
-            private final DocValuesFormat perField = new PerFieldDocValuesFormat() {
-                @Override
-                public DocValuesFormat getDocValuesFormatForField(String field) {
-                    return FIELD.equals(field) ? columnar : base.docValuesFormat();
-                }
-            };
-
-            @Override
-            public DocValuesFormat docValuesFormat() {
-                return perField;
-            }
-        };
+        return columnarBinaryFieldType(ColumnarFieldType.STRING);
     }
 }

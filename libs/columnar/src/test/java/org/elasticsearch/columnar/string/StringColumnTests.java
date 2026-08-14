@@ -11,18 +11,21 @@ package org.elasticsearch.columnar.string;
 
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.columnar.FormatVersion;
 import org.elasticsearch.columnar.substrate.BlockBytesCodec;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
 import org.elasticsearch.columnar.substrate.ColumnarCodecUtil;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+
+import static org.elasticsearch.columnar.ColumnarTestUtils.randomValidBlockSize;
+import static org.elasticsearch.columnar.ColumnarTestUtils.readStringMeta;
 
 /**
  * End-to-end round-trip of string columns through a {@link Directory}, covering both layouts. Each case
@@ -163,7 +166,7 @@ public class StringColumnTests extends ESTestCase {
         try (Directory dir = newDirectory()) {
             StringColumnMetadata written;
             try (IndexOutput out = dir.createOutput("str.cnd", IOContext.DEFAULT)) {
-                ColumnarCodecUtil.writeHeader(out, "ColumnarStringData", segmentId, "");
+                ColumnarCodecUtil.writeHeader(out, "ColumNARData", FormatVersion.CURRENT, segmentId, "");
                 written = StringColumnWriter.write(
                     maxDoc,
                     numDocsWithField,
@@ -180,17 +183,12 @@ public class StringColumnTests extends ESTestCase {
             }
 
             try (IndexOutput meta = dir.createOutput("str.cnm", IOContext.DEFAULT)) {
-                ColumnarCodecUtil.writeHeader(meta, "ColumnarStringMeta", segmentId, "");
+                ColumnarCodecUtil.writeHeader(meta, "ColumNARMeta", FormatVersion.CURRENT, segmentId, "");
                 written.writeTo(meta);
                 ColumnarCodecUtil.writeFooter(meta);
             }
 
-            StringColumnMetadata read;
-            try (ChecksumIndexInput meta = dir.openChecksumInput("str.cnm")) {
-                ColumnarCodecUtil.checkHeader(meta, "ColumnarStringMeta", segmentId, "");
-                read = StringColumnMetadata.readFrom(meta, maxDoc);
-                ColumnarCodecUtil.checkFooter(meta);
-            }
+            final StringColumnMetadata read = readStringMeta(dir, "str.cnm", segmentId, maxDoc);
             assertFalse("string columns are single-valued for now", read.multiValued());
             if (numDocsWithField > 0 && expectedLayout != null) {
                 assertEquals("selected layout", expectedLayout, read.layout());
@@ -198,7 +196,7 @@ public class StringColumnTests extends ESTestCase {
 
             try (IndexInput data = dir.openInput("str.cnd", IOContext.DEFAULT)) {
                 CodecUtil.checksumEntireFile(data);
-                ColumnarCodecUtil.checkHeader(data, "ColumnarStringData", segmentId, "");
+                ColumnarCodecUtil.checkHeader(data, "ColumNARData", segmentId, "");
                 StringColumnReader reader = new StringColumnReader(read, data);
 
                 int seenDocs = 0;
@@ -255,9 +253,5 @@ public class StringColumnTests extends ESTestCase {
                 return docValues.length;
             }
         };
-    }
-
-    private static int randomValidBlockSize() {
-        return 128 << randomIntBetween(0, 6);
     }
 }

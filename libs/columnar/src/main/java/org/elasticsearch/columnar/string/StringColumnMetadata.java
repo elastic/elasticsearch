@@ -11,6 +11,7 @@ package org.elasticsearch.columnar.string;
 
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
+import org.elasticsearch.columnar.FormatVersion;
 import org.elasticsearch.columnar.substrate.BlockBytesCodec;
 import org.elasticsearch.columnar.substrate.ColumnIteratorMetadata;
 
@@ -96,8 +97,20 @@ public record StringColumnMetadata(
         }
     }
 
-    public static StringColumnMetadata readFrom(DataInput in, int maxDoc) throws IOException {
-        ColumnIteratorMetadata iterator = ColumnIteratorMetadata.readFrom(in, maxDoc);
+    /**
+     * Reads metadata written by {@link #writeTo}.
+     *
+     * <p>{@code formatVersion} is the on-disk version returned by
+     * {@link org.elasticsearch.columnar.substrate.ColumnarCodecUtil#checkHeader}. Fields added in a later
+     * layout version are gated on it:
+     * <pre>{@code
+     * if (formatVersion.onOrAfter(FormatVersion.V1_EXTRA_FLAGS)) {
+     *     flags = in.readVInt();
+     * }
+     * }</pre>
+     */
+    public static StringColumnMetadata readFrom(DataInput in, int maxDoc, final FormatVersion formatVersion) throws IOException {
+        ColumnIteratorMetadata iterator = ColumnIteratorMetadata.readFrom(in, maxDoc, formatVersion);
         int numDocsWithField = in.readVInt();
         if (numDocsWithField == 0) {
             return empty(iterator, BlockBytesCodec.IDENTITY_ID);

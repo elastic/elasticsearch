@@ -135,7 +135,7 @@ public class HighlightOptionsTests extends ESTestCase {
 
     public void testIntegerOptionsRejectValuesAboveIntRange() {
         long value = (1L << 32) + 1;
-        for (String name : List.of(Highlight.MAX_ANALYZED_OFFSET, Highlight.FRAGMENT_SIZE)) {
+        for (String name : List.of(Highlight.MAX_ANALYZED_OFFSET, Highlight.NUMBER_OF_FRAGMENTS, Highlight.FRAGMENT_SIZE, Highlight.NO_MATCH_SIZE)) {
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
                 () -> HighlightOptions.from(map(name, Literal.fromLong(Source.EMPTY, value)), FoldContext.small())

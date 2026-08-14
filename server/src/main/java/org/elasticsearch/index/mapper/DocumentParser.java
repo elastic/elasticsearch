@@ -476,7 +476,7 @@ public final class DocumentParser {
                 parseObjectOrNested(context, currentFieldName);
                 context.path().add(currentFieldName);
             } else {
-                FallbackPostMapper.parseField(context, fieldMapper);
+                context = FallbackPostMapper.parseField(context, fieldMapper);
             }
             if (context.isWithinCopyTo() == false) {
                 List<String> copyToFields = fieldMapper.copyTo().copyToFields();

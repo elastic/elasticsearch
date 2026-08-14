@@ -178,29 +178,30 @@ public final class FallbackPostMapper {
     /**
      * The single entry point for parsing a mapped leaf field. When {@link #resolvePrecaptureReason}
      * returns non-null, captures the XContent token to {@code _ignored_source} before delegating to
-     * {@link FieldMapper#parse}, then commits unconditionally: any {@code _ignored_source} entry for a
-     * path suppresses the entire native loader for that field, so partial commits silently lose values.
+     * {@link FieldMapper#parse}.
+     *
+     * @return the context the mapper parsed with. On pre-capture this is a recorded sub-context, and
+     *         callers must propagate it to any subsequent {@code copy_to} traversal: the traversal must
+     *         not add a second {@code _ignored_source} entry for the destination, and
+     *         {@code recordedSource} on this context is what suppresses that.
      */
-    public static void parseField(DocumentParserContext context, FieldMapper fieldMapper) throws IOException {
+    public static DocumentParserContext parseField(DocumentParserContext context, FieldMapper fieldMapper) throws IOException {
         String fieldPath = fieldMapper.fullPath();
-        boolean preCaptured = resolvePrecaptureReason(FieldContext.forField(context, fieldMapper)) != null;
-        DocumentParserContext parseCtx = preCaptured
-            ? context.addPendingPreCapture(IgnoredSourceFieldMapper.NameValue.fromContext(context, fieldPath, null))
+        DocumentParserContext parseCtx = resolvePrecaptureReason(FieldContext.forField(context, fieldMapper)) != null
+            ? context.addIgnoredFieldFromContext(IgnoredSourceFieldMapper.NameValue.fromContext(context, fieldPath, null))
             : context;
 
         FieldMapper.ParseResult result = fieldMapper.parse(parseCtx);
 
-        if (preCaptured) {
-            context.commitPendingPreCapture(fieldPath);
-        }
         if (result instanceof FieldMapper.ParseResult.MultiValueViolation mvv) {
             // multi_value violations require columnar mode, which disables canAddIgnoredField(), so
             // pre-capture is never active for the same field simultaneously.
-            assert preCaptured == false : "multi_value violation on pre-captured field [" + fieldPath + "]";
+            assert parseCtx == context : "multi_value violation on pre-captured field [" + fieldPath + "]";
             if (context.mappingLookup().isSourceSynthetic() || context.mappingLookup().isSourceColumnarStored()) {
                 OnFailureStoredValues.storeEncoded(context, fieldPath, mvv.capturedValue());
             }
         }
+        return parseCtx;
     }
 
     /**

@@ -176,6 +176,92 @@ public class FallbackPostMapperIntegrationTests extends MapperServiceTestCase {
     }
 
     /**
+     * Regression: a {@code keyword} field with {@code copy_to} pointing at a destination with
+     * {@code synthetic_source_keep: all} must not duplicate the copied value in synthetic {@code _source}.
+     * The copy-to traversal must inherit the recorded sub-context from the source field's pre-capture so
+     * that {@code canAddIgnoredField()} is false during the traversal and no second
+     * {@code _ignored_source} entry is written for the destination.
+     */
+    public void testCopyToDestinationWithSourceKeepAllDoesNotDuplicateCopiedValue() throws IOException {
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
+            b.startObject("dest");
+            {
+                b.field("type", "keyword");
+                b.field("synthetic_source_keep", "all");
+            }
+            b.endObject();
+            b.startObject("src");
+            {
+                b.field("type", "keyword");
+                b.field("copy_to", "dest");
+            }
+            b.endObject();
+        })).documentMapper();
+
+        String syntheticSource = syntheticSource(mapper, b -> {
+            b.field("dest", "own");
+            b.field("src", "copied");
+        });
+
+        assertEquals("{\"dest\":\"own\",\"src\":\"copied\"}", syntheticSource);
+    }
+
+    /**
+     * Regression: when the destination field has no own value, copied values must be absent from synthetic
+     * {@code _source} entirely. This is the strongest assertion — it fails regardless of whether the void
+     * placeholder is correctly installed — and specifically targets the missing context propagation that
+     * allowed the copy-to traversal to write to {@code _ignored_source} when the destination has
+     * {@code synthetic_source_keep: all}.
+     */
+    public void testCopyToDestinationWithSourceKeepAllAndNoOwnValueIsAbsentFromSyntheticSource() throws IOException {
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
+            b.startObject("dest");
+            {
+                b.field("type", "keyword");
+                b.field("synthetic_source_keep", "all");
+            }
+            b.endObject();
+            b.startObject("src");
+            {
+                b.field("type", "keyword");
+                b.field("copy_to", "dest");
+            }
+            b.endObject();
+        })).documentMapper();
+
+        String syntheticSource = syntheticSource(mapper, b -> b.field("src", "copied"));
+
+        assertEquals("{\"src\":\"copied\"}", syntheticSource);
+    }
+
+    /**
+     * Regression: the copy-to invariant holds for the {@link FallbackPostMapper.Reason#SYNTHETIC_FALLBACK}
+     * path too, not only {@code SOURCE_KEEP_ALL}. A {@code keyword} field with {@code copy_to} pointing at
+     * a fallback field (e.g. {@code integer} with {@code doc_values: false}) must not produce the copied
+     * value in synthetic source.
+     */
+    public void testCopyToDestinationWithFallbackSyntheticSourceIsAbsentFromSyntheticSource() throws IOException {
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
+            b.startObject("dest");
+            {
+                b.field("type", "integer");
+                b.field("doc_values", false);
+            }
+            b.endObject();
+            b.startObject("src");
+            {
+                b.field("type", "keyword");
+                b.field("copy_to", "dest");
+            }
+            b.endObject();
+        })).documentMapper();
+
+        String syntheticSource = syntheticSource(mapper, b -> b.field("src", "5"));
+
+        assertEquals("{\"src\":\"5\"}", syntheticSource);
+    }
+
+    /**
      * Regression test: a {@code geo_point} field with a {@code keyword} multi-field that has
      * {@code multi_value: false, on_failure: ignore} must store the violating (second) value in
      * {@code field.kw._on_failure} when the document supplies two geo_point values.

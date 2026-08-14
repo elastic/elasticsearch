@@ -31,7 +31,6 @@ import org.elasticsearch.action.datastreams.PastTimeSeriesIndexCreationAction;
 import org.elasticsearch.action.delete.TransportDeleteAction;
 import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -69,7 +68,6 @@ import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.usage.UsageService;
-import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchAction;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyRequest;
@@ -713,17 +711,26 @@ public class AuthorizationService {
     }
 
     /**
-     * Records a project routing failure ({@code InvalidProjectRoutingException} or {@code NoMatchingProjectException})
-     * against the appropriate endpoint counter in {@link org.elasticsearch.action.admin.cluster.stats.ProjectRoutingUsageHolder}.
+     * Records a project routing failure against the appropriate endpoint counter
+     * in {@link org.elasticsearch.action.admin.cluster.stats.ProjectRoutingUsageHolder}.
      *
-     * <p>The {@code search} counter covers all endpoints that the {@code ProjectRoutingUsageHolder} Javadoc lists
-     * ({@code _search}, {@code _async_search}, {@code _count}, {@code _cat/count},
-     * {@code _msearch} sub-requests, {@code _search/template}, {@code _msearch/template}).
-     * These endpoints all ultimately dispatch a plain {@link org.elasticsearch.action.search.SearchRequest} via
-     * {@code client.search()}, so they all arrive here as {@code indices:data/read/search}
-     * ({@link org.elasticsearch.action.search.TransportSearchAction#NAME}); only {@code _async_search} uses a distinct
-     * action name ({@link org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchAction#NAME}).
-     * Action types not in either bucket (e.g. {@code indices:data/read/get}) are silently ignored.
+     * <p>The search counter covers all endpoints whose authorization-time request object is a plain
+     * {@link org.elasticsearch.action.search.SearchRequest}: {@code _search}, {@code _async_search},
+     * {@code _count}, {@code _cat/count}, {@code _msearch} sub-requests, {@code _search/template},
+     * {@code _msearch/template}, and {@code _sql} (which translates its query into an internal
+     * {@code SearchRequest} that carries the {@code project_routing} value and is authorized
+     * independently). Detected via {@code instanceof} rather than action name, which is robust to
+     * action-name changes and covers all of those endpoints in one check. Note: {@code _eql} uses
+     * {@link org.elasticsearch.xpack.eql.action.EqlSearchRequest} (not a SearchRequest) so
+     * it is excluded; searches using a Point-in-Time are also excluded because SearchRequest
+     * validation rejects combining project_routing with a PIT.
+     *
+     * <p>The {@code esql} counter covers ES|QL field-resolution requests
+     * ({@code indices:data/read/esql/resolve_fields}), which implement
+     * {@link org.elasticsearch.action.IndicesRequest.Replaceable} but are defined in a module that
+     * security does not depend on, so detection falls back to the action name string.
+     *
+     * <p>Action types not in either bucket (e.g. {@code indices:data/read/get}) are silently ignored.
      */
     private void recordProjectRoutingFailure(String action, TransportRequest request) {
         boolean hasLinkedProjects = false;
@@ -733,12 +740,9 @@ public class AuthorizationService {
                 hasLinkedProjects = tp.hasLinkedProjects();
             }
         }
-        // TransportSearchAction.NAME covers _search, _count, _cat/count, _msearch sub-requests,
-        // _search/template, and _msearch/template — they all dispatch as plain SearchRequests.
-        // _async_search uses a distinct action name and is handled by the second condition.
-        if (TransportSearchAction.NAME.equals(action) || SubmitAsyncSearchAction.NAME.equals(action)) {
+        if (request instanceof SearchRequest) {
             usageService.getProjectRoutingUsageHolder().recordSearchProjectRoutingFailure(hasLinkedProjects);
-        } else if ("indices:data/read/esql".equals(action)) {
+        } else if ("indices:data/read/esql/resolve_fields".equals(action)) {
             usageService.getProjectRoutingUsageHolder().recordEsqlProjectRoutingFailure(hasLinkedProjects);
         }
     }

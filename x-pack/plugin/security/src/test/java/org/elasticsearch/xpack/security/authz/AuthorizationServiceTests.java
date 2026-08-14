@@ -56,6 +56,7 @@ import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.TransportDeleteAction;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.get.TransportGetAction;
@@ -4362,11 +4363,14 @@ public class AuthorizationServiceTests extends ESTestCase {
             new User("test_user", ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName())
         );
         AuditUtil.getOrGenerateRequestId(threadContext);
-        final SearchRequest searchRequest = new SearchRequest("index-*");
+        // ES|QL routing failures occur on EsqlResolveFieldsRequest (action indices:data/read/esql/resolve_fields).
+        // That class is in x-pack:plugin:esql (not accessible here), so use FieldCapabilitiesRequest as a stand-in —
+        // it implements IndicesRequest.Replaceable (i.e. CrossProjectCandidate) and the action string drives the bucket.
+        final FieldCapabilitiesRequest fieldCapsRequest = new FieldCapabilitiesRequest();
 
         expectThrows(
             InvalidProjectRoutingException.class,
-            () -> authorize(authentication, "indices:data/read/esql", searchRequest, true, null)
+            () -> authorize(authentication, "indices:data/read/esql/resolve_fields", fieldCapsRequest, true, null)
         );
 
         final ProjectRoutingUsageSnapshot snapshot = usageService.getProjectRoutingUsageHolder().getSnapshot();
@@ -4408,12 +4412,14 @@ public class AuthorizationServiceTests extends ESTestCase {
             new User("test_user", ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName())
         );
         AuditUtil.getOrGenerateRequestId(threadContext);
-        final SearchRequest searchRequest = new SearchRequest("index-*");
+        // Use FieldCapabilitiesRequest (not SearchRequest) so that neither the instanceof SearchRequest
+        // check nor the esql/resolve_fields action-name check matches, confirming the action is ignored.
+        final FieldCapabilitiesRequest fieldCapsRequest = new FieldCapabilitiesRequest();
 
         // "indices:data/read/get" is neither a search nor an ES|QL action
         expectThrows(
             InvalidProjectRoutingException.class,
-            () -> authorize(authentication, "indices:data/read/get", searchRequest, true, null)
+            () -> authorize(authentication, "indices:data/read/get", fieldCapsRequest, true, null)
         );
 
         final ProjectRoutingUsageSnapshot snapshot = usageService.getProjectRoutingUsageHolder().getSnapshot();

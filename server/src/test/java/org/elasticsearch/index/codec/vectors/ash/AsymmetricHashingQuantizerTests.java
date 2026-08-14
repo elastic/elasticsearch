@@ -404,6 +404,103 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         assertEquals(dim * nDims, w.length);
     }
 
+    public void testFallbackToRandomWhenDataIsIsotropic() throws IOException {
+        // Purely isotropic vectors (i.i.d. Gaussian, no dominant directions) give PCA nothing
+        // real to exploit -- the learned method should recognize this and fall back to exactly
+        // the same random orthogonal projection that Method.RANDOM would produce for these
+        // dimensions/seed, rather than fitting sampling noise. Uses a fixed local Random seed
+        // (not ESTestCase's harness-seeded random()) so this assertion never depends on the
+        // suite's random seed.
+        int nVectors = 200;
+        int dim = 64;
+        float projectedDimsFraction = 0.25f; // nDims = 16
+        long seed = 42L;
+
+        Random rng = new Random(123456789L);
+        float[][] vectors = new float[nVectors][];
+        for (int i = 0; i < nVectors; i++) {
+            vectors[i] = SvdUtil.randomGaussians(rng, dim);
+        }
+        float[][] centroids = new float[1][dim];
+        CheckedIntFunction<float[], IOException> centroidGetter = i -> centroids[0];
+
+        AsymmetricHashingQuantizer learned = new AsymmetricHashingQuantizer(
+            projectedDimsFraction,
+            2,
+            AsymmetricHashingQuantizer.Method.LEARNED,
+            5,
+            10,
+            seed
+        );
+        AsymmetricHashingQuantizer randomOnly = new AsymmetricHashingQuantizer(
+            projectedDimsFraction,
+            2,
+            AsymmetricHashingQuantizer.Method.RANDOM,
+            5,
+            10,
+            seed
+        );
+
+        float[] wLearned = learned.train(vectors, centroidGetter);
+        float[] wRandom = randomOnly.train(vectors, centroidGetter);
+
+        assertArrayEquals(wRandom, wLearned, 0f);
+    }
+
+    public void testLearnedMethodUsesRealStructureWhenPresent() throws IOException {
+        // Vectors with genuine (rotated, non-axis-aligned) low-rank structure plus noise --
+        // closer to real embedding anisotropy than an axis-aligned variance difference -- give
+        // PCA a real signal, far above the isotropic baseline. The learned method should keep
+        // the PCA + Procrustes path rather than falling back to the random projection
+        // Method.RANDOM would produce. Fixed local Random seed, same reasoning as above.
+        int nVectors = 200;
+        int dim = 64;
+        int rank = 8;
+        float projectedDimsFraction = 0.25f; // nDims = 16
+        long seed = 42L;
+
+        float[] basis = SvdUtil.randomGaussians(new Random(555L), rank * dim);
+        Random rng = new Random(987654321L);
+        float[][] vectors = new float[nVectors][];
+        for (int i = 0; i < nVectors; i++) {
+            float[] v = new float[dim];
+            for (int r = 0; r < rank; r++) {
+                float coeff = (float) (rng.nextGaussian() * 10.0);
+                for (int d = 0; d < dim; d++) {
+                    v[d] += coeff * basis[r * dim + d];
+                }
+            }
+            for (int d = 0; d < dim; d++) {
+                v[d] += (float) (rng.nextGaussian() * 0.1);
+            }
+            vectors[i] = v;
+        }
+        float[][] centroids = new float[1][dim];
+        CheckedIntFunction<float[], IOException> centroidGetter = i -> centroids[0];
+
+        AsymmetricHashingQuantizer learned = new AsymmetricHashingQuantizer(
+            projectedDimsFraction,
+            2,
+            AsymmetricHashingQuantizer.Method.LEARNED,
+            5,
+            10,
+            seed
+        );
+        AsymmetricHashingQuantizer randomOnly = new AsymmetricHashingQuantizer(
+            projectedDimsFraction,
+            2,
+            AsymmetricHashingQuantizer.Method.RANDOM,
+            5,
+            10,
+            seed
+        );
+
+        float[] wLearned = learned.train(vectors, centroidGetter);
+        float[] wRandom = randomOnly.train(vectors, centroidGetter);
+
+        assertFalse("Expected PCA-trained W to differ from the random fallback", Arrays.equals(wLearned, wRandom));
+    }
+
     public void testMultiBitPackAndScore() {
         // 2-bit quantizer: levels are -1.5, -0.5, 0.5, 1.5
         int bitsPerDim = 2;

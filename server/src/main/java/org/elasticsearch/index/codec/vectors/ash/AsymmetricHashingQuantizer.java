@@ -233,7 +233,39 @@ public final class AsymmetricHashingQuantizer {
         return new EncodedVector(xEnc, scale, offset);
     }
 
+    /**
+     * Margin over the isotropic baseline that held-out captured variance must clear to be
+     * trusted (see {@link #isProjectionDegenerate}). Empirically, held-out captured-variance
+     * ratios cluster tightly around 1.0x baseline for isotropic (structureless) data and around
+     * 2.0x baseline for data with real directional structure -- even weak structure -- across a
+     * wide range of dimensions and sample sizes, leaving a wide gap for this margin to sit in.
+     */
+    private static final double DEGENERACY_VARIANCE_MARGIN = 1.25;
+
+    /**
+     * Minimum training sample size, as a multiple of {@code nDims}, before attempting the
+     * degeneracy check in {@link #isProjectionDegenerate}. Below this, splitting the data in
+     * half would leave too few samples per half for a meaningful fit/held-out comparison, so we
+     * skip the check and proceed with PCA as before (no worse than pre-existing behavior).
+     */
+    private static final int MIN_TRAINING_SIZE_FOR_DEGENERACY_CHECK = 4;
+
     private float[] learnedTraining(float[] xTraining, int nTraining, int originalDim, int nDims) {
+        if (nDims < originalDim
+            && nTraining >= nDims * MIN_TRAINING_SIZE_FOR_DEGENERACY_CHECK
+            && isProjectionDegenerate(xTraining, nTraining, originalDim, nDims, seed)) {
+            // A PCA subspace fit on half the training data captures no more variance, on the
+            // OTHER (held-out) half, than a random nDims-dimensional subspace would under
+            // isotropic data. This means the training vectors (e.g. near-duplicate vectors
+            // within a cluster, or otherwise low-diversity input) have no real directional
+            // structure for PCA to exploit -- what looks like structure on this sample is just
+            // sampling noise that won't generalize to query vectors at search time. Refining
+            // these noise-driven axes via Procrustes would just overfit further, and can produce
+            // a projection that discards exactly the components a given query needs, tanking
+            // recall for that query. A random orthogonal projection is at least as good here.
+            return randomOrthogonal(originalDim, nDims);
+        }
+
         // PCA initialization: extract top nDims right singular vectors via power iteration
         // This is much faster than full SVD when nDims << originalDim
         float[] topVectors = SvdUtil.topKRightSingularVectors(xTraining, nTraining, originalDim, nDims, seed);
@@ -277,6 +309,36 @@ public final class AsymmetricHashingQuantizer {
 
         // W = P @ R (originalDim x nDims)
         return matMul(p, r, originalDim, nDims, nDims);
+    }
+
+    /**
+     * Returns true if a PCA subspace fit on the first half of {@code xTraining} captures no
+     * more variance -- measured on the other (held-out) half -- than a uniformly random
+     * nDims-dimensional subspace would under isotropic data (a {@code nDims / originalDim}
+     * share, by construction). This is a generalization check: sampling noise that happens to
+     * look like structure on one half of the data won't carry over to an independent half,
+     * whereas real, reproducible directional structure will.
+     */
+    private static boolean isProjectionDegenerate(float[] xTraining, int nTraining, int originalDim, int nDims, long seed) {
+        int nFit = nTraining / 2;
+        int nHeldOut = nTraining - nFit;
+        float[] fitData = Arrays.copyOfRange(xTraining, 0, nFit * originalDim);
+        float[] heldOutData = Arrays.copyOfRange(xTraining, nFit * originalDim, nTraining * originalDim);
+
+        float[] topVectors = SvdUtil.topKRightSingularVectors(fitData, nFit, originalDim, nDims, seed);
+        float[] p = ESVectorUtil.transposeMatrix(topVectors, nDims, originalDim);
+        float[] projected = matMul(heldOutData, p, nHeldOut, originalDim, nDims);
+
+        double capturedVariance = 0;
+        for (float v : projected) {
+            capturedVariance = Math.fma((double) v, v, capturedVariance);
+        }
+        double totalVariance = 0;
+        for (float v : heldOutData) {
+            totalVariance = Math.fma((double) v, v, totalVariance);
+        }
+        double isotropicBaseline = (double) nDims / originalDim;
+        return capturedVariance < totalVariance * isotropicBaseline * DEGENERACY_VARIANCE_MARGIN;
     }
 
     private float[] randomOrthogonal(int originalDim, int nDims) {

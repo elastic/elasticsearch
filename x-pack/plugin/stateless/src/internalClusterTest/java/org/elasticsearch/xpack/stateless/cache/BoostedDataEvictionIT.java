@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.TimeProviderUtils;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
@@ -23,7 +24,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
+import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
@@ -49,6 +50,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
 
 import static java.util.stream.IntStream.range;
@@ -234,10 +236,10 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
         assertAcked(prepareCreate(unpinnedIdx).setSettings(idxSettings).setMapping(TIMESTAMP_MAPPING));
         ensureGreen(pinnedIdx, unpinnedIdx);
 
-        // Stub absoluteTimeInMillis() on the spy thread pool so PinnedWindowEvictionPolicy sees a fixed "now",
+        // Stub absoluteTimeInMillis() on the mock timeProvider so that PinnedWindowEvictionPolicy sees a fixed "now",
         // making data timestamps independent of actual system time and fully reproducible.
         final var spyCachePlugin = findPlugin(searchNode, SpyCacheStatelessPlugin.class);
-        Mockito.doReturn(BOOST_WINDOW_END).when(spyCachePlugin.spyThreadPool).absoluteTimeInMillis();
+        spyCachePlugin.currentTimestamp.set(BOOST_WINDOW_END);
         // 12-hour pinned window: pinned data (< 6h old) is protected; unpinned data (> 14h old) is evictable. We use
         // these timestamps to leave some extra margins for both pinned and unpinned data so that they are not too close
         // to the time window boundaries which might lead to flaky tests.
@@ -474,21 +476,19 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
     }
 
     private static Settings demoteClosedShardRegionsTestSettings() {
-        return maybeEnableCacheBoostPreference(
-            smallCacheSettings().put(
-                StatelessSharedBlobCacheService.STATELESS_CACHE_DEMOTE_CLOSED_SHARD_REGIONS_ENABLED_SETTING.getKey(),
-                true
-            )
-        ).build();
+        final var builder = maybeEnableCacheBoostPreference(smallCacheSettings());
+        builder.put(StatelessSharedBlobCacheService.STATELESS_CACHE_DEMOTE_CLOSED_SHARD_REGIONS_ENABLED_SETTING.getKey(), true);
+        builder.put(StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING.getKey(), false);
+        builder.put(StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_DELETED_INDEX_REGIONS_ENABLED_SETTING.getKey(), false);
+        return builder.build();
     }
 
     private static Settings evictDeletedIndexRegionsTestSettings() {
-        return maybeEnableCacheBoostPreference(
-            smallCacheSettings().put(
-                StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_DELETED_INDEX_REGIONS_ENABLED_SETTING.getKey(),
-                true
-            )
-        ).build();
+        final var builder = maybeEnableCacheBoostPreference(smallCacheSettings());
+        builder.put(StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_DELETED_INDEX_REGIONS_ENABLED_SETTING.getKey(), true);
+        builder.put(StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING.getKey(), false);
+        builder.put(StatelessSharedBlobCacheService.STATELESS_CACHE_DEMOTE_CLOSED_SHARD_REGIONS_ENABLED_SETTING.getKey(), false);
+        return builder.build();
     }
 
     /// Creates a one-replica index whose search shard is kept off `excludedSearchNode`, then searches it so that the search shard on
@@ -676,7 +676,7 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
      */
     public static class SpyCacheStatelessPlugin extends TestUtils.StatelessPluginWithTrialLicense {
 
-        volatile ThreadPool spyThreadPool;
+        volatile AtomicLong currentTimestamp = new AtomicLong(0);
 
         public SpyCacheStatelessPlugin(Settings settings) {
             super(settings);
@@ -689,19 +689,24 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
             ThreadPool threadPool,
             BlobCacheMetrics blobCacheMetrics,
             ClusterService clusterService,
-            IndicesService indicesService
+            IndicesService indicesService,
+            PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricHolder
         ) {
-            spyThreadPool = Mockito.spy(threadPool);
             final var real = new StatelessSharedBlobCacheService(
                 nodeEnvironment,
                 settings,
                 clusterService.getClusterSettings(),
                 threadPool,
                 blobCacheMetrics,
-                StatelessSharedBlobCacheService.createEvictionPolicy(settings, clusterService, indicesService, spyThreadPool),
+                StatelessSharedBlobCacheService.createEvictionPolicy(
+                    settings,
+                    clusterService,
+                    indicesService,
+                    TimeProviderUtils.create(currentTimestamp::get)
+                ),
                 System::nanoTime,
                 threadPool.executor(StatelessPlugin.SHARD_READ_THREAD_POOL),
-                new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
+                metricHolder
             );
             final StatelessSharedBlobCacheService spy = Mockito.spy(real);
             // Mockito copies the real service's fields into the spy rather than delegating to it. Reference fields such as the LFU

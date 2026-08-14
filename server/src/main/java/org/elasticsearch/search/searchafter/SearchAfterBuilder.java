@@ -117,7 +117,20 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
             if (values[i] != null) {
                 fieldValues[i] = convertValueFromSortField(values[i], sortField, format);
             } else {
-                fieldValues[i] = null;
+                SortField.Type sortType = extractSortType(sortField);
+                if (sortType == SortField.Type.STRING || sortType == SortField.Type.STRING_VAL) {
+                    fieldValues[i] = null;
+                } else {
+                    throw new IllegalArgumentException(
+                        "[search_after] value at position "
+                            + i
+                            + " cannot be null for sort field ["
+                            + sortField.getField()
+                            + "] of type ["
+                            + sortType
+                            + "]."
+                    );
+                }
             }
         }
         /*

@@ -31,6 +31,7 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -39,6 +40,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -229,6 +231,33 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
         releaseBlock.countDown();
 
         future.get(1, TimeUnit.HOURS).close();
+    }
+
+    public void testNoDeadlockOnConcurrentBlock() throws InterruptedException {
+        final CountDownLatch running = new CountDownLatch(2);
+        AtomicBoolean deadlock = new AtomicBoolean(false);
+
+        final Runnable block = () -> {
+            var r = ThreadLocalRandom.current();
+            try {
+                Thread.sleep(Duration.ofMillis(r.nextInt(5)));
+            } catch (InterruptedException e) {}
+
+            permits.blockOperations(
+                ActionListener.releaseAfter(
+                    ActionListener.<Releasable>wrap(Releasable::close, (ex) -> { deadlock.set(true); }),
+                    running::countDown
+                ),
+                3,
+                TimeUnit.SECONDS,
+                threadPool.generic()
+            );
+        };
+
+        threadPool.generic().execute(block);
+        threadPool.generic().execute(block);
+        running.await(5, TimeUnit.SECONDS);
+        assertFalse(deadlock.get());
     }
 
     /**

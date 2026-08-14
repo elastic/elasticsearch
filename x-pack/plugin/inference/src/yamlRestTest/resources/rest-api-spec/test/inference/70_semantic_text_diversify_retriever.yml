@@ -388,8 +388,8 @@ setup:
                         query: "What causes muscle soreness after running?"
 
   - match: { status: 400 }
-  - contains: { error.root_cause.0.reason: "[diversify] search failed - retrievers '[diversify]' returned errors" }
-  - contains: { error.root_cause.0.suppressed.0.reason: "Field [content] contains sparse vectors, which are not supported by result diversification." }
+  - contains: { error.root_cause.0.reason: "[diversify] search failed - retrievers '[standard]' returned errors" }
+  - contains: { error.root_cause.0.suppressed.0.failed_shards.0.reason.reason: "Field [content] of type [semantic_text] produces incompatible embeddings (requested: [dense_vector], produced: [sparse_vector])" }
 ---
 "Validate query_vector or query_vector_builder but not both":
 

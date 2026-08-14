@@ -63,6 +63,7 @@ import org.elasticsearch.inference.EndpointClusterState;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.VectorType;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
@@ -1094,7 +1095,37 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
         }
 
         @Override
-        public FieldAndFormat embeddingsFieldAndFormat() {
+        public FieldAndFormat embeddingsFieldAndFormat(@Nullable VectorType vectorType) {
+            // The vector type this field produces is determined by the inference endpoint's task type. When there are no model settings
+            // the field has never seen inference results, so there is nothing to fetch and nothing to validate.
+            if (vectorType != null && modelSettings != null) {
+                VectorType producedVectorType = switch (modelSettings.taskType()) {
+                    case SPARSE_EMBEDDING -> VectorType.SPARSE_VECTOR;
+                    case TEXT_EMBEDDING, EMBEDDING -> VectorType.DENSE_VECTOR;
+                    default -> throw new IllegalStateException(
+                        "Field ["
+                            + name()
+                            + "] is configured to use an inference endpoint with an unsupported task type ["
+                            + modelSettings.taskType()
+                            + "]"
+                    );
+                };
+
+                if (vectorType != producedVectorType) {
+                    throw new IllegalArgumentException(
+                        "Field ["
+                            + name()
+                            + "] of type ["
+                            + typeName()
+                            + "] produces incompatible embeddings (requested: ["
+                            + vectorType
+                            + "], produced: ["
+                            + producedVectorType
+                            + "])"
+                    );
+                }
+            }
+
             return new FieldAndFormat(name(), EMBEDDINGS_FORMAT);
         }
 

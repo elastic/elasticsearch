@@ -20,8 +20,10 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.inference.VectorType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.builder.EmbeddingsField;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.diversification.mmr.MMRResultDiversificationContext;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
@@ -331,7 +333,7 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
             .trackScores(true)
             .storedFields(sfCtx)
             .fetchSource(fsCtx)
-            .fetchEmbeddingsField(diversificationField);
+            .fetchEmbeddingsField(new EmbeddingsField(diversificationField, VectorType.DENSE_VECTOR));
         return super.finalizeSourceBuilder(builder);
     }
 

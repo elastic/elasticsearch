@@ -9,7 +9,14 @@
 
 package org.elasticsearch.inference;
 
+import java.util.Locale;
+
 public enum VectorType {
     SPARSE_VECTOR,
-    DENSE_VECTOR
+    DENSE_VECTOR;
+
+    @Override
+    public String toString() {
+        return name().toLowerCase(Locale.ROOT);
+    }
 }

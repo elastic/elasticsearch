@@ -96,6 +96,7 @@ import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.AggregationContext.ProductionAggregationContext;
+import org.elasticsearch.search.builder.EmbeddingsField;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.builder.SubSearchSourceBuilder;
@@ -2238,19 +2239,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
         if (source.fetchEmbeddingsFields().isEmpty() == false) {
             List<FieldAndFormat> fields = new ArrayList<>();
-            for (String field : source.fetchEmbeddingsFields()) {
-                MappedFieldType fieldType = searchExecutionContext.getFieldType(field);
+            for (EmbeddingsField embeddingsField : source.fetchEmbeddingsFields()) {
+                MappedFieldType fieldType = searchExecutionContext.getFieldType(embeddingsField.field());
                 if (fieldType == null) {
                     // Unmapped on this shard — skip, consistent with how the `fields` option treats unmapped fields.
                     continue;
                 }
-                FieldAndFormat embeddings = fieldType.embeddingsFieldAndFormat();
-                if (embeddings == null) {
-                    throw new IllegalArgumentException(
-                        "Field [" + field + "] of type [" + fieldType.typeName() + "] does not support embeddings"
-                    );
-                }
-                fields.add(embeddings);
+                fields.add(fieldType.embeddingsFieldAndFormat(embeddingsField.vectorType()));
             }
 
             if (fields.isEmpty() == false) {

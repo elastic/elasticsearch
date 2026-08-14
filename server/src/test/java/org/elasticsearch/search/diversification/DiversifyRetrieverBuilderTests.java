@@ -403,7 +403,7 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
                 () -> retriever.combineInnerRetrieverResults(docs, false)
             );
             assertEquals(
-                "[query_vector] or [query_vector_builder] must be supplied when diversifying on inference field [dense_vector_field].",
+                "[query_vector] or [query_vector_builder] must be supplied when diversifying on inference field [dense_vector_field]",
                 docsWithNoValuesEx.getMessage()
             );
         } finally {

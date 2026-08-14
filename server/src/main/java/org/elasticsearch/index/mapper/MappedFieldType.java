@@ -42,6 +42,7 @@ import org.elasticsearch.index.query.DistanceFeatureQueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.inference.VectorType;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.fetch.subphase.FetchFieldsPhase;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
@@ -207,14 +208,30 @@ public abstract class MappedFieldType {
     }
 
     /**
-     * Returns the {@link FieldAndFormat} that retrieves this field's embeddings via the {@code fields} API, or {@code null} if this
-     * field does not expose embeddings.
+     * Returns the {@link FieldAndFormat} that retrieves this field's embeddings via the {@code fields} API.
      *
-     * @return the embeddings field-and-format, or {@code null} if this field does not support embedding retrieval.
+     * @param vectorType the type of vector the caller requires, or {@code null} if the caller accepts any vector type.
+     * @return the embeddings field-and-format.
+     * @throws IllegalArgumentException if this field cannot produce embeddings of the requested type. Fields that expose no embeddings at
+     *                                  all always throw, whatever type is requested.
      */
-    @Nullable
-    public FieldAndFormat embeddingsFieldAndFormat() {
-        return null;
+    public FieldAndFormat embeddingsFieldAndFormat(@Nullable VectorType vectorType) {
+        throw unsupportedEmbeddings(vectorType);
+    }
+
+    /**
+     * Builds the exception to throw when this field cannot produce embeddings of the type
+     * {@link #embeddingsFieldAndFormat(VectorType)} was asked for.
+     */
+    protected final IllegalArgumentException unsupportedEmbeddings(@Nullable VectorType vectorType) {
+        return new IllegalArgumentException(
+            "Field ["
+                + name()
+                + "] of type ["
+                + typeName()
+                + "] does not support "
+                + (vectorType == null ? "embeddings" : "[" + vectorType + "] embeddings")
+        );
     }
 
     /**

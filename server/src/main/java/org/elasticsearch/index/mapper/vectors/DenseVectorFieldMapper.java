@@ -89,6 +89,7 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.DenseVectorBlockLoad
 import org.elasticsearch.index.mapper.blockloader.docvalues.DenseVectorBlockLoaderProcessor;
 import org.elasticsearch.index.mapper.blockloader.docvalues.DenseVectorFromBinaryBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.inference.VectorType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -3287,7 +3288,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public FieldAndFormat embeddingsFieldAndFormat() {
+        public FieldAndFormat embeddingsFieldAndFormat(@Nullable VectorType vectorType) {
+            if (vectorType != null && vectorType != VectorType.DENSE_VECTOR) {
+                throw unsupportedEmbeddings(vectorType);
+            }
             return new FieldAndFormat(name(), null);
         }
 

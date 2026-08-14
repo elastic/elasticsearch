@@ -766,7 +766,7 @@ teardown:
 
   - match: { status: 400 }
   - contains: { error.root_cause.0.reason: "[diversify] search failed - retrievers '[knn]' returned errors" }
-  - contains: { error.root_cause.0.suppressed.0.failed_shards.0.reason.reason: "Field [keywordfield] of type [keyword] does not support embeddings" }
+  - contains: { error.root_cause.0.suppressed.0.failed_shards.0.reason.reason: "Field [keywordfield] of type [keyword] does not support [dense_vector] embeddings" }
 
   - do:
       catch: bad_request
@@ -788,7 +788,7 @@ teardown:
 
   - match: { status: 400 }
   - contains: { error.root_cause.0.reason: "[diversify] search failed - retrievers '[knn]' returned errors" }
-  - contains: { error.root_cause.0.suppressed.0.failed_shards.0.reason.reason: "Field [textbody] of type [text] does not support embeddings" }
+  - contains: { error.root_cause.0.suppressed.0.failed_shards.0.reason.reason: "Field [textbody] of type [text] does not support [dense_vector] embeddings" }
 
 ---
 "Test MMR result diversification cannot have a string encoded query vector":

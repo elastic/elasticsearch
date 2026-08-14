@@ -67,9 +67,11 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.ToLongFunction;
@@ -215,7 +217,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     private boolean skipInnerHits = false;
 
-    private List<String> fetchEmbeddingsFields = new ArrayList<>();
+    private Set<EmbeddingsField> fetchEmbeddingsFields = new LinkedHashSet<>();
 
     /**
      * Constructs a new search source builder.
@@ -279,7 +281,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         rankBuilder = in.readOptionalNamedWriteable(RankBuilder.class);
         skipInnerHits = in.readBoolean();
         if (in.getTransportVersion().supports(SEARCH_SOURCE_EMBEDDINGS_FIELDS)) {
-            fetchEmbeddingsFields = new ArrayList<>(in.readStringCollectionAsList());
+            fetchEmbeddingsFields = new LinkedHashSet<>(in.readCollectionAsList(EmbeddingsField::new));
         }
     }
 
@@ -292,7 +294,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         if (out.getTransportVersion().supports(SEARCH_SOURCE_EMBEDDINGS_FIELDS) == false) {
             // Write embeddings fields to fetch fields so we can attempt to get them, even if not in embeddings format. This is
             // essentially a "best effort" BwC approach, as we cannot control the format the fetched fields will use.
-            fetchEmbeddingsFields.forEach(this::fetchField);
+            fetchEmbeddingsFields.forEach(embeddingsField -> fetchField(new FieldAndFormat(embeddingsField.field(), null)));
         }
 
         out.writeOptionalWriteable(aggregations);
@@ -352,7 +354,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         out.writeOptionalNamedWriteable(rankBuilder);
         out.writeBoolean(skipInnerHits);
         if (out.getTransportVersion().supports(SEARCH_SOURCE_EMBEDDINGS_FIELDS)) {
-            out.writeStringCollection(fetchEmbeddingsFields);
+            out.writeCollection(fetchEmbeddingsFields);
         }
     }
 
@@ -1022,7 +1024,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     /**
      * Adds a field whose embeddings should be returned as part of the search response.
      */
-    public SearchSourceBuilder fetchEmbeddingsField(String field) {
+    public SearchSourceBuilder fetchEmbeddingsField(EmbeddingsField field) {
         fetchEmbeddingsFields.add(field);
         return this;
     }
@@ -1030,8 +1032,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     /**
      * Gets the fields whose embeddings should be returned as part of the search response.
      */
-    public List<String> fetchEmbeddingsFields() {
-        return Collections.unmodifiableList(fetchEmbeddingsFields);
+    public Set<EmbeddingsField> fetchEmbeddingsFields() {
+        return Collections.unmodifiableSet(fetchEmbeddingsFields);
     }
 
     /**

@@ -9,10 +9,6 @@
 
 package org.elasticsearch.core;
 
-import java.nio.ByteBuffer;
-import java.nio.CharBuffer;
-import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 import java.util.Objects;
 
 /**
@@ -30,55 +26,107 @@ public final class CharArrays {
      * Decodes the provided byte[] to a UTF-8 char[]. This is done while avoiding
      * conversions to String. The provided byte[] is not modified by this method, so
      * the caller needs to take care of clearing the value if it is sensitive.
+     * <p>
+     * The conversion is done manually rather than via {@code StandardCharsets.UTF_8} so that the
+     * value is only ever written to the exactly sized result array, never to intermediate buffers
+     * that would need to be cleared. Each malformed byte decodes to {@code U+FFFD}.
      */
     public static char[] utf8BytesToChars(byte[] utf8Bytes, int offset, int len) {
-        final ByteBuffer byteBuffer = ByteBuffer.wrap(utf8Bytes, offset, len);
-        final CharBuffer charBuffer = StandardCharsets.UTF_8.decode(byteBuffer);
-        final char[] chars;
-        if (charBuffer.hasArray()) {
-            // there is no guarantee that the char buffers backing array is the right size
-            // so we need to make a copy
-            chars = Arrays.copyOfRange(charBuffer.array(), charBuffer.position(), charBuffer.limit());
-            Arrays.fill(charBuffer.array(), (char) 0); // clear sensitive data
-        } else {
-            final int length = charBuffer.limit() - charBuffer.position();
-            chars = new char[length];
-            charBuffer.get(chars);
-            // if the buffer is not read only we can reset and fill with 0's
-            if (charBuffer.isReadOnly() == false) {
-                charBuffer.clear(); // reset
-                for (int i = 0; i < charBuffer.limit(); i++) {
-                    charBuffer.put((char) 0);
-                }
+        Objects.checkFromIndexSize(offset, len, utf8Bytes.length);
+        final int end = offset + len;
+        int charCount = 0;
+        for (int i = offset; i < end;) {
+            final int cp = codePointAt(utf8Bytes, i, end);
+            i += cp < 0 ? 1 : utf8Length(cp);
+            charCount += cp >= Character.MIN_SUPPLEMENTARY_CODE_POINT ? 2 : 1;
+        }
+        final char[] chars = new char[charCount];
+        for (int i = offset, ci = 0; i < end;) {
+            final int cp = codePointAt(utf8Bytes, i, end);
+            if (cp < 0) {
+                chars[ci++] = '\uFFFD';
+                i++;
+            } else {
+                ci += Character.toChars(cp, chars, ci);
+                i += utf8Length(cp);
             }
         }
         return chars;
     }
 
     /**
+     * Returns the code point encoded at index {@code i}, or {@code -1} if the sequence at {@code i}
+     * is not well-formed UTF-8 (this includes overlong forms, encoded surrogates, code points beyond
+     * {@code U+10FFFF} and truncated sequences).
+     */
+    private static int codePointAt(byte[] bytes, int i, int end) {
+        final int b1 = bytes[i] & 0xFF;
+        if (b1 < 0x80) {
+            return b1;
+        }
+        final int seqLength = b1 < 0xC2 ? 0 : b1 < 0xE0 ? 2 : b1 < 0xF0 ? 3 : b1 < 0xF5 ? 4 : 0;
+        if (seqLength == 0 || i + seqLength > end) {
+            return -1;
+        }
+        int cp = b1 & (0xFF >> (seqLength + 1)); // the lead byte's payload bits: 0x1F, 0x0F or 0x07
+        for (int j = i + 1; j < i + seqLength; j++) {
+            if ((bytes[j] & 0xC0) != 0x80) {
+                return -1;
+            }
+            cp = (cp << 6) | (bytes[j] & 0x3F);
+        }
+        final int minCp = seqLength == 2 ? 0x80 : seqLength == 3 ? 0x800 : Character.MIN_SUPPLEMENTARY_CODE_POINT;
+        if (cp < minCp || cp > Character.MAX_CODE_POINT || isSurrogateCodePoint(cp)) {
+            return -1;
+        }
+        return cp;
+    }
+
+    private static int utf8Length(int cp) {
+        return cp < 0x80 ? 1 : cp < 0x800 ? 2 : cp < 0x10000 ? 3 : 4;
+    }
+
+    private static boolean isSurrogateCodePoint(int cp) {
+        return Character.MIN_SURROGATE <= cp && cp <= Character.MAX_SURROGATE;
+    }
+
+    /**
      * Encodes the provided char[] to a UTF-8 byte[]. This is done while avoiding
      * conversions to String. The provided char[] is not modified by this method, so
      * the caller needs to take care of clearing the value if it is sensitive.
+     * <p>
+     * The conversion is done manually rather than via {@code StandardCharsets.UTF_8} so that the
+     * value is only ever written to the exactly sized result array, never to intermediate buffers
+     * that would need to be cleared. Unpaired surrogates encode to {@code '?'}, as with
+     * {@code StandardCharsets.UTF_8.encode}.
      */
     public static byte[] toUtf8Bytes(char[] chars) {
-        final CharBuffer charBuffer = CharBuffer.wrap(chars);
-        final ByteBuffer byteBuffer = StandardCharsets.UTF_8.encode(charBuffer);
-        final byte[] bytes;
-        if (byteBuffer.hasArray()) {
-            // there is no guarantee that the byte buffers backing array is the right size
-            // so we need to make a copy
-            bytes = Arrays.copyOfRange(byteBuffer.array(), byteBuffer.position(), byteBuffer.limit());
-            Arrays.fill(byteBuffer.array(), (byte) 0); // clear sensitive data
-        } else {
-            final int length = byteBuffer.limit() - byteBuffer.position();
-            bytes = new byte[length];
-            byteBuffer.get(bytes);
-            // if the buffer is not read only we can reset and fill with 0's
-            if (byteBuffer.isReadOnly() == false) {
-                byteBuffer.clear(); // reset
-                for (int i = 0; i < byteBuffer.limit(); i++) {
-                    byteBuffer.put((byte) 0);
-                }
+        int byteCount = 0;
+        for (int i = 0; i < chars.length;) {
+            final int cp = Character.codePointAt(chars, i);
+            i += Character.charCount(cp);
+            byteCount += isSurrogateCodePoint(cp) ? 1 : utf8Length(cp);
+        }
+        final byte[] bytes = new byte[byteCount];
+        for (int i = 0, bi = 0; i < chars.length;) {
+            final int cp = Character.codePointAt(chars, i);
+            i += Character.charCount(cp);
+            if (isSurrogateCodePoint(cp)) {
+                bytes[bi++] = '?'; // unpaired surrogate
+            } else if (cp < 0x80) {
+                bytes[bi++] = (byte) cp;
+            } else if (cp < 0x800) {
+                bytes[bi++] = (byte) (0xC0 | (cp >> 6));
+                bytes[bi++] = (byte) (0x80 | (cp & 0x3F));
+            } else if (cp < 0x10000) {
+                bytes[bi++] = (byte) (0xE0 | (cp >> 12));
+                bytes[bi++] = (byte) (0x80 | ((cp >> 6) & 0x3F));
+                bytes[bi++] = (byte) (0x80 | (cp & 0x3F));
+            } else {
+                bytes[bi++] = (byte) (0xF0 | (cp >> 18));
+                bytes[bi++] = (byte) (0x80 | ((cp >> 12) & 0x3F));
+                bytes[bi++] = (byte) (0x80 | ((cp >> 6) & 0x3F));
+                bytes[bi++] = (byte) (0x80 | (cp & 0x3F));
             }
         }
         return bytes;

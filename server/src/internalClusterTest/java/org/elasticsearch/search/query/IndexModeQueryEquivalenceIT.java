@@ -85,7 +85,7 @@ public class IndexModeQueryEquivalenceIT extends ESIntegTestCase {
         // index reliably triggers DenseConjunctionBulkScorer, which the original bug lived inside.
         for (String index : allIndices) {
             if (randomBoolean()) {
-                indicesAdmin().prepareForceMerge(index).setMaxNumSegments(randomIntBetween(1,3)).get();
+                indicesAdmin().prepareForceMerge(index).setMaxNumSegments(randomIntBetween(1, 3)).get();
             }
         }
         indicesAdmin().prepareRefresh(allIndices.toArray(new String[0])).get();

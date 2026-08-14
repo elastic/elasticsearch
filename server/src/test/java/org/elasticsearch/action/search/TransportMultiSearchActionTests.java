@@ -967,7 +967,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
                 assertThat(items[i].getFailure(), instanceOf(CircuitBreakingException.class));
             }
         }
-        assertThat(breaker.maxWithoutBreaking(), allOf(greaterThan(0L), lessThan(originalFailureBytes)));
+        assertThat(breaker.largestAddWithoutBreaking(), allOf(greaterThan(0L), lessThan(originalFailureBytes)));
         assertThat(breaker.getUsed(), equalTo(0L));
     }
 
@@ -988,7 +988,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         assertTrue(items[0].isFailure());
         assertThat(items[0].getFailure(), instanceOf(CircuitBreakingException.class));
         assertThat(items[0].getFailure(), not(instanceOf(SearchPhaseExecutionException.class)));
-        assertThat(breaker.maxWithoutBreaking(), equalTo(0L));
+        assertThat(breaker.largestAddWithoutBreaking(), equalTo(0L));
         assertThat(breaker.getUsed(), equalTo(0L));
     }
 
@@ -1103,8 +1103,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
     private static final class TrackingCircuitBreaker implements CircuitBreaker {
         private final AtomicLong used = new AtomicLong();
         private final AtomicLong totalReserved = new AtomicLong();
-        private final AtomicLong totalWithoutBreaking = new AtomicLong();
-        private final AtomicLong maxWithoutBreaking = new AtomicLong();
+        private final AtomicLong largestAddWithoutBreaking = new AtomicLong();
         private final AtomicInteger reservationCalls = new AtomicInteger();
         private final int tripOnCall;
         private final long byteLimit;
@@ -1151,8 +1150,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         public void addWithoutBreaking(long bytes) {
             used.addAndGet(bytes);
             if (bytes > 0) {
-                totalWithoutBreaking.addAndGet(bytes);
-                maxWithoutBreaking.updateAndGet(current -> Math.max(current, bytes));
+                largestAddWithoutBreaking.updateAndGet(current -> Math.max(current, bytes));
             }
         }
 
@@ -1193,8 +1191,8 @@ public class TransportMultiSearchActionTests extends ESTestCase {
             return totalReserved.get();
         }
 
-        long maxWithoutBreaking() {
-            return maxWithoutBreaking.get();
+        long largestAddWithoutBreaking() {
+            return largestAddWithoutBreaking.get();
         }
     }
 

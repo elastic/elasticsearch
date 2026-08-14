@@ -2110,8 +2110,6 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
         assertEquals("main", as(filter.child(), UnresolvedRelation.class).indexPattern().indexPattern());
     }
 
-
-
     /*
      * Multi-column IN subquery inside CASE connected with AND:
      * {@code WHERE CASE((a, b) IN (FROM sub), true, false) AND c > 0}
@@ -2152,7 +2150,8 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
      */
     public void testComplexBooleanWithMultiColumnInSubqueryAndNullPredicates() {
         checkMultiColumnInSubquery();
-        String query = "FROM main | WHERE (a > 0 AND (((b, c) IN (FROM sub1 | KEEP b, c)) IS NULL)) OR (((d, e) IN (FROM sub2 | KEEP d, e)) IS NOT NULL AND f < 0)";
+        String query =
+            "FROM main | WHERE (a > 0 AND (((b, c) IN (FROM sub1 | KEEP b, c)) IS NULL)) OR (((d, e) IN (FROM sub2 | KEEP d, e)) IS NOT NULL AND f < 0)";
         LogicalPlan plan = query(query);
         Filter filter = as(plan, Filter.class);
         Or topOr = as(filter.condition(), Or.class);

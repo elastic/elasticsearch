@@ -1936,14 +1936,14 @@ public class InSubqueryResolverTests extends ESTestCase {
     public void testMultiColumnInSubqueryWithComplexBooleanExpressions() {
         checkMultiColumnInSubquery();
         String query = """
-        FROM main
-        | WHERE (f1 > 0
-                 AND (((f1, f2) IN (FROM sub1 | KEEP f1, f2)) IS NULL)
-                )
-          OR (((f1, f2) IN (FROM sub2 | KEEP f1, f2)) IS NOT NULL
-              AND f2 < 0
-             )
-        """;
+            FROM main
+            | WHERE (f1 > 0
+                     AND (((f1, f2) IN (FROM sub1 | KEEP f1, f2)) IS NULL)
+                    )
+              OR (((f1, f2) IN (FROM sub2 | KEEP f1, f2)) IS NOT NULL
+                  AND f2 < 0
+                 )
+            """;
         LogicalPlan plan = resolve(query);
         Filter filter = as(plan, Filter.class);
         Or topOr = as(filter.condition(), Or.class);
@@ -1987,8 +1987,10 @@ public class InSubqueryResolverTests extends ESTestCase {
 
     public void testRejectsMultiColumnInSubqueryDirectlyNestedInEquals() {
         checkMultiColumnInSubquery();
-        var e = expectThrows(VerificationException.class, () -> resolve(
-            "FROM main | WHERE ((f1, f2) IN (FROM sub | KEEP f1, f2)) == true"));
+        var e = expectThrows(
+            VerificationException.class,
+            () -> resolve("FROM main | WHERE ((f1, f2) IN (FROM sub | KEEP f1, f2)) == true")
+        );
         assertThat(e.getMessage(), containsString("IN subquery is not supported within other expressions"));
     }
 

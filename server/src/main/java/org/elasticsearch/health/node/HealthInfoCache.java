@@ -56,14 +56,18 @@ public class HealthInfoCache implements ClusterStateListener {
         if (diskHealthInfo != null) {
             diskInfoByNode.put(nodeId, diskHealthInfo);
         }
-        if (latestDslHealthInfo != null) {
-            dslHealthInfo = latestDslHealthInfo;
-        }
         if (repositoriesHealthInfo != null) {
             repositoriesInfoByNode.put(nodeId, repositoriesHealthInfo);
         }
-        if (fileSettingsHealthInfo != null && nodeId.equals(masterNodeId)) {
-            this.fileSettingsHealthInfo = fileSettingsHealthInfo;
+        // the following health infos must be published by the current master node only.
+        // discard stale responses from a previous master node.
+        if (nodeId.equals(masterNodeId)) {
+            if (latestDslHealthInfo != null) {
+                dslHealthInfo = latestDslHealthInfo;
+            }
+            if (fileSettingsHealthInfo != null) {
+                this.fileSettingsHealthInfo = fileSettingsHealthInfo;
+            }
         }
     }
 

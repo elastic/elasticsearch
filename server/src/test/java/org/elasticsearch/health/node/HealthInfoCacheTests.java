@@ -47,6 +47,9 @@ public class HealthInfoCacheTests extends ESTestCase {
 
     public void testAddHealthInfo() {
         HealthInfoCache healthInfoCache = HealthInfoCache.create(clusterService);
+        // node1 is local node, master, and health node
+        ClusterState state = ClusterStateCreationUtils.state(node1, node1, node1, allNodes);
+        healthInfoCache.clusterChanged(new ClusterChangedEvent("test", state, state));
         DataStreamLifecycleHealthInfo latestDslHealthInfo = randomDslHealthInfo();
         var repoHealthInfo = randomRepoHealthInfo();
         healthInfoCache.updateNodeHealth(node1.getId(), GREEN, latestDslHealthInfo, repoHealthInfo, FileSettingsHealthInfo.INDETERMINATE);
@@ -64,20 +67,22 @@ public class HealthInfoCacheTests extends ESTestCase {
 
     public void testRemoveNodeFromTheCluster() {
         HealthInfoCache healthInfoCache = HealthInfoCache.create(clusterService);
-        healthInfoCache.updateNodeHealth(node1.getId(), GREEN, null, null, FileSettingsHealthInfo.INDETERMINATE);
+        // node1 is local node, master, and health node
+        ClusterState previous = ClusterStateCreationUtils.state(node1, node1, node1, allNodes);
+        healthInfoCache.clusterChanged(new ClusterChangedEvent("test", previous, previous));
         DataStreamLifecycleHealthInfo latestDslHealthInfo = randomDslHealthInfo();
         var repoHealthInfo = randomRepoHealthInfo();
-        healthInfoCache.updateNodeHealth(node2.getId(), RED, latestDslHealthInfo, repoHealthInfo, FileSettingsHealthInfo.INDETERMINATE);
+        // DSL health info is published by the master (node1), disk/repo health from node2
+        healthInfoCache.updateNodeHealth(node1.getId(), GREEN, latestDslHealthInfo, repoHealthInfo, FileSettingsHealthInfo.INDETERMINATE);
+        healthInfoCache.updateNodeHealth(node2.getId(), RED, null, null, FileSettingsHealthInfo.INDETERMINATE);
 
-        ClusterState previous = ClusterStateCreationUtils.state(node1, node1, node1, allNodes);
         ClusterState current = ClusterStateCreationUtils.state(node1, node1, node1, new DiscoveryNode[] { node1 });
         healthInfoCache.clusterChanged(new ClusterChangedEvent("test", current, previous));
 
         Map<String, DiskHealthInfo> diskHealthInfo = healthInfoCache.getHealthInfo().diskInfoByNode();
         assertThat(diskHealthInfo.get(node1.getId()), equalTo(GREEN));
         assertThat(diskHealthInfo.get(node2.getId()), nullValue());
-        // the dsl info is not removed when the node that reported it leaves the cluster as the next DSL run will report it and
-        // override it (if the health node stops being the designated health node the health cache nullifies the existing DSL info)
+        // the dsl info is not removed when a non-master node leaves the cluster; it is only reset when the health node changes
         assertThat(healthInfoCache.getHealthInfo().dslHealthInfo(), is(latestDslHealthInfo));
     }
 

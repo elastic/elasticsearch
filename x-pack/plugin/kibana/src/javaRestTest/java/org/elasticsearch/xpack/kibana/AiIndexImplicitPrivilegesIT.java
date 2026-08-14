@@ -34,26 +34,41 @@ import static org.hamcrest.Matchers.not;
  * full production path: the plugin is bundled into the default distribution and auto-discovered
  * via the {@code SecurityExtension} SPI, so no test plugin is installed.
  * <p>
- * The happy path verifies that a role holding only the Kibana {@code feature_dashboards.read}
- * application privilege on {@code space:marketing} (with <b>no</b> explicit index privileges)
- * can read an {@code ai-index-*} index, and that the implicit document-level-security filter
- * restricts results using composite scoped privileges stored in
- * {@code permissions.kibana.privileges.name} that bind space and privilege together:
+ * This is also the only place the nested permissions mapping is exercised against real Lucene. The
+ * unit tests assert on query <em>serialisation</em>; only this test proves that {@code terms_set}
+ * with {@code minimum_should_match_field} resolves {@code count} from the matching nested child
+ * document rather than from the root. If that assumption were wrong the search would return zero
+ * hits, which is why the visibility assertion pins an exact positive set — <b>a zero-hit result is a
+ * failure signal, not a pass.</b>
+ * <p>
+ * <b>The index declares its own mappings.</b> The {@code ai-index-*} index template deliberately does
+ * not carry the permissions shape, so this test owns the mapping the provider is written against. Do
+ * not "simplify" by deleting the explicit {@code mappings} block and relying on the template: dynamic
+ * mapping never produces {@code nested} for an array of objects, and a {@code nested} query against an
+ * {@code object} field throws rather than under-matching.
+ * <p>
+ * <b>The user's grant.</b> {@code ai_index:dashboard/read} in {@code space:marketing} and
+ * {@code ai_index:workflow/read} in {@code space:finance} — deliberately <em>different</em> actions in
+ * two spaces, which is what makes the cross-space leak case below testable at all. The fixtures cover:
  * <ul>
- *   <li>Documents requiring a scoped privilege for a different space are hidden even if the
- *       privilege matches.</li>
- *   <li>Documents requiring a scoped privilege for a privilege the user does not hold are hidden
- *       even if the space matches.</li>
- *   <li>Documents requiring <em>multiple</em> composite scoped privileges where the user lacks one
- *       are hidden (AND semantics enforced by {@code terms_set} with
- *       {@code minimum_should_match_field: permissions_count}).</li>
- *   <li>Documents with no {@code permissions.kibana.privileges.name} field are always visible
- *       (public documents).</li>
+ *   <li>{@code marketing-dashboard} — visible; the user holds exactly what the marketing element
+ *       requires.</li>
+ *   <li>{@code finance-dashboard} — hidden; right action, wrong space.</li>
+ *   <li>{@code marketing-workflow} — hidden; right space, wrong action.</li>
+ *   <li>{@code shared-dashboard} — visible; shared into two spaces and the user satisfies one of them.
+ *       Proves nested matching is existential, i.e. OR across spaces.</li>
+ *   <li>{@code cross-space-leak} — hidden. <b>The regression case this design exists for.</b> The
+ *       document requires both actions in marketing <em>and</em> both in finance; the user holds one of
+ *       two in each. Under the previous flat composite-token design the user's two tokens hit the flat
+ *       count of 2 and {@code terms_set} could not tell they came from different spaces, so the
+ *       document was visible. Under {@code nested} each child is scored alone: marketing scores 1 &lt; 2,
+ *       finance scores 1 &lt; 2, no child matches, root hidden.</li>
+ *   <li>{@code global-no-perms} — visible; a document with no permissions block is public.</li>
  * </ul>
  * <p>
- * The registered privilege deliberately bundles {@code login:} and {@code saved_object:dashboard/get}
- * alongside the {@code ai_index:dashboard/read} action, so the surfaced DLS query also demonstrates
- * that actions outside the {@code ai_index:} namespace never become scoped-privilege terms.
+ * The registered privileges deliberately bundle {@code login:} and {@code saved_object:dashboard/get}
+ * alongside the {@code ai_index:} actions, so the surfaced DLS query also demonstrates that actions
+ * outside the {@code ai_index:} namespace never become DLS terms.
  */
 public class AiIndexImplicitPrivilegesIT extends ESRestTestCase {
 
@@ -65,12 +80,14 @@ public class AiIndexImplicitPrivilegesIT extends ESRestTestCase {
 
     private static final String KIBANA_APPLICATION = "kibana-.kibana";
     private static final String DASHBOARDS_PRIVILEGE = "feature_dashboards.read";
+    private static final String WORKFLOWS_PRIVILEGE = "feature_workflows.read";
     private static final String LOGIN_ACTION = "login:";
     private static final String AI_INDEX_DASHBOARD_READ_ACTION = "ai_index:dashboard/read";
+    private static final String AI_INDEX_WORKFLOW_READ_ACTION = "ai_index:workflow/read";
     // Registered alongside the ai_index: action to prove non-ai_index: actions are filtered out of the DLS query.
     private static final String SAVED_OBJECT_GET_ACTION = "saved_object:dashboard/get";
 
-    // Matches the ai-index-idx-* pattern so the stack plugin template auto-applies.
+    // Matches the ai-index-idx-* pattern so the provider's AI_INDEX_INDICES grant applies to it.
     private static final String AI_INDEX = "ai-index-idx-test";
 
     @ClassRule
@@ -94,41 +111,62 @@ public class AiIndexImplicitPrivilegesIT extends ESRestTestCase {
     }
 
     public void testSpaceAndPrivilegeScopedRoleImplicitlyReadsAiIndexDataWithDls() throws Exception {
-        // 1. Register the Kibana application privilege.
-        putKibanaDashboardsPrivilege();
+        // 1. Register the Kibana application privileges.
+        putKibanaPrivileges();
 
-        // 2. A role holding ONLY that application privilege, scoped to space:marketing — no explicit index privileges.
-        putAiIndexReaderRole("ai_marketing_reader", "space:marketing");
+        // 2. A role holding ONLY those application privileges, scoped to two different spaces with
+        // different actions in each — no explicit index privileges.
+        putAiIndexReaderRole("ai_marketing_reader");
 
         // 3. A user that holds the role.
         putUser(SML_USER, SML_USER_PASSWORD, "ai_marketing_reader");
 
-        // 4. As admin, create the AI Index with explicit mappings so DLS term/terms queries match.
+        // 4. As admin, create the AI Index with explicit nested mappings and index the fixtures.
         createAiIndexWithDocs();
 
-        // 5. The implicit grant surfaces through the get-role API, carrying the composite scoped-privileges DLS query.
+        // 5. The implicit grant surfaces through the get-role API, carrying the nested DLS query.
         assertImplicitGrantSurfaced("ai_marketing_reader");
 
-        // 6. The user can read the AI Index without any explicit index privilege, and DLS restricts the visible
-        // documents to exactly the two that satisfy both the space and privilege dimensions.
-        assertUserSeesExactlyMarketingDashboardAndGlobalNoPerms();
+        // 6. The user can read the AI Index without any explicit index privilege, and DLS restricts the
+        // visible documents to exactly the three that satisfy a whole nested element.
+        assertUserSeesOnlyAuthorizedDocs();
     }
 
-    private void putKibanaDashboardsPrivilege() throws Exception {
+    private void putKibanaPrivileges() throws Exception {
         final Request request = new Request("PUT", "/_security/privilege");
-        request.setJsonEntity(Strings.format("""
-            {
-              "%s": {
-                "%s": {
-                  "actions": ["%s", "%s", "%s"]
-                }
-              }
-            }
-            """, KIBANA_APPLICATION, DASHBOARDS_PRIVILEGE, LOGIN_ACTION, SAVED_OBJECT_GET_ACTION, AI_INDEX_DASHBOARD_READ_ACTION));
+        request.setJsonEntity(
+            Strings.format(
+                """
+                    {
+                      "%s": {
+                        "%s": {
+                          "actions": ["%s", "%s", "%s"]
+                        },
+                        "%s": {
+                          "actions": ["%s", "%s"]
+                        }
+                      }
+                    }
+                    """,
+                KIBANA_APPLICATION,
+                DASHBOARDS_PRIVILEGE,
+                LOGIN_ACTION,
+                SAVED_OBJECT_GET_ACTION,
+                AI_INDEX_DASHBOARD_READ_ACTION,
+                WORKFLOWS_PRIVILEGE,
+                LOGIN_ACTION,
+                AI_INDEX_WORKFLOW_READ_ACTION
+            )
+        );
         assertOK(client().performRequest(request));
     }
 
-    private void putAiIndexReaderRole(String roleName, String resource) throws Exception {
+    /**
+     * Grants dashboard/read in marketing and workflow/read in finance. The actions must differ per
+     * space, otherwise the cross-space-leak fixture would be satisfied by either element and the
+     * regression this test guards would be invisible.
+     */
+    private void putAiIndexReaderRole(String roleName) throws Exception {
         final Request request = new Request("PUT", "/_security/role/" + roleName);
         request.setJsonEntity(Strings.format("""
             {
@@ -137,11 +175,16 @@ public class AiIndexImplicitPrivilegesIT extends ESRestTestCase {
                 {
                   "application": "%s",
                   "privileges": ["%s"],
-                  "resources": ["%s"]
+                  "resources": ["space:marketing"]
+                },
+                {
+                  "application": "%s",
+                  "privileges": ["%s"],
+                  "resources": ["space:finance"]
                 }
               ]
             }
-            """, KIBANA_APPLICATION, DASHBOARDS_PRIVILEGE, resource));
+            """, KIBANA_APPLICATION, DASHBOARDS_PRIVILEGE, KIBANA_APPLICATION, WORKFLOWS_PRIVILEGE));
         assertOK(client().performRequest(request));
     }
 
@@ -157,82 +200,106 @@ public class AiIndexImplicitPrivilegesIT extends ESRestTestCase {
     }
 
     private void createAiIndexWithDocs() throws Exception {
-        // No explicit mappings — the ai-index-idx template covers ai-index-idx-*
-        // and provides the permissions.kibana.privileges.{name,count} mappings.
+        // Explicit mappings: the ai-index-* template deliberately does NOT carry the permissions
+        // shape, so this test owns the mapping the provider is written against. Dynamic mapping
+        // cannot substitute — it never produces `nested` for an array of objects, and a nested
+        // query against an `object` field throws rather than under-matching.
         final Request create = new Request("PUT", "/" + AI_INDEX);
+        create.setJsonEntity("""
+            {
+              "mappings": {
+                "properties": {
+                  "type": { "type": "keyword" },
+                  "permissions": {
+                    "type": "object",
+                    "properties": {
+                      "kibana": {
+                        "type": "object",
+                        "properties": {
+                          "privileges": {
+                            "type": "nested",
+                            "properties": {
+                              "name":  { "type": "keyword" },
+                              "space": { "type": "keyword" },
+                              "count": { "type": "long" }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            """);
         assertOK(client().performRequest(create));
 
         // Documents deliberately carry no title/description/content: the template maps a semantic_text
         // sub-field on each of those, and populating one would require an inference-capable license.
         // This test is about the DLS filter, and its assertions run off document ids only.
 
-        // Should be visible: user holds marketing|ai_index:dashboard/read.
+        // VISIBLE: user holds ai_index:dashboard/read in marketing.
         indexDoc("marketing-dashboard", """
             {
-              "permissions": {
-                "kibana": {
-                  "privileges": {
-                    "name": "marketing|ai_index:dashboard/read",
-                    "count": 1
-                  }
-                }
-              },
-              "type": "dashboard"
+              "type": "dashboard",
+              "permissions": { "kibana": { "privileges": [
+                { "space": "marketing", "name": ["ai_index:dashboard/read"], "count": 1 }
+              ]}}
             }
             """);
 
-        // Should NOT be visible: user does not hold finance|ai_index:dashboard/read (wrong space in token).
+        // HIDDEN: right action, wrong space — user holds dashboard/read in marketing, not finance.
         indexDoc("finance-dashboard", """
             {
-              "permissions": {
-                "kibana": {
-                  "privileges": {
-                    "name": "finance|ai_index:dashboard/read",
-                    "count": 1
-                  }
-                }
-              },
-              "type": "dashboard"
+              "type": "dashboard",
+              "permissions": { "kibana": { "privileges": [
+                { "space": "finance", "name": ["ai_index:dashboard/read"], "count": 1 }
+              ]}}
             }
             """);
 
-        // Should NOT be visible: user doesn't hold marketing|ai_index:workflow/read (privilege not in grant).
-        indexDoc("marketing-lens", """
+        // HIDDEN: right space, wrong action — user holds workflow/read in finance, not marketing.
+        indexDoc("marketing-workflow", """
             {
-              "permissions": {
-                "kibana": {
-                  "privileges": {
-                    "name": "marketing|ai_index:workflow/read",
-                    "count": 1
-                  }
-                }
-              },
-              "type": "workflow"
+              "type": "workflow",
+              "permissions": { "kibana": { "privileges": [
+                { "space": "marketing", "name": ["ai_index:workflow/read"], "count": 1 }
+              ]}}
             }
             """);
 
-        // Should be visible: no permissions field → public document.
+        // VISIBLE: shared into two spaces; the user satisfies the marketing element.
+        // Proves nested matching is existential — OR across spaces.
+        indexDoc("shared-dashboard", """
+            {
+              "type": "dashboard",
+              "permissions": { "kibana": { "privileges": [
+                { "space": "marketing", "name": ["ai_index:dashboard/read"], "count": 1 },
+                { "space": "engineering", "name": ["ai_index:dashboard/read"], "count": 1 }
+              ]}}
+            }
+            """);
+
+        // HIDDEN — THE REGRESSION CASE. This is the whole point of the change.
+        // Requires BOTH actions in marketing AND both in finance. The user holds
+        // dashboard/read in marketing and workflow/read in finance — one of two in each.
+        // Under the old flat composite-token design this document was VISIBLE: the user's two
+        // tokens hit the flat count of 2 and terms_set could not tell they came from different
+        // spaces. Under nested, each child is scored alone: marketing scores 1 < 2, finance
+        // scores 1 < 2, no child matches, root hidden.
+        indexDoc("cross-space-leak", """
+            {
+              "type": "dashboard",
+              "permissions": { "kibana": { "privileges": [
+                { "space": "marketing", "name": ["ai_index:dashboard/read", "ai_index:workflow/read"], "count": 2 },
+                { "space": "finance",   "name": ["ai_index:dashboard/read", "ai_index:workflow/read"], "count": 2 }
+              ]}}
+            }
+            """);
+
+        // VISIBLE: no permissions block → public document.
         indexDoc("global-no-perms", """
             {
-              "type": "dashboard"
-            }
-            """);
-
-        // Should NOT be visible: requires both tokens — AND semantics via terms_set;
-        // user only holds marketing|ai_index:dashboard/read, not marketing|ai_index:workflow/read.
-        indexDoc("multi-perm", """
-            {
-              "permissions": {
-                "kibana": {
-                  "privileges": {
-                    "name": [
-                      "marketing|ai_index:dashboard/read",
-                      "marketing|ai_index:workflow/read"
-                    ],
-                    "count": 2
-                  }
-                }
-              },
               "type": "dashboard"
             }
             """);
@@ -266,17 +333,22 @@ public class AiIndexImplicitPrivilegesIT extends ESRestTestCase {
         assertThat((List<String>) implicit.get("privileges"), equalTo(List.of("read")));
 
         final String query = (String) implicit.get("query");
+        assertThat(query, containsString("\"nested\""));
+        assertThat(query, containsString("permissions.kibana.privileges.space"));
         assertThat(query, containsString("permissions.kibana.privileges.name"));
         assertThat(query, containsString("permissions.kibana.privileges.count"));
-        assertThat(query, containsString("marketing|ai_index:dashboard/read"));
+        assertThat(query, containsString(AI_INDEX_DASHBOARD_READ_ACTION));
+        assertThat(query, containsString(AI_INDEX_WORKFLOW_READ_ACTION));
         assertThat(query, containsString("terms_set"));
-        // Only ai_index: actions become DLS terms — the login: and saved_object: actions in the same grant are dropped.
+        // No delimiter anywhere — space and action are separate fields now.
+        assertThat(query, not(containsString("|")));
+        // Only ai_index: actions become DLS terms — login:/saved_object: in the same grant are dropped.
         assertThat(query, not(containsString(LOGIN_ACTION)));
         assertThat(query, not(containsString(SAVED_OBJECT_GET_ACTION)));
     }
 
     @SuppressWarnings("unchecked")
-    private void assertUserSeesExactlyMarketingDashboardAndGlobalNoPerms() throws Exception {
+    private void assertUserSeesOnlyAuthorizedDocs() throws Exception {
         final Request search = new Request("GET", "/" + AI_INDEX + "/_search");
         search.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", basicAuth(SML_USER, SML_USER_PASSWORD)));
         final Response response = client().performRequest(search);
@@ -285,10 +357,13 @@ public class AiIndexImplicitPrivilegesIT extends ESRestTestCase {
         final Map<String, Object> body = entityAsMap(response);
         final Map<String, Object> hits = (Map<String, Object>) body.get("hits");
         final List<Map<String, Object>> hitList = (List<Map<String, Object>>) hits.get("hits");
-        assertThat("DLS should restrict the user to marketing-dashboard and global-no-perms, got " + hitList, hitList, hasSize(2));
-
         final List<String> visibleIds = hitList.stream().map(h -> (String) h.get("_id")).sorted().toList();
-        assertThat(visibleIds, equalTo(List.of("global-no-perms", "marketing-dashboard")));
+
+        // A zero-hit result is a FAILURE signal, not a pass: if the mapping and the query disagree
+        // about whether the field is nested, nothing matches and over-restriction masquerades as
+        // correct DLS. The positive expectations below are what catch that.
+        assertThat("expected three visible docs, got " + hitList, visibleIds, hasSize(3));
+        assertThat(visibleIds, equalTo(List.of("global-no-perms", "marketing-dashboard", "shared-dashboard")));
     }
 
     private static String basicAuth(String username, String password) {

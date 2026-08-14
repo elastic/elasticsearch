@@ -33,7 +33,7 @@ public class SearchTransportServiceTests extends ESTestCase {
     public void testFreeContextConcurrency() {
         // single processor → minimum of 1
         assertThat(SearchTransportService.freeContextConcurrency(settings(1)), equalTo(1));
-        // two processors → 1 (integer division: 2 / 2 = 1)
+        // two processors → 1
         assertThat(SearchTransportService.freeContextConcurrency(settings(2)), equalTo(1));
         // four processors → 2
         assertThat(SearchTransportService.freeContextConcurrency(settings(4)), equalTo(2));

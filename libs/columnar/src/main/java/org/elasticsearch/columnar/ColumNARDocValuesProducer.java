@@ -12,6 +12,7 @@ package org.elasticsearch.columnar;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexFileNames;
@@ -56,12 +57,18 @@ final class ColumNARDocValuesProducer extends DocValuesProducer {
             state.segmentSuffix,
             ColumNARDocValuesFormat.META_EXTENSION
         );
+        FormatVersion metaVersion = null;
         try (ChecksumIndexInput meta = state.directory.openChecksumInput(metaName)) {
             Throwable priorException = null;
             try {
-                ColumnarCodecUtil.checkHeader(meta, ColumNARDocValuesFormat.META_CODEC, state.segmentInfo.getId(), state.segmentSuffix);
+                metaVersion = ColumnarCodecUtil.checkHeader(
+                    meta,
+                    ColumNARDocValuesFormat.META_CODEC,
+                    state.segmentInfo.getId(),
+                    state.segmentSuffix
+                );
                 for (int fieldNumber = meta.readInt(); fieldNumber != -1; fieldNumber = meta.readInt()) {
-                    columns.put(fieldNumber, readColumn(ColumnarFieldType.fromId(meta.readByte()), meta));
+                    columns.put(fieldNumber, readColumn(ColumnarFieldType.fromId(meta.readByte()), meta, metaVersion));
                 }
             } catch (Throwable e) {
                 priorException = e;
@@ -78,7 +85,18 @@ final class ColumNARDocValuesProducer extends DocValuesProducer {
                 ColumNARDocValuesFormat.DATA_EXTENSION
             );
             data = state.directory.openInput(dataName, state.context);
-            ColumnarCodecUtil.checkHeader(data, ColumNARDocValuesFormat.DATA_CODEC, state.segmentInfo.getId(), state.segmentSuffix);
+            final FormatVersion dataVersion = ColumnarCodecUtil.checkHeader(
+                data,
+                ColumNARDocValuesFormat.DATA_CODEC,
+                state.segmentInfo.getId(),
+                state.segmentSuffix
+            );
+            if (metaVersion.equals(dataVersion) == false) {
+                throw new CorruptIndexException(
+                    "Format versions mismatch: meta=" + metaVersion.version() + ", data=" + dataVersion.version(),
+                    data
+                );
+            }
             CodecUtil.retrieveChecksum(data);
             success = true;
         } finally {
@@ -88,9 +106,9 @@ final class ColumNARDocValuesProducer extends DocValuesProducer {
         }
     }
 
-    private Column readColumn(ColumnarFieldType type, ChecksumIndexInput meta) throws IOException {
+    private Column readColumn(ColumnarFieldType type, ChecksumIndexInput meta, final FormatVersion formatVersion) throws IOException {
         return switch (type) {
-            case LONG, DOUBLE -> new Column(type, NumericColumnMetadata.readFrom(meta, maxDoc));
+            case LONG, DOUBLE -> new Column(type, NumericColumnMetadata.readFrom(meta, maxDoc, formatVersion));
             case STRING -> throw new UnsupportedOperationException("ColumNAR [" + type + "] column is not implemented yet");
         };
     }

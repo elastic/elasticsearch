@@ -77,6 +77,7 @@ import java.util.function.IntPredicate;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.lucene.Lucene.writeExplanation;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
@@ -966,7 +967,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
                 assertThat(items[i].getFailure(), instanceOf(CircuitBreakingException.class));
             }
         }
-        assertThat(breaker.maxWithoutBreaking(), lessThan(originalFailureBytes));
+        assertThat(breaker.maxWithoutBreaking(), allOf(greaterThan(0L), lessThan(originalFailureBytes)));
         assertThat(breaker.getUsed(), equalTo(0L));
     }
 

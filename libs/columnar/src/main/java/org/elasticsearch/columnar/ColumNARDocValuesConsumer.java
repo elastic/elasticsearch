@@ -172,7 +172,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             }
 
             @Override
-            public long valueCount() {
+            public int valueCount() {
                 return current.values.valueCount();
             }
 

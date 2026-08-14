@@ -22,7 +22,7 @@ import java.io.IOException;
 public abstract class NumericColumnValues extends DocIdSetIterator {
 
     /** The number of values the current document holds. */
-    public abstract long valueCount();
+    public abstract int valueCount();
 
     /** The next value of the current document; call exactly {@link #valueCount()} times per document. */
     public abstract long nextValue() throws IOException;

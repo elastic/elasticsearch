@@ -119,8 +119,8 @@ public final class ColumnarNumericBinaryDocValues extends BinaryDocValues {
             private int upto;
 
             @Override
-            public long valueCount() {
-                return count;
+            public int valueCount() {
+                return (int) count;
             }
 
             @Override
@@ -394,7 +394,7 @@ public final class ColumnarNumericBinaryDocValues extends BinaryDocValues {
             private int upto;
 
             @Override
-            public long valueCount() {
+            public int valueCount() {
                 return count;
             }
 

@@ -11,33 +11,21 @@ package org.elasticsearch.gradle.internal.precommit;
 
 import org.elasticsearch.gradle.internal.ExportElasticsearchBuildResourcesTask;
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitPlugin;
-import org.gradle.api.JavaVersion;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.specs.Specs;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.TaskProvider;
-import org.gradle.jvm.toolchain.JavaLanguageVersion;
-import org.gradle.jvm.toolchain.JavaToolchainService;
 
 import java.io.File;
 import java.util.Set;
-
-import javax.inject.Inject;
 
 import static de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin.FORBIDDEN_APIS_TASK_NAME;
 import static org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask.BUNDLED_SIGNATURE_DEFAULTS;
 import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams;
 
 public class ForbiddenApisPrecommitPlugin extends PrecommitPlugin {
-
-    private final JavaToolchainService javaToolchains;
-
-    @Inject
-    public ForbiddenApisPrecommitPlugin(JavaToolchainService javaToolchains) {
-        this.javaToolchains = javaToolchains;
-    }
 
     @Override
     public TaskProvider<? extends Task> createTask(Project project) {
@@ -58,7 +46,6 @@ public class ForbiddenApisPrecommitPlugin extends PrecommitPlugin {
             t.copy("forbidden/es-test-signatures.txt");
             t.copy("forbidden/http-signatures.txt");
             t.copy("forbidden/es-server-signatures.txt");
-            t.copy("forbidden/jdk-foreign-signatures.txt");
             t.copy("forbidden/jdk-foreign-signatures22.txt");
         });
 
@@ -81,11 +68,6 @@ public class ForbiddenApisPrecommitPlugin extends PrecommitPlugin {
                     )
                 );
                 t.getSuppressAnnotations().set(Set.of("**.SuppressForbidden"));
-                if (buildParams.getMinimumRuntimeVersion().equals(JavaVersion.current()) == false) {
-                    t.getJavaLauncher().set(javaToolchains.launcherFor(spec -> {
-                        spec.getLanguageVersion().set(JavaLanguageVersion.of(buildParams.getMinimumRuntimeVersion().getMajorVersion()));
-                    }));
-                }
                 if (t.getName().endsWith("Test")) {
                     t.setSignaturesFiles(
                         t.getSignaturesFiles()

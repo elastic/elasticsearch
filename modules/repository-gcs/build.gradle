@@ -26,12 +26,12 @@ dependencies {
   implementation 'com.google.cloud:google-cloud-storage:2.50.0'
   implementation 'com.google.cloud:google-cloud-core:2.53.1'
   implementation 'com.google.cloud:google-cloud-core-http:2.53.1'
-  runtimeOnly 'com.google.guava:guava:33.4.0-jre'
   // google-cloud-storage exposes methods whose signatures carry checker-framework @NonNull type annotations on
   // Guava types (ImmutableMap/ImmutableSet). JDK 25 javac needs those classes on the compile classpath to attach
-  // the annotations, so Guava must be visible at compile time. The Guava compile-classpath ban is relaxed for this
-  // module in elasticsearch.forbidden-dependencies; our own code must not use Guava.
-  compileOnly 'com.google.guava:guava:33.4.0-jre'
+  // the annotations, so Guava is a normal compile+runtime dependency here rather than compileOnly. The Guava
+  // compile-classpath ban is relaxed for this module in elasticsearch.forbidden-dependencies; our own code must not
+  // use Guava. Keeping it off the compileOnly configuration lets dependencyLicenses still account for its license.
+  implementation 'com.google.guava:guava:33.4.0-jre'
   runtimeOnly 'com.google.guava:failureaccess:1.0.2'
   runtimeOnly "org.slf4j:slf4j-api:${versions.slf4j}" // 2.0.16 in bom
   runtimeOnly "commons-codec:commons-codec:${versions.commonscodec}" // 1.18.0 in bom

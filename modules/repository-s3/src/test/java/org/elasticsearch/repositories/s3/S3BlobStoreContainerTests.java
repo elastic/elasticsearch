@@ -37,6 +37,7 @@ import software.amazon.awssdk.services.s3.model.UploadPartResponse;
 
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStoreException;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -608,7 +609,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
             @Override
             protected void doMultipartUpload() throws IOException {
                 container.writeMetadataBlob(
-                    randomPurpose(),
+                    OperationPurpose.SNAPSHOT_METADATA,
                     blobName,
                     false,
                     false,

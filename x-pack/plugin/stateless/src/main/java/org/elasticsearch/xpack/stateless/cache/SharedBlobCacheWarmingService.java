@@ -1749,7 +1749,11 @@ public class SharedBlobCacheWarmingService {
                     cacheWarmingPageAlignedBytesTotalMetric.incrementBy(totalBytesCopied.get(), warmingRun.labels());
                 } catch (Throwable t) {
                     logger.warn(
-                        () -> Strings.format("Failed to record page-aligned bytes metric for %s %s", warmingRun.shardId(), warmingRun.type()),
+                        () -> Strings.format(
+                            "Failed to record page-aligned bytes metric for %s %s",
+                            warmingRun.shardId(),
+                            warmingRun.type()
+                        ),
                         t
                     );
                 }

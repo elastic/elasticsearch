@@ -54,7 +54,7 @@ public final class NativeMemoryLimitCalculator {
      * subsequently changed by the container runtime — for example via Kubernetes In-Place Pod
      * Resource Resize (beta since K8s 1.29) — the circuit breaker limit derived from this value
      * will not update automatically. An operator must explicitly re-apply
-     * {@code indices.breaker.native_memory.limit} via the cluster settings API to pick up the new
+     * {@code breaker.native_memory.limit} via the cluster settings API to pick up the new
      * cgroup value. Platforms that restart the node on a memory resize (which is the common
      * approach) are unaffected because the node re-evaluates this at startup.
      */

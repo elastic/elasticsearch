@@ -49,7 +49,7 @@ public class NativeMemoryCgroupBackstop extends AbstractLifecycleComponent {
      * buffers that transiently inflate RSS before the OOM killer fires.
      */
     public static final Setting<Integer> HIGH_WATERMARK_SETTING = Setting.intSetting(
-        "indices.breaker.native_memory.cgroup_high_watermark_percent",
+        "breaker.native_memory.cgroup_high_watermark_percent",
         85,
         50,
         99,
@@ -63,7 +63,7 @@ public class NativeMemoryCgroupBackstop extends AbstractLifecycleComponent {
      * control without meaningfully impacting the cgroup filesystem.
      */
     public static final Setting<TimeValue> POLL_INTERVAL_SETTING = Setting.timeSetting(
-        "indices.breaker.native_memory.cgroup_poll_interval",
+        "breaker.native_memory.cgroup_poll_interval",
         TimeValue.timeValueSeconds(5),
         TimeValue.timeValueSeconds(1),
         Property.NodeScope

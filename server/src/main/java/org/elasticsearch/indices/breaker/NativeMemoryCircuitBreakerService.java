@@ -75,15 +75,15 @@ public class NativeMemoryCircuitBreakerService extends CircuitBreakerService imp
      * @see org.elasticsearch.common.unit.NativeMemoryLimitCalculator#nativeMemoryBase()
      */
     public static final Setting<ByteSizeValue> NATIVE_MEMORY_CIRCUIT_BREAKER_LIMIT_SETTING = new Setting<>(
-        "indices.breaker.native_memory.limit",
+        "breaker.native_memory.limit",
         "50%",
-        s -> MemorySizeValue.parseBytesSizeValueOrDirectMemoryRatio(s, "indices.breaker.native_memory.limit"),
+        s -> MemorySizeValue.parseBytesSizeValueOrDirectMemoryRatio(s, "breaker.native_memory.limit"),
         Property.Dynamic,
         Property.NodeScope
     );
 
     public static final Setting<Double> NATIVE_MEMORY_CIRCUIT_BREAKER_OVERHEAD_SETTING = Setting.doubleSetting(
-        "indices.breaker.native_memory.overhead",
+        "breaker.native_memory.overhead",
         1.0d,
         0.0d,
         Property.Dynamic,
@@ -91,7 +91,7 @@ public class NativeMemoryCircuitBreakerService extends CircuitBreakerService imp
     );
 
     public static final Setting<CircuitBreaker.Type> NATIVE_MEMORY_CIRCUIT_BREAKER_TYPE_SETTING = new Setting<>(
-        "indices.breaker.native_memory.type",
+        "breaker.native_memory.type",
         "memory",
         CircuitBreaker.Type::parseValue,
         Property.NodeScope

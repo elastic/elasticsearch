@@ -77,23 +77,23 @@ stack: ga 9.6+
 
 The native memory circuit breaker limits off-heap (native) memory allocations, such as Arrow buffers used by ES|QL. Unlike the other breakers, this breaker is not included in the parent circuit breaker's total: the parent's limit is expressed in JVM heap bytes, and adding off-heap bytes to it would mix units. Each resource is bounded independently.
 
-`indices.breaker.native_memory.limit`
+`breaker.native_memory.limit`
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) The limit for the native memory breaker. Defaults to `50%` of the JVM's maximum direct memory (`-XX:MaxDirectMemorySize`). Reaching this limit returns a `[native_memory] Data too large` error to the caller without affecting the parent breaker or causing a node restart. On nodes where machine learning is enabled, the ML native process runs in the same cgroup and its memory is not subtracted from this budget automatically. On those nodes, set an explicit byte value rather than a percentage to avoid the two budgets overlapping under the cgroup limit.
 
-`indices.breaker.native_memory.overhead`
+`breaker.native_memory.overhead`
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) A constant that all native memory estimations are multiplied with to determine a final estimation. Defaults to `1.0`. Unlike heap estimations, native charges are exact byte counts, so no padding is needed.
 
-`indices.breaker.native_memory.type`
+`breaker.native_memory.type`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Determines the type of the native memory breaker. Set to `noop` to deactivate enforcement (the breaker accepts all allocations but still reports usage). Defaults to `memory`.
 
 #### Native memory cgroup backstop [native-memory-cgroup-backstop]
 
 On nodes running inside a Linux cgroup with a memory limit, native memory allocation admission can also be controlled by the following settings. The backstop reads actual cgroup memory usage (including ML native processes, compression libraries, and any other off-heap consumer) and refuses new native memory allocations when usage exceeds a configurable high-watermark. When not running in a container with memory limits, the backstop is inactive.
 
-`indices.breaker.native_memory.cgroup_high_watermark_percent`
+`breaker.native_memory.cgroup_high_watermark_percent`
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) The cgroup memory usage percentage at which new native memory allocations are refused. When usage drops below this value minus 5 percentage points (the hysteresis band), allocations are admitted again. Defaults to `85`. Accepted range: `50`–`99`.
 
-`indices.breaker.native_memory.cgroup_poll_interval`
+`breaker.native_memory.cgroup_poll_interval`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) How often the cgroup memory usage is sampled. Defaults to `5s`. Minimum: `1s`.
 
 

@@ -258,10 +258,10 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
             };
 
             /*
-             * The target interleaving is having the two blockOperations calls racing to acquire permits after they wait on pending operation to
-             * finish.
-             * We cannot deterministically engineer that without instrumenting the implementation, so we stress test it by running the scenario
-             * a `stressTestIterations` times.
+             * The target interleaving is having the two blockOperations calls racing to acquire permits after they wait on pending
+             * operation to finish.
+             * We cannot deterministically engineer that without instrumenting the implementation, so we stress test it by running the
+             * scenario `stressTestIterations` times.
              */
             threadPool.generic().execute(pendingOperation);
             threadPool.generic().execute(blockOperation);

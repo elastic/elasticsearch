@@ -646,8 +646,11 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
                 handleResponse(request.responseSlot, new MultiSearchResponse.Item(null, e));
             }
 
-            private void handleResponse(final int responseSlot, final MultiSearchResponse.Item item) {
-                responses.set(responseSlot, item.isFailure() ? accountFailureItem(breakerAccounting, item) : item);
+            private void handleResponse(final int responseSlot, MultiSearchResponse.Item item) {
+                if (item.isFailure()) {
+                    item = accountFailureItem(breakerAccounting, item);
+                }
+                responses.set(responseSlot, item);
                 if (responseCounter.decrementAndGet() == 0) {
                     assert requests.isEmpty();
                     finish();

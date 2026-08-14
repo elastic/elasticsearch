@@ -94,7 +94,7 @@ On nodes running inside a Linux cgroup with a memory limit, native memory alloca
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) The cgroup memory usage percentage at which new native memory allocations are refused. When usage drops below this value minus 5 percentage points (the hysteresis band), allocations are admitted again. Defaults to `85`. Accepted range: `50`–`99`.
 
 `indices.breaker.native_memory.cgroup_poll_interval`
-:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) How often the cgroup memory usage is sampled. Requires a node restart to change. Defaults to `5s`. Minimum: `1s`.
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) How often the cgroup memory usage is sampled. Defaults to `5s`. Minimum: `1s`.
 
 
 ### In flight requests circuit breaker [in-flight-circuit-breaker]

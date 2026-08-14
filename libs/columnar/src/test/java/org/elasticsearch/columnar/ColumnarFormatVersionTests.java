@@ -26,6 +26,12 @@ public class ColumnarFormatVersionTests extends ESTestCase {
     private static final byte[] SEGMENT_ID = new byte[16];
     private static final String SUFFIX = "";
 
+    public void testOnOrAfter() {
+        assertTrue(FormatVersion.CURRENT.onOrAfter(FormatVersion.BASELINE));
+        assertTrue(FormatVersion.BASELINE.onOrAfter(FormatVersion.BASELINE));
+        assertFalse(FormatVersion.BASELINE.onOrAfter(new FormatVersion(1)));
+    }
+
     public void testTooNewVersionRejected() throws IOException {
         final int futureVersion = FormatVersion.CURRENT.version() + 1;
         try (ByteBuffersDirectory dir = new ByteBuffersDirectory()) {

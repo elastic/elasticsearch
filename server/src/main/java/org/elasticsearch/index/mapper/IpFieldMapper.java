@@ -9,25 +9,38 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.document.column.LongColumn;
+import org.apache.lucene.document.column.ObjectTupleCursor;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.network.CIDRUtils;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.escf.EscfColumn;
+import org.elasticsearch.escf.EscfColumnBuilder;
+import org.elasticsearch.escf.EscfColumnBuilder.CollisionPolicy;
+import org.elasticsearch.escf.EscfColumnKind;
+import org.elasticsearch.escf.EscfColumnTransforms;
+import org.elasticsearch.escf.LuceneBinaryColumn;
+import org.elasticsearch.escf.LuceneLongColumn;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -55,6 +68,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentString;
 
@@ -810,6 +824,220 @@ public class IpFieldMapper extends FieldMapper {
             && copyTo().copyToFields().isEmpty()
             && multiFields().iterator().hasNext() == false
             && fieldType().isDimension() == false;
+    }
+
+    @Override
+    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+        // Columnar support requires strict-columnar mode, binary doc values only (no SortedSet ordinals),
+        // and none of the features that pull in row-path behavior or cannot be expressed as LuceneColumns:
+        // points (no LuceneColumn type carries a points field), store, dimensions, scripts, copy_to,
+        // multi-fields, and legacy index versions.
+        // ignore_malformed is not rejected here: a malformed value throws UnsupportedOperationException in
+        // mapColumnBatch, causing ShardBatchMapper to fall back to the row path for the whole batch.
+        return indexSettings.getMode().isStrictColumnar()
+            && supportsColumnarDocValues()
+            && fieldType().indexType.hasPoints() == false
+            && stored == false
+            && hasScript() == false
+            && copyTo().copyToFields().isEmpty()
+            && multiFields().iterator().hasNext() == false
+            && fieldType().isDimension() == false
+            && indexSettings.getIndexVersionCreated().isLegacyIndexVersion() == false;
+    }
+
+    /**
+     * Returns true when this ip field's doc-values encoding is supported on the columnar batch path.
+     * Accepts both the array-order (multi_value=true, ArrayOrderInlineNull blob + .counts sidecar)
+     * and single-valued binary (multi_value=false) encoding. Other combinations fall back to the row path.
+     */
+    private boolean supportsColumnarDocValues() {
+        if (fieldType().usesBinaryDocValues() == false) {
+            return false;
+        }
+
+        if (fieldType().usesArrayOrderBinaryDocValues()) {
+            return true;
+        }
+
+        // Only support single valued when not ArrayOrderBinaryDocValues
+        return docValuesParameters.multiValue() == false;
+    }
+
+    // TODO: make the batch supply a recycler to wire up recycling instead of NON_RECYCLING_INSTANCE.
+    private static EscfColumnBuilder mergeStringColumn() {
+        EscfColumnBuilder b = new EscfColumnBuilder(CollisionPolicy.MERGE, BytesRefRecycler.NON_RECYCLING_INSTANCE);
+        b.lockScalar(EscfColumnKind.STRING);
+        return b;
+    }
+
+    private static EscfColumnBuilder mergeLongColumn() {
+        EscfColumnBuilder b = new EscfColumnBuilder(CollisionPolicy.MERGE, BytesRefRecycler.NON_RECYCLING_INSTANCE);
+        b.lockScalar(EscfColumnKind.LONG);
+        return b;
+    }
+
+    /**
+     * Encodes a single IP address from its UTF-8 bytesref form to the 16-byte InetAddressPoint sortable format.
+     * Wraps {@link IllegalArgumentException} (malformed IP) in {@link UnsupportedOperationException} so that
+     * {@code ShardBatchMapper} falls back to the row path, which handles {@code ignore_malformed} correctly.
+     */
+    private static BytesRef encodeIp(BytesRef utf8) {
+        try {
+            return new BytesRef(InetAddresses.encodeAsIpv6(utf8.bytes, utf8.offset, utf8.length));
+        } catch (IllegalArgumentException e) {
+            throw new UnsupportedOperationException("mapColumnBatch: malformed IP address [" + utf8.utf8ToString() + "]", e);
+        }
+    }
+
+    @Override
+    public void mapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
+        if (fieldType().hasDocValues() == false) {
+            return;
+        }
+
+        if (fieldType().usesArrayOrderBinaryDocValues()) {
+            mapColumnBatchArrayOrder(ctx, source);
+        } else {
+            mapColumnBatchSingleValue(ctx, source);
+        }
+    }
+
+    private void mapColumnBatchArrayOrder(BatchMappingContext ctx, EscfColumn source) {
+        final int docCount = ctx.docCount();
+        // retainValues=false: each value is encoded and appended to the document blob before the cursor
+        // advances, so no value has to outlive the nextDoc() that moves past it.
+        final ObjectTupleCursor<BytesRef> cursor = EscfColumnTransforms.utf8Cursor(source, false);
+        // TODO: make the batch return these column builders to wire up recycling
+        final EscfColumnBuilder binaryDvs = mergeStringColumn();
+        final EscfColumnBuilder dvCounts = mergeLongColumn();
+        // The 16-byte null-value substitute, or null when no null_value is configured.
+        final BytesRef nullValueEncoded = nullValue != null ? new BytesRef(CIDRUtils.encode(nullValue.getAddress())) : null;
+
+        int currentDoc = -1;
+        // Each document's slots are appended into docBlob as they are read; the finished blob is handed
+        // to binaryDvs.setString, which copies it out immediately, so the buffer is free to be rewritten.
+        final BytesRefBuilder docBlob = new BytesRefBuilder();
+        int pos = 0;
+        int docSlotCount = 0;
+        // True when the current doc has at least one non-null slot; gates binary dv blob emission.
+        boolean hasNonNull = false;
+
+        while (true) {
+            final int nextDoc = cursor.nextDoc();
+            if (nextDoc != currentDoc) {
+                // Flush the completed doc's elements.
+                // All-null docs write counts (matching ArrayOrderInlineNull.recordNull) but no blob.
+                if (docSlotCount > 0) {
+                    dvCounts.setLong(currentDoc, docSlotCount);
+                    if (hasNonNull) {
+                        // All IP values are exactly InetAddressPoint.BYTES (16) bytes, so a single non-null
+                        // slot is stored raw (no length prefix). Drop the prefix by starting after it.
+                        final int length = docSlotCount == 1 ? InetAddressPoint.BYTES : pos;
+                        binaryDvs.setString(currentDoc, docBlob.bytes(), pos - length, length);
+                    }
+                    pos = 0;
+                    docSlotCount = 0;
+                    hasNonNull = false;
+                }
+                if (nextDoc == DocIdSetIterator.NO_MORE_DOCS) {
+                    break;
+                }
+                currentDoc = nextDoc;
+            }
+
+            BytesRef utf8Value = cursor.value();
+
+            // Explicit JSON null: apply null_value substitution if configured; otherwise record a
+            // null doc-values slot (no ignore check), mirroring the row-path's
+            // ArrayOrderInlineNull.recordNull for an absent value with no null_value.
+            if (utf8Value == null) {
+                if (nullValueEncoded != null) {
+                    pos = MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.appendSlot(docBlob, pos, nullValueEncoded);
+                    docSlotCount++;
+                    hasNonNull = true;
+                } else {
+                    pos = MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.appendSlot(docBlob, pos, null);
+                    docSlotCount++;
+                    // hasNonNull stays false: null slots do not produce a binary dv blob.
+                }
+                continue;
+            }
+
+            // encodeIp throws UnsupportedOperationException on malformed input, which makes
+            // ShardBatchMapper fall back to the row path for the whole batch.
+            final BytesRef encoded = encodeIp(utf8Value);
+            pos = MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.appendSlot(docBlob, pos, encoded);
+            docSlotCount++;
+            hasNonNull = true;
+        }
+
+        // Attach output columns. Binary-dv blob and counts are each emitted independently.
+        // All-null docs emit counts but no binary blob, so binaryDvs and dvCounts are decoupled.
+        if (binaryDvs.isEmpty() == false) {
+            ctx.addColumn(LuceneBinaryColumn.of(binaryDvs.finish(docCount), fieldType().name(), CustomDocValuesField.TYPE));
+        }
+        if (dvCounts.isEmpty() == false) {
+            ctx.addColumn(
+                LuceneLongColumn.of(
+                    dvCounts.finish(docCount),
+                    fieldType().name() + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX,
+                    MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_TYPE,
+                    LongColumn.NumericKind.LONG
+                )
+            );
+        }
+    }
+
+    private void mapColumnBatchSingleValue(BatchMappingContext ctx, EscfColumn source) {
+        final int docCount = ctx.docCount();
+        // retainValues=false: every value is consumed within one loop iteration, before the cursor advances.
+        final ObjectTupleCursor<BytesRef> cursor = EscfColumnTransforms.utf8Cursor(source, false);
+        // IP always re-encodes (no zero-copy shortcut), so the values builder is unconditional.
+        final EscfColumnBuilder values = mergeStringColumn();
+        // The 16-byte null-value substitute, or null when no null_value is configured.
+        final BytesRef nullValueEncoded = nullValue != null ? new BytesRef(CIDRUtils.encode(nullValue.getAddress())) : null;
+
+        int currentDoc = -1;
+        boolean valueSeenThisDoc = false;
+        while (true) {
+            final int nextDoc = cursor.nextDoc();
+            if (nextDoc == DocIdSetIterator.NO_MORE_DOCS) {
+                break;
+            }
+            if (nextDoc != currentDoc) {
+                currentDoc = nextDoc;
+                valueSeenThisDoc = false;
+            }
+            BytesRef utf8Value = cursor.value();
+            if (utf8Value == null) {
+                if (nullValueEncoded != null) {
+                    // substitute, fall through to normal processing
+                    values.setString(currentDoc, nullValueEncoded);
+                    valueSeenThisDoc = true;
+                }
+                // else null without null_value -> absent (row-path parity)
+                continue;
+            }
+
+            if (valueSeenThisDoc) {
+                // multi_value=false violation: bail so ShardBatchMapper falls back to the row path,
+                // which raises the correct per-doc error (on_failure=FAIL).
+                throw new UnsupportedOperationException(
+                    "mapColumnBatch: multi_value=false field [" + fullPath() + "] has more than one value for doc [" + currentDoc + "]"
+                );
+            }
+            valueSeenThisDoc = true;
+
+            // encodeIp throws UnsupportedOperationException on malformed input, which makes
+            // ShardBatchMapper fall back to the row path for the whole batch.
+            values.setString(currentDoc, encodeIp(utf8Value));
+        }
+
+        // Emit a single plain BinaryDocValuesField column (no .counts sidecar), matching
+        // DocValuesFieldFactory.addBinaryField's isSingleValued() branch.
+        if (values.isEmpty() == false) {
+            ctx.addColumn(LuceneBinaryColumn.of(values.finish(docCount), fieldType().name(), BinaryDocValuesField.TYPE));
+        }
     }
 
     @Override

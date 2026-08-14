@@ -59,10 +59,27 @@ public class InetAddresses {
      */
     public static byte[] encodeAsIpv6(XContentString ipString) {
         XContentString.UTF8Bytes uft8Bytes = ipString.bytes();
-        byte[] address = ipStringToBytes(uft8Bytes.bytes(), uft8Bytes.offset(), uft8Bytes.length(), true);
+        return encodeAsIpv6(uft8Bytes.bytes(), uft8Bytes.offset(), uft8Bytes.length());
+    }
+
+    /**
+     * Encodes a UTF-8 IP address string (given as a byte slice) in 16-byte binary encoding, always
+     * using 16 bytes for both IPv4 and IPv6 addresses. This is how Lucene encodes IP addresses in
+     * {@link org.apache.lucene.document.InetAddressPoint}.
+     *
+     * @param ipUtf8  the IP address as a UTF-8 byte array
+     * @param offset  start index in {@code ipUtf8}
+     * @param length  number of bytes
+     * @return a byte array containing the 16-byte binary representation of the IP address
+     * @throws IllegalArgumentException if the slice does not contain a valid IP string literal
+     */
+    public static byte[] encodeAsIpv6(byte[] ipUtf8, int offset, int length) {
+        byte[] address = ipStringToBytes(ipUtf8, offset, length, true);
         // The argument was malformed, i.e. not an IP string literal.
         if (address == null) {
-            throw new IllegalArgumentException(String.format(Locale.ROOT, "'%s' is not an IP string literal.", ipString.string()));
+            throw new IllegalArgumentException(
+                String.format(Locale.ROOT, "'%s' is not an IP string literal.", new String(ipUtf8, offset, length, StandardCharsets.UTF_8))
+            );
         }
         return address;
     }

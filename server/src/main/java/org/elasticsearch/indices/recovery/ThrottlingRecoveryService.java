@@ -12,6 +12,7 @@ package org.elasticsearch.indices.recovery;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -23,20 +24,21 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.gateway.PriorityComparator;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Deque;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
@@ -77,7 +79,13 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
 
     private int maxConcurrentRecoveries;
     private int runningRecoveries = 0;
-    private final Deque<PendingRecovery> pendingRecoveries = new ArrayDeque<>();
+
+    private static final Comparator<PendingRecovery> RECOVERY_ORDERING =
+        // Order first by the recovery priority in the recovery state, then by using PriorityComparator on the index metadata:
+        // (If there are multiple queue entries with the same recovery priority for the same index, execution order will be arbirary.)
+        Comparator.<PendingRecovery, Integer>comparing(recovery -> recovery.recoveryState().getRecoveryPriority().ordinal())
+            .thenComparing(PendingRecovery::indexMetadata, PriorityComparator.getIndexMetadataComparator());
+    private final PriorityQueue<PendingRecovery> pendingRecoveries = new PriorityQueue<>(RECOVERY_ORDERING);
 
     /// Records allocation IDs that have been directly cancelled by the master, including those for recoveries that have
     /// already started (i.e. are not in [#pendingRecoveries]).
@@ -112,6 +120,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         ProjectId projectId,
         RecoveryListener recoveryListener,
         RecoveryState recoveryState,
+        IndexMetadata indexMetadata,
         String allocationId,
         RecoveryStats stats,
         Consumer<RecoveryListener> task
@@ -128,7 +137,10 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
                     : "mismatch between cached cancellation [" + cancelled + "] and enqueue recovery: [" + recoveryState + "]";
                 pendingRecovery = null;
             } else {
-                pendingRecovery = new PendingRecovery(recoveryState, allocationId, stats, task, recoveryListener, context);
+                pendingRecovery = new PendingRecovery(recoveryState, indexMetadata, allocationId, stats, task, recoveryListener, context);
+                // Note that the PendingRecovery captures the IndexMetadata that was passed in when the recovery was enqueued, so it does
+                // not respond to changes in index.priority and reorder the queue. If we wanted that, we would need to maintain a collection
+                // of listeners (see IndexService.addMetadataListener) which are mapped to the queued entries, and remove and re-add them.
                 pendingRecoveries.add(pendingRecovery);
                 stats.targetRecoveryQueued(recoveryState.getRecoverySource().getType());
             }
@@ -422,6 +434,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
     /// at dispatch time, such that aborting a queued-but-never-dispatched task does not decrement a slot that was never taken.
     private record PendingRecovery(
         RecoveryState recoveryState,
+        IndexMetadata indexMetadata,
         String allocationId,
         RecoveryStats stats,
         Consumer<RecoveryListener> task,

@@ -537,6 +537,85 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
         }
     }
 
+    /**
+     * Verifies {@code InternalHeaderReader} re-materialization: ranged reads over header regions are byte-identical to the uploaded blob,
+     * sub-ranges mid-header are correct, and a blob reassembled from chunked reads
+     * round-trips through {@code deserializeBatchedCompoundCommit}.
+     */
+    public void testHeaderBytesAreRematerializedConsistently() throws Exception {
+        var primaryTerm = 1;
+        try (var fakeNode = createFakeNode(primaryTerm)) {
+            var commits = fakeNode.generateIndexCommits(randomIntBetween(2, 4));
+            var virtualBatchedCompoundCommit = new VirtualBatchedCompoundCommit(
+                fakeNode.shardId,
+                "node-id",
+                primaryTerm,
+                commits.getFirst().getGeneration(),
+                (fileName) -> {
+                    throw new AssertionError("Unexpected call");
+                },
+                ESTestCase::randomNonNegativeLong,
+                fakeNode.sharedCacheService.getRegionSize(),
+                randomIntBetween(0, fakeNode.sharedCacheService.getRegionSize())
+            );
+            for (StatelessCommitRef statelessCommitRef : commits) {
+                assertTrue(virtualBatchedCompoundCommit.appendCommit(statelessCommitRef, randomBoolean(), null));
+            }
+            virtualBatchedCompoundCommit.freeze();
+
+            try (BytesStreamOutput output = new BytesStreamOutput()) {
+                try (var frozenInputStream = virtualBatchedCompoundCommit.getFrozenInputStreamForUpload()) {
+                    Streams.copy(frozenInputStream, output, false);
+                }
+                var serializedBatchedCompoundCommit = output.bytes();
+
+                // Reassemble the whole blob from ranged reads of random sizes, as a search node's chunk requests would
+                try (BytesStreamOutput reassembled = new BytesStreamOutput()) {
+                    long offset = 0;
+                    while (offset < serializedBatchedCompoundCommit.length()) {
+                        long chunkSize = Math.min(randomLongBetween(1, 128 * 1024), serializedBatchedCompoundCommit.length() - offset);
+                        virtualBatchedCompoundCommit.getBytesByRange(offset, chunkSize, reassembled);
+                        offset += chunkSize;
+                    }
+                    assertArrayEquals(BytesReference.toBytes(serializedBatchedCompoundCommit), BytesReference.toBytes(reassembled.bytes()));
+                    assertEquals(
+                        virtualBatchedCompoundCommit.getFrozenBatchedCompoundCommit(),
+                        deserializeBatchedCompoundCommit(virtualBatchedCompoundCommit.getBlobName(), reassembled)
+                    );
+                }
+
+                long ccOffset = 0;
+                for (var pendingCompoundCommit : virtualBatchedCompoundCommit.getPendingCompoundCommits()) {
+                    long headerSize = VirtualBatchedCompoundCommitTestUtils.getHeaderSize(pendingCompoundCommit);
+                    byte[] expectedHeader = BytesReference.toBytes(
+                        serializedBatchedCompoundCommit.slice(Math.toIntExact(ccOffset), Math.toIntExact(headerSize))
+                    );
+                    int readCount = randomIntBetween(2, 4);
+                    for (int i = 0; i < readCount; i++) {
+                        try (BytesStreamOutput headerOutput = new BytesStreamOutput()) {
+                            virtualBatchedCompoundCommit.getBytesByRange(ccOffset, headerSize, headerOutput);
+                            assertArrayEquals(expectedHeader, BytesReference.toBytes(headerOutput.bytes()));
+                        }
+                    }
+
+                    long subOffset = randomLongBetween(0, headerSize - 1);
+                    long subLength = randomLongBetween(0, headerSize - subOffset);
+                    try (BytesStreamOutput subRangeOutput = new BytesStreamOutput()) {
+                        virtualBatchedCompoundCommit.getBytesByRange(ccOffset + subOffset, subLength, subRangeOutput);
+                        assertArrayEquals(
+                            BytesReference.toBytes(
+                                serializedBatchedCompoundCommit.slice(Math.toIntExact(ccOffset + subOffset), Math.toIntExact(subLength))
+                            ),
+                            BytesReference.toBytes(subRangeOutput.bytes())
+                        );
+                    }
+                    ccOffset += pendingCompoundCommit.getSizeInBytes();
+                }
+            }
+            virtualBatchedCompoundCommit.close();
+        }
+    }
+
     public static BatchedCompoundCommit deserializeBatchedCompoundCommit(String blobName, BytesStreamOutput output) throws IOException {
         if (randomBoolean()) {
             return BatchedCompoundCommit.readFromStore(

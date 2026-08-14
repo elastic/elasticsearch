@@ -30,6 +30,15 @@ public class NativeMemoryCapacity {
 
     static final NativeMemoryCapacity ZERO = new NativeMemoryCapacity(0L, 0L);
 
+    /**
+     * Upper bound on any node or tier memory size we emit as an autoscaling capacity. As of
+     * 2026-08-14, Cloud cannot handle Long.MAX_VALUE and will convert it to 2^63, which cannot
+     * be converted back into a Long. Long.MAX_VALUE / 2 is big enough to represent a number
+     * that is not a feasible memory amount, and matches how this class already treats an
+     * "unlimited" input in {@link #autoscalingCapacity}.
+     */
+    static final long MAX_AUTOSCALING_CAPACITY_BYTES = Long.MAX_VALUE / 2;
+
     private static final Logger logger = LogManager.getLogger(NativeMemoryCapacity.class);
 
     private final long tierMlNativeMemoryRequirementExcludingOverhead;
@@ -203,8 +212,11 @@ public class NativeMemoryCapacity {
             useAuto
         );
 
-        // We make the assumption all nodes in the tier will be identical.
-        long requiredTierSize = tierBasedRequiredNodeSize * numNodesPerZone * Math.max(1, numMlAvailabilityZones);
+        // We make the assumption all nodes in the tier will be identical. The multiplication is
+        // saturating: when a requirement cannot be satisfied (e.g. a model larger than the largest
+        // possible ML node) the node count can be huge, and an overflowed tier size would be
+        // emitted as a value Cloud cannot deserialize (see MAX_AUTOSCALING_CAPACITY_BYTES).
+        long requiredTierSize = saturatedMultiply(tierBasedRequiredNodeSize, numNodesPerZone, Math.max(1, numMlAvailabilityZones));
         if (nodeMlNativeMemoryRequirementExcludingOverhead > mlNativeMemoryForLargestMlNodeExcludingOverhead) {
             // This could happen if a cluster was migrated from one Cloud provider to another with smaller
             // maximum node size, and a job existed that only just fitted in the original cluster.
@@ -220,11 +232,27 @@ public class NativeMemoryCapacity {
             assert requiredTierSize >= requiredNodeSize : "Tier should always be AT LEAST the largest node size";
         }
         // The assertion above should hold, but the Math.max below catches the case with inconsistent
-        // inputs plus any bugs that weren't caught in tests.
+        // inputs plus any bugs that weren't caught in tests. Both sizes are additionally capped to
+        // MAX_AUTOSCALING_CAPACITY_BYTES so that an unsatisfiable requirement can never emit a
+        // capacity that overflows Cloud's deserialization of the value.
         return MlMemoryAutoscalingCapacity.builder(
-            ByteSizeValue.ofBytes(requiredNodeSize),
-            ByteSizeValue.ofBytes(Math.max(requiredTierSize, requiredNodeSize))
+            ByteSizeValue.ofBytes(Math.min(requiredNodeSize, MAX_AUTOSCALING_CAPACITY_BYTES)),
+            ByteSizeValue.ofBytes(Math.min(Math.max(requiredTierSize, requiredNodeSize), MAX_AUTOSCALING_CAPACITY_BYTES))
         );
+    }
+
+    /**
+     * Multiplies {@code nodeSize} by the node count ({@code numNodesPerZone * numZones}), returning
+     * {@link #MAX_AUTOSCALING_CAPACITY_BYTES} instead of overflowing. A value of {@code 2^63} or more
+     * cannot be read back as a {@code long} by Cloud and corrupts the autoscaling entity, so an
+     * unsatisfiable requirement must saturate rather than wrap.
+     */
+    private static long saturatedMultiply(long nodeSize, int numNodesPerZone, int numZones) {
+        try {
+            return Math.multiplyExact(Math.multiplyExact(nodeSize, numNodesPerZone), numZones);
+        } catch (ArithmeticException e) {
+            return MAX_AUTOSCALING_CAPACITY_BYTES;
+        }
     }
 
     public long getTierMlNativeMemoryRequirementExcludingOverhead() {

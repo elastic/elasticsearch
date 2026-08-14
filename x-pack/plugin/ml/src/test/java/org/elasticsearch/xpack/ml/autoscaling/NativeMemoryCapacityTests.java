@@ -17,6 +17,8 @@ import static org.elasticsearch.xpack.ml.MachineLearning.NATIVE_EXECUTABLE_CODE_
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class NativeMemoryCapacityTests extends ESTestCase {
@@ -506,6 +508,41 @@ public class NativeMemoryCapacityTests extends ESTestCase {
             // (The 1 byte discrepancy comes from the fact there are 3 nodes and 3 didn't divide exactly into the amount
             // of memory we needed, so each node gets a fraction of a byte extra to take it up to a whole number size)
             assertThat(autoscalingCapacity.tierSize().getBytes(), equalTo(202794598401L));
+        }
+    }
+
+    /**
+     * When a requirement cannot be satisfied by the largest possible
+     * ML node (here a huge per-node/tier requirement against a small "largest node"), the capacity
+     * computation could overflow and emit a node/tier memory at or near {@link Long#MAX_VALUE}. Cloud
+     * serialises the capacity as a JSON number and reads it back as a {@code long} through a
+     * {@code double}, so a value of {@code 2^63} or more is rejected as out of range and corrupts the
+     * persisted autoscaling entity, blocking all autoscaling. The emitted sizes must therefore stay at
+     * or below {@link NativeMemoryCapacity#MAX_AUTOSCALING_CAPACITY_BYTES}, whose nearest double is
+     * still below {@code 2^63}.
+     */
+    public void testAutoscalingCapacityDoesNotOverflowSerialization() {
+        // Per-node and tier requirements far larger than the largest node the cluster is allowed to
+        // grow to (the 2GB "largest ML node" simulates a small xpack.ml.max_ml_node_size). Without the
+        // output cap the node-size calculation saturates to Long.MAX_VALUE and the tier multiply overflows.
+        NativeMemoryCapacity unsatisfiable = new NativeMemoryCapacity(Long.MAX_VALUE / 4, Long.MAX_VALUE / 4);
+
+        for (int numMlAvailabilityZones : new int[] { 1, 2, 3 }) {
+            MlMemoryAutoscalingCapacity autoscalingCapacity = unsatisfiable.autoscalingCapacity(
+                5,
+                false,
+                ByteSizeValue.ofGb(2).getBytes(),
+                numMlAvailabilityZones
+            ).build();
+
+            assertThat(autoscalingCapacity.nodeSize().getBytes(), lessThanOrEqualTo(NativeMemoryCapacity.MAX_AUTOSCALING_CAPACITY_BYTES));
+            assertThat(autoscalingCapacity.tierSize().getBytes(), lessThanOrEqualTo(NativeMemoryCapacity.MAX_AUTOSCALING_CAPACITY_BYTES));
+            // The emitted value must survive Cloud's long -> double -> long round-trip, i.e. its nearest
+            // double stays strictly below 2^63 = (double) Long.MAX_VALUE.
+            assertThat((double) autoscalingCapacity.nodeSize().getBytes(), lessThan((double) Long.MAX_VALUE));
+            assertThat((double) autoscalingCapacity.tierSize().getBytes(), lessThan((double) Long.MAX_VALUE));
+            // The tier is still at least as big as a single node.
+            assertThat(autoscalingCapacity.tierSize().getBytes(), greaterThanOrEqualTo(autoscalingCapacity.nodeSize().getBytes()));
         }
     }
 

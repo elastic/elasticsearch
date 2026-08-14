@@ -196,8 +196,14 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
      */
     public void testPointInTimeRelocationManyPits() throws Exception {
         assumeTrue("Requires pit relocation feature flag", PIT_RELOCATION_FEATURE_FLAG.isEnabled());
-        startMasterAndIndexNode(nodeSettings);
-        var searchNodeA = startSearchNode(nodeSettings);
+        // This test intentionally opens thousands of PITs across many shards; bypass the per-node
+        // open-context cap which would otherwise trip before all PITs are created.
+        var testNodeSettings = Settings.builder()
+            .put(nodeSettings)
+            .put(SearchService.MAX_OPEN_CONTEXTS.getKey(), Integer.MAX_VALUE)
+            .build();
+        startMasterAndIndexNode(testNodeSettings);
+        var searchNodeA = startSearchNode(testNodeSettings);
 
         var indexName = randomIdentifier();
         int numberOfShards = 6;
@@ -242,7 +248,7 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
         assertResponse(prepareSearch(), resp -> { assertHitCount(resp, numDocs_pit2 + additionalDocs); });
         SearchService searchService1 = internalCluster().getInstance(SearchService.class, searchNodeA);
 
-        var searchNodeB = startSearchNode(nodeSettings);
+        var searchNodeB = startSearchNode(testNodeSettings);
 
         SearchService searchService2 = internalCluster().getInstance(SearchService.class, searchNodeB);
         logger.info("Current search node: " + searchNodeA);

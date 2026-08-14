@@ -2,7 +2,7 @@
 navigation_title: "Cluster settings"
 description: "Reference for ES|QL Data Federation cluster settings. Tune object limits, control request concurrency, and adjust file discovery and caching."
 applies_to:
-  stack: experimental =9.5
+  stack: experimental 9.5+
   serverless: unavailable
 products:
   - id: elasticsearch
@@ -13,6 +13,10 @@ products:
 The data sources feature adds the following cluster settings. For general guidance on how to apply cluster settings across deployment types, refer to [configure Elasticsearch](docs-content://deploy-manage/stack-settings.md).
 
 The object-count limits and authentication gates are operator-managed and take effect without a restart. The remaining settings require a node restart.
+
+:::{note}
+The tables on this page use the setting names from 9.5. In 9.6 and later, the external-dataset settings are unified under the `esql.external.*` prefix. Each affected section below has a **Setting names in 9.6 and later** dropdown with the current names and any backwards-compatibility notes.
+:::
 
 ## Object limits
 
@@ -31,7 +35,17 @@ These settings control how many concurrent requests each node sends to external 
 |---|---|---|
 | `esql.external.max_concurrent_requests` | `allocated processors * 3`, minimum 16 and maximum 100 | Maximum concurrent cloud API requests per storage scheme, per node. `0` removes the limit. Range 0–500. |
 | `esql.external.throttle_max_retry_duration` | 30 | Maximum total time, in seconds, spent retrying throttled cloud API requests before failing the query. `0` removes the budget. Range 0–300 seconds. |
+| `esql.external.max_concurrent_segmentators` | `0` | Maximum number of file segmentation tasks that run concurrently. `0` derives the value automatically. Range 0–4096. |
+
+::::{dropdown} Setting names in 9.6 and later
+:applies_to: stack: experimental 9.6+
+
+The segmenters key was renamed in 9.6. The 9.5 key is no longer registered; a node that still sets `esql.external.max_concurrent_segmentators` in `elasticsearch.yml` will fail to start.
+
+| Setting | Default | Description |
+|---|---|---|
 | `esql.external.max_concurrent_segmenters` | `0` | Maximum number of file segmentation tasks that run concurrently. `0` derives the value automatically. Range 0–4096. |
+::::
 
 ## Glob and file-discovery limits
 
@@ -48,8 +62,19 @@ These settings control which authentication modes data sources can use.
 
 | Setting | Default | Description |
 |---|---|---|
+| `esql.datasource.managed_identity.enabled` | false | Enables `auth: "managed_identity"` (the node's own cloud identity through the instance metadata service (IMDS)). Operator-only. Intended for single-cloud, single-tenant deployments. Never enable in serverless or multi-tenant clusters. Refer to the managed identity row in [authentication models](esql-data-federation-sources.md#authentication) for guidance. |
+| `esql.datasource.federated_identity.enabled` | false | Enables `auth: "federated_identity"` (OIDC-to-STS token exchange). Operator-only. Available on {{ech}} and {{serverless-short}}; not available on self-managed, {{ece}}, or {{eck}}. For setup details, refer to [connect with federated identity](esql-data-federation-federated-identity.md). |
+
+::::{dropdown} Setting names in 9.6 and later
+:applies_to: stack: experimental 9.6+
+
+Both gates moved from the `esql.datasource.` prefix to `esql.external.` in 9.6. The 9.5 keys are no longer registered; a node that still sets them in `elasticsearch.yml` will fail to start.
+
+| Setting | Default | Description |
+|---|---|---|
 | `esql.external.managed_identity.enabled` | false | Enables `auth: "managed_identity"` (the node's own cloud identity through the instance metadata service (IMDS)). Operator-only. Intended for single-cloud, single-tenant deployments. Never enable in serverless or multi-tenant clusters. Refer to the managed identity row in [authentication models](esql-data-federation-sources.md#authentication) for guidance. |
 | `esql.external.federated_identity.enabled` | false | Enables `auth: "federated_identity"` (OIDC-to-STS token exchange). Operator-only. Available on {{ech}} and {{serverless-short}}; not available on self-managed, {{ece}}, or {{eck}}. For setup details, refer to [connect with federated identity](esql-data-federation-federated-identity.md). |
+::::
 
 
 ## Caching
@@ -58,8 +83,21 @@ These settings control the external-source cache, which stores inferred schemas 
 
 | Setting | Default | Description |
 |---|---|---|
+| `esql.source.cache.enabled` | true | Enables the external-source cache (inferred schemas and file listings). [Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting). |
+| `esql.source.cache.size` | 0.4% of heap | Memory budget for the cache. Applied at node startup only. |
+| `esql.source.cache.schema.ttl` | — | Deprecated and ignored. Inferred schemas are invalidated by file identity and bounded by `esql.source.cache.size`, not by a TTL. |
+| `esql.source.cache.listing.ttl` | 30s | How long a file-listing result is cached. Applied at node startup only. |
+
+::::{dropdown} Setting names in 9.6 and later
+:applies_to: stack: experimental 9.6+
+
+The cache settings moved from the `esql.source.cache.` prefix to `esql.external.cache.` in 9.6. The 9.5 keys (`esql.source.cache.enabled`, `esql.source.cache.size`, `esql.source.cache.listing.ttl`) are still accepted as deprecated fallbacks in 9.6 and emit a deprecation warning; they can be set in `elasticsearch.yml` but not updated dynamically through the cluster settings API. Use the 9.6 keys for all new configuration.
+
+| Setting | Default | Description |
+|---|---|---|
 | `esql.external.cache.enabled` | true | Enables the external-source cache (inferred schemas and file listings). [Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting). |
 | `esql.external.cache.size` | 0.4% of heap | Memory budget for the cache. Applied at node startup only. |
 | `esql.source.cache.schema.ttl` | — | Deprecated and ignored. Inferred schemas are invalidated by file identity and bounded by `esql.external.cache.size`, not by a TTL. |
 | `esql.external.cache.listing.ttl` | 30s | How long a file-listing result is cached. Applied at node startup only. |
+::::
 

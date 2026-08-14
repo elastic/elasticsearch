@@ -81,6 +81,57 @@ public class HealthInfoCacheTests extends ESTestCase {
         assertThat(healthInfoCache.getHealthInfo().dslHealthInfo(), is(latestDslHealthInfo));
     }
 
+    public void testFileSettingsHealthInfoOnlyAcceptedFromMaster() {
+        HealthInfoCache healthInfoCache = HealthInfoCache.create(clusterService);
+        // node1 is local node, master, and health node
+        ClusterState state = ClusterStateCreationUtils.state(node1, node1, node1, allNodes);
+        healthInfoCache.clusterChanged(new ClusterChangedEvent("test", state, state));
+
+        var failing = new FileSettingsHealthInfo(true, 1L, 1, "some error");
+        var green = FileSettingsHealthInfo.INITIAL_ACTIVE.successful();
+
+        // update from master (node1) is accepted
+        healthInfoCache.updateNodeHealth(node1.getId(), GREEN, null, null, failing);
+        assertThat(healthInfoCache.getHealthInfo().fileSettingsHealthInfo(), equalTo(failing));
+
+        // update from non-master (node2) is rejected
+        healthInfoCache.updateNodeHealth(node2.getId(), RED, null, null, green);
+        assertThat(healthInfoCache.getHealthInfo().fileSettingsHealthInfo(), equalTo(failing));
+    }
+
+    public void testStaleFileSettingsHealthInfoRejectedAfterMasterChange() {
+        HealthInfoCache healthInfoCache = HealthInfoCache.create(clusterService);
+        // node1 is local/health node, node2 is master
+        ClusterState withNode2AsMaster = ClusterStateCreationUtils.state(node1, node2, node1, allNodes);
+        healthInfoCache.clusterChanged(new ClusterChangedEvent("test", withNode2AsMaster, withNode2AsMaster));
+
+        var failing = new FileSettingsHealthInfo(true, 1L, 1, "some error");
+        // old master (node2) publishes a failure
+        healthInfoCache.updateNodeHealth(node2.getId(), RED, null, null, failing);
+        assertThat(healthInfoCache.getHealthInfo().fileSettingsHealthInfo(), equalTo(failing));
+
+        // master election in progress (no master): old value is preserved and old master's late arrivals are still accepted
+        ClusterState noMaster = ClusterStateCreationUtils.state(node1, null, node1, allNodes);
+        healthInfoCache.clusterChanged(new ClusterChangedEvent("test", noMaster, withNode2AsMaster));
+        assertThat(healthInfoCache.getHealthInfo().fileSettingsHealthInfo(), equalTo(failing));
+        healthInfoCache.updateNodeHealth(node2.getId(), RED, null, null, failing);
+        assertThat(healthInfoCache.getHealthInfo().fileSettingsHealthInfo(), equalTo(failing));
+
+        // new master (node1) elected: old value is kept until new master reports
+        ClusterState withNode1AsMaster = ClusterStateCreationUtils.state(node1, node1, node1, allNodes);
+        healthInfoCache.clusterChanged(new ClusterChangedEvent("test", withNode1AsMaster, noMaster));
+        assertThat(healthInfoCache.getHealthInfo().fileSettingsHealthInfo(), equalTo(failing));
+
+        // delayed update from old master (node2) is rejected; old value is still kept
+        healthInfoCache.updateNodeHealth(node2.getId(), RED, null, null, failing);
+        assertThat(healthInfoCache.getHealthInfo().fileSettingsHealthInfo(), equalTo(failing));
+
+        // new master (node1) publishes green — accepted
+        var green = FileSettingsHealthInfo.INITIAL_ACTIVE.successful();
+        healthInfoCache.updateNodeHealth(node1.getId(), GREEN, null, null, green);
+        assertThat(healthInfoCache.getHealthInfo().fileSettingsHealthInfo(), equalTo(green));
+    }
+
     public void testNotAHealthNode() {
         HealthInfoCache healthInfoCache = HealthInfoCache.create(clusterService);
         healthInfoCache.updateNodeHealth(
@@ -102,4 +153,5 @@ public class HealthInfoCacheTests extends ESTestCase {
         Map<String, RepositoriesHealthInfo> repoHealthInfo = healthInfoCache.getHealthInfo().repositoriesInfoByNode();
         assertThat(repoHealthInfo.isEmpty(), equalTo(true));
     }
+
 }

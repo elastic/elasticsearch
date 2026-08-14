@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
@@ -18,6 +17,7 @@ import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
@@ -312,19 +312,20 @@ public class FieldExtractFusionInventoryTests extends AbstractLocalPhysicalPlanO
 
         // A node's forEachExpressionDown only walks that node's own expressions, so descend the physical
         // tree first and inspect each node's expressions (the same idiom PushExpressionsToFieldLoadTests uses).
-        Set<String> fused = new HashSet<>();
+        Set<NameId> fused = new HashSet<>();
         Map<Fusion, Integer> fallbackByReason = new EnumMap<>(Fusion.class);
         Set<FieldExtract> seen = Collections.newSetFromMap(new IdentityHashMap<>());
 
         plan.forEachDown(PhysicalPlan.class, node -> {
             // Fused loads are synthetic FieldAttributes backed by a FunctionEsField for the flattened
             // sub-field extraction. The same attribute is referenced from several nodes (Eval,
-            // FieldExtractExec, Project), so dedup by the synthetic name, which is unique per (root, key).
+            // FieldExtractExec, Project), so dedup by NameId: it is stable per logical attribute, avoiding
+            // both instance double-counting and the name collisions a plain name set would silently collapse.
             node.forEachExpressionDown(FieldAttribute.class, fa -> {
                 if (fa.field() instanceof FunctionEsField fe
                     && fe.functionConfig() != null
                     && fe.functionConfig().function() == BlockLoaderFunctionConfig.Function.EXTRACT_FLATTENED_SUBFIELD) {
-                    fused.add(fa.name());
+                    fused.add(fa.id());
                 }
             });
             // Fallback loads are surviving FieldExtract expressions. Dedup by node identity so a call is
@@ -356,7 +357,9 @@ public class FieldExtractFusionInventoryTests extends AbstractLocalPhysicalPlanO
         if (fuse.field().field() instanceof UnionTypeEsField) {
             return Fusion.UNION_TYPE;
         }
-        if (stats.supportsLoaderConfig(fuse.field().fieldName(), fuse.config(), MappedFieldType.FieldExtractPreference.NONE) == false) {
+        // Mirror PushExpressionsToFieldLoad, which passes the configured pragma preference (not a hardcoded NONE),
+        // so the audit stays aligned if the default field-extract preference ever changes.
+        if (stats.supportsLoaderConfig(fuse.field().fieldName(), fuse.config(), config.pragmas().fieldExtractPreference()) == false) {
             return Fusion.UNSUPPORTED_LOADER_CONFIG;
         }
         return Fusion.ABOVE_JOIN_OR_MULTISOURCE;

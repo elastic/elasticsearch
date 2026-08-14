@@ -64,8 +64,7 @@ public class StGeohexTests extends SpatialGridFunctionTestCase {
             return StGeohex.unboundedGrid.calculateGridId(point, precision);
         }
         try {
-            long[] cells = StGeohex.computeGeohexCells(wkb, precision, null);
-            return SpatialGridFunction.foldMultiValue(cells);
+            return SpatialGridFunction.foldMultiValue(StGeohex.computeGeohexCells(wkb, precision, null));
         } catch (IOException e) {
             throw new IllegalArgumentException("Failed to compute geohex for geo_shape", e);
         }
@@ -79,8 +78,7 @@ public class StGeohexTests extends SpatialGridFunctionTestCase {
             return gridId < 0 ? null : gridId;
         }
         try {
-            long[] cells = StGeohex.computeGeohexCells(wkb, precision, bbox);
-            return SpatialGridFunction.foldMultiValue(cells);
+            return SpatialGridFunction.foldMultiValue(StGeohex.computeGeohexCells(wkb, precision, bbox));
         } catch (IOException e) {
             throw new IllegalArgumentException("Failed to compute geohex for geo_shape", e);
         }

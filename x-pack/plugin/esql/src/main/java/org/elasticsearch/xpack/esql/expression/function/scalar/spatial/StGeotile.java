@@ -244,8 +244,7 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper, A
                 if (geometry instanceof Point point) {
                     return unboundedGrid.calculateGridId(point, precision);
                 }
-                long[] cells = computeGeotileCells(wkb, precision, null);
-                return foldMultiValue(cells);
+                return foldMultiValue(computeGeotileCells(wkb, precision, null));
             } else {
                 Object boundsValue = bounds().fold(ctx);
                 if (boundsValue == null) {
@@ -258,8 +257,7 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper, A
                     long gridId = bounds.calculateGridId(point);
                     return gridId < 0 ? null : gridId;
                 }
-                long[] cells = computeGeotileCells(wkb, precision, bbox);
-                return foldMultiValue(cells);
+                return foldMultiValue(computeGeotileCells(wkb, precision, bbox));
             }
         } catch (IOException e) {
             throw new IllegalArgumentException("Failed to compute geotile for geo_shape", e);
@@ -325,13 +323,13 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper, A
      * are adapted from {@code GeoTileGridTiler.setValues} in the spatial module.
      * Both thresholds should be reviewed together if either is changed.
      */
-    static long[] computeGeotileCells(BytesRef wkb, int precision, GeoBoundingBox bbox) throws IOException {
+    static List<Long> computeGeotileCells(BytesRef wkb, int precision, GeoBoundingBox bbox) throws IOException {
         GeoShapeDocValues shape = GeoShapeDocValues.from(wkb, GEO_SHAPE_INDEXER);
         GeoTileBoundedPredicate predicate = (bbox == null || bbox.isUnbounded()) ? null : new GeoTileBoundedPredicate(precision, bbox);
         List<Long> cells = new ArrayList<>();
         // geo tiles are not defined at the extreme latitudes
         if (shape.minLat > GeoTileUtils.NORMALIZED_LATITUDE_MASK || shape.maxLat < GeoTileUtils.NORMALIZED_NEGATIVE_LATITUDE_MASK) {
-            return new long[0];
+            return cells;
         }
         if (precision == 0) {
             // Single tile at z=0 covers the whole world
@@ -347,7 +345,7 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper, A
                     cells.add(GeoTileUtils.longEncodeTiles(0, 0, 0));
                 }
             }
-            return cells.isEmpty() ? new long[0] : new long[] { cells.get(0) };
+            return cells;
         }
         final int tiles = 1 << precision;
         final int minXTile = GeoTileUtils.getXTile(shape.minLon, tiles);
@@ -360,11 +358,7 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper, A
         } else {
             rasterizeGeotile(shape, 0, 0, 0, precision, predicate, cells);
         }
-        long[] result = new long[cells.size()];
-        for (int i = 0; i < cells.size(); i++) {
-            result[i] = cells.get(i);
-        }
-        return result;
+        return cells;
     }
 
     /**

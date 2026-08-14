@@ -65,8 +65,7 @@ public class StGeotileTests extends SpatialGridFunctionTestCase {
             return StGeotile.unboundedGrid.calculateGridId(point, precision);
         }
         try {
-            long[] cells = StGeotile.computeGeotileCells(wkb, precision, null);
-            return SpatialGridFunction.foldMultiValue(cells);
+            return SpatialGridFunction.foldMultiValue(StGeotile.computeGeotileCells(wkb, precision, null));
         } catch (IOException e) {
             throw new IllegalArgumentException("Failed to compute geotile for geo_shape", e);
         }
@@ -80,8 +79,7 @@ public class StGeotileTests extends SpatialGridFunctionTestCase {
             return gridId < 0 ? null : gridId;
         }
         try {
-            long[] cells = StGeotile.computeGeotileCells(wkb, precision, bbox);
-            return SpatialGridFunction.foldMultiValue(cells);
+            return SpatialGridFunction.foldMultiValue(StGeotile.computeGeotileCells(wkb, precision, bbox));
         } catch (IOException e) {
             throw new IllegalArgumentException("Failed to compute geotile for geo_shape", e);
         }

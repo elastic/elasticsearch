@@ -256,8 +256,7 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper, An
                 if (geometry instanceof Point point) {
                     return unboundedGrid.calculateGridId(point, precision);
                 }
-                long[] cells = computeGeohexCells(wkb, precision, null);
-                return foldMultiValue(cells);
+                return foldMultiValue(computeGeohexCells(wkb, precision, null));
             } else {
                 Object boundsValue = bounds().fold(ctx);
                 if (boundsValue == null) {
@@ -270,8 +269,7 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper, An
                     long gridId = bounds.calculateGridId(point);
                     return gridId < 0 ? null : gridId;
                 }
-                long[] cells = computeGeohexCells(wkb, precision, bbox);
-                return foldMultiValue(cells);
+                return foldMultiValue(computeGeohexCells(wkb, precision, bbox));
             }
         } catch (IOException e) {
             throw new IllegalArgumentException("Failed to compute geohex for geo_shape", e);
@@ -346,7 +344,7 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper, An
      * {@link GeoShapeDocValues#intersects} over a Lucene {@link LatLonGeometry} bounding rectangle.
      * At leaf level an exact hexagon polygon intersection is performed.
      */
-    static long[] computeGeohexCells(BytesRef wkb, int precision, GeoBoundingBox bbox) throws IOException {
+    static List<Long> computeGeohexCells(BytesRef wkb, int precision, GeoBoundingBox bbox) throws IOException {
         GeoShapeDocValues shape = GeoShapeDocValues.from(wkb, GEO_SHAPE_INDEXER);
         GeoHexBoundedPredicate predicate = bbox == null ? null : new GeoHexBoundedPredicate(bbox);
         List<Long> cells = new ArrayList<>();
@@ -355,11 +353,7 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper, An
         for (long res0cell : H3.getLongRes0Cells()) {
             recursiveGeohex(shape, res0cell, precision, predicate, cells, scratch);
         }
-        long[] result = new long[cells.size()];
-        for (int i = 0; i < cells.size(); i++) {
-            result[i] = cells.get(i);
-        }
-        return result;
+        return cells;
     }
 
     /**

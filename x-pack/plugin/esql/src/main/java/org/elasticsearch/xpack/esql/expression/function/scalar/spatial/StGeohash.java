@@ -247,8 +247,7 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper, A
                 if (geometry instanceof Point point) {
                     return unboundedGrid.calculateGridId(point, precision);
                 }
-                long[] cells = computeGeohashCells(wkb, precision, null);
-                return foldMultiValue(cells);
+                return foldMultiValue(computeGeohashCells(wkb, precision, null));
             } else {
                 Object boundsValue = bounds().fold(ctx);
                 if (boundsValue == null) {
@@ -261,8 +260,7 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper, A
                     long gridId = bounds.calculateGridId(point);
                     return gridId < 0 ? null : gridId;
                 }
-                long[] cells = computeGeohashCells(wkb, precision, bbox);
-                return foldMultiValue(cells);
+                return foldMultiValue(computeGeohashCells(wkb, precision, bbox));
             }
         } catch (IOException e) {
             throw new IllegalArgumentException("Failed to compute geohash for geo_shape", e);
@@ -320,7 +318,7 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper, A
      * are adapted from {@code GeoHashGridTiler.setValues} in the spatial module.
      * Both thresholds should be reviewed together if either is changed.
      */
-    static long[] computeGeohashCells(BytesRef wkb, int precision, GeoBoundingBox bbox) throws IOException {
+    static List<Long> computeGeohashCells(BytesRef wkb, int precision, GeoBoundingBox bbox) throws IOException {
         GeoShapeDocValues shape = GeoShapeDocValues.from(wkb, GEO_SHAPE_INDEXER);
         GeoHashBoundedPredicate predicate = (bbox == null || bbox.isUnbounded()) ? null : new GeoHashBoundedPredicate(precision, bbox);
         List<Long> cells = new ArrayList<>();
@@ -331,11 +329,7 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper, A
         } else {
             rasterizeGeohash(shape, "", precision, predicate, cells);
         }
-        long[] result = new long[cells.size()];
-        for (int i = 0; i < cells.size(); i++) {
-            result[i] = cells.get(i);
-        }
-        return result;
+        return cells;
     }
 
     /**

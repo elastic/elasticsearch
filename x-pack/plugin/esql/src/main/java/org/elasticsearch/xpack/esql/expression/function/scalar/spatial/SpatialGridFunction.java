@@ -208,35 +208,17 @@ public abstract class SpatialGridFunction extends SpatialDocValuesFunction imple
         }
     }
 
-    protected static void addGrids(LongBlock.Builder results, long[] gridIds) {
-        if (gridIds.length == 0) {
-            results.appendNull();
-        } else if (gridIds.length == 1) {
-            results.appendLong(gridIds[0]);
-        } else {
-            results.beginPositionEntry();
-            for (long gridId : gridIds) {
-                results.appendLong(gridId);
-            }
-            results.endPositionEntry();
-        }
-    }
-
     /**
-     * Converts a {@code long[]} of cell IDs to the fold-result format: {@code null} for empty,
+     * Converts a {@link List}{@code <Long>} of cell IDs to the fold-result format: {@code null} for empty,
      * a single {@link Long} for one cell, or a {@link List}{@code <Long>} for multiple cells.
      */
-    protected static Object foldMultiValue(long[] cells) {
-        if (cells.length == 0) {
+    protected static Object foldMultiValue(List<Long> cells) {
+        if (cells.isEmpty()) {
             return null;
-        } else if (cells.length == 1) {
-            return cells[0];
+        } else if (cells.size() == 1) {
+            return cells.get(0);
         } else {
-            List<Long> list = new ArrayList<>(cells.length);
-            for (long cell : cells) {
-                list.add(cell);
-            }
-            return list;
+            return cells;
         }
     }
 
@@ -257,7 +239,7 @@ public abstract class SpatialGridFunction extends SpatialDocValuesFunction imple
      */
     @FunctionalInterface
     protected interface GeoShapeCellsComputer {
-        long[] compute(BytesRef wkb) throws IOException;
+        List<Long> compute(BytesRef wkb) throws IOException;
     }
 
     protected static void fromWKB(
@@ -299,8 +281,7 @@ public abstract class SpatialGridFunction extends SpatialDocValuesFunction imple
             results.appendLong(unboundedGrid.calculateGridId(point, precision));
         } else {
             try {
-                long[] cells = cellsComputer.compute(wkb);
-                addGrids(results, cells);
+                addGrids(results, cellsComputer.compute(wkb));
             } catch (IOException e) {
                 throw new IllegalArgumentException("Failed to compute grid cells for geo_shape", e);
             }
@@ -319,9 +300,7 @@ public abstract class SpatialGridFunction extends SpatialDocValuesFunction imple
             gridIds.add(unboundedGrid.calculateGridId(point, precision));
         } else {
             try {
-                for (long cell : cellsComputer.compute(wkb)) {
-                    gridIds.add(cell);
-                }
+                gridIds.addAll(cellsComputer.compute(wkb));
             } catch (IOException e) {
                 throw new IllegalArgumentException("Failed to compute grid cells for geo_shape", e);
             }
@@ -394,8 +373,7 @@ public abstract class SpatialGridFunction extends SpatialDocValuesFunction imple
         } else {
             // bounded cellsComputer already filters out-of-bounds cells
             try {
-                long[] cells = cellsComputer.compute(wkb);
-                addGrids(results, cells);
+                addGrids(results, cellsComputer.compute(wkb));
             } catch (IOException e) {
                 throw new IllegalArgumentException("Failed to compute grid cells for geo_shape", e);
             }
@@ -411,9 +389,7 @@ public abstract class SpatialGridFunction extends SpatialDocValuesFunction imple
             }
         } else {
             try {
-                for (long cell : cellsComputer.compute(wkb)) {
-                    gridIds.add(cell);
-                }
+                gridIds.addAll(cellsComputer.compute(wkb));
             } catch (IOException e) {
                 throw new IllegalArgumentException("Failed to compute grid cells for geo_shape", e);
             }

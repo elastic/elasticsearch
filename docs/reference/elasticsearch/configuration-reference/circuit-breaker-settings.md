@@ -10,7 +10,7 @@ applies_to:
 # Circuit breaker settings [circuit-breaker]
 
 $$$circuit-breaker-description$$$
-{{es}} contains multiple circuit breakers used to prevent operations from using an excessive amount of memory. Each breaker tracks the memory used by certain operations and specifies a limit for how much memory it may track. Additionally, there is a parent-level breaker that specifies the total amount of memory that may be tracked across all breakers.
+{{es}} contains multiple circuit breakers used to prevent operations from using an excessive amount of memory. Each breaker tracks the memory used by certain operations and specifies a limit for how much memory it may track. Additionally, some breakers have a parent breaker that specifies the total amount of memory that may be tracked across all its children.
 
 When a circuit breaker reaches its limit, {{es}} will reject further operations. See [Circuit breaker errors](docs-content://troubleshoot/elasticsearch/circuit-breaker-errors.md) for information about errors raised by circuit breakers.
 
@@ -177,11 +177,11 @@ This circuit breaker can be configured using the following settings:
 
 ## ES|QL circuit breaker [circuit-breakers-page-esql]
 
-{{esql}} executes queries by building blocks of data (columns, aggregations, and other pipeline structures) in memory. When processing large datasets or running queries with high-cardinality aggregations, the memory used by these structures can grow significantly and potentially exceed the available JVM heap, which could cause an `OutOfMemoryError` and bring down the node.
+{{esql}} executes queries by building blocks of data (columns, aggregations, and other pipeline structures) in memory, both on-heap and off-heap (native memory). When processing large datasets or running queries with high-cardinality aggregations, the memory used by these structures can grow significantly and potentially exceed the available JVM heap or native memory, which could cause an `OutOfMemoryError` and bring down the node.
 
-To prevent this, {{esql}} uses the [request circuit breaker](#request-circuit-breaker), which limits memory allocation during query execution. There is no dedicated {{esql}} circuit breaker; {{esql}} shares the request breaker with other per-request operations such as aggregations. When the breaker is triggered, an `org.elasticsearch.common.breaker.CircuitBreakingException` is thrown and a descriptive error message including `circuit_breaking_exception` is returned to the user.
+To prevent this, {{esql}} uses the [request circuit breaker](#request-circuit-breaker) and the [native memory circuit breaker](#native-memory-circuit-breaker), which limit memory allocation during query execution. There is no dedicated {{esql}} circuit breaker; {{esql}} shares the circuit breakers with other per-request operations such as aggregations and other native memory consumers. When a breaker is triggered, an `org.elasticsearch.common.breaker.CircuitBreakingException` is thrown and a descriptive error message including `circuit_breaking_exception` is returned to the user.
 
-The request breaker settings (`indices.breaker.request.limit`, `indices.breaker.request.overhead`, and `indices.breaker.request.type`) are documented in the [Request circuit breaker](#request-circuit-breaker) section.
+The circuit breaker settings are documented in the [Request circuit breaker](#request-circuit-breaker) and the [Native memory circuit breaker](#native-memory-circuit-breaker) sections.
 
 
 

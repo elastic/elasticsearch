@@ -642,88 +642,78 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
         // Ensure VBCC not yet uploaded
         assertNotNull(statelessCommitService.getCurrentVirtualBcc(shardId));
 
-        // Hold every VBCC chunk request on the indexing node until the index is closed (resp. its blobs are deleted). Chunk requests
-        // are triggered not only by the search itself but also by Lucene's asynchronous prefetching (IndexInput#prefetch) whose
-        // failures are ignored. Holding only the first request is thus not enough: if that request happens to be a prefetch, the
-        // search can be served by subsequent requests before the close/delete takes effect and complete without failures (#153888).
-        // Holding all requests guarantees that no chunk data is ever served, so the search must fail regardless of which request
-        // arrives first.
+        // Hold all VBCC chunk requests until the close/delete takes effect, so no chunk data is served and the search must fail.
+        // Holding just the first request is not enough: it could be a Lucene prefetch (IndexInput#prefetch), whose failure is
+        // ignored, letting the search complete via later requests before the close/delete lands (#153888).
+        final CheckedRunnable<Exception> failureTookEffect = switch (failureType) {
+            case INDEX_CLOSED -> () -> assertBusy(() -> {
+                var shard = indexNodeIndicesService.getShardOrNull(shardId);
+                assertNotNull(shard);
+                assertThat(shard.indexSettings().getIndexMetadata().getState(), equalTo(IndexMetadata.State.CLOSE));
+            });
+            case INDEX_DELETED -> () -> assertBusy(() -> assertThat(listBlobsWithAbsolutePath(shardCommitsContainer), empty()));
+        };
         CountDownLatch getChunkActionAppeared = new CountDownLatch(1);
-        final var transportServiceIndex = MockTransportService.getInstance(indexNode);
-        transportServiceIndex.addRequestHandlingBehavior(
-            TransportGetVirtualBatchedCompoundCommitChunkAction.NAME + "[p]",
-            (handler, request, channel, task) -> {
-                getChunkActionAppeared.countDown();
-                try {
-                    if (failureType == FailureType.INDEX_CLOSED) {
-                        assertBusy(() -> {
-                            var s = indexNodeIndicesService.getShardOrNull(shardId);
-                            assertNotNull(s);
-                            assertThat(s.indexSettings().getIndexMetadata().getState(), equalTo(IndexMetadata.State.CLOSE));
-                        });
-                    } else {
-                        // wait until blobs are deleted
-                        assertBusy(() -> { assertThat(listBlobsWithAbsolutePath(shardCommitsContainer), empty()); });
+        MockTransportService.getInstance(indexNode)
+            .addRequestHandlingBehavior(
+                TransportGetVirtualBatchedCompoundCommitChunkAction.NAME + "[p]",
+                (handler, request, channel, task) -> {
+                    getChunkActionAppeared.countDown();
+                    try {
+                        failureTookEffect.run();
+                    } catch (Exception e) {
+                        throw new AssertionError(e);
                     }
-                } catch (Exception e) {
-                    throw new AssertionError(e);
+                    handler.messageReceived(request, channel, task);
                 }
-                handler.messageReceived(request, channel, task);
-            }
-        );
+            );
 
-        // Hold new commit notifications on the search node until the search has completed. Closing the index flushes and uploads the
-        // BCC to the object store; if the search node learned about the upload before the search failed, its reads could switch over
-        // to the object store and succeed, defeating the purpose of this test. Note that the index reaching the CLOSE state does not
-        // depend on these notifications being processed: the previous version of this test already delayed them until after the
-        // CLOSE state was observed by the held chunk request. The wait is offloaded to the generic pool because this handler runs on
-        // a transport worker thread, which must remain free to deliver the chunk responses that the search waits on.
+        // Hold new commit notifications until the search completes, or the search node could learn about the BCC uploaded by the
+        // close flush and serve the search from the object store. Wait on the generic pool: the transport worker must stay free
+        // to deliver the chunk responses that the search waits on.
         CountDownLatch searchCompleted = new CountDownLatch(1);
         final var searchNodeThreadPool = internalCluster().getInstance(ThreadPool.class, searchNode);
-        final var transportServiceSearch = MockTransportService.getInstance(searchNode);
-        transportServiceSearch.addRequestHandlingBehavior(
-            TransportNewCommitNotificationAction.NAME + "[u]",
-            (handler, request, channel, task) -> searchNodeThreadPool.generic().execute(() -> {
-                safeAwait(searchCompleted);
-                try {
-                    handler.messageReceived(request, channel, task);
-                } catch (Exception e) {
-                    throw new AssertionError(e);
-                }
-            })
-        );
+        MockTransportService.getInstance(searchNode)
+            .addRequestHandlingBehavior(
+                TransportNewCommitNotificationAction.NAME + "[u]",
+                (handler, request, channel, task) -> searchNodeThreadPool.generic().execute(() -> {
+                    safeAwait(searchCompleted);
+                    try {
+                        handler.messageReceived(request, channel, task);
+                    } catch (Exception e) {
+                        throw new AssertionError(e);
+                    }
+                })
+            );
 
         // Empty cache on search node, to ensure an action is sent to the indexing node
         evictSearchShardCache(indexName);
 
-        var thread = new Thread(() -> {
-            // serve Lucene files from the indexing node
-            TestSearchType testSearchType = randomFrom(TestSearchType.values());
-            if (failureType == FailureType.INDEX_CLOSED) {
-                assertFailures(
-                    prepareSearch(indexName, testSearchType),
-                    Set.of(RestStatus.INTERNAL_SERVER_ERROR, RestStatus.BAD_REQUEST),
-                    containsString(IndexClosedException.class.getName())
-                );
-            } else {
-                assertFailures(
-                    prepareSearch(indexName, testSearchType),
-                    Set.of(RestStatus.INTERNAL_SERVER_ERROR, RestStatus.SERVICE_UNAVAILABLE),
-                    containsString(NoSuchFileException.class.getName())
-                );
-            }
-        });
+        // Closing fails chunk requests with IndexClosedException; deleting redirects them to the object store, where the deleted
+        // blobs surface as NoSuchFileException.
+        final Set<RestStatus> expectedStatuses = switch (failureType) {
+            case INDEX_CLOSED -> Set.of(RestStatus.INTERNAL_SERVER_ERROR, RestStatus.BAD_REQUEST);
+            case INDEX_DELETED -> Set.of(RestStatus.INTERNAL_SERVER_ERROR, RestStatus.SERVICE_UNAVAILABLE);
+        };
+        final String expectedException = switch (failureType) {
+            case INDEX_CLOSED -> IndexClosedException.class.getName();
+            case INDEX_DELETED -> NoSuchFileException.class.getName();
+        };
+        var thread = new Thread(
+            () -> assertFailures(
+                prepareSearch(indexName, randomFrom(TestSearchType.values())),
+                expectedStatuses,
+                containsString(expectedException)
+            )
+        );
         thread.start();
 
         safeAwait(getChunkActionAppeared);
-        // Do not wait for the close/delete response before the search has completed: acknowledging it could depend on the new commit
-        // notifications that are held until the search completes. Applying the close/delete on the indexing node, which releases the
-        // held chunk requests and makes the search fail, does not depend on the response being acknowledged.
+        // Don't block on the ack, which may depend on the held notifications. Applying the close/delete on the indexing node,
+        // which releases the held chunk requests and fails the search, does not.
         final ActionFuture<? extends AcknowledgedResponse> closeOrDeleteFuture = switch (failureType) {
-            // Delete the index, which will make the action fail with blob not found (after it's deleted)
-            case INDEX_DELETED -> indicesAdmin().delete(new DeleteIndexRequest(indexName));
-            // Close the index, which will make the action fail with IndexClosedException on the indexing node
             case INDEX_CLOSED -> indicesAdmin().close(new CloseIndexRequest(indexName));
+            case INDEX_DELETED -> indicesAdmin().delete(new DeleteIndexRequest(indexName));
         };
         try {
             thread.join();

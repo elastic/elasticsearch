@@ -2011,8 +2011,6 @@ public class SharedBlobCacheWarmingService {
             protected final ByteRange byteRangeToWarm;
             private final long timestampMillis;
             private final ActionListener<Void> listener;
-            // used to handle a spurious #onFailure invocation after #onResponse has already been invoked
-            private final AtomicBoolean dequeued = new AtomicBoolean(false);
             private final Map<String, Object> bccSizeAttributes;
 
             WarmBlobByteRangeTask(
@@ -2038,9 +2036,8 @@ public class SharedBlobCacheWarmingService {
 
             @Override
             public void onResponse(Releasable releasable) {
-                if (deque()) {
-                    runningBccBlobsMetric.add(1, bccSizeAttributes);
-                }
+                runningBccBlobsMetric.add(1, bccSizeAttributes);
+                enqueuedBccBlobsMetric.add(-1, bccSizeAttributes);
                 if (isCancelled()) {
                     listener.onResponse(null);
                     Releasables.close(releasable);
@@ -2085,22 +2082,11 @@ public class SharedBlobCacheWarmingService {
 
             @Override
             public void onFailure(Exception e) {
-                if (deque() == false) {
-                    // onResponse already ran and incremented running, but threw before invoking its listener
-                    runningBccBlobsMetric.add(-1, bccSizeAttributes);
-                }
+                enqueuedBccBlobsMetric.add(-1, bccSizeAttributes);
                 logger.warn(
                     () -> format("%s %s failed to warm blob %s %s", warmingRun.shardId(), warmingRun.type(), blobFile, byteRangeToWarm),
                     e
                 );
-            }
-
-            private boolean deque() {
-                if (dequeued.compareAndSet(false, true)) {
-                    enqueuedBccBlobsMetric.add(-1, bccSizeAttributes);
-                    return true;
-                }
-                return false;
             }
         }
 

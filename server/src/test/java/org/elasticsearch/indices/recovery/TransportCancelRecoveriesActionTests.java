@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -31,6 +32,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -79,7 +81,7 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
             DefaultProjectResolver.INSTANCE,
             clusterService,
             RecoverySchedulingListener.NOOP,
-            new RecoveryGateMonitor(() -> List.of(), taskQueue.getThreadPool())
+            new RecoveryGateMonitor(() -> List.of(), taskQueue.getThreadPool(), clusterSettings)
         );
         throttlingRecoveryService.start();
         action = new TransportCancelRecoveriesAction(
@@ -100,11 +102,12 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
         final var allocationId2 = UUIDs.randomBase64UUID();
 
         // running recovery
-        final var recoveryState0 = newRecoveryState(shardId0);
+        final var recoveryState0 = newRecoveryState(shardId0, ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY); // top priority
         throttlingRecoveryService.enqueue(
             ProjectId.DEFAULT,
             RecoveryListener.NOOP,
             recoveryState0,
+            newIndexMetadata(),
             allocationId0,
             new RecoveryStats(),
             l -> taskQueue.scheduleAt(
@@ -114,22 +117,24 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
         );
 
         // queued recovery
-        final var recoveryState1 = newRecoveryState(shardId1);
+        final var recoveryState1 = newRecoveryState(shardId1, ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED); // second priority
         throttlingRecoveryService.enqueue(
             ProjectId.DEFAULT,
             RecoveryListener.NOOP,
             recoveryState1,
+            newIndexMetadata(),
             allocationId1,
             new RecoveryStats(),
             ignored -> fail("recovery should be cancelled")
         );
 
         // queued recovery
-        final var recoveryState2 = newRecoveryState(shardId2);
+        final var recoveryState2 = newRecoveryState(shardId2, ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED); // third priority
         throttlingRecoveryService.enqueue(
             ProjectId.DEFAULT,
             RecoveryListener.NOOP,
             recoveryState2,
+            newIndexMetadata(),
             allocationId2,
             new RecoveryStats(),
             ignored -> fail("recovery should be cancelled")
@@ -175,7 +180,8 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
         throttlingRecoveryService.enqueue(
             ProjectId.DEFAULT,
             RecoveryListener.NOOP,
-            newRecoveryState(runningShardId),
+            newRecoveryState(runningShardId, ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY), // high priority
+            newIndexMetadata(),
             runningAllocationId,
             new RecoveryStats(),
             ignored -> {}
@@ -184,7 +190,8 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
         throttlingRecoveryService.enqueue(
             ProjectId.DEFAULT,
             RecoveryListener.NOOP,
-            newRecoveryState(queuedShardId),
+            newRecoveryState(queuedShardId, ShardRouting.RecoveryPriority.RELOCATE_REBALANCING), // low priority, previous should run first
+            newIndexMetadata(),
             queuedAllocationId,
             new RecoveryStats(),
             ignored -> fail("recovery should remain queued")
@@ -222,11 +229,12 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
         final var allocationId1 = UUIDs.randomBase64UUID();
 
         // running recovery
-        final var recoveryState0 = newRecoveryState(shardId0);
+        final var recoveryState0 = newRecoveryState(shardId0, ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY); // high priority
         throttlingRecoveryService.enqueue(
             ProjectId.DEFAULT,
             RecoveryListener.NOOP,
             recoveryState0,
+            newIndexMetadata(),
             allocationId0,
             new RecoveryStats(),
             l -> taskQueue.scheduleAt(
@@ -236,11 +244,12 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
         );
 
         // queued recovery
-        final var recoveryState1 = newRecoveryState(shardId1);
+        final var recoveryState1 = newRecoveryState(shardId1, ShardRouting.RecoveryPriority.RELOCATE_REBALANCING); // low priority
         throttlingRecoveryService.enqueue(
             ProjectId.DEFAULT,
             RecoveryListener.NOOP,
             recoveryState1,
+            newIndexMetadata(),
             allocationId1,
             new RecoveryStats(),
             ignored -> fail("recovery should be cancelled")
@@ -306,11 +315,12 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
         final var allocationId1 = UUIDs.randomBase64UUID();
 
         // running recovery
-        final var recoveryState0 = newRecoveryState(shardId0);
+        final var recoveryState0 = newRecoveryState(shardId0, ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY); // high priority
         throttlingRecoveryService.enqueue(
             ProjectId.DEFAULT,
             RecoveryListener.NOOP,
             recoveryState0,
+            newIndexMetadata(),
             allocationId0,
             new RecoveryStats(),
             l -> taskQueue.scheduleAt(
@@ -320,11 +330,12 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
         );
 
         // queued recovery
-        final var recoveryState1 = newRecoveryState(shardId1);
+        final var recoveryState1 = newRecoveryState(shardId1, ShardRouting.RecoveryPriority.RELOCATE_REBALANCING); // low priority
         throttlingRecoveryService.enqueue(
             ProjectId.DEFAULT,
             RecoveryListener.NOOP,
             recoveryState1,
+            newIndexMetadata(),
             allocationId1,
             new RecoveryStats(),
             ignored -> {}
@@ -369,11 +380,12 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
         when(indicesService.indexServiceSafe(shardId0.getIndex())).thenReturn(indexService0);
 
         // running recovery
-        final var recoveryState0 = newRecoveryState(shardId0);
+        final var recoveryState0 = newRecoveryState(shardId0, ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY); // high priority
         throttlingRecoveryService.enqueue(
             ProjectId.DEFAULT,
             RecoveryListener.NOOP,
             recoveryState0,
+            newIndexMetadata(),
             allocationId0,
             new RecoveryStats(),
             l -> taskQueue.scheduleAt(
@@ -383,11 +395,12 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
         );
 
         // queued recovery
-        final var recoveryState2 = newRecoveryState(shardId2);
+        final var recoveryState2 = newRecoveryState(shardId2, ShardRouting.RecoveryPriority.RELOCATE_REBALANCING); // low priority
         throttlingRecoveryService.enqueue(
             ProjectId.DEFAULT,
             RecoveryListener.NOOP,
             recoveryState2,
+            newIndexMetadata(),
             allocationId2,
             new RecoveryStats(),
             ignored -> fail("recovery should be cancelled")
@@ -489,7 +502,13 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
             public void onRecoveryAborted() {
                 fail("recovery should be cancelled");
             }
-        }, newRecoveryState(shardId), allocationId, new RecoveryStats(), ignored -> fail("recovery should be cancelled"));
+        },
+            newRecoveryState(shardId),
+            newIndexMetadata(),
+            allocationId,
+            new RecoveryStats(),
+            ignored -> fail("recovery should be cancelled")
+        );
 
         taskQueue.runAllTasks();
         assertTrue("expected recovery to be cancelled", cancelled.get());
@@ -503,10 +522,6 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
     }
 
     private static RecoveryState newRecoveryState(ShardId shardId) {
-        return newRecoveryState(randomFrom(RecoverySource.Type.PEER, RecoverySource.Type.EMPTY_STORE), shardId);
-    }
-
-    private static RecoveryState newRecoveryState(RecoverySource.Type type, ShardId shardId) {
         final var routing = TestShardRouting.newShardRouting(
             shardId,
             "node",
@@ -514,7 +529,20 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
             ShardRoutingState.INITIALIZING,
             RecoverySource.EmptyStoreRecoverySource.INSTANCE
         );
-        return new RecoveryState(routing, null, DiscoveryNodeUtils.create("target"));
+        return new RecoveryState(routing, DiscoveryNodeUtils.create("target"), null);
+    }
+
+    private static RecoveryState newRecoveryState(ShardId shardId, ShardRouting.RecoveryPriority recoveryPriority) {
+        String relocatingNodeId = switch (recoveryPriority) {
+            case UNASSIGNED_NEW_PRIMARY, UNASSIGNED_UNEXPECTED, UNASSIGNED_EXPECTED -> null;
+            case RELOCATION_CAN_REMAIN_NO, RELOCATION_CAN_REMAIN_NOT_PREFERRED, RELOCATE_REBALANCING -> "other-node";
+            case UNKNOWN -> throw new IllegalArgumentException("cannot create recovery state with unknown recovery priority");
+        };
+        ShardRouting routing = TestShardRouting.shardRoutingBuilder(shardId, "node", true, ShardRoutingState.INITIALIZING)
+            .withRecoveryPriority(recoveryPriority)
+            .withRelocatingNodeId(relocatingNodeId)
+            .build();
+        return new RecoveryState(routing, DiscoveryNodeUtils.create("target"), null);
     }
 
     private static IndexService mockIndexServiceForShard(IndexShard indexShard) {
@@ -549,5 +577,13 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
             return null;
         }).when(indexShard).ensureRecoveryNotCancelled();
         return indexShard;
+    }
+
+    private static IndexMetadata newIndexMetadata() {
+        return IndexMetadata.builder(randomIndexName())
+            .settings(ESTestCase.settings(IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
     }
 }

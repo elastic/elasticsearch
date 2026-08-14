@@ -77,7 +77,9 @@ public class RestPutComposableIndexTemplateAction extends BaseRestHandler {
     static ComposableIndexTemplate parseAndValidateTemplate(XContentParser parser) throws IOException {
         ComposableIndexTemplate template = ComposableIndexTemplate.parse(parser);
         if (template.isRegistryInstalled()) {
-            throw new IllegalArgumentException("[registry_installed] is a system-managed field and cannot be set by a user");
+            throw new IllegalArgumentException(
+                "[" + ComposableIndexTemplate.REGISTRY_INSTALLED + "] is a system-managed field and cannot be set by a user"
+            );
         }
         return template;
     }

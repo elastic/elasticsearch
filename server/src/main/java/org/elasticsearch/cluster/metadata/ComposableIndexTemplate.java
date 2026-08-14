@@ -50,6 +50,7 @@ import java.util.Optional;
  */
 public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTemplate>, ToXContentObject {
 
+    public static final ParseField REGISTRY_INSTALLED = new ParseField("registry_installed");
     private static final ParseField INDEX_PATTERNS = new ParseField("index_patterns");
     private static final ParseField TEMPLATE = new ParseField("template");
     private static final ParseField PRIORITY = new ParseField("priority");
@@ -60,7 +61,6 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
     private static final ParseField ALLOW_AUTO_CREATE = new ParseField("allow_auto_create");
     private static final ParseField IGNORE_MISSING_COMPONENT_TEMPLATES = new ParseField("ignore_missing_component_templates");
     private static final ParseField DEPRECATED = new ParseField("deprecated");
-    private static final ParseField REGISTRY_INSTALLED = new ParseField("registry_installed");
     private static final ParseField CREATED_DATE_MILLIS = new ParseField("created_date_millis");
     private static final ParseField CREATED_DATE = new ParseField("created_date");
     private static final ParseField MODIFIED_DATE_MILLIS = new ParseField("modified_date_millis");

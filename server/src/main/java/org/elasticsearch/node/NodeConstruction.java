@@ -1373,7 +1373,13 @@ class NodeConstruction {
             threadPool
         );
 
-        final var shutdownPrepareService = new ShutdownPrepareService(settings, httpServerTransport, transportService, terminationHandler);
+        final var shutdownPrepareService = serviceProvider.newShutdownPrepareService(
+            pluginsService,
+            settings,
+            httpServerTransport,
+            transportService,
+            terminationHandler
+        );
 
         modules.add(
             loadPersistentTasks(

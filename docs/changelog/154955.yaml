@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 154955
-summary: "Fix `FROM_BASE64` generating invalid non-UTF-8 strings. Previously it could create binary values that ES|QL does not support in other operations; only valid UTF-8 is supported, and invalid cases now return null with a warning."
-type: bug

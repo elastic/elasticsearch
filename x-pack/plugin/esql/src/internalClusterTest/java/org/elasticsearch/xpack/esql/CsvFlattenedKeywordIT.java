@@ -201,7 +201,7 @@ public class CsvFlattenedKeywordIT extends CsvIT {
      * unfiltered set is returned rather than paying to build the rewrite strategy for tests that
      * will not run.
      */
-    @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s")
+    @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s", shuffle = false)
     public static List<Object[]> readScriptSpec() throws Exception {
         List<Object[]> all = CsvIT.readScriptSpec();
         if (DataType.FLATTENED.supportedVersion().supportedLocally() == false) {

@@ -96,17 +96,10 @@ public class BulkRequest extends UntypedActionRequest
     private Boolean globalRequireDatsStream;
     private boolean includeSourceOnError = true;
     private Set<String> paramsUsed = emptySet();
-
-    private long sizeInBytes = 0;
-
-    /**
-     * Pre-built ESCF batches keyed by the index name the {@link IndexRequest}s target, one entry per shard
-     * (null for shards with no rows). Coordinator-only state — not serialized; the batches travel on
-     * {@link BulkShardRequest} via {@link BulkShardBatch}. The caller retains ownership and must close them
-     * after the bulk completes.
-     */
     @Nullable
     private Map<String, SourceBatch[]> preBuiltBatches;
+
+    private long sizeInBytes = 0;
 
     public BulkRequest() {}
 
@@ -462,6 +455,7 @@ public class BulkRequest extends UntypedActionRequest
      * {@code null} elements mean no rows were committed for that shard. Coordinator-only — not serialized.
      * The caller retains ownership and must close the batches after the bulk response is received.
      */
+    // TODO: Need to implement serialization for ingest node forwarding
     public void setPreBuiltBatches(Map<String, SourceBatch[]> batches) {
         this.preBuiltBatches = batches;
     }

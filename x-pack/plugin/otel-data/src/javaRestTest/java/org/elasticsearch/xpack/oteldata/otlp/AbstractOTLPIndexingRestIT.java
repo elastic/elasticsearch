@@ -48,6 +48,7 @@ public abstract class AbstractOTLPIndexingRestIT extends ESRestTestCase {
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.ml.enabled", "false")
         .setting("xpack.watcher.enabled", "false")
+        .setting("indices.batch_indexing", Boolean.toString(randomBoolean()))
         .build();
 
     @Override

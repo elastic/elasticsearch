@@ -49,6 +49,7 @@ import java.util.Map;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 2, numClientNodes = 1)
@@ -1796,7 +1797,6 @@ public class BatchBulkIT extends ESIntegTestCase {
      * path must index the first value as a normal doc value and route the second (violating) value to
      * {@code ._on_failure} so that synthetic source can reconstruct the full array.
      */
-    @SuppressWarnings("unchecked")
     public void testMultiValueFalseOnFailureIgnoreInBatchPath() throws IOException {
         String index = "test-batch-mvf";
 
@@ -2090,11 +2090,11 @@ public class BatchBulkIT extends ESIntegTestCase {
     }
 
     /**
-     * Verifies that when the batch gates are satisfied but the batch rows do not align with the shard's items
-     * (simulated by providing a batch with fewer rows than items), the coordinator falls back to re-materializing
-     * inline sources so all documents are still indexed correctly.
+     * Verifies that a pre-built batch whose row count does not match the number of items routed to a shard
+     * causes an immediate exception rather than a silent fallback. Misalignment indicates a bug in the
+     * batch producer's shard routing and must not be silently ignored.
      */
-    public void testPreBuiltBatchFallsBackOnMisalignment() throws IOException {
+    public void testPreBuiltBatchThrowsOnMisalignment() throws IOException {
         String index = "test-prebuilt-misalign";
 
         XContentBuilder mapping = JsonXContent.contentBuilder();
@@ -2130,7 +2130,7 @@ public class BatchBulkIT extends ESIntegTestCase {
         String coordinatingNode = findCoordinatingNode();
         int numDocs = 5;
 
-        // Build a batch with only numDocs-1 rows but send numDocs items — this creates an intentional misalignment.
+        // Build a batch with only numDocs-1 rows but send numDocs items — intentional misalignment.
         SourceBatch shortBatch;
         try (EscfEncoder encoder = new EscfEncoder()) {
             for (int i = 0; i < numDocs - 1; i++) {
@@ -2145,28 +2145,131 @@ public class BatchBulkIT extends ESIntegTestCase {
             shortBatch = encoder.buildPartition(0);
         }
 
-        // All items claim rowIndex 0 (wrong), and the batch has fewer rows — triggers re-materialization.
         BulkRequest bulkRequest = new BulkRequest();
         for (int i = 0; i < numDocs; i++) {
-            // Use inline source so ensureInlineSource() is a no-op (already has bytes); the alignment check
-            // will still fail because shortBatch.docCount() != numDocs.
             bulkRequest.add(
                 new IndexRequest(index).id("doc-" + i)
                     .opType(DocWriteRequest.OpType.INDEX)
                     .source(XContentType.JSON, "host", "host-" + i, "value", i)
             );
         }
-        // Attach the misaligned batch — coordinator will detect the mismatch and skip batch attachment.
         bulkRequest.setPreBuiltBatches(Map.of(index, new SourceBatch[] { shortBatch }));
 
-        // The docs should still index successfully via the inline-source (row) path.
-        BulkResponse bulkResponse = client(coordinatingNode).bulk(bulkRequest).actionGet();
-        assertNoFailures(bulkResponse);
+        Exception e = expectThrows(Exception.class, () -> client(coordinatingNode).bulk(bulkRequest).actionGet());
+        assertThat(e.getMessage(), containsString("does not align with its items"));
+    }
+
+    public void testTimeSeriesOtelStyleBatchModeNoFallback() throws IOException {
+        String index = "test-batch-tsdb-otel-no-fallback";
+
+        XContentBuilder mapping = JsonXContent.contentBuilder();
+        mapping.startObject();
+        {
+            mapping.startObject("_doc");
+            {
+                mapping.startObject("_source").field("mode", "synthetic").endObject();
+                mapping.field("dynamic", "strict");
+                mapping.startObject("properties");
+                {
+                    // DateFieldMapper — must support TIME_SERIES columnar parse
+                    mapping.startObject("@timestamp").field("type", "date").endObject();
+                    // KeywordFieldMapper — must support TIME_SERIES columnar parse for dimensions
+                    mapping.startObject("resource_id").field("type", "keyword").field("time_series_dimension", true).endObject();
+                    mapping.startObject("service_name").field("type", "keyword").field("time_series_dimension", true).endObject();
+                    // NumberFieldMapper (long, gauge) — must support TIME_SERIES columnar parse
+                    mapping.startObject("jvm_memory_used").field("type", "long").field("time_series_metric", "gauge").endObject();
+                    // NumberFieldMapper (double, gauge)
+                    mapping.startObject("cpu_usage").field("type", "double").field("time_series_metric", "gauge").endObject();
+                    // NumberFieldMapper (long, counter)
+                    mapping.startObject("requests_total").field("type", "long").field("time_series_metric", "counter").endObject();
+                }
+                mapping.endObject();
+            }
+            mapping.endObject();
+        }
+        mapping.endObject();
+
+        assertAcked(
+            indicesAdmin().prepareCreate(index)
+                .setSettings(
+                    Settings.builder()
+                        .put("index.number_of_shards", 1)
+                        .put("index.number_of_replicas", 0)
+                        .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+                        .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of("resource_id"))
+                        .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2000-01-01T00:00:00.000Z")
+                        .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2100-01-01T00:00:00.000Z")
+                )
+                .setMapping(mapping)
+        );
+        ensureGreen(index);
+
+        String coordinatingNode = findCoordinatingNode();
+        Instant baseTime = Instant.parse("2025-01-15T10:00:00.000Z");
+        int numDocs = randomIntBetween(10, 30);
+
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < numDocs; i++) {
+            XContentBuilder doc = JsonXContent.contentBuilder();
+            doc.startObject();
+            doc.field("@timestamp", baseTime.plusSeconds(i).toEpochMilli());
+            doc.field("resource_id", "host-" + (i % 3));
+            doc.field("service_name", "svc-" + (i % 2));
+            doc.field("jvm_memory_used", 1024L + i);
+            doc.field("cpu_usage", 0.5 + i * 0.01);
+            doc.field("requests_total", 100L + i);
+            doc.endObject();
+            bulkRequest.add(new IndexRequest(index).opType(DocWriteRequest.OpType.CREATE).source(doc));
+        }
+
+        final Logger batchLogger = LogManager.getLogger(ShardBatchIndexer.class);
+        final Level origLevel = batchLogger.getLevel();
+        Loggers.setLevel(batchLogger, Level.TRACE);
+        // TODO: un-comment once TimeSeriesIdFieldMapper, TimeSeriesRoutingHashFieldMapper,
+        // NumberFieldMapper, DateFieldMapper, KeywordFieldMapper, and
+        // ConstantKeywordFieldMapper support columnar parse for TIME_SERIES mode.
+        // Until then this expectation is never met and the test fails here.
+        try (var mockLog = MockLog.capture(ShardBatchIndexer.class)) {
+            // mockLog.addExpectation(
+            // new MockLog.SeenEventExpectation(
+            // "batch indexed on primary without fallback",
+            // ShardBatchIndexer.class.getName(),
+            // Level.TRACE,
+            // "batch indexed * operations on primary shard *"
+            // )
+            // );
+
+            BulkResponse bulkResponse = client(coordinatingNode).bulk(bulkRequest).actionGet();
+            assertNoFailures(bulkResponse);
+            assertThat(bulkResponse.getItems().length, equalTo(numDocs));
+            mockLog.assertAllExpectationsMatched();
+        } finally {
+            Loggers.setLevel(batchLogger, origLevel);
+        }
 
         refresh(index);
-        assertResponse(prepareSearch(index).setTrackTotalHits(true), response -> {
-            assertNoFailures(response);
-            assertThat(response.getHits().getTotalHits().value(), equalTo((long) numDocs));
+
+        assertResponse(prepareSearch(index).setQuery(QueryBuilders.matchAllQuery()).setSize(0).setTrackTotalHits(true), searchResponse -> {
+            assertNoFailures(searchResponse);
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) numDocs));
         });
+
+        // Spot-check source reconstruction for all the mapper types exercised above.
+        assertResponse(
+            prepareSearch(index).setQuery(QueryBuilders.matchAllQuery())
+                .setSize(numDocs)
+                .addSort("jvm_memory_used", SortOrder.ASC)
+                .setTrackTotalHits(true),
+            searchResponse -> {
+                assertNoFailures(searchResponse);
+                SearchHit[] hits = searchResponse.getHits().getHits();
+                for (int i = 0; i < numDocs; i++) {
+                    Map<String, Object> source = hits[i].getSourceAsMap();
+                    assertThat("jvm_memory_used at " + i, ((Number) source.get("jvm_memory_used")).longValue(), equalTo(1024L + i));
+                    assertThat("requests_total at " + i, ((Number) source.get("requests_total")).longValue(), equalTo(100L + i));
+                    assertThat("service_name at " + i, source.get("service_name"), equalTo("svc-" + (i % 2)));
+                }
+            }
+        );
     }
 }

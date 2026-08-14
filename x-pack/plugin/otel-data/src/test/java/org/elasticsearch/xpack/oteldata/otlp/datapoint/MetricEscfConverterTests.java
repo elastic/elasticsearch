@@ -55,31 +55,16 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
 
-/**
- * Tests for {@link MetricEscfConverter} using an equivalence oracle: for each request, the test builds
- * the expected document via {@link MetricDocumentBuilder} (JSON), then builds via
- * {@link MetricEscfConverter} and reconstructs each ESCF row to JSON via {@link EirfRowToXContent}.
- * The two JSON maps must be equal.
- */
 public class MetricEscfConverterTests extends ESTestCase {
 
     private final IndexVersion indexVersion = IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG);
     private final long timestamp = Math.abs(randomLong() % 1_000_000_000_000_000L) + 1_000_000_000_000_000L;
     private final long startTimestamp = timestamp - 1_000_000_000L;
 
-    /**
-     * Builds the expected JSON via MetricDocumentBuilder and the ESCF via MetricEscfConverter, then
-     * asserts that the reconstructed ESCF rows equal the expected JSON documents.
-     */
     private void assertRoundTrip(ExportMetricsServiceRequest request) throws IOException {
         assertRoundTrip(request, MappingHints.DEFAULT_TDIGEST);
     }
 
-    /**
-     * Equivalence oracle parameterized by the effective {@link MappingHints}, so histogram tests can
-     * exercise the tdigest / raw / aggregate-metric-double / exponential mappings. Asserts row content,
-     * tsid, and the dynamic-template assignments all match the {@link MetricDocumentBuilder} output.
-     */
     private void assertRoundTrip(ExportMetricsServiceRequest request, MappingHints hints) throws IOException {
         MetricDocumentBuilder documentBuilder = new MetricDocumentBuilder(new BufferedByteStringAccessor(), hints);
         // 1. Build expected JSON docs, tsids, and dynamic templates via MetricDocumentBuilder.

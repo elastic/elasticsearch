@@ -110,18 +110,10 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
     private final DataStreamFailureStoreSettings dataStreamFailureStoreSettings;
     private final boolean clusterHasFailureStoreFeature;
     private final BulkBatchEncoders batchEncoders;
-    /**
-     * Pre-built batches from the request, keyed by index name → per-shard array. Non-null only when the
-     * request carried pre-built batches and the three batch-indexing gates all passed. Populated in the
-     * constructor; individual shard entries are resolved into {@link #resolvedPreBuiltBatches} during routing.
-     */
     @Nullable
     private final Map<String, SourceBatch[]> preBuiltBatches;
-    /**
-     * Shard-level batches resolved from {@link #preBuiltBatches} during {@code groupRequestsByShards}, keyed by
-     * the concrete {@link ShardId}. Built lazily and consumed in {@code executeBulkRequestsByShard}.
-     */
-    private final Map<ShardId, SourceBatch> resolvedPreBuiltBatches = new HashMap<>();
+    @Nullable
+    private final Map<ShardId, SourceBatch> resolvedPreBuiltBatches;
 
     BulkOperation(
         Task task,
@@ -204,38 +196,26 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         // item in this bulk is structurally batchable. Mixed bulks (UpdateRequest/DeleteRequest
         // interleaved with IndexRequests) take the inline-source path end-to-end — there is no
         // per-shard fallback that would batch the all-IndexRequest shards in a mixed bulk.
-        if (ShardBatchIndexer.BATCH_INDEXING.get(clusterService.getSettings())
-            && clusterService.state().getMinTransportVersion().supports(BulkShardRequest.BULK_SHARD_BATCH)
-            && ShardBatchIndexer.BATCH_INDEXING_FEATURE_FLAG.isEnabled()
-            && BulkBatchEncoders.isBulkBatchEligible(bulkRequest)) {
+        if (ShardBatchIndexer.isBatchIndexingSupported(clusterService) && BulkBatchEncoders.isBulkBatchEligible(bulkRequest)) {
             batchEncoders = new BulkBatchEncoders();
         } else {
             batchEncoders = null;
         }
-        // Pre-built batches (e.g. from OTel): items already carry row references, so batchEncoders above is
-        // always null when this path is active. We still check the same three gates so a downgrade or
-        // disabled setting forces re-materialization of inline sources before routing.
+        // Pre-built batches (e.g. from OTel): items carry only row references, not inline sources.
+        // If the gates are not open the batch cannot be used and there is nothing to fall back to.
         Map<String, SourceBatch[]> requestPreBuiltBatches = bulkRequest.getPreBuiltBatches();
         if (requestPreBuiltBatches != null) {
-            if (ShardBatchIndexer.BATCH_INDEXING.get(clusterService.getSettings())
-                && clusterService.state().getMinTransportVersion().supports(BulkShardRequest.BULK_SHARD_BATCH)
-                && ShardBatchIndexer.BATCH_INDEXING_FEATURE_FLAG.isEnabled()) {
-                preBuiltBatches = requestPreBuiltBatches;
-            } else {
-                // Gates failed: re-materialize all items so routing and shard-side code see inline sources.
-                for (DocWriteRequest<?> req : bulkRequest.requests) {
-                    if (req instanceof IndexRequest ir) {
-                        try {
-                            ir.indexSource().ensureInlineSource();
-                        } catch (Exception e) {
-                            throw new RuntimeException("failed to re-materialize inline source for pre-built batch item", e);
-                        }
-                    }
-                }
-                preBuiltBatches = null;
+            if (ShardBatchIndexer.isBatchIndexingSupported(clusterService) == false) {
+                throw new IllegalStateException(
+                    "pre-built batch submitted but batch indexing is not supported"
+                        + " (setting disabled, feature flag off, or mixed-version cluster)"
+                );
             }
+            preBuiltBatches = requestPreBuiltBatches;
+            resolvedPreBuiltBatches = new HashMap<>(requestPreBuiltBatches.size());
         } else {
             preBuiltBatches = null;
+            resolvedPreBuiltBatches = null;
         }
     }
 
@@ -472,13 +452,13 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             return;
         }
 
-        // Build per-shard EIRF batches for shards that ended up batchable (initial-pass only). For
+        // Build per-shard source batches for shards that ended up batchable (initial-pass only). For
         // shards marked non-batchable, no batch is produced and the items keep their inline source.
         // Pre-built batches (e.g. from OTel) are kept in resolvedPreBuiltBatches instead; both sources
         // are mutually exclusive in practice because isItemBatchEligible returns false for row-bearing items.
         Map<ShardId, SourceBatch> shardBatches = batchEncoders != null
             ? batchEncoders.finalizeBatches()
-            : (resolvedPreBuiltBatches.isEmpty() ? Collections.emptyMap() : resolvedPreBuiltBatches);
+            : (resolvedPreBuiltBatches != null ? resolvedPreBuiltBatches : Collections.emptyMap());
 
         String nodeId = clusterService.localNode().getId();
         ProjectMetadata project = projectResolver.getProjectMetadata(clusterState);
@@ -504,23 +484,15 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                     if (BulkShardBatch.rowsAlignWithItems(shardBatch, requests)) {
                         bulkShardRequest.setBulkShardBatch(new BulkShardBatch(shardBatch));
                     } else {
-                        // The coordinator dropped or reordered items after the batch was committed — the implicit
-                        // ordinal→row mapping no longer holds. Re-materialize inline sources and fall back to the
-                        // serial row path so data is not lost or corrupted.
-                        logger.debug(
-                            "pre-built batch for shard [{}] does not align with items (batch rows: {}, items: {}); "
-                                + "re-materializing inline sources",
-                            shardId,
-                            shardBatch.docCount(),
-                            requests.size()
+                        throw new IllegalStateException(
+                            "pre-built batch for shard ["
+                                + shardId
+                                + "] does not align with its items (batch rows: "
+                                + shardBatch.docCount()
+                                + ", items: "
+                                + requests.size()
+                                + "); this indicates a bug in the batch producer's shard routing"
                         );
-                        for (BulkItemRequest item : requests) {
-                            try {
-                                ((IndexRequest) item.request()).indexSource().ensureInlineSource();
-                            } catch (Exception e) {
-                                throw new RuntimeException("failed to re-materialize inline source for misaligned batch item", e);
-                            }
-                        }
                     }
                 }
 

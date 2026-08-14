@@ -29,6 +29,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.sourcebatch.SourceBatchEncodeHelper;
 import org.elasticsearch.sourcebatch.SourceValueType;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentString;
 import org.elasticsearch.xpack.oteldata.otlp.docbuilder.MappingHints;
 import org.elasticsearch.xpack.oteldata.otlp.docbuilder.MetricDocumentBuilder;
@@ -68,8 +69,8 @@ import static org.elasticsearch.exponentialhistogram.ExponentialHistogramXConten
  * into {@link EscfBatch}es without an intermediate XContent (cbor/JSON) hop.
  *
  * <p>The converter mirrors the field order and structure of {@link MetricDocumentBuilder#buildMetricDocument}
- * and {@link org.elasticsearch.xpack.oteldata.otlp.docbuilder.OTelDocumentBuilder} but drives
- * {@link EscfRowBuffer} (via {@link EscfBatchBuilder}) instead of an {@link org.elasticsearch.xcontent.XContentBuilder}.
+ * and {@link OTelDocumentBuilder} but drives
+ * {@link EscfRowBuffer} (via {@link EscfBatchBuilder}) instead of an {@link XContentBuilder}.
  *
  * <p>Co-located in the {@code datapoint} package to access the package-private
  * {@link TDigestConverter} and {@link RawHistogramConverter}.
@@ -333,8 +334,6 @@ public final class MetricEscfConverter {
         return new Result(groups, batchesByIndex, shardCountByIndex);
     }
 
-    // ---- Row construction (mirrors MetricDocumentBuilder.buildMetricDocument) ----
-
     private static void buildRow(
         EscfRowBuffer row,
         DataPointGroupingContext.DataPointGroup group,
@@ -432,7 +431,7 @@ public final class MetricEscfConverter {
 
     /**
      * Writes the attributes sub-object, mirroring
-     * {@link org.elasticsearch.xpack.oteldata.otlp.docbuilder.OTelDocumentBuilder#buildAttributes}.
+     * {@link OTelDocumentBuilder#buildAttributes}.
      * Geo-location attribute merging is intentionally skipped for metrics (same as MetricDocumentBuilder).
      */
     private static void buildAttributeList(EscfRowBuffer row, List<KeyValue> attributes, int droppedAttributesCount) throws IOException {
@@ -465,7 +464,7 @@ public final class MetricEscfConverter {
 
     /**
      * Translates an {@link AnyValue} to an {@link EscfRowBuffer} field, mirroring
-     * {@link org.elasticsearch.xpack.oteldata.otlp.docbuilder.OTelDocumentBuilder#buildAnyValue}.
+     * {@link OTelDocumentBuilder}.
      */
     private static void anyValueToRow(EscfRowBuffer row, String fieldName, AnyValue value) throws IOException {
         switch (value.getValueCase()) {
@@ -511,7 +510,7 @@ public final class MetricEscfConverter {
      * returning both the packed bytes and the corresponding array-type byte. Uses FIXED_ARRAY
      * when all elements share the same scalar type, UNION_ARRAY otherwise.
      */
-    private static PackedAnyArray packAndClassifyAnyValueArray(List<AnyValue> elements) throws IOException {
+    private static PackedAnyArray packAndClassifyAnyValueArray(List<AnyValue> elements) {
         int n = elements.size();
         if (n == 0) {
             byte[] empty = SourceBatchEncodeHelper.packUnionArray(new byte[0], new long[0], new Object[0], 0);
@@ -660,10 +659,7 @@ public final class MetricEscfConverter {
         LongAccumulator values = new LongAccumulator();
         TDigestConverter.counts(dp, counts::addLong);
         TDigestConverter.centroidValues(dp, values::addDouble);
-        row.startObject(metricName);
-        row.longArrayField("counts", counts.buffer(), counts.size);
-        row.doubleArrayField("values", values.buffer(), values.size);
-        row.endObject();
+        writeCountsAndValuesToRow(row, metricName, counts, values);
     }
 
     private static void buildTDigestFromHistToRow(EscfRowBuffer row, String metricName, HistogramDataPoint dp) throws IOException {
@@ -671,10 +667,7 @@ public final class MetricEscfConverter {
         LongAccumulator values = new LongAccumulator();
         TDigestConverter.counts(dp, counts::addLong);
         TDigestConverter.centroidValues(dp, values::addDouble);
-        row.startObject(metricName);
-        row.longArrayField("counts", counts.buffer(), counts.size);
-        row.doubleArrayField("values", values.buffer(), values.size);
-        row.endObject();
+        writeCountsAndValuesToRow(row, metricName, counts, values);
     }
 
     private static void buildRawHistogramFromExpHistToRow(EscfRowBuffer row, String metricName, ExponentialHistogramDataPoint dp)
@@ -683,10 +676,7 @@ public final class MetricEscfConverter {
         LongAccumulator values = new LongAccumulator();
         RawHistogramConverter.counts(dp, counts::addLong);
         RawHistogramConverter.values(dp, values::addDouble);
-        row.startObject(metricName);
-        row.longArrayField("counts", counts.buffer(), counts.size);
-        row.doubleArrayField("values", values.buffer(), values.size);
-        row.endObject();
+        writeCountsAndValuesToRow(row, metricName, counts, values);
     }
 
     private static void buildRawHistogramFromHistToRow(EscfRowBuffer row, String metricName, HistogramDataPoint dp) throws IOException {
@@ -694,6 +684,10 @@ public final class MetricEscfConverter {
         LongAccumulator values = new LongAccumulator();
         RawHistogramConverter.counts(dp, counts::addLong);
         RawHistogramConverter.values(dp, values::addDouble);
+        writeCountsAndValuesToRow(row, metricName, counts, values);
+    }
+
+    private static void writeCountsAndValuesToRow(EscfRowBuffer row, String metricName, LongAccumulator counts, LongAccumulator values) {
         row.startObject(metricName);
         row.longArrayField("counts", counts.buffer(), counts.size);
         row.doubleArrayField("values", values.buffer(), values.size);
@@ -702,7 +696,7 @@ public final class MetricEscfConverter {
 
     /**
      * Writes a native OTLP exponential histogram as ESCF sub-fields, mirroring
-     * {@link ExponentialHistogramConverter#buildExponentialHistogram(ExponentialHistogramDataPoint, org.elasticsearch.xcontent.XContentBuilder)}.
+     * {@link ExponentialHistogramConverter#buildExponentialHistogram(ExponentialHistogramDataPoint, XContentBuilder)}.
      */
     private static void buildNativeExponentialHistogramToRow(EscfRowBuffer row, String metricName, ExponentialHistogramDataPoint dp) {
         row.startObject(metricName);
@@ -755,7 +749,7 @@ public final class MetricEscfConverter {
 
     /**
      * Writes an explicit-bucket {@link HistogramDataPoint} as a native exponential_histogram, mirroring
-     * {@link ExponentialHistogramConverter#buildExponentialHistogram(HistogramDataPoint, io.opentelemetry.proto.metrics.v1.AggregationTemporality, org.elasticsearch.xcontent.XContentBuilder, ExponentialHistogramConverter.BucketBuffer)}.
+     * {@link ExponentialHistogramConverter#buildExponentialHistogram(HistogramDataPoint, io.opentelemetry.proto.metrics.v1.AggregationTemporality, XContentBuilder, ExponentialHistogramConverter.BucketBuffer)}.
      * The re-bucketing algorithm is shared via {@link ExponentialHistogramConverter#computeBuckets}; only
      * the emit differs (columnar rows here vs. XContent there).
      */

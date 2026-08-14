@@ -119,10 +119,7 @@ public class IndexSource implements Writeable, Releasable {
 
     /**
      * Replaces the inline source bytes with an empty reference, records the row index into the shard-level batch,
-     * and sets the content type. Use this overload when no prior {@link #source} call has been made (i.e. the
-     * producer built rows directly without first setting inline bytes), so that
-     * {@link org.elasticsearch.action.index.IndexRequest#validate()} passes its content-type check and
-     * {@link #ensureInlineSource()} has a format to write into.
+     * and sets the content type. Use this overload when no prior {@link #source} call has been made.
      */
     public void setSourceRow(SourceBatch batch, int rowIndex, XContentType contentType) {
         this.contentType = contentType;

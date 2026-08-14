@@ -19,7 +19,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
-import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.bulk.ShardBatchIndexer;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
@@ -108,7 +107,7 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
      */
     @Override
     protected void doExecute(Task task, OTLPActionRequest request, ActionListener<OTLPActionResponse> listener) {
-        if (batchIndexingGatesOpen()) {
+        if (ShardBatchIndexer.isBatchIndexingSupported(clusterService)) {
             ExportMetricsServiceRequest parsed;
             try {
                 parsed = ExportMetricsServiceRequest.parseFrom(request.getRequest().streamInput());
@@ -166,7 +165,7 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
         ExportMetricsServiceRequest parsed,
         MetricEscfConverter.Result result,
         ActionListener<OTLPActionResponse> listener
-    ) throws IOException {
+    ) {
         if (result.groups().isEmpty()) {
             listener.onResponse(new OTLPActionResponse(BytesArray.EMPTY));
             return;
@@ -205,17 +204,6 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
                 delegate.onResponse(new OTLPActionResponse(BytesArray.EMPTY));
             }
         }));
-    }
-
-    /**
-     * Returns {@code true} when all three batch-indexing gates are satisfied:
-     * the cluster setting is on, the feature flag is enabled, and the cluster's minimum
-     * transport version supports {@link BulkShardRequest#BULK_SHARD_BATCH}.
-     */
-    private boolean batchIndexingGatesOpen() {
-        return ShardBatchIndexer.BATCH_INDEXING.get(clusterService.getSettings())
-            && ShardBatchIndexer.BATCH_INDEXING_FEATURE_FLAG.isEnabled()
-            && clusterService.state().getMinTransportVersion().supports(BulkShardRequest.BULK_SHARD_BATCH);
     }
 
     /**
@@ -269,6 +257,9 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
         if (!(indexRouting instanceof IndexRouting.ExtractFromSource.ForIndexDimensions dims)) {
             return null; // not a TSDB (dimensions-based) index
         }
+        // TODO: resolving the shard here could cause issues during reshard. We will (likely) move shortly to creating a single index level
+        // batch here and then sharding that at the coordinating layer. However, that will be follow-up work which touches how escf batches
+        // are formed today.
         return new MetricEscfConverter.TargetIndexResolver.Target(indexVersion, indexMetadata.getNumberOfShards(), dims::shardIdForTsid);
     }
 

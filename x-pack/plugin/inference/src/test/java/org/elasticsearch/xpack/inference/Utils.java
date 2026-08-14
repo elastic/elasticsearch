@@ -57,6 +57,8 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -67,6 +69,24 @@ public final class Utils {
 
     private Utils() {
         throw new UnsupportedOperationException("Utils is a utility class and should not be instantiated");
+    }
+
+    /**
+     * Returns an {@link InferenceIndexMappingManager} stub whose {@code withUpToDateMappings}
+     * immediately notifies the listener with success. Tests that construct a {@link
+     * org.elasticsearch.xpack.inference.registry.ModelRegistry} (or the region policy actions)
+     * without exercising real index I/O must use this instead of a bare Mockito mock: an unstubbed
+     * mock never invokes the listener, so any code path that reaches a write would hang forever
+     * instead of failing.
+     */
+    @SuppressWarnings("unchecked")
+    public static InferenceIndexMappingManager noopInferenceIndexMappingManager() {
+        var manager = mock(InferenceIndexMappingManager.class);
+        doAnswer(invocation -> {
+            ((ActionListener<Void>) invocation.getArgument(1)).onResponse(null);
+            return null;
+        }).when(manager).withUpToDateMappings(any(), any());
+        return manager;
     }
 
     public static ClusterService mockClusterServiceEmpty() {

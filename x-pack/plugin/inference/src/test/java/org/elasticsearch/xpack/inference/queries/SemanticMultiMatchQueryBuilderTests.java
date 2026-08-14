@@ -23,8 +23,8 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.xpack.inference.InferenceIndexMappingManager;
 import org.elasticsearch.xpack.inference.InferencePlugin;
+import org.elasticsearch.xpack.inference.Utils;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -32,8 +32,6 @@ import org.junit.BeforeClass;
 import java.util.Collection;
 import java.util.List;
 import java.util.function.Supplier;
-
-import static org.mockito.Mockito.mock;
 
 public class SemanticMultiMatchQueryBuilderTests extends MapperServiceTestCase {
     private static TestThreadPool threadPool;
@@ -54,7 +52,7 @@ public class SemanticMultiMatchQueryBuilderTests extends MapperServiceTestCase {
     public static void startModelRegistry() {
         threadPool = new TestThreadPool(SemanticMultiMatchQueryBuilderTests.class.getName());
         var clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        modelRegistry = new ModelRegistry(clusterService, new NoOpClient(threadPool), mock(InferenceIndexMappingManager.class));
+        modelRegistry = new ModelRegistry(clusterService, new NoOpClient(threadPool), Utils.noopInferenceIndexMappingManager());
         modelRegistry.clusterChanged(new ClusterChangedEvent("init", clusterService.state(), clusterService.state()) {
             @Override
             public boolean localNodeMaster() {

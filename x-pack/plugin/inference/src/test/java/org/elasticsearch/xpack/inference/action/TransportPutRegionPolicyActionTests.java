@@ -43,7 +43,7 @@ import org.elasticsearch.xpack.core.inference.action.PutRegionPolicyAction;
 import org.elasticsearch.xpack.core.inference.action.RefreshAuthorizedEndpointsAction;
 import org.elasticsearch.xpack.core.inference.action.RegionPolicyResponse;
 import org.elasticsearch.xpack.core.inference.regionpolicy.RegionPolicy;
-import org.elasticsearch.xpack.inference.InferenceIndexMappingManager;
+import org.elasticsearch.xpack.inference.Utils;
 import org.elasticsearch.xpack.inference.common.InferencePreferencesCache;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationModel;
@@ -210,7 +210,7 @@ public class TransportPutRegionPolicyActionTests extends ESTestCase {
             cache,
             authorizationHandler,
             mock(Sender.class),
-            noopInferenceIndexMappingManager()
+            Utils.noopInferenceIndexMappingManager()
         );
 
         var listener = new TestPlainActionFuture<RegionPolicyResponse>();
@@ -242,7 +242,7 @@ public class TransportPutRegionPolicyActionTests extends ESTestCase {
             cache,
             authorizationHandler,
             mock(Sender.class),
-            noopInferenceIndexMappingManager()
+            Utils.noopInferenceIndexMappingManager()
         );
 
         var listener = new TestPlainActionFuture<RegionPolicyResponse>();
@@ -271,7 +271,7 @@ public class TransportPutRegionPolicyActionTests extends ESTestCase {
             cache,
             authorizationHandler,
             mock(Sender.class),
-            noopInferenceIndexMappingManager()
+            Utils.noopInferenceIndexMappingManager()
         );
 
         var listener = new TestPlainActionFuture<RegionPolicyResponse>();
@@ -300,7 +300,7 @@ public class TransportPutRegionPolicyActionTests extends ESTestCase {
             cache,
             authorizationHandler,
             mock(Sender.class),
-            noopInferenceIndexMappingManager()
+            Utils.noopInferenceIndexMappingManager()
         );
 
         var listener = new TestPlainActionFuture<RegionPolicyResponse>();
@@ -425,17 +425,8 @@ public class TransportPutRegionPolicyActionTests extends ESTestCase {
             cache,
             mockAuthorizationHandlerReturning(ElasticInferenceServiceAuthorizationModel.unauthorized()),
             mock(Sender.class),
-            noopInferenceIndexMappingManager()
+            Utils.noopInferenceIndexMappingManager()
         );
     }
 
-    @SuppressWarnings("unchecked")
-    private InferenceIndexMappingManager noopInferenceIndexMappingManager() {
-        var mgr = mock(InferenceIndexMappingManager.class);
-        doAnswer(invocation -> {
-            ((ActionListener<Void>) invocation.getArgument(1)).onResponse(null);
-            return null;
-        }).when(mgr).withUpToDateMappings(any(), any());
-        return mgr;
-    }
 }

@@ -512,6 +512,61 @@ public class InferenceIndexMappingManagerTests extends ESTestCase {
         assertNull("No failure should be reported", callerListener.failure);
     }
 
+    /**
+     * Pins the version-parsing contract the manager relies on via
+     * {@code SystemIndexMappingUpdateService.checkIndexMappingUpToDate}: genuinely older mappings
+     * versions (v1–v3), as well as mappings whose version cannot be read (no {@code _meta}, no
+     * {@code managed_index_mappings_version} key, or a non-integer value — all treated as version
+     * {@code -1}), must all be considered outdated and trigger a mapping update.
+     */
+    public void testOutdatedOrUnreadableMappingsVersion_triggersPutMapping() {
+        Map<String, String> outdatedMappingsByCase = Map.of(
+            "v1 mappings",
+            InferenceIndex.mappingsV1(),
+            "v2 mappings",
+            InferenceIndex.mappingsV2(),
+            "v3 mappings",
+            InferenceIndex.mappingsV3(),
+            "mapping without _meta",
+            """
+                {"_doc":{"dynamic":"strict","properties":{"model_id":{"type":"keyword"}}}}""",
+            "_meta without a version key",
+            """
+                {"_doc":{"_meta":{"some_other_key":1},"dynamic":"strict","properties":{"model_id":{"type":"keyword"}}}}""",
+            "non-integer version value",
+            """
+                {"_doc":{"_meta":{"managed_index_mappings_version":"not-a-number"},"dynamic":"strict",\
+                "properties":{"model_id":{"type":"keyword"}}}}"""
+        );
+
+        List<ActionListener<AcknowledgedResponse>> putMappingListeners = new ArrayList<>();
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<AcknowledgedResponse> listener = invocation.getArgument(2);
+            putMappingListeners.add(listener);
+            return null;
+        }).when(mockClient).execute(eq(TransportPutMappingAction.TYPE), any(), any());
+
+        for (var entry : outdatedMappingsByCase.entrySet()) {
+            putMappingListeners.clear();
+            // A fresh manager per case so no in-flight or memoized state leaks between cases.
+            InferenceIndexMappingManager manager = new InferenceIndexMappingManager(mockClient, descriptor);
+            ClusterState clusterState = clusterStateWithIndex(InferenceIndex.INDEX_NAME, entry.getValue());
+
+            TestActionListener callerListener = new TestActionListener();
+            manager.withUpToDateMappings(clusterState, callerListener);
+
+            assertThat("A PutMapping must be issued for: " + entry.getKey(), putMappingListeners, hasSize(1));
+            assertFalse("Caller listener should not be notified until the I/O completes: " + entry.getKey(), callerListener.completed);
+
+            putMappingListeners.get(0).onResponse(AcknowledgedResponse.of(true));
+
+            assertTrue("Caller listener must be notified after successful put-mapping: " + entry.getKey(), callerListener.completed);
+            assertNull("No failure should be reported: " + entry.getKey(), callerListener.failure);
+        }
+        verify(mockClient, never()).execute(eq(TransportCreateIndexAction.TYPE), any(), any());
+    }
+
     public void testUpToDateMemo_doesNotShortCircuitWhenMappingsChange() {
         // Guards the up-to-date memoization: after a successful check is memoized, a state whose
         // mapping content differs (e.g. an older mapping reappearing after a migration or restore)

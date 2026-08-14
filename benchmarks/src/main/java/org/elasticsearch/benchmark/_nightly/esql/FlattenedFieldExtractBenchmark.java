@@ -104,6 +104,26 @@ import java.util.stream.IntStream;
  * parameter controls how many sibling keys each document carries, which grows the root blob (and thus the
  * parse cost) while leaving the fused single-key read unchanged.
  *
+ * <h2>Nightly scheduling</h2>
+ * This class lives in the {@code org.elasticsearch.benchmark._nightly} package, which is the selector the
+ * {@code periodic-micro-benchmarks} Buildkite pipeline runs ({@code :benchmarks:run --args
+ * 'org.elasticsearch.benchmark._nightly ...'}); on {@code main} that job indexes the JSON results for the
+ * performance dashboards. This benchmark is therefore picked up automatically, with no pipeline change,
+ * once merged.
+ * <p>
+ * Because the job shares a single time budget across <em>every</em> {@code _nightly} benchmark, the
+ * {@code @Param} <em>defaults</em> are deliberately trimmed to the regression-tracking essentials: the
+ * {@code in_order} layout and the bare {@code sum} consumer, across all three {@code path}s and all
+ * {@code subFields}. That 9-cell cross product isolates the fused-vs-fallback delta and its scaling in
+ * object width. The diagnostic dimensions ({@code shuffled} layout, {@code dissect}/{@code grok} consumers)
+ * add a constant per-row surcharge to every path and so do not move the tracked delta; they are dropped from
+ * the scheduled defaults but remain available for ad-hoc runs via {@code -p} (e.g.
+ * {@code -p layout=shuffled -p consumer=grok}) and are still exercised every fork by {@link #selfTest()},
+ * which sweeps the full {@code SUPPORTED_*} matrix.
+ * <p>
+ * Note {@link Fork @Fork(1)}: single-fork trend lines carry no cross-fork variance, so treat a nightly delta
+ * as indicative and confirm any suspected regression with a multi-fork re-run (see the profiling section).
+ *
  * <h2>Measured baseline</h2>
  * Reference numbers from an {@code in_order} sweep on a quiet workstation ({@code keyed_fused} from a single
  * all-paths run; {@code root_*} from a 3-fork x 7-iteration run, {@code Cnt 21} per cell). Time is ns/op:
@@ -314,9 +334,10 @@ public class FlattenedFieldExtractBenchmark {
     /**
      * Layouts for the input blocks, matching {@link ValuesSourceReaderBenchmark}: {@code in_order} is how
      * {@link LuceneSourceOperator} emits docs for the most efficient read, while {@code shuffled} models a
-     * large-block {@link TopNOperator}-style out-of-order read.
+     * large-block {@link TopNOperator}-style out-of-order read. The scheduled default is {@code in_order}
+     * only (see "Nightly scheduling"); run {@code shuffled} ad-hoc with {@code -p layout=shuffled}.
      */
-    @Param({ "in_order", "shuffled" })
+    @Param({ "in_order" })
     public String layout;
 
     @Param({ "keyed_fused", "root_then_evaluator", "root_only" })
@@ -325,9 +346,11 @@ public class FlattenedFieldExtractBenchmark {
     /**
      * Downstream work applied to each extracted value. {@code sum} is the bare loader-cost baseline; {@code dissect}
      * and {@code grok} run the real {@code DISSECT}/{@code GROK} parsers, mirroring the commands that now fuse a
-     * {@code field_extract(...)} input. Ignored by {@code root_only}, which extracts no value.
+     * {@code field_extract(...)} input. Ignored by {@code root_only}, which extracts no value. The scheduled default
+     * is {@code sum} only (the parsers add a flat surcharge to every path, so they do not move the fused-vs-fallback
+     * delta - see "Nightly scheduling"); run them ad-hoc with {@code -p consumer=dissect} / {@code -p consumer=grok}.
      */
-    @Param({ "sum", "dissect", "grok" })
+    @Param({ "sum" })
     public String consumer;
 
     @Param({ "5", "20", "100" })

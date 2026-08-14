@@ -491,6 +491,18 @@ str:keyword | range:double_range
 // end::to_double_range-str-result[]
 ;
 
+toDoubleRangeFromKeywordField
+required_capability: double_range_tech_preview
+
+FROM conv_from_keyword
+| EVAL range = TO_DOUBLE_RANGE(double_range_str)
+| KEEP double_range_str, range
+;
+
+double_range_str:keyword | range:double_range
+1.5..2.5                 | 1.5..2.5
+;
+
 toDoubleRangeIdentity
 required_capability: double_range_tech_preview
 required_capability: fn_to_double_range

@@ -206,7 +206,7 @@ public class IndexDirectory extends ByteSizeDirectory {
 
     @Override
     public void copyFrom(Directory from, String src, String dest, IOContext context) throws IOException {
-        // Must go through createOutput() to track the file in localFiles (Lucene #16173 broke this).
+        // Must go through createOutput() to track the file in localFiles.
         try (IndexInput is = from.openInput(src, context); IndexOutput os = createOutput(dest, context)) {
             os.copyBytes(is, is.length());
         }

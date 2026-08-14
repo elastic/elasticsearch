@@ -16,6 +16,7 @@ import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.SourceFieldMetrics;
 import org.elasticsearch.index.mapper.SourceLoader;
+import org.elasticsearch.search.NestedDocuments;
 
 import java.io.IOException;
 import java.util.Map;
@@ -35,8 +36,13 @@ class ConcurrentSegmentSourceProvider implements SourceProvider {
     private final Map<Object, Leaf> leaves = ConcurrentCollections.newConcurrentMap();
     private final boolean isStoredSource;
 
-    ConcurrentSegmentSourceProvider(MappingLookup lookup, SourceFilter filter, SourceFieldMetrics metrics) {
-        this.sourceLoaderProvider = sourceFilter -> lookup.newSourceLoader(sourceFilter, metrics);
+    ConcurrentSegmentSourceProvider(
+        MappingLookup lookup,
+        SourceFilter filter,
+        SourceFieldMetrics metrics,
+        NestedDocuments nestedDocuments
+    ) {
+        this.sourceLoaderProvider = sourceFilter -> lookup.newSourceLoader(sourceFilter, metrics, nestedDocuments);
         this.sourceLoader = sourceLoaderProvider.apply(filter);
         // we force a sequential reader here since it is used during query execution where documents are scanned sequentially
         this.isStoredSource = lookup.isSourceSynthetic() == false;

@@ -98,7 +98,7 @@ public class DocCountFieldMapperTests extends MetadataMapperTestCase {
                 iw.addDocument(mapper.documentMapper().parse(source(b -> b.field("doc", doc).field(CONTENT_TYPE, c))).rootDoc());
             }
         }, reader -> {
-            SourceLoader loader = mapper.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP);
+            SourceLoader loader = mapper.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP, null);
             for (LeafReaderContext leaf : reader.leaves()) {
                 int[] docIds = IntStream.range(0, leaf.reader().maxDoc()).toArray();
                 SourceLoader.Leaf sourceLoaderLeaf = loader.leaf(leaf.reader(), docIds);
@@ -129,7 +129,7 @@ public class DocCountFieldMapperTests extends MetadataMapperTestCase {
                 })).rootDoc());
             }
         }, reader -> {
-            SourceLoader loader = mapper.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP);
+            SourceLoader loader = mapper.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP, null);
             for (LeafReaderContext leaf : reader.leaves()) {
                 int[] docIds = IntStream.range(0, leaf.reader().maxDoc()).toArray();
                 SourceLoader.Leaf sourceLoaderLeaf = loader.leaf(leaf.reader(), docIds);
@@ -153,9 +153,10 @@ public class DocCountFieldMapperTests extends MetadataMapperTestCase {
             mapper,
             iw -> iw.addDocument(mapper.documentMapper().parse(source(b -> b.field("count", 42).field(CONTENT_TYPE, count))).rootDoc()),
             reader -> {
-                SourceLoader withoutFilter = mapper.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP);
-                SourceLoader withFilter = mapper.mappingLookup().newSourceLoader(filter, SourceFieldMetrics.NOOP);
-                SourceLoader withFilterAndDocCount = mapper.mappingLookup().newSourceLoader(filterWithDocCount, SourceFieldMetrics.NOOP);
+                SourceLoader withoutFilter = mapper.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP, null);
+                SourceLoader withFilter = mapper.mappingLookup().newSourceLoader(filter, SourceFieldMetrics.NOOP, null);
+                SourceLoader withFilterAndDocCount = mapper.mappingLookup()
+                    .newSourceLoader(filterWithDocCount, SourceFieldMetrics.NOOP, null);
                 for (LeafReaderContext leaf : reader.leaves()) {
                     int[] docIds = IntStream.range(0, leaf.reader().maxDoc()).toArray();
 

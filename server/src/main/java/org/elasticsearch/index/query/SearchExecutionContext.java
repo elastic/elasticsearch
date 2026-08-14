@@ -492,7 +492,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
                 IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings)
             );
         }
-        return mappingLookup.newSourceLoader(filter, mapperMetrics.sourceFieldMetrics());
+        return mappingLookup.newSourceLoader(filter, mapperMetrics.sourceFieldMetrics(), getNestedDocuments());
     }
 
     /**
@@ -551,7 +551,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     public SourceProvider createSourceProvider(SourceFilter sourceFilter) {
-        return SourceProvider.fromLookup(mappingLookup, sourceFilter, mapperMetrics.sourceFieldMetrics());
+        return SourceProvider.fromLookup(mappingLookup, sourceFilter, mapperMetrics.sourceFieldMetrics(), getNestedDocuments());
     }
 
     /**

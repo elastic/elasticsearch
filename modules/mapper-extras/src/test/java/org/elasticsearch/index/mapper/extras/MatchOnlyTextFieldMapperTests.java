@@ -22,12 +22,14 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
+import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.analysis.CannedTokenStream;
 import org.apache.lucene.tests.analysis.Token;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Tuple;
@@ -45,7 +47,9 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
+import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -90,6 +94,60 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
 
     public void testPhraseQuerySyntheticSource() throws IOException {
         assertPhraseQuery(createSytheticSourceMapperService(fieldMapping(b -> b.field("type", "match_only_text"))));
+    }
+
+    /**
+     * Regression test for https://github.com/elastic/elasticsearch/issues/132352: phrase queries on
+     * match_only_text fields inside nested objects must correctly load the nested source slice rather
+     * than the empty source that a plain stored-source loader returns for nested child doc IDs.
+     */
+    public void testPhraseQueryInsideNestedObject() throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> {
+            b.startObject("children");
+            b.field("type", "nested");
+            b.startObject("properties");
+            b.startObject("text").field("type", "match_only_text").endObject();
+            b.endObject();
+            b.endObject();
+        }));
+
+        try (Directory directory = newDirectory()) {
+            RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
+
+            // First root document: has a nested child containing the target phrase.
+            ParsedDocument doc1 = mapperService.documentMapper().parse(source(b -> {
+                b.startArray("children");
+                b.startObject().field("text", "the quick brown fox").endObject();
+                b.endArray();
+            }));
+            iw.addDocuments(doc1.docs());
+
+            // Second root document: nested child does not contain the target phrase.
+            ParsedDocument doc2 = mapperService.documentMapper().parse(source(b -> {
+                b.startArray("children");
+                b.startObject().field("text", "the slow lazy dog").endObject();
+                b.endArray();
+            }));
+            iw.addDocuments(doc2.docs());
+
+            iw.close();
+
+            try (
+                DirectoryReader reader = ElasticsearchDirectoryReader.wrap(
+                    DirectoryReader.open(directory),
+                    new ShardId(mapperService.index(), 0)
+                )
+            ) {
+                SearchExecutionContext context = createSearchExecutionContext(mapperService, newSearcher(reader));
+                NestedQueryBuilder query = new NestedQueryBuilder(
+                    "children",
+                    new MatchPhraseQueryBuilder("children.text", "quick brown"),
+                    ScoreMode.None
+                );
+                TopDocs docs = context.searcher().search(query.toQuery(context), 10);
+                assertThat(docs.totalHits.value(), equalTo(1L));
+            }
+        }
     }
 
     private void assertPhraseQuery(MapperService mapperService) throws IOException {

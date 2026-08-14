@@ -259,7 +259,8 @@ public abstract class SyntheticVectorsMapperTestCase extends MapperTestCase {
                 var provider = SourceProvider.fromLookup(
                     mapperService.mappingLookup(),
                     null,
-                    mapperService.getMapperMetrics().sourceFieldMetrics()
+                    mapperService.getMapperMetrics().sourceFieldMetrics(),
+                    null
                 );
                 var searchSource = provider.getSource(indexReader.leaves().get(0), parsedDoc.docs().size() - 1);
                 assertToXContentEquivalent(source, searchSource.internalSourceRef(), xContentType);

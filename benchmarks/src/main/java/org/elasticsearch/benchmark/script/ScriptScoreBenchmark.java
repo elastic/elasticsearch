@@ -115,7 +115,7 @@ public class ScriptScoreBenchmark {
         fieldTypes::get,
         (mft, lookup, fdo) -> mft.fielddataBuilder(FieldDataContext.noRuntimeFields("index", "benchmark"))
             .build(fieldDataCache, breakerService),
-        SourceProvider.fromLookup(MappingLookup.EMPTY, null, SourceFieldMetrics.NOOP)
+        SourceProvider.fromLookup(MappingLookup.EMPTY, null, SourceFieldMetrics.NOOP, null)
     );
 
     @Param({ "expression", "metal", "painless_cast", "painless_def" })

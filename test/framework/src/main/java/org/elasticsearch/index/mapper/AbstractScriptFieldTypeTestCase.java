@@ -306,7 +306,7 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
             allowExpensiveQueries,
             false,
             mappedFieldType,
-            SourceProvider.fromLookup(MappingLookup.EMPTY, null, SourceFieldMetrics.NOOP)
+            SourceProvider.fromLookup(MappingLookup.EMPTY, null, SourceFieldMetrics.NOOP, null)
         );
     }
 
@@ -544,7 +544,7 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
                     true,
                     fieldOnlyMappedAsRuntimeField,
                     null,
-                    SourceProvider.fromLookup(MappingLookup.EMPTY, null, SourceFieldMetrics.NOOP)
+                    SourceProvider.fromLookup(MappingLookup.EMPTY, null, SourceFieldMetrics.NOOP, null)
                 ).lookup();
             }
         };

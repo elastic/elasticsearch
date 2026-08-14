@@ -527,7 +527,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                 mapperMetrics.sourceFieldMetrics(),
                 mappingLookup.getMapping().ignoredSourceFormat()
             )
-            : mappingLookup.newSourceLoader(sourceFilter, mapperMetrics.sourceFieldMetrics());
+            : mappingLookup.newSourceLoader(sourceFilter, mapperMetrics.sourceFieldMetrics(), null);
         StoredFieldLoader storedFieldLoader = buildStoredFieldLoader(storedFieldSet, fetchSourceContext, loader);
         LeafStoredFieldLoader leafStoredFieldLoader = storedFieldLoader.getLoader(docIdAndVersion.reader.getContext(), null);
         try {

@@ -91,7 +91,7 @@ public class BlockSourceReaderTests extends MapperServiceTestCase {
                 )
             );
             var sourceLoader = mapperService.mappingLookup()
-                .newSourceLoader(new SourceFilter(new String[] { "field" }, null), SourceFieldMetrics.NOOP);
+                .newSourceLoader(new SourceFilter(new String[] { "field" }, null), SourceFieldMetrics.NOOP, null);
             var sourceLoaderLeaf = sourceLoader.leaf(ctx.reader(), null);
 
             assertThat(loader.rowStrideStoredFieldSpec().requiresSource(), equalTo(true));

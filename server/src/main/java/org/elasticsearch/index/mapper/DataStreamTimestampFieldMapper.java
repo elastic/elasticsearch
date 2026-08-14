@@ -291,14 +291,7 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
 
     @Override
     public boolean supportsColumnarParse(IndexSettings indexSettings) {
-        // postParse rejects a document with no @timestamp and, only for TIME_SERIES, validates it
-        // against the index time bounds. Neither runs columnar, but refusing whenever enabled is too
-        // blunt: IndexMode#createDefaultMapping enables this mapper on every logsdb_columnar index,
-        // data stream or not. Gating on the mode keeps the bounds check enforced where it applies.
-        //
-        // TODO(columnar): re-instate the missing-@timestamp rejection in postColumnarParse, once
-        // BatchMappingContext exposes the mapped timestamp column.
-        return enabled == false || indexSettings.getMode().shouldValidateTimestamp() == false;
+        return true;
     }
 
     @Override

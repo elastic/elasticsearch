@@ -1,0 +1,5 @@
+area: Machine Learning
+issues: []
+pr: 156821
+summary: Limit autoscale calculations
+type: bug

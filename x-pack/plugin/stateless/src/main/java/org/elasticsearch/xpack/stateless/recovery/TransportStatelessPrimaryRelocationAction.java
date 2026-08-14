@@ -379,7 +379,9 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         if (hollowShardsService.isHollowShard(indexShard.shardId())) {
             preFlushStep.onResponse(Engine.FlushResult.FLUSH_REQUEST_PROCESSED_AND_NOT_PERFORMED);
         } else {
-            ActionListener.run(preFlushStep, l -> preFlushEngine.flush(false, false, l));
+            // waitIfOngoing=true so any in-progress flush drains its upload before we acquire permits,
+            // avoiding holding permits while uploads complete.
+            ActionListener.run(preFlushStep, l -> preFlushEngine.flush(false, true, l));
         }
         logger.debug("[{}] completed the flush, waiting to upload", request.shardId());
 

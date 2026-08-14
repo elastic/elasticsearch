@@ -519,7 +519,12 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
 
     @Override
     public DeferringBucketCollector buildDeferringCollector() {
-        deferringCollector = new BestBucketsDeferringCollector(topLevelQuery(), searcher(), descendsFromGlobalAggregator(parent()));
+        deferringCollector = new BestBucketsDeferringCollector(
+            topLevelQuery(),
+            searcher(),
+            descendsFromGlobalAggregator(parent()),
+            this::addRequestCircuitBreakerBytes
+        );
         return deferringCollector;
     }
 

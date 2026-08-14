@@ -1042,3 +1042,108 @@ emp_no:integer | job_positions:keyword
 10003          | null
 10004          | [Head Human Resources, Reporting Analyst, Support Engineer, Tech Lead]
 ;
+
+
+multiColumnNotInSubqueryWithOnlyPartialNullRightTuples
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+
+// emp_no 10001 has a multi-valued job_positions field. After the right-side join-key conversion,
+// the subquery contributes (10001, NULL). This makes a row comparison UNKNOWN only when all
+// non-NULL components match; every other left tuple is a definite mismatch and must survive NOT IN.
+FROM employees
+| WHERE (emp_no, job_positions) NOT IN (FROM employees
+                                        | WHERE emp_no == 10001
+                                        | KEEP emp_no, job_positions)
+| SORT emp_no
+| KEEP emp_no, job_positions
+| LIMIT 3
+;
+
+warningRegex:.*evaluation of .*failed.*
+warningRegex:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+
+emp_no:integer | job_positions:keyword
+10002          | Senior Team Lead
+10003          | null
+10004          | [Head Human Resources, Reporting Analyst, Support Engineer, Tech Lead]
+;
+
+multiColumnNotInSubqueryMarkJoinWithOnlyPartialNullRightTuples
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+
+// The OR forces a MarkJoin. The subquery contributes (10001, NULL) because job_positions is
+// multi-valued for emp_no 10001. NOT IN is TRUE for definite row mismatches, so rows not selected
+// by the explicit OR branch must still be retained.
+FROM employees
+| WHERE (emp_no, job_positions) NOT IN (FROM employees
+                                        | WHERE emp_no == 10001
+                                        | KEEP emp_no, job_positions)
+    OR emp_no == 10003
+| SORT emp_no
+| KEEP emp_no, job_positions
+| LIMIT 3
+;
+
+warningRegex:.*evaluation of .*failed.*
+warningRegex:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+
+emp_no:integer | job_positions:keyword
+10002          | Senior Team Lead
+10003          | null
+10004          | [Head Human Resources, Reporting Analyst, Support Engineer, Tech Lead]
+;
+
+multiColumnInSubqueryWithEntirelyNullLeftAndRightTuples
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+
+// Both sides produce (NULL, NULL). MarkJoin must produce a NULL mark, which COALESCE turns into
+// TRUE; this verifies the combined all-NULL case without relying on IS NULL.
+FROM employees
+| EVAL emp_no = null::integer, job_positions = null::keyword
+| WHERE COALESCE(
+    (emp_no, job_positions) IN (FROM employees
+                                | EVAL emp_no = null::integer, job_positions = null::keyword
+                                | KEEP emp_no, job_positions),
+    true)
+| STATS cnt = COUNT(*)
+;
+
+cnt:long
+100
+;
+
+multiColumnInSubqueryWithEntirelyNullRightTuple
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+
+// Every right-side tuple is (NULL, NULL). A multi-column IN comparison is never TRUE, so the
+// all-null right-side short circuit should return no rows.
+FROM employees
+| WHERE (emp_no, job_positions) IN (FROM employees
+                                    | EVAL emp_no = null::integer, job_positions = null::keyword
+                                    | KEEP emp_no, job_positions)
+| KEEP emp_no, first_name
+;
+
+emp_no:integer | first_name:keyword
+;
+
+multiColumnNotInSubqueryWithEntirelyNullLeftTuple
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+
+// Every left-side tuple is (NULL, NULL), while the right side contains a known tuple. NOT IN is
+// UNKNOWN for every row, so the NULL left keys must not pass the filter.
+FROM employees
+| EVAL emp_no = null::integer, job_positions = null::keyword
+| WHERE (emp_no, job_positions) NOT IN (FROM employees
+                                        | WHERE emp_no == 10002
+                                        | KEEP emp_no, job_positions)
+| KEEP first_name
+;
+
+first_name:keyword
+;

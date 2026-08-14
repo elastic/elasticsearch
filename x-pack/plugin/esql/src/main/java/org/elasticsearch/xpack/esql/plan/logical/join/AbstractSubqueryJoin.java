@@ -327,8 +327,9 @@ public abstract class AbstractSubqueryJoin extends Join implements SortPreservin
      *       <ul>
      *         <li>SEMI: {@code x IN (a, b, NULL)} ≡ {@code x IN (a, b)} once {@code WHERE} drops NULL results, so the filter path keeps
      *         the NULL literal (it's harmless) and the hash-join path strips it from the {@link LocalRelation}.</li>
-     *         <li>ANTI: any NULL on the right makes the predicate non-TRUE for every row, so we short-circuit to {@code Filter(FALSE)}
-     *         immediately after the dedup.</li>
+     *         <li>ANTI: for a single-column join, any NULL on the right makes the predicate non-TRUE for every row, so we short-circuit
+     *         to {@code Filter(FALSE)} immediately after the dedup. For multi-column joins, only an entirely NULL tuple has that
+     *         property; a partial NULL tuple can still be a definite mismatch and is evaluated through the expression path.</li>
      *         <li>MARK: keeps {@code rightHadNulls} only as a hint for the hash-join path's CASE expression — the filter path uses the
      *         NULL position in the dedup output directly to drive {@link In}'s three-valued mark.</li>
      *       </ul>
@@ -543,13 +544,21 @@ public abstract class AbstractSubqueryJoin extends Join implements SortPreservin
             return hadNulls;
         }
 
+        /**
+         * Returns whether every deduplicated tuple is entirely NULL. A tuple with only one NULL component is not enough: for example,
+         * {@code (10001, NULL)} compares FALSE with {@code (10002, "Developer")}, so {@code NOT IN} must not be short-circuited for
+         * that tuple. The {@code isNullPosition} array records whether any component is NULL and is therefore intentionally not used
+         * for this check.
+         */
         boolean allNull() {
             if (hadNulls == false || positions() == 0) {
                 return false;
             }
-            for (boolean b : isNullPosition) {
-                if (b == false) {
-                    return false;
+            for (int pos = 0; pos < positions(); pos++) {
+                for (Block keyColumn : keyColumns) {
+                    if (keyColumn.isNull(pos) == false) {
+                        return false;
+                    }
                 }
             }
             return true;
@@ -766,6 +775,10 @@ public abstract class AbstractSubqueryJoin extends Join implements SortPreservin
             boolean rightHadNulls = dedup.hadNulls();
             boolean allRightNull = dedup.allNull();
 
+            // A completely NULL right tuple makes every row comparison UNKNOWN, so all join types have a constant result. A partially
+            // NULL tuple does not: it is FALSE when any known component differs and UNKNOWN only when all known components match. In
+            // particular, ANTI and MARK must use the expression path for partial NULL tuples instead of AntiJoin's single-column
+            // "any NULL is fatal" short-circuit.
             if (allRightNull) {
                 releaseSourcePage(pageHolder);
                 return subqueryJoin.buildShortCircuitPlan(source, true);

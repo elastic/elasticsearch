@@ -644,13 +644,15 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
 
         // Hold all VBCC chunk requests until the close/delete takes effect, so no chunk data is served and the search must fail.
         // Holding just the first request is not enough: it could be a Lucene prefetch (IndexInput#prefetch), whose failure is
-        // ignored, letting the search complete via later requests before the close/delete lands (#153888).
+        // ignored, letting the search complete via later requests before the close/delete lands
         final CheckedRunnable<Exception> failureTookEffect = switch (failureType) {
+            // wait until index is closed
             case INDEX_CLOSED -> () -> assertBusy(() -> {
                 var shard = indexNodeIndicesService.getShardOrNull(shardId);
                 assertNotNull(shard);
                 assertThat(shard.indexSettings().getIndexMetadata().getState(), equalTo(IndexMetadata.State.CLOSE));
             });
+            // wait until index is deleted
             case INDEX_DELETED -> () -> assertBusy(() -> assertThat(listBlobsWithAbsolutePath(shardCommitsContainer), empty()));
         };
         CountDownLatch getChunkActionAppeared = new CountDownLatch(1);
@@ -689,8 +691,6 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
         // Empty cache on search node, to ensure an action is sent to the indexing node
         evictSearchShardCache(indexName);
 
-        // Closing fails chunk requests with IndexClosedException; deleting redirects them to the object store, where the deleted
-        // blobs surface as NoSuchFileException.
         final Set<RestStatus> expectedStatuses = switch (failureType) {
             case INDEX_CLOSED -> Set.of(RestStatus.INTERNAL_SERVER_ERROR, RestStatus.BAD_REQUEST);
             case INDEX_DELETED -> Set.of(RestStatus.INTERNAL_SERVER_ERROR, RestStatus.SERVICE_UNAVAILABLE);
@@ -709,10 +709,10 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
         thread.start();
 
         safeAwait(getChunkActionAppeared);
-        // Don't block on the ack, which may depend on the held notifications. Applying the close/delete on the indexing node,
-        // which releases the held chunk requests and fails the search, does not.
         final ActionFuture<? extends AcknowledgedResponse> closeOrDeleteFuture = switch (failureType) {
+            // Close the index, which will make the action fail with IndexClosedException on the indexing node
             case INDEX_CLOSED -> indicesAdmin().close(new CloseIndexRequest(indexName));
+            // Delete the index, which will make the action fail with blob not found (after it's deleted)
             case INDEX_DELETED -> indicesAdmin().delete(new DeleteIndexRequest(indexName));
         };
         try {

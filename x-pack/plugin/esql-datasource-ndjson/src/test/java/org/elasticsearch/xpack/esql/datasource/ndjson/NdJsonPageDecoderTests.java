@@ -1236,7 +1236,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
     public void testConstraintViolationOnRecordOpeningTokenFailsFastUnderStrict() {
         String ndjson = "{\"v\":1}\n" + "1".repeat(1200) + "\n";
         ParsingException e = expectThrows(ParsingException.class, () -> decodeOneColumn(ndjson, DataType.LONG, ErrorPolicy.STRICT));
-        assertThat(e.getMessage(), Matchers.containsString("Over-limit NDJSON [nextToken]"));
+        assertThat(e.getMessage(), Matchers.containsString("Over-limit NDJSON at logical row [2] (nextToken)"));
         assertThat(e.getMessage(), Matchers.containsString("Number value length"));
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
     }

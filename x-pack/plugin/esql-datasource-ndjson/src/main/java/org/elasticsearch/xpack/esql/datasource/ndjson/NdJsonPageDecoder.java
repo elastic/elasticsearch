@@ -19,7 +19,6 @@ import com.fasterxml.jackson.core.io.JsonEOFException;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
-import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.data.AbstractBlockBuilder;
@@ -778,11 +777,20 @@ public class NdJsonPageDecoder implements Closeable {
      * {@code onFieldError}.
      */
     private void onNdjsonLineParseError(JsonProcessingException e, long logicalRowIndex, String phaseLabel) {
-        String kind = lineFailureKind(e);
+        // Described once, for the strict message, the client warning and the log alike. The row index is the
+        // one part a user can act on -- it names the line to go and look at -- and CsvFormatReader's own
+        // "at row [N]" says so too, so the strict message carries it rather than the phase alone.
+        String description = lineFailureKind(e)
+            + " NDJSON at logical row ["
+            + logicalRowIndex
+            + "] ("
+            + phaseLabel
+            + "): "
+            + e.getOriginalMessage();
         if (errorPolicy.isStrict()) {
-            // Mirrors the remedy hint coercionFailure and CsvFormatReader.onRowErrorImpl already give, phrased for
-            // a whole-line failure: both non-strict modes drop the line here, so neither is "null-fill" the way it
-            // is for a per-cell failure.
+            // The remedy hint mirrors coercionFailure and CsvFormatReader.onRowErrorImpl, phrased for a
+            // whole-line failure: both non-strict modes drop the line here, so neither is "null-fill" the way
+            // it is for a per-cell failure.
             // ParsingException (client-class, 400) rather than EsqlIllegalArgumentException (Ql SERVER family,
             // 500): a line this reader cannot interpret is bad input, not a broken invariant of ours, which is
             // the split ExternalFailures documents and CsvFormatReader.onRowErrorImpl already implements. The
@@ -791,12 +799,7 @@ public class NdJsonPageDecoder implements Closeable {
                 e,
                 Source.EMPTY,
                 "{}",
-                kind
-                    + " NDJSON ["
-                    + phaseLabel
-                    + "]: "
-                    + e.getOriginalMessage()
-                    + "; set error_mode=skip_row (or null_field) to skip the line and warn instead of failing"
+                description + "; set error_mode=skip_row (or null_field) to skip the line and warn instead of failing"
             );
         }
         if (recordChargedToBudget == false) {
@@ -806,23 +809,9 @@ public class NdJsonPageDecoder implements Closeable {
             // overrides by dropping the record whole.
             chargeErrorBudget();
         }
-        skipWarnings.add(kind + " NDJSON at logical row [" + logicalRowIndex + "] (" + phaseLabel + "): " + e.getOriginalMessage());
+        skipWarnings.add(description);
         checkErrorBudgetOrThrow();
-        logger.log(
-            errorPolicy.logErrors() ? Level.INFO : Level.DEBUG,
-            // The (Object) cast on the first vararg is required: a String-typed first vararg makes this
-            // call ambiguously resolve to the unrelated format(String prefix, String pattern, Object...
-            // args) overload instead of format(String pattern, Object... args), silently discarding the
-            // pattern and every argument but the first (confirmed empirically; not exercised by any
-            // existing assertion since this is a log-only message).
-            LoggerMessageFormat.format(
-                "{} NDJSON at logical row [{}] ({}): {}",
-                (Object) kind,
-                logicalRowIndex,
-                phaseLabel,
-                e.getOriginalMessage()
-            )
-        );
+        logger.log(errorPolicy.logErrors() ? Level.INFO : Level.DEBUG, description);
     }
 
     /**

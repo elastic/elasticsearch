@@ -367,9 +367,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommitsIT
   method: testGetVirtualBatchedCompoundCommitChunkFailureWhenIndexCloses
   issue: https://github.com/elastic/elasticsearch/issues/153888
-- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardMixedOperationsIT
-  method: testMixedOperationsDuringSplitWithDisruption
-  issue: https://github.com/elastic/elasticsearch/issues/153891
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:inlinestats.afterWhere}
   issue: https://github.com/elastic/elasticsearch/issues/152591
@@ -747,9 +744,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecStatsIT
   method: test {csv-spec:stats.sumExpressionWithConstantMultipleClausesWithMultiValuedField}
   issue: https://github.com/elastic/elasticsearch/issues/156483
-- class: org.elasticsearch.action.RejectionActionIT
-  method: testSimulatedSearchRejectionLoad
-  issue: https://github.com/elastic/elasticsearch/issues/156484
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecUnmappedTypeConflictsIT
   method: test {csv-spec:unmapped-type-conflicts.typeConflictLongDateUnmappedCastToDouble}
   issue: https://github.com/elastic/elasticsearch/issues/156485
@@ -920,3 +914,15 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test {feature:PARQUET_DATASET}
   issue: https://github.com/elastic/elasticsearch/issues/156789
+- class: org.elasticsearch.xpack.esql.analysis.AnalyzerInSubqueryGoldenTests
+  method: testTsMainMultiColumnInSubqueryWithTsSource {historical}
+  issue: https://github.com/elastic/elasticsearch/issues/156810
+- class: org.elasticsearch.xpack.esql.analysis.AnalyzerInSubqueryGoldenTests
+  method: testTsMainMultiColumnInSubqueryWithTsSource {current}
+  issue: https://github.com/elastic/elasticsearch/issues/156811
+- class: org.elasticsearch.xpack.esql.analysis.AnalyzerInSubqueryGoldenTests
+  method: testTsMainMultiColumnInSubqueryWithIndexSource {current}
+  issue: https://github.com/elastic/elasticsearch/issues/156814
+- class: org.elasticsearch.xpack.esql.analysis.AnalyzerInSubqueryGoldenTests
+  method: testTsMainMultiColumnInSubqueryWithIndexSource {historical}
+  issue: https://github.com/elastic/elasticsearch/issues/156815

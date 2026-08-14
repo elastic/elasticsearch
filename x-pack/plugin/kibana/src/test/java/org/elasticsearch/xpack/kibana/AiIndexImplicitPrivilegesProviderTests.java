@@ -26,102 +26,131 @@ import java.util.Set;
 
 import static org.elasticsearch.xpack.kibana.AiIndexImplicitPrivilegesProvider.AI_INDEX_INDICES;
 import static org.elasticsearch.xpack.kibana.AiIndexImplicitPrivilegesProvider.KIBANA_APPLICATION;
-import static org.elasticsearch.xpack.kibana.AiIndexImplicitPrivilegesProvider.PERMISSIONS_FIELD;
-import static org.elasticsearch.xpack.kibana.AiIndexImplicitPrivilegesProvider.SCOPE_SEPARATOR;
+import static org.elasticsearch.xpack.kibana.AiIndexImplicitPrivilegesProvider.NAME_FIELD;
+import static org.elasticsearch.xpack.kibana.AiIndexImplicitPrivilegesProvider.SPACE_FIELD;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class AiIndexImplicitPrivilegesProviderTests extends ESTestCase {
 
     private final AiIndexImplicitPrivilegesProvider contributor = new AiIndexImplicitPrivilegesProvider();
 
-    /** User holds an ai_index action on a single space → DLS query with composite scoped privilege. */
-    public void testSingleSpaceGrantsDlsQuery() {
+    /**
+     * A user with actions in one space produces a nested query whose single should-clause
+     * pairs a term on .space with a terms_set on .name gated by the per-element count.
+     */
+    public void testSingleSpaceProducesNestedSpaceClause() {
         Collection<ApplicationPrivilegeDescriptor> storedPrivileges = List.of(
             new ApplicationPrivilegeDescriptor(KIBANA_APPLICATION, "feature_sml_read", Set.of("ai_index:dashboard/read"), Map.of())
         );
-        RoleDescriptor roleDescriptor = role("feature_sml_read", "space:marketing");
 
         Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(
-            resolve(roleDescriptor, storedPrivileges)
+            resolve(role("feature_sml_read", "space:marketing"), storedPrivileges)
         );
         assertThat(result, hasSize(1));
 
         RoleDescriptor.IndicesPrivileges privilege = result.iterator().next();
         assertThat(privilege.getIndices(), arrayContainingInAnyOrder(AI_INDEX_INDICES));
         assertThat(privilege.getPrivileges(), arrayContainingInAnyOrder("read"));
-        assertThat(privilege.getQuery(), is(notNullValue()));
 
-        Map<String, Object> queryMap = parseQuery(privilege.getQuery());
-        assertQueryContainsTerm(queryMap, "marketing" + SCOPE_SEPARATOR + "ai_index:dashboard/read");
-        assertQueryHasTermsSet(queryMap);
-        assertQueryHasPublicDocBranch(queryMap);
-    }
-
-    /** User holds grants on multiple spaces → composite scoped privileges for all space × action combinations in the DLS query. */
-    public void testMultipleSpacesProduceCompositeScopedPrivileges() {
-        Collection<ApplicationPrivilegeDescriptor> storedPrivileges = List.of(
-            new ApplicationPrivilegeDescriptor(KIBANA_APPLICATION, "sml_read", Set.of("ai_index:visualization/read"), Map.of())
-        );
-        RoleDescriptor roleDescriptor = role("sml_read", "space:foo", "space:bar");
-
-        Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(
-            resolve(roleDescriptor, storedPrivileges)
-        );
-        assertThat(result, hasSize(1));
-
-        Map<String, Object> queryMap = parseQuery(result.iterator().next().getQuery());
-        assertQueryContainsTerm(queryMap, "foo" + SCOPE_SEPARATOR + "ai_index:visualization/read");
-        assertQueryContainsTerm(queryMap, "bar" + SCOPE_SEPARATOR + "ai_index:visualization/read");
+        assertThat(privilege.getQuery().utf8ToString(), equalTo(EXPECTED_SINGLE_SPACE_QUERY));
     }
 
     /**
-     * User holds the wildcard resource * → DLS query with "*|action" scoped privileges.
-     * The wildcard is NOT a bypass — it produces tokens with "*" as the space component.
+     * The public-document branch must be must_not(nested(match_all)), never must_not(exists(...)).
+     * A root-level exists on a nested subfield matches every document — the values live on child
+     * docs — which would make the first should-clause match everything and void the whole DLS query.
      */
-    public void testWildcardResourceProducesDlsQueryWithWildcardTokens() {
+    public void testPublicDocumentBranchUsesNestedMatchAllNotExists() {
+        Collection<ApplicationPrivilegeDescriptor> storedPrivileges = List.of(
+            new ApplicationPrivilegeDescriptor(KIBANA_APPLICATION, "sml_read", Set.of("ai_index:dashboard/read"), Map.of())
+        );
+
+        Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(
+            resolve(role("sml_read", "space:marketing"), storedPrivileges)
+        );
+
+        String query = result.iterator().next().getQuery().utf8ToString();
+        assertThat(query, containsString("\"must_not\""));
+        assertThat(query, containsString("\"match_all\""));
+        assertThat(query, not(containsString("\"exists\"")));
+    }
+
+    /** User holds grants on multiple spaces → one nested should-clause per space, each carrying that space's actions. */
+    public void testMultipleSpacesProduceOneClauseEach() {
         Collection<ApplicationPrivilegeDescriptor> storedPrivileges = List.of(
             new ApplicationPrivilegeDescriptor(KIBANA_APPLICATION, "sml_read", Set.of("ai_index:visualization/read"), Map.of())
         );
-        RoleDescriptor roleDescriptor = role("sml_read", "*");
 
         Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(
-            resolve(roleDescriptor, storedPrivileges)
+            resolve(role("sml_read", "space:foo", "space:bar"), storedPrivileges)
+        );
+        assertThat(result, hasSize(1));
+
+        List<Map<String, Object>> clauses = nestedSpaceClauses(parseQuery(result.iterator().next().getQuery()));
+        assertThat(clauses, hasSize(2));
+        assertThat(termsOfClauseForSpace(clauses, "foo"), contains("ai_index:visualization/read"));
+        assertThat(termsOfClauseForSpace(clauses, "bar"), contains("ai_index:visualization/read"));
+    }
+
+    /**
+     * The wildcard resource produces a <em>space-less</em> clause, not a clause whose space is the
+     * literal string {@code "*"}. Documents live in real spaces, so a literal-{@code *} space term
+     * would match nothing — a user with an all-spaces Kibana grant would see almost no documents.
+     */
+    public void testWildcardResourceProducesSpacelessClause() {
+        Collection<ApplicationPrivilegeDescriptor> storedPrivileges = List.of(
+            new ApplicationPrivilegeDescriptor(KIBANA_APPLICATION, "sml_read", Set.of("ai_index:visualization/read"), Map.of())
+        );
+
+        Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(
+            resolve(role("sml_read", "*"), storedPrivileges)
         );
         assertThat(result, hasSize(1));
 
         RoleDescriptor.IndicesPrivileges privilege = result.iterator().next();
         assertThat(privilege.getIndices(), arrayContainingInAnyOrder(AI_INDEX_INDICES));
-        assertThat(privilege.getPrivileges(), arrayContainingInAnyOrder("read"));
-        // Must NOT be null — wildcard is not a bypass
+        // Must NOT be null — the wildcard is not a bypass; the action check still applies.
         assertThat(privilege.getQuery(), is(notNullValue()));
 
-        Map<String, Object> queryMap = parseQuery(privilege.getQuery());
-        assertQueryContainsTerm(queryMap, "*" + SCOPE_SEPARATOR + "ai_index:visualization/read");
-        assertQueryHasTermsSet(queryMap);
+        List<Map<String, Object>> clauses = nestedSpaceClauses(parseQuery(privilege.getQuery()));
+        assertThat(clauses, hasSize(1));
+        assertThat("wildcard clause must carry no .space term", spaceOfClause(clauses.get(0)), is(nullValue()));
+        assertThat(termsOfClause(clauses.get(0)), contains("ai_index:visualization/read"));
     }
 
-    /** When * and specific spaces both appear, both produce tokens in the DLS query. */
-    public void testWildcardAndSpecificSpacesBothProduceTokens() {
+    /**
+     * Regression guard for the under-grant the union rule prevents: a user holding action A globally
+     * and action B in marketing genuinely holds both in marketing, so the marketing clause must carry
+     * both. Without the union, a document requiring {A, B} in marketing would be wrongly hidden.
+     * The additional space-less clause carries only the global actions.
+     */
+    public void testWildcardActionsAreUnionedIntoSpaceClauses() {
         Collection<ApplicationPrivilegeDescriptor> storedPrivileges = List.of(
-            new ApplicationPrivilegeDescriptor(KIBANA_APPLICATION, "sml_read", Set.of("ai_index:visualization/read"), Map.of())
+            new ApplicationPrivilegeDescriptor(KIBANA_APPLICATION, "global_read", Set.of("ai_index:dashboard/read"), Map.of()),
+            new ApplicationPrivilegeDescriptor(KIBANA_APPLICATION, "space_read", Set.of("ai_index:workflow/read"), Map.of())
         );
-        RoleDescriptor roleDescriptor = role("sml_read", "*", "space:foo");
+        RoleDescriptor roleDescriptor = roleWithGrants(grant("global_read", "*"), grant("space_read", "space:marketing"));
 
         Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(
             resolve(roleDescriptor, storedPrivileges)
         );
         assertThat(result, hasSize(1));
 
-        Map<String, Object> queryMap = parseQuery(result.iterator().next().getQuery());
-        assertQueryContainsTerm(queryMap, "*" + SCOPE_SEPARATOR + "ai_index:visualization/read");
-        assertQueryContainsTerm(queryMap, "foo" + SCOPE_SEPARATOR + "ai_index:visualization/read");
+        List<Map<String, Object>> clauses = nestedSpaceClauses(parseQuery(result.iterator().next().getQuery()));
+        assertThat(clauses, hasSize(2));
+
+        assertThat(termsOfClauseForSpace(clauses, "marketing"), containsInAnyOrder("ai_index:dashboard/read", "ai_index:workflow/read"));
+        assertThat(termsOfSpacelessClause(clauses), contains("ai_index:dashboard/read"));
     }
 
     /** Privilege on a different application → empty (provider does not apply). */
@@ -129,21 +158,7 @@ public class AiIndexImplicitPrivilegesProviderTests extends ESTestCase {
         Collection<ApplicationPrivilegeDescriptor> storedPrivileges = List.of(
             new ApplicationPrivilegeDescriptor("other-app", "sml_read", Set.of("ai_index:visualization/read"), Map.of())
         );
-        RoleDescriptor roleDescriptor = new RoleDescriptor(
-            "test_role",
-            null,
-            null,
-            new RoleDescriptor.ApplicationResourcePrivileges[] {
-                RoleDescriptor.ApplicationResourcePrivileges.builder()
-                    .application("other-app")
-                    .privileges("sml_read")
-                    .resources("space:default")
-                    .build() },
-            null,
-            null,
-            null,
-            null
-        );
+        RoleDescriptor roleDescriptor = roleWithApplication("other-app", "sml_read", "space:default");
 
         Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(
             resolve(roleDescriptor, storedPrivileges)
@@ -153,11 +168,10 @@ public class AiIndexImplicitPrivilegesProviderTests extends ESTestCase {
 
     /** A role with application "kibana-*" resolves to a residual privilege whose getApplication() is still "kibana-*". */
     public void testWildcardApplicationNameMatchesKibana() {
-        // A role with application "kibana-*" resolves to a residual privilege
-        // whose getApplication() is still "kibana-*". The provider must match it.
         RoleDescriptor roleDescriptor = roleWithApplication("kibana-*", "ai_index:dashboard/read", "space:default");
         Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(resolve(roleDescriptor, List.of()));
         assertThat(result, hasSize(1));
+        assertThat(result.iterator().next().getQuery(), is(notNullValue()));
     }
 
     /** Privilege without login: still triggers the provider — holding an ai_index: action is what matters. */
@@ -165,14 +179,14 @@ public class AiIndexImplicitPrivilegesProviderTests extends ESTestCase {
         Collection<ApplicationPrivilegeDescriptor> storedPrivileges = List.of(
             new ApplicationPrivilegeDescriptor(KIBANA_APPLICATION, "sml_write", Set.of("ai_index:connector/read"), Map.of())
         );
-        RoleDescriptor roleDescriptor = role("sml_write", "space:default");
 
         Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(
-            resolve(roleDescriptor, storedPrivileges)
+            resolve(role("sml_write", "space:default"), storedPrivileges)
         );
         assertThat(result, hasSize(1));
-        Map<String, Object> queryMap = parseQuery(result.iterator().next().getQuery());
-        assertQueryContainsTerm(queryMap, "default" + SCOPE_SEPARATOR + "ai_index:connector/read");
+
+        List<Map<String, Object>> clauses = nestedSpaceClauses(parseQuery(result.iterator().next().getQuery()));
+        assertThat(termsOfClauseForSpace(clauses, "default"), contains("ai_index:connector/read"));
     }
 
     /**
@@ -189,10 +203,9 @@ public class AiIndexImplicitPrivilegesProviderTests extends ESTestCase {
                 Map.of()
             )
         );
-        RoleDescriptor roleDescriptor = role("feature_discover.read", "space:marketing");
 
         Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(
-            resolve(roleDescriptor, storedPrivileges)
+            resolve(role("feature_discover.read", "space:marketing"), storedPrivileges)
         );
         assertThat(result, is(empty()));
     }
@@ -201,7 +214,7 @@ public class AiIndexImplicitPrivilegesProviderTests extends ESTestCase {
      * A grant mixing namespaces contributes only its {@code ai_index:} actions to the DLS query; actions
      * owned by other subsystems are dropped rather than inflating the {@code terms_set} clause.
      */
-    public void testOnlyAiIndexActionsContributeScopedPrivileges() {
+    public void testOnlyAiIndexActionsContributeTerms() {
         Collection<ApplicationPrivilegeDescriptor> storedPrivileges = List.of(
             new ApplicationPrivilegeDescriptor(
                 KIBANA_APPLICATION,
@@ -210,15 +223,14 @@ public class AiIndexImplicitPrivilegesProviderTests extends ESTestCase {
                 Map.of()
             )
         );
-        RoleDescriptor roleDescriptor = role("feature_dashboards.read", "space:marketing");
 
         Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(
-            resolve(roleDescriptor, storedPrivileges)
+            resolve(role("feature_dashboards.read", "space:marketing"), storedPrivileges)
         );
         assertThat(result, hasSize(1));
 
-        Map<String, Object> queryMap = parseQuery(result.iterator().next().getQuery());
-        assertThat(extractTermsSetTerms(queryMap), contains("marketing" + SCOPE_SEPARATOR + "ai_index:dashboard/read"));
+        List<Map<String, Object>> clauses = nestedSpaceClauses(parseQuery(result.iterator().next().getQuery()));
+        assertThat(termsOfClauseForSpace(clauses, "marketing"), contains("ai_index:dashboard/read"));
     }
 
     /** Resources without the "space:" prefix and not equal to "*" are ignored; if no valid resources remain → empty. */
@@ -226,10 +238,9 @@ public class AiIndexImplicitPrivilegesProviderTests extends ESTestCase {
         Collection<ApplicationPrivilegeDescriptor> storedPrivileges = List.of(
             new ApplicationPrivilegeDescriptor(KIBANA_APPLICATION, "sml_read", Set.of("ai_index:visualization/read"), Map.of())
         );
-        RoleDescriptor roleDescriptor = role("sml_read", "no-prefix-resource");
 
         Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(
-            resolve(roleDescriptor, storedPrivileges)
+            resolve(role("sml_read", "no-prefix-resource"), storedPrivileges)
         );
         assertThat(result, is(empty()));
     }
@@ -239,186 +250,103 @@ public class AiIndexImplicitPrivilegesProviderTests extends ESTestCase {
      * branch in privilege resolution should still trigger the provider and produce a DLS query.
      */
     public void testEmptyStoredPrivilegesWithRawActionStillWorks() {
-        // No stored descriptors; action pattern is used directly.
         RoleDescriptor roleDescriptor = role("ai_index:dashboard/read", "space:default");
 
         Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(resolve(roleDescriptor, List.of()));
         assertThat(result, hasSize(1));
         assertThat(result.iterator().next().getQuery(), is(notNullValue()));
-        assertQueryContainsTerm(parseQuery(result.iterator().next().getQuery()), "default" + SCOPE_SEPARATOR + "ai_index:dashboard/read");
+
+        List<Map<String, Object>> clauses = nestedSpaceClauses(parseQuery(result.iterator().next().getQuery()));
+        assertThat(termsOfClauseForSpace(clauses, "default"), contains("ai_index:dashboard/read"));
     }
 
-    /** DLS query must contain a terms_set clause referencing count field and composite scoped privileges. */
-    public void testDlsQueryIncludesCompositeScopedPrivileges() {
+    /** The terms_set terms are bare action strings — no space is baked into them. */
+    public void testDlsQueryIncludesActionTerms() {
         Collection<ApplicationPrivilegeDescriptor> storedPrivileges = List.of(
             new ApplicationPrivilegeDescriptor(KIBANA_APPLICATION, "feature_sml", Set.of("ai_index:workflow/read"), Map.of())
         );
-        RoleDescriptor roleDescriptor = role("feature_sml", "space:default");
 
         Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(
-            resolve(roleDescriptor, storedPrivileges)
+            resolve(role("feature_sml", "space:default"), storedPrivileges)
         );
         assertThat(result, hasSize(1));
 
-        Map<String, Object> queryMap = parseQuery(result.iterator().next().getQuery());
-        assertQueryHasTermsSet(queryMap);
-        assertQueryHasPublicDocBranch(queryMap);
-        assertQueryContainsTerm(queryMap, "default" + SCOPE_SEPARATOR + "ai_index:workflow/read");
-    }
+        String query = result.iterator().next().getQuery().utf8ToString();
+        assertThat(query, containsString("terms_set"));
+        // No delimiter anywhere — space and action are separate fields now.
+        assertThat(query, not(containsString("|")));
 
-    /** DLS query must include a must_not exists clause so documents with no permissions tokens are visible. */
-    public void testDlsQueryAllowsDocsWithNoScopedPrivileges() {
-        Collection<ApplicationPrivilegeDescriptor> storedPrivileges = List.of(
-            new ApplicationPrivilegeDescriptor(KIBANA_APPLICATION, "sml_read", Set.of("ai_index:visualization/read"), Map.of())
-        );
-        RoleDescriptor roleDescriptor = role("sml_read", "space:default");
-
-        Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(
-            resolve(roleDescriptor, storedPrivileges)
-        );
-        assertThat(result, hasSize(1));
-
-        Map<String, Object> queryMap = parseQuery(result.iterator().next().getQuery());
-        assertQueryHasPublicDocBranch(queryMap);
+        List<Map<String, Object>> clauses = nestedSpaceClauses(parseQuery(result.iterator().next().getQuery()));
+        assertThat(termsOfClauseForSpace(clauses, "default"), contains("ai_index:workflow/read"));
     }
 
     /**
-     * Two grants with different action sets on different spaces produce the correct cross-product
-     * of composite scoped privileges — one token per space × action combination.
+     * Two grants with different action sets on different spaces must produce one clause per space
+     * carrying only that space's actions — not the (space x action) cross-product the flat
+     * composite-token design emitted. The total term count is the sum of per-space action counts.
      */
-    public void testMultiplePrivilegesAndSpacesProduceCrossProductScopedPrivileges() {
+    public void testNoCrossProductIsEmitted() {
         Collection<ApplicationPrivilegeDescriptor> storedPrivileges = List.of(
             new ApplicationPrivilegeDescriptor(KIBANA_APPLICATION, "sml_dashboard", Set.of("ai_index:dashboard/read"), Map.of()),
-            new ApplicationPrivilegeDescriptor(KIBANA_APPLICATION, "sml_lens", Set.of("ai_index:workflow/read"), Map.of())
+            new ApplicationPrivilegeDescriptor(KIBANA_APPLICATION, "sml_workflow", Set.of("ai_index:workflow/read"), Map.of())
         );
-        // Two separate grants: sml_dashboard on space:foo, sml_lens on space:bar.
-        RoleDescriptor roleDescriptor = new RoleDescriptor(
-            "test_role",
-            null,
-            null,
-            new RoleDescriptor.ApplicationResourcePrivileges[] {
-                RoleDescriptor.ApplicationResourcePrivileges.builder()
-                    .application(KIBANA_APPLICATION)
-                    .privileges("sml_dashboard")
-                    .resources("space:foo")
-                    .build(),
-                RoleDescriptor.ApplicationResourcePrivileges.builder()
-                    .application(KIBANA_APPLICATION)
-                    .privileges("sml_lens")
-                    .resources("space:bar")
-                    .build() },
-            null,
-            null,
-            null,
-            null
-        );
+        RoleDescriptor roleDescriptor = roleWithGrants(grant("sml_dashboard", "space:foo"), grant("sml_workflow", "space:bar"));
 
         Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(
             resolve(roleDescriptor, storedPrivileges)
         );
         assertThat(result, hasSize(1));
 
-        Map<String, Object> queryMap = parseQuery(result.iterator().next().getQuery());
-        // foo space tokens from sml_dashboard
-        assertQueryContainsTerm(queryMap, "foo" + SCOPE_SEPARATOR + "ai_index:dashboard/read");
-        // bar space tokens from sml_lens
-        assertQueryContainsTerm(queryMap, "bar" + SCOPE_SEPARATOR + "ai_index:workflow/read");
+        List<Map<String, Object>> clauses = nestedSpaceClauses(parseQuery(result.iterator().next().getQuery()));
+        assertThat(clauses, hasSize(2));
+        assertThat(termsOfClauseForSpace(clauses, "foo"), contains("ai_index:dashboard/read"));
+        assertThat(termsOfClauseForSpace(clauses, "bar"), contains("ai_index:workflow/read"));
 
-        // foo tokens from sml_dashboard should NOT appear for bar and vice versa
-        assertQueryDoesNotContainTerm(queryMap, "foo" + SCOPE_SEPARATOR + "ai_index:workflow/read");
-        assertQueryDoesNotContainTerm(queryMap, "bar" + SCOPE_SEPARATOR + "ai_index:dashboard/read");
+        // 1 action in foo + 1 action in bar = 2 terms total, not the 4 a cross-product would emit.
+        int totalTerms = clauses.stream().mapToInt(clause -> termsOfClause(clause).size()).sum();
+        assertThat(totalTerms, equalTo(2));
+
+        assertThat(result.iterator().next().getQuery().utf8ToString(), not(containsString("|")));
     }
 
-    /** Static helper: buildDlsQuery produces valid JSON with the required structural elements. */
-    @SuppressWarnings("unchecked")
+    /** Exact serialisation of the query built directly from a resource-to-actions map. */
     public void testBuildDlsQueryFormat() {
-        Set<String> tokens = Set.of(
-            "marketing" + SCOPE_SEPARATOR + "ai_index:visualization/read",
-            "marketing" + SCOPE_SEPARATOR + "ai_index:dashboard/read"
-        );
-        String query = AiIndexImplicitPrivilegesProvider.buildDlsQuery(tokens);
-
-        Map<String, Object> queryMap = parseQueryString(query);
-
-        // Top-level bool/should structure
-        assertThat(queryMap, hasKey("bool"));
-        Map<String, Object> boolClause = (Map<String, Object>) queryMap.get("bool");
-        assertThat(boolClause, hasKey("should"));
-
-        List<Map<String, Object>> shouldClauses = (List<Map<String, Object>>) boolClause.get("should");
-        assertThat(shouldClauses, hasSize(2));
-
-        // Public-document branch: bool/must_not/exists
-        Map<String, Object> publicBranch = shouldClauses.stream().filter(c -> c.containsKey("bool")).findFirst().orElse(null);
-        assertThat("expected a bool/must_not branch", publicBranch, is(notNullValue()));
-        // must_not is serialized as an array by BoolQueryBuilder
-        List<Map<String, Object>> mustNotList = (List<Map<String, Object>>) ((Map<String, Object>) publicBranch.get("bool")).get(
-            "must_not"
-        );
-        assertThat("expected exactly one must_not clause", mustNotList, hasSize(1));
-        Map<String, Object> exists = (Map<String, Object>) mustNotList.get(0).get("exists");
-        assertThat("expected exists in must_not clause", exists, is(notNullValue()));
-        assertThat("expected PERMISSIONS_FIELD in exists", exists.get("field"), is(PERMISSIONS_FIELD));
-
-        // Scoped-privilege-match branch: terms_set
-        Map<String, Object> termsSetBranch = shouldClauses.stream().filter(c -> c.containsKey("terms_set")).findFirst().orElse(null);
-        assertThat("expected a terms_set branch", termsSetBranch, is(notNullValue()));
-        Map<String, Object> termsSetField = (Map<String, Object>) ((Map<String, Object>) termsSetBranch.get("terms_set")).get(
-            PERMISSIONS_FIELD
-        );
-        List<String> terms = (List<String>) termsSetField.get("terms");
-        assertThat(
-            terms,
-            containsInAnyOrder(
-                "marketing" + SCOPE_SEPARATOR + "ai_index:visualization/read",
-                "marketing" + SCOPE_SEPARATOR + "ai_index:dashboard/read"
-            )
-        );
-
-        // No old-style spaces or dls_tokens fields
-        assertFalse("unexpected old spaces field", query.contains("\"spaces\""));
-        assertFalse("unexpected old dls_tokens field", query.contains("\"dls_tokens\""));
-        assertFalse("unexpected old dls_tokens_count field", query.contains("\"dls_tokens_count\""));
+        String query = AiIndexImplicitPrivilegesProvider.buildDlsQuery(Map.of("space:a", Set.of("ai_index:x/read")));
+        assertThat(query, equalTo(EXPECTED_BUILD_DLS_QUERY));
     }
 
-    /** buildScopedPrivileges correctly crosses space IDs with action strings, including the wildcard resource. */
-    public void testBuildScopedPrivileges() {
-        Map<String, Set<String>> resourcesAndActions = Map.of(
-            "space:marketing",
-            Set.of("ai_index:visualization/read", "ai_index:dashboard/read"),
-            "space:finance",
-            Set.of("ai_index:visualization/read"),
-            "*",
-            Set.of("ai_index:visualization/read"),
-            "no-prefix-resource",
-            Set.of("ai_index:visualization/read")
-        );
-
-        Set<String> scopedPrivileges = AiIndexImplicitPrivilegesProvider.buildScopedPrivileges(resourcesAndActions);
-
-        assertTrue(
-            "expected marketing|ai_index:visualization/read",
-            scopedPrivileges.contains("marketing" + SCOPE_SEPARATOR + "ai_index:visualization/read")
-        );
-        assertTrue(
-            "expected marketing|ai_index:dashboard/read",
-            scopedPrivileges.contains("marketing" + SCOPE_SEPARATOR + "ai_index:dashboard/read")
-        );
-        assertTrue(
-            "expected finance|ai_index:visualization/read",
-            scopedPrivileges.contains("finance" + SCOPE_SEPARATOR + "ai_index:visualization/read")
-        );
-        assertTrue(
-            "expected *|ai_index:visualization/read for wildcard resource",
-            scopedPrivileges.contains("*" + SCOPE_SEPARATOR + "ai_index:visualization/read")
-        );
-        // Resources without "space:" prefix (and not "*") must be excluded
-        assertFalse(
-            "no-prefix-resource should not produce tokens",
-            scopedPrivileges.stream().anyMatch(t -> t.startsWith("no-prefix-resource"))
-        );
-        assertThat(scopedPrivileges, hasSize(4));
+    /** No space-scoped and no global grant → no implicit privilege at all, rather than an unrestricted one. */
+    public void testBuildDlsQueryReturnsNullWithoutAnyGrant() {
+        assertThat(AiIndexImplicitPrivilegesProvider.buildDlsQuery(Map.of()), is(nullValue()));
+        assertThat(AiIndexImplicitPrivilegesProvider.buildDlsQuery(Map.of("no-prefix", Set.of("ai_index:x/read"))), is(nullValue()));
     }
+
+    // -------------------------------------------------------------------------------------
+    // Expected serialisations. Pinned as exact strings deliberately: loose structural matchers
+    // let regressions through in a security filter.
+    // -------------------------------------------------------------------------------------
+
+    private static final String EXPECTED_SINGLE_SPACE_QUERY = """
+        {"bool":{"should":[\
+        {"bool":{"must_not":[{"nested":{"query":{"match_all":{"boost":1.0}},\
+        "path":"permissions.kibana.privileges","ignore_unmapped":false,"score_mode":"none","boost":1.0}}],"boost":1.0}},\
+        {"nested":{"query":{"bool":{"should":[{"bool":{"filter":[\
+        {"term":{"permissions.kibana.privileges.space":{"value":"marketing"}}},\
+        {"terms_set":{"permissions.kibana.privileges.name":{"terms":["ai_index:dashboard/read"],\
+        "minimum_should_match_field":"permissions.kibana.privileges.count","boost":1.0}}}\
+        ],"boost":1.0}}],"boost":1.0}},"path":"permissions.kibana.privileges","ignore_unmapped":false,\
+        "score_mode":"none","boost":1.0}}],"boost":1.0}}""";
+
+    private static final String EXPECTED_BUILD_DLS_QUERY = """
+        {"bool":{"should":[\
+        {"bool":{"must_not":[{"nested":{"query":{"match_all":{"boost":1.0}},\
+        "path":"permissions.kibana.privileges","ignore_unmapped":false,"score_mode":"none","boost":1.0}}],"boost":1.0}},\
+        {"nested":{"query":{"bool":{"should":[{"bool":{"filter":[\
+        {"term":{"permissions.kibana.privileges.space":{"value":"a"}}},\
+        {"terms_set":{"permissions.kibana.privileges.name":{"terms":["ai_index:x/read"],\
+        "minimum_should_match_field":"permissions.kibana.privileges.count","boost":1.0}}}\
+        ],"boost":1.0}}],"boost":1.0}},"path":"permissions.kibana.privileges","ignore_unmapped":false,\
+        "score_mode":"none","boost":1.0}}],"boost":1.0}}""";
 
     // -------------------------------------------------------------------------------------
     // Helpers (mirrors the pattern from KibanaAlertsImplicitPrivilegesProviderTests)
@@ -447,75 +375,94 @@ public class AiIndexImplicitPrivilegesProviderTests extends ESTestCase {
     }
 
     private static RoleDescriptor roleWithApplication(String application, String privilegeName, String... resources) {
-        return new RoleDescriptor(
-            "test_role",
-            null,
-            null,
-            new RoleDescriptor.ApplicationResourcePrivileges[] {
-                RoleDescriptor.ApplicationResourcePrivileges.builder()
-                    .application(application)
-                    .privileges(privilegeName)
-                    .resources(resources)
-                    .build() },
-            null,
-            null,
-            null,
-            null
+        return roleWithGrants(
+            RoleDescriptor.ApplicationResourcePrivileges.builder()
+                .application(application)
+                .privileges(privilegeName)
+                .resources(resources)
+                .build()
         );
     }
 
-    private Map<String, Object> parseQuery(BytesReference queryBytes) {
-        return parseQueryString(queryBytes.utf8ToString());
+    /** A single Kibana application grant, so a role can hold different privileges on different resources. */
+    private static RoleDescriptor.ApplicationResourcePrivileges grant(String privilegeName, String... resources) {
+        return RoleDescriptor.ApplicationResourcePrivileges.builder()
+            .application(KIBANA_APPLICATION)
+            .privileges(privilegeName)
+            .resources(resources)
+            .build();
     }
 
-    private Map<String, Object> parseQueryString(String json) {
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+    private static RoleDescriptor roleWithGrants(RoleDescriptor.ApplicationResourcePrivileges... grants) {
+        return new RoleDescriptor("test_role", null, null, grants, null, null, null, null);
+    }
+
+    private Map<String, Object> parseQuery(BytesReference queryBytes) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, queryBytes.utf8ToString())) {
             return parser.map();
         } catch (Exception e) {
             throw new AssertionError("Failed to parse query JSON", e);
         }
     }
 
+    /**
+     * Extracts the space-clause list from the nested branch of the DLS query, so tests can assert on
+     * clause structure without pinning the whole serialised string in every case.
+     */
     @SuppressWarnings("unchecked")
-    private static List<String> extractTermsSetTerms(Map<String, Object> queryMap) {
-        Map<String, Object> boolClause = (Map<String, Object>) queryMap.get("bool");
-        List<Map<String, Object>> shouldClauses = (List<Map<String, Object>>) boolClause.get("should");
-        for (Map<String, Object> clause : shouldClauses) {
-            if (clause.containsKey("terms_set")) {
-                Map<String, Object> termsSet = (Map<String, Object>) clause.get("terms_set");
-                Map<String, Object> fieldMap = (Map<String, Object>) termsSet.get(PERMISSIONS_FIELD);
-                return (List<String>) fieldMap.get("terms");
+    private static List<Map<String, Object>> nestedSpaceClauses(Map<String, Object> queryMap) {
+        Map<String, Object> topBool = (Map<String, Object>) queryMap.get("bool");
+        List<Map<String, Object>> shoulds = (List<Map<String, Object>>) topBool.get("should");
+        Map<String, Object> nestedBranch = shoulds.stream()
+            .filter(s -> s.containsKey("nested"))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("no nested branch in " + queryMap));
+        Map<String, Object> nested = (Map<String, Object>) nestedBranch.get("nested");
+        Map<String, Object> innerBool = (Map<String, Object>) ((Map<String, Object>) nested.get("query")).get("bool");
+        return (List<Map<String, Object>>) innerBool.get("should");
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<Map<String, Object>> filtersOfClause(Map<String, Object> clause) {
+        return (List<Map<String, Object>>) ((Map<String, Object>) clause.get("bool")).get("filter");
+    }
+
+    /** The space a clause is scoped to, or {@code null} for the space-less (global-grant) clause. */
+    @SuppressWarnings("unchecked")
+    private static String spaceOfClause(Map<String, Object> clause) {
+        for (Map<String, Object> filter : filtersOfClause(clause)) {
+            if (filter.containsKey("term")) {
+                Map<String, Object> field = (Map<String, Object>) ((Map<String, Object>) filter.get("term")).get(SPACE_FIELD);
+                return (String) field.get("value");
             }
         }
-        return List.of();
-    }
-
-    private static void assertQueryContainsTerm(Map<String, Object> queryMap, String expectedTerm) {
-        List<String> terms = extractTermsSetTerms(queryMap);
-        assertTrue("expected term [" + expectedTerm + "] in terms_set query, got: " + terms, terms.contains(expectedTerm));
-    }
-
-    private static void assertQueryDoesNotContainTerm(Map<String, Object> queryMap, String unexpectedTerm) {
-        List<String> terms = extractTermsSetTerms(queryMap);
-        assertFalse("unexpected term [" + unexpectedTerm + "] in terms_set query", terms.contains(unexpectedTerm));
+        return null;
     }
 
     @SuppressWarnings("unchecked")
-    private static void assertQueryHasTermsSet(Map<String, Object> queryMap) {
-        Map<String, Object> boolClause = (Map<String, Object>) queryMap.get("bool");
-        List<Map<String, Object>> shouldClauses = (List<Map<String, Object>>) boolClause.get("should");
-        assertTrue("expected a terms_set clause in should", shouldClauses.stream().anyMatch(c -> c.containsKey("terms_set")));
+    private static List<String> termsOfClause(Map<String, Object> clause) {
+        for (Map<String, Object> filter : filtersOfClause(clause)) {
+            if (filter.containsKey("terms_set")) {
+                Map<String, Object> field = (Map<String, Object>) ((Map<String, Object>) filter.get("terms_set")).get(NAME_FIELD);
+                return (List<String>) field.get("terms");
+            }
+        }
+        throw new AssertionError("no terms_set in clause " + clause);
     }
 
-    @SuppressWarnings("unchecked")
-    private static void assertQueryHasPublicDocBranch(Map<String, Object> queryMap) {
-        Map<String, Object> boolClause = (Map<String, Object>) queryMap.get("bool");
-        List<Map<String, Object>> shouldClauses = (List<Map<String, Object>>) boolClause.get("should");
-        boolean found = shouldClauses.stream().anyMatch(c -> {
-            if (c.containsKey("bool") == false) return false;
-            Map<String, Object> inner = (Map<String, Object>) c.get("bool");
-            return inner.containsKey("must_not");
-        });
-        assertTrue("expected a bool/must_not/exists public-doc branch in should", found);
+    private static List<String> termsOfClauseForSpace(List<Map<String, Object>> clauses, String spaceId) {
+        return clauses.stream()
+            .filter(c -> spaceId.equals(spaceOfClause(c)))
+            .findFirst()
+            .map(AiIndexImplicitPrivilegesProviderTests::termsOfClause)
+            .orElseThrow(() -> new AssertionError("no clause for space [" + spaceId + "] in " + clauses));
+    }
+
+    private static List<String> termsOfSpacelessClause(List<Map<String, Object>> clauses) {
+        return clauses.stream()
+            .filter(c -> spaceOfClause(c) == null)
+            .findFirst()
+            .map(AiIndexImplicitPrivilegesProviderTests::termsOfClause)
+            .orElseThrow(() -> new AssertionError("no space-less clause in " + clauses));
     }
 }

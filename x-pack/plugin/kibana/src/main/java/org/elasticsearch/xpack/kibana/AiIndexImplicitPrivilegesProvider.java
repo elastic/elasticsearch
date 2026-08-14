@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.kibana;
 
+import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermsSetQueryBuilder;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -23,34 +25,47 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 /**
  * Implicitly grants read access to AI indices ({@code ai-index-*}) for users whose roles include a
  * Kibana application privilege grant carrying at least one {@code ai_index:} action.
- *
- * AI Index documents carry composite scoped-privileges in {@code permissions.kibana.privileges.name}
- * that bind a space and a privilege action together (e.g. {@code "marketing|ai_index:dashboard/read"}).
- * The wildcard resource ({@code *}) is treated as a literal space component, producing tokens like
- * {@code "*|ai_index:dashboard/read"} for global documents. The number of scoped privileges a
- * document requires is pre-computed and stored in {@code permissions.kibana.privileges.count}. A
- * document with no {@code permissions.kibana.privileges.name} field is a public document, visible to
- * every user this provider grants an implicit privilege to.
- *
- * The provider builds the user's scoped-privilege set from the cross-product of their space IDs and
- * {@code ai_index:} action strings across all matching grants. For each resource (space) the user belongs to
- * and each such action they hold in that resource (space), one composite scoped privilege
- * {@code "<spaceId>|<action>"} is emitted. The DLS query then uses a {@code terms_set} query requiring
- * that every scoped privilege listed on the document is present in the user's held set
- * ({@code minimum_should_match_field: permissions.kibana.privileges.count}).
  * <p>
- * Whenever the provider does grant, it always builds a DLS query — the wildcard resource ({@code *}) flows through
- * {@link #buildScopedPrivileges} as a literal space component rather than short-circuiting to
- * unrestricted access. The DLS query allows:
- * - documents that have no {@code permissions.kibana.privileges.name} field (public documents)
- * - documents whose *entire* {@code permissions.kibana.privileges.name} set is a subset of
- *   the user's held composite scoped privileges (enforced via {@code terms_set} with
- *   {@code minimum_should_match_field: permissions.kibana.privileges.count}).
+ * <b>Document contract.</b> {@code permissions.kibana.privileges} is a {@code nested} field holding one
+ * element per space the document is visible in. Each element lists the {@code ai_index:} actions that
+ * space requires, plus a {@code count} of them:
+ * <pre>{@code
+ * "permissions": { "kibana": { "privileges": [
+ *   { "space": "marketing", "name": ["ai_index:dashboard/read", "ai_index:lens/read"], "count": 2 },
+ *   { "space": "finance",   "name": ["ai_index:dashboard/read"],                       "count": 1 }
+ * ]}}
+ * }</pre>
+ * A document with no elements at all is a public document, visible to every user this provider grants
+ * an implicit privilege to. This shape is owned by the Kibana SML plugin's storage schema; the
+ * {@code ai-index-*} index template deliberately does not declare it, so this Javadoc and
+ * {@code AiIndexImplicitPrivilegesIT} are the de-facto contract.
+ * <p>
+ * <b>Why nested.</b> The required semantics are <em>OR across spaces, AND across actions within a
+ * space</em>. A flat counted keyword field cannot express that: {@code terms_set} counts matching terms
+ * with no awareness of which space each came from, so a user holding one required action in each of two
+ * spaces would clear a threshold of two and see a document they are authorised for in neither. Nested
+ * matching is existential — a root document matches when at least one <em>child</em> satisfies a clause,
+ * and each child is evaluated alone — so matches structurally cannot accumulate across spaces.
+ * <p>
+ * <b>Clause construction.</b> {@link #buildDlsQuery} emits, inside a single {@code nested} query:
+ * <ul>
+ *   <li>one clause per space the user holds {@code ai_index:} actions in, pairing a {@code term} on
+ *       {@code .space} with a {@code terms_set} on {@code .name} gated by
+ *       {@code minimum_should_match_field: .count}. The terms are that space's actions <em>unioned
+ *       with</em> the actions from any {@code *} grant — a user holding {@code A} globally and {@code B}
+ *       in marketing genuinely holds both in marketing, and without the union neither clause alone
+ *       would satisfy a document requiring both;</li>
+ *   <li>if the user holds a {@code *} grant, one further clause with no {@code .space} filter, so
+ *       documents in spaces the user has no explicit grant in are still reachable.</li>
+ * </ul>
+ * The wildcard resource is therefore never a bypass: it widens which elements are eligible, but the
+ * action check still applies.
  */
 public class AiIndexImplicitPrivilegesProvider implements ImplicitPrivilegesProvider {
 
@@ -62,9 +77,10 @@ public class AiIndexImplicitPrivilegesProvider implements ImplicitPrivilegesProv
     static final String AI_INDEX_ACTION_PREFIX = "ai_index:";
     static final String ALL_RESOURCES = "*";
     static final String INDEX_READ_PRIVILEGE = "read";
-    static final String PERMISSIONS_FIELD = "permissions.kibana.privileges.name";
-    static final String PERMISSIONS_COUNT_FIELD = "permissions.kibana.privileges.count";
-    static final String SCOPE_SEPARATOR = "|";
+    static final String PRIVILEGES_PATH = "permissions.kibana.privileges";
+    static final String NAME_FIELD = PRIVILEGES_PATH + ".name";
+    static final String SPACE_FIELD = PRIVILEGES_PATH + ".space";
+    static final String COUNT_FIELD = PRIVILEGES_PATH + ".count";
 
     @Override
     public Collection<RoleDescriptor.IndicesPrivileges> getImplicitIndicesPrivileges(
@@ -72,22 +88,13 @@ public class AiIndexImplicitPrivilegesProvider implements ImplicitPrivilegesProv
     ) {
         Map<String, Set<String>> resourcesToActions = collectResourcesAndActions(applicationPrivileges);
 
-        if (resourcesToActions.isEmpty()) {
-            return List.of();
-        }
-
-        Set<String> scopedPrivileges = buildScopedPrivileges(resourcesToActions);
-
-        if (scopedPrivileges.isEmpty()) {
+        String dlsQuery = buildDlsQuery(resourcesToActions);
+        if (dlsQuery == null) {
             return List.of();
         }
 
         return List.of(
-            RoleDescriptor.IndicesPrivileges.builder()
-                .indices(AI_INDEX_INDICES)
-                .privileges(INDEX_READ_PRIVILEGE)
-                .query(buildDlsQuery(scopedPrivileges))
-                .build()
+            RoleDescriptor.IndicesPrivileges.builder().indices(AI_INDEX_INDICES).privileges(INDEX_READ_PRIVILEGE).query(dlsQuery).build()
         );
     }
 
@@ -129,55 +136,81 @@ public class AiIndexImplicitPrivilegesProvider implements ImplicitPrivilegesProv
     }
 
     /**
-     * Builds the cross-product scoped-privilege set from the resource-to-actions map.
+     * Builds the DLS query gating AI Index document visibility.
      * <p>
-     * For each resource with a {@code "space:"} prefix, the space ID is extracted and combined
-     * with each action string to produce a composite scoped privilege of the form
-     * {@code "<spaceId>|<action>"}. The wildcard resource ({@code "*"}) is treated as a literal
-     * space component, producing {@code "*|<action>"} tokens for global documents. Resources that
-     * are neither {@code "*"} nor prefixed with {@code "space:"} are ignored.
+     * {@code permissions.kibana.privileges} is a {@code nested} field carrying one element per space,
+     * each listing the actions that space requires plus a {@code count} of them. A {@code nested} query
+     * matches a root document when <em>at least one</em> child matches, which gives OR-across-spaces for
+     * free. Within a child, {@code terms_set} with {@code minimum_should_match_field: count} gives
+     * AND-across-actions. Because each child is evaluated independently against a single clause, matches
+     * can never accumulate across spaces — the cross-space leak a flat counted keyword field allows.
+     * <p>
+     * Clause construction:
+     * <ul>
+     *   <li>One clause per space the user holds actions in, carrying that space's actions
+     *       <em>unioned with</em> the actions from any {@code *} grant. The union matters: a user with
+     *       {@code A} globally and {@code B} in marketing holds both in marketing, and without the union
+     *       neither clause alone would satisfy a document requiring both.</li>
+     *   <li>If the user holds a {@code *} grant, one further clause with no space filter, so documents
+     *       in spaces the user has no explicit grant in are still reachable.</li>
+     * </ul>
+     * A document with no {@code permissions.kibana.privileges} elements at all is public. Note this must
+     * be expressed as {@code must_not nested(match_all)} — a root-level {@code must_not exists} on a
+     * nested subfield matches <em>every</em> document (the values live on child docs), which would turn
+     * the whole DLS query into a no-op.
+     * <p>
+     * {@code ignore_unmapped} is deliberately left at its default {@code false}. On an {@code ai-index-*}
+     * index that does not declare the nested mapping the search then fails loudly, rather than matching
+     * the public-document branch for every document, which would be a silent fail-open.
+     *
+     * @return the serialised query, or {@code null} if the user holds no space-scoped or global grant,
+     *         in which case no implicit privilege is granted at all.
      */
-    static Set<String> buildScopedPrivileges(Map<String, Set<String>> resourcesAndActions) {
-        Set<String> scopedPrivileges = new HashSet<>();
-        for (Map.Entry<String, Set<String>> entry : resourcesAndActions.entrySet()) {
+    static String buildDlsQuery(Map<String, Set<String>> resourcesToActions) {
+        Set<String> globalActions = resourcesToActions.getOrDefault(ALL_RESOURCES, Set.of());
+
+        BoolQueryBuilder spaceClauses = QueryBuilders.boolQuery();
+        boolean hasClause = false;
+
+        // Iterated in sorted order so the emitted clause order is deterministic: the source map is a
+        // HashMap, and this query is asserted on as an exact string in tests and surfaced via the
+        // get-role API.
+        for (Map.Entry<String, Set<String>> entry : new TreeMap<>(resourcesToActions).entrySet()) {
             String resource = entry.getKey();
-            String spaceId;
-            if (ALL_RESOURCES.equals(resource)) {
-                spaceId = ALL_RESOURCES;
-            } else if (resource.startsWith(RESOURCE_PREFIX)) {
-                spaceId = resource.substring(RESOURCE_PREFIX.length());
-            } else {
+            if (resource.startsWith(RESOURCE_PREFIX) == false) {
+                // "*" is handled below; anything else is not a space resource and is ignored.
                 continue;
             }
-            for (String action : entry.getValue()) {
-                scopedPrivileges.add(spaceId + SCOPE_SEPARATOR + action);
-            }
+            String spaceId = resource.substring(RESOURCE_PREFIX.length());
+            Set<String> actions = new HashSet<>(entry.getValue());
+            actions.addAll(globalActions);
+            spaceClauses.should(
+                QueryBuilders.boolQuery().filter(QueryBuilders.termQuery(SPACE_FIELD, spaceId)).filter(termsSetOn(actions))
+            );
+            hasClause = true;
         }
-        return scopedPrivileges;
-    }
 
-    /**
-     * Builds the DLS query that gates AI Index document visibility by composite scoped privileges
-     * stored in {@code permissions.kibana.privileges.name}.
-     *
-     * The query structure is a top-level {@code bool/should} with two branches:
-     * - Public-document branch: {@code bool/must_not exists permissions.kibana.privileges.name} matches
-     *   documents that carry no scoped-privilege requirements (publicly visible to all authenticated users).
-     * - Scoped-privilege-match branch: {@code terms_set} on
-     *   {@code permissions.kibana.privileges.name} requiring the document's full scoped-privilege
-     *   set to be a subset of the user's held scoped privileges, enforced via
-     *   {@code minimum_should_match_field: permissions.kibana.privileges.count}.
-     */
-    static String buildDlsQuery(Set<String> scopedPrivileges) {
+        if (globalActions.isEmpty() == false) {
+            spaceClauses.should(QueryBuilders.boolQuery().filter(termsSetOn(globalActions)));
+            hasClause = true;
+        }
+
+        if (hasClause == false) {
+            return null;
+        }
+
         return Strings.toString(
             QueryBuilders.boolQuery()
-                .should(QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery(PERMISSIONS_FIELD)))
                 .should(
-                    new TermsSetQueryBuilder(PERMISSIONS_FIELD, scopedPrivileges.stream().sorted().toList()).setMinimumShouldMatchField(
-                        PERMISSIONS_COUNT_FIELD
-                    )
+                    QueryBuilders.boolQuery()
+                        .mustNot(QueryBuilders.nestedQuery(PRIVILEGES_PATH, QueryBuilders.matchAllQuery(), ScoreMode.None))
                 )
+                .should(QueryBuilders.nestedQuery(PRIVILEGES_PATH, spaceClauses, ScoreMode.None))
         );
+    }
+
+    private static TermsSetQueryBuilder termsSetOn(Set<String> actions) {
+        return new TermsSetQueryBuilder(NAME_FIELD, actions.stream().sorted().toList()).setMinimumShouldMatchField(COUNT_FIELD);
     }
 
 }

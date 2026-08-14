@@ -270,7 +270,7 @@ public class RangeWithin extends EsqlScalarFunction implements TranslationAware,
                 return new RangeQuery(source(), name, dateTimeToString(r.from()), true, dateTimeToString(r.to()), false, format, null);
             }
             DoubleRangeBlockBuilder.DoubleRange r = (DoubleRangeBlockBuilder.DoubleRange) value;
-            return new RangeQuery(source(), name, r.from(), true, r.to(), false, null, null);
+            return new RangeQuery(source(), name, finiteBound(r.from()), true, finiteBound(r.to()), false, null, null);
         }
         // The field is a range. Pick CONTAINS or WITHIN based on which side the field is on.
         ShapeRelation relation;
@@ -285,14 +285,14 @@ public class RangeWithin extends EsqlScalarFunction implements TranslationAware,
                 upper = dateTimeToString(r.to());
             } else {
                 DoubleRangeBlockBuilder.DoubleRange r = (DoubleRangeBlockBuilder.DoubleRange) value;
-                lower = r.from();
-                upper = r.to();
+                lower = finiteBound(r.from());
+                upper = finiteBound(r.to());
             }
             includeUpper = false;
             relation = ShapeRelation.WITHIN;
         } else if (isRange(literalExp.dataType()) == false) {
             // RANGE_WITHIN(literal_point, field_range) — field_range contains the literal point.
-            lower = literalExp.dataType() == DATETIME ? dateTimeToString((Long) value) : value;
+            lower = literalExp.dataType() == DATETIME ? dateTimeToString((Long) value) : finiteBound((Double) value);
             upper = lower;
             includeUpper = true;
             relation = ShapeRelation.CONTAINS;
@@ -304,13 +304,24 @@ public class RangeWithin extends EsqlScalarFunction implements TranslationAware,
                 upper = dateTimeToString(r.to());
             } else {
                 DoubleRangeBlockBuilder.DoubleRange r = (DoubleRangeBlockBuilder.DoubleRange) value;
-                lower = r.from();
-                upper = r.to();
+                lower = finiteBound(r.from());
+                upper = finiteBound(r.to());
             }
             includeUpper = false;
             relation = ShapeRelation.CONTAINS;
         }
         return new RangeQuery(source(), name, lower, true, upper, includeUpper, format, null, relation);
+    }
+
+    /**
+     * Range queries on double fields reject non-finite bounds. An infinite bound means the range is
+     * unbounded on that side, which a {@code null} query bound expresses — the same representation
+     * the range mapper uses for open bounds. This can only widen the pushed query; the predicate is
+     * pushed with {@link TranslationAware.Translatable#RECHECK}, so the retained filter still
+     * enforces the exact semantics.
+     */
+    static Double finiteBound(double bound) {
+        return Double.isFinite(bound) ? bound : null;
     }
 
     @Override

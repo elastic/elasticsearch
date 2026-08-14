@@ -169,7 +169,7 @@ public class ConstantKeywordFieldMapperColumnarCompatibilityTests extends Abstra
         );
     }
 
-    @AwaitsFix(bugUrl = "")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-team/issues/4685")
     public void testNoColumnUnderStoredSource() throws IOException {
         // Under stored source, isSourceSynthetic() is false: mapColumnBatch validates values but emits no
         // presence-marker column. Currently blocked because SourceFieldMapper does not yet enable the
@@ -180,11 +180,6 @@ public class ConstantKeywordFieldMapperColumnarCompatibilityTests extends Abstra
             batch("stored source", 1L, doc("d1", 1L, "{\"f\":\"hello\"}"), doc("d2", 2L, "{}"), doc("d3", 3L, "{\"f\":\"hello\"}"))
         );
     }
-
-    // -------------------------------------------------------------------------
-    // Bail-out tests — the columnar path must throw UnsupportedOperationException
-    // so ShardBatchMapper falls back to the row path, which raises the real error.
-    // -------------------------------------------------------------------------
 
     public void testBailOutOnNull() throws IOException {
         MapperService ms = createMapperService(

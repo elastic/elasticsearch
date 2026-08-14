@@ -462,6 +462,20 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
 
         String nodeId = clusterService.localNode().getId();
         ProjectMetadata project = projectResolver.getProjectMetadata(clusterState);
+        for (Map.Entry<ShardId, List<BulkItemRequest>> entry : requestsByShard.entrySet()) {
+            SourceBatch shardBatch = shardBatches.get(entry.getKey());
+            if (shardBatch != null && BulkShardBatch.rowsAlignWithItems(shardBatch, entry.getValue()) == false) {
+                throw new IllegalStateException(
+                    "pre-built batch for shard ["
+                        + entry.getKey()
+                        + "] does not align with its items (batch rows: "
+                        + shardBatch.docCount()
+                        + ", items: "
+                        + entry.getValue().size()
+                        + "); this indicates a bug in the batch producer's shard routing"
+                );
+            }
+        }
         try (RefCountingRunnable bulkItemRequestCompleteRefCount = new RefCountingRunnable(onRequestsCompleted)) {
             for (Map.Entry<ShardId, List<BulkItemRequest>> entry : requestsByShard.entrySet()) {
                 final ShardId shardId = entry.getKey();
@@ -481,19 +495,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
 
                 SourceBatch shardBatch = shardBatches.get(shardId);
                 if (shardBatch != null) {
-                    if (BulkShardBatch.rowsAlignWithItems(shardBatch, requests)) {
-                        bulkShardRequest.setBulkShardBatch(new BulkShardBatch(shardBatch));
-                    } else {
-                        throw new IllegalStateException(
-                            "pre-built batch for shard ["
-                                + shardId
-                                + "] does not align with its items (batch rows: "
-                                + shardBatch.docCount()
-                                + ", items: "
-                                + requests.size()
-                                + "); this indicates a bug in the batch producer's shard routing"
-                        );
-                    }
+                    bulkShardRequest.setBulkShardBatch(new BulkShardBatch(shardBatch));
                 }
 
                 if (indexMetadata.getInferenceFields().isEmpty() == false) {

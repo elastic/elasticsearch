@@ -2130,7 +2130,23 @@ public class BatchBulkIT extends ESIntegTestCase {
         String coordinatingNode = findCoordinatingNode();
         int numDocs = 5;
 
-        // Build a batch with only numDocs-1 rows but send numDocs items — intentional misalignment.
+        // Build a full-size batch for the items' source-row references (numDocs rows).
+        SourceBatch correctBatch;
+        try (EscfEncoder encoder = new EscfEncoder()) {
+            for (int i = 0; i < numDocs; i++) {
+                XContentBuilder doc = JsonXContent.contentBuilder();
+                doc.startObject();
+                doc.field("host", "host-" + i);
+                doc.field("value", (long) i);
+                doc.endObject();
+                encoder.parseToScratch(BytesReference.bytes(doc), XContentType.JSON, LeafSink.NO_OP);
+                encoder.commitScratchTo(0);
+            }
+            correctBatch = encoder.buildPartition(0);
+        }
+
+        // Build a short batch with numDocs-1 rows that the coordinator will see as the pre-built
+        // shard batch — one fewer row than items, so alignment fails.
         SourceBatch shortBatch;
         try (EscfEncoder encoder = new EscfEncoder()) {
             for (int i = 0; i < numDocs - 1; i++) {
@@ -2145,13 +2161,13 @@ public class BatchBulkIT extends ESIntegTestCase {
             shortBatch = encoder.buildPartition(0);
         }
 
+        // Items reference correctBatch rows (hasSourceRow == true). This suppresses BulkBatchEncoders
+        // so the pre-built batch path is used, and the coordinator's alignment check fires.
         BulkRequest bulkRequest = new BulkRequest();
         for (int i = 0; i < numDocs; i++) {
-            bulkRequest.add(
-                new IndexRequest(index).id("doc-" + i)
-                    .opType(DocWriteRequest.OpType.INDEX)
-                    .source(XContentType.JSON, "host", "host-" + i, "value", i)
-            );
+            IndexRequest ir = new IndexRequest(index).id("doc-" + i).opType(DocWriteRequest.OpType.INDEX);
+            ir.indexSource().setSourceRow(correctBatch, i, XContentType.JSON);
+            bulkRequest.add(ir);
         }
         bulkRequest.setPreBuiltBatches(Map.of(index, new SourceBatch[] { shortBatch }));
 

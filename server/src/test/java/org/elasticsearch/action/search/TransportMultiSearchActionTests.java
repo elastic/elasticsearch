@@ -941,7 +941,8 @@ public class TransportMultiSearchActionTests extends ESTestCase {
      */
     public void testAllSubSearchesFailStillTripsBreaker() throws Exception {
         int numRequests = 20;
-        long byteLimit = 2048L;
+        long originalFailureBytes = TransportMultiSearchAction.estimateFailureBytes(searchPhaseExecutionExceptionWithShardFailures(10));
+        long byteLimit = originalFailureBytes / 2;
         TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(byteLimit);
         MultiSearchResponse.Item[] items = new MultiSearchResponse.Item[numRequests];
         runMsearchWithBreaker(
@@ -953,7 +954,6 @@ public class TransportMultiSearchActionTests extends ESTestCase {
             captured -> System.arraycopy(captured, 0, items, 0, numRequests)
         );
 
-        long originalFailureBytes = TransportMultiSearchAction.estimateFailureBytes(searchPhaseExecutionExceptionWithShardFailures(10));
         for (MultiSearchResponse.Item item : items) {
             assertTrue(item.isFailure());
             assertThat(item.getFailure(), instanceOf(CircuitBreakingException.class));

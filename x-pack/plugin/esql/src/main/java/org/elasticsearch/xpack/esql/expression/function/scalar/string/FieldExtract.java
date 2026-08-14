@@ -118,22 +118,15 @@ public class FieldExtract extends EsqlScalarFunction implements BlockLoaderExpre
             multi-value block.""",
         appendix = """
             ::::{note}
-            `FIELD_EXTRACT` reads values from the `flattened` field's doc values, so its results differ from a
-            plain `keyword` field in two ways that are intrinsic to the [`flattened` mapping
-            type](/reference/elasticsearch/mapping-reference/flattened.md), not to the function:
-
-            * **Multi-valued results are sorted and de-duplicated.** When the extracted sub-field holds more than
-              one value, they are returned as a sorted, de-duplicated `keyword` set: the original document order
-              is not preserved and repeated values are collapsed. This matches how `flattened` [stores leaf
-              arrays](/reference/elasticsearch/mapping-reference/flattened.md#flattened-preserve-leaf-arrays). Use
-              [`MV_SORT`](/reference/query-languages/esql/functions-operators/mv-functions/mv_sort.md) if you need
-              a defined order downstream.
-            * **Every value is a `keyword`.** Regardless of the original JSON type, extracted values are untyped
-              keywords with no numeric, date, or IP typing and no full-text analysis. For typed comparisons (for
-              example a numeric range) or full-text `MATCH` on a specific sub-key, map that key as a typed
-              sub-field through the flattened field's
-              [`properties`](/reference/elasticsearch/mapping-reference/flattened.md#flattened-properties) and
-              reference the typed sub-field directly rather than using `FIELD_EXTRACT`.
+            `FIELD_EXTRACT` reads from the `flattened` field's doc values, so a multi-valued sub-field comes back
+            as a **sorted, de-duplicated** `keyword` set: the original document order is not preserved and
+            repeated values are collapsed. This is intrinsic to how the [`flattened` mapping
+            type](/reference/elasticsearch/mapping-reference/flattened.md) [stores leaf
+            arrays](/reference/elasticsearch/mapping-reference/flattened.md#flattened-preserve-leaf-arrays), not to
+            the function; use [`MV_SORT`](/reference/query-languages/esql/functions-operators/mv-functions/mv_sort.md)
+            if you need a defined order downstream. For the other flattened caveats - values are always `keyword`,
+            dotted-key resolution, and objects or missing keys returning `null` - see the [`flattened` field
+            type](/reference/elasticsearch/mapping-reference/flattened.md).
             ::::""",
         examples = @Example(file = "field_extract", tag = "field_extract_host_name")
     )

@@ -11,10 +11,12 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongField;
+import org.apache.lucene.document.column.LongTupleCursor;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.escf.LuceneLongColumn;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.TimestampBounds;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
@@ -301,9 +303,31 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
 
     @Override
     public void postColumnarParse(BatchMappingContext context) throws IOException {
-        super.postColumnarParse(context);
-        // TODO: see the TODO on supportsColumnarParse — the missing-@timestamp check belongs here
-        // once the batch context exposes the mapped timestamp column.
+        if (enabled == false) {
+            return;
+        }
+
+        LuceneLongColumn timestampColumn = context.mappedLongColumn(DEFAULT_PATH);
+        if (timestampColumn == null) {
+            throw new IllegalArgumentException("data stream timestamp field [" + DEFAULT_PATH + "] is missing");
+        }
+
+        boolean shouldValidateTimestamp = context.indexSettings().getMode().shouldValidateTimestamp();
+        TimestampBounds bounds = shouldValidateTimestamp ? context.indexSettings().getTimestampBounds() : null;
+        boolean isDateNanos = context.mappingLookup().getMapper(DEFAULT_PATH).typeName().equals(DateFieldMapper.DATE_NANOS_CONTENT_TYPE);
+
+        LongTupleCursor cursor = timestampColumn.tuples();
+        int docCount = context.docCount();
+        int nextPresent = cursor.nextDoc();
+        for (int doc = 0; doc < docCount; doc++) {
+            if (nextPresent != doc) {
+                throw new IllegalArgumentException("data stream timestamp field [" + DEFAULT_PATH + "] is missing");
+            }
+            if (shouldValidateTimestamp) {
+                validateTimestampValue(bounds, cursor.longValue(), isDateNanos);
+            }
+            nextPresent = cursor.nextDoc();
+        }
     }
 
     @Override

@@ -935,7 +935,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
      * Even when the tracking breaker's byte limit is exhausted partway through, every failure item must
      * still be present in the response -- never dropped -- so the msearch completes rather than hanging.
      * But since the underlying failures here (each with 10 shard failures) are far larger than the byte
-     * limit, {@link TransportMultiSearchAction#accountFailureItem} rejects them and substitutes a small,
+     * limit, {@link TransportMultiSearchAction#accountOrSubstituteFailureItem} rejects them and substitutes a small,
      * bounded {@link CircuitBreakingException} instead of forcing the original, unbounded failure onto an
      * already-saturated breaker -- this is what gives the breaker real enforcement power on this path.
      */

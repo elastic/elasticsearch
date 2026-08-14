@@ -648,7 +648,7 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
 
             private void handleResponse(final int responseSlot, MultiSearchResponse.Item item) {
                 if (item.isFailure()) {
-                    item = accountFailureItem(breakerAccounting, item);
+                    item = accountOrSubstituteFailureItem(breakerAccounting, item);
                 }
                 responses.set(responseSlot, item);
                 if (responseCounter.decrementAndGet() == 0) {
@@ -694,7 +694,10 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
      * legitimate trip: it's logged, and the original bytes are force-added so a defect here can't hang
      * the msearch.
      */
-    private MultiSearchResponse.Item accountFailureItem(MultiSearchBreakerAccounting breakerAccounting, MultiSearchResponse.Item item) {
+    private MultiSearchResponse.Item accountOrSubstituteFailureItem(
+        MultiSearchBreakerAccounting breakerAccounting,
+        MultiSearchResponse.Item item
+    ) {
         long bytes = estimateFailureBytes(item.getFailure());
         try {
             circuitBreaker.addEstimateBytesAndMaybeBreak(bytes, "<msearch_failure>");
@@ -735,7 +738,7 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
     /**
      * Tracks REQUEST breaker bytes reserved while sub-search responses are buffered: incremental estimates from
      * {@link #estimateActualBytes} plus query-phase aggregation bytes handed off from {@link QueryPhaseResultConsumer}.
-     * Also tracks bytes reserved for failure items via {@link #accountFailureItem}, whether from a genuine
+     * Also tracks bytes reserved for failure items via {@link #accountOrSubstituteFailureItem}, whether from a genuine
      * sub-search failure or from a {@link CircuitBreakingException} substituted for an over-sized item.
      */
     final class MultiSearchBreakerAccounting {

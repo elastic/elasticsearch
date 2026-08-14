@@ -14,9 +14,9 @@ package org.elasticsearch.columnar.numeric;
  * adaptively per block; the terminal always runs. A pipeline is described on disk by its stage ids, so
  * a reader that knows more stages than were written still decodes old data.
  *
- * <p>Stage ids are frozen once shipped. Adding a stage is additive: define a new id, register it in
- * {@link Registry}, and append it to a pipeline; existing columns list only their old ids and are
- * unaffected.
+ * <p>Stage ids are frozen once shipped. Adding a stage requires a {@link org.elasticsearch.columnar.FormatVersion}
+ * bump; once bumped, define a new id, register it in {@link Registry}, and append it to a pipeline.
+ * Existing columns list only their old ids and are unaffected on read.
  */
 public final class NumericPipeline {
 

@@ -247,6 +247,18 @@ public class NdJsonPageDecoder implements Closeable {
      */
     private boolean rowDroppedBySkipRow;
 
+    /**
+     * Whether the record being decoded has already been charged to the error budget. {@code max_errors} and
+     * {@code max_error_ratio} are documented in records ("maximum malformed rows"), so a record that fails
+     * twice -- a per-cell coercion failure and then a whole-line failure while the rest of the record is
+     * drained -- must still cost one. {@link BlockDecoder#coercionFailure} enforces this among per-cell
+     * failures via {@link #rowDroppedBySkipRow}, but that flag is set only under {@code skip_row}; this one
+     * holds for every non-strict mode and across both sinks. Reset per record by {@link #decodePageLenient},
+     * before the record-opening token is read, so a whole-line failure on the record that FOLLOWS a charged
+     * one is still charged.
+     */
+    private boolean recordChargedToBudget;
+
     /** Number of malformed records observed during decoding (lenient policies swallow these). */
     long errorCount() {
         return errorCount;
@@ -787,7 +799,13 @@ public class NdJsonPageDecoder implements Closeable {
                     + "; set error_mode=skip_row (or null_field) to skip the line and warn instead of failing"
             );
         }
-        errorCount++;
+        if (recordChargedToBudget == false) {
+            // Once per record, not once per failure: a per-cell coercion failure earlier in this same record
+            // may already have charged it, and the budget is denominated in records. Warn either way -- under
+            // null_field that earlier warning said the cell was nulled and the record kept, which this failure
+            // overrides by dropping the record whole.
+            chargeErrorBudget();
+        }
         skipWarnings.add(kind + " NDJSON at logical row [" + logicalRowIndex + "] (" + phaseLabel + "): " + e.getOriginalMessage());
         checkErrorBudgetOrThrow();
         logger.log(
@@ -825,6 +843,16 @@ public class NdJsonPageDecoder implements Closeable {
             case JsonParseException ignored -> "Malformed";
             default -> throw new AssertionError("unexpected NDJSON whole-line failure [" + e.getClass().getName() + "]");
         };
+    }
+
+    /**
+     * Counts one error against the current record. Keeps the running total and the per-record "already paid"
+     * flag in step, so the two cannot drift apart as sinks are added: every non-strict sink in this class
+     * charges here and nowhere else.
+     */
+    private void chargeErrorBudget() {
+        errorCount++;
+        recordChargedToBudget = true;
     }
 
     /**
@@ -1067,6 +1095,9 @@ public class NdJsonPageDecoder implements Closeable {
 
         int lineCount = 0;
         while (lineCount < batchSize) {
+            // Reset before the record-opening token is read, not after: a constraint violation on that token
+            // is already the next record's failure, and must not inherit the previous record's charge.
+            this.recordChargedToBudget = false;
             try {
                 if (parser.nextToken() == null) {
                     break; // End of stream
@@ -2120,7 +2151,7 @@ public class NdJsonPageDecoder implements Closeable {
             if (skipRow) {
                 rowDroppedBySkipRow = true;
             }
-            errorCount++;
+            chargeErrorBudget();
             skipWarnings.add(message);
             checkErrorBudgetOrThrow();
             logger.log(errorPolicy.logErrors() ? Level.INFO : Level.DEBUG, message);
@@ -2184,7 +2215,7 @@ public class NdJsonPageDecoder implements Closeable {
             if (skipRow) {
                 rowDroppedBySkipRow = true;
             }
-            errorCount++;
+            chargeErrorBudget();
             skipWarnings.add(message);
             checkErrorBudgetOrThrow();
             logger.log(errorPolicy.logErrors() ? Level.INFO : Level.DEBUG, message);

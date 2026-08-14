@@ -1037,6 +1037,78 @@ public class NdJsonPageDecoderTests extends ESTestCase {
     }
 
     /**
+     * A record can fail twice — a per-cell coercion failure, then a constraint violation raised while the rest
+     * of the record is drained — and must still cost the budget once. {@code max_errors} and
+     * {@code max_error_ratio} are documented in records ("maximum malformed rows"), and
+     * {@code coercionFailure} already enforces charge-once among per-cell failures; the whole-line sink has to
+     * honour the same invariant or a single bad line can exhaust a budget of two.
+     * <p>
+     * Both warnings are still emitted. Under {@code null_field} the coercion warning says the cell was nulled
+     * and the record kept, which the constraint violation then overrides by dropping the record whole — so
+     * suppressing the second would leave the client with a warning that no longer describes the outcome.
+     */
+    public void testARecordFailingBothPerCellAndWholeLineIsChargedOnce() throws IOException {
+        for (ErrorPolicy policy : List.of(ErrorPolicy.LENIENT, ErrorPolicy.PERMISSIVE)) {
+            String ndjson = "{\"v\":1}\n{\"v\":\"notanumber\",\"other\":" + "1".repeat(1200) + "}\n{\"v\":3}\n";
+            List<String> warnings = new ArrayList<>();
+            NdJsonReaderCounters counters = new NdJsonReaderCounters();
+            try (
+                NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                    new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
+                    null,
+                    List.of(attribute("v", DataType.LONG)),
+                    null,
+                    10,
+                    blockFactory,
+                    policy,
+                    "test://double-charge",
+                    counters,
+                    warnings::add
+                );
+                Page page = decoder.decodePage()
+            ) {
+                LongBlock block = page.getBlock(0);
+                assertEquals(policy.modeName() + ": the doubly-bad line is dropped", 2, block.getPositionCount());
+                assertEquals(1L, block.getLong(0));
+                assertEquals(3L, block.getLong(1));
+            }
+            assertEquals(policy.modeName() + ": one line, one charge", 1L, counters.snapshot().parseErrors());
+        }
+    }
+
+    /**
+     * The charge-once flag is per record, not sticky across records. The second line here is a BARE token, so
+     * its violation is raised by the record-opening {@code nextToken} — which runs before the rest of the
+     * per-record state is cleared. Resetting the flag with that other state instead of ahead of the token read
+     * would let the first line's charge suppress the second's, and a file of consecutive bad lines would cost
+     * the budget once in total. Asserts only the charge count: what the parser does with the line after a bare
+     * record is a separate, pre-existing question ({@link #testConstraintViolationOnRecordOpeningTokenMatchesBareScalarRecovery}).
+     */
+    public void testConsecutiveFailingLinesAreEachCharged() throws IOException {
+        String ndjson = "{\"v\":\"notanumber\"}\n" + "1".repeat(1200) + "\n";
+        List<String> warnings = new ArrayList<>();
+        NdJsonReaderCounters counters = new NdJsonReaderCounters();
+        try (
+            NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
+                null,
+                List.of(attribute("v", DataType.LONG)),
+                null,
+                10,
+                blockFactory,
+                ErrorPolicy.LENIENT,
+                "test://consecutive",
+                counters,
+                warnings::add
+            );
+            Page page = decoder.decodePage()
+        ) {
+            assertTrue("both lines are bad, so nothing is committed", page == null || page.getPositionCount() == 0);
+        }
+        assertEquals("two distinct bad lines, two charges", 2L, counters.snapshot().parseErrors());
+    }
+
+    /**
      * Demonstrates the type-independence the rest of this block argues structurally: the violation is raised
      * while the token is scanned, before any {@code DataType} dispatch, so a keyword column loses the same
      * line a numeric column does. If the routing ever regressed to a per-arm fix in the numeric decoders,
@@ -1600,4 +1672,5 @@ public class NdJsonPageDecoderTests extends ESTestCase {
         assertFalse("expected skip_row warnings for the poisoned record", warnings.isEmpty());
         assertScratchIsRecordSized(breaker, 2);
     }
+
 }

@@ -34,9 +34,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.lucene.queries.SortedSetDocValuesRangeQuery;
 import org.elasticsearch.lucene.search.FuzzyQueries;
-import org.elasticsearch.lucene.search.XDocValuesRewriteMethod;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.SortedSetDocValuesStringFieldScript;
 import org.elasticsearch.script.StringFieldScript;
@@ -149,7 +147,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         public Query termQuery(Object value, SearchExecutionContext context) {
             failIfNotIndexedNorDocValuesFallback(context);
             if (indexType.hasDocValues()) {
-                return SortedSetDocValuesRangeQuery.newSlowExactQuery(name(), indexedValueForSearch(value));
+                return SortedDocValuesField.newSlowExactQuery(name(), indexedValueForSearch(value));
             } else {
                 return super.termQuery(value, context);
             }
@@ -176,7 +174,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         ) {
             failIfNotIndexedNorDocValuesFallback(context);
             if (indexType.hasDocValues()) {
-                return SortedSetDocValuesRangeQuery.newSlowRangeQuery(
+                return SortedDocValuesField.newSlowRangeQuery(
                     name(),
                     lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
                     upperTerm == null ? null : indexedValueForSearch(upperTerm),
@@ -206,7 +204,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
                     prefixLength,
                     maxExpansions,
                     transpositions,
-                    XDocValuesRewriteMethod.DOC_VALUES_REWRITE,
+                    MultiTermQuery.DOC_VALUES_REWRITE,
                     context,
                     name()
                 );
@@ -226,7 +224,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
             if (indexType.hasDocValues()) {
                 if (caseInsensitive == false) {
                     Term prefix = new Term(name(), indexedValueForSearch(value));
-                    return new PrefixQuery(prefix, XDocValuesRewriteMethod.DOC_VALUES_REWRITE);
+                    return new PrefixQuery(prefix, MultiTermQuery.DOC_VALUES_REWRITE);
                 }
                 return new StringScriptFieldPrefixQuery(
                     new Script(""),
@@ -258,9 +256,9 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
                     Term term = new Term(name(), value);
                     if (context.getCircuitBreaker() != null) {
                         Automaton dfa = AutomatonQueries.toWildcardAutomaton(term, context.getCircuitBreaker());
-                        return new AutomatonQuery(term, dfa, false, XDocValuesRewriteMethod.DOC_VALUES_REWRITE);
+                        return new AutomatonQuery(term, dfa, false, MultiTermQuery.DOC_VALUES_REWRITE);
                     }
-                    return new WildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, XDocValuesRewriteMethod.DOC_VALUES_REWRITE);
+                    return new WildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, MultiTermQuery.DOC_VALUES_REWRITE);
                 }
 
                 StringFieldScript.LeafFactory leafFactory = ctx -> new SortedSetDocValuesStringFieldScript(name(), context.lookup(), ctx);
@@ -291,7 +289,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
                         maxDeterminizedStates,
                         context.getCircuitBreaker()
                     );
-                    return new AutomatonQuery(term, dfa, false, XDocValuesRewriteMethod.DOC_VALUES_REWRITE);
+                    return new AutomatonQuery(term, dfa, false, MultiTermQuery.DOC_VALUES_REWRITE);
                 }
                 return new RegexpQuery(
                     term,
@@ -299,7 +297,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
                     matchFlags,
                     RegexpQuery.DEFAULT_PROVIDER,
                     maxDeterminizedStates,
-                    XDocValuesRewriteMethod.DOC_VALUES_REWRITE
+                    MultiTermQuery.DOC_VALUES_REWRITE
                 );
             }
             return super.regexpQuery(value, syntaxFlags, matchFlags, maxDeterminizedStates, method, context);

@@ -26,7 +26,12 @@ For information about circuit breaker errors, see [Circuit breaker errors](docs-
 The parent-level breaker can be configured with the following settings:
 
 `indices.breaker.total.use_real_memory`
-:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Determines whether the parent breaker should take real memory usage into account (`true`) or only consider the amount that is reserved by child circuit breakers (`false`). Defaults to `true`. Note: the [native memory circuit breaker](#native-memory-circuit-breaker) is not included in the parent total regardless of this setting.
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Determines whether the parent breaker should take real memory usage into account (`true`) or only consider the amount that is reserved by child circuit breakers (`false`). Defaults to `true`. 
+
+    :::{note} 
+    :applies_to: stack: ga 9.6+  
+    The [native memory circuit breaker](#native-memory-circuit-breaker) is not included in the parent total regardless of this setting.
+    :::
 
 $$$indices-breaker-total-limit$$$
 

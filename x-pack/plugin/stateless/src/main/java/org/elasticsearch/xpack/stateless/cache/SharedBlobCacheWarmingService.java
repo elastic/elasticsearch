@@ -1008,12 +1008,7 @@ public class SharedBlobCacheWarmingService {
             final String sourceNodeId = shardRouting.relocatingNodeId();
             assert sourceNodeId != null;
             if (state.metadata().nodeShutdowns().isNodeMarkedForRemoval(sourceNodeId)) {
-                return computeRelocationSourceShutdownWarmingTimeout(
-                    state,
-                    sourceNodeId,
-                    shardRouting.currentNodeId(),
-                    endTargetsToWarm
-                );
+                return computeRelocationSourceShutdownWarmingTimeout(state, sourceNodeId, shardRouting.currentNodeId(), endTargetsToWarm);
             }
             if (hasActiveShutdownForRemovalNodes(state)) {
                 return new SearchRecoveryTimeout(

@@ -116,4 +116,17 @@ public class ByteSizeCachingDirectoryTests extends ESTestCase {
         }
     }
 
+    public void testCopyFromInvalidatesCache() throws IOException {
+        try (Directory dir = newDirectory(); Directory sourceDir = newDirectory()) {
+            try (IndexOutput out = sourceDir.createOutput("src", IOContext.DEFAULT)) {
+                out.writeBytes(new byte[8], 8);
+            }
+            ByteSizeCachingDirectory cachingDir = new ByteSizeCachingDirectory(dir, new TimeValue(0));
+            assertEquals(0, cachingDir.estimateSizeInBytes());
+            // FilterDirectory#copyFrom delegates, bypassing the wrapped outputs that bump modCount
+            cachingDir.copyFrom(sourceDir, "src", "dest", IOContext.DEFAULT);
+            assertEquals(8, cachingDir.estimateSizeInBytes());
+        }
+    }
+
 }

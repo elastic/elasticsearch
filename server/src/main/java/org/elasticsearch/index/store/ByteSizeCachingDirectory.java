@@ -171,6 +171,16 @@ public final class ByteSizeCachingDirectory extends ByteSizeDirectory {
     }
 
     @Override
+    public void copyFrom(Directory from, String src, String dest, IOContext context) throws IOException {
+        try {
+            super.copyFrom(from, src, dest, context);
+        } finally {
+            // the copy bypasses the wrapped outputs that bump modCount
+            markEstimatedSizeAsStale();
+        }
+    }
+
+    @Override
     public void deleteFile(String name) throws IOException {
         try {
             super.deleteFile(name);

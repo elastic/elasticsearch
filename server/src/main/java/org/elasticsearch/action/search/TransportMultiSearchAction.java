@@ -715,7 +715,8 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
 
     /**
      * Accounts for a small, bounded {@link CircuitBreakingException} substituted for a failure item that
-     * didn't fit. Unlike the original, it's safe to force through as a last resort if it still doesn't fit.
+     * didn't fit. If even this substitute doesn't fit, it's force-added rather than dropped: not risk-free,
+     * but its size is capped, unlike the original's, so forcing it through risks far less overshoot.
      */
     private MultiSearchResponse.Item accountBoundedFailureSubstitute(
         MultiSearchBreakerAccounting breakerAccounting,

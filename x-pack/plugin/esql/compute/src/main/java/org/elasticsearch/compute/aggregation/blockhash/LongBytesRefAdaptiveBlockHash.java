@@ -42,9 +42,6 @@ import java.util.List;
  * {@code (bytesRefOrd, longKey)} into a stable group id. As soon as a page brings a non-vector key
  * column (i.e. nulls or multivalues are possible), it migrates to a {@link PackedValuesBlockHash} —
  * which has correct null/MV semantics — and replays existing groups so ordinals stay stable.
- *
- * <p>Modeled after {@link LongIntAdaptiveBlockHash}. The migration encoding is variable-width because
- * the {@code BYTES_REF} column has no fixed size; everything else is the same.
  */
 public final class LongBytesRefAdaptiveBlockHash extends AdaptiveBlockHash {
     private final int longChannel;

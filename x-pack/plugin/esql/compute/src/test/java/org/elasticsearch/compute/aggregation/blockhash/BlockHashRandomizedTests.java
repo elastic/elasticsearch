@@ -198,7 +198,7 @@ public class BlockHashRandomizedTests extends ComputeTestCase {
                          * emitting exactly positionCount in one shot is acceptable.
                          */
                         int effectiveEmitBatchSize = emitBatchSize;
-                        if (blockHash instanceof LongIntAdaptiveBlockHash adaptive) {
+                        if (blockHash instanceof LongIntBlockHash adaptive) {
                             effectiveEmitBatchSize = adaptive.effectiveEmitBatchSize();
                         } else if (blockHash instanceof LongBytesRefAdaptiveBlockHash adaptive) {
                             effectiveEmitBatchSize = adaptive.effectiveEmitBatchSize();

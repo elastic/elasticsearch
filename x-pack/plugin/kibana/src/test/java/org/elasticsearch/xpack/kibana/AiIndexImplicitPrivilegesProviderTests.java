@@ -42,6 +42,8 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class AiIndexImplicitPrivilegesProviderTests extends ESTestCase {
 
+    private static final String ALL_SPACES = "*";
+
     private final AiIndexImplicitPrivilegesProvider contributor = new AiIndexImplicitPrivilegesProvider();
 
     /**
@@ -309,6 +311,30 @@ public class AiIndexImplicitPrivilegesProviderTests extends ESTestCase {
         assertThat(result.iterator().next().getQuery().utf8ToString(), not(containsString("|")));
     }
 
+    /**
+     * A space clause must also accept elements whose space is the all-spaces marker {@code "*"}.
+     * <p>
+     * The two meanings of {@code "*"} are easy to conflate. On the <em>grant</em> side it says the user
+     * holds actions in every space, and produces the separate space-less clause. On the <em>document</em>
+     * side it says the document lives in every space — which the Kibana SML indexer writes whenever an
+     * entry is not space-scoped. A space-scoped user is in the space such a document lives in, so
+     * matching only {@code term(space, "marketing")} would hide every all-spaces document from every
+     * space-scoped user.
+     */
+    public void testSpaceClauseAlsoMatchesAllSpacesDocuments() {
+        Collection<ApplicationPrivilegeDescriptor> storedPrivileges = List.of(
+            new ApplicationPrivilegeDescriptor(KIBANA_APPLICATION, "sml_read", Set.of("ai_index:dashboard/read"), Map.of())
+        );
+
+        Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(
+            resolve(role("sml_read", "space:marketing"), storedPrivileges)
+        );
+
+        List<Map<String, Object>> clauses = nestedSpaceClauses(parseQuery(result.iterator().next().getQuery()));
+        assertThat(clauses, hasSize(1));
+        assertThat(spacesOfClause(clauses.get(0)), containsInAnyOrder("marketing", ALL_SPACES));
+    }
+
     /** Exact serialisation of the query built directly from a resource-to-actions map. */
     public void testBuildDlsQueryFormat() {
         String query = AiIndexImplicitPrivilegesProvider.buildDlsQuery(Map.of("space:a", Set.of("ai_index:x/read")));
@@ -331,7 +357,8 @@ public class AiIndexImplicitPrivilegesProviderTests extends ESTestCase {
         {"bool":{"must_not":[{"nested":{"query":{"match_all":{"boost":1.0}},\
         "path":"permissions.kibana.privileges","ignore_unmapped":false,"score_mode":"none","boost":1.0}}],"boost":1.0}},\
         {"nested":{"query":{"bool":{"should":[{"bool":{"filter":[\
-        {"term":{"permissions.kibana.privileges.space":{"value":"marketing"}}},\
+        {"bool":{"should":[{"term":{"permissions.kibana.privileges.space":{"value":"marketing"}}},\
+        {"term":{"permissions.kibana.privileges.space":{"value":"*"}}}],"minimum_should_match":"1","boost":1.0}},\
         {"terms_set":{"permissions.kibana.privileges.name":{"terms":["ai_index:dashboard/read"],\
         "minimum_should_match_field":"permissions.kibana.privileges.count","boost":1.0}}}\
         ],"boost":1.0}}],"boost":1.0}},"path":"permissions.kibana.privileges","ignore_unmapped":false,\
@@ -342,7 +369,8 @@ public class AiIndexImplicitPrivilegesProviderTests extends ESTestCase {
         {"bool":{"must_not":[{"nested":{"query":{"match_all":{"boost":1.0}},\
         "path":"permissions.kibana.privileges","ignore_unmapped":false,"score_mode":"none","boost":1.0}}],"boost":1.0}},\
         {"nested":{"query":{"bool":{"should":[{"bool":{"filter":[\
-        {"term":{"permissions.kibana.privileges.space":{"value":"a"}}},\
+        {"bool":{"should":[{"term":{"permissions.kibana.privileges.space":{"value":"a"}}},\
+        {"term":{"permissions.kibana.privileges.space":{"value":"*"}}}],"minimum_should_match":"1","boost":1.0}},\
         {"terms_set":{"permissions.kibana.privileges.name":{"terms":["ai_index:x/read"],\
         "minimum_should_match_field":"permissions.kibana.privileges.count","boost":1.0}}}\
         ],"boost":1.0}}],"boost":1.0}},"path":"permissions.kibana.privileges","ignore_unmapped":false,\
@@ -427,16 +455,27 @@ public class AiIndexImplicitPrivilegesProviderTests extends ESTestCase {
         return (List<Map<String, Object>>) ((Map<String, Object>) clause.get("bool")).get("filter");
     }
 
-    /** The space a clause is scoped to, or {@code null} for the space-less (global-grant) clause. */
+    /**
+     * Every space value a clause matches on, or an empty list for the space-less (global-grant)
+     * clause. A space clause matches its own space plus the all-spaces marker {@code "*"}.
+     */
     @SuppressWarnings("unchecked")
-    private static String spaceOfClause(Map<String, Object> clause) {
+    private static List<String> spacesOfClause(Map<String, Object> clause) {
         for (Map<String, Object> filter : filtersOfClause(clause)) {
-            if (filter.containsKey("term")) {
-                Map<String, Object> field = (Map<String, Object>) ((Map<String, Object>) filter.get("term")).get(SPACE_FIELD);
-                return (String) field.get("value");
+            if (filter.containsKey("bool")) {
+                List<Map<String, Object>> shoulds = (List<Map<String, Object>>) ((Map<String, Object>) filter.get("bool")).get("should");
+                return shoulds.stream().map(should -> {
+                    Map<String, Object> field = (Map<String, Object>) ((Map<String, Object>) should.get("term")).get(SPACE_FIELD);
+                    return (String) field.get("value");
+                }).toList();
             }
         }
-        return null;
+        return List.of();
+    }
+
+    /** The space a clause is scoped to, or {@code null} for the space-less (global-grant) clause. */
+    private static String spaceOfClause(Map<String, Object> clause) {
+        return spacesOfClause(clause).stream().filter(space -> ALL_SPACES.equals(space) == false).findFirst().orElse(null);
     }
 
     @SuppressWarnings("unchecked")

@@ -34,7 +34,8 @@ import java.util.stream.Collectors;
  * <p>
  * <b>Document contract.</b> {@code permissions.kibana.privileges} is a {@code nested} field holding one
  * element per space the document is visible in. Each element lists the {@code ai_index:} actions that
- * space requires, plus a {@code count} of them:
+ * space requires, plus a {@code count} of them. An element whose space is {@code "*"} means the
+ * document lives in every space:
  * <pre>{@code
  * "permissions": { "kibana": { "privileges": [
  *   { "space": "marketing", "name": ["ai_index:dashboard/read", "ai_index:lens/read"], "count": 2 },
@@ -55,12 +56,14 @@ import java.util.stream.Collectors;
  * <p>
  * <b>Clause construction.</b> {@link #buildDlsQuery} emits, inside a single {@code nested} query:
  * <ul>
- *   <li>one clause per space the user holds {@code ai_index:} actions in, pairing a {@code term} on
+ *   <li>one clause per space the user holds {@code ai_index:} actions in, pairing a match on
  *       {@code .space} with a {@code terms_set} on {@code .name} gated by
  *       {@code minimum_should_match_field: .count}. The terms are that space's actions <em>unioned
  *       with</em> the actions from any {@code *} grant — a user holding {@code A} globally and {@code B}
  *       in marketing genuinely holds both in marketing, and without the union neither clause alone
- *       would satisfy a document requiring both;</li>
+ *       would satisfy a document requiring both. The space match accepts the space id <em>or</em>
+ *       {@code "*"}, so documents a producer scoped to every space stay visible to space-scoped
+ *       users;</li>
  *   <li>if the user holds a {@code *} grant, one further clause with no {@code .space} filter, so
  *       documents in spaces the user has no explicit grant in are still reachable.</li>
  * </ul>
@@ -150,7 +153,8 @@ public class AiIndexImplicitPrivilegesProvider implements ImplicitPrivilegesProv
      *   <li>One clause per space the user holds actions in, carrying that space's actions
      *       <em>unioned with</em> the actions from any {@code *} grant. The union matters: a user with
      *       {@code A} globally and {@code B} in marketing holds both in marketing, and without the union
-     *       neither clause alone would satisfy a document requiring both.</li>
+     *       neither clause alone would satisfy a document requiring both. The space match is
+     *       {@link #spaceMatches}, which also accepts all-spaces ({@code "*"}) elements.</li>
      *   <li>If the user holds a {@code *} grant, one further clause with no space filter, so documents
      *       in spaces the user has no explicit grant in are still reachable.</li>
      * </ul>
@@ -184,9 +188,7 @@ public class AiIndexImplicitPrivilegesProvider implements ImplicitPrivilegesProv
             String spaceId = resource.substring(RESOURCE_PREFIX.length());
             Set<String> actions = new HashSet<>(entry.getValue());
             actions.addAll(globalActions);
-            spaceClauses.should(
-                QueryBuilders.boolQuery().filter(QueryBuilders.termQuery(SPACE_FIELD, spaceId)).filter(termsSetOn(actions))
-            );
+            spaceClauses.should(QueryBuilders.boolQuery().filter(spaceMatches(spaceId)).filter(termsSetOn(actions)));
             hasClause = true;
         }
 
@@ -207,6 +209,23 @@ public class AiIndexImplicitPrivilegesProvider implements ImplicitPrivilegesProv
                 )
                 .should(QueryBuilders.nestedQuery(PRIVILEGES_PATH, spaceClauses, ScoreMode.None))
         );
+    }
+
+    /**
+     * Matches elements that apply in {@code spaceId}: the space's own elements, plus any the producer
+     * scoped to every space by writing {@code "*"} as the element's space.
+     * <p>
+     * The {@code "*"} arm is not symmetric with the wildcard <em>grant</em> handled in
+     * {@link #buildDlsQuery}. There, {@code "*"} is a property of the user's role — "this user holds
+     * these actions in every space". Here it is a property of the document — "this document lives in
+     * every space". A user scoped to a single space is still in the space such a document lives in, so
+     * omitting this arm would hide every all-spaces document from every space-scoped user.
+     */
+    private static BoolQueryBuilder spaceMatches(String spaceId) {
+        return QueryBuilders.boolQuery()
+            .should(QueryBuilders.termQuery(SPACE_FIELD, spaceId))
+            .should(QueryBuilders.termQuery(SPACE_FIELD, ALL_RESOURCES))
+            .minimumShouldMatch(1);
     }
 
     private static TermsSetQueryBuilder termsSetOn(Set<String> actions) {

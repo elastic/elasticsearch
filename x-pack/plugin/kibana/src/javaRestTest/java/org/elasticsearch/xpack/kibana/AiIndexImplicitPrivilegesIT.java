@@ -63,6 +63,12 @@ import static org.hamcrest.Matchers.not;
  *       count of 2 and {@code terms_set} could not tell they came from different spaces, so the
  *       document was visible. Under {@code nested} each child is scored alone: marketing scores 1 &lt; 2,
  *       finance scores 1 &lt; 2, no child matches, root hidden.</li>
+ *   <li>{@code all-spaces-dashboard} — visible; scoped to every space via {@code "*"} and requiring an
+ *       action the user holds. An all-spaces document lives in marketing too, so a marketing-scoped
+ *       user must see it.</li>
+ *   <li>{@code all-spaces-connector} — hidden; all-spaces, but requires an action the user holds
+ *       nowhere. The {@code "*"} space arm widens which elements are eligible, never which actions
+ *       are held.</li>
  *   <li>{@code global-no-perms} — visible; a document with no permissions block is public.</li>
  * </ul>
  * <p>
@@ -297,6 +303,29 @@ public class AiIndexImplicitPrivilegesIT extends ESRestTestCase {
             }
             """);
 
+        // VISIBLE: scoped to every space via the "*" marker, and the user holds the action it
+        // requires (in marketing). An all-spaces document lives in marketing too, so a
+        // marketing-scoped user must see it — this is what the "*" arm of the space match buys.
+        indexDoc("all-spaces-dashboard", """
+            {
+              "type": "dashboard",
+              "permissions": { "kibana": { "privileges": [
+                { "space": "*", "name": ["ai_index:dashboard/read"], "count": 1 }
+              ]}}
+            }
+            """);
+
+        // HIDDEN: all-spaces, but requires an action the user holds in no space at all.
+        // Proves the "*" space arm widens which elements are eligible, never which actions are held.
+        indexDoc("all-spaces-connector", """
+            {
+              "type": "connector",
+              "permissions": { "kibana": { "privileges": [
+                { "space": "*", "name": ["ai_index:connector/read"], "count": 1 }
+              ]}}
+            }
+            """);
+
         // VISIBLE: no permissions block → public document.
         indexDoc("global-no-perms", """
             {
@@ -362,8 +391,8 @@ public class AiIndexImplicitPrivilegesIT extends ESRestTestCase {
         // A zero-hit result is a FAILURE signal, not a pass: if the mapping and the query disagree
         // about whether the field is nested, nothing matches and over-restriction masquerades as
         // correct DLS. The positive expectations below are what catch that.
-        assertThat("expected three visible docs, got " + hitList, visibleIds, hasSize(3));
-        assertThat(visibleIds, equalTo(List.of("global-no-perms", "marketing-dashboard", "shared-dashboard")));
+        assertThat("expected four visible docs, got " + hitList, visibleIds, hasSize(4));
+        assertThat(visibleIds, equalTo(List.of("all-spaces-dashboard", "global-no-perms", "marketing-dashboard", "shared-dashboard")));
     }
 
     private static String basicAuth(String username, String password) {

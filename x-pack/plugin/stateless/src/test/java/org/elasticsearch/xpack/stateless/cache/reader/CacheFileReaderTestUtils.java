@@ -40,6 +40,10 @@ public final class CacheFileReaderTestUtils {
         return CacheFileReader.MADVISE_RANDOM_FEATURE_FLAG.isEnabled();
     }
 
+    public static boolean isIndexTierMadviseRandomEnabled() {
+        return CacheFileReader.INDEX_TIER_MADVISE_RANDOM_FEATURE_FLAG.isEnabled();
+    }
+
     public static int contextToAdvice(IOContext context, boolean hasSearchRole) {
         return CacheFileReader.contextToAdvice(context, hasSearchRole);
     }

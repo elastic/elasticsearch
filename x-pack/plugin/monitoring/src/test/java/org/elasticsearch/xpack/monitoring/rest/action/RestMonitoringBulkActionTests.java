@@ -77,6 +77,7 @@ public class RestMonitoringBulkActionTests extends ESTestCase {
 
         final IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> prepareRequest(restRequest));
         assertThat(exception.getMessage(), containsString("no [system_id] for monitoring bulk request"));
+        assertWarnings(RestMonitoringBulkAction.DEPRECATION_MESSAGE);
     }
 
     public void testMissingSystemApiVersion() {
@@ -84,6 +85,7 @@ public class RestMonitoringBulkActionTests extends ESTestCase {
 
         final IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> prepareRequest(restRequest));
         assertThat(exception.getMessage(), containsString("no [system_api_version] for monitoring bulk request"));
+        assertWarnings(RestMonitoringBulkAction.DEPRECATION_MESSAGE);
     }
 
     public void testMissingInterval() {
@@ -91,6 +93,7 @@ public class RestMonitoringBulkActionTests extends ESTestCase {
 
         final IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> prepareRequest(restRequest));
         assertThat(exception.getMessage(), containsString("no [interval] for monitoring bulk request"));
+        assertWarnings(RestMonitoringBulkAction.DEPRECATION_MESSAGE);
     }
 
     public void testWrongInterval() {
@@ -98,6 +101,7 @@ public class RestMonitoringBulkActionTests extends ESTestCase {
 
         final IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> prepareRequest(restRequest));
         assertThat(exception.getMessage(), containsString("failed to parse setting [interval] with value [null]"));
+        assertWarnings(RestMonitoringBulkAction.DEPRECATION_MESSAGE);
     }
 
     public void testMissingContent() {
@@ -105,6 +109,7 @@ public class RestMonitoringBulkActionTests extends ESTestCase {
 
         final ElasticsearchParseException exception = expectThrows(ElasticsearchParseException.class, () -> prepareRequest(restRequest));
         assertThat(exception.getMessage(), containsString("no body content for monitoring bulk request"));
+        assertWarnings(RestMonitoringBulkAction.DEPRECATION_MESSAGE);
     }
 
     public void testUnsupportedSystemVersion() {
@@ -116,6 +121,7 @@ public class RestMonitoringBulkActionTests extends ESTestCase {
             exception.getMessage(),
             containsString("system_api_version [" + systemApiVersion + "] is not supported by system_id [unknown]")
         );
+        assertWarnings(RestMonitoringBulkAction.DEPRECATION_MESSAGE);
     }
 
     public void testUnknownSystemVersion() {
@@ -127,6 +133,7 @@ public class RestMonitoringBulkActionTests extends ESTestCase {
             exception.getMessage(),
             containsString("system_api_version [0] is not supported by system_id [" + system.getSystem() + "]")
         );
+        assertWarnings(RestMonitoringBulkAction.DEPRECATION_MESSAGE);
     }
 
     public void testNoErrors() throws Exception {

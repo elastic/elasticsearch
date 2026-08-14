@@ -30,6 +30,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.RefCountingListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -187,31 +188,36 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<EsqlResolveF
                     boolean ensureConnected = transportService.getRemoteClusterService()
                         .isSkipUnavailable(clusterAlias)
                         .orElse(true) == false;
-                    transportService.getRemoteClusterService()
-                        .maybeEnsureConnectedAndGetConnection(
-                            clusterAlias,
-                            ensureConnected,
-                            resultListener.acquire().delegateFailureAndWrap((l, connection) -> {
-                                var remoteRequest = new EsqlResolveFieldsRequest(
-                                    TransportFieldCapabilitiesAction.prepareRemoteRequest(
-                                        clusterAlias,
-                                        request.fieldCapsRequest(),
-                                        indices,
-                                        nowInMillis,
-                                        resolveCrossProject
-                                    )
-                                );
-                                transportService.sendRequest(
-                                    connection,
-                                    NAME,
-                                    remoteRequest,
-                                    TransportRequestOptions.EMPTY,
-                                    new ActionListenerResponseHandler<>(l.delegateFailureAndWrap((ll, remoteResponse) -> {
-                                        response.appendRemoteResponse(clusterAlias, remoteResponse);
-                                        ll.onResponse(null);
-                                    }), EsqlResolveFieldsResponse::new, searchCoordinationExecutor)
-                                );
-                            })
+                    var forkedListener = resultListener.acquire();
+                    SubscribableListener.<Transport.Connection>newForked(
+                        l -> transportService.getRemoteClusterService()
+                            .maybeEnsureConnectedAndGetConnection(clusterAlias, ensureConnected, l)
+                    ).<EsqlResolveFieldsResponse>andThen((l, connection) -> {
+                        var remoteRequest = new EsqlResolveFieldsRequest(
+                            TransportFieldCapabilitiesAction.prepareRemoteRequest(
+                                clusterAlias,
+                                request.fieldCapsRequest(),
+                                indices,
+                                nowInMillis,
+                                resolveCrossProject
+                            )
+                        );
+                        transportService.sendRequest(
+                            connection,
+                            NAME,
+                            remoteRequest,
+                            TransportRequestOptions.EMPTY,
+                            new ActionListenerResponseHandler<>(l, EsqlResolveFieldsResponse::new, searchCoordinationExecutor)
+                        );
+                    })
+                        .addListener(
+                            ActionListener.runAfter(
+                                ActionListener.wrap(
+                                    remoteResponse -> response.appendRemoteResponse(clusterAlias, remoteResponse),
+                                    remoteException -> response.addRemoteException(clusterAlias, indices.indices(), remoteException)
+                                ),
+                                () -> forkedListener.onResponse(null)
+                            )
                         );
                 }
             } catch (Exception e) {
@@ -343,6 +349,15 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<EsqlResolveF
             }
             // TODO collect failures: reuse FailureCollector?
             failures.addAll(remoteResponse.caps().getFailures());
+        }
+
+        void addRemoteException(String clusterAlias, String[] indices, Exception e) {
+            failures.add(
+                new FieldCapabilitiesFailure(
+                    Arrays.stream(indices).map(i -> RemoteClusterAware.buildRemoteIndexName(clusterAlias, i)).toArray(String[]::new),
+                    e
+                )
+            );
         }
 
         EsqlResolveFieldsResponse build() {

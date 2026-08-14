@@ -92,8 +92,8 @@ public final class NumericColumnReader {
     }
 
     /** The number of values a document has, given its rank. */
-    public int valueCount(int rank) {
-        return valueAddresses == null ? 1 : (int) (valueAddresses.get(rank + 1) - valueAddresses.get(rank));
+    public long valueCount(int rank) {
+        return valueAddresses == null ? 1 : valueAddresses.get(rank + 1) - valueAddresses.get(rank);
     }
 
     /** The value at {@code ordinal} in {@code [0, numValues)}. */

@@ -201,7 +201,7 @@ public class NumericColumnTests extends ESTestCase {
                 for (int doc = iterator.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = iterator.nextDoc()) {
                     int rank = iterator.index();
                     long first = reader.firstOrdinal(rank);
-                    int count = reader.valueCount(rank);
+                    long count = reader.valueCount(rank);
                     assertEquals("value count at doc " + doc, docValues[doc].length, count);
                     for (int i = 0; i < count; i++) {
                         // exact written order, never sorted

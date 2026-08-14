@@ -4006,9 +4006,7 @@ c:long
 1
 ;
 
-forkInsideNestedInSubquery
-required_capability: where_in_subquery_without_view
-required_capability: fork_v9
+nestedInSubqueriesEachContainingFork
 required_capability: fork_inside_in_subquery_fix
 
 // Each IN subquery is its own query scope; FORKs in separate subquery scopes must not conflict.
@@ -4038,8 +4036,6 @@ emp_no:integer
 ;
 
 forkOutsideWithNestedInSubqueriesEachContainingFork
-required_capability: where_in_subquery_without_view
-required_capability: fork_v9
 required_capability: fork_inside_in_subquery_fix
 
 // Combines an outer FORK (outside the IN subquery) with nested IN subqueries where each has its own FORK.
@@ -4069,8 +4065,6 @@ emp_no:integer | _fork:keyword
 ;
 
 forkWithForkInsideInSubqueryInBranch
-required_capability: where_in_subquery_without_view
-required_capability: fork_v9
 required_capability: fork_inside_in_subquery_fix
 
 // Outer FORK whose first branch uses an IN subquery that itself contains a FORK.

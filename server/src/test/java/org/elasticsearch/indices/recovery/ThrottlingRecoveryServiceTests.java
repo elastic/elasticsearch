@@ -1428,10 +1428,18 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final var started = new AtomicInteger();
         final int count = between(1, 100);
         for (int i = 0; i < count; i++) {
-            service.enqueue(ProjectId.DEFAULT, RecoveryListener.NOOP, newRecoveryState(), UUIDs.randomBase64UUID(), stats, l -> {
-                started.incrementAndGet();
-                l.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
-            });
+            service.enqueue(
+                ProjectId.DEFAULT,
+                RecoveryListener.NOOP,
+                newRecoveryState(),
+                newIndexMetadata(),
+                UUIDs.randomBase64UUID(),
+                stats,
+                l -> {
+                    started.incrementAndGet();
+                    l.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
+                }
+            );
         }
         taskQueue.runAllRunnableTasks();
         // Stay blocked across a few periodic rechecks.

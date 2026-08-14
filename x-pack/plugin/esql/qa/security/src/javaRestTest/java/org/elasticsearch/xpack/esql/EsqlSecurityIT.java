@@ -58,7 +58,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class EsqlSecurityIT extends ESRestTestCase {
-    private static final String INDEX_PARTIAL_MAPPING = "index-partial-mapping";
+    protected static final String INDEX_PARTIAL_MAPPING = "index-partial-mapping";
     private static final String INDEX_FULL_MAPPING = "index-full-mapping";
     private static final String SECURITY_IT_SHARED_DATASOURCE = "security_it_shared_ds";
     private static final String SECURITY_IT_OTHER_DATASOURCE = "other_tenant_ds";
@@ -164,6 +164,25 @@ public class EsqlSecurityIT extends ESRestTestCase {
         client().performRequest(indexDoc);
     }
 
+    /**
+     * Settings applied to the source-bearing FLS indices ({@code index}, {@code index-user*}, {@code indexpartial},
+     * {@link #INDEX_PARTIAL_MAPPING}, {@link #INDEX_FULL_MAPPING}). Defaults to {@link Settings#EMPTY} (standard, stored
+     * {@code _source}). Subclasses override this to rerun the whole FLS suite over a synthetic-source / {@code _ignored_source}
+     * index mode (e.g. {@code logsdb}, {@code logsdb_columnar}) and prove FLS parity across storage layouts. The {@code lookup-*}
+     * indices are intentionally excluded — {@code index.mode=lookup} cannot combine with logsdb.
+     */
+    protected Settings flsIndexSettings() {
+        return Settings.EMPTY;
+    }
+
+    /**
+     * Disables the data-stream {@code @timestamp} metadata field that logsdb / logsdb_columnar enable by default, so the shared
+     * timestamp-less test documents index unchanged. A no-op in standard mode, where the field is already disabled.
+     */
+    protected String flsMappingPrefix() {
+        return "\"_data_stream_timestamp\":{\"enabled\":false},";
+    }
+
     @Before
     public void indexDocuments() throws IOException {
         Settings lookupSettings = Settings.builder().put("index.mode", "lookup").build();
@@ -171,22 +190,22 @@ public class EsqlSecurityIT extends ESRestTestCase {
             "properties":{"value": {"type": "double"}, "org": {"type": "keyword"}, "other": {"type": "keyword"}}
             """;
 
-        createIndex("index", Settings.EMPTY, mapping);
+        createIndex("index", flsIndexSettings(), flsMappingPrefix() + mapping);
         indexDocument("index", 1, 10.0, "sales");
         indexDocument("index", 2, 20.0, "engineering");
         refresh("index");
 
-        createIndex("index-user1", Settings.EMPTY, mapping);
+        createIndex("index-user1", flsIndexSettings(), flsMappingPrefix() + mapping);
         indexDocument("index-user1", 1, 12.0, "engineering");
         indexDocument("index-user1", 2, 31.0, "sales");
         refresh("index-user1");
 
-        createIndex("index-user2", Settings.EMPTY, mapping);
+        createIndex("index-user2", flsIndexSettings(), flsMappingPrefix() + mapping);
         indexDocument("index-user2", 1, 32.0, "marketing");
         indexDocument("index-user2", 2, 40.0, "sales");
         refresh("index-user2");
 
-        createIndex("indexpartial", Settings.EMPTY, mapping);
+        createIndex("indexpartial", flsIndexSettings(), flsMappingPrefix() + mapping);
         indexDocument("indexpartial", 1, 32.0, "marketing");
         indexDocument("indexpartial", 2, 40.0, "sales");
         refresh("indexpartial");
@@ -201,7 +220,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         String mappingPartial = """
             "dynamic":"false","properties":{"value": {"type": "double"}}
             """;
-        createIndex(INDEX_PARTIAL_MAPPING, Settings.EMPTY, mappingPartial);
+        createIndex(INDEX_PARTIAL_MAPPING, flsIndexSettings(), flsMappingPrefix() + mappingPartial);
         indexFlsTestDocument(INDEX_PARTIAL_MAPPING, 1, 10.0, "sales", 100000L, "2024-01-01", "10.0.0.1");
         indexFlsTestDocument(INDEX_PARTIAL_MAPPING, 2, 20.0, "engineering", 200000L, "2023-06-15", "10.0.0.2");
         refresh(INDEX_PARTIAL_MAPPING);
@@ -210,7 +229,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
             "properties":{"value":{"type":"double"},"org":{"type":"keyword"},"salary":{"type":"long"},\
             "hire_date":{"type":"date"},"ip_addr":{"type":"ip"}}
             """;
-        createIndex(INDEX_FULL_MAPPING, Settings.EMPTY, mappingFull);
+        createIndex(INDEX_FULL_MAPPING, flsIndexSettings(), flsMappingPrefix() + mappingFull);
         indexFlsTestDocument(INDEX_FULL_MAPPING, 1, 30.0, "marketing", 300000L, "2022-03-01", "10.0.0.3");
         indexFlsTestDocument(INDEX_FULL_MAPPING, 2, 40.0, "support", 400000L, "2021-11-20", "10.0.0.4");
         refresh(INDEX_FULL_MAPPING);

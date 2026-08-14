@@ -21,9 +21,6 @@ To check for security updates, go to [Security announcements for the Elastic sta
 % *
 
 ## 9.5.1 [elasticsearch-9.5.1-release-notes]
-```{applies_to}
-stack: ga 9.5.1
-```
 
 ### Features and enhancements [elasticsearch-9.5.1-features-enhancements]
 
@@ -95,9 +92,6 @@ Vector Search:
 * Fix `EUCLIDEAN` score clamping order in the BBQ vector scorer [#155630](https://github.com/elastic/elasticsearch/pull/155630) (issue: [#155568](https://github.com/elastic/elasticsearch/issues/155568))
 
 ## 9.4.5 [elasticsearch-9.4.5-release-notes]
-```{applies_to}
-stack: ga 9.4.5
-```
 
 ### Features and enhancements [elasticsearch-9.4.5-features-enhancements]
 

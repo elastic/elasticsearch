@@ -3684,6 +3684,14 @@ public class EsqlCapabilities {
          */
         CHANGE_POINT_MULTIPLE_EVENTS,
 
+        /**
+         * Fixes a false "Only a single FORK command is supported, but found multiple" error when a FORK appears
+         * inside an IN subquery that is itself nested inside another IN subquery containing a FORK. Each subquery
+         * is its own query scope, so FORKs in different subquery scopes are independent and must not be counted
+         * together.
+         */
+        FORK_INSIDE_IN_SUBQUERY_FIX,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

@@ -289,9 +289,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommitsIT
   method: testGetVirtualBatchedCompoundCommitChunkFailureWhenIndexIsDeleted
   issue: https://github.com/elastic/elasticsearch/issues/152539
-- class: org.elasticsearch.xpack.stateless.StatelessRealTimeGetIT
-  method: testStress
-  issue: https://github.com/elastic/elasticsearch/issues/152671
 - class: org.elasticsearch.repositories.azure.AzureBlobContainerRetriesTests
   method: testWriteLargeBlob
   issue: https://github.com/elastic/elasticsearch/issues/152914
@@ -397,12 +394,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizerTests
   method: testMaxExpressionDepth_nestedAbs_maxAllowed {default}
   issue: https://github.com/elastic/elasticsearch/issues/154380
-- class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityCcrMigrationIT
-  method: testRcs1SetupAgain
-  issue: https://github.com/elastic/elasticsearch/issues/154539
-- class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityCcrMigrationIT
-  method: testRcs2Setup
-  issue: https://github.com/elastic/elasticsearch/issues/154540
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test {feature:BASELINE}
   issue: https://github.com/elastic/elasticsearch/issues/154058
@@ -421,9 +412,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.ExternalCsvHivePartitionedIT
   method: testCommaSeparatedResourceFirstFileWinsRoundTrips
   issue: https://github.com/elastic/elasticsearch/issues/154662
-- class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityTransformMigrationIT
-  method: testRcs1SetupAgain
-  issue: https://github.com/elastic/elasticsearch/issues/154836
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:change_point.values null column}
   issue: https://github.com/elastic/elasticsearch/issues/154877
@@ -880,9 +868,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/156655
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecLookupJoinExpressionIT
   issue: https://github.com/elastic/elasticsearch/issues/156658
-- class: org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceTests
-  method: testOfflineWarmingRatioAndBytesMetrics
-  issue: https://github.com/elastic/elasticsearch/issues/156664
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlOldCoordinatorSpecDateIT
   method: test {csv-spec:date.dateDiffUnitFromField}
   issue: https://github.com/elastic/elasticsearch/issues/156698
@@ -932,3 +917,6 @@ tests:
 - class: org.elasticsearch.search.SearchWithRejectionsIT
   method: testScrollContextSurvivesQueueRejection
   issue: https://github.com/elastic/elasticsearch/issues/156757
+- class: org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettingsTests
+  method: testSerialization
+  issue: https://github.com/elastic/elasticsearch/issues/156776

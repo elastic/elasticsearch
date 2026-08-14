@@ -515,16 +515,12 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
             case float[] ignored ->
                 // Each element is a separate dense embedding (e.g. one float[] per chunk for semantic_text).
                 parseInferenceFieldValue(values);
-            case Map<?, ?> firstMap -> {
-                checkForSparseVectorMap(firstMap);
-                yield List.of();
-            }
             default ->
                 // Silently return an empty list for any other value type to handle BwC. Before the introduction of embeddings field
                 // fetching, the diversify retriever handled any non-dense vector field leniently by simply ignoring it.
                 // This fallthrough maintains that BwC behavior.
                 // Moving forward, SearchService enforces that any field fetched as an embeddings field actually provides embeddings and
-                // therefore is handled by one of the three cases above. Thus, we will only hit the default case on the BwC path.
+                // therefore is handled by one of the cases above. Thus, we will only hit the default case on the BwC path.
                 List.of();
         };
     }
@@ -557,18 +553,5 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
             }
         }
         return embeddings;
-    }
-
-    private void checkForSparseVectorMap(Map<?, ?> map) {
-        for (Object value : map.values()) {
-            if (value instanceof Number == false) {
-                // Non-number value, not a sparse vector
-                return;
-            }
-        }
-
-        throw new IllegalArgumentException(
-            "Field [" + diversificationField + "] contains sparse vectors, which are not supported by result diversification."
-        );
     }
 }

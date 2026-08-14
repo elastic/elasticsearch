@@ -8,13 +8,13 @@
 package org.elasticsearch.xpack.inference.services.elastic.ccm;
 
 import org.apache.http.client.methods.HttpRequestBase;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 
 import java.util.Objects;
@@ -63,9 +63,7 @@ public class CCMAuthenticationApplierFactory implements AuthenticationFactory {
 
             var consistencyListener = ccmModelListener.delegateResponse((delegate, e) -> {
                 if (e instanceof ResourceNotFoundException) {
-                    logger.atDebug()
-                        .withThrowable(e)
-                        .log("CCM cluster state indicates CCM is enabled but no configuration was found using the cache");
+                    logger.debug("CCM cluster state indicates CCM is enabled but no configuration was found using the cache", e);
                     listener.onFailure(
                         new ElasticsearchStatusException(
                             "Cloud connected mode configuration is in an inconsistent state. "

@@ -289,9 +289,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommitsIT
   method: testGetVirtualBatchedCompoundCommitChunkFailureWhenIndexIsDeleted
   issue: https://github.com/elastic/elasticsearch/issues/152539
-- class: org.elasticsearch.xpack.stateless.StatelessRealTimeGetIT
-  method: testStress
-  issue: https://github.com/elastic/elasticsearch/issues/152671
 - class: org.elasticsearch.repositories.azure.AzureBlobContainerRetriesTests
   method: testWriteLargeBlob
   issue: https://github.com/elastic/elasticsearch/issues/152914
@@ -920,3 +917,6 @@ tests:
 - class: org.elasticsearch.search.SearchWithRejectionsIT
   method: testScrollContextSurvivesQueueRejection
   issue: https://github.com/elastic/elasticsearch/issues/156757
+- class: org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettingsTests
+  method: testSerialization
+  issue: https://github.com/elastic/elasticsearch/issues/156776

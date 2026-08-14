@@ -24,6 +24,9 @@ public abstract class ResourceExhaustionSingleNodeTestCase extends ESRestTestCas
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .nodes(1)
         .setting("xpack.security.enabled", "false")
+        // Allow test setup to stream large payloads for indexing. This is an HTTP transport
+        // limit unrelated to the memory circuit breakers under test.
+        .setting("http.max_content_length", "300mb")
         .jvmArg("-Xmx512m")
         .build();
 

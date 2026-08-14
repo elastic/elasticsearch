@@ -265,7 +265,7 @@ public class InferenceIndexMappingManager {
                 logger.warn("Put mapping request for [{}] was not acknowledged", primaryIndex);
                 listener.onFailure(
                     new ElasticsearchStatusException(
-                        "Put mapping request for [" + primaryIndex + "] was not acknowledged",
+                        Strings.format("Put mapping request for [%s] was not acknowledged", primaryIndex),
                         RestStatus.TOO_MANY_REQUESTS
                     )
                 );

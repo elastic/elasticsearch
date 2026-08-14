@@ -234,19 +234,22 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
     }
 
     public void testNoDeadlockOnConcurrentBlock() throws InterruptedException {
-        final CountDownLatch running = new CountDownLatch(2);
+        final CountDownLatch blockOperationsRunning = new CountDownLatch(2);
         AtomicBoolean deadlock = new AtomicBoolean(false);
+        CountDownLatch completePendingOperation = new CountDownLatch(1);
 
-        final Runnable block = () -> {
-            var r = ThreadLocalRandom.current();
-            try {
-                Thread.sleep(Duration.ofMillis(r.nextInt(5)));
-            } catch (InterruptedException e) {}
+        final Runnable pendingOperation = () -> {
+            permits.acquire(ActionListener.wrap((release) -> {
+                completePendingOperation.await(3, TimeUnit.SECONDS);
+                release.close();
+            }, (ex) -> {}), null, true);
+        };
 
+        final Runnable blockOperation = () -> {
             permits.blockOperations(
                 ActionListener.releaseAfter(
-                    ActionListener.<Releasable>wrap(Releasable::close, (ex) -> { deadlock.set(true); }),
-                    running::countDown
+                    ActionListener.wrap(Releasable::close, (ex) -> { deadlock.set(true); }),
+                    blockOperationsRunning::countDown
                 ),
                 3,
                 TimeUnit.SECONDS,
@@ -257,6 +260,12 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
         threadPool.generic().execute(block);
         threadPool.generic().execute(block);
         running.await(5, TimeUnit.SECONDS);
+        threadPool.generic().execute(pendingOperation);
+        threadPool.generic().execute(blockOperation);
+        threadPool.generic().execute(blockOperation);
+        completePendingOperation.countDown();
+
+        assertTrue(blockOperationsRunning.await(5, TimeUnit.SECONDS));
         assertFalse(deadlock.get());
     }
 

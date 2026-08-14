@@ -923,3 +923,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/160_union_types/CASE}
   issue: https://github.com/elastic/elasticsearch/issues/156729
+- class: org.elasticsearch.xpack.stateless.objectstore.ObjectStoreServiceTests
+  method: testTranslogUploadTimesLogLevels
+  issue: https://github.com/elastic/elasticsearch/issues/156747
